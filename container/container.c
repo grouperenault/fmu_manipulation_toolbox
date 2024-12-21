@@ -556,6 +556,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         container->vr_strings = NULL;
 
         container->time_step = 0.001;
+        container->time = 0.0;
         container->tolerance = 1.0e-8;
 
         logger(container, fmi2OK, "Container model loading...");
@@ -657,6 +658,7 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
             return status;
     }
 
+    container->time = startTime;
     logger(container, fmi2OK, "fmi2SetupExperiment -- OK");
     return fmi2OK;
 }
@@ -993,7 +995,15 @@ fmi2Status fmi2DoStep(fmi2Component c,
     fmi2Real current_time;
     fmi2Status status = fmi2OK;
 
-    for(current_time = currentCommunicationPoint;
+
+    /*
+     * Early return if requested end_time is lower than next container time step.
+     */
+    if (end_time < container->time + container->time_step) {
+        return fmi2OK;
+    }
+
+    for(current_time = container->time;
         current_time + container->time_step < end_time;
         current_time += container->time_step) {
         if (container->mt)
@@ -1001,10 +1011,11 @@ fmi2Status fmi2DoStep(fmi2Component c,
         else
             status = do_internal_step_parallel(container, current_time, container->time_step, noSetFMUStatePriorToCurrentPoint);
     }
-    
+    container->time = current_time;
+
     if (fabs(currentCommunicationPoint + communicationStepSize - current_time) > container->tolerance) {
-        logger(container, fmi2Error, "CommunicationStepSize should be divisible by %e", container->time_step);
-        return fmi2Error;
+        logger(container, fmi2Warning, "CommunicationStepSize should be divisible by %e", container->time_step);
+        return fmi2Warning;
     }
 
     return status;

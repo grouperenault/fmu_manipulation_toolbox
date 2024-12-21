@@ -10,7 +10,7 @@ typedef unsigned int profile_tic_t;
 
 typedef struct {
     profile_tic_t   current_tic;            /* ms */
-    double          total_ellapsed;
+    double          total_elapsed;          /* s */
 } profile_t;
 
 

@@ -4,6 +4,9 @@ This package was formerly know as `fmutool`.
 
 ## Version 1.8
 * CHANGE: Package in now known as `fmu_manipulation`
+* ADDED: `fmucontainer` support `canHandleVariableCommunicationStepSize`
+* ADDED: `fmucontainer` support `.spp` or `.json` as input files
+* ADDED: `fmucontainer` new `-dump` option to save container description 
 
 ## Version 1.7.4
 * ADDED: `fmucontainer` Linux support

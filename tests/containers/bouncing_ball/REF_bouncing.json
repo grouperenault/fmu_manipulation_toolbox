@@ -1,0 +1,36 @@
+{
+  "name": "bouncing.fmu",
+  "mt": true,
+  "profiling": false,
+  "auto_link": true,
+  "fmu": [
+    "bb_position.fmu",
+    "bb_velocity.fmu"
+  ],
+  "output": [
+    [
+      "bb_position.fmu",
+      "position1",
+      "position"
+    ],
+    [
+      "bb_velocity.fmu",
+      "velocity",
+      "velocity"
+    ]
+  ],
+  "link": [
+    [
+      "bb_position.fmu",
+      "is_ground",
+      "bb_velocity.fmu",
+      "reset"
+    ],
+    [
+      "bb_velocity.fmu",
+      "velocity",
+      "bb_position.fmu",
+      "velocity"
+    ]
+  ]
+}

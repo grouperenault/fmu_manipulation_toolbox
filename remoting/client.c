@@ -240,7 +240,7 @@ static int get_server_argv(client_t *client, char *argv[]) {
             path, bitness, library_name, extension);
     }
  
-    snprintf(argv[0], MAX_PATH * 2, "%s" CONFIG_DIR_SEP CONFIG_FMI_BIN "%d" CONFIG_DIR_SEP "server_sm" CONFIG_EXE_SUFFIXE,
+    snprintf(argv[0], MAX_PATH * 2, "%s" CONFIG_DIR_SEP CONFIG_FMI_BIN "%d" CONFIG_DIR_SEP "server_sm" CONFIG_EXE_SUFFIX,
         path, bitness);
 
     snprintf(argv[1], 16, "%lu", process_current_id());

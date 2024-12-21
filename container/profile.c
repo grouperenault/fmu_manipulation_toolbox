@@ -13,7 +13,7 @@ profile_t *profile_new(void) {
     profile_t *profile = malloc(sizeof(*profile));
     
 	profile->current_tic = 0;
-	profile->total_ellapsed = 0.0;
+	profile->total_elapsed = 0.0;
 
     return profile;
 }
@@ -54,7 +54,7 @@ double profile_toc(profile_t *profile, double current_time) {
 	now += ts.tv_sec * 1000;
 #endif
 
-    profile->total_ellapsed += (now - profile->current_tic) / 1000.0;
-	return current_time / profile->total_ellapsed;
+    profile->total_elapsed += (now - profile->current_tic) / 1000.0;
+	return current_time / profile->total_elapsed;
 }
 

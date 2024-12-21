@@ -47,6 +47,7 @@ typedef struct container_s {
 	container_vr_t				*vr_strings;
 
 	fmi2Real					time_step;
+	fmi2Real					time;
 	fmi2Real					tolerance;
 
 	fmu_t						*fmu;

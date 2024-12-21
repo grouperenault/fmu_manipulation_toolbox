@@ -20,7 +20,7 @@ FMU Manipulation Toolbox import supports FMI-2.0 and Co-Simulation interface.
 - Simulink
 - [Reference FMUs](https://github.com/modelica/Reference-FMUs)
 
-Automated testsuite use [bouncing_ball.fmu](../tests/bouncing_ball.fmu).
+Automated testsuite use [bouncing_ball.fmu](../tests/operations/bouncing_ball.fmu).
 
 
 ### FMU Export Compatibility information

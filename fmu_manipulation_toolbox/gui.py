@@ -209,11 +209,10 @@ class FilterWidget(QPushButton):
 
 
 class FMUManipulationToolboxlMainWindow(QWidget):
-    def __init__(self, app, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         self.setWindowTitle('FMU Manipulation Toolbox')
-        self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon.png')))
 
         # set the grid layout
         self.layout = QGridLayout()
@@ -289,7 +288,7 @@ class FMUManipulationToolboxlMainWindow(QWidget):
 
         exit_button = QPushButton('Exit')
         self.layout.addWidget(exit_button, line, 0, 1, 2)
-        exit_button.clicked.connect(app.exit)
+        exit_button.clicked.connect(self.close)
         exit_button.setProperty("class", "quit")
 
         save_log_button = QPushButton('Save log as')
@@ -434,7 +433,7 @@ class FMUManipulationToolboxlMainWindow(QWidget):
             scroll_bar.setValue(scroll_bar.maximum())
 
 
-class Application:
+class Application(QApplication):
     """
 Analyse and modify your FMUs.
 
@@ -442,12 +441,13 @@ Note: modifying the modelDescription.xml can damage your FMU ! Communicating wit
 way the FMU is generated, is preferable when possible.
 
     """
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
         QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "resources"))
-        self.app = QApplication(sys.argv)
         font = QFont("Verdana")
         font.setPointSize(10)
-        self.app.setFont(font)
+        self.setFont(font)
         css_dark = """
 QWidget                  {background: #4b4e51; color: #b5bab9}
 QPushButton           { min-height: 30px; padding: 1px 1px 0.2em 0.2em; border: 1px solid #282830; border-radius: 5px;}
@@ -479,15 +479,26 @@ QMenu::indicator:unchecked:hover    {width: 35px; image: url(images:checkbox-unc
 QMenu::indicator:unchecked:disabled {width: 35px; image: url(images:checkbox-unchecked-disabled.png); }
 """
 
-        self.app.setStyleSheet(css_dark)
-        self.window = FMUManipulationToolboxlMainWindow(self.app)
-        print(" "*80, f"Version {version}")
-        print(self.__doc__)
-        sys.exit(self.app.exec())
+        self.setStyleSheet(css_dark)
 
-    def exit(self):
-        self.app.exit()
+
+        if os.name == 'nt':
+            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon-round.png')))
+
+            # https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7/1552105#1552105
+            import ctypes
+            application_id = 'FMU_Manipulation_Toolbox'  # arbitrary string
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(application_id)
+        else:
+            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon.png')))
+
+        self.window = FMUManipulationToolboxlMainWindow()
 
 
 def main():
-    Application()
+    application = Application(sys.argv)
+
+    print(" " * 80, f"Version {version}")
+    print(application.__doc__)
+
+    sys.exit(application.exec())

@@ -1,4 +1,3 @@
-import csv
 import logging
 import os
 import shutil
@@ -8,8 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import *
 
-from .fmu_operations import FMU, OperationAbstract, FMUException
+from .fmu_operations import FMU, OperationAbstract
 from .version import __version__ as tool_version
+
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -30,15 +30,14 @@ class FMUPort:
     def set_port_type(self, type_name: str, attrs: Dict[str, str]):
         self.type_name = type_name
         self.child = attrs.copy()
-        try:
-            self.child.pop("unit")  # Unit are not supported
-        except KeyError:
-            pass
+        for unsupported in ("unit", "declaredType"):
+            if unsupported in self.child:
+                self.child.pop(unsupported)
 
     def xml(self, vr: int, name=None, causality=None, start=None):
 
         if self.child is None:
-            raise FMUException(f"FMUPort has no child. Bug?")
+            raise FMUContainerError(f"FMUPort has no child. Bug?")
 
         child_str = f"<{self.type_name}"
         if self.child:
@@ -70,7 +69,6 @@ class FMUPort:
 
 class EmbeddedFMU(OperationAbstract):
     capability_list = ("needsExecutionTool",
-                       "canHandleVariableCommunicationStepSize",
                        "canBeInstantiatedOnlyOncePerProcess")
 
     def __init__(self, filename):
@@ -87,6 +85,8 @@ class EmbeddedFMU(OperationAbstract):
         self.current_port = None  # used during apply_operation()
 
         self.fmu.apply_operation(self)  # Should be the last command in constructor!
+        if self.model_identifier is None:
+            raise FMUContainerError(f"FMU '{self.name}' does not implement Co-Simulation mode.")
 
     def fmi_attrs(self, attrs):
         self.guid = attrs['guid']
@@ -104,10 +104,16 @@ class EmbeddedFMU(OperationAbstract):
             self.capabilities[capability] = attrs.get(capability, "false")
 
     def experiment_attrs(self, attrs):
-        self.step_size = float(attrs['stepSize'])
+        try:
+            self.step_size = float(attrs['stepSize'])
+        except KeyError:
+            logger.warning(f"FMU '{self.name}' does not specify preferred step size")
+            pass
 
     def scalar_type(self, type_name, attrs):
-        self.current_port.set_port_type(type_name, attrs)
+        if self.current_port:
+            self.current_port.set_port_type(type_name, attrs)
+        self.current_port = None
 
     def __repr__(self):
         return f"FMU '{self.name}' ({len(self.ports)} variables)"
@@ -172,14 +178,14 @@ class ValueReferenceTable:
     def get_vr(self, cport: ContainerPort) -> int:
         return self.add_vr(cport.port.type_name)
 
-    def add_vr(self, type_name:str) -> int:
+    def add_vr(self, type_name: str) -> int:
         vr = self.vr_table[type_name]
         self.vr_table[type_name] += 1
         return vr
 
 
 class FMUContainer:
-    def __init__(self, identifier: str, fmu_directory: Union[str, Path]):
+    def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None):
         self.fmu_directory = Path(fmu_directory)
         self.identifier = identifier
         if not self.fmu_directory.is_dir():
@@ -187,8 +193,7 @@ class FMUContainer:
         self.involved_fmu: Dict[str, EmbeddedFMU] = {}
         self.execution_order: List[EmbeddedFMU] = []
 
-        self.description_pathname = None  # Will be set up by FMUContainerSpecReader
-        self.period = None  # Will be set up by FMUContainerSpecReader
+        self.description_pathname = description_pathname
 
         # Rules
         self.inputs: Dict[str, ContainerPort] = {}
@@ -207,10 +212,10 @@ class FMUContainer:
             self.involved_fmu[fmu_filename] = fmu
             self.execution_order.append(fmu)
             if not fmu.fmi_version == "2.0":
-                raise FMUException("Only FMI-2.0 is supported by FMUContainer")
+                raise FMUContainerError("Only FMI-2.0 is supported by FMUContainer")
             logger.debug(f"Adding FMU #{len(self.execution_order)}: {fmu}")
         except Exception as e:
-            raise FMUException(f"Cannot load '{fmu_filename}': {e}")
+            raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}")
 
         return fmu
 
@@ -227,7 +232,8 @@ class FMUContainer:
             container_port_name = to_port_name
         cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
         if not cport_to.port.causality == "input":  # check causality
-            raise FMUException(f"{cport_to} is {cport_to.port.causality} instead of INPUT.")
+            raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
+                                    f"'{cport_to.port.causality}'.")
 
         logger.debug(f"INPUT: {to_fmu_filename}:{to_port_name}")
         self.mark_ruled(cport_to, 'INPUT')
@@ -239,7 +245,8 @@ class FMUContainer:
 
         cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
         if cport_from.port.causality not in ("output", "local"):  # check causality
-            raise FMUException(f"{cport_from} is {cport_from.port.causality} instead of OUTPUT or LOCAL")
+            raise FMUContainerError(f"Tried to use '{cport_from}' as INPUT of the container but FMU causality is "
+                                    f"'{cport_from.port.causality}'.")
 
         logger.debug(f"OUTPUT: {from_fmu_filename}:{from_port_name}")
         self.mark_ruled(cport_from, 'OUTPUT')
@@ -248,7 +255,7 @@ class FMUContainer:
     def drop_port(self, from_fmu_filename: str, from_port_name: str):
         cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
         if not cport_from.port.causality == "output":  # check causality
-            raise FMUException(f"{cport_from}: trying to DROP {cport_from.port.causality}")
+            raise FMUContainerError(f"{cport_from}: trying to DROP {cport_from.port.causality}")
 
         logger.debug(f"DROP: {from_fmu_filename}:{from_port_name}")
         self.mark_ruled(cport_from, 'DROP')
@@ -342,6 +349,8 @@ class FMUContainer:
     def sanity_check(self, step_size: Union[float, None]):
         nb_error = 0
         for fmu in self.execution_order:
+            if not fmu.step_size:
+                continue
             ts_ratio = step_size / fmu.step_size
             if ts_ratio < 1.0:
                 logger.error(f"Container step_size={step_size}s is lower than FMU '{fmu.name}' "
@@ -412,12 +421,12 @@ class FMUContainer:
   description="FMUContainer with {embedded_fmu}"
   author="{author}"
   license="Proprietary"
-  copyright="© Renault S.A.S"
+  copyright="See Embedded FMU's copyrights."
   variableNamingConvention="structured">
 
   <CoSimulation
     modelIdentifier="{self.identifier}"
-    canHandleVariableCommunicationStepSize="{capabilities['canHandleVariableCommunicationStepSize']}"
+    canHandleVariableCommunicationStepSize="true"
     canBeInstantiatedOnlyOncePerProcess="{capabilities['canBeInstantiatedOnlyOncePerProcess']}"
     canNotUseMemoryManagementFunctions="true"
     canGetAndSetFMUstate="false"
@@ -438,7 +447,8 @@ class FMUContainer:
             for fmu in self.execution_order:
                 vr = vr_table.add_vr("Real")
                 name = f"container.{fmu.model_identifier}.rt_ratio"
-                print(f'<ScalarVariable valueReference="{vr}" name="{name}" causality="local"><Real /></ScalarVariable>', file=xml_file)
+                print(f'<ScalarVariable valueReference="{vr}" name="{name}" causality="local">'
+                      f'<Real /></ScalarVariable>', file=xml_file)
 
         # Local variable should be first to ensure to attribute them the lowest VR.
         for local in self.locals.values():
@@ -555,7 +565,7 @@ class FMUContainer:
             if profiling and type_name == "Real":
                 nb += len(self.execution_order)
                 print(nb, file=txt_file)
-                for profiling_port,_ in enumerate(self.execution_order):
+                for profiling_port, _ in enumerate(self.execution_order):
                     print(f"{profiling_port} -2 {profiling_port}", file=txt_file)
             else:
                 print(nb, file=txt_file)
@@ -600,6 +610,7 @@ class FMUContainer:
         documentation_directory.mkdir(exist_ok=True)
 
         if self.description_pathname:
+            logger.debug(f"Copying {self.description_pathname}")
             shutil.copy(self.description_pathname, documentation_directory)
 
         shutil.copy(origin / "model.png", base_directory)
@@ -628,157 +639,3 @@ class FMUContainer:
     def make_fmu_cleanup(base_directory: Path):
         logger.debug(f"Delete directory '{base_directory}'")
         shutil.rmtree(base_directory)
-
-
-class FMUContainerSpecReader:
-    def __init__(self, fmu_directory: Union[Path, str]):
-        self.fmu_directory = Path(fmu_directory)
-
-    def read(self, description_filename: Union[str, Path]) -> FMUContainer:
-        if isinstance(description_filename, str):
-            description_filename = Path(description_filename)
-
-        if description_filename.suffix == ".csv":
-            return self.read_csv(description_filename)
-        else:
-            logger.critical(f"Unable to read from '{description_filename}': format unsupported.")
-
-    def read_csv(self, description_filename: Path) -> FMUContainer:
-        container = FMUContainer(description_filename.stem, self.fmu_directory)
-        container.description_pathname = self.fmu_directory / description_filename
-        logger.info(f"Building FMU Container from '{container.description_pathname}'")
-
-        with open(container.description_pathname) as file:
-            reader = csv.reader(file, delimiter=';')
-            self.check_headers(reader)
-            for i, row in enumerate(reader):
-                if not row or row[0][0] == '#':  # skip blank line of comment
-                    continue
-
-                try:
-                    rule, from_fmu_filename, from_port_name, to_fmu_filename, to_port_name = row
-                except ValueError:
-                    logger.error(f"Line #{i+2}: expecting 5 columns. Line skipped.")
-                    continue
-
-                rule = rule.upper()
-                if rule in ("LINK", "INPUT", "OUTPUT", "DROP", "FMU", "START"):
-                    try:
-                        self._read_csv_rule(container, rule,
-                                            from_fmu_filename, from_port_name,
-                                            to_fmu_filename, to_port_name)
-                    except FMUContainerError as e:
-                        logger.error(f"Line #{i+2}: {e}. Line skipped.")
-                        continue
-                    except FMUException as e:
-                        logger.critical(f"Line #{i + 2}: {e}.")
-                        raise
-                else:
-                    logger.error(f"Line #{i+2}: unexpected rule '{rule}'. Line skipped.")
-
-        return container
-
-    @staticmethod
-    def _read_csv_rule(container: FMUContainer, rule: str, from_fmu_filename: str, from_port_name: str,
-                       to_fmu_filename: str, to_port_name: str):
-        if rule == "FMU":
-            if not from_fmu_filename:
-                raise FMUException("Missing FMU information.")
-            container.get_fmu(from_fmu_filename)
-
-        elif rule == "INPUT":
-            if not to_fmu_filename or not to_port_name:
-                raise FMUException("Missing INPUT ports information.")
-            container.add_input(from_port_name, to_fmu_filename, to_port_name)
-
-        elif rule == "OUTPUT":
-            if not from_fmu_filename or not from_port_name:
-                raise FMUException("Missing OUTPUT ports information.")
-            container.add_output(from_fmu_filename, from_port_name, to_port_name)
-
-        elif rule == "DROP":
-            if not from_fmu_filename or not from_port_name:
-                raise FMUException("Missing DROP ports information.")
-            container.drop_port(from_fmu_filename, from_port_name)
-
-        elif rule == "LINK":
-            container.add_link(from_fmu_filename, from_port_name, to_fmu_filename, to_port_name)
-
-        elif rule == "START":
-            if not from_fmu_filename or not from_port_name or not to_fmu_filename:
-                raise FMUException("Missing START ports information.")
-
-            container.add_start_value(from_fmu_filename, from_port_name, to_fmu_filename)
-        # no else: check on rule is already done in read_description()
-
-    @staticmethod
-    def check_headers(reader):
-        headers = next(reader)
-        if not headers == ["rule", "from_fmu", "from_port", "to_fmu", "to_port"]:
-            raise FMUContainerError("Header (1st line of the file) is not well formatted.")
-
-
-class FMUContainerSpecWriter:
-    def __init__(self, container: FMUContainer):
-        self.container = container
-
-    def write(self, description_filename: Union[str, Path]):
-        if description_filename.endswith(".csv"):
-            return self.write_csv(description_filename)
-        elif description_filename.endswith(".json"):
-            return self.write_json(description_filename)
-        else:
-            logger.critical(f"Unable to write to '{description_filename}': format unsupported.")
-
-    def write_csv(self, description_filename: Union[str, Path]):
-        with open(description_filename, "wt") as outfile:
-            print("rule;from_fmu;from_port;to_fmu;to_port", file=outfile)
-            for fmu in self.container.involved_fmu.keys():
-                print(f"FMU;{fmu};;;", file=outfile)
-            for cport in self.container.inputs.values():
-                print(f"INPUT;;;{cport.fmu.name};{cport.port.name}", file=outfile)
-            for cport in self.container.outputs.values():
-                print(f"OUTPUT;{cport.fmu.name};{cport.port.name};;", file=outfile)
-            for local in self.container.locals.values():
-                for target in local.cport_to_list:
-                    print(f"LINK;{local.cport_from.fmu.name};{local.cport_from.port.name};"
-                          f"{target.fmu.name};{target.port.name}",
-                          file=outfile)
-            for cport, value in self.container.start_values.items():
-                print(f"START;{cport.fmu.name};{cport.port.name};{value};", file=outfile)
-
-    def write_json(self, description_filename: Union[str, Path]):
-        with open(description_filename, "wt") as outfile:
-            print("{", file=outfile)
-
-            print(f'  "fmu":    [', file=outfile)
-            fmus = [f'              "{fmu}"' for fmu in self.container.involved_fmu.keys()]
-            print(",\n".join(fmus), file=outfile)
-            print(f'            ],', file=outfile)
-
-            print(f'  "input":  [', file=outfile)
-            inputs = [f'              [{cport.fmu.name}, {cport.port.name}, {container_name}]'
-                      for container_name, cport in self.container.inputs.items()]
-            print(",\n".join(inputs), file=outfile)
-            print(f'            ],', file=outfile)
-
-            print(f'  "output": [', file=outfile)
-            outputs = [f'              ["{cport.fmu.name}", "{cport.port.name}", "{container_name}"]'
-                       for container_name, cport in self.container.outputs.items()]
-            print(",\n".join(outputs), file=outfile)
-            print(f'            ],', file=outfile)
-
-            print(f'  "link":   [', file=outfile)
-            links = [f'              ["{local.cport_from.fmu.name}", "{local.cport_from.port.name}", '
-                     f'"{target.fmu.name}", "{target.port.name}"]'
-                     for local in self.container.locals.values()
-                     for target in local.cport_to_list]
-            print(",\n".join(links), file=outfile)
-            print(f'            ],', file=outfile)
-            print(f'  "start":  [', file=outfile)
-            start = [f'              ["{cport.fmu.name}", "{cport.port.name}, "{value}"]'
-                     for cport, value in self.container.start_values.items()]
-            print(f'            ],', file=outfile)
-
-            #print(f'  "period": {self.container.})
-            print("}", file=outfile)

@@ -4,7 +4,8 @@ import sys
 from colorama import Fore, Style, init
 
 from .fmu_operations import *
-from .fmu_container import FMUContainerSpecReader, FMUContainerError
+from .fmu_container import FMUContainerError
+from .assembly import Assembly
 from .checker import checker_list
 from .version import __version__ as version
 from .help import Help
@@ -158,11 +159,12 @@ def fmucontainer():
 
     parser.add_argument('-h', '-help', action="help")
 
-    parser.add_argument("-fmu-directory", action="store", dest="fmu_directory", required=True,
-                        help="Directory containing initial FMU’s and used to generate containers.")
+    parser.add_argument("-fmu-directory", action="store", dest="fmu_directory", required=False, default=".",
+                        help="Directory containing initial FMU’s and used to generate containers. "
+                             "If not defined, current directory is used.")
 
     parser.add_argument("-container", action="append", dest="container_descriptions_list", default=[],
-                        metavar="filename.csv:step_size",
+                        metavar="filename.{csv|json|ssp},[:step_size]", required=True,
                         help="Description of the container to create.")
 
     parser.add_argument("-debug", action="store_true", dest="debug",
@@ -183,34 +185,42 @@ def fmucontainer():
     parser.add_argument("-profile", action="store_true", dest="profiling", default=False,
                         help="Enable Profiling mode for the generated container.")
 
+    parser.add_argument("-dump-json",  action="store_true", dest="dump", default=False,
+                        help="Dump a JSON file for each container.")
+
     config = parser.parse_args()
 
     if config.debug:
         logger.setLevel(logging.DEBUG)
 
+    fmu_directory = Path(config.fmu_directory)
+    logger.info(f"FMU directory: '{fmu_directory}'")
+
     for description in config.container_descriptions_list:
         try:
-            filename_description, step_size = description.split(":")
+            filename, step_size = description.split(":")
             step_size = float(step_size)
         except ValueError:
             step_size = None
-            filename_description = description
+            filename = description
+        try:
+            assembly = Assembly(filename, step_size=step_size, auto_link=config.auto_link,
+                                auto_input=config.auto_input, auto_output=config.auto_output, mt=config.mt,
+                                profiling=config.profiling, fmu_directory=fmu_directory, debug=config.debug)
 
-        container_filename = Path(filename_description).with_suffix(".fmu")
+        except FileNotFoundError as e:
+            logger.fatal(f"Cannot read file: {e}")
+            continue
+        except FMUContainerError as e:
+            logger.fatal(f"{filename}: {e}")
+            continue
 
         try:
-            csv_reader = FMUContainerSpecReader(Path(config.fmu_directory))
-            container = csv_reader.read(filename_description)
-            container.add_implicit_rule(auto_input=config.auto_input,
-                                        auto_output=config.auto_output,
-                                        auto_link=config.auto_link)
-            container.make_fmu(container_filename, step_size=step_size, debug=config.debug, mt=config.mt,
-                               profiling=config.profiling)
-        except (FileNotFoundError, FMUContainerError, FMUException) as e:
-            logger.error(f"Cannot build container from '{filename_description}': {e}")
+            assembly.make_fmu(dump_json=config.dump)
+        except FMUContainerError as e:
+            logger.fatal(f"{filename}: {e}")
             continue
 
 
-# for debug purpose
 if __name__ == "__main__":
     fmucontainer()
