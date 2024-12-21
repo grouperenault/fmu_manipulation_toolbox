@@ -389,7 +389,12 @@ class Assembly:
                             auto_input=self.default_auto_input, auto_output=self.default_auto_output)
             self.root = sdd.parse(self.description_pathname)
 
-    def make_fmu(self):
+    def make_fmu(self, dump_json=False):
+        if dump_json:
+            dump_file = (self.description_pathname.with_stem(self.description_pathname.stem + "-dump")
+                         .with_suffix(".json"))
+            logger.info(f"Dump Json '{dump_file}'")
+            self.write_json(dump_file)
         self.root.make_fmu(self.fmu_directory, debug=self.debug, description_pathname=self.description_pathname)
 
 

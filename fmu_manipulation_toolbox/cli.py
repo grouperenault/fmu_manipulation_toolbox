@@ -185,6 +185,9 @@ def fmucontainer():
     parser.add_argument("-profile", action="store_true", dest="profiling", default=False,
                         help="Enable Profiling mode for the generated container.")
 
+    parser.add_argument("-dump-json",  action="store_true", dest="dump", default=False,
+                        help="Dump a JSON file for each container.")
+
     config = parser.parse_args()
 
     if config.debug:
@@ -213,11 +216,11 @@ def fmucontainer():
             continue
 
         try:
-            assembly.make_fmu()
+            assembly.make_fmu(dump_json=config.dump)
         except FMUContainerError as e:
             logger.fatal(f"{filename}: {e}")
             continue
 
-# for debug purpose
+
 if __name__ == "__main__":
     fmucontainer()
