@@ -34,7 +34,13 @@ class AssemblyNode:
     def __init__(self, name: Union[str, None], step_size: float = None, mt=False, profiling=False,
                  auto_link=True, auto_input=True, auto_output=True):
         self.name = name
-        self.step_size = step_size
+        if step_size:
+            try:
+                self.step_size = float(step_size)
+            except ValueError:
+                logger.warning(f"{step_size}")
+        else:
+            self.step_size = None
         self.mt = mt
         self.profiling = profiling
         self.auto_link = auto_link
@@ -309,49 +315,37 @@ class Assembly:
                     node.add_fmu(fmu)
 
             elif key == "input": # 10
-                if not isinstance(value, list):
-                    raise AssemblyError("JSON: 'input' keyword should define a list.")
-                for line in value:
-                    if not isinstance(line, list):
-                        raise AssemblyError(f"JSON: unexpected 'input' value: {line}")
-                    node.add_input(line[0], line[1], line[2])
+                self._json_decode_keyword('input', value, node.add_input)
 
             elif key == "output": # 11
-                if not isinstance(value, list):
-                    raise AssemblyError("JSON: 'output' keyword should define a list.")
-                for line in value:
-                    if not isinstance(line, list):
-                        raise AssemblyError(f"JSON: unexpected 'output' value: {line}")
-                    node.add_output(line[0], line[1], line[2])
+                self._json_decode_keyword('output', value, node.add_output)
 
             elif key == "link": # 12
-                if not isinstance(value, list):
-                    raise AssemblyError("JSON: 'link' keyword should define a list.")
-                for line in value:
-                    if not isinstance(line, list):
-                        raise AssemblyError(f"JSON: unexpected 'link' value: {line}")
-                    node.add_link(line[0], line[1], line[2], line[3])
+                self._json_decode_keyword('link', value, node.add_link)
 
             elif key == "start": # 13
-                if not isinstance(value, list):
-                    raise AssemblyError("JSON: 'start' keyword should define a list.")
-                for line in value:
-                    if not isinstance(line, list):
-                        raise AssemblyError(f"JSON: unexpected 'start' value: {line}")
-                    node.add_start_value(line[0], line[1], line[2])
+                self._json_decode_keyword('start', value, node.add_start_value)
 
             elif key == "drop": #14
-                if not isinstance(value, list):
-                    raise AssemblyError("JSON: 'drop' keyword should define a list.")
-                for line in value:
-                    if not isinstance(line, list):
-                        raise AssemblyError(f"JSON: unexpected 'drop' value: {line}")
-                    node.add_drop_port(line[0], line[1])
+                self._json_decode_keyword('drop', value, node.add_drop_port)
 
             else:
                 logger.error(f"JSON: unexpected keyword {key}. Skipped.")
 
         return node
+
+    @staticmethod
+    def _json_decode_keyword(keyword: str, value, function):
+        if not isinstance(value, list):
+            raise AssemblyError(f"JSON: '{keyword}' keyword should define a list.")
+        for line in value:
+            if not isinstance(line, list):
+                raise AssemblyError(f"JSON: unexpected '{keyword}' value: {line}.")
+            try:
+                function(*line)
+            except TypeError:
+                raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: {line}.")
+
 
     def write_json(self, filename: Union[str, Path]):
         with open(self.fmu_directory / filename, "wt") as file:
@@ -414,11 +408,11 @@ class Assembly:
                             mt=self.default_mt, profiling=self.default_profiling,
                             auto_input=self.default_auto_input, auto_output=self.default_auto_output)
             self.root = sdd.parse(self.description_pathname)
+            self.root.name = str(self.filename.with_suffix(".fmu"))
 
     def make_fmu(self, dump_json=False):
         if dump_json:
-            dump_file = (self.description_pathname.with_stem(self.description_pathname.stem + "-dump")
-                         .with_suffix(".json"))
+            dump_file = Path(self.description_pathname.stem + "-dump").with_suffix(".json")
             logger.info(f"Dump Json '{dump_file}'")
             self.write_json(dump_file)
         self.root.make_fmu(self.fmu_directory, debug=self.debug, description_pathname=self.description_pathname)
