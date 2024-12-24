@@ -353,11 +353,11 @@ class FMUContainer:
                 continue
             ts_ratio = step_size / fmu.step_size
             if ts_ratio < 1.0:
-                logger.error(f"Container step_size={step_size}s is lower than FMU '{fmu.name}' "
-                             f"step_size={fmu.step_size}s")
+                logger.warning(f"Container step_size={step_size}s is lower than FMU '{fmu.name}' "
+                               f"step_size={fmu.step_size}s.")
             if ts_ratio != int(ts_ratio):
-                logger.error(f"Container step_size={step_size}s should divisible by FMU '{fmu.name}' "
-                             f"step_size={fmu.step_size}s")
+                logger.warning(f"Container step_size={step_size}s should divisible by FMU '{fmu.name}' "
+                               f"step_size={fmu.step_size}s.")
             for port_name in fmu.ports:
                 cport = ContainerPort(fmu, port_name)
                 if cport not in self.rules:
