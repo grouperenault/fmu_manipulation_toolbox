@@ -6,6 +6,7 @@
   "step_size": 0.01,
   "container": [
     {
+      "name": "level1.fmu",
       "fmu": [
         "gain.fmu"
       ],

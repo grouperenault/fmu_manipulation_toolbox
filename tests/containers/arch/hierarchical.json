@@ -1,6 +1,7 @@
 {
   "container": [
     {
+      "name": "level1.fmu",
       "fmu": [
         "sine.fmu",
         "integrate.fmu"

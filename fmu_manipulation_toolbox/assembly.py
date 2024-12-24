@@ -143,7 +143,8 @@ class Assembly:
         if not fmu_directory.is_dir():
             raise AssemblyError(f"FMU directory is not valid: '{fmu_directory}'")
 
-        self.description_pathname = fmu_directory / self.filename  # For inclusion in FMU
+        self.input_pathname = fmu_directory / self.filename
+        self.description_pathname = self.input_pathname   # For inclusion in FMU
         self.root = None
         self.read()
 
@@ -191,7 +192,7 @@ class Assembly:
                                  mt=self.default_mt, profiling=self.default_profiling,
                                  auto_input=self.default_auto_input, auto_output=self.default_auto_output)
 
-        with open(self.description_pathname) as file:
+        with open(self.input_pathname) as file:
             reader = csv.reader(file, delimiter=';')
             self._check_csv_headers(reader)
             for i, row in enumerate(reader):
@@ -277,7 +278,7 @@ class Assembly:
                 outfile.write(f"DROP;{port.fmu_name};{port.port_name};;\n")
 
     def read_json(self):
-        with open(self.description_pathname) as file:
+        with open(self.input_pathname) as file:
             try:
                 data = json.load(file)
             except json.decoder.JSONDecodeError as e:
@@ -412,7 +413,7 @@ class Assembly:
 
     def make_fmu(self, dump_json=False):
         if dump_json:
-            dump_file = Path(self.description_pathname.stem + "-dump").with_suffix(".json")
+            dump_file = Path(self.input_pathname.stem + "-dump").with_suffix(".json")
             logger.info(f"Dump Json '{dump_file}'")
             self.write_json(dump_file)
         self.root.make_fmu(self.fmu_directory, debug=self.debug, description_pathname=self.description_pathname)
