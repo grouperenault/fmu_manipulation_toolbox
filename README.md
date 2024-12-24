@@ -122,15 +122,16 @@ optional arguments:
 ### FMU Containers
 
 ```
-fmucontainer [-h] -fmu-directory FMU_DIRECTORY [-container filename.csv:step_size] [-debug] [-no-auto-input]
-             [-no-auto-output] [-no-auto-link] [-mt] [-profile]
+usage: fmucontainer [-h] [-fmu-directory FMU_DIRECTORY] -container filename.{csv|json|ssp},[:step_size] [-debug]
+                    [-no-auto-input] [-no-auto-output] [-no-auto-link] [-mt] [-profile] [-dump-json]
 
 Generate FMU from FMU's
 
 optional arguments:
   -h, -help
-  -fmu-directory FMU_DIRECTORY      Directory containing initial FMU’s and used to generate containers. (default: None)
-  -container filename.csv:step_size
+  -fmu-directory FMU_DIRECTORY      Directory containing initial FMU’s and used to generate containers. If not defined,
+                                    current directory is used. (default: .)
+  -container filename.{csv|json|ssp},[:step_size]
                                     Description of the container to create. (default: [])
   -debug                            Add lot of useful log during the process. (default: False)
   -no-auto-input                    Create ONLY explicit input. (default: True)
@@ -138,6 +139,7 @@ optional arguments:
   -no-auto-link                     Create ONLY explicit links. (default: True)
   -mt                               Enable Multi-Threaded mode for the generated container. (default: False)
   -profile                          Enable Profiling mode for the generated container. (default: False)
+  -dump-json                        Dump a JSON file for each container. (default: False)
 ```
 
 ## API
