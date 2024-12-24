@@ -7,7 +7,7 @@ import uuid
 import xml.parsers.expat
 import zipfile
 
-from .fmu_container import FMUContainer, FMUContainerError
+from .fmu_container import FMUContainer
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -31,7 +31,7 @@ class Connection:
 
 
 class AssemblyNode:
-    def __init__(self, name: str, step_size: float = None, mt=False, profiling=False,
+    def __init__(self, name: Union[str, None], step_size: float = None, mt=False, profiling=False,
                  auto_link=True, auto_input=True, auto_output=True):
         self.name = name
         self.step_size = step_size
@@ -40,9 +40,9 @@ class AssemblyNode:
         self.auto_link = auto_link
         self.auto_input = auto_input
         self.auto_output = auto_output
-        self.children: List[AssemblyNode] = []
 
-        self.fmu_names_list: Set[str] = set()
+        self.children: List[AssemblyNode] = []          # sub-containers
+        self.fmu_names_list: Set[str] = set()           # FMUs contained at this level
         self.input_ports: Dict[Port, str] = {}
         self.output_ports: Dict[Port, str] = {}
         self.start_values: Dict[Port, str] = {}
@@ -135,7 +135,7 @@ class Assembly:
         self.transient_dirnames: Set[Path] = set()
 
         if not fmu_directory.is_dir():
-            raise FMUContainerError(f"FMU directory is not valid: '{fmu_directory}'")
+            raise AssemblyError(f"FMU directory is not valid: '{fmu_directory}'")
 
         self.description_pathname = fmu_directory / self.filename  # For inclusion in FMU
         self.root = None
@@ -169,7 +169,7 @@ class Assembly:
         elif self.filename.suffix == ".csv":
             self.read_csv()
         else:
-            raise FMUContainerError(f"Not supported file format '{self.filename}")
+            raise AssemblyError(f"Not supported file format '{self.filename}")
 
     def write(self, filename: str):
         if filename.endswith(".csv"):
@@ -187,7 +187,7 @@ class Assembly:
 
         with open(self.description_pathname) as file:
             reader = csv.reader(file, delimiter=';')
-            self.check_csv_headers(reader)
+            self._check_csv_headers(reader)
             for i, row in enumerate(reader):
                 if not row or row[0][0] == '#':  # skip blank line of comment
                     continue
@@ -198,36 +198,19 @@ class Assembly:
                     logger.error(f"Line #{i+2}: expecting 5 columns. Line skipped.")
                     continue
 
-                rule = rule.upper()
-                if rule in ("LINK", "INPUT", "OUTPUT", "DROP", "FMU", "START"):
-                    try:
-                        self._read_csv_rule(self.root, rule,
-                                            from_fmu_filename, from_port_name, to_fmu_filename, to_port_name)
-                    except AssemblyError as e:
-                        logger.error(f"Line #{i+2}: {e}. Line skipped.")
-                        continue
-                else:
-                    logger.error(f"Line #{i+2}: unexpected rule '{rule}'. Line skipped.")
+                try:
+                    self._read_csv_rule(self.root, rule.upper(),
+                                        from_fmu_filename, from_port_name, to_fmu_filename, to_port_name)
+                except AssemblyError as e:
+                    logger.error(f"Line #{i+2}: {e}. Line skipped.")
+                    continue
 
-    def write_csv(self, filename: Union[str, Path]):
-        if self.root.children:
-            raise AssemblyError("This assembly is not flat. Cannot export to CSV file.")
-
-        with open(self.fmu_directory / filename, "wt") as outfile:
-            outfile.write("rule;from_fmu;from_port;to_fmu;to_port\n")
-            for fmu in self.root.fmu_names_list:
-                outfile.write(f"FMU;{fmu};;;\n")
-            for port, source in self.root.input_ports.items():
-                outfile.write(f"INPUT;;{source};{port.fmu_name};{port.port_name}\n")
-            for port, target in self.root.output_ports.items():
-                outfile.write(f"OUTPUT;{port.fmu_name};{port.port_name};;{target}\n")
-            for link in self.root.links:
-                outfile.write(f"LINK;{link.from_port.fmu_name};{link.from_port.port_name};"
-                              f"{link.to_port.fmu_name};{link.to_port.port_name}\n")
-            for port, value in self.root.start_values.items():
-                outfile.write(f"START;{port.fmu_name};{port.port_name};{value};\n")
-            for port in self.root.drop_ports:
-                outfile.write(f"DROP;{port.fmu_name};{port.port_name};;\n")
+    @staticmethod
+    def _check_csv_headers(reader):
+        headers = next(reader)
+        headers_lowered = [h.lower() for h in headers]
+        if not headers_lowered == ["rule", "from_fmu", "from_port", "to_fmu", "to_port"]:
+            raise AssemblyError("Header (1st line of the file) is not well formatted.")
 
     @staticmethod
     def _read_csv_rule(node: AssemblyNode, rule: str, from_fmu_filename: str, from_port_name: str,
@@ -264,113 +247,156 @@ class Assembly:
                 raise AssemblyError("Missing START ports information.")
 
             node.add_start_value(from_fmu_filename, from_port_name, to_fmu_filename)
-        # no else: check on rule is already done in read_description()
+        else:
+            raise AssemblyError(f"unexpected rule '{rule}'. Line skipped.")
 
-    @staticmethod
-    def check_csv_headers(reader):
-        headers = next(reader)
-        if not headers == ["rule", "from_fmu", "from_port", "to_fmu", "to_port"]:
-            raise AssemblyError("Header (1st line of the file) is not well formatted.")
+    def write_csv(self, filename: Union[str, Path]):
+        if self.root.children:
+            raise AssemblyError("This assembly is not flat. Cannot export to CSV file.")
+
+        with open(self.fmu_directory / filename, "wt") as outfile:
+            outfile.write("rule;from_fmu;from_port;to_fmu;to_port\n")
+            for fmu in self.root.fmu_names_list:
+                outfile.write(f"FMU;{fmu};;;\n")
+            for port, source in self.root.input_ports.items():
+                outfile.write(f"INPUT;;{source};{port.fmu_name};{port.port_name}\n")
+            for port, target in self.root.output_ports.items():
+                outfile.write(f"OUTPUT;{port.fmu_name};{port.port_name};;{target}\n")
+            for link in self.root.links:
+                outfile.write(f"LINK;{link.from_port.fmu_name};{link.from_port.port_name};"
+                              f"{link.to_port.fmu_name};{link.to_port.port_name}\n")
+            for port, value in self.root.start_values.items():
+                outfile.write(f"START;{port.fmu_name};{port.port_name};{value};\n")
+            for port in self.root.drop_ports:
+                outfile.write(f"DROP;{port.fmu_name};{port.port_name};;\n")
 
     def read_json(self):
         with open(self.description_pathname) as file:
             try:
                 data = json.load(file)
             except json.decoder.JSONDecodeError as e:
-                raise FMUContainerError(f"Cannot read json: {e}")
-        self.root = self.json_decode_node(data)
+                raise AssemblyError(f"Cannot read json: {e}")
+        self.root = self._json_decode_node(data)
         if not self.root.name:
             self.root.name = str(self.filename.with_suffix(".fmu"))
 
-    def write_json(self, filename: Union[str, Path]):
-        with open(self.fmu_directory / filename, "wt") as file:
-            data = self.json_encode_node(self.root)
-            json.dump(data, file, indent=2)
-
-    def json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
-        json_node = dict()
-        json_node["name"] = node.name
-        json_node["mt"] = node.mt
-        json_node["profiling"] = node.profiling
-        json_node["auto_link"] = node.auto_link
-        if node.step_size:
-            json_node["step_size"] = node.step_size
-
-        if node.children:
-            json_node["container"] = [self.json_encode_node(child) for child in node.children]
-
-        if node.fmu_names_list:
-            json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]
-
-        if node.input_ports:
-            json_node["input"] = [[f"{source}", f"{port.fmu_name}", f"{port.port_name}"]
-                                  for port, source in node.input_ports.items()]
-
-        if node.output_ports:
-            json_node["output"] = [[f"{port.fmu_name}", f"{port.port_name}", f"{target}"]
-                                   for port, target in node.output_ports.items()]
-
-        if node.links:
-            json_node["link"] = [[f"{link.from_port.fmu_name}", f"{link.from_port.port_name}",
-                                  f"{link.to_port.fmu_name}", f"{link.to_port.port_name}"]
-                                 for link in node.links]
-
-        if node.start_values:
-            json_node["start"] = [[f"{port.fmu_name}", f"{port.port_name}", value]
-                                  for port, value in node.start_values.items()]
-
-        if node.drop_ports:
-            json_node["drop"] = [[f"{port.fmu_name}", f"{port.port_name}"] for port in node.drop_ports]
-
-        return json_node
-
-    def json_decode_node(self, data) -> AssemblyNode:
-        name = data.get("name", None)
-        step_size = data.get("step_size", self.default_step_size)
-        auto_link = data.get("auto_link", self.default_auto_link)
-        auto_input = data.get("auto_input", self.default_auto_input)
-        auto_output = data.get("auto_output", self.default_auto_output)
-        mt = data.get("mt", self.default_mt)
-        profiling = data.get("profiling", self.default_profiling)
+    def _json_decode_node(self, data:Dict) -> AssemblyNode:
+        name = data.get("name", None)                                                       # 1
+        step_size = data.get("step_size", self.default_step_size)                           # 7
+        auto_link = data.get("auto_link", self.default_auto_link)                           # 4
+        auto_input = data.get("auto_input", self.default_auto_input)                        # 5
+        auto_output = data.get("auto_output", self.default_auto_output)                     # 6
+        mt = data.get("mt", self.default_mt)                                                # 2
+        profiling = data.get("profiling", self.default_profiling)                           # 3
 
         node = AssemblyNode(name, step_size=step_size, auto_link=auto_link, mt=mt, profiling=profiling,
                             auto_input=auto_input, auto_output=auto_output)
 
-        if "container" in data:
-            if not isinstance(data["container"], list):
-                raise FMUContainerError("JSON: 'container' keyword should define a list.")
-            for sub_data in data["container"]:
-                node.add_sub_node(self.json_decode_node(sub_data))
+        for key, value in data.items():
+            if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling'):
+                continue  # Already read
 
-        if "fmu" in data:
-            if not isinstance(data["fmu"], list):
-                raise FMUContainerError("JSON: 'fmu' keyword should define a list.")
-            for fmu in data["fmu"]:
-                node.add_fmu(fmu)
+            elif key == "container": # 8
+                if not isinstance(value, list):
+                    raise AssemblyError("JSON: 'container' keyword should define a list.")
+                for sub_data in value:
+                    node.add_sub_node(self._json_decode_node(sub_data))
 
-        if "input" in data:
-            if not isinstance(data["input"], list):
-                raise FMUContainerError("JSON: 'input' keyword should define a list.")
-            for line in data["input"]:
-                node.add_input(line[1], line[2], line[0])
+            elif key == "fmu": # 9
+                if not isinstance(value, list):
+                    raise AssemblyError("JSON: 'fmu' keyword should define a list.")
+                for fmu in value:
+                    node.add_fmu(fmu)
 
-        if "output" in data:
-            if not isinstance(data["output"], list):
-                raise FMUContainerError("JSON: 'output' keyword should define a list.")
-            for line in data["output"]:
-                node.add_output(line[0], line[1], line[2])
+            elif key == "input": # 10
+                if not isinstance(value, list):
+                    raise AssemblyError("JSON: 'input' keyword should define a list.")
+                for line in value:
+                    if not isinstance(line, list):
+                        raise AssemblyError(f"JSON: unexpected 'input' value: {line}")
+                    node.add_input(line[0], line[1], line[2])
 
-        if "start" in data:
-            if not isinstance(data["start"], list):
-                raise FMUContainerError("JSON: 'start' keyword should define a list.")
-            for line in data["start"]:
-                node.add_start_value(line[0], line[1], line[2])
+            elif key == "output": # 11
+                if not isinstance(value, list):
+                    raise AssemblyError("JSON: 'output' keyword should define a list.")
+                for line in value:
+                    if not isinstance(line, list):
+                        raise AssemblyError(f"JSON: unexpected 'output' value: {line}")
+                    node.add_output(line[0], line[1], line[2])
 
-        if "drop" in data:
-            for line in data["drop"]:
-                node.add_drop_port(line[0], line[1])
+            elif key == "link": # 12
+                if not isinstance(value, list):
+                    raise AssemblyError("JSON: 'link' keyword should define a list.")
+                for line in value:
+                    if not isinstance(line, list):
+                        raise AssemblyError(f"JSON: unexpected 'link' value: {line}")
+                    node.add_link(line[0], line[1], line[2], line[3])
+
+            elif key == "start": # 13
+                if not isinstance(value, list):
+                    raise AssemblyError("JSON: 'start' keyword should define a list.")
+                for line in value:
+                    if not isinstance(line, list):
+                        raise AssemblyError(f"JSON: unexpected 'start' value: {line}")
+                    node.add_start_value(line[0], line[1], line[2])
+
+            elif key == "drop": #14
+                if not isinstance(value, list):
+                    raise AssemblyError("JSON: 'drop' keyword should define a list.")
+                for line in value:
+                    if not isinstance(line, list):
+                        raise AssemblyError(f"JSON: unexpected 'drop' value: {line}")
+                    node.add_drop_port(line[0], line[1])
+
+            else:
+                logger.error(f"JSON: unexpected keyword {key}. Skipped.")
 
         return node
+
+    def write_json(self, filename: Union[str, Path]):
+        with open(self.fmu_directory / filename, "wt") as file:
+            data = self._json_encode_node(self.root)
+            json.dump(data, file, indent=2)
+
+    def _json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
+        json_node = dict()
+        json_node["name"] = node.name               # 1
+        json_node["mt"] = node.mt                   # 2
+        json_node["profiling"] = node.profiling     # 3
+        json_node["auto_link"] = node.auto_link     # 4
+        json_node["auto_input"] = node.auto_input   # 5
+        json_node["auto_output"] = node.auto_output # 6
+
+        if node.step_size:
+            json_node["step_size"] = node.step_size # 7
+
+        if node.children:
+            json_node["container"] = [self._json_encode_node(child) for child in node.children]     # 8
+
+        if node.fmu_names_list:
+            json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]          #9
+
+        if node.input_ports:
+            json_node["input"] = [[f"{source}", f"{port.fmu_name}", f"{port.port_name}"]            # 10
+                                  for port, source in node.input_ports.items()]
+
+        if node.output_ports:
+            json_node["output"] = [[f"{port.fmu_name}", f"{port.port_name}", f"{target}"]           # 11
+                                   for port, target in node.output_ports.items()]
+
+        if node.links:
+            json_node["link"] = [[f"{link.from_port.fmu_name}", f"{link.from_port.port_name}",      # 12
+                                  f"{link.to_port.fmu_name}", f"{link.to_port.port_name}"]
+                                 for link in node.links]
+
+        if node.start_values:
+            json_node["start"] = [[f"{port.fmu_name}", f"{port.port_name}", value]                  # 13
+                                  for port, value in node.start_values.items()]
+
+        if node.drop_ports:
+            json_node["drop"] = [[f"{port.fmu_name}", f"{port.port_name}"] for port in node.drop_ports] # 14
+
+        return json_node
 
     def read_ssp(self):
         logger.warning("This feature is ALPHA stage.")
