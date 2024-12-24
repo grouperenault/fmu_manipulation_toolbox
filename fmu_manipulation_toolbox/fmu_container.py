@@ -347,7 +347,6 @@ class FMUContainer:
         return step_size
 
     def sanity_check(self, step_size: Union[float, None]):
-        nb_error = 0
         for fmu in self.execution_order:
             if not fmu.step_size:
                 continue
@@ -363,12 +362,8 @@ class FMUContainer:
                 if cport not in self.rules:
                     if cport.port.causality == 'input':
                         logger.error(f"{cport} is not connected")
-                        nb_error += 1
                     if cport.port.causality == 'output':
                         logger.warning(f"{cport} is not connected")
-
-        if nb_error:
-            raise FMUContainerError(f"Some ports are not connected.")
 
     def make_fmu(self, fmu_filename: Union[str, Path], step_size: Union[float, None] = None, debug=False, mt=False,
                  profiling=False):
