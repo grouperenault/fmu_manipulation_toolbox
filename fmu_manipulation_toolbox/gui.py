@@ -73,7 +73,8 @@ class DropZoneWidget(QLabel):
         base_image = QImage(filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
                                        Qt.TransformationMode.SmoothTransformation)
         mask_filename = os.path.join(os.path.dirname(__file__), "resources", "mask.png")
-        mask_image = QImage(mask_filename)
+        mask_image = QImage(mask_filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
+                                                  Qt.TransformationMode.SmoothTransformation)
         rounded_image = QImage(self.WIDTH, self.HEIGHT, QImage.Format.Format_ARGB32)
         rounded_image.fill(QColor(0, 0, 0, 0))
         painter = QPainter()
