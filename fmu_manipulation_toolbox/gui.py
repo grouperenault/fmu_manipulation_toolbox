@@ -1,10 +1,10 @@
 import os.path
 import sys
 from .version import __version__ as version
-from PyQt6.QtCore import Qt, QObject, QUrl, pyqtSignal, QDir
+from PyQt6.QtCore import Qt, QObject, QUrl, pyqtSignal, QDir, QSize, QRect
 from PyQt6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
                              QTextBrowser, QInputDialog, QMenu)
-from PyQt6.QtGui import (QPixmap, QImage, QFont, QTextCursor, QIcon, QDesktopServices, QAction)
+from PyQt6.QtGui import (QPixmap, QImage, QFont, QTextCursor, QIcon, QDesktopServices, QAction, QPainter, QColor)
 import textwrap
 from functools import partial
 from typing import Optional
@@ -70,10 +70,22 @@ class DropZoneWidget(QLabel):
         elif not os.path.isfile(filename):
             filename = os.path.join(os.path.dirname(__file__), "resources", "fmu.png")
 
-        image = QImage(filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
-                                        Qt.TransformationMode.SmoothTransformation)
-        pixmap = QPixmap.fromImage(image)
+        base_image = QImage(filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
+                                             Qt.TransformationMode.SmoothTransformation)
+        mask_filename = os.path.join(os.path.dirname(__file__), "resources", "mask.png")
+        mask_image = QImage(mask_filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
+                                                  Qt.TransformationMode.SmoothTransformation)
+        rounded = QImage(QSize(self.WIDTH, self.HEIGHT), QImage.Format.Format_ARGB32)
+        rounded.fill(QColor(0, 0, 0, 0))
+        painter = QPainter()
+        painter.begin(rounded)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.drawImage(QRect(0, 0, self.WIDTH, self.HEIGHT), base_image)
+        painter.drawImage(QRect(0, 0, self.WIDTH, self.HEIGHT), mask_image)
+        painter.end()
+        pixmap = QPixmap.fromImage(rounded)
         self.setPixmap(pixmap)
+
 
     def set_fmu(self, filename):
         try:
@@ -203,6 +215,9 @@ class FMUManipulationToolboxlMainWindow(QWidget):
 
         # set the grid layout
         self.layout = QGridLayout()
+        self.layout.setVerticalSpacing(4)
+        self.layout.setHorizontalSpacing(4)
+        self.layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(self.layout)
 
         self.dropped_fmu = DropZoneWidget()
@@ -424,8 +439,8 @@ class Application(QApplication):
     """
 Analyse and modify your FMUs.
 
-Note: modifying the modelDescription.xml can damage your FMU ! Communicating with the FMU-developer and adapting the
-way the FMU is generated, is preferable when possible.
+Note: modifying the modelDescription.xml can damage your FMU !
+Communicating with the FMU-developer and adapting the way the FMU is generated, is preferable when possible.
 
     """
     def __init__(self, *args, **kwargs):
