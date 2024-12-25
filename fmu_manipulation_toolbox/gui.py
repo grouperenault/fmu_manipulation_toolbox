@@ -1,10 +1,10 @@
 import os.path
 import sys
 from .version import __version__ as version
-from PyQt5.QtCore import Qt, QObject, QUrl, pyqtSignal, QDir
-from PyQt5.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
-                             QTextBrowser, QInputDialog, QMenu, QAction)
-from PyQt5.QtGui import QPixmap, QImage, QFont, QTextCursor, QIcon, QColor, QPainter, QBrush, QDesktopServices
+from PyQt6.QtCore import Qt, QObject, QUrl, pyqtSignal, QDir
+from PyQt6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
+                             QTextBrowser, QInputDialog, QMenu)
+from PyQt6.QtGui import (QPixmap, QImage, QFont, QTextCursor, QIcon, QDesktopServices, QAction)
 import textwrap
 from functools import partial
 from typing import Optional
@@ -42,7 +42,7 @@ class DropZoneWidget(QLabel):
 
     def dropEvent(self, event):
         if event.mimeData().hasImage:
-            event.setDropAction(Qt.CopyAction)
+            event.setDropAction(Qt.DropAction.CopyAction)
             try:
                 file_path = event.mimeData().urls()[0].toLocalFile()
             except IndexError:
@@ -59,8 +59,8 @@ class DropZoneWidget(QLabel):
         else:
             default_directory = os.path.expanduser('~')
 
-        fmu_filename, _ = QFileDialog.getOpenFileName(self, 'Select FMU to Manipulate',
-                                                      default_directory, "FMU files (*.fmu)")
+        fmu_filename, _ = QFileDialog.getOpenFileName(parent=self, caption='Select FMU to Manipulate',
+                                                      directory=default_directory, filter="FMU files (*.fmu)")
         if fmu_filename:
             self.set_fmu(fmu_filename)
 
@@ -70,23 +70,10 @@ class DropZoneWidget(QLabel):
         elif not os.path.isfile(filename):
             filename = os.path.join(os.path.dirname(__file__), "resources", "fmu.png")
 
-        image = QImage(filename).scaled(self.WIDTH-4, self.HEIGHT-4, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        image = QImage(filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
+                                        Qt.TransformationMode.SmoothTransformation)
         pixmap = QPixmap.fromImage(image)
-        rounded = self.make_pixmap_rounded(pixmap)
-        self.setPixmap(rounded)
-
-    def make_pixmap_rounded(self, pixmap):
-        rounded = QPixmap(pixmap.size())
-        rounded.fill(QColor("transparent"))
-
-        painter = QPainter(rounded)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.setBrush(QBrush(pixmap))
-        painter.setPen(Qt.NoPen)
-        painter.drawRoundedRect(pixmap.rect(), 20, 20)
-        del painter    # Mandatory to avoid a crash
-        self.update()  # Mandatory to avoid a crash
-        return rounded
+        self.setPixmap(pixmap)
 
     def set_fmu(self, filename):
         try:
@@ -147,7 +134,7 @@ class LogWidget(QTextBrowser):
         LogWidget.XStream.stdout().messageWritten.connect(self.insertPlainText)
         LogWidget.XStream.stderr().messageWritten.connect(self.insertPlainText)
 
-    def loadResource(self, type, name):
+    def loadResource(self, _, name):
         image_path = os.path.join(os.path.dirname(__file__), "resources", name.toString())
         return QPixmap(image_path)
 
@@ -162,7 +149,7 @@ class HelpWidget(QLabel):
         filename = os.path.join(os.path.dirname(__file__), "resources", "help.png")
         image = QPixmap(filename)
         self.setPixmap(image)
-        self.setAlignment(Qt.AlignRight)
+        self.setAlignment(Qt.AlignmentFlag.AlignRight)
 
     def mousePressEvent(self, event):
         QDesktopServices.openUrl(QUrl(self.HELP_URL))
@@ -265,7 +252,7 @@ class FMUManipulationToolboxlMainWindow(QWidget):
 
         line += 1
         self.apply_filter_label = QLabel("Apply modification only on: ")
-        self.layout.addWidget(self.apply_filter_label, line, 1, 1, 2, alignment=Qt.AlignRight)
+        self.layout.addWidget(self.apply_filter_label, line, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignRight)
         self.set_tooltip(self.apply_filter_label, 'gui-apply-only')
 
         causality = ["parameter", "calculatedParameter", "input", "output", "local", "independent"]
@@ -414,7 +401,7 @@ class FMUManipulationToolboxlMainWindow(QWidget):
 
     def apply_operation(self, operation):
         if self.dropped_fmu.fmu:
-            self.log_widget.moveCursor(QTextCursor.End)
+            self.log_widget.moveCursor(QTextCursor.MoveOperation.End)
             fmu_filename = os.path.basename(self.dropped_fmu.fmu.fmu_filename)
             print('-' * 100)
             self.log_widget.insertHtml(f"<strong>{fmu_filename}: {operation}</strong><br>")
@@ -465,8 +452,8 @@ QPushButton.save:hover   {background-color: #675a78; color: #dddddd;}
 QPushButton.quit         {background-color: #4571a4; color: #dddddd;}
 QPushButton.quit:hover   {background-color: #5682b5; color: #dddddd;}
 QToolTip                 {color: black}
-QLabel.dropped_fmu       {background-color: #b5bab9; border: 2px dashed #282830; border-radius: dashed 20px;}
-QLabel.dropped_fmu:hover {background-color: #c6cbca; border: 2px dashed #282830; border-radius: dashed 20px;}
+QLabel.dropped_fmu       {background-color: #b5bab9}
+QLabel.dropped_fmu:hover {background-color: #c6cbca}
 QTextBrowser             {background-color: #282830; color: #b5bab9;}
 QMenu                               {font-size: 18px;}
 QMenu::item                         {padding: 2px 250px 2px 20px; border: 1px solid transparent;}
