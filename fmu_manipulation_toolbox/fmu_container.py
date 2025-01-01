@@ -291,7 +291,7 @@ class FMUContainer:
 
         self.start_values[cport] = value
 
-    def find_input(self, port_to_connect: FMUPort) -> Union[ContainerPort, None]:
+    def find_input(self, port_to_connect: FMUPort) -> Optional[ContainerPort]:
         for fmu in self.execution_order:
             for port in fmu.ports.values():
                 if (port.causality == 'input' and port.name == port_to_connect.name
@@ -346,31 +346,26 @@ class FMUContainer:
 
         return step_size
 
-    def sanity_check(self, step_size: Union[float, None]):
-        nb_error = 0
+    def sanity_check(self, step_size: Optional[float]):
         for fmu in self.execution_order:
             if not fmu.step_size:
                 continue
             ts_ratio = step_size / fmu.step_size
             if ts_ratio < 1.0:
-                logger.error(f"Container step_size={step_size}s is lower than FMU '{fmu.name}' "
-                             f"step_size={fmu.step_size}s")
+                logger.warning(f"Container step_size={step_size}s is lower than FMU '{fmu.name}' "
+                               f"step_size={fmu.step_size}s.")
             if ts_ratio != int(ts_ratio):
-                logger.error(f"Container step_size={step_size}s should divisible by FMU '{fmu.name}' "
-                             f"step_size={fmu.step_size}s")
+                logger.warning(f"Container step_size={step_size}s should divisible by FMU '{fmu.name}' "
+                               f"step_size={fmu.step_size}s.")
             for port_name in fmu.ports:
                 cport = ContainerPort(fmu, port_name)
                 if cport not in self.rules:
                     if cport.port.causality == 'input':
                         logger.error(f"{cport} is not connected")
-                        nb_error += 1
                     if cport.port.causality == 'output':
                         logger.warning(f"{cport} is not connected")
 
-        if nb_error:
-            raise FMUContainerError(f"Some ports are not connected.")
-
-    def make_fmu(self, fmu_filename: Union[str, Path], step_size: Union[float, None] = None, debug=False, mt=False,
+    def make_fmu(self, fmu_filename: Union[str, Path], step_size: Optional[float] = None, debug=False, mt=False,
                  profiling=False):
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)

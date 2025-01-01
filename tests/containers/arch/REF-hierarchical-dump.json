@@ -1,0 +1,28 @@
+{
+  "name": "hierarchical.fmu",
+  "mt": false,
+  "profiling": false,
+  "auto_link": true,
+  "auto_input": true,
+  "auto_output": true,
+  "step_size": 0.5,
+  "container": [
+    {
+      "name": "level1.fmu",
+      "mt": false,
+      "profiling": false,
+      "auto_link": true,
+      "auto_input": true,
+      "auto_output": true,
+      "step_size": 0.01,
+      "fmu": [
+        "integrate.fmu",
+        "sine.fmu"
+      ]
+    }
+  ],
+  "fmu": [
+    "gain.fmu",
+    "level1.fmu"
+  ]
+}

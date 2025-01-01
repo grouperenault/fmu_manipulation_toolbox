@@ -1,6 +1,10 @@
 # FMU Manipulation Toolbox changelog
-This package was formerly know as `fmutool`.
+This package was formerly known as `fmutool`.
 
+
+## Version 1.8.1
+* FIXED: `fmucontainer` read links from `.json` input files
+* CHANGED: switch to PyQT6 and add minor GUI improvements
 
 ## Version 1.8
 * CHANGE: Package in now known as `fmu_manipulation`

@@ -1,0 +1,28 @@
+{
+  "name": "reversed.fmu",
+  "mt": false,
+  "profiling": false,
+  "auto_link": true,
+  "auto_input": true,
+  "auto_output": true,
+  "step_size": 0.01,
+  "container": [
+    {
+      "name": "level1.fmu",
+      "mt": false,
+      "profiling": false,
+      "auto_link": true,
+      "auto_input": true,
+      "auto_output": true,
+      "step_size": 0.5,
+      "fmu": [
+        "gain.fmu"
+      ]
+    }
+  ],
+  "fmu": [
+    "integrate.fmu",
+    "level1.fmu",
+    "sine.fmu"
+  ]
+}

@@ -5,7 +5,7 @@ from colorama import Fore, Style, init
 
 from .fmu_operations import *
 from .fmu_container import FMUContainerError
-from .assembly import Assembly
+from .assembly import Assembly, AssemblyError
 from .checker import checker_list
 from .version import __version__ as version
 from .help import Help
@@ -211,7 +211,7 @@ def fmucontainer():
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")
             continue
-        except FMUContainerError as e:
+        except (FMUContainerError, AssemblyError) as e:
             logger.fatal(f"{filename}: {e}")
             continue
 

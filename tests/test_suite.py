@@ -56,15 +56,38 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_operation_match_ref("operations/bouncing_ball-keeponly.fmu",
                                         OperationKeepOnlyRegexp("e"))
 
-    def test_container(self):
+    def test_container_bouncing_ball(self):
         assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True, debug=True)
         assembly.write_json("bouncing.json")
         assembly.make_fmu()
-        self.assert_identical_files("containers/bouncing_ball/REF_container.txt",
+        self.assert_identical_files("containers/bouncing_ball/REF-container.txt",
                                     "containers/bouncing_ball/bouncing/resources/container.txt")
-        self.assert_identical_files("containers/bouncing_ball/REF_bouncing.json",
+        self.assert_identical_files("containers/bouncing_ball/REF-bouncing.json",
                                     "containers/bouncing_ball/bouncing.json")
 
+    def test_container_ssp(self):
+        assembly = Assembly("bouncing.ssp", fmu_directory=Path("containers/ssp"))
+        assembly.make_fmu(dump_json=True)
+        self.assert_identical_files("containers/ssp/REF-bouncing-dump.json",
+                                    "containers/ssp/bouncing-dump.json")
+
+    def test_container_json_flat(self):
+        assembly = Assembly("flat.json", fmu_directory=Path("containers/arch"))
+        assembly.make_fmu(dump_json=True)
+        self.assert_identical_files("containers/arch/REF-flat-dump.json",
+                                    "containers/arch/flat-dump.json")
+
+    def test_container_json_hierarchical(self):
+        assembly = Assembly("hierarchical.json", fmu_directory=Path("containers/arch"))
+        assembly.make_fmu(dump_json=True)
+        self.assert_identical_files("containers/arch/REF-hierarchical-dump.json",
+                                    "containers/arch/hierarchical-dump.json")
+
+    def test_container_json_reversed(self):
+        assembly = Assembly("reversed.json", fmu_directory=Path("containers/arch"))
+        assembly.make_fmu(dump_json=True)
+        self.assert_identical_files("containers/arch/REF-reversed-dump.json",
+                                    "containers/arch/reversed-dump.json")
 
 if __name__ == '__main__':
     unittest.main()
