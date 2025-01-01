@@ -31,14 +31,15 @@ class Connection:
 
 
 class AssemblyNode:
-    def __init__(self, name: Union[str, None], step_size: float = None, mt=False, profiling=False,
+    def __init__(self, name: Optional[str], step_size: float = None, mt=False, profiling=False,
                  auto_link=True, auto_input=True, auto_output=True):
         self.name = name
         if step_size:
             try:
                 self.step_size = float(step_size)
             except ValueError:
-                logger.warning(f"{step_size}")
+                logger.warning(f"Step size '{step_size}' is incorrect format.")
+                self.step_size = None
         else:
             self.step_size = None
         self.mt = mt
@@ -47,6 +48,7 @@ class AssemblyNode:
         self.auto_input = auto_input
         self.auto_output = auto_output
 
+        self.parent: Optional[AssemblyNode] = None
         self.children: List[AssemblyNode] = []          # sub-containers
         self.fmu_names_list: Set[str] = set()           # FMUs contained at this level
         self.input_ports: Dict[Port, str] = {}
@@ -59,8 +61,13 @@ class AssemblyNode:
         if sub_node.name is None:
             sub_node.name = str(uuid.uuid4())+".fmu"
 
+        if sub_node.parent is not None:
+            raise AssemblyError(f"Internal Error: AssemblyNode {sub_node.name} is already parented.")
+
+        sub_node.parent = self
         self.fmu_names_list.add(sub_node.name)
         self.children.append(sub_node)
+
 
     def add_fmu(self, fmu_name: str):
         self.fmu_names_list.add(fmu_name)
