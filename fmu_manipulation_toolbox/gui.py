@@ -1,10 +1,10 @@
 import os.path
 import sys
 from .version import __version__ as version
-from PyQt6.QtCore import Qt, QObject, QUrl, pyqtSignal, QDir, QSize, QPoint
-from PyQt6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
+from PySide6.QtCore import Qt, QObject, QUrl, QDir, Signal, QPoint
+from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
                              QTextBrowser, QInputDialog, QMenu)
-from PyQt6.QtGui import (QPixmap, QImage, QFont, QTextCursor, QIcon, QDesktopServices, QAction, QPainter, QColor)
+from PySide6.QtGui import (QPixmap, QImage, QFont, QTextCursor, QIcon, QDesktopServices, QAction, QPainter, QColor)
 import textwrap
 from functools import partial
 from typing import Optional
@@ -19,10 +19,10 @@ class DropZoneWidget(QLabel):
     HEIGHT = 150
     fmu = None
     last_directory = None
-    clicked = pyqtSignal()
+    clicked = Signal()
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setAcceptDrops(True)
         self.set_image(None)
         self.setProperty("class", "dropped_fmu")
@@ -60,7 +60,7 @@ class DropZoneWidget(QLabel):
             default_directory = os.path.expanduser('~')
 
         fmu_filename, _ = QFileDialog.getOpenFileName(parent=self, caption='Select FMU to Manipulate',
-                                                      directory=default_directory, filter="FMU files (*.fmu)")
+                                                      dir=default_directory, filter="FMU files (*.fmu)")
         if fmu_filename:
             self.set_fmu(fmu_filename)
 
@@ -87,8 +87,7 @@ class DropZoneWidget(QLabel):
 
         self.setPixmap(pixmap)
 
-
-    def set_fmu(self, filename):
+    def set_fmu(self, filename: str):
         try:
             self.last_directory = os.path.dirname(filename)
             self.fmu = FMU(filename)
@@ -104,7 +103,10 @@ class LogWidget(QTextBrowser):
     class XStream(QObject):
         _stdout = None
         _stderr = None
-        messageWritten = pyqtSignal(str)
+        messageWritten = Signal(str)
+
+        def __init__(self):
+            super().__init__()
 
         def flush(self):
             pass
@@ -223,6 +225,7 @@ class FMUManipulationToolboxlMainWindow(QWidget):
 
         self.dropped_fmu = DropZoneWidget()
         self.dropped_fmu.clicked.connect(self.update_fmu)
+
         self.layout.addWidget(self.dropped_fmu, 0, 0, 4, 1)
 
         font = QFont('Verdana')
