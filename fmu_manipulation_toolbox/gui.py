@@ -177,14 +177,14 @@ class FilterWidget(QPushButton):
         self.nb_items = len(items)
         self.update_filter_text()
         if items:
-            menu = QMenu()
+            self.menu = QMenu()
             for item in items:
                 action = QAction(item, self)
                 action.setCheckable(True)
                 action.setChecked(True)
                 action.triggered.connect(partial(self.toggle_item, action))
-                menu.addAction(action)
-            self.setMenu(menu)
+                self.menu.addAction(action)
+            self.setMenu(self.menu)
 
     def toggle_item(self, action: QAction):
         if not action.isChecked() and len(self.items_selected) == 1:
@@ -507,3 +507,7 @@ def main():
     print(application.__doc__)
 
     sys.exit(application.exec())
+
+
+if __name__ == "__main__":
+    main()
