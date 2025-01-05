@@ -1,15 +1,16 @@
 import os.path
 import sys
 from .version import __version__ as version
-from PySide6.QtCore import Qt, QObject, QUrl, QDir, Signal, QPoint
+from PySide6.QtCore import Qt, QObject, QUrl, QDir, Signal, QPoint, QModelIndex, QMimeData, QByteArray, QDataStream, QIODevice, QItemSelectionModel, QItemSelection
 from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
-                             QTextBrowser, QInputDialog, QMenu)
-from PySide6.QtGui import (QPixmap, QImage, QFont, QTextCursor, QIcon, QDesktopServices, QAction, QPainter, QColor)
+                             QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView, QMainWindow)
+from PySide6.QtGui import (QPixmap, QImage, QFont, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction, QPainter, QColor, QStandardItemModel)
 import textwrap
 from functools import partial
 from typing import Optional
 
 from .fmu_operations import *
+from .assembly import Assembly, AssemblyNode
 from .checker import checker_list
 from .help import Help
 
@@ -210,7 +211,125 @@ class FilterWidget(QPushButton):
             return sorted(self.items_selected)
 
 
+class AssemblyTreeModel(QStandardItemModel):
+    dragDropFinished = Signal()
+
+    def __init__(self, assembly: Assembly, parent=None):
+        super().__init__(parent)
+
+        self.lastDroppedItems = []
+        self.pendingRemoveRowsAfterDrop = False
+        self.setHorizontalHeaderLabels(['col1'])
+        self.add_node(assembly.root, self)
+
+    def add_node(self, node: AssemblyNode, parent_item):
+        item = QStandardItem(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'container.png')),
+                             node.name)
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled)
+        children_name = [child.name for child in node.children]
+        for fmu_name in node.fmu_names_list:
+            if not fmu_name in children_name:
+                fmu_node = QStandardItem(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon_fmu.png')),
+                                         fmu_name)
+                fmu_node.setFlags(Qt.ItemFlag.ItemIsEnabled |Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled)
+                item.appendRow(fmu_node)
+        for child in node.children:
+            self.add_node(child, item)
+        parent_item.appendRow(item)
+
+    def supportedDropActions(self):
+        return Qt.DropAction.MoveAction
+
+    def _flags(self, index):
+        if not index.isValid():
+            return Qt.ItemFlag.ItemIsEnabled
+        if index.row() % 2:
+            return Qt.ItemFlag.ItemIsEnabled | \
+                   Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
+        else:
+            return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | \
+                   Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
+
+    def insertRows(self, row, count, parent):
+        print("insertRows")
+        return super().insertRows(row, count, parent)
+
+    def removeRows(self, row, count, parent):
+        print("removeRows")
+        return super().removeRows(row, count, parent)
+
+    def _setData(self, index, value, role):
+        print("setData")
+        return super().setData(index, value, role)
+
+    def _mimeTypes(self):
+        print("mimeTypes")
+        return super().mimeTypes()
+
+    def _mimeData(self, indexes):
+        print("mimeData")
+        return super().mimeData(indexes)
+
+    def dropMimeData(self, data, action, row, column, parent):
+        print(f"dropMineData: {action} {row} {column} {parent}")
+        return super().dropMimeData(data, action, row, column, parent)
+
+class SelectionModel(QItemSelectionModel):
+    def __init__(self, parent=None):
+        QItemSelectionModel.__init__(self, parent)
+
+    def onModelItemsReordered(self):
+        new_selection = QItemSelection()
+        new_index = QModelIndex()
+        for item in self.model().lastDroppedItems:
+            row = self.model().rowForItem(item)
+            if row is None:
+                continue
+            new_index = self.model().index(row, 0, QModelIndex())
+            new_selection.select(new_index, new_index)
+
+        self.clearSelection()
+        flags = QItemSelectionModel.ClearAndSelect | \
+                QItemSelectionModel.Rows | \
+                QItemSelectionModel.Current
+        self.select(new_selection, flags)
+        self.setCurrentIndex(new_index, flags)
+
+class ContainerWindow(QMainWindow):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        assembly = Assembly("tests/containers/arch/reversed.json")
+        self.model = AssemblyTreeModel(assembly)
+        self.selectionModel = SelectionModel(self.model)
+        self.model.dragDropFinished.connect(self.selectionModel.onModelItemsReordered)
+        self.view = QTreeView()
+        self.view.setModel(self.model)
+        self.view.expandAll()
+        self.view.setSelectionModel(self.selectionModel)
+        self.view.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.view.setDragDropOverwriteMode(False)
+        self.setCentralWidget(self.view)
+
+        self.show()
+
+
+class ContainerWindow2(QWidget):
+    def __init__(self, main_window, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.main_window = main_window
+        self.setWindowTitle('FMU Manipulation Toolbox - Container')
+
+        # show the window
+        self.show()
+
+    def closeEvent(self, event):
+        self.main_window.container_closed.emit()
+        event.accept()
+
+
 class FMUManipulationToolboxlMainWindow(QWidget):
+    container_closed = Signal()
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -234,6 +353,15 @@ class FMUManipulationToolboxlMainWindow(QWidget):
         self.fmu_title = QLabel()
         self.fmu_title.setFont(font)
         self.layout.addWidget(self.fmu_title, 0, 1, 1, 4)
+
+
+        self.container_window = None
+        container_button = QPushButton("Make a container")
+        container_button.setProperty("class", "quit")
+        container_button.clicked.connect(self.launch_container)
+        self.container_closed.connect(self.closing_container)
+        self.layout.addWidget(container_button, 4, 1, 1, 1)
+
 
         help_widget = HelpWidget()
         self.layout.addWidget(help_widget, 0, 5, 1, 1)
@@ -270,8 +398,8 @@ class FMUManipulationToolboxlMainWindow(QWidget):
                 self.add_operation(operation[0], operation[1], operation[2], operation[3], line, col, **operation[4])
 
         line += 1
-        self.apply_filter_label = QLabel("Apply modification only on: ")
-        self.layout.addWidget(self.apply_filter_label, line, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignRight)
+        self.apply_filter_label = QLabel("Apply only on: ")
+        self.layout.addWidget(self.apply_filter_label, line, 2, 1, 1, alignment=Qt.AlignmentFlag.AlignRight)
         self.set_tooltip(self.apply_filter_label, 'gui-apply-only')
 
         causality = ["parameter", "calculatedParameter", "input", "output", "local", "independent"]
@@ -310,6 +438,20 @@ class FMUManipulationToolboxlMainWindow(QWidget):
 
         # show the window
         self.show()
+
+    def closeEvent(self, event):
+        if self.container_window:
+            self.container_window.close()
+        event.accept()
+
+    def launch_container(self):
+        if not self.container_window:
+            self.container_window = ContainerWindow(self)
+
+    def closing_container(self):
+        print("coucouc")
+        self.container_window = None
+
 
     def set_tooltip(self, widget, usage):
         widget.setToolTip("\n".join(textwrap.wrap(self.help.usage(usage))))
@@ -474,6 +616,7 @@ QToolTip                 {color: black}
 QLabel.dropped_fmu       {background-color: #b5bab9}
 QLabel.dropped_fmu:hover {background-color: #c6cbca}
 QTextBrowser             {background-color: #282830; color: #b5bab9;}
+QTreeView {background-color: #282830; color: #b5bab9;}
 QMenu                               {font-size: 18px;}
 QMenu::item                         {padding: 2px 250px 2px 20px; border: 1px solid transparent;}
 QMenu::item::indicator              {width: 32px; height: 32px; }
