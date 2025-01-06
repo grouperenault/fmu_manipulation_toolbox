@@ -296,7 +296,7 @@ class Assembly:
                 raise AssemblyError(f"Cannot read json: {e}")
         self.root = self._json_decode_node(data)
         if not self.root.name:
-            self.root.name = str(self.filename.with_suffix(".fmu"))
+            self.root.name = str(self.filename.with_suffix(".fmu").name)
 
     def _json_decode_node(self, data: Dict) -> AssemblyNode:
         name = data.get("name", None)                                                       # 1

@@ -146,7 +146,7 @@ class LogWidget(QTextBrowser):
         self.setMinimumWidth(800)
         self.setMinimumHeight(480)
 
-        self.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br>')
+        self.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
         LogWidget.XStream.stdout().messageWritten.connect(self.insertPlainText)
         LogWidget.XStream.stderr().messageWritten.connect(self.insertPlainText)
 
@@ -212,8 +212,6 @@ class FilterWidget(QPushButton):
 
 
 class AssemblyTreeModel(QStandardItemModel):
-    dragDropFinished = Signal()
-
     def __init__(self, assembly: Assembly, parent=None):
         super().__init__(parent)
 
@@ -221,96 +219,73 @@ class AssemblyTreeModel(QStandardItemModel):
         self.pendingRemoveRowsAfterDrop = False
         self.setHorizontalHeaderLabels(['col1'])
         self.add_node(assembly.root, self)
+        self.drop_node: Optional[AssemblyNode] = None
 
     def add_node(self, node: AssemblyNode, parent_item):
         item = QStandardItem(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'container.png')),
                              node.name)
         item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled)
+        item.setData(node)
         children_name = [child.name for child in node.children]
         for fmu_name in node.fmu_names_list:
             if not fmu_name in children_name:
                 fmu_node = QStandardItem(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon_fmu.png')),
                                          fmu_name)
-                fmu_node.setFlags(Qt.ItemFlag.ItemIsEnabled |Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled)
+                fmu_node.setData(fmu_name)
+                fmu_node.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled)
                 item.appendRow(fmu_node)
         for child in node.children:
             self.add_node(child, item)
         parent_item.appendRow(item)
 
-    def supportedDropActions(self):
-        return Qt.DropAction.MoveAction
+    def insertRows(self, row, count, parent=QModelIndex()):
+        self.drop_node = parent.data(role=Qt.ItemDataRole.UserRole+1)
+        return super().insertRows(row, count, parent=parent)
 
-    def _flags(self, index):
-        if not index.isValid():
-            return Qt.ItemFlag.ItemIsEnabled
-        if index.row() % 2:
-            return Qt.ItemFlag.ItemIsEnabled | \
-                   Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
-        else:
-            return Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | \
-                   Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled
+    def removeRows(self, row, count, parent=QModelIndex()):
+        if not self.drop_node:
+            print("NO DROP NODE!?")
 
-    def insertRows(self, row, count, parent):
-        print("insertRows")
-        return super().insertRows(row, count, parent)
+        source_index = self.itemFromIndex(parent).child(row, 0).data(role=Qt.ItemDataRole.UserRole+1)
+        print(f"{source_index} ==> {self.drop_node.name}")
 
-    def removeRows(self, row, count, parent):
-        print("removeRows")
+        self.drop_node = None
         return super().removeRows(row, count, parent)
 
-    def _setData(self, index, value, role):
-        print("setData")
-        return super().setData(index, value, role)
-
-    def _mimeTypes(self):
-        print("mimeTypes")
-        return super().mimeTypes()
-
-    def _mimeData(self, indexes):
-        print("mimeData")
-        return super().mimeData(indexes)
-
-    def dropMimeData(self, data, action, row, column, parent):
-        print(f"dropMineData: {action} {row} {column} {parent}")
+    def dropMimeData(self, data, action, row, column, parent: QModelIndex):
+        if parent.column() < 0:  # Avoid to drop item as a sibling of the root.
+            return False
         return super().dropMimeData(data, action, row, column, parent)
 
-class SelectionModel(QItemSelectionModel):
+
+class ContainerWindow(QWidget):
     def __init__(self, parent=None):
-        QItemSelectionModel.__init__(self, parent)
-
-    def onModelItemsReordered(self):
-        new_selection = QItemSelection()
-        new_index = QModelIndex()
-        for item in self.model().lastDroppedItems:
-            row = self.model().rowForItem(item)
-            if row is None:
-                continue
-            new_index = self.model().index(row, 0, QModelIndex())
-            new_selection.select(new_index, new_index)
-
-        self.clearSelection()
-        flags = QItemSelectionModel.ClearAndSelect | \
-                QItemSelectionModel.Rows | \
-                QItemSelectionModel.Current
-        self.select(new_selection, flags)
-        self.setCurrentIndex(new_index, flags)
-
-class ContainerWindow(QMainWindow):
-    def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(None)
+        self.main_window = parent
         assembly = Assembly("tests/containers/arch/reversed.json")
         self.model = AssemblyTreeModel(assembly)
-        self.selectionModel = SelectionModel(self.model)
-        self.model.dragDropFinished.connect(self.selectionModel.onModelItemsReordered)
         self.view = QTreeView()
         self.view.setModel(self.model)
         self.view.expandAll()
-        self.view.setSelectionModel(self.selectionModel)
-        self.view.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+
+        self.view.setDropIndicatorShown(True)
         self.view.setDragDropOverwriteMode(False)
-        self.setCentralWidget(self.view)
+        self.view.setAcceptDrops(True)
+        self.view.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+
+        self.layout = QGridLayout()
+        self.layout.setVerticalSpacing(4)
+        self.layout.setHorizontalSpacing(4)
+        self.layout.setContentsMargins(10, 10, 10, 10)
+        self.setLayout(self.layout)
+        self.layout.addWidget(self.view, 0, 0)
+        self.setWindowTitle('FMU Manipulation Toolbox - Container')
 
         self.show()
+
+    def closeEvent(self, event):
+        self.main_window.closing_container()
+        event.accept()
 
 
 class ContainerWindow2(QWidget):
@@ -323,13 +298,8 @@ class ContainerWindow2(QWidget):
         # show the window
         self.show()
 
-    def closeEvent(self, event):
-        self.main_window.container_closed.emit()
-        event.accept()
-
 
 class FMUManipulationToolboxlMainWindow(QWidget):
-    container_closed = Signal()
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -354,14 +324,11 @@ class FMUManipulationToolboxlMainWindow(QWidget):
         self.fmu_title.setFont(font)
         self.layout.addWidget(self.fmu_title, 0, 1, 1, 4)
 
-
         self.container_window = None
         container_button = QPushButton("Make a container")
         container_button.setProperty("class", "quit")
         container_button.clicked.connect(self.launch_container)
-        self.container_closed.connect(self.closing_container)
         self.layout.addWidget(container_button, 4, 1, 1, 1)
-
 
         help_widget = HelpWidget()
         self.layout.addWidget(help_widget, 0, 5, 1, 1)
@@ -442,6 +409,7 @@ class FMUManipulationToolboxlMainWindow(QWidget):
     def closeEvent(self, event):
         if self.container_window:
             self.container_window.close()
+            self.container_window = None
         event.accept()
 
     def launch_container(self):
@@ -449,9 +417,7 @@ class FMUManipulationToolboxlMainWindow(QWidget):
             self.container_window = ContainerWindow(self)
 
     def closing_container(self):
-        print("coucouc")
         self.container_window = None
-
 
     def set_tooltip(self, widget, usage):
         widget.setToolTip("\n".join(textwrap.wrap(self.help.usage(usage))))
@@ -616,7 +582,7 @@ QToolTip                 {color: black}
 QLabel.dropped_fmu       {background-color: #b5bab9}
 QLabel.dropped_fmu:hover {background-color: #c6cbca}
 QTextBrowser             {background-color: #282830; color: #b5bab9;}
-QTreeView {background-color: #282830; color: #b5bab9;}
+QTreeView                {background-color: #282830; color: #b5bab9;}
 QMenu                               {font-size: 18px;}
 QMenu::item                         {padding: 2px 250px 2px 20px; border: 1px solid transparent;}
 QMenu::item::indicator              {width: 32px; height: 32px; }
