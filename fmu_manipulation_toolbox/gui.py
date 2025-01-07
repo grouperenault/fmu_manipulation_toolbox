@@ -33,19 +33,19 @@ class DropZoneWidget(QLabel):
         self.setFixedSize(self.WIDTH, self.HEIGHT)
 
     def dragEnterEvent(self, event):
-        if event.mimeData().hasImage:
+        if event.mimeData().hasUrls():
             event.accept()
         else:
             event.ignore()
 
     def dragMoveEvent(self, event):
-        if event.mimeData().hasImage:
+        if event.mimeData().hasUrls():
             event.accept()
         else:
             event.ignore()
 
     def dropEvent(self, event):
-        if event.mimeData().hasImage:
+        if event.mimeData().hasUrls():
             event.setDropAction(Qt.DropAction.CopyAction)
             try:
                 file_path = event.mimeData().urls()[0].toLocalFile()
