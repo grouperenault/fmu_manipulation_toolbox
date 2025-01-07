@@ -291,7 +291,7 @@ class FMUContainer:
 
         self.start_values[cport] = value
 
-    def find_input(self, port_to_connect: FMUPort) -> Union[ContainerPort, None]:
+    def find_input(self, port_to_connect: FMUPort) -> Optional[ContainerPort]:
         for fmu in self.execution_order:
             for port in fmu.ports.values():
                 if (port.causality == 'input' and port.name == port_to_connect.name
@@ -346,7 +346,7 @@ class FMUContainer:
 
         return step_size
 
-    def sanity_check(self, step_size: Union[float, None]):
+    def sanity_check(self, step_size: Optional[float]):
         for fmu in self.execution_order:
             if not fmu.step_size:
                 continue
@@ -365,7 +365,7 @@ class FMUContainer:
                     if cport.port.causality == 'output':
                         logger.warning(f"{cport} is not connected")
 
-    def make_fmu(self, fmu_filename: Union[str, Path], step_size: Union[float, None] = None, debug=False, mt=False,
+    def make_fmu(self, fmu_filename: Union[str, Path], step_size: Optional[float] = None, debug=False, mt=False,
                  profiling=False):
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)

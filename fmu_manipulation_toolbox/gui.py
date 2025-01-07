@@ -484,7 +484,6 @@ QMenu::indicator:unchecked:disabled {width: 35px; image: url(images:checkbox-unc
 
         self.setStyleSheet(css_dark)
 
-
         if os.name == 'nt':
             self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon-round.png')))
 
