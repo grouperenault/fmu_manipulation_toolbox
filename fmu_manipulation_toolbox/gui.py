@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QObject, QUrl, QDir, Signal, QPoint, QModelIndex
 from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
                                QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView)
 from PySide6.QtGui import (QPixmap, QFont, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
-                           QPainter, QColor,QImage, QStandardItemModel)
+                           QPainter, QColor, QImage, QStandardItemModel)
 from functools import partial
 from typing import Optional
 
@@ -74,7 +74,7 @@ class DropZoneWidget(QLabel):
             filename = os.path.join(os.path.dirname(__file__), "resources", "fmu.png")
 
         base_image = QImage(filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
-                                       Qt.TransformationMode.SmoothTransformation)
+                                             Qt.TransformationMode.SmoothTransformation)
         mask_filename = os.path.join(os.path.dirname(__file__), "resources", "mask.png")
         mask_image = QImage(mask_filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
                                                   Qt.TransformationMode.SmoothTransformation)
@@ -213,95 +213,116 @@ class FilterWidget(QPushButton):
             return sorted(self.items_selected)
 
 
-class AssemblyTreeModel(QStandardItemModel):
-    def __init__(self, assembly: Assembly, parent=None):
+class AssemblyTreeWidget(QTreeView):
+    class AssemblyTreeModel(QStandardItemModel):
+
+        def __init__(self, assembly: Assembly, parent=None):
+            super().__init__(parent)
+
+            self.lastDroppedItems = []
+            self.pendingRemoveRowsAfterDrop = False
+            self.setHorizontalHeaderLabels(['col1'])
+            self.dnd_target_node: Optional[AssemblyNode] = None
+
+            self.icon_container = QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'container.png'))
+            self.icon_fmu = QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon_fmu.png'))
+
+            self.add_node(assembly.root, self)
+
+        def add_node(self, node: AssemblyNode, parent_item):
+            # Add Container
+            item = QStandardItem(self.icon_container, node.name)
+            parent_item.appendRow(item)
+            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled |
+                          Qt.ItemFlag.ItemIsDropEnabled)
+            item.setData(node)
+
+            # Add FMU's
+            children_name = [child.name for child in node.children]
+            for fmu_name in node.fmu_names_list:
+                if fmu_name not in children_name:
+                    fmu_node = QStandardItem(self.icon_fmu, fmu_name)
+                    fmu_node.setData(node)
+                    fmu_node.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable |
+                                      Qt.ItemFlag.ItemIsDragEnabled)
+                    item.appendRow(fmu_node)
+
+            # Add Sub-Containers
+            for child in node.children:
+                self.add_node(child, item)
+
+        def insertRows(self, row, count, parent=QModelIndex()):
+            self.dnd_target_node = parent.data(role=Qt.ItemDataRole.UserRole + 1)
+            return super().insertRows(row, count, parent=parent)
+
+        def removeRows(self, row, count, parent=QModelIndex()):
+            if not self.dnd_target_node:
+                print("NO DROP NODE!?")
+
+            source_index = self.itemFromIndex(parent).child(row, 0).data(role=Qt.ItemDataRole.UserRole+1)
+            print(f"{source_index} ==> {self.dnd_target_node.name}")
+
+            self.dnd_target_node = None
+            return super().removeRows(row, count, parent)
+
+        def dropMimeData(self, data, action, row, column, parent: QModelIndex):
+            if parent.column() < 0:  # Avoid to drop item as a sibling of the root.
+                return False
+            return super().dropMimeData(data, action, row, column, parent)
+
+    def __init__(self, assembly: Optional[Assembly] = None, parent=None):
         super().__init__(parent)
 
-        self.lastDroppedItems = []
-        self.pendingRemoveRowsAfterDrop = False
-        self.setHorizontalHeaderLabels(['col1'])
-        self.add_node(assembly.root, self)
-        self.drop_node: Optional[AssemblyNode] = None
+        self.model = self.AssemblyTreeModel(assembly)
+        self.setModel(self.model)
+        self.expandAll()
+        self.setDropIndicatorShown(True)
+        self.setDragDropOverwriteMode(False)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.setRootIsDecorated(False)
+        self.setHeaderHidden(True)
 
-    def add_node(self, node: AssemblyNode, parent_item):
-        item = QStandardItem(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'container.png')),
-                             node.name)
-        item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled | Qt.ItemFlag.ItemIsDropEnabled)
-        item.setData(node)
-        children_name = [child.name for child in node.children]
-        for fmu_name in node.fmu_names_list:
-            if not fmu_name in children_name:
-                fmu_node = QStandardItem(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon_fmu.png')),
-                                         fmu_name)
-                fmu_node.setData(fmu_name)
-                fmu_node.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled)
-                item.appendRow(fmu_node)
-        for child in node.children:
-            self.add_node(child, item)
-        parent_item.appendRow(item)
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasImage:
+            event.accept()
+        else:
+            event.ignore()
 
-    def insertRows(self, row, count, parent=QModelIndex()):
-        self.drop_node = parent.data(role=Qt.ItemDataRole.UserRole+1)
-        return super().insertRows(row, count, parent=parent)
+    def dragMoveEvent(self, event):
+        if event.mimeData().hasImage:
+            event.accept()
+        else:
+            event.ignore()
 
-    def removeRows(self, row, count, parent=QModelIndex()):
-        if not self.drop_node:
-            print("NO DROP NODE!?")
+    def dropEvent(self, event):
+        if event.mimeData().hasImage:
+            event.setDropAction(Qt.DropAction.CopyAction)
+            try:
+                file_path = event.mimeData().urls()[0].toLocalFile()
+            except IndexError:
+                print("Please select a regular file.")
+                return
+            print(f"DROP: {file_path}")
+            event.accept()
+        else:
+            event.ignore()
 
-        source_index = self.itemFromIndex(parent).child(row, 0).data(role=Qt.ItemDataRole.UserRole+1)
-        print(f"{source_index} ==> {self.drop_node.name}")
-
-        self.drop_node = None
-        return super().removeRows(row, count, parent)
-
-    def dropMimeData(self, data, action, row, column, parent: QModelIndex):
-        if parent.column() < 0:  # Avoid to drop item as a sibling of the root.
-            return False
-        return super().dropMimeData(data, action, row, column, parent)
-
-
-class ContainerWindow(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(None)
-        self.main_window = parent
-        assembly = Assembly("tests/containers/arch/reversed.json")
-        self.model = AssemblyTreeModel(assembly)
-        self.view = QTreeView()
-        self.view.setModel(self.model)
-        self.view.expandAll()
-
-        self.view.setDropIndicatorShown(True)
-        self.view.setDragDropOverwriteMode(False)
-        self.view.setAcceptDrops(True)
-        self.view.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+class WindowWithLayout(QWidget):
+    def __init__(self, title: str):
+        super().__init__(None)  # Do not set parent to have a separated window
+        self.setWindowTitle(title)
 
         self.layout = QGridLayout()
         self.layout.setVerticalSpacing(4)
         self.layout.setHorizontalSpacing(4)
         self.layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(self.layout)
-        self.layout.addWidget(self.view, 0, 0)
-        self.setWindowTitle('FMU Manipulation Toolbox - Container')
-
-        self.show()
-
-    def closeEvent(self, event):
-        self.main_window.closing_container()
-        event.accept()
 
 
-class FMUManipulationToolboxlMainWindow(QWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.setWindowTitle('FMU Manipulation Toolbox')
-
-        # set the grid layout
-        self.layout = QGridLayout()
-        self.layout.setVerticalSpacing(4)
-        self.layout.setHorizontalSpacing(4)
-        self.layout.setContentsMargins(10, 10, 10, 10)
-        self.setLayout(self.layout)
+class MainWindow(WindowWithLayout):
+    def __init__(self):
+        super().__init__('FMU Manipulation Toolbox')
 
         self.dropped_fmu = DropZoneWidget()
         self.dropped_fmu.clicked.connect(self.update_fmu)
@@ -487,7 +508,7 @@ class FMUManipulationToolboxlMainWindow(QWidget):
         self.layout.addWidget(button, x, y)
 
     def prompt_string(self, message):
-        text, ok = QInputDialog().getText(self, "Enter value", f"{message}:", QLineEdit.Normal, "")
+        text, ok = QInputDialog().getText(self, "Enter value", f"{message}:", QLineEdit.EchoMode.Normal, "")
 
         if ok and text:
             return text
@@ -536,6 +557,23 @@ class FMUManipulationToolboxlMainWindow(QWidget):
 
             scroll_bar = self.log_widget.verticalScrollBar()
             scroll_bar.setValue(scroll_bar.maximum())
+
+
+class ContainerWindow(WindowWithLayout):
+    def __init__(self, parent: MainWindow):
+        super().__init__('FMU Manipulation Toolbox - Container')
+        self.main_window = parent
+
+        assembly = Assembly("tests/containers/arch/reversed.json")
+        self.assembly_tree = AssemblyTreeWidget(assembly, parent=self)
+        self.layout.addWidget(self.assembly_tree, 0, 0)
+
+        self.show()
+
+    def closeEvent(self, event):
+        if self.main_window:
+            self.main_window.closing_container()
+        event.accept()
 
 
 class Application(QApplication):
@@ -599,7 +637,7 @@ QMenu::indicator:unchecked:disabled {width: 35px; image: url(images:checkbox-unc
         else:
             self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon.png')))
 
-        self.window = FMUManipulationToolboxlMainWindow()
+        self.window = MainWindow()
 
 
 def main():
