@@ -1,11 +1,12 @@
 import os.path
 import sys
-from .version import __version__ as version
-from PySide6.QtCore import Qt, QObject, QUrl, QDir, Signal, QPoint, QModelIndex, QMimeData, QByteArray, QDataStream, QIODevice, QItemSelectionModel, QItemSelection
-from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
-                             QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView, QMainWindow)
-from PySide6.QtGui import (QPixmap, QImage, QFont, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction, QPainter, QColor, QStandardItemModel)
 import textwrap
+
+from PySide6.QtCore import Qt, QObject, QUrl, QDir, Signal, QPoint, QModelIndex
+from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
+                               QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView)
+from PySide6.QtGui import (QPixmap, QFont, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
+                           QPainter, QColor,QImage, QStandardItemModel)
 from functools import partial
 from typing import Optional
 
@@ -13,6 +14,7 @@ from .fmu_operations import *
 from .assembly import Assembly, AssemblyNode
 from .checker import checker_list
 from .help import Help
+from .version import __version__ as version
 
 
 class DropZoneWidget(QLabel):
@@ -138,14 +140,14 @@ class LogWidget(QTextBrowser):
         super().__init__()
         if os.name == 'nt':
             font = QFont('Consolas')
-            font.setPointSize(10)
+            font.setPointSize(11)
         else:
             font = QFont('Courier New')
             font.setPointSize(12)
         self.setFont(font)
-        self.setMinimumWidth(800)
-        self.setMinimumHeight(480)
-
+        self.setMinimumWidth(900)
+        self.setMinimumHeight(500)
+        self.setSearchPaths([os.path.join(os.path.dirname(__file__), "resources")])
         self.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
         LogWidget.XStream.stdout().messageWritten.connect(self.insertPlainText)
         LogWidget.XStream.stderr().messageWritten.connect(self.insertPlainText)
@@ -286,17 +288,6 @@ class ContainerWindow(QWidget):
     def closeEvent(self, event):
         self.main_window.closing_container()
         event.accept()
-
-
-class ContainerWindow2(QWidget):
-    def __init__(self, main_window, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        self.main_window = main_window
-        self.setWindowTitle('FMU Manipulation Toolbox - Container')
-
-        # show the window
-        self.show()
 
 
 class FMUManipulationToolboxlMainWindow(QWidget):
@@ -557,6 +548,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
     """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor)
 
         QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "resources"))
         font = QFont("Verdana")
@@ -597,10 +589,11 @@ QMenu::indicator:unchecked:disabled {width: 35px; image: url(images:checkbox-unc
         self.setStyleSheet(css_dark)
 
         if os.name == 'nt':
+            import ctypes
             self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon-round.png')))
 
             # https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7/1552105#1552105
-            import ctypes
+
             application_id = 'FMU_Manipulation_Toolbox'  # arbitrary string
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(application_id)
         else:
