@@ -4,7 +4,8 @@ import textwrap
 
 from PySide6.QtCore import Qt, QObject, QUrl, QDir, Signal, QPoint, QModelIndex
 from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
-                               QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView)
+                               QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView, QTabWidget, QTableView,
+                               QCheckBox)
 from PySide6.QtGui import (QPixmap, QFont, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
                            QPainter, QColor, QImage, QStandardItemModel)
 from functools import partial
@@ -283,19 +284,27 @@ class AssemblyTreeWidget(QTreeView):
         self.setRootIsDecorated(False)
         self.setHeaderHidden(True)
 
-    def dragEnterEvent(self, event):
+        if os.name == 'nt':
+            font = QFont('Consolas')
+            font.setPointSize(11)
+        else:
+            font = QFont('Courier New')
+            font.setPointSize(12)
+        self.setFont(font)
+
+    def dragEnterEvent2(self, event):
         if event.mimeData().hasImage:
             event.accept()
         else:
             event.ignore()
 
-    def dragMoveEvent(self, event):
+    def dragMoveEvent2(self, event):
         if event.mimeData().hasImage:
             event.accept()
         else:
             event.ignore()
 
-    def dropEvent(self, event):
+    def dropEvent2(self, event):
         if event.mimeData().hasImage:
             event.setDropAction(Qt.DropAction.CopyAction)
             try:
@@ -307,6 +316,52 @@ class AssemblyTreeWidget(QTreeView):
             event.accept()
         else:
             event.ignore()
+
+
+class AssemblPropertiesWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.layout = QGridLayout()
+        self.layout.setVerticalSpacing(4)
+        self.layout.setHorizontalSpacing(4)
+        self.layout.setContentsMargins(10, 10, 10, 10)
+        self.setLayout(self.layout)
+
+        mt_check = QCheckBox("Multi-Threaded", self)
+        self.layout.addWidget(mt_check, 1, 0)
+
+        profiling_check = QCheckBox("Profiling", self)
+        self.layout.addWidget(profiling_check, 1, 1)
+
+        auto_inputs_check = QCheckBox("Auto Inputs", self)
+        self.layout.addWidget(auto_inputs_check, 0, 0)
+
+        auto_outputs_check = QCheckBox("Auto Outputs", self)
+        self.layout.addWidget(auto_outputs_check, 0, 1)
+
+        auto_links_check = QCheckBox("Auto Links", self)
+        self.layout.addWidget(auto_links_check, 0, 2)
+
+
+class AssemblyTabWidget(QTabWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        table = AssemblPropertiesWidget(parent=self)
+        self.addTab(table, "Properties")
+        table = QTableView()
+        self.addTab(table, "Links")
+        table = QTableView()
+        self.addTab(table, "Inputs")
+        table = QTableView()
+        self.addTab(table, "Outputs")
+        table = QTableView()
+        self.addTab(table, "Start values")
+
+
+
+
 
 class WindowWithLayout(QWidget):
     def __init__(self, title: str):
@@ -567,6 +622,15 @@ class ContainerWindow(WindowWithLayout):
         assembly = Assembly("tests/containers/arch/reversed.json")
         self.assembly_tree = AssemblyTreeWidget(assembly, parent=self)
         self.layout.addWidget(self.assembly_tree, 0, 0)
+
+        self.assembly_tab = AssemblyTabWidget(parent=self)
+        self.layout.addWidget(self.assembly_tab, 0, 1)
+
+        fmu_button = QPushButton("Add FMU")
+        self.layout.addWidget(fmu_button, 1, 0)
+
+        fmu_button = QPushButton("Add Container")
+        self.layout.addWidget(fmu_button, 1, 1)
 
         self.show()
 
