@@ -23,11 +23,17 @@ class Port:
     def __eq__(self, other):
         return str(self) == str(other)
 
+    def __str__(self):
+        return f"{self.fmu_name}/{self.port_name}"
+
 
 class Connection:
     def __init__(self, from_port: Port, to_port: Port):
         self.from_port = from_port
         self.to_port = to_port
+
+    def __str__(self):
+        return f"{self.from_port} -> {self.to_port}"
 
 
 class AssemblyNode:
@@ -50,10 +56,10 @@ class AssemblyNode:
         self.auto_parameter = auto_parameter
 
         self.parent: Optional[AssemblyNode] = None
-        self.children: List[AssemblyNode] = []          # sub-containers
+        self.children: Dict[str, AssemblyNode] = {}     # sub-containers
         self.fmu_names_list: Set[str] = set()           # FMUs contained at this level
-        self.input_ports: Dict[Port, str] = {}
-        self.output_ports: Dict[Port, str] = {}
+        self.input_ports: Dict[Port, str] = {}          # value is input port name, key is the source
+        self.output_ports: Dict[Port, str] = {}         # value is output port name, key is the origin
         self.start_values: Dict[Port, str] = {}
         self.drop_ports: List[Port] = []
         self.links: List[Connection] = []
@@ -65,9 +71,12 @@ class AssemblyNode:
         if sub_node.parent is not None:
             raise AssemblyError(f"Internal Error: AssemblyNode {sub_node.name} is already parented.")
 
+        if sub_node.name in self.children:
+            raise AssemblyError(f"Internal Error: AssemblyNode {sub_node.name} is already child of {self.name}")
+
         sub_node.parent = self
         self.fmu_names_list.add(sub_node.name)
-        self.children.append(sub_node)
+        self.children[sub_node.name] = sub_node
 
     def add_fmu(self, fmu_name: str):
         self.fmu_names_list.add(fmu_name)
@@ -89,7 +98,7 @@ class AssemblyNode:
         self.start_values[Port(fmu_filename, port_name)] = value
 
     def make_fmu(self, fmu_directory: Path, debug=False, description_pathname=None):
-        for node in self.children:
+        for node in self.children.values():
             node.make_fmu(fmu_directory, debug=debug)
 
         identifier = str(Path(self.name).stem)
@@ -121,9 +130,93 @@ class AssemblyNode:
 
         container.make_fmu(self.name, self.step_size, mt=self.mt, profiling=self.profiling, debug=debug)
 
-        for node in self.children:
+        for node in self.children.values():
             logger.info(f"Deleting transient FMU Container '{node.name}'")
             (fmu_directory / node.name).unlink()
+
+    def get_final_from(self, port: Port) -> Port:
+        if port.fmu_name in self.fmu_names_list:
+            if port.fmu_name in self.children:
+                child = self.children[port.fmu_name]
+                ancestors = [key for key, val in child.output_ports.items() if val == port.port_name]
+                if len(ancestors) == 1:
+                    return child.get_final_from(ancestors[0])
+            else:
+                return port
+
+        #for link in self.links:
+        #    if link.to_port == port:
+        #        from_port = link.from_port
+        #        if from_port.fmu_name in self.children:          # linked to child container
+        #            return self.children[from_port.fmu_name].get_final_from(from_port)
+        #        elif from_port.fmu_name in self.fmu_names_list:  # embedded FMU
+        #            return from_port
+        #        else:
+        #            raise AssemblyError(f"{self.name}: Port {port} is not connected to upstream known object.")
+
+        if port in self.input_ports:
+            ancestor = Port(self.name, self.input_ports[port])
+            if self.parent:
+                return self.parent.get_final_from(ancestor)
+            else:
+                return ancestor
+
+        raise AssemblyError(f"{self.name}: Port {port} is not connected upstream.")
+
+    def get_final_to(self, port: Port) -> Port:
+        if port.fmu_name in self.fmu_names_list:
+            if port.fmu_name in self.children:
+                child = self.children[port.fmu_name]
+                successors = [key for key, val in child.input_ports.items() if val == port.port_name]
+                if len(successors) == 1:
+                    return child.get_final_to(successors[0]) #CASE 2
+            else:
+                return port # CASE 1
+
+        #for link in self.links:
+        #    if link.from_port == port:
+        #        to_port = link.to_port
+        #        if to_port.fmu_name in self.children:          # linked to child container
+        #            return self.children[to_port.fmu_name].get_final_to(to_port)
+        #        elif to_port.fmu_name in self.fmu_names_list:  # embedded FMU
+        #            return to_port
+        #        else:
+        #            raise AssemblyError(f"Port {port} is not connected to downstream known object.")
+
+        if port in self.output_ports:
+            successor = Port(self.name, self.output_ports[port])
+            if self.parent:
+                return self.parent.get_final_to(successor)
+            else:
+                return successor
+
+        raise AssemblyError(f"Node {self.name}: Port {port} is not connected downstream.")
+
+    def get_fmu_connections(self, fmu_name: str) -> List[Connection]:
+        connections = []
+        if fmu_name not in self.fmu_names_list:
+            raise AssemblyError(f"Internal Error: FMU {fmu_name} is not embedded by {self.name}.")
+        for link in self.links:
+            if link.from_port.fmu_name == fmu_name:
+                connections.append(Connection(link.from_port, self.get_final_to(link.to_port)))
+            elif link.to_port.fmu_name == fmu_name:
+                connections.append(Connection(self.get_final_from(link.from_port), link.to_port))
+
+        for to_port, input_port_name in self.input_ports.items():
+            if to_port.fmu_name == fmu_name:
+                if self.parent:
+                    connections.append(Connection(self.parent.get_final_from(Port(self.name, input_port_name)), to_port))
+                else:
+                    connections.append(Connection(Port(self.name, input_port_name), to_port))
+
+        for from_port, output_port_name in self.output_ports.items():
+            if from_port.fmu_name == fmu_name:
+                if self.parent:
+                    connections.append(Connection(from_port, self.parent.get_final_to(Port(self.name, output_port_name))))
+                else:
+                    connections.append(Connection(from_port, Port(self.name, output_port_name))) ###HERE
+
+        return connections
 
 
 class AssemblyError(Exception):
@@ -379,7 +472,7 @@ class Assembly:
             json_node["step_size"] = node.step_size        # 7
 
         if node.children:
-            json_node["container"] = [self._json_encode_node(child) for child in node.children]     # 8
+            json_node["container"] = [self._json_encode_node(child) for child in node.children.values()]  # 8
 
         if node.fmu_names_list:
             json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]          # 9

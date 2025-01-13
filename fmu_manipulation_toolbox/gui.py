@@ -239,7 +239,7 @@ class AssemblyTreeWidget(QTreeView):
             item.setData(node)
 
             # Add FMU's
-            children_name = [child.name for child in node.children]
+            children_name = node.children.keys()
             for fmu_name in node.fmu_names_list:
                 if fmu_name not in children_name:
                     fmu_node = QStandardItem(self.icon_fmu, fmu_name)
@@ -249,7 +249,7 @@ class AssemblyTreeWidget(QTreeView):
                     item.appendRow(fmu_node)
 
             # Add Sub-Containers
-            for child in node.children:
+            for child in node.children.values():
                 self.add_node(child, item)
 
         def insertRows(self, row, count, parent=QModelIndex()):
@@ -619,7 +619,7 @@ class ContainerWindow(WindowWithLayout):
         super().__init__('FMU Manipulation Toolbox - Container')
         self.main_window = parent
 
-        assembly = Assembly("tests/containers/arch/reversed.json")
+        assembly = Assembly("tests/containers/arch/nested.json")
         self.assembly_tree = AssemblyTreeWidget(assembly, parent=self)
         self.layout.addWidget(self.assembly_tree, 0, 0)
 

@@ -1,0 +1,73 @@
+{
+  "name": "level0.fmu",
+  "fmu": [
+    "fmu0a.fmu",
+    "fmu0b.fmu"
+  ],
+  "container": [
+    {
+      "name": "level1.fmu",
+      "fmu": [
+        "fmu1a.fmu",
+        "fmu1b.fmu",
+        "fmu1c.fmu"
+      ],
+      "link": [
+        ["fmu1a.fmu", "fmu1a_out0", "fmu1b.fmu", "fmu1b_in1"],
+        ["level2a.fmu", "level2a_out0", "fmu1b.fmu", "fmu1b_in2"],
+        ["fmu1b.fmu", "fmu1b_out1", "fmu1c.fmu", "fmu1c_in0"],
+        ["fmu1b.fmu", "fmu1b_out2", "level2b.fmu", "level2b_in0"]
+      ],
+      "input": [
+        ["level1_in0", "fmu1b.fmu", "fmu1b_in0"],
+        ["level1_in1", "fmu1a.fmu", "fmu1a_in0"],
+        ["level1_in2", "level2a.fmu", "level2a_in0"]
+      ],
+      "output": [
+        [ "fmu1b.fmu", "fmu1b_out0", "level1_out0"],
+        [ "fmu1c.fmu", "fmu1c_out0", "level1_out1"],
+        [ "level2b.fmu", "level2b_out0", "level1_out2"]
+      ],
+      "container": [
+        {
+          "name": "level2a.fmu",
+          "fmu": [
+            "fmu2a.fmu"
+          ],
+          "input": [
+            ["level2a_in0", "fmu2a.fmu", "fmu2a_in0"]
+          ],
+          "output": [
+            ["fmu2a.fmu", "fmu2a_out0", "level2a_out0"]
+          ]
+        },
+        {
+          "name": "level2b.fmu",
+          "fmu": [
+            "fmu2b.fmu"
+          ],
+          "input": [
+            ["level2b_in0", "fmu2b.fmu", "fmu2b_in0"]
+          ],
+          "output": [
+            ["fmu2b.fmu", "fmu2b_out0", "level2b_out0"]
+          ]
+        }
+      ]
+    }
+  ],
+  "input": [
+    ["IN_A", "level1.fmu", "level1_in0"],
+    ["IN_B", "fmu0a.fmu", "fmu0a_in0"]
+  ],
+  "output": [
+    ["level1.fmu", "level1_out0", "OUT_A"],
+    ["fmu0b.fmu", "fmu0b_out0", "OUT_B"]
+  ],
+  "link": [
+    ["fmu0a.fmu", "fmu0a_out0", "level1.fmu", "level1_in1"],
+    ["fmu0a.fmu", "fmu0a_out1", "level1.fmu", "level1_in2"],
+    ["level1.fmu", "level1_out1", "fmu0b.fmu", "fmu0b_in0"],
+    ["level1.fmu", "level1_out2", "fmu0b.fmu", "fmu0b_in1"]
+  ]
+}
