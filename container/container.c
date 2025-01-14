@@ -20,7 +20,6 @@
 
 /* unimplemented fmi2 functions */
 #define __NOT_IMPLEMENTED__ \
-    container_t* container = (container_t*)c; \
     logger(fmi2Error, "Function '%s' is not implemented", __func__); \
     return fmi2Error;
 

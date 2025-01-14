@@ -139,7 +139,7 @@ static libray_status_t* libray_try_load(const char* filename) {
 }
 
 
-static libray_print_status(const char* filename, libray_status_t* status) {
+static void libray_log_status(const char* filename, libray_status_t* status) {
     switch (*status) {
     case LIBRARY_DLL_OK:
         logger(fmi2Warning, "DLL `%s' is found.", filename);
@@ -186,7 +186,7 @@ static libray_status_t* libray_analyse_really(hash_t* dll_db, const char* filena
     if (*status == LIBRARY_DLL_MISSING_DEPENDENCIES)
         libray_analyse_deeply(dll_db, filename);
 
-    libray_print_status(filename, status);
+    libray_log_status(filename, status);
 
     return status;
 }
