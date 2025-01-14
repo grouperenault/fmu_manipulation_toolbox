@@ -413,12 +413,12 @@ class FMUContainer:
                     capabilities[capability] = "true"
 
         if self.start_time is None:
-            logger.info(f"start_time will be deduced from the _first_ embedded FMU's")
             self.start_time = self.execution_order[0].start_time
+            logger.info(f"start_time={self.start_time} (deduced from the _first_ embedded FMU)")
 
         if self.stop_time is None:
-            logger.info(f"stop_time will be deduced from the _first_ embedded FMU's")
             self.stop_time = self.execution_order[0].stop_time
+            logger.info(f"stop_time={self.stop_time} (deduced from the _first_ embedded FMU)")
 
         xml_file.write(f"""<?xml version="1.0" encoding="ISO-8859-1"?>
 <fmiModelDescription
