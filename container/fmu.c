@@ -158,7 +158,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     strncpy(fmu->resource_dir, "file:///", FMU_PATH_MAX_LEN);
 	fs_make_path(fmu->resource_dir, FMU_PATH_MAX_LEN, directory, "resources", NULL);
 
-    fmu->library = library_load(container, library_filename);
+    fmu->library = library_load(library_filename);
     if (!fmu->library)
         return -2;
     
