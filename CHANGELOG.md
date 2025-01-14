@@ -4,9 +4,11 @@ This package was formerly known as `fmutool`.
 
 ## Version 1.8.2 (upcoming)
 * FIXED: `fmucontainer` identifier (for coSimulation) does not contain ".fmu" anymore
-* TODO: ADDED: take care of stoptime
-* TODO: Expose parameters
-* ADDED: GUI for `fmucontainer`
+* ADDED: `fmucontainer` log more information when embedded FMU cannot be loaded
+* ADDED: `fmucontainer` startTime and stopTime are deduced from 1st embedded FMU
+* [ ] ADDED: `fmucontainer` support new option `-auto-parameters` 
+* [ ] ADDED: preliminary version of GUI for `fmucontainer`
+
 
 ## Version 1.8.1
 * FIXED: `fmucontainer` read links from `.json` input files
