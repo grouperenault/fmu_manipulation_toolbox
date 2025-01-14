@@ -135,60 +135,38 @@ class AssemblyNode:
             (fmu_directory / node.name).unlink()
 
     def get_final_from(self, port: Port) -> Port:
-        if port.fmu_name in self.fmu_names_list:
+        if port in self.input_ports:
+            ancestor = Port(self.name, self.input_ports[port])
+            if self.parent:
+                return self.parent.get_final_from(ancestor)  # input port
+            else:
+                return ancestor  # TOPLEVEL input port
+        elif port.fmu_name in self.fmu_names_list:
             if port.fmu_name in self.children:
                 child = self.children[port.fmu_name]
                 ancestors = [key for key, val in child.output_ports.items() if val == port.port_name]
                 if len(ancestors) == 1:
-                    return child.get_final_from(ancestors[0])
+                    return child.get_final_from(ancestors[0])  # child output port
             else:
-                return port
-
-        #for link in self.links:
-        #    if link.to_port == port:
-        #        from_port = link.from_port
-        #        if from_port.fmu_name in self.children:          # linked to child container
-        #            return self.children[from_port.fmu_name].get_final_from(from_port)
-        #        elif from_port.fmu_name in self.fmu_names_list:  # embedded FMU
-        #            return from_port
-        #        else:
-        #            raise AssemblyError(f"{self.name}: Port {port} is not connected to upstream known object.")
-
-        if port in self.input_ports:
-            ancestor = Port(self.name, self.input_ports[port])
-            if self.parent:
-                return self.parent.get_final_from(ancestor)
-            else:
-                return ancestor
+                return port  # embedded FMU
 
         raise AssemblyError(f"{self.name}: Port {port} is not connected upstream.")
 
     def get_final_to(self, port: Port) -> Port:
-        if port.fmu_name in self.fmu_names_list:
+        if port in self.output_ports:
+            successor = Port(self.name, self.output_ports[port])
+            if self.parent:
+                return self.parent.get_final_to(successor)  # Output port
+            else:
+                return successor  # TOLEVEL output port
+        elif port.fmu_name in self.fmu_names_list:
             if port.fmu_name in self.children:
                 child = self.children[port.fmu_name]
                 successors = [key for key, val in child.input_ports.items() if val == port.port_name]
                 if len(successors) == 1:
-                    return child.get_final_to(successors[0]) #CASE 2
+                    return child.get_final_to(successors[0])  # Child input port
             else:
-                return port # CASE 1
-
-        #for link in self.links:
-        #    if link.from_port == port:
-        #        to_port = link.to_port
-        #        if to_port.fmu_name in self.children:          # linked to child container
-        #            return self.children[to_port.fmu_name].get_final_to(to_port)
-        #        elif to_port.fmu_name in self.fmu_names_list:  # embedded FMU
-        #            return to_port
-        #        else:
-        #            raise AssemblyError(f"Port {port} is not connected to downstream known object.")
-
-        if port in self.output_ports:
-            successor = Port(self.name, self.output_ports[port])
-            if self.parent:
-                return self.parent.get_final_to(successor)
-            else:
-                return successor
+                return port  # embedded FMU
 
         raise AssemblyError(f"Node {self.name}: Port {port} is not connected downstream.")
 
