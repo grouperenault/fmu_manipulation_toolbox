@@ -15,7 +15,7 @@ This package was formerly known as `fmutool`.
 * CHANGED: switch to PyQT6 and add minor GUI improvements
 
 ## Version 1.8
-* CHANGE: Package in now known as `fmu_manipulation`
+* CHANGE: Python Package in now known as `fmu-manipulation-toolbox`
 * ADDED: `fmucontainer` support `canHandleVariableCommunicationStepSize`
 * ADDED: `fmucontainer` support `.spp` or `.json` as input files
 * ADDED: `fmucontainer` new `-dump` option to save container description 
