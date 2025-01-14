@@ -27,24 +27,11 @@ typedef void* library_t;
 
 
 /*----------------------------------------------------------------------------
-                        L I B R A R Y _ S T A T U S _ T
-----------------------------------------------------------------------------*/
-
-#ifdef WIN32
-typedef enum {
-    LIBRARY_DLL_NOT_FOUND,
-    LIBRARY_DLL_MISSING_DEPENDENCIES,
-    LIBRARY_DLL_OK
-} libray_status_t;
-#endif
-
-
-/*----------------------------------------------------------------------------
                              P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
 extern void* library_symbol(library_t library, const char *symbol_name);
-extern library_t library_load(const char* library_filename);
+extern library_t library_load(struct container_s *container, const char* library_filename);
 extern void library_unload(library_t library);
 
 #	ifdef __cplusplus

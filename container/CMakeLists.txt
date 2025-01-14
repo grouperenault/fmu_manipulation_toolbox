@@ -34,6 +34,7 @@ message("FMI_PLATFORM: ${FMI_PLATFORM}")
 add_library(container SHARED
 		container.c	container.h
 		fmu.c		fmu.h
+		hash.c      hash.h
 		library.c	library.h
 		logger.c    logger.h
 		profile.c   profile.h
@@ -44,6 +45,9 @@ target_include_directories(container PRIVATE
 )
 if (UNIX AND NOT APPLE)
         target_link_libraries(container Threads::Threads)
+endif()
+if (WIN32)
+    target_link_libraries(container Imagehlp.lib)
 endif()
 set_target_properties(container PROPERTIES
 					  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}"
