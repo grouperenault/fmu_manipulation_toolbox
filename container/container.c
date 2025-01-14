@@ -20,8 +20,7 @@
 
 /* unimplemented fmi2 functions */
 #define __NOT_IMPLEMENTED__ \
-    container_t* container = (container_t*)c; \
-    logger(container, fmi2Error, "Function '%s' is not implemented", __func__); \
+    logger(fmi2Error, "Function '%s' is not implemented", __func__); \
     return fmi2Error;
 
 
@@ -58,9 +57,9 @@ static int read_mt_flag(container_t* container, config_file_t* file) {
         return -2;
 
     if (container->mt)
-        logger(container, fmi2Warning, "Container use MULTI thread");
+        logger(fmi2Warning, "Container use MULTI thread");
     else   
-        logger(container, fmi2Warning, "Container use MONO thread");
+        logger(fmi2Warning, "Container use MONO thread");
 
     return 0;
 }
@@ -73,7 +72,7 @@ static int read_profiling_flag(container_t* container, config_file_t* file) {
         return -2;
 
     if (container->profiling)
-        logger(container, fmi2Warning, "Container use PROFILING");
+        logger(fmi2Warning, "Container use PROFILING");
 
     return 0;
 }
@@ -84,7 +83,7 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
         return -1;
     if (sscanf(file->line, "%le", &container->time_step) < 1)
         return -2;
-    logger(container, fmi2OK, "Container time_step = %e", container->time_step);
+    logger(fmi2OK, "Container time_step = %e", container->time_step);
     return 0;
 }
 
@@ -97,7 +96,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
     if (sscanf(file->line, "%d", &nb_fmu) < 1)
         return -2;
 
-    logger(container, fmi2OK, "%d FMU's to be loaded", nb_fmu);
+    logger(fmi2OK, "%d FMU's to be loaded", nb_fmu);
     if (!nb_fmu) {
         container->fmu = NULL;
         return 0;
@@ -130,10 +129,10 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
             return -1;
         const char *guid = file->line;
 
-        logger(container, fmi2OK, "Loading '%s.dll' from directory '%s'", identifier, directory);
+        logger(fmi2OK, "Loading '%s.dll' from directory '%s'", identifier, directory);
 
         if (fmu_load_from_directory(container, i, directory, identifier, guid)) {
-            logger(container, fmi2Error, "Cannot load from directory '%s'", directory);
+            logger(fmi2Error, "Cannot load from directory '%s'", directory);
             free(identifier);
             return -4;
         }
@@ -413,52 +412,52 @@ static int read_conf(container_t* container, const char* dirname) {
     filename[sizeof(filename) - 1] = '\0';
     strncat(filename, "/container.txt", sizeof(filename) - strlen(filename) - 1);
 
-    logger(container, fmi2OK, "Reading '%s'...", filename);
+    logger(fmi2OK, "Reading '%s'...", filename);
     file.fp = fopen(filename, "rt");
     if (!file.fp) {
-        logger(container, fmi2Error, "Cannot open '%s': %s.", filename, strerror(errno));
+        logger(fmi2Error, "Cannot open '%s': %s.", filename, strerror(errno));
         return -1;
     }
     if (read_mt_flag(container, &file)) {
         fclose(file.fp);
-        logger(container, fmi2Error, "Cannot configure MT flag.");
+        logger(fmi2Error, "Cannot configure MT flag.");
         return -2;
     }
 
     if (read_profiling_flag(container, &file)) {
         fclose(file.fp);
-        logger(container, fmi2Error, "Cannot configure PROFILING flag.");
+        logger(fmi2Error, "Cannot configure PROFILING flag.");
         return -2;
     }
 
     if (read_conf_time_step(container, &file)) {
         fclose(file.fp);
-        logger(container, fmi2Error, "Cannot set time step.");
+        logger(fmi2Error, "Cannot set time step.");
         return -2;
     }
 
     if (read_conf_fmu(container, dirname, &file)) {
         fclose(file.fp);
-        logger(container, fmi2Error, "Cannot load embedded FMU's.");
+        logger(fmi2Error, "Cannot load embedded FMU's.");
         return -3;
     }
 
     if (read_conf_io(container, &file)) {
         fclose(file.fp);
-        logger(container, fmi2Error, "Cannot allocate local variables.");
+        logger(fmi2Error, "Cannot allocate local variables.");
         return -4;
     }
 
     if (read_conf_vr(container, &file)) {
         fclose(file.fp);
-        logger(container, fmi2Error, "Cannot read translation table.");
+        logger(fmi2Error, "Cannot read translation table.");
         return -5;
     }
 
-    logger(container, fmi2OK, "Real    : %d local variables and %d ports", container->nb_local_reals, container->nb_ports_reals);
-    logger(container, fmi2OK, "Integer : %d local variables and %d ports", container->nb_local_integers, container->nb_ports_integers);
-    logger(container, fmi2OK, "Boolean : %d local variables and %d ports", container->nb_local_booleans, container->nb_ports_booleans);
-    logger(container, fmi2OK, "String  : %d local variables and %d ports", container->nb_local_strings, container->nb_ports_strings);
+    logger(fmi2OK, "Real    : %d local variables and %d ports", container->nb_local_reals, container->nb_ports_reals);
+    logger(fmi2OK, "Integer : %d local variables and %d ports", container->nb_local_integers, container->nb_ports_integers);
+    logger(fmi2OK, "Boolean : %d local variables and %d ports", container->nb_local_booleans, container->nb_ports_booleans);
+    logger(fmi2OK, "String  : %d local variables and %d ports", container->nb_local_strings, container->nb_ports_strings);
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (read_conf_fmu_io(&container->fmu[i].fmu_io, &file)) {
@@ -466,17 +465,17 @@ static int read_conf(container_t* container, const char* dirname) {
             return -6;
         }
 
-        logger(container, fmi2OK, "FMU#%d: IN     %d reals, %d integers, %d booleans, %d strings", i,
+        logger(fmi2OK, "FMU#%d: IN     %d reals, %d integers, %d booleans, %d strings", i,
             container->fmu[i].fmu_io.reals.in.nb,
             container->fmu[i].fmu_io.integers.in.nb,
             container->fmu[i].fmu_io.booleans.in.nb,
             container->fmu[i].fmu_io.strings.in.nb);
-        logger(container, fmi2OK, "FMU#%d: START  %d reals, %d integers, %d booleans, %d strings", i,
+        logger(fmi2OK, "FMU#%d: START  %d reals, %d integers, %d booleans, %d strings", i,
             container->fmu[i].fmu_io.start_reals.nb,
             container->fmu[i].fmu_io.start_integers.nb,
             container->fmu[i].fmu_io.start_strings.nb,
             container->fmu[i].fmu_io.start_strings.nb);
-        logger(container, fmi2OK, "FMU#%d: OUT    %d reals, %d integers, %d booleans, %d strings", i,
+        logger(fmi2OK, "FMU#%d: OUT    %d reals, %d integers, %d booleans, %d strings", i,
             container->fmu[i].fmu_io.reals.out.nb,
             container->fmu[i].fmu_io.integers.out.nb,
             container->fmu[i].fmu_io.booleans.out.nb,
@@ -533,6 +532,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         container->debug = loggingOn;
         container->logger = functions->logger;
 
+        logger_init(container);  /* logger() is available starting this point ! */
         container->mt = 0;
         container->nb_fmu = 0;
         container->fmu = NULL;
@@ -559,13 +559,13 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         container->time = 0.0;
         container->tolerance = 1.0e-8;
 
-        logger(container, fmi2OK, "Container model loading...");
+        logger(fmi2OK, "Container model loading...");
         if (read_conf(container, fmuResourceLocation + strlen("file:///"))) {
-            logger(container, fmi2Error, "Cannot read container configuration.");
+            logger(fmi2Error, "Cannot read container configuration.");
             fmi2FreeInstance(container);
             return NULL;
         }
-        logger(container, fmi2OK, "Container configuration read.");
+        logger(fmi2OK, "Container configuration read.");
 
         for(int i=0; i < container->nb_fmu; i += 1) {
             fmi2Status status = fmuInstantiate(&container->fmu[i], 
@@ -574,7 +574,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
                                                visible,
                                                container->debug);
             if (status != fmi2OK) {
-                logger(container, fmi2Error, "Cannot Instiantiate FMU#%d", i);
+                logger(fmi2Error, "Cannot Instiantiate FMU#%d", i);
                 fmi2FreeInstance(container);
                 return NULL;
             }
@@ -659,7 +659,7 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
     }
 
     container->time = startTime;
-    logger(container, fmi2OK, "fmi2SetupExperiment -- OK");
+    logger(fmi2OK, "fmi2SetupExperiment -- OK");
     return fmi2OK;
 }
 
@@ -940,7 +940,7 @@ static fmi2Status do_internal_step_parallel_mt(container_t* container, fmi2Real 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         status = do_step_get_outputs(container, i);
         if (status != fmi2OK) {
-            logger(container, fmi2Error, "Container: FMU#%d failed doStep.", i);
+            logger(fmi2Error, "Container: FMU#%d failed doStep.", i);
             return status;
         }
 
@@ -970,7 +970,7 @@ static fmi2Status do_internal_step_parallel(container_t* container, fmi2Real cur
         /* COMPUTATION */
         status = fmuDoStep(fmu, currentCommunicationPoint, step_size, noSetFMUStatePriorToCurrentPoint);
         if (status != fmi2OK) {
-            logger(container, fmi2Error, "Container: FMU#%d failed doStep.", i);
+            logger(fmi2Error, "Container: FMU#%d failed doStep.", i);
             return status;
         }
     }
@@ -1014,7 +1014,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
     container->time = current_time;
 
     if (fabs(currentCommunicationPoint + communicationStepSize - current_time) > container->tolerance) {
-        logger(container, fmi2Warning, "CommunicationStepSize should be divisible by %e", container->time_step);
+        logger(fmi2Warning, "CommunicationStepSize should be divisible by %e", container->time_step);
         return fmi2Warning;
     }
 
