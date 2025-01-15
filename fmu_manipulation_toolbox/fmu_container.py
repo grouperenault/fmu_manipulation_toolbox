@@ -313,7 +313,7 @@ class FMUContainer:
                 if cport not in self.rules:
                     if cport.port.causality == 'parameter' and auto_parameter:
                         parameter_name = cport.fmu.model_identifier+"."+cport.port.name
-                        logger.info(f"Exposing parameters {cport} as {parameter_name}")
+                        logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
                         self.inputs[parameter_name] = cport
                         self.mark_ruled(cport, 'PARAMETER')
                     elif cport.port.causality == 'output':

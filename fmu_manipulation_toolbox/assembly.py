@@ -32,7 +32,7 @@ class Connection:
 
 class AssemblyNode:
     def __init__(self, name: Optional[str], step_size: float = None, mt=False, profiling=False,
-                 auto_link=True, auto_input=True, auto_output=True):
+                 auto_link=True, auto_input=True, auto_output=True, auto_parameter=True):
         self.name = name
         if step_size:
             try:
@@ -47,6 +47,7 @@ class AssemblyNode:
         self.auto_link = auto_link
         self.auto_input = auto_input
         self.auto_output = auto_output
+        self.auto_parameter = auto_parameter
 
         self.parent: Optional[AssemblyNode] = None
         self.children: List[AssemblyNode] = []          # sub-containers
@@ -67,7 +68,6 @@ class AssemblyNode:
         sub_node.parent = self
         self.fmu_names_list.add(sub_node.name)
         self.children.append(sub_node)
-
 
     def add_fmu(self, fmu_name: str):
         self.fmu_names_list.add(fmu_name)
@@ -116,7 +116,8 @@ class AssemblyNode:
 
         container.add_implicit_rule(auto_input=self.auto_input,
                                     auto_output=self.auto_output,
-                                    auto_link=self.auto_link)
+                                    auto_link=self.auto_link,
+                                    auto_parameter=self.auto_parameter)
 
         container.make_fmu(self.name, self.step_size, mt=self.mt, profiling=self.profiling, debug=debug)
 
@@ -135,13 +136,14 @@ class AssemblyError(Exception):
 
 class Assembly:
     def __init__(self, filename: str, step_size=None, auto_link=True,  auto_input=True, debug=False,
-                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = "."):
+                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = ".", auto_parameter=True):
         self.filename = Path(filename)
         self.default_auto_input = auto_input
         self.debug = debug
         self.default_auto_output = auto_output
         self.default_step_size = step_size
         self.default_auto_link = auto_link
+        self.default_auto_parameter = auto_parameter
         self.default_mt = mt
         self.default_profiling = profiling
         self.fmu_directory = fmu_directory
@@ -198,7 +200,8 @@ class Assembly:
         name = str(self.filename.with_suffix(".fmu"))
         self.root = AssemblyNode(name, step_size=self.default_step_size, auto_link=self.default_auto_link,
                                  mt=self.default_mt, profiling=self.default_profiling,
-                                 auto_input=self.default_auto_input, auto_output=self.default_auto_output)
+                                 auto_input=self.default_auto_input, auto_output=self.default_auto_output,
+                                 auto_parameter=self.default_auto_parameter)
 
         with open(self.input_pathname) as file:
             reader = csv.reader(file, delimiter=';')
@@ -295,47 +298,49 @@ class Assembly:
         if not self.root.name:
             self.root.name = str(self.filename.with_suffix(".fmu"))
 
-    def _json_decode_node(self, data:Dict) -> AssemblyNode:
+    def _json_decode_node(self, data: Dict) -> AssemblyNode:
         name = data.get("name", None)                                                       # 1
-        step_size = data.get("step_size", self.default_step_size)                           # 7
+        mt = data.get("mt", self.default_mt)                                                # 2
+        profiling = data.get("profiling", self.default_profiling)                           # 3
         auto_link = data.get("auto_link", self.default_auto_link)                           # 4
         auto_input = data.get("auto_input", self.default_auto_input)                        # 5
         auto_output = data.get("auto_output", self.default_auto_output)                     # 6
-        mt = data.get("mt", self.default_mt)                                                # 2
-        profiling = data.get("profiling", self.default_profiling)                           # 3
+        auto_parameter = data.get("auto_parameter", self.default_auto_parameter)            # 6b
+        step_size = data.get("step_size", self.default_step_size)                           # 7
 
         node = AssemblyNode(name, step_size=step_size, auto_link=auto_link, mt=mt, profiling=profiling,
-                            auto_input=auto_input, auto_output=auto_output)
+                            auto_input=auto_input, auto_output=auto_output, auto_parameter=auto_parameter)
 
         for key, value in data.items():
-            if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling'):
+            if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling',
+                       'auto_parameter'):
                 continue  # Already read
 
-            elif key == "container": # 8
+            elif key == "container":  # 8
                 if not isinstance(value, list):
                     raise AssemblyError("JSON: 'container' keyword should define a list.")
                 for sub_data in value:
                     node.add_sub_node(self._json_decode_node(sub_data))
 
-            elif key == "fmu": # 9
+            elif key == "fmu":  # 9
                 if not isinstance(value, list):
                     raise AssemblyError("JSON: 'fmu' keyword should define a list.")
                 for fmu in value:
                     node.add_fmu(fmu)
 
-            elif key == "input": # 10
+            elif key == "input":  # 10
                 self._json_decode_keyword('input', value, node.add_input)
 
-            elif key == "output": # 11
+            elif key == "output":  # 11
                 self._json_decode_keyword('output', value, node.add_output)
 
-            elif key == "link": # 12
+            elif key == "link":  # 12
                 self._json_decode_keyword('link', value, node.add_link)
 
-            elif key == "start": # 13
+            elif key == "start":  # 13
                 self._json_decode_keyword('start', value, node.add_start_value)
 
-            elif key == "drop": #14
+            elif key == "drop":  # 14
                 self._json_decode_keyword('drop', value, node.add_drop_port)
 
             else:
@@ -355,7 +360,6 @@ class Assembly:
             except TypeError:
                 raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: {line}.")
 
-
     def write_json(self, filename: Union[str, Path]):
         with open(self.fmu_directory / filename, "wt") as file:
             data = self._json_encode_node(self.root)
@@ -363,21 +367,22 @@ class Assembly:
 
     def _json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
         json_node = dict()
-        json_node["name"] = node.name               # 1
-        json_node["mt"] = node.mt                   # 2
-        json_node["profiling"] = node.profiling     # 3
-        json_node["auto_link"] = node.auto_link     # 4
-        json_node["auto_input"] = node.auto_input   # 5
-        json_node["auto_output"] = node.auto_output # 6
+        json_node["name"] = node.name                      # 1
+        json_node["mt"] = node.mt                          # 2
+        json_node["profiling"] = node.profiling            # 3
+        json_node["auto_link"] = node.auto_link            # 4
+        json_node["auto_input"] = node.auto_input          # 5
+        json_node["auto_output"] = node.auto_output        # 6
+        json_node["auto_parameter"] = node.auto_parameter  # 6b
 
         if node.step_size:
-            json_node["step_size"] = node.step_size # 7
+            json_node["step_size"] = node.step_size        # 7
 
         if node.children:
             json_node["container"] = [self._json_encode_node(child) for child in node.children]     # 8
 
         if node.fmu_names_list:
-            json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]          #9
+            json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]          # 9
 
         if node.input_ports:
             json_node["input"] = [[f"{source}", f"{port.fmu_name}", f"{port.port_name}"]            # 10
@@ -397,7 +402,7 @@ class Assembly:
                                   for port, value in node.start_values.items()]
 
         if node.drop_ports:
-            json_node["drop"] = [[f"{port.fmu_name}", f"{port.port_name}"] for port in node.drop_ports] # 14
+            json_node["drop"] = [[f"{port.fmu_name}", f"{port.port_name}"] for port in node.drop_ports]  # 14
 
         return json_node
 
