@@ -6,7 +6,7 @@ This package was formerly known as `fmutool`.
 * FIXED: `fmucontainer` identifier (for coSimulation) does not contain ".fmu" anymore
 * ADDED: `fmucontainer` log more information when embedded FMU cannot be loaded
 * ADDED: `fmucontainer` startTime and stopTime are deduced from 1st embedded FMU
-* [ ] ADDED: `fmucontainer` support new option `-auto-parameters` 
+* ADDED: `fmucontainer` support new option `-auto-parameter` (parameters are not exposed by default)
 * [ ] ADDED: preliminary version of GUI for `fmucontainer`
 
 
