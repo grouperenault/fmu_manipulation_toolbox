@@ -89,5 +89,6 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files("containers/arch/REF-reversed-dump.json",
                                     "containers/arch/reversed-dump.json")
 
+
 if __name__ == '__main__':
     unittest.main()

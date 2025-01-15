@@ -77,6 +77,8 @@ class EmbeddedFMU(OperationAbstract):
 
         self.fmi_version = None
         self.step_size = None
+        self.start_time = None
+        self.stop_time = None
         self.model_identifier = None
         self.guid = None
         self.ports: Dict[str, FMUPort] = {}
@@ -103,12 +105,13 @@ class EmbeddedFMU(OperationAbstract):
         for capability in self.capability_list:
             self.capabilities[capability] = attrs.get(capability, "false")
 
-    def experiment_attrs(self, attrs):
+    def experiment_attrs(self, attrs: Dict[str, str]):
         try:
             self.step_size = float(attrs['stepSize'])
         except KeyError:
             logger.warning(f"FMU '{self.name}' does not specify preferred step size")
-            pass
+        self.start_time = float(attrs.get("startTime", 0.0))
+        self.stop_time = float(attrs.get("stopTime", self.start_time + 1.0))
 
     def scalar_type(self, type_name, attrs):
         if self.current_port:
@@ -194,6 +197,9 @@ class FMUContainer:
         self.execution_order: List[EmbeddedFMU] = []
 
         self.description_pathname = description_pathname
+
+        self.start_time = None
+        self.stop_time = None
 
         # Rules
         self.inputs: Dict[str, ContainerPort] = {}
@@ -299,13 +305,18 @@ class FMUContainer:
                     return ContainerPort(fmu, port.name)
         return None
 
-    def add_implicit_rule(self, auto_input: bool = True, auto_output: bool = True, auto_link: bool = True):
+    def add_implicit_rule(self, auto_input=True, auto_output=True, auto_link=True, auto_parameter=False):
         # Auto Link outputs
         for fmu in self.execution_order:
             for port_name in fmu.ports:
                 cport = ContainerPort(fmu, port_name)
                 if cport not in self.rules:
-                    if cport.port.causality == 'output':
+                    if cport.port.causality == 'parameter' and auto_parameter:
+                        parameter_name = cport.fmu.model_identifier+"."+cport.port.name
+                        logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
+                        self.inputs[parameter_name] = cport
+                        self.mark_ruled(cport, 'PARAMETER')
+                    elif cport.port.causality == 'output':
                         candidate_cport = self.find_input(cport.port)
                         if auto_link and candidate_cport:
                             local = Local(cport)
@@ -406,6 +417,14 @@ class FMUContainer:
                 if fmu.capabilities[capability] == "true":
                     capabilities[capability] = "true"
 
+        if self.start_time is None:
+            self.start_time = self.execution_order[0].start_time
+            logger.info(f"start_time={self.start_time} (deduced from the _first_ embedded FMU)")
+
+        if self.stop_time is None:
+            self.stop_time = self.execution_order[0].stop_time
+            logger.info(f"stop_time={self.stop_time} (deduced from the _first_ embedded FMU)")
+
         xml_file.write(f"""<?xml version="1.0" encoding="ISO-8859-1"?>
 <fmiModelDescription
   fmiVersion="2.0"
@@ -434,7 +453,7 @@ class FMUContainer:
     <Category name="fmucontainer"/>
   </LogCategories>
 
-  <DefaultExperiment stepSize="{step_size}"/>
+  <DefaultExperiment stepSize="{step_size}" startTime="{self.start_time}" stopTime="{self.stop_time}"/>
 
   <ModelVariables>
 """)

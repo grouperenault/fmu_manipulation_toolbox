@@ -176,6 +176,9 @@ def fmucontainer():
     parser.add_argument("-no-auto-output", action="store_false", dest="auto_output", default=True,
                         help="Create ONLY explicit output.")
 
+    parser.add_argument("-auto-parameter", action="store_true", dest="auto_parameter", default=False,
+                        help="Expose parameters of the embedded fmu's.")
+
     parser.add_argument("-no-auto-link", action="store_false", dest="auto_link", default=True,
                         help="Create ONLY explicit links.")
 
@@ -206,8 +209,8 @@ def fmucontainer():
         try:
             assembly = Assembly(filename, step_size=step_size, auto_link=config.auto_link,
                                 auto_input=config.auto_input, auto_output=config.auto_output, mt=config.mt,
-                                profiling=config.profiling, fmu_directory=fmu_directory, debug=config.debug)
-
+                                profiling=config.profiling, fmu_directory=fmu_directory, debug=config.debug,
+                                auto_parameter=config.auto_parameter)
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")
             continue
