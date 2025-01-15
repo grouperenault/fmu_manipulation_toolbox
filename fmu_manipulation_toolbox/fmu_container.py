@@ -204,7 +204,6 @@ class FMUContainer:
         # Rules
         self.inputs: Dict[str, ContainerPort] = {}
         self.outputs: Dict[str, ContainerPort] = {}
-        self.parameters: Dict[str, ContainerPort] = {}
         self.locals: Dict[ContainerPort, Local] = {}
 
         self.rules: Dict[ContainerPort, str] = {}
@@ -315,7 +314,7 @@ class FMUContainer:
                     if cport.port.causality == 'parameter' and auto_parameter:
                         parameter_name = cport.fmu.model_identifier+"."+cport.port.name
                         logger.info(f"Exposing parameters {cport} as {parameter_name}")
-                        self.parameters[parameter_name] = cport
+                        self.inputs[parameter_name] = cport
                         self.mark_ruled(cport, 'PARAMETER')
                     elif cport.port.causality == 'output':
                         candidate_cport = self.find_input(cport.port)
@@ -480,11 +479,6 @@ class FMUContainer:
         for output_port_name, cport in self.outputs.items():
             vr = vr_table.get_vr(cport)
             print(f"    {cport.port.xml(vr, name=output_port_name)}", file=xml_file)
-            cport.vr = vr
-
-        for parameter_port_name, cport in self.parameters.items():
-            vr = vr_table.get_vr(cport)
-            print(f"    {cport.port.xml(vr, name=parameter_port_name)}", file=xml_file)
             cport.vr = vr
 
         xml_file.write("""  </ModelVariables>
