@@ -207,7 +207,7 @@ class AssemblyError(Exception):
 
 class Assembly:
     def __init__(self, filename: str, step_size=None, auto_link=True,  auto_input=True, debug=False,
-                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = ".", auto_parameter=False):
+                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = Path("."), auto_parameter=False):
         self.filename = Path(filename)
         self.default_auto_input = auto_input
         self.debug = debug
