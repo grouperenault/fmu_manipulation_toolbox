@@ -32,7 +32,7 @@ class Connection:
 
 class AssemblyNode:
     def __init__(self, name: Optional[str], step_size: float = None, mt=False, profiling=False,
-                 auto_link=True, auto_input=True, auto_output=True, auto_parameter=True):
+                 auto_link=True, auto_input=True, auto_output=True, auto_parameter=False):
         self.name = name
         if step_size:
             try:
@@ -136,7 +136,7 @@ class AssemblyError(Exception):
 
 class Assembly:
     def __init__(self, filename: str, step_size=None, auto_link=True,  auto_input=True, debug=False,
-                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = ".", auto_parameter=True):
+                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = ".", auto_parameter=False):
         self.filename = Path(filename)
         self.default_auto_input = auto_input
         self.debug = debug

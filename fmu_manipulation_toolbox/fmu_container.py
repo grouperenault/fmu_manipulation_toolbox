@@ -305,7 +305,7 @@ class FMUContainer:
                     return ContainerPort(fmu, port.name)
         return None
 
-    def add_implicit_rule(self, auto_input=True, auto_output=True, auto_link=True, auto_parameter=True):
+    def add_implicit_rule(self, auto_input=True, auto_output=True, auto_link=True, auto_parameter=False):
         # Auto Link outputs
         for fmu in self.execution_order:
             for port_name in fmu.ports:

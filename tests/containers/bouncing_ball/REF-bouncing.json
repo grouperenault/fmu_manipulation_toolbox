@@ -5,6 +5,7 @@
   "auto_link": true,
   "auto_input": true,
   "auto_output": true,
+  "auto_parameter": false,
   "fmu": [
     "bb_position.fmu",
     "bb_velocity.fmu"
