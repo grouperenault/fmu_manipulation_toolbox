@@ -683,9 +683,17 @@ QMenu::item::indicator              {width: 32px; height: 32px; }
 QMenu::indicator:checked            {image: url(images:checkbox-checked.png);}
 QMenu::indicator:checked:hover      {image: url(images:checkbox-checked-hover.png);}
 QMenu::indicator:checked:disabled   {image: url(images:checkbox-checked-disabled.png);}
-QMenu::indicator:unchecked          {IconWidth: 50px; image: url(images:checkbox-unchecked.png); }
-QMenu::indicator:unchecked:hover    {width: 35px; image: url(images:checkbox-unchecked-hover.png); }
-QMenu::indicator:unchecked:disabled {width: 35px; image: url(images:checkbox-unchecked-disabled.png); }
+QMenu::indicator:unchecked          {image: url(images:checkbox-unchecked.png); }
+QMenu::indicator:unchecked:hover    {image: url(images:checkbox-unchecked-hover.png); }
+QMenu::indicator:unchecked:disabled {image: url(images:checkbox-unchecked-disabled.png); }
+QCheckBox::item                         {padding: 2px 250px 2px 20px; border: 1px solid transparent;}
+QCheckBox::item::indicator              {width: 32px; height: 32px; }
+QCheckBox::indicator:checked            {image: url(images:checkbox-checked.png);}
+QCheckBox::indicator:checked:hover      {image: url(images:checkbox-checked-hover.png);}
+QCheckBox::indicator:checked:disabled   {image: url(images:checkbox-checked-disabled.png);}
+QCheckBox::indicator:unchecked          {image: url(images:checkbox-unchecked.png); }
+QCheckBox::indicator:unchecked:hover    {image: url(images:checkbox-unchecked-hover.png); }
+QCheckBox::indicator:unchecked:disabled {image: url(images:checkbox-unchecked-disabled.png); }
 """
 
         self.setStyleSheet(css_dark)
