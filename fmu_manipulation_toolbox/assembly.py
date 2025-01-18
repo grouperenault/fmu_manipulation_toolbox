@@ -23,16 +23,22 @@ class Port:
     def __eq__(self, other):
         return str(self) == str(other)
 
+    def __str__(self):
+        return f"{self.fmu_name}/{self.port_name}"
+
 
 class Connection:
     def __init__(self, from_port: Port, to_port: Port):
         self.from_port = from_port
         self.to_port = to_port
 
+    def __str__(self):
+        return f"{self.from_port} -> {self.to_port}"
+
 
 class AssemblyNode:
     def __init__(self, name: Optional[str], step_size: float = None, mt=False, profiling=False,
-                 auto_link=True, auto_input=True, auto_output=True):
+                 auto_link=True, auto_input=True, auto_output=True, auto_parameter=False):
         self.name = name
         if step_size:
             try:
@@ -47,12 +53,13 @@ class AssemblyNode:
         self.auto_link = auto_link
         self.auto_input = auto_input
         self.auto_output = auto_output
+        self.auto_parameter = auto_parameter
 
         self.parent: Optional[AssemblyNode] = None
-        self.children: List[AssemblyNode] = []          # sub-containers
+        self.children: Dict[str, AssemblyNode] = {}     # sub-containers
         self.fmu_names_list: Set[str] = set()           # FMUs contained at this level
-        self.input_ports: Dict[Port, str] = {}
-        self.output_ports: Dict[Port, str] = {}
+        self.input_ports: Dict[Port, str] = {}          # value is input port name, key is the source
+        self.output_ports: Dict[Port, str] = {}         # value is output port name, key is the origin
         self.start_values: Dict[Port, str] = {}
         self.drop_ports: List[Port] = []
         self.links: List[Connection] = []
@@ -64,10 +71,12 @@ class AssemblyNode:
         if sub_node.parent is not None:
             raise AssemblyError(f"Internal Error: AssemblyNode {sub_node.name} is already parented.")
 
+        if sub_node.name in self.children:
+            raise AssemblyError(f"Internal Error: AssemblyNode {sub_node.name} is already child of {self.name}")
+
         sub_node.parent = self
         self.fmu_names_list.add(sub_node.name)
-        self.children.append(sub_node)
-
+        self.children[sub_node.name] = sub_node
 
     def add_fmu(self, fmu_name: str):
         self.fmu_names_list.add(fmu_name)
@@ -89,7 +98,7 @@ class AssemblyNode:
         self.start_values[Port(fmu_filename, port_name)] = value
 
     def make_fmu(self, fmu_directory: Path, debug=False, description_pathname=None):
-        for node in self.children:
+        for node in self.children.values():
             node.make_fmu(fmu_directory, debug=debug)
 
         identifier = str(Path(self.name).stem)
@@ -116,13 +125,76 @@ class AssemblyNode:
 
         container.add_implicit_rule(auto_input=self.auto_input,
                                     auto_output=self.auto_output,
-                                    auto_link=self.auto_link)
+                                    auto_link=self.auto_link,
+                                    auto_parameter=self.auto_parameter)
 
         container.make_fmu(self.name, self.step_size, mt=self.mt, profiling=self.profiling, debug=debug)
 
-        for node in self.children:
+        for node in self.children.values():
             logger.info(f"Deleting transient FMU Container '{node.name}'")
             (fmu_directory / node.name).unlink()
+
+    def get_final_from(self, port: Port) -> Port:
+        if port in self.input_ports:
+            ancestor = Port(self.name, self.input_ports[port])
+            if self.parent:
+                return self.parent.get_final_from(ancestor)  # input port
+            else:
+                return ancestor  # TOPLEVEL input port
+        elif port.fmu_name in self.fmu_names_list:
+            if port.fmu_name in self.children:
+                child = self.children[port.fmu_name]
+                ancestors = [key for key, val in child.output_ports.items() if val == port.port_name]
+                if len(ancestors) == 1:
+                    return child.get_final_from(ancestors[0])  # child output port
+            else:
+                return port  # embedded FMU
+
+        raise AssemblyError(f"{self.name}: Port {port} is not connected upstream.")
+
+    def get_final_to(self, port: Port) -> Port:
+        if port in self.output_ports:
+            successor = Port(self.name, self.output_ports[port])
+            if self.parent:
+                return self.parent.get_final_to(successor)  # Output port
+            else:
+                return successor  # TOLEVEL output port
+        elif port.fmu_name in self.fmu_names_list:
+            if port.fmu_name in self.children:
+                child = self.children[port.fmu_name]
+                successors = [key for key, val in child.input_ports.items() if val == port.port_name]
+                if len(successors) == 1:
+                    return child.get_final_to(successors[0])  # Child input port
+            else:
+                return port  # embedded FMU
+
+        raise AssemblyError(f"Node {self.name}: Port {port} is not connected downstream.")
+
+    def get_fmu_connections(self, fmu_name: str) -> List[Connection]:
+        connections = []
+        if fmu_name not in self.fmu_names_list:
+            raise AssemblyError(f"Internal Error: FMU {fmu_name} is not embedded by {self.name}.")
+        for link in self.links:
+            if link.from_port.fmu_name == fmu_name:
+                connections.append(Connection(link.from_port, self.get_final_to(link.to_port)))
+            elif link.to_port.fmu_name == fmu_name:
+                connections.append(Connection(self.get_final_from(link.from_port), link.to_port))
+
+        for to_port, input_port_name in self.input_ports.items():
+            if to_port.fmu_name == fmu_name:
+                if self.parent:
+                    connections.append(Connection(self.parent.get_final_from(Port(self.name, input_port_name)), to_port))
+                else:
+                    connections.append(Connection(Port(self.name, input_port_name), to_port))
+
+        for from_port, output_port_name in self.output_ports.items():
+            if from_port.fmu_name == fmu_name:
+                if self.parent:
+                    connections.append(Connection(from_port, self.parent.get_final_to(Port(self.name, output_port_name))))
+                else:
+                    connections.append(Connection(from_port, Port(self.name, output_port_name))) ###HERE
+
+        return connections
 
 
 class AssemblyError(Exception):
@@ -135,13 +207,14 @@ class AssemblyError(Exception):
 
 class Assembly:
     def __init__(self, filename: str, step_size=None, auto_link=True,  auto_input=True, debug=False,
-                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = Path(".")):
+                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = Path("."), auto_parameter=False):
         self.filename = Path(filename)
         self.default_auto_input = auto_input
         self.debug = debug
         self.default_auto_output = auto_output
         self.default_step_size = step_size
         self.default_auto_link = auto_link
+        self.default_auto_parameter = auto_parameter
         self.default_mt = mt
         self.default_profiling = profiling
         self.fmu_directory = fmu_directory
@@ -198,7 +271,8 @@ class Assembly:
         name = str(self.filename.with_suffix(".fmu"))
         self.root = AssemblyNode(name, step_size=self.default_step_size, auto_link=self.default_auto_link,
                                  mt=self.default_mt, profiling=self.default_profiling,
-                                 auto_input=self.default_auto_input, auto_output=self.default_auto_output)
+                                 auto_input=self.default_auto_input, auto_output=self.default_auto_output,
+                                 auto_parameter=self.default_auto_parameter)
 
         with open(self.input_pathname) as file:
             reader = csv.reader(file, delimiter=';')
@@ -295,47 +369,49 @@ class Assembly:
         if not self.root.name:
             self.root.name = str(self.filename.with_suffix(".fmu").name)
 
-    def _json_decode_node(self, data:Dict) -> AssemblyNode:
+    def _json_decode_node(self, data: Dict) -> AssemblyNode:
         name = data.get("name", None)                                                       # 1
-        step_size = data.get("step_size", self.default_step_size)                           # 7
+        mt = data.get("mt", self.default_mt)                                                # 2
+        profiling = data.get("profiling", self.default_profiling)                           # 3
         auto_link = data.get("auto_link", self.default_auto_link)                           # 4
         auto_input = data.get("auto_input", self.default_auto_input)                        # 5
         auto_output = data.get("auto_output", self.default_auto_output)                     # 6
-        mt = data.get("mt", self.default_mt)                                                # 2
-        profiling = data.get("profiling", self.default_profiling)                           # 3
+        auto_parameter = data.get("auto_parameter", self.default_auto_parameter)            # 6b
+        step_size = data.get("step_size", self.default_step_size)                           # 7
 
         node = AssemblyNode(name, step_size=step_size, auto_link=auto_link, mt=mt, profiling=profiling,
-                            auto_input=auto_input, auto_output=auto_output)
+                            auto_input=auto_input, auto_output=auto_output, auto_parameter=auto_parameter)
 
         for key, value in data.items():
-            if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling'):
+            if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling',
+                       'auto_parameter'):
                 continue  # Already read
 
-            elif key == "container": # 8
+            elif key == "container":  # 8
                 if not isinstance(value, list):
                     raise AssemblyError("JSON: 'container' keyword should define a list.")
                 for sub_data in value:
                     node.add_sub_node(self._json_decode_node(sub_data))
 
-            elif key == "fmu": # 9
+            elif key == "fmu":  # 9
                 if not isinstance(value, list):
                     raise AssemblyError("JSON: 'fmu' keyword should define a list.")
                 for fmu in value:
                     node.add_fmu(fmu)
 
-            elif key == "input": # 10
+            elif key == "input":  # 10
                 self._json_decode_keyword('input', value, node.add_input)
 
-            elif key == "output": # 11
+            elif key == "output":  # 11
                 self._json_decode_keyword('output', value, node.add_output)
 
-            elif key == "link": # 12
+            elif key == "link":  # 12
                 self._json_decode_keyword('link', value, node.add_link)
 
-            elif key == "start": # 13
+            elif key == "start":  # 13
                 self._json_decode_keyword('start', value, node.add_start_value)
 
-            elif key == "drop": #14
+            elif key == "drop":  # 14
                 self._json_decode_keyword('drop', value, node.add_drop_port)
 
             else:
@@ -355,7 +431,6 @@ class Assembly:
             except TypeError:
                 raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: {line}.")
 
-
     def write_json(self, filename: Union[str, Path]):
         with open(self.fmu_directory / filename, "wt") as file:
             data = self._json_encode_node(self.root)
@@ -363,21 +438,22 @@ class Assembly:
 
     def _json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
         json_node = dict()
-        json_node["name"] = node.name               # 1
-        json_node["mt"] = node.mt                   # 2
-        json_node["profiling"] = node.profiling     # 3
-        json_node["auto_link"] = node.auto_link     # 4
-        json_node["auto_input"] = node.auto_input   # 5
-        json_node["auto_output"] = node.auto_output # 6
+        json_node["name"] = node.name                      # 1
+        json_node["mt"] = node.mt                          # 2
+        json_node["profiling"] = node.profiling            # 3
+        json_node["auto_link"] = node.auto_link            # 4
+        json_node["auto_input"] = node.auto_input          # 5
+        json_node["auto_output"] = node.auto_output        # 6
+        json_node["auto_parameter"] = node.auto_parameter  # 6b
 
         if node.step_size:
-            json_node["step_size"] = node.step_size # 7
+            json_node["step_size"] = node.step_size        # 7
 
         if node.children:
-            json_node["container"] = [self._json_encode_node(child) for child in node.children]     # 8
+            json_node["container"] = [self._json_encode_node(child) for child in node.children.values()]  # 8
 
         if node.fmu_names_list:
-            json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]          #9
+            json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]          # 9
 
         if node.input_ports:
             json_node["input"] = [[f"{source}", f"{port.fmu_name}", f"{port.port_name}"]            # 10
@@ -397,7 +473,7 @@ class Assembly:
                                   for port, value in node.start_values.items()]
 
         if node.drop_ports:
-            json_node["drop"] = [[f"{port.fmu_name}", f"{port.port_name}"] for port in node.drop_ports] # 14
+            json_node["drop"] = [[f"{port.fmu_name}", f"{port.port_name}"] for port in node.drop_ports]  # 14
 
         return json_node
 

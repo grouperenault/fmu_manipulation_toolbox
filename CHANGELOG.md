@@ -4,16 +4,18 @@ This package was formerly known as `fmutool`.
 
 ## Version 1.8.2 (upcoming)
 * FIXED: `fmucontainer` identifier (for coSimulation) does not contain ".fmu" anymore
-* TODO: ADDED: take care of stoptime
-* TODO: Expose parameters
-* ADDED: GUI for `fmucontainer`
+* ADDED: `fmucontainer` log more information when embedded FMU cannot be loaded
+* ADDED: `fmucontainer` startTime and stopTime are deduced from 1st embedded FMU
+* ADDED: `fmucontainer` support new option `-auto-parameter` (parameters are not exposed by default)
+* [ ] ADDED: preliminary version of GUI for `fmucontainer`
+
 
 ## Version 1.8.1
 * FIXED: `fmucontainer` read links from `.json` input files
 * CHANGED: switch to PyQT6 and add minor GUI improvements
 
 ## Version 1.8
-* CHANGE: Package in now known as `fmu_manipulation`
+* CHANGE: Python Package in now known as `fmu-manipulation-toolbox`
 * ADDED: `fmucontainer` support `canHandleVariableCommunicationStepSize`
 * ADDED: `fmucontainer` support `.spp` or `.json` as input files
 * ADDED: `fmucontainer` new `-dump` option to save container description 

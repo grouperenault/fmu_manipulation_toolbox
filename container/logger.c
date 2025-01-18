@@ -7,15 +7,29 @@
 
 #include "container.h"
 
-void logger(const container_t *container, fmi2Status status, const char *message, ...) {
-    char buffer[4096];
+static const container_t *logger_container = NULL;
+
+void logger_init(const container_t *container) {
+    logger_container = container;
+}
+
+void logger(fmi2Status status, const char *message, ...) {
     va_list ap;
     va_start(ap, message);
-    vsnprintf(buffer, sizeof(buffer), message, ap);
-    va_end(ap);
+    if (logger_container) {
+        char buffer[4096];
 
-    if ((status != fmi2OK) || (container->debug))
-        container->logger(container->environment, container->instance_name, status, NULL, "%s", buffer);
+        vsnprintf(buffer, sizeof(buffer), message, ap);
+        va_end(ap);
+
+        if ((status != fmi2OK) || (logger_container->debug)) {
+            logger_container->logger(logger_container->environment,
+                                     logger_container->instance_name,
+                                     status, NULL, "%s", buffer);
+        }
+    } else {
+        vprintf(message, ap);
+    }
 
     return;
 }

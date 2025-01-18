@@ -123,7 +123,7 @@ optional arguments:
 
 ```
 usage: fmucontainer [-h] [-fmu-directory FMU_DIRECTORY] -container filename.{csv|json|ssp},[:step_size] [-debug]
-                    [-no-auto-input] [-no-auto-output] [-no-auto-link] [-mt] [-profile] [-dump-json]
+                    [-no-auto-input] [-no-auto-output] [-auto-parameter] [-no-auto-link] [-mt] [-profile] [-dump-json]
 
 Generate FMU from FMU's
 
@@ -136,6 +136,7 @@ optional arguments:
   -debug                            Add lot of useful log during the process. (default: False)
   -no-auto-input                    Create ONLY explicit input. (default: True)
   -no-auto-output                   Create ONLY explicit output. (default: True)
+  -auto-parameter                   Expose parameters of the embedded fmu's. (default: False)
   -no-auto-link                     Create ONLY explicit links. (default: True)
   -mt                               Enable Multi-Threaded mode for the generated container. (default: False)
   -profile                          Enable Profiling mode for the generated container. (default: False)

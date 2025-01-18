@@ -89,5 +89,24 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files("containers/arch/REF-reversed-dump.json",
                                     "containers/arch/reversed-dump.json")
 
+    def test_container_move(self):
+        #bb = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"))
+        #links = bb.root.get_fmu_connections("bb_position.fmu")
+        #print("Links: ", links)
+        #bb.write_json("bouncing.json")
+        assembly = Assembly("nested.json", fmu_directory=Path("containers/arch"))
+        fmu_name = "fmu1b.fmu"
+        links_fmu1b = assembly.root.children["level1.fmu"].get_fmu_connections("fmu1b.fmu")
+
+        print("RESULTS:")
+        for link in links_fmu1b:
+            print(f"{link}")
+
+        links_fmu0a = assembly.root.get_fmu_connections("fmu0a.fmu")
+        print("RESULTS:")
+        for link in links_fmu0a:
+            print(f"{link}")
+
+
 if __name__ == '__main__':
     unittest.main()
