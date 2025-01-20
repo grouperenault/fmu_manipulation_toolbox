@@ -74,6 +74,7 @@ class EmbeddedFMU(OperationAbstract):
     def __init__(self, filename):
         self.fmu = FMU(filename)
         self.name = Path(filename).name
+        self.id = Path(filename).stem
 
         self.fmi_version = None
         self.step_size = None
@@ -151,7 +152,7 @@ class ContainerPort:
 
 class Local:
     def __init__(self, cport_from: ContainerPort):
-        self.name = cport_from.fmu.name[:-4] + "." + cport_from.port.name  # strip .fmu suffix
+        self.name = cport_from.fmu.id + "." + cport_from.port.name  # strip .fmu suffix
         self.cport_from = cport_from
         self.cport_to_list: List[ContainerPort] = []
         self.vr = None
@@ -325,11 +326,15 @@ class FMUContainer:
                             self.mark_ruled(cport, 'LINK')
                             self.mark_ruled(candidate_cport, 'LINK')
                             self.locals[cport] = local
-                        else:
-                            if auto_output:
-                                self.mark_ruled(cport, 'OUTPUT')
-                                self.outputs[port_name] = cport
-                                logger.info(f"AUTO OUTPUT: Expose {cport}")
+                        elif auto_output:
+                            self.mark_ruled(cport, 'OUTPUT')
+                            self.outputs[port_name] = cport
+                            logger.info(f"AUTO OUTPUT: Expose {cport}")
+                    elif cport.port.causality == 'local' and port_name.startswith("container."):
+                        local_portname = "container." + cport.fmu.id + "." + port_name[10:]
+                        self.mark_ruled(cport, 'OUTPUT')
+                        self.outputs[local_portname] = cport
+                        logger.info(f"PROFILING: Expose {cport}")
 
         if auto_input:
             # Auto link inputs
@@ -460,7 +465,7 @@ class FMUContainer:
         if profiling:
             for fmu in self.execution_order:
                 vr = vr_table.add_vr("Real")
-                name = f"container.{fmu.model_identifier}.rt_ratio"
+                name = f"container.{fmu.id}.rt_ratio"
                 print(f'<ScalarVariable valueReference="{vr}" name="{name}" causality="local">'
                       f'<Real /></ScalarVariable>', file=xml_file)
 
