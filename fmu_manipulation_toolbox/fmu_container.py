@@ -424,11 +424,15 @@ class FMUContainer:
 
         if self.start_time is None:
             self.start_time = self.execution_order[0].start_time
-            logger.info(f"start_time={self.start_time} (deduced from the _first_ embedded FMU)")
+            logger.info(f"start_time={self.start_time} (deduced from '{self.execution_order[0].name}')")
+        else:
+            logger.info(f"start_time={self.start_time}")
 
         if self.stop_time is None:
             self.stop_time = self.execution_order[0].stop_time
-            logger.info(f"stop_time={self.stop_time} (deduced from the _first_ embedded FMU)")
+            logger.info(f"stop_time={self.stop_time} (deduced from '{self.execution_order[0].name}')")
+        else:
+            logger.info(f"stop_time={self.stop_time}")
 
         xml_file.write(f"""<?xml version="1.0" encoding="ISO-8859-1"?>
 <fmiModelDescription
