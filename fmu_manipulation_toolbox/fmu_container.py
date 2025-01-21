@@ -625,7 +625,7 @@ class FMUContainer:
     def long_path(path: Union[str, Path]) -> str:
         # https://stackoverflow.com/questions/14075465/copy-a-file-with-a-too-long-path-to-another-directory-in-python
         if os.name == 'nt':
-            return "\\\\?\\" + str(path)
+            return "\\\\?\\" + os.path.abspath(str(path))
         else:
             return path
 
