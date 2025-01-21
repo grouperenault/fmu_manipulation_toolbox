@@ -104,7 +104,7 @@ class AssemblyNode:
         identifier = str(Path(self.name).stem)
         container = FMUContainer(identifier, fmu_directory, description_pathname=description_pathname)
 
-        for fmu_name in sorted(self.fmu_names_list):
+        for fmu_name in self.fmu_names_list:
             container.get_fmu(fmu_name)
 
         for port, source in self.input_ports.items():
