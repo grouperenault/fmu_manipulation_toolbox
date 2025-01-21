@@ -116,6 +116,8 @@ class EmbeddedFMU(OperationAbstract):
 
     def scalar_type(self, type_name, attrs):
         if self.current_port:
+            if type_name == "Enumeration":
+                type_name = "Integer"
             self.current_port.set_port_type(type_name, attrs)
         self.current_port = None
 

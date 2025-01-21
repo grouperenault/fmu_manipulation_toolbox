@@ -100,7 +100,7 @@ class Manipulation:
                 self.operation.fmi_attrs(attrs)
             elif name == 'Unknown':
                 self.unknown_attrs(attrs)
-            elif name in ('Real', 'Integer', 'String', 'Boolean'):
+            elif name in ('Real', 'Integer', 'String', 'Boolean', 'Enumeration'):
                 self.operation.scalar_type(name, attrs)
 
         except ManipulationSkipTag:
