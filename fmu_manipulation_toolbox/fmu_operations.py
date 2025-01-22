@@ -89,9 +89,8 @@ class Manipulation:
                         self.remove_port(attrs['name'])
                     else:
                         self.keep_port(attrs['name'])
-                else:
+                else:  # Keep ScalarVariable as it is.
                     self.keep_port(attrs['name'])
-                    self.skip_until = name   # do not read inner tags
             elif name == 'CoSimulation':
                 self.operation.cosimulation_attrs(attrs)
             elif name == 'DefaultExperiment':
