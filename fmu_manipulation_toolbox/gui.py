@@ -377,6 +377,9 @@ class AssemblyTabWidget(QTabWidget):
         table = QTableView()
         self.addTab(table, "Start values")
 
+        self.tabBar().setDocumentMode(True)
+        self.tabBar().setExpanding(True)
+
 
 class WindowWithLayout(QWidget):
     def __init__(self, title: str):
@@ -730,43 +733,116 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         font.setPointSize(10)
         self.setFont(font)
         css_dark = """
-QWidget                  {background: #4b4e51; color: #b5bab9}
-QPushButton           { min-height: 30px; padding: 1px 1px 0.2em 0.2em; border: 1px solid #282830; border-radius: 5px;}
-QComboBox             { min-height: 30px; padding: 1px 1px 0.2em 0.2em; border: 1px solid #282830; border-radius: 5px;}
-QPushButton:pressed      { border: 2px solid #282830; }
-QPushButton.info         {background-color: #4e6749; color: #dddddd;}
-QPushButton.info:hover   {background-color: #5f7850; color: #dddddd;}
-QPushButton.info:hover   {background-color: #5f7850; color: #dddddd;}
-QPushButton.modify       {background-color: #98763f; color: #dddddd;}
-QPushButton.modify:hover {background-color: #a9874f; color: #dddddd;}
-QPushButton.removal      {background-color: #692e2e; color: #dddddd;}
-QPushButton.removal:hover{background-color: #7a3f3f; color: #dddddd;}
-QPushButton.save         {background-color: #564967; color: #dddddd;}
-QPushButton.save:hover   {background-color: #675a78; color: #dddddd;}
-QPushButton.quit         {background-color: #4571a4; color: #dddddd;}
-QPushButton.quit:hover   {background-color: #5682b5; color: #dddddd;}
-QToolTip                 {color: black}
-QLabel.dropped_fmu       {background-color: #b5bab9}
-QLabel.dropped_fmu:hover {background-color: #c6cbca}
-QTextBrowser             {background-color: #282830; color: #b5bab9;}
-QTreeView                {background-color: #282830; color: #b5bab9;}
-QMenu                               {font-size: 18px;}
-QMenu::item                         {padding: 2px 250px 2px 20px; border: 1px solid transparent;}
-QMenu::item::indicator              {width: 32px; height: 32px; }
-QMenu::indicator:checked            {image: url(images:checkbox-checked.png);}
-QMenu::indicator:checked:hover      {image: url(images:checkbox-checked-hover.png);}
-QMenu::indicator:checked:disabled   {image: url(images:checkbox-checked-disabled.png);}
-QMenu::indicator:unchecked          {image: url(images:checkbox-unchecked.png); }
-QMenu::indicator:unchecked:hover    {image: url(images:checkbox-unchecked-hover.png); }
-QMenu::indicator:unchecked:disabled {image: url(images:checkbox-unchecked-disabled.png); }
-QCheckBox::item                         {padding: 2px 250px 2px 20px; border: 1px solid transparent;}
-QCheckBox::item::indicator              {width: 32px; height: 32px; }
-QCheckBox::indicator:checked            {image: url(images:checkbox-checked.png);}
-QCheckBox::indicator:checked:hover      {image: url(images:checkbox-checked-hover.png);}
-QCheckBox::indicator:checked:disabled   {image: url(images:checkbox-checked-disabled.png);}
-QCheckBox::indicator:unchecked          {image: url(images:checkbox-unchecked.png); }
-QCheckBox::indicator:unchecked:hover    {image: url(images:checkbox-unchecked-hover.png); }
-QCheckBox::indicator:unchecked:disabled {image: url(images:checkbox-unchecked-disabled.png); }
+QWidget {
+    background: #4b4e51;
+    color: #b5bab9;
+}
+QPushButton, QComboBox {
+    min-height: 30px;
+    padding: 1px 1px 0.2em 0.2em;
+    border: 1px solid #282830;
+    border-radius: 5px;
+    color: #dddddd;
+}
+QPushButton:pressed {
+    border: 2px solid #282830;
+}
+QPushButton.info {
+    background-color: #4e6749;
+}
+QPushButton.info:hover {
+    background-color: #5f7850;
+}
+QPushButton.modify {
+    background-color: #98763f;
+}
+QPushButton.modify:hover {
+    background-color: #a9874f;
+}
+QPushButton.removal {
+    background-color: #692e2e;
+}
+QPushButton.removal:hover {
+    background-color: #7a3f3f;
+}
+QPushButton.save {
+    background-color: #564967;
+}
+QPushButton.save:hover {
+    background-color: #675a78;
+}
+QPushButton.quit {
+    background-color: #4571a4;
+}
+QPushButton.quit:hover {
+    background-color: #5682b5;
+}
+QPushButton::disabled {
+    background-color: #9876dd;
+}
+QToolTip {
+    color: black
+}
+QLabel.dropped_fmu {
+    background-color: #b5bab9
+}
+QLabel.dropped_fmu:hover {
+    background-color: #c6cbca
+}
+QTextBrowser, QTreeView {
+    background-color: #282830;
+    color: #b5bab9;
+}
+QMenu::item {
+    padding: 2px 250px 2px 20px;
+    border: 1px solid transparent;
+}
+QMenu::item::indicator, QCheckBox::item::indicator {
+    width: 32px;
+    height: 32px;
+}
+QMenu::indicator:checked, QCheckBox::indicator:checked {
+    image: url(images:checkbox-checked.png);
+}
+QMenu::indicator:checked:hover, QCheckBox::indicator:checked:hover {
+    image: url(images:checkbox-checked-hover.png);
+}
+QMenu::indicator:checked:disabled, QCheckBox::indicator:checked:disabled {
+    image: url(images:checkbox-checked-disabled.png);
+}
+QMenu::indicator:unchecked, QCheckBox::indicator:unchecked {
+    image: url(images:checkbox-unchecked.png);
+}
+QMenu::indicator:unchecked:hover, QCheckBox::indicator:unchecked:hover {
+    image: url(images:checkbox-unchecked-hover.png);
+}
+QMenu::indicator:unchecked:disabled, QCheckBox::indicator:unchecked:disabled {
+    image: url(images:checkbox-unchecked-disabled.png);
+}
+QCheckBox::item {
+    padding: 2px 250px 2px 20px;
+    border: 1px solid transparent;
+}
+
+
+QTabWidget::pane { /* The tab widget frame */
+    border-top: 1px #282830;  /* here is the line*/
+}
+QTabBar::tab {
+    padding: 1px 1px 0.2em 0.2em;
+    color: #dddddd;
+    margin-top: 4px;
+    padding:1px 1px 0.2em 0.2em;
+    border-top-left-radius: 5px;
+    border-top-right-radius: 5px;
+    border: 1px solid #282830;
+    /*border-bottom:0px none;*/
+    min-height: 30px;
+} 
+QTabBar::tab:selected, QTabBar::tab:hover {
+    background-color: #5f7850;
+    margin-bottom:-1px;
+}
 """
 
         self.setStyleSheet(css_dark)
