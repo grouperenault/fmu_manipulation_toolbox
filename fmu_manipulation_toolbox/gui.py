@@ -228,7 +228,8 @@ class AssemblyTreeWidget(QTreeView):
             self.icon_container = QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'container.png'))
             self.icon_fmu = QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon_fmu.png'))
 
-            self.add_node(assembly.root, self)
+            if assembly:
+                self.add_node(assembly.root, self)
 
         def add_node(self, node: AssemblyNode, parent_item):
             # Add Container
@@ -278,8 +279,7 @@ class AssemblyTreeWidget(QTreeView):
 
         self.model = self.AssemblyTreeModel(assembly)
         self.setModel(self.model)
-        self.selectionModel().currentChanged.connect(self.select)
-        print(self.selectionModel().selection())
+
         self.expandAll()
         self.setDropIndicatorShown(True)
         self.setDragDropOverwriteMode(False)
@@ -287,8 +287,6 @@ class AssemblyTreeWidget(QTreeView):
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.setRootIsDecorated(True)
         self.setHeaderHidden(True)
-        topIndex = self.model.index(0, 0, self.rootIndex())
-        self.setCurrentIndex(topIndex)
 
         if os.name == 'nt':
             font = QFont('Consolas')
@@ -311,12 +309,6 @@ class AssemblyTreeWidget(QTreeView):
                 self.model.layoutChanged.connect(self.setTopIndex)
                 self.layoutCheck = True
 
-    def select(self, current: QModelIndex, previous):
-        node = current.data(role=Qt.ItemDataRole.UserRole + 1)
-        row = current.row()
-        col = current.column()
-        node_type = current.data(role=Qt.ItemDataRole.UserRole + 2)
-        print(f"SELECTED {node} {row} {col} {node_type}")
 
     def dragEnterEvent2(self, event):
         if event.mimeData().hasImage:
@@ -642,53 +634,68 @@ class ContainerWindow(WindowWithLayout):
         super().__init__('FMU Manipulation Toolbox - Container')
         self.main_window = parent
 
-        assembly = Assembly("tests/containers/arch/nested.json")
+        #assembly = Assembly("tests/containers/arch/nested.json")
+        assembly = None
 
         # ROW 0
         load_button = QPushButton("Load Description")
         load_button.setProperty("class", "quit")
         self.layout.addWidget(load_button, 0, 0)
 
+        self.container_label = QLabel()
+        font = QFont('Verdana')
+        font.setPointSize(14)
+        font.setBold(True)
+        self.container_label.setFont(font)
+        self.container_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.container_label, 0, 1, 1, 2)
+
+        # ROW 1
         add_fmu_button = QPushButton("Add FMU")
         add_fmu_button.setProperty("class", "modify")
         add_fmu_button.setDisabled(True)
-        self.layout.addWidget(add_fmu_button, 0, 1)
+        self.layout.addWidget(add_fmu_button, 1, 1)
 
         add_sub_button = QPushButton("Add SubContainer")
         add_sub_button.setProperty("class", "modify")
         add_sub_button.setDisabled(True)
-        self.layout.addWidget(add_sub_button, 0, 2)
+        self.layout.addWidget(add_sub_button, 1, 2)
 
-        # ROW 1
         self.assembly_tree = AssemblyTreeWidget(assembly, parent=self)
         self.assembly_tree.setMinimumHeight(600)
         self.assembly_tree.setMinimumWidth(200)
-        self.layout.addWidget(self.assembly_tree, 1, 0, 2, 1)
+        self.layout.addWidget(self.assembly_tree, 1, 0, 3, 1)
 
+        # ROW 2
         del_fmu_button = QPushButton("Remove FMU")
         del_fmu_button.setProperty("class", "removal")
         del_fmu_button.setDisabled(True)
-        self.layout.addWidget(del_fmu_button, 1, 1)
+        self.layout.addWidget(del_fmu_button, 2, 1)
 
         del_sub_button = QPushButton("Remove SubContainer")
         del_sub_button.setProperty("class", "removal")
         del_sub_button.setDisabled(True)
-        self.layout.addWidget(del_sub_button, 1, 2)
-
-        # ROW 2
-        self.assembly_tab = AssemblyTabWidget(parent=self)
-        self.assembly_tab.setMinimumWidth(600)
-        self.layout.addWidget(self.assembly_tab, 2, 1, 1, 2)
+        self.layout.addWidget(del_sub_button, 2, 2)
 
         # ROW 3
+        self.assembly_tab = AssemblyTabWidget(parent=self)
+        self.assembly_tab.setMinimumWidth(600)
+        self.layout.addWidget(self.assembly_tab, 3, 1, 1, 2)
+
+        # ROW 4
         close_button = QPushButton("Close")
         close_button.setProperty("class", "quit")
         close_button.clicked.connect(self.close)
-        self.layout.addWidget(close_button, 3, 0)
+        self.layout.addWidget(close_button, 4, 0)
 
         save_button = QPushButton("Save Container")
         save_button.setProperty("class", "save")
-        self.layout.addWidget(save_button, 3, 2)
+        self.layout.addWidget(save_button, 4, 2)
+
+        self.assembly_tree.selectionModel().currentChanged.connect(self.item_selected)
+        topIndex = self.assembly_tree.model.index(0, 0, self.assembly_tree.rootIndex())
+        self.assembly_tree.setCurrentIndex(topIndex)
+
 
         self.show()
 
@@ -696,6 +703,14 @@ class ContainerWindow(WindowWithLayout):
         if self.main_window:
             self.main_window.closing_container()
         event.accept()
+
+    def item_selected(self, current: QModelIndex, previous: QModelIndex):
+        if current.isValid():
+            node = current.data(role=Qt.ItemDataRole.UserRole + 1)
+            node_type = current.data(role=Qt.ItemDataRole.UserRole + 2)
+            self.container_label.setText(f"{node.name} ({node_type})")
+        else:
+            self.container_label.setText("")
 
 
 class Application(QApplication):
