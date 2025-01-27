@@ -6,19 +6,19 @@
 0.001
 # NB of embedded FMU's
 2
-bb_velocity.fmu
-bb_velocity
-{abf5f61d-b459-3641-3a2c-1e594b990280}
 bb_position.fmu
 bb_position
 {8fbd9f16-ceaa-97ed-127f-987a60b25648}
+bb_velocity.fmu
+bb_velocity
+{abf5f61d-b459-3641-3a2c-1e594b990280}
 # NB local variables Real, Integer, Boolean, String
 1 0 1 0 
 # CONTAINER I/O: <VR> <FMU_INDEX> <FMU_VR>
 # Real
 3
-1 1 1
-2 0 0
+1 0 1
+2 1 0
 0 -1 0
 # Integer
 0
@@ -26,32 +26,6 @@ bb_position
 1
 0 -1 0
 # String
-0
-# Inputs of bb_velocity.fmu - Real: <VR> <FMU_VR>
-0
-# Inputs of bb_velocity.fmu - Integer: <VR> <FMU_VR>
-0
-# Inputs of bb_velocity.fmu - Boolean: <VR> <FMU_VR>
-1
-0 0
-# Inputs of bb_velocity.fmu - String: <VR> <FMU_VR>
-0
-# Start values of bb_velocity.fmu - Real: <FMU_VR> <VALUE>
-0
-# Start values of bb_velocity.fmu - Integer: <FMU_VR> <VALUE>
-0
-# Start values of bb_velocity.fmu - Boolean: <FMU_VR> <VALUE>
-0
-# Start values of bb_velocity.fmu - String: <FMU_VR> <VALUE>
-0
-# Outputs of bb_velocity.fmu - Real: <VR> <FMU_VR>
-1
-0 0
-# Outputs of bb_velocity.fmu - Integer: <VR> <FMU_VR>
-0
-# Outputs of bb_velocity.fmu - Boolean: <VR> <FMU_VR>
-0
-# Outputs of bb_velocity.fmu - String: <VR> <FMU_VR>
 0
 # Inputs of bb_position.fmu - Real: <VR> <FMU_VR>
 1
@@ -78,4 +52,30 @@ bb_position
 1
 0 0
 # Outputs of bb_position.fmu - String: <VR> <FMU_VR>
+0
+# Inputs of bb_velocity.fmu - Real: <VR> <FMU_VR>
+0
+# Inputs of bb_velocity.fmu - Integer: <VR> <FMU_VR>
+0
+# Inputs of bb_velocity.fmu - Boolean: <VR> <FMU_VR>
+1
+0 0
+# Inputs of bb_velocity.fmu - String: <VR> <FMU_VR>
+0
+# Start values of bb_velocity.fmu - Real: <FMU_VR> <VALUE>
+0
+# Start values of bb_velocity.fmu - Integer: <FMU_VR> <VALUE>
+0
+# Start values of bb_velocity.fmu - Boolean: <FMU_VR> <VALUE>
+0
+# Start values of bb_velocity.fmu - String: <FMU_VR> <VALUE>
+0
+# Outputs of bb_velocity.fmu - Real: <VR> <FMU_VR>
+1
+0 0
+# Outputs of bb_velocity.fmu - Integer: <VR> <FMU_VR>
+0
+# Outputs of bb_velocity.fmu - Boolean: <VR> <FMU_VR>
+0
+# Outputs of bb_velocity.fmu - String: <VR> <FMU_VR>
 0

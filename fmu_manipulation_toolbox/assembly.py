@@ -57,7 +57,7 @@ class AssemblyNode:
 
         self.parent: Optional[AssemblyNode] = None
         self.children: Dict[str, AssemblyNode] = {}     # sub-containers
-        self.fmu_names_list: Set[str] = set()           # FMUs contained at this level
+        self.fmu_names_list: List[str] = []             # FMUs contained at this level (ordered list)
         self.input_ports: Dict[Port, str] = {}          # value is input port name, key is the source
         self.output_ports: Dict[Port, str] = {}         # value is output port name, key is the origin
         self.start_values: Dict[Port, str] = {}
@@ -75,11 +75,13 @@ class AssemblyNode:
             raise AssemblyError(f"Internal Error: AssemblyNode {sub_node.name} is already child of {self.name}")
 
         sub_node.parent = self
-        self.fmu_names_list.add(sub_node.name)
+        if sub_node.name not in self.fmu_names_list:
+            self.fmu_names_list.append(sub_node.name)
         self.children[sub_node.name] = sub_node
 
     def add_fmu(self, fmu_name: str):
-        self.fmu_names_list.add(fmu_name)
+        if fmu_name not in self.fmu_names_list:
+            self.fmu_names_list.append(fmu_name)
 
     def add_input(self, from_port_name: str, to_fmu_filename: str, to_port_name: str):
         self.input_ports[Port(to_fmu_filename, to_port_name)] = from_port_name
