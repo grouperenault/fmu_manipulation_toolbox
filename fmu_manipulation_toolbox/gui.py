@@ -6,11 +6,12 @@ from PySide6.QtCore import Qt, QObject, QUrl, QDir, Signal, QPoint, QModelIndex
 from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
                                QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView, QTabWidget, QTableView,
                                QCheckBox)
-from PySide6.QtGui import (QPixmap, QFont, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
+from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
                            QPainter, QColor, QImage, QStandardItemModel)
 from functools import partial
 from typing import Optional
 
+from .gui_style import *
 from .fmu_operations import *
 from .assembly import Assembly, AssemblyNode
 from .checker import checker_list
@@ -139,13 +140,6 @@ class LogWidget(QTextBrowser):
 
     def __init__(self):
         super().__init__()
-        if os.name == 'nt':
-            font = QFont('Consolas')
-            font.setPointSize(11)
-        else:
-            font = QFont('Courier New')
-            font.setPointSize(12)
-        self.setFont(font)
         self.setMinimumWidth(900)
         self.setMinimumHeight(500)
         self.setSearchPaths([os.path.join(os.path.dirname(__file__), "resources")])
@@ -288,15 +282,6 @@ class AssemblyTreeWidget(QTreeView):
         self.setRootIsDecorated(True)
         self.setHeaderHidden(True)
 
-        if os.name == 'nt':
-            font = QFont('Consolas')
-            font.setPointSize(11)
-        else:
-            font = QFont('Courier New')
-            font.setPointSize(12)
-        font.setBold(True)
-        self.setFont(font)
-
     def setTopIndex(self):
         topIndex = self.model.index(0, 0, self.rootIndex())
         print(topIndex.isValid(), topIndex.model())
@@ -402,11 +387,8 @@ class MainWindow(WindowWithLayout):
 
         self.layout.addWidget(self.dropped_fmu, 0, 0, 4, 1)
 
-        font = QFont('Verdana')
-        font.setPointSize(14)
-        font.setBold(True)
         self.fmu_title = QLabel()
-        self.fmu_title.setFont(font)
+        self.fmu_title.setProperty("class", "title")
         self.layout.addWidget(self.fmu_title, 0, 1, 1, 4)
 
         self.container_window = None
@@ -646,10 +628,7 @@ class ContainerWindow(WindowWithLayout):
         self.layout.addWidget(load_button, 0, 0)
 
         self.container_label = QLabel()
-        font = QFont('Verdana')
-        font.setPointSize(14)
-        font.setBold(True)
-        self.container_label.setFont(font)
+        self.container_label.setProperty("class", "title")
         self.container_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.container_label, 0, 1, 1, 2)
 
@@ -729,123 +708,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor)
 
         QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "resources"))
-        font = QFont("Verdana")
-        font.setPointSize(10)
-        self.setFont(font)
-        css_dark = """
-QWidget {
-    background: #4b4e51;
-    color: #b5bab9;
-}
-QPushButton, QComboBox {
-    min-height: 30px;
-    padding: 1px 1px 0.2em 0.2em;
-    border: 1px solid #282830;
-    border-radius: 5px;
-    color: #dddddd;
-}
-QPushButton:pressed {
-    border: 2px solid #282830;
-}
-QPushButton.info {
-    background-color: #4e6749;
-}
-QPushButton.info:hover {
-    background-color: #5f7850;
-}
-QPushButton.modify {
-    background-color: #98763f;
-}
-QPushButton.modify:hover {
-    background-color: #a9874f;
-}
-QPushButton.removal {
-    background-color: #692e2e;
-}
-QPushButton.removal:hover {
-    background-color: #7a3f3f;
-}
-QPushButton.save {
-    background-color: #564967;
-}
-QPushButton.save:hover {
-    background-color: #675a78;
-}
-QPushButton.quit {
-    background-color: #4571a4;
-}
-QPushButton.quit:hover {
-    background-color: #5682b5;
-}
-QPushButton::disabled {
-    background-color: #9876dd;
-}
-QToolTip {
-    color: black
-}
-QLabel.dropped_fmu {
-    background-color: #b5bab9
-}
-QLabel.dropped_fmu:hover {
-    background-color: #c6cbca
-}
-QTextBrowser, QTreeView {
-    background-color: #282830;
-    color: #b5bab9;
-}
-QMenu::item {
-    padding: 2px 250px 2px 20px;
-    border: 1px solid transparent;
-}
-QMenu::item::indicator, QCheckBox::item::indicator {
-    width: 32px;
-    height: 32px;
-}
-QMenu::indicator:checked, QCheckBox::indicator:checked {
-    image: url(images:checkbox-checked.png);
-}
-QMenu::indicator:checked:hover, QCheckBox::indicator:checked:hover {
-    image: url(images:checkbox-checked-hover.png);
-}
-QMenu::indicator:checked:disabled, QCheckBox::indicator:checked:disabled {
-    image: url(images:checkbox-checked-disabled.png);
-}
-QMenu::indicator:unchecked, QCheckBox::indicator:unchecked {
-    image: url(images:checkbox-unchecked.png);
-}
-QMenu::indicator:unchecked:hover, QCheckBox::indicator:unchecked:hover {
-    image: url(images:checkbox-unchecked-hover.png);
-}
-QMenu::indicator:unchecked:disabled, QCheckBox::indicator:unchecked:disabled {
-    image: url(images:checkbox-unchecked-disabled.png);
-}
-QCheckBox::item {
-    padding: 2px 250px 2px 20px;
-    border: 1px solid transparent;
-}
-
-
-QTabWidget::pane { /* The tab widget frame */
-    border-top: 1px #282830;  /* here is the line*/
-}
-QTabBar::tab {
-    padding: 1px 1px 0.2em 0.2em;
-    color: #dddddd;
-    margin-top: 4px;
-    padding:1px 1px 0.2em 0.2em;
-    border-top-left-radius: 5px;
-    border-top-right-radius: 5px;
-    border: 1px solid #282830;
-    /*border-bottom:0px none;*/
-    min-height: 30px;
-} 
-QTabBar::tab:selected, QTabBar::tab:hover {
-    background-color: #5f7850;
-    margin-bottom:-1px;
-}
-"""
-
-        self.setStyleSheet(css_dark)
+        self.setStyleSheet(gui_style_dark)
 
         if os.name == 'nt':
             import ctypes
