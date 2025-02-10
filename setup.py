@@ -20,6 +20,11 @@ try:
 except Exception as e:
     print(f"Cannot create __version__.py: {e}")
 
+requirements = []
+with open("requirements.txt", newline='') as req_file:
+    for line in req_file:
+        requirements.append(line)
+
 setup(
     name="fmu_manipulation_toolbox",
     version=version,
@@ -54,12 +59,7 @@ the way the FMU is generated, is the preferable when possible.
 
 FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers.
     """,
-    install_requires=[
-        "PyQt5 >= 5.15.10",
-        "xmlschema >= 3.3.1",
-        "elementpath >= 4.4.0",
-        "colorama >= 0.4.6",
-    ],
+    install_requires=requirements,
 )
 
 os.remove("fmu_manipulation_toolbox/__version__.py")
