@@ -268,10 +268,10 @@ class AssemblyTreeWidget(QTreeView):
                 return False
             return super().dropMimeData(data, action, row, column, parent)
 
-    def __init__(self, assembly: Optional[Assembly] = None, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.model = self.AssemblyTreeModel(assembly)
+        self.model = self.AssemblyTreeModel(None)
         self.setModel(self.model)
 
         self.expandAll()
@@ -281,6 +281,11 @@ class AssemblyTreeWidget(QTreeView):
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.setRootIsDecorated(True)
         self.setHeaderHidden(True)
+
+    def load_container(self, filename):
+        assembly = Assembly(filename)
+        self.model = self.AssemblyTreeModel(assembly)
+        self.setModel(self.model)
 
     def setTopIndex(self):
         topIndex = self.model.index(0, 0, self.rootIndex())
@@ -392,10 +397,11 @@ class MainWindow(WindowWithLayout):
         self.layout.addWidget(self.fmu_title, 0, 1, 1, 4)
 
         self.container_window = None
-        container_button = QPushButton("Make a container")
-        container_button.setProperty("class", "quit")
-        container_button.clicked.connect(self.launch_container)
-        self.layout.addWidget(container_button, 4, 1, 1, 1)
+        #TODO: Container Window
+        #container_button = QPushButton("Make a container")
+        #container_button.setProperty("class", "quit")
+        #container_button.clicked.connect(self.launch_container)
+        #self.layout.addWidget(container_button, 4, 1, 1, 1)
 
         help_widget = HelpWidget()
         self.layout.addWidget(help_widget, 0, 5, 1, 1)
@@ -618,12 +624,11 @@ class ContainerWindow(WindowWithLayout):
     def __init__(self, parent: MainWindow):
         super().__init__('FMU Manipulation Toolbox - Container')
         self.main_window = parent
-
-        #assembly = Assembly("tests/containers/arch/nested.json")
-        assembly = None
+        self.last_directory = None
 
         # ROW 0
         load_button = QPushButton("Load Description")
+        load_button.clicked.connect(self.load_container)
         load_button.setProperty("class", "quit")
         self.layout.addWidget(load_button, 0, 0)
 
@@ -643,7 +648,7 @@ class ContainerWindow(WindowWithLayout):
         add_sub_button.setDisabled(True)
         self.layout.addWidget(add_sub_button, 1, 2)
 
-        self.assembly_tree = AssemblyTreeWidget(assembly, parent=self)
+        self.assembly_tree = AssemblyTreeWidget(parent=self)
         self.assembly_tree.setMinimumHeight(600)
         self.assembly_tree.setMinimumWidth(200)
         self.layout.addWidget(self.assembly_tree, 1, 0, 3, 1)
@@ -678,7 +683,6 @@ class ContainerWindow(WindowWithLayout):
         topIndex = self.assembly_tree.model.index(0, 0, self.assembly_tree.rootIndex())
         self.assembly_tree.setCurrentIndex(topIndex)
 
-
         self.show()
 
     def closeEvent(self, event):
@@ -693,6 +697,22 @@ class ContainerWindow(WindowWithLayout):
             self.container_label.setText(f"{node.name} ({node_type})")
         else:
             self.container_label.setText("")
+
+    def load_container(self):
+        if self.last_directory:
+            default_directory = self.last_directory
+        else:
+            default_directory = os.path.expanduser('~')
+
+        filename, _ = QFileDialog.getOpenFileName(parent=self, caption='Select FMU to Manipulate',
+                                                  dir=default_directory,
+                                                  filter="JSON files (*.json);;SSP files (*.ssp)")
+        if filename:
+            try:
+                self.last_directory = os.path.dirname(filename)
+                self.assembly_tree.load_container(filename)
+            except Exception as e:
+                print(e)
 
 
 class Application(QApplication):
