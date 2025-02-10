@@ -116,6 +116,8 @@ class EmbeddedFMU(OperationAbstract):
 
     def scalar_type(self, type_name, attrs):
         if self.current_port:
+            if type_name == "Enumeration":
+                type_name = "Integer"
             self.current_port.set_port_type(type_name, attrs)
         self.current_port = None
 
@@ -424,11 +426,15 @@ class FMUContainer:
 
         if self.start_time is None:
             self.start_time = self.execution_order[0].start_time
-            logger.info(f"start_time={self.start_time} (deduced from the _first_ embedded FMU)")
+            logger.info(f"start_time={self.start_time} (deduced from '{self.execution_order[0].name}')")
+        else:
+            logger.info(f"start_time={self.start_time}")
 
         if self.stop_time is None:
             self.stop_time = self.execution_order[0].stop_time
-            logger.info(f"stop_time={self.stop_time} (deduced from the _first_ embedded FMU)")
+            logger.info(f"stop_time={self.stop_time} (deduced from '{self.execution_order[0].name}')")
+        else:
+            logger.info(f"stop_time={self.stop_time}")
 
         xml_file.write(f"""<?xml version="1.0" encoding="ISO-8859-1"?>
 <fmiModelDescription
@@ -615,6 +621,14 @@ class FMUContainer:
                 for cport, vr in outputs_fmu_per_type[type_name][fmu.name].items():
                     print(f"{vr} {cport.port.vr}", file=txt_file)
 
+    @staticmethod
+    def long_path(path: Union[str, Path]) -> str:
+        # https://stackoverflow.com/questions/14075465/copy-a-file-with-a-too-long-path-to-another-directory-in-python
+        if os.name == 'nt':
+            return "\\\\?\\" + os.path.abspath(str(path))
+        else:
+            return path
+
     def make_fmu_skeleton(self, base_directory: Path) -> Path:
         logger.debug(f"Initialize directory '{base_directory}'")
 
@@ -641,8 +655,8 @@ class FMUContainer:
                 shutil.copy(library_filename, binary_directory / f"{self.identifier}.dll")
 
         for fmu in self.involved_fmu.values():
-            shutil.copytree(fmu.fmu.tmp_directory, resources_directory / fmu.name, dirs_exist_ok=True)
-
+            shutil.copytree(self.long_path(fmu.fmu.tmp_directory),
+                            self.long_path(resources_directory / fmu.name), dirs_exist_ok=True)
         return resources_directory
 
     def make_fmu_package(self, base_directory: Path, fmu_filename: Path):
@@ -650,7 +664,7 @@ class FMUContainer:
         with zipfile.ZipFile(self.fmu_directory / fmu_filename, "w", zipfile.ZIP_DEFLATED) as zip_file:
             for root, dirs, files in os.walk(base_directory):
                 for file in files:
-                    zip_file.write(os.path.join(root, file),
+                    zip_file.write(self.long_path(os.path.join(root, file)),
                                    os.path.relpath(os.path.join(root, file), base_directory))
         logger.info(f"'{fmu_filename}' is available.")
 

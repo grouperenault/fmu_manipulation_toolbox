@@ -131,9 +131,12 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
 
         logger(fmi2OK, "Loading '%s.dll' from directory '%s'", identifier, directory);
 
-        if (fmu_load_from_directory(container, i, directory, identifier, guid)) {
-            logger(fmi2Error, "Cannot load from directory '%s'", directory);
+        int status = fmu_load_from_directory(container, i, directory, identifier, guid);
+        if (status) {
+            logger(fmi2Error, "Cannot load from directory '%s' (status=%d)", directory, status);
             free(identifier);
+            free(container->fmu);
+            container->fmu = NULL; /* to allow freeInstance on container */
             return -4;
         }
 
@@ -920,9 +923,9 @@ static fmi2Status do_internal_step_parallel_mt(container_t* container, fmi2Real 
     fmi2Boolean   noSetFMUStatePriorToCurrentPoint) {
     fmi2Status status = fmi2OK;
 
-    container->currentCommunicationPoint = currentCommunicationPoint;
-    container->step_size = step_size;
-    container->noSetFMUStatePriorToCurrentPoint = noSetFMUStatePriorToCurrentPoint;
+    container->fmi_currentCommunicationPoint = currentCommunicationPoint;
+    container->fmi_step_size = step_size;
+    container->fmi_noSetFMUStatePriorToCurrentPoint = noSetFMUStatePriorToCurrentPoint;
 
     /* Launch computation for all threads*/
     for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -961,9 +964,9 @@ static fmi2Status do_internal_step_parallel(container_t* container, fmi2Real cur
             return status;
     }
 
-    container->currentCommunicationPoint = currentCommunicationPoint;
-    container->step_size = step_size;
-    container->noSetFMUStatePriorToCurrentPoint = noSetFMUStatePriorToCurrentPoint;
+    container->fmi_currentCommunicationPoint = currentCommunicationPoint;
+    container->fmi_step_size = step_size;
+    container->fmi_noSetFMUStatePriorToCurrentPoint = noSetFMUStatePriorToCurrentPoint;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         const fmu_t* fmu = &container->fmu[i];
@@ -991,30 +994,34 @@ fmi2Status fmi2DoStep(fmi2Component c,
     fmi2Real communicationStepSize,
     fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     container_t *container = (container_t*)c;
-    const fmi2Real end_time = currentCommunicationPoint + communicationStepSize + container->tolerance;
+    const fmi2Real end_time = currentCommunicationPoint + communicationStepSize;
     fmi2Real current_time;
     fmi2Status status = fmi2OK;
 
 
+    const int nb_step = (int)((end_time - container->time + container->tolerance) / container->time_step);
     /*
      * Early return if requested end_time is lower than next container time step.
      */
-    if (end_time < container->time + container->time_step) {
+    if (nb_step == 0)
         return fmi2OK;
-    }
 
-    for(current_time = container->time;
-        current_time + container->time_step < end_time;
-        current_time += container->time_step) {
+    fmi2Real start_time = container->time;
+    for(int i = 0; i < nb_step; i += 1) { 
         if (container->mt)
-            status = do_internal_step_parallel_mt(container, current_time, container->time_step, noSetFMUStatePriorToCurrentPoint);
+            status = do_internal_step_parallel_mt(container, container->time, container->time_step, noSetFMUStatePriorToCurrentPoint);
         else
-            status = do_internal_step_parallel(container, current_time, container->time_step, noSetFMUStatePriorToCurrentPoint);
+            status = do_internal_step_parallel(container, container->time, container->time_step, noSetFMUStatePriorToCurrentPoint);
+        if (status != fmi2OK) {
+            logger(fmi2Error, "Container cannot do_internal_step. Status=%d", status);
+            break;
+        }
+        container->time = start_time + (i+1) * container->time_step;
     }
-    container->time = current_time;
-
-    if (fabs(currentCommunicationPoint + communicationStepSize - current_time) > container->tolerance) {
-        logger(fmi2Warning, "CommunicationStepSize should be divisible by %e", container->time_step);
+    double remaining_time = currentCommunicationPoint + communicationStepSize - container->time;
+    if (fabs(remaining_time) > container->tolerance) {
+        logger(fmi2Warning, "Container CommunicationStepSize should be divisible by %e. (remaining=%e, nb_step=%d)",
+            container->time_step, remaining_time, nb_step);
         return fmi2Warning;
     }
 

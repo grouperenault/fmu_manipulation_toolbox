@@ -52,9 +52,9 @@ typedef struct container_s {
 
 	fmu_t						*fmu;
 
-	fmi2Real					currentCommunicationPoint;
-	fmi2Real					step_size;
-	fmi2Boolean					noSetFMUStatePriorToCurrentPoint;
+	fmi2Real					fmi_currentCommunicationPoint;
+	fmi2Real					fmi_step_size;
+	fmi2Boolean					fmi_noSetFMUStatePriorToCurrentPoint;
 
 } container_t;
 

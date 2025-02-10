@@ -1,6 +1,7 @@
 from setuptools import setup
 import os
 import re
+
 from fmu_manipulation_toolbox.version import __author__ as author, __version__ as default_version
 
 try:
@@ -55,7 +56,7 @@ the way the FMU is generated, is the preferable when possible.
 FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers.
     """,
     install_requires=[
-        "PyQt5 >= 5.15.10",
+        "PySide6 >= 6.8.0",
         "xmlschema >= 3.3.1",
         "elementpath >= 4.4.0",
         "colorama >= 0.4.6",

@@ -6,11 +6,12 @@ from PySide6.QtCore import Qt, QObject, QUrl, QDir, Signal, QPoint, QModelIndex
 from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
                                QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView, QTabWidget, QTableView,
                                QCheckBox)
-from PySide6.QtGui import (QPixmap, QFont, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
+from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
                            QPainter, QColor, QImage, QStandardItemModel)
 from functools import partial
 from typing import Optional
 
+from .gui_style import *
 from .fmu_operations import *
 from .assembly import Assembly, AssemblyNode
 from .checker import checker_list
@@ -139,13 +140,6 @@ class LogWidget(QTextBrowser):
 
     def __init__(self):
         super().__init__()
-        if os.name == 'nt':
-            font = QFont('Consolas')
-            font.setPointSize(11)
-        else:
-            font = QFont('Courier New')
-            font.setPointSize(12)
-        self.setFont(font)
         self.setMinimumWidth(900)
         self.setMinimumHeight(500)
         self.setSearchPaths([os.path.join(os.path.dirname(__file__), "resources")])
@@ -228,7 +222,8 @@ class AssemblyTreeWidget(QTreeView):
             self.icon_container = QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'container.png'))
             self.icon_fmu = QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon_fmu.png'))
 
-            self.add_node(assembly.root, self)
+            if assembly:
+                self.add_node(assembly.root, self)
 
         def add_node(self, node: AssemblyNode, parent_item):
             # Add Container
@@ -236,14 +231,16 @@ class AssemblyTreeWidget(QTreeView):
             parent_item.appendRow(item)
             item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled |
                           Qt.ItemFlag.ItemIsDropEnabled)
-            item.setData(node)
+            item.setData(node, role=Qt.ItemDataRole.UserRole + 1)
+            item.setData("container", role=Qt.ItemDataRole.UserRole + 2)
 
             # Add FMU's
             children_name = node.children.keys()
             for fmu_name in node.fmu_names_list:
                 if fmu_name not in children_name:
                     fmu_node = QStandardItem(self.icon_fmu, fmu_name)
-                    fmu_node.setData(node)
+                    fmu_node.setData(node, role=Qt.ItemDataRole.UserRole + 1)
+                    fmu_node.setData("fmu", role=Qt.ItemDataRole.UserRole + 2)
                     fmu_node.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable |
                                       Qt.ItemFlag.ItemIsDragEnabled)
                     item.appendRow(fmu_node)
@@ -271,26 +268,37 @@ class AssemblyTreeWidget(QTreeView):
                 return False
             return super().dropMimeData(data, action, row, column, parent)
 
-    def __init__(self, assembly: Optional[Assembly] = None, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
 
-        self.model = self.AssemblyTreeModel(assembly)
+        self.model = self.AssemblyTreeModel(None)
         self.setModel(self.model)
+
         self.expandAll()
         self.setDropIndicatorShown(True)
         self.setDragDropOverwriteMode(False)
         self.setAcceptDrops(True)
         self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
-        self.setRootIsDecorated(False)
+        self.setRootIsDecorated(True)
         self.setHeaderHidden(True)
 
-        if os.name == 'nt':
-            font = QFont('Consolas')
-            font.setPointSize(11)
+    def load_container(self, filename):
+        assembly = Assembly(filename)
+        self.model = self.AssemblyTreeModel(assembly)
+        self.setModel(self.model)
+
+    def setTopIndex(self):
+        topIndex = self.model.index(0, 0, self.rootIndex())
+        print(topIndex.isValid(), topIndex.model())
+        if topIndex.isValid():
+            self.setCurrentIndex(topIndex)
+            if self.layoutCheck:
+                self.model.layoutChanged.disconnect(self.setTopIndex)
         else:
-            font = QFont('Courier New')
-            font.setPointSize(12)
-        self.setFont(font)
+            if not self.layoutCheck:
+                self.model.layoutChanged.connect(self.setTopIndex)
+                self.layoutCheck = True
+
 
     def dragEnterEvent2(self, event):
         if event.mimeData().hasImage:
@@ -359,8 +367,8 @@ class AssemblyTabWidget(QTabWidget):
         table = QTableView()
         self.addTab(table, "Start values")
 
-
-
+        self.tabBar().setDocumentMode(True)
+        self.tabBar().setExpanding(True)
 
 
 class WindowWithLayout(QWidget):
@@ -384,18 +392,16 @@ class MainWindow(WindowWithLayout):
 
         self.layout.addWidget(self.dropped_fmu, 0, 0, 4, 1)
 
-        font = QFont('Verdana')
-        font.setPointSize(14)
-        font.setBold(True)
         self.fmu_title = QLabel()
-        self.fmu_title.setFont(font)
+        self.fmu_title.setProperty("class", "title")
         self.layout.addWidget(self.fmu_title, 0, 1, 1, 4)
 
         self.container_window = None
-        container_button = QPushButton("Make a container")
-        container_button.setProperty("class", "quit")
-        container_button.clicked.connect(self.launch_container)
-        self.layout.addWidget(container_button, 4, 1, 1, 1)
+        #TODO: Container Window
+        #container_button = QPushButton("Make a container")
+        #container_button.setProperty("class", "quit")
+        #container_button.clicked.connect(self.launch_container)
+        #self.layout.addWidget(container_button, 4, 1, 1, 1)
 
         help_widget = HelpWidget()
         self.layout.addWidget(help_widget, 0, 5, 1, 1)
@@ -618,19 +624,64 @@ class ContainerWindow(WindowWithLayout):
     def __init__(self, parent: MainWindow):
         super().__init__('FMU Manipulation Toolbox - Container')
         self.main_window = parent
+        self.last_directory = None
 
-        assembly = Assembly("tests/containers/arch/nested.json")
-        self.assembly_tree = AssemblyTreeWidget(assembly, parent=self)
-        self.layout.addWidget(self.assembly_tree, 0, 0)
+        # ROW 0
+        load_button = QPushButton("Load Description")
+        load_button.clicked.connect(self.load_container)
+        load_button.setProperty("class", "quit")
+        self.layout.addWidget(load_button, 0, 0)
 
+        self.container_label = QLabel()
+        self.container_label.setProperty("class", "title")
+        self.container_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.container_label, 0, 1, 1, 2)
+
+        # ROW 1
+        add_fmu_button = QPushButton("Add FMU")
+        add_fmu_button.setProperty("class", "modify")
+        add_fmu_button.setDisabled(True)
+        self.layout.addWidget(add_fmu_button, 1, 1)
+
+        add_sub_button = QPushButton("Add SubContainer")
+        add_sub_button.setProperty("class", "modify")
+        add_sub_button.setDisabled(True)
+        self.layout.addWidget(add_sub_button, 1, 2)
+
+        self.assembly_tree = AssemblyTreeWidget(parent=self)
+        self.assembly_tree.setMinimumHeight(600)
+        self.assembly_tree.setMinimumWidth(200)
+        self.layout.addWidget(self.assembly_tree, 1, 0, 3, 1)
+
+        # ROW 2
+        del_fmu_button = QPushButton("Remove FMU")
+        del_fmu_button.setProperty("class", "removal")
+        del_fmu_button.setDisabled(True)
+        self.layout.addWidget(del_fmu_button, 2, 1)
+
+        del_sub_button = QPushButton("Remove SubContainer")
+        del_sub_button.setProperty("class", "removal")
+        del_sub_button.setDisabled(True)
+        self.layout.addWidget(del_sub_button, 2, 2)
+
+        # ROW 3
         self.assembly_tab = AssemblyTabWidget(parent=self)
-        self.layout.addWidget(self.assembly_tab, 0, 1)
+        self.assembly_tab.setMinimumWidth(600)
+        self.layout.addWidget(self.assembly_tab, 3, 1, 1, 2)
 
-        fmu_button = QPushButton("Add FMU")
-        self.layout.addWidget(fmu_button, 1, 0)
+        # ROW 4
+        close_button = QPushButton("Close")
+        close_button.setProperty("class", "quit")
+        close_button.clicked.connect(self.close)
+        self.layout.addWidget(close_button, 4, 0)
 
-        fmu_button = QPushButton("Add Container")
-        self.layout.addWidget(fmu_button, 1, 1)
+        save_button = QPushButton("Save Container")
+        save_button.setProperty("class", "save")
+        self.layout.addWidget(save_button, 4, 2)
+
+        self.assembly_tree.selectionModel().currentChanged.connect(self.item_selected)
+        topIndex = self.assembly_tree.model.index(0, 0, self.assembly_tree.rootIndex())
+        self.assembly_tree.setCurrentIndex(topIndex)
 
         self.show()
 
@@ -638,6 +689,30 @@ class ContainerWindow(WindowWithLayout):
         if self.main_window:
             self.main_window.closing_container()
         event.accept()
+
+    def item_selected(self, current: QModelIndex, previous: QModelIndex):
+        if current.isValid():
+            node = current.data(role=Qt.ItemDataRole.UserRole + 1)
+            node_type = current.data(role=Qt.ItemDataRole.UserRole + 2)
+            self.container_label.setText(f"{node.name} ({node_type})")
+        else:
+            self.container_label.setText("")
+
+    def load_container(self):
+        if self.last_directory:
+            default_directory = self.last_directory
+        else:
+            default_directory = os.path.expanduser('~')
+
+        filename, _ = QFileDialog.getOpenFileName(parent=self, caption='Select FMU to Manipulate',
+                                                  dir=default_directory,
+                                                  filter="JSON files (*.json);;SSP files (*.ssp)")
+        if filename:
+            try:
+                self.last_directory = os.path.dirname(filename)
+                self.assembly_tree.load_container(filename)
+            except Exception as e:
+                print(e)
 
 
 class Application(QApplication):
@@ -653,50 +728,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor)
 
         QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "resources"))
-        font = QFont("Verdana")
-        font.setPointSize(10)
-        self.setFont(font)
-        css_dark = """
-QWidget                  {background: #4b4e51; color: #b5bab9}
-QPushButton           { min-height: 30px; padding: 1px 1px 0.2em 0.2em; border: 1px solid #282830; border-radius: 5px;}
-QComboBox             { min-height: 30px; padding: 1px 1px 0.2em 0.2em; border: 1px solid #282830; border-radius: 5px;}
-QPushButton:pressed      { border: 2px solid #282830; }
-QPushButton.info         {background-color: #4e6749; color: #dddddd;}
-QPushButton.info:hover   {background-color: #5f7850; color: #dddddd;}
-QPushButton.info:hover   {background-color: #5f7850; color: #dddddd;}
-QPushButton.modify       {background-color: #98763f; color: #dddddd;}
-QPushButton.modify:hover {background-color: #a9874f; color: #dddddd;}
-QPushButton.removal      {background-color: #692e2e; color: #dddddd;}
-QPushButton.removal:hover{background-color: #7a3f3f; color: #dddddd;}
-QPushButton.save         {background-color: #564967; color: #dddddd;}
-QPushButton.save:hover   {background-color: #675a78; color: #dddddd;}
-QPushButton.quit         {background-color: #4571a4; color: #dddddd;}
-QPushButton.quit:hover   {background-color: #5682b5; color: #dddddd;}
-QToolTip                 {color: black}
-QLabel.dropped_fmu       {background-color: #b5bab9}
-QLabel.dropped_fmu:hover {background-color: #c6cbca}
-QTextBrowser             {background-color: #282830; color: #b5bab9;}
-QTreeView                {background-color: #282830; color: #b5bab9;}
-QMenu                               {font-size: 18px;}
-QMenu::item                         {padding: 2px 250px 2px 20px; border: 1px solid transparent;}
-QMenu::item::indicator              {width: 32px; height: 32px; }
-QMenu::indicator:checked            {image: url(images:checkbox-checked.png);}
-QMenu::indicator:checked:hover      {image: url(images:checkbox-checked-hover.png);}
-QMenu::indicator:checked:disabled   {image: url(images:checkbox-checked-disabled.png);}
-QMenu::indicator:unchecked          {image: url(images:checkbox-unchecked.png); }
-QMenu::indicator:unchecked:hover    {image: url(images:checkbox-unchecked-hover.png); }
-QMenu::indicator:unchecked:disabled {image: url(images:checkbox-unchecked-disabled.png); }
-QCheckBox::item                         {padding: 2px 250px 2px 20px; border: 1px solid transparent;}
-QCheckBox::item::indicator              {width: 32px; height: 32px; }
-QCheckBox::indicator:checked            {image: url(images:checkbox-checked.png);}
-QCheckBox::indicator:checked:hover      {image: url(images:checkbox-checked-hover.png);}
-QCheckBox::indicator:checked:disabled   {image: url(images:checkbox-checked-disabled.png);}
-QCheckBox::indicator:unchecked          {image: url(images:checkbox-unchecked.png); }
-QCheckBox::indicator:unchecked:hover    {image: url(images:checkbox-unchecked-hover.png); }
-QCheckBox::indicator:unchecked:disabled {image: url(images:checkbox-unchecked-disabled.png); }
-"""
-
-        self.setStyleSheet(css_dark)
+        self.setStyleSheet(gui_style_dark)
 
         if os.name == 'nt':
             import ctypes
