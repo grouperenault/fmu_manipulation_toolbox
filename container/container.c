@@ -1018,12 +1018,14 @@ fmi2Status fmi2DoStep(fmi2Component c,
         }
         container->time = start_time + (i+1) * container->time_step;
     }
-    double remaining_time = currentCommunicationPoint + communicationStepSize - container->time;
+    double remaining_time = end_time - container->time;
     if (fabs(remaining_time) > container->tolerance) {
-        logger(fmi2Warning, "Container CommunicationStepSize should be divisible by %e. (remaining=%e, nb_step=%d)",
-            container->time_step, remaining_time, nb_step);
+        logger(fmi2Warning, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, nb_step=%d)", 
+            container->time_step, currentCommunicationPoint, container->time, end_time, container->tolerance, nb_step);
         return fmi2Warning;
     }
+
+    container->time = end_time; /* Avoid Controlbuild rounding issue. */
 
     return status;
 }
