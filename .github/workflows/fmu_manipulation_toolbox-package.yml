@@ -87,6 +87,7 @@ jobs:
 
       - name: Install needed packets
         run: >
+          sudo apt-get update
           sudo apt-get install gcc-multilib
 
       - name: Configure CMake
