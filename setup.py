@@ -1,7 +1,6 @@
 from setuptools import setup
 import os
 import re
-from pathlib import Path
 
 from fmu_manipulation_toolbox.version import __author__ as author, __version__ as default_version
 
@@ -21,11 +20,6 @@ try:
         print(f"'{version}'", file=file)
 except Exception as e:
     print(f"Cannot create __version__.py: {e}")
-
-requirements = []
-with open(Path(__file__).parent / "requirements.txt", newline='') as req_file:
-    for line in req_file:
-        requirements.append(line)
 
 setup(
     name="fmu_manipulation_toolbox",
@@ -61,7 +55,12 @@ the way the FMU is generated, is the preferable when possible.
 
 FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers.
     """,
-    install_requires=requirements,
+    install_requires=[
+        "PySide6 >= 6.8.0",
+        "xmlschema >= 3.3.1",
+        "elementpath >= 4.4.0",
+        "colorama >= 0.4.6",
+    ],
 )
 
 os.remove("fmu_manipulation_toolbox/__version__.py")
