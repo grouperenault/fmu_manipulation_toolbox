@@ -1,6 +1,8 @@
 from setuptools import setup
 import os
 import re
+from pathlib import Path
+
 from fmu_manipulation_toolbox.version import __author__ as author, __version__ as default_version
 
 try:
@@ -21,7 +23,7 @@ except Exception as e:
     print(f"Cannot create __version__.py: {e}")
 
 requirements = []
-with open("requirements.txt", newline='') as req_file:
+with open(Path(__file__).parent / "requirements.txt", newline='') as req_file:
     for line in req_file:
         requirements.append(line)
 
