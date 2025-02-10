@@ -86,7 +86,7 @@ jobs:
           echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
 
       - name: Install needed packets
-        run: >
+        run: |
           sudo apt-get update
           sudo apt-get install gcc-multilib
 
