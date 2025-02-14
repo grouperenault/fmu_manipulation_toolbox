@@ -1000,6 +1000,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
 
 
     const int nb_step = (int)((end_time - container->time + container->tolerance) / container->time_step);
+    logger(fmi2Error, "DEBUG-NL: fmi2DoStep(%e, %e) => %d steps", currentCommunicationPoint, communicationStepSize, nb_step);
     /*
      * Early return if requested end_time is lower than next container time step.
      */
@@ -1007,7 +1008,8 @@ fmi2Status fmi2DoStep(fmi2Component c,
         return fmi2OK;
 
     fmi2Real start_time = container->time;
-    for(int i = 0; i < nb_step; i += 1) { 
+    for(int i = 0; i < nb_step; i += 1) {
+        logger(fmi2Error, "DEBUG-NL: do_internal_step_parallel(%e, %e, %d)", container->time, container->time_step, noSetFMUStatePriorToCurrentPoint);
         if (container->mt)
             status = do_internal_step_parallel_mt(container, container->time, container->time_step, noSetFMUStatePriorToCurrentPoint);
         else
@@ -1024,8 +1026,6 @@ fmi2Status fmi2DoStep(fmi2Component c,
             container->time_step, currentCommunicationPoint, container->time, end_time, container->tolerance, nb_step);
         return fmi2Warning;
     }
-
-    container->time = end_time; /* Avoid Controlbuild rounding issue. */
 
     return status;
 }

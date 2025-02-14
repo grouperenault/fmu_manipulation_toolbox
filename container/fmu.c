@@ -266,6 +266,8 @@ fmi2Status fmuDoStep(const fmu_t *fmu,
     if (fmu->profile)
         profile_tic(fmu->profile);
 
+    logger(fmi2Error, "DEBUG-NL: %s doStep(%e, %e, %d)", fmu->identifier, currentCommunicationPoint, communicationStepSize, noSetFMUStatePriorToCurrentPoint);
+
     fmi2Status status = fmu->fmi_functions.fmi2DoStep(fmu->component, 
                                                      currentCommunicationPoint,
                                                      communicationStepSize,
