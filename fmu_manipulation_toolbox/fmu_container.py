@@ -668,7 +668,6 @@ class FMUContainer:
                                    os.path.relpath(os.path.join(root, file), base_directory))
         logger.info(f"'{fmu_filename}' is available.")
 
-    @staticmethod
-    def make_fmu_cleanup(base_directory: Path):
+    def make_fmu_cleanup(self, base_directory: Path):
         logger.debug(f"Delete directory '{base_directory}'")
-        shutil.rmtree(base_directory)
+        shutil.rmtree(self.long_path(base_directory))
