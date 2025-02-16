@@ -931,13 +931,13 @@ static fmi2Status do_internal_step_parallel_mt(container_t* container, fmi2Boole
     /* Consolidate results */
     for (int i = 0; i < container->nb_fmu; i += 1) {
         thread_mutex_lock(&container->fmu[i].mutex_fmu);
-        if (container->fmu[i].status != fmi2OK)
+        if ((container->fmu[i].status != fmi2OK) && (container->fmu[i].status != fmi2Warning))
             return container->fmu[i].status;
     }
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         status = do_step_get_outputs(container, i);
-        if (status != fmi2OK) {
+        if ((status != fmi2OK) && (status != fmi2Warning)) {
             logger(fmi2Error, "Container: FMU#%d failed doStep.", i);
             return status;
         }
@@ -953,7 +953,7 @@ static fmi2Status do_internal_step_parallel(container_t* container, fmi2Boolean 
 
     for (int i = 0; i < container->nb_fmu; i += 1) {          
         status = fmu_set_inputs(&container->fmu[i]);
-        if (status != fmi2OK)
+        if ((status != fmi2OK) && (status != fmi2Warning))
             return status;
     }
 
@@ -961,7 +961,7 @@ static fmi2Status do_internal_step_parallel(container_t* container, fmi2Boolean 
         const fmu_t* fmu = &container->fmu[i];
         /* COMPUTATION */
         status = fmuDoStep(fmu, container->time, container->time_step, noSetFMUStatePriorToCurrentPoint);
-        if (status != fmi2OK) {
+        if ((status != fmi2OK) && (status != fmi2Warning)) {
             logger(fmi2Error, "Container: FMU#%d failed doStep.", i);
             return status;
         }
@@ -969,9 +969,8 @@ static fmi2Status do_internal_step_parallel(container_t* container, fmi2Boolean 
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         status = do_step_get_outputs(container, i);
-        if (status != fmi2OK)
+        if ((status != fmi2OK) && (status != fmi2Warning))
             return status;
-
     }
     
     return status;
@@ -1002,7 +1001,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
         else
             status = do_internal_step_parallel(container, noSetFMUStatePriorToCurrentPoint);
         container->time = start_time + (i + 1) * container->time_step;
-        if (status != fmi2OK) {
+        if ((status != fmi2OK) && (status != fmi2Warning)) {
             logger(fmi2Error, "Container cannot do_internal_step. Status=%d", status);
             return status;
         }
