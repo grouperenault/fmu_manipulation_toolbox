@@ -334,7 +334,8 @@ fmi2Status fmuInstantiate(fmu_t *fmu,
 
 
 void fmuFreeInstance(const fmu_t *fmu) {
-    fmu->fmi_functions.fmi2FreeInstance(fmu->component);
+    if (fmu && fmu->component) /* if embedded FMU is not weel initialized */
+        fmu->fmi_functions.fmi2FreeInstance(fmu->component);
 }
 
 
