@@ -570,6 +570,9 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         }
         logger(fmi2OK, "Container configuration read.");
 
+        for (int i = 0; i < container->nb_fmu; i += 1)
+            container->fmu[i].component = NULL;
+
         for(int i=0; i < container->nb_fmu; i += 1) {
             fmi2Status status = fmuInstantiate(&container->fmu[i], 
                                                container->instance_name,
@@ -577,7 +580,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
                                                visible,
                                                container->debug);
             if (status != fmi2OK) {
-                logger(fmi2Error, "Cannot Instiantiate FMU#%d", i);
+                logger(fmi2Error, "Cannot Instantiate FMU#%d", i);
                 fmi2FreeInstance(container);
                 return NULL;
             }
