@@ -38,7 +38,7 @@ class Connection:
 
 class AssemblyNode:
     def __init__(self, name: Optional[str], step_size: float = None, mt=False, profiling=False,
-                 auto_link=True, auto_input=True, auto_output=True, auto_parameter=False):
+                 auto_link=True, auto_input=True, auto_output=True, auto_parameter=False, auto_local=False):
         self.name = name
         if step_size:
             try:
@@ -54,6 +54,7 @@ class AssemblyNode:
         self.auto_input = auto_input
         self.auto_output = auto_output
         self.auto_parameter = auto_parameter
+        self.auto_local = auto_local
 
         self.parent: Optional[AssemblyNode] = None
         self.children: Dict[str, AssemblyNode] = {}     # sub-containers
@@ -128,7 +129,8 @@ class AssemblyNode:
         container.add_implicit_rule(auto_input=self.auto_input,
                                     auto_output=self.auto_output,
                                     auto_link=self.auto_link,
-                                    auto_parameter=self.auto_parameter)
+                                    auto_parameter=self.auto_parameter,
+                                    auto_local=self.auto_local)
 
         container.make_fmu(self.name, self.step_size, mt=self.mt, profiling=self.profiling, debug=debug)
 
@@ -209,7 +211,8 @@ class AssemblyError(Exception):
 
 class Assembly:
     def __init__(self, filename: str, step_size=None, auto_link=True,  auto_input=True, debug=False,
-                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = Path("."), auto_parameter=False):
+                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = Path("."), auto_parameter=False,
+                 auto_local=False):
         self.filename = Path(filename)
         self.default_auto_input = auto_input
         self.debug = debug
@@ -217,6 +220,7 @@ class Assembly:
         self.default_step_size = step_size
         self.default_auto_link = auto_link
         self.default_auto_parameter = auto_parameter
+        self.default_auto_local = auto_local
         self.default_mt = mt
         self.default_profiling = profiling
         self.fmu_directory = fmu_directory
@@ -274,7 +278,7 @@ class Assembly:
         self.root = AssemblyNode(name, step_size=self.default_step_size, auto_link=self.default_auto_link,
                                  mt=self.default_mt, profiling=self.default_profiling,
                                  auto_input=self.default_auto_input, auto_output=self.default_auto_output,
-                                 auto_parameter=self.default_auto_parameter)
+                                 auto_parameter=self.default_auto_parameter, auto_local=self.default_auto_local)
 
         with open(self.input_pathname) as file:
             reader = csv.reader(file, delimiter=';')
@@ -379,14 +383,16 @@ class Assembly:
         auto_input = data.get("auto_input", self.default_auto_input)                        # 5
         auto_output = data.get("auto_output", self.default_auto_output)                     # 6
         auto_parameter = data.get("auto_parameter", self.default_auto_parameter)            # 6b
+        auto_local = data.get("auto_local", self.default_auto_local)                        # 6c
         step_size = data.get("step_size", self.default_step_size)                           # 7
 
         node = AssemblyNode(name, step_size=step_size, auto_link=auto_link, mt=mt, profiling=profiling,
-                            auto_input=auto_input, auto_output=auto_output, auto_parameter=auto_parameter)
+                            auto_input=auto_input, auto_output=auto_output, auto_parameter=auto_parameter,
+                            auto_local=auto_local)
 
         for key, value in data.items():
             if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling',
-                       'auto_parameter'):
+                       'auto_parameter', 'auto_local'):
                 continue  # Already read
 
             elif key == "container":  # 8
@@ -447,6 +453,7 @@ class Assembly:
         json_node["auto_input"] = node.auto_input          # 5
         json_node["auto_output"] = node.auto_output        # 6
         json_node["auto_parameter"] = node.auto_parameter  # 6b
+        json_node["auto_local"] = node.auto_local          # 6c
 
         if node.step_size:
             json_node["step_size"] = node.step_size        # 7

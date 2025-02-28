@@ -6,6 +6,7 @@
   "auto_input": true,
   "auto_output": true,
   "auto_parameter": false,
+  "auto_local": false,
   "step_size": 0.5,
   "fmu": [
     "gain.fmu",

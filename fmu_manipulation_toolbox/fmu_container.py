@@ -308,7 +308,8 @@ class FMUContainer:
                     return ContainerPort(fmu, port.name)
         return None
 
-    def add_implicit_rule(self, auto_input=True, auto_output=True, auto_link=True, auto_parameter=False):
+    def add_implicit_rule(self, auto_input=True, auto_output=True, auto_link=True, auto_parameter=False,
+                          auto_local=False):
         # Auto Link outputs
         for fmu in self.execution_order:
             for port_name in fmu.ports:
@@ -332,11 +333,17 @@ class FMUContainer:
                             self.mark_ruled(cport, 'OUTPUT')
                             self.outputs[port_name] = cport
                             logger.info(f"AUTO OUTPUT: Expose {cport}")
-                    elif cport.port.causality == 'local' and port_name.startswith("container."):
-                        local_portname = "container." + cport.fmu.id + "." + port_name[10:]
-                        self.mark_ruled(cport, 'OUTPUT')
-                        self.outputs[local_portname] = cport
-                        logger.info(f"PROFILING: Expose {cport}")
+                    elif cport.port.causality == 'local':
+                        local_portname = None
+                        if port_name.startswith("container."):
+                            local_portname = "container." + cport.fmu.id + "." + port_name[10:]
+                            logger.info(f"PROFILING: Expose {cport}")
+                        elif auto_local:
+                            local_portname = cport.fmu.id + "." + port_name
+                            logger.info(f"AUTO LOCAL: Expose {cport}")
+                        if local_portname:
+                            self.mark_ruled(cport, 'OUTPUT')
+                            self.outputs[local_portname] = cport
 
         if auto_input:
             # Auto link inputs

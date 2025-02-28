@@ -6,6 +6,7 @@
   "auto_input": true,
   "auto_output": true,
   "auto_parameter": false,
+  "auto_local": false,
   "fmu": [
     "resources/bb_position.fmu",
     "resources/bb_velocity.fmu"
