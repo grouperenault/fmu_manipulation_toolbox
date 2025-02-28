@@ -896,24 +896,23 @@ GETTER(booleans, Boolean);
 }
 
 
-static fmi2Status do_internal_step_serie(container_t *container, fmi2Real currentCommunicationPoint, fmi2Real step_size,
-    fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
+static fmi2Status do_internal_step_serie(container_t *container, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     fmi2Status status;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
 
         status = fmu_set_inputs(fmu);
-        if (status != fmi2OK)
+        if ((status != fmi2OK) && (status != fmi2Warning))
             return status;
             
         /* COMPUTATION */
-        status = fmuDoStep(fmu, currentCommunicationPoint, step_size, noSetFMUStatePriorToCurrentPoint);
-        if (status != fmi2OK)
+        status = fmuDoStep(fmu, container->time, container->time_step, noSetFMUStatePriorToCurrentPoint);
+        if ((status != fmi2OK) && (status != fmi2Warning))
             return status;
 
         status = do_step_get_outputs(container, i);
-        if (status != fmi2OK)
+        if ((status != fmi2OK) && (status != fmi2Warning))
             return status;
         
     }
@@ -999,6 +998,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
     container->noSetFMUStatePriorToCurrentPoint = noSetFMUStatePriorToCurrentPoint; /* for MT */
     fmi2Real start_time = container->time;
     for(int i = 0; i < nb_step; i += 1) {
+#if 1
         if (container->mt)
             status = do_internal_step_parallel_mt(container, noSetFMUStatePriorToCurrentPoint);
         else
@@ -1008,6 +1008,14 @@ fmi2Status fmi2DoStep(fmi2Component c,
             logger(fmi2Error, "Container cannot do_internal_step. Status=%d", status);
             return status;
         }
+#else
+        status = do_internal_step_serie(container, noSetFMUStatePriorToCurrentPoint);
+        container->time = start_time + (i + 1) * container->time_step;
+        if ((status != fmi2OK) && (status != fmi2Warning)) {
+            logger(fmi2Error, "Container cannot do_internal_step. Status=%d", status);
+            return status;
+        }
+#endif
     }
 
     if (fabs(end_time - container->time) > container->tolerance) {
