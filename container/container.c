@@ -996,14 +996,14 @@ fmi2Status fmi2DoStep(fmi2Component c,
         return fmi2OK;
 
     container->noSetFMUStatePriorToCurrentPoint = noSetFMUStatePriorToCurrentPoint; /* for MT */
-    fmi2Real start_time = container->time;
+    
     for(int i = 0; i < nb_step; i += 1) {
 #if 1
         if (container->mt)
             status = do_internal_step_parallel_mt(container, noSetFMUStatePriorToCurrentPoint);
         else
             status = do_internal_step_parallel(container, noSetFMUStatePriorToCurrentPoint);
-        container->time = start_time + (i + 1) * container->time_step;
+        container->time += container->time_step;
         if ((status != fmi2OK) && (status != fmi2Warning)) {
             logger(fmi2Error, "Container cannot do_internal_step. Status=%d", status);
             return status;
