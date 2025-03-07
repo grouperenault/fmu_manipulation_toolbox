@@ -204,11 +204,13 @@ def fmucontainer():
 
     for description in config.container_descriptions_list:
         try:
-            filename, step_size = description.split(":")
-            step_size = float(step_size)
+            tokens = description.split(":")
+            filename = ":".join(tokens[:-1])
+            step_size = float(tokens[-1])
         except ValueError:
             step_size = None
             filename = description
+
         try:
             assembly = Assembly(filename, step_size=step_size, auto_link=config.auto_link,
                                 auto_input=config.auto_input, auto_output=config.auto_output,
