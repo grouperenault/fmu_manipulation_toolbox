@@ -53,8 +53,11 @@ double profile_toc(profile_t *profile, double current_time) {
 	now = ts.tv_nsec / 1000000;
 	now += ts.tv_sec * 1000;
 #endif
-
-    profile->total_elapsed += (now - profile->current_tic) / 1000.0;
-	return current_time / profile->total_elapsed;
+	
+    profile->total_elapsed += (now - profile->current_tic) / 1000.0; /* seconds */
+	if (profile->total_elapsed > 1e-3)
+		return current_time / profile->total_elapsed;
+	else
+		return current_time / 1e-3;
 }
 
