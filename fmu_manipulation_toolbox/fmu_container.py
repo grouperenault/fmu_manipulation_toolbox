@@ -668,11 +668,16 @@ class FMUContainer:
 
     def make_fmu_package(self, base_directory: Path, fmu_filename: Path):
         logger.debug(f"Zipping directory '{base_directory}' => '{fmu_filename}'")
+        offset = len(str(base_directory.absolute())) + 1
         with zipfile.ZipFile(self.fmu_directory / fmu_filename, "w", zipfile.ZIP_DEFLATED) as zip_file:
-            for root, dirs, files in os.walk(base_directory):
-                for file in files:
-                    zip_file.write(self.long_path(os.path.join(root, file)),
-                                   os.path.relpath(os.path.join(root, file), base_directory))
+            def add_file(directory: Path):
+                for entry in directory.iterdir():
+                    if entry.is_dir():
+                        add_file(directory / entry)
+                    elif entry.is_file:
+                        zip_file.write(str(entry), str(entry)[offset:])
+
+            add_file(base_directory.absolute())
         logger.info(f"'{fmu_filename}' is available.")
 
     def make_fmu_cleanup(self, base_directory: Path):
