@@ -1,6 +1,9 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+## Version 1.8.2.1
+* FIXED: `fmucontainer` exposed parameters name (using fmu name instead of fmu's model identifier)
+* FIXED: `fmucontainer` support for long path (on Windows)
 
 ## Version 1.8.2
 * FIXED: `fmucontainer` identifier (for coSimulation) does not contain ".fmu" anymore
