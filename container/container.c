@@ -109,7 +109,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
 
     for (int i = 0; i < nb_fmu; i += 1) {
         container->fmu[i].container = container;
-        char directory[4096];
+        char directory[CONFIG_FILE_SZ];
         
         if (get_line(file))
             return -1;
@@ -317,7 +317,63 @@ READER_FMU_IO(strings, in);
 READER_FMU_START_VALUES(reals, "%lf");
 READER_FMU_START_VALUES(integers, "%d");
 READER_FMU_START_VALUES(booleans, "%d");
-READER_FMU_START_VALUES(strings, "%s");
+
+
+static char* string_token(char* buffer) {
+    int len = strlen(buffer);
+
+    for (int i = 0; i < strlen(buffer); i += 1) {
+        if (buffer[i] == ' ') {
+            buffer[i] = '\0';
+            return buffer + i + 1;
+        }
+    }
+    return buffer + len;
+}
+
+
+static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* file) {
+
+    if (get_line(file))
+        return -1;
+
+    fmu_io->start_strings.vr = NULL;
+    fmu_io->start_strings.values = NULL;
+    fmu_io->start_strings.nb = 0;
+    
+
+    if (sscanf(file->line, "%d", &fmu_io->start_strings.nb) < 1)
+        return -2;
+                
+    if (fmu_io->start_strings.nb == 0)
+        return 0;
+                    
+    fmu_io->start_strings.vr = malloc(fmu_io->start_strings.nb * sizeof(*fmu_io->start_strings.vr));
+    if (!fmu_io->start_strings.vr)
+        return -3;
+
+    fmu_io->start_strings.values = malloc(fmu_io->start_strings.nb * sizeof(*fmu_io->start_strings.values));
+    if (!fmu_io->start_strings.values)
+        return -3;
+                            
+    for (fmi2ValueReference i = 0; i < fmu_io->start_strings.nb; i += 1)
+        fmu_io->start_strings.values[i] = NULL; /* in case on ealry fmuFreeInstance() */
+
+    for (fmi2ValueReference i = 0; i < fmu_io->start_strings.nb; i += 1) {
+        char buffer[CONFIG_FILE_SZ];
+        buffer[0] = '\0';
+
+        if (get_line(file))
+            return -4;
+    
+        char *value_string = string_token(file->line);
+        fmu_io->start_strings.vr[i] = strtoul(file->line, NULL, 10);
+        fmu_io->start_strings.values[i] = strdup(value_string);
+    }
+
+    return 0;
+}
+
 
 READER_FMU_IO(reals, out);
 READER_FMU_IO(integers, out);
@@ -409,7 +465,7 @@ static int read_conf_fmu_io(fmu_io_t* fmu_io, config_file_t* file) {
 
 static int read_conf(container_t* container, const char* dirname) {
     config_file_t file;
-    char filename[4096];
+    char filename[CONFIG_FILE_SZ];
 
     strncpy(filename, dirname, sizeof(filename) - 1);
     filename[sizeof(filename) - 1] = '\0';
@@ -616,7 +672,11 @@ void fmi2FreeInstance(fmi2Component c) {
                 free(container->fmu[i].fmu_io.start_integers.vr);
                 free(container->fmu[i].fmu_io.start_booleans.values);
                 free(container->fmu[i].fmu_io.start_booleans.vr);
+
+                for (int i = 0; i < container->fmu[i].fmu_io.start_strings.nb; i += 1)
+                    free((char *)container->fmu[i].fmu_io.start_strings.values[i]);
                 free(container->fmu[i].fmu_io.start_strings.values);
+
                 free(container->fmu[i].fmu_io.start_strings.vr);
             }
 
@@ -689,7 +749,8 @@ fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
         }
         SET_START(Real, reals);
         SET_START(Integer, integers);
-        SET_START(Boolean, booleans);    
+        SET_START(Boolean, booleans);
+        SET_START(String, strings);
 #undef SET_START
     }
  
@@ -802,13 +863,9 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 FMI_SETTER(reals, Real);
 FMI_SETTER(integers, Integer);
 FMI_SETTER(booleans, Boolean);
+FMI_SETTER(strings, String);
 
 #undef FMI_SETTER
-
-
-fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String  value[]) {
-    __NOT_IMPLEMENTED__
-}
 
 
 /* Getting and setting the internal FMU state */

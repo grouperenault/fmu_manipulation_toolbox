@@ -250,6 +250,14 @@ fmi2Status fmuGetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t
 }
 
 
+fmi2Status fmuGetString(const fmu_t* fmu, const fmi2ValueReference vr[], size_t nvr, fmi2String value[]) {
+    fmi2Status status = fmu->fmi_functions.fmi2GetString(fmu->component, vr, nvr, value);
+    if (status != fmi2OK)
+        logger(status, "%s: fmuGetString status=%d", fmu->name, status);
+    return status;
+}
+
+
 fmi2Status fmuSetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2Real value[]) {
     fmi2Status status = fmu->fmi_functions.fmi2SetReal(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
@@ -270,6 +278,14 @@ fmi2Status fmuSetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t
     fmi2Status status = fmu->fmi_functions.fmi2SetBoolean(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
         logger(status, "%s: fmuSetBoolean status=%d", fmu->name, status);
+    return status;
+}
+
+
+fmi2Status fmuSetString(const fmu_t* fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[]) {
+    fmi2Status status = fmu->fmi_functions.fmi2SetString(fmu->component, vr, nvr, value);
+    if (status != fmi2OK)
+        logger(status, "%s: fmuSetString status=%d", fmu->name, status);
     return status;
 }
 

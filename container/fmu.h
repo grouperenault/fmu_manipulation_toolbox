@@ -181,12 +181,16 @@ extern fmi2Status fmuGetInteger(const fmu_t *fmu, const fmi2ValueReference vr[],
                                 size_t nvr, fmi2Integer value[]);
 extern fmi2Status fmuGetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[],
                                 size_t nvr, fmi2Boolean value[]);
+extern fmi2Status fmuGetString(const fmu_t* fmu, const fmi2ValueReference vr[],
+                               size_t nvr, fmi2String value[]);
 extern fmi2Status fmuSetReal(const fmu_t *fmu, const fmi2ValueReference vr[],
                              size_t nvr, const fmi2Real value[]);
 extern fmi2Status fmuSetInteger(const fmu_t *fmu, const fmi2ValueReference vr[],
                                 size_t nvr, const fmi2Integer value[]);
 extern fmi2Status fmuSetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[],
                                 size_t nvr, const fmi2Boolean value[]);
+extern fmi2Status fmuSetString(const fmu_t* fmu, const fmi2ValueReference vr[],
+                               size_t nvr, const fmi2String value[]);
 extern fmi2Status fmuDoStep(const fmu_t *fmu, 
                             fmi2Real currentCommunicationPoint, 
                             fmi2Real communicationStepSize, 
