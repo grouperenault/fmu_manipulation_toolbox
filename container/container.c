@@ -123,7 +123,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         
         if (get_line(file))
             return -1;
-        char *identifier = strdup(file->line);      /* Freed in fmu_unload() */
+        const char *identifier = strdup(file->line);
 
         if (get_line(file))
             return -1;
@@ -132,9 +132,9 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         logger(fmi2OK, "Loading '%s.dll' from directory '%s'", identifier, directory);
 
         int status = fmu_load_from_directory(container, i, directory, identifier, guid);
+        free(identifier);
         if (status) {
             logger(fmi2Error, "Cannot load from directory '%s' (status=%d)", directory, status);
-            free(identifier);
             free(container->fmu);
             container->fmu = NULL; /* to allow freeInstance on container */
             return -4;

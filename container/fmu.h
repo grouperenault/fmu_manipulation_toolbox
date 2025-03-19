@@ -139,7 +139,7 @@ typedef struct {
 #   define FMU_PATH_MAX_LEN 4096
 
 typedef struct {
-	char       					*identifier;
+    char                        *name;               /* based on directory */
     int                         index;
 	library_t                   library;
 	char						resource_dir[FMU_PATH_MAX_LEN];
@@ -171,7 +171,7 @@ typedef struct {
 
 extern fmi2Status fmu_set_inputs(fmu_t *fmu);
 extern int fmu_load_from_directory(struct container_s *container, int i,
-                                   const char *directory, char *identifier,
+                                   const char *directory, const char *identifier,
                                    const char *guid);
 extern void fmu_unload(fmu_t *fmu);
 

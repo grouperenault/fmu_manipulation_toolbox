@@ -111,6 +111,22 @@ static int fmu_map_functions(fmu_t *fmu){
 }
 
 
+static char* fs_basename(const char* path) {
+    const int len = strlen(path);
+    char* basename = strdup(path);
+    int offset = 0;
+
+    for(int i = 0; i < len; i += 1) {
+        if ((basename[i] == '\\') || (basename[i] == '/'))
+            offset = i + 1;
+    }
+
+    basename += offset;
+
+    return basename;
+}
+
+
 static void fs_make_path(char* buffer, size_t len, ...) {
 	va_list params;
 	va_start(params, len);
@@ -139,12 +155,12 @@ static void fs_make_path(char* buffer, size_t len, ...) {
 /** 
  * Specific: FMI2.0
  */
-int fmu_load_from_directory(container_t *container, int i, const char *directory, char *identifier, const char *guid) {
+int fmu_load_from_directory(container_t *container, int i, const char *directory, const char *identifier, const char *guid) {
     if (! container)
         return -1;
     fmu_t *fmu = &container->fmu[i];
     fmu->container = container;
-    fmu->identifier = identifier;
+    fmu->name = fs_basename(directory);
     fmu->index = i;
     
 
@@ -202,7 +218,7 @@ void fmu_unload(fmu_t *fmu) {
     thread_mutex_free(&fmu->mutex_container);
 
     free(fmu->guid);
-    free(fmu->identifier);
+    free(fmu->name);
     profile_free(fmu->profile);
 
     /* and finally unload the library */
@@ -213,7 +229,7 @@ void fmu_unload(fmu_t *fmu) {
 fmi2Status fmuGetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, fmi2Real value[]) {
     fmi2Status status = fmu->fmi_functions.fmi2GetReal(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
-        logger(status, "%s: fmuGetReal status=%d", fmu->identifier, status);
+        logger(status, "%s: fmuGetReal status=%d", fmu->name, status);
     return status;
 }
 
@@ -221,7 +237,7 @@ fmi2Status fmuGetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nv
 fmi2Status fmuGetInteger(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, fmi2Integer value[]) {
     fmi2Status status = fmu->fmi_functions.fmi2GetInteger(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
-        logger(status, "%s: fmuGetInteger status=%d", fmu->identifier, status);
+        logger(status, "%s: fmuGetInteger status=%d", fmu->name, status);
     return status;
 }
 
@@ -229,7 +245,7 @@ fmi2Status fmuGetInteger(const fmu_t *fmu, const fmi2ValueReference vr[], size_t
 fmi2Status fmuGetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, fmi2Boolean value[]) {
     fmi2Status status = fmu->fmi_functions.fmi2GetBoolean(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
-        logger(status, "%s: fmuGetBoolean status=%d", fmu->identifier, status);
+        logger(status, "%s: fmuGetBoolean status=%d", fmu->name, status);
     return status;
 }
 
@@ -237,7 +253,7 @@ fmi2Status fmuGetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t
 fmi2Status fmuSetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2Real value[]) {
     fmi2Status status = fmu->fmi_functions.fmi2SetReal(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
-        logger(status, "%s: fmuSetReal status=%d", fmu->identifier, status);
+        logger(status, "%s: fmuSetReal status=%d", fmu->name, status);
     return status;
 }
 
@@ -245,7 +261,7 @@ fmi2Status fmuSetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nv
 fmi2Status fmuSetInteger(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2Integer value[]) {
     fmi2Status status = fmu->fmi_functions.fmi2SetInteger(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
-        logger(status, "%s: fmuSetInteger status=%d", fmu->identifier, status);
+        logger(status, "%s: fmuSetInteger status=%d", fmu->name, status);
     return status;
 }
 
@@ -253,7 +269,7 @@ fmi2Status fmuSetInteger(const fmu_t *fmu, const fmi2ValueReference vr[], size_t
 fmi2Status fmuSetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2Boolean value[]) {
     fmi2Status status = fmu->fmi_functions.fmi2SetBoolean(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
-        logger(status, "%s: fmuSetBoolean status=%d", fmu->identifier, status);
+        logger(status, "%s: fmuSetBoolean status=%d", fmu->name, status);
     return status;
 }
 
