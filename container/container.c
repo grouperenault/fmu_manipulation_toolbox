@@ -123,7 +123,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         
         if (get_line(file))
             return -1;
-        const char *identifier = strdup(file->line);
+        char *identifier = strdup(file->line);
 
         if (get_line(file))
             return -1;
