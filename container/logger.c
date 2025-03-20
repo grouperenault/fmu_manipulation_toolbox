@@ -46,8 +46,10 @@ void logger_embedded_fmu(fmu_t *fmu,
     va_end(ap);
 
     if ((status != fmi2OK) || (container->debug))
-        container->logger(container->environment, container->instance_name, status, NULL, "%s: %s", fmu->name, buffer);
-    /*logger(fmu->container, status, "logger_embedded(%s, %s)", fmu->identifier, instanceName);*/
+        container->logger(container->environment, container->instance_name, status, NULL, "%s: %s",
+                          fmu->name, buffer);
+    /*logger(status, "logger_embedded(name=%s, instance=%s, status=%d msg=%s",
+           fmu->name, instanceName, status, buffer);*/
 
     return;
 }

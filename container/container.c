@@ -673,10 +673,9 @@ void fmi2FreeInstance(fmi2Component c) {
                 free(container->fmu[i].fmu_io.start_booleans.values);
                 free(container->fmu[i].fmu_io.start_booleans.vr);
 
-                for (int i = 0; i < container->fmu[i].fmu_io.start_strings.nb; i += 1)
-                    free((char *)container->fmu[i].fmu_io.start_strings.values[i]);
+                for (int j = 0; j < container->fmu[i].fmu_io.start_strings.nb; j += 1)
+                    free((char *)container->fmu[i].fmu_io.start_strings.values[j]);
                 free(container->fmu[i].fmu_io.start_strings.values);
-
                 free(container->fmu[i].fmu_io.start_strings.vr);
             }
 

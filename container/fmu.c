@@ -113,15 +113,15 @@ static int fmu_map_functions(fmu_t *fmu){
 
 static char* fs_basename(const char* path) {
     const int len = strlen(path);
-    char* basename = strdup(path);
     int offset = 0;
+    char* basename;
 
     for(int i = 0; i < len; i += 1) {
-        if ((basename[i] == '\\') || (basename[i] == '/'))
+        if ((path[i] == '\\') || (path[i] == '/'))
             offset = i + 1;
     }
 
-    basename += offset;
+    basename = strdup(path+offset);
 
     return basename;
 }
