@@ -23,12 +23,12 @@ This package was formerly known as `fmutool`.
 
 ## Version 1.8.1
 * FIXED: `fmucontainer` read links from `.json` input files
-* CHANGED: switch to PyQT6 and add minor GUI improvements
+* CHANGE: switch to PyQT6 and add minor GUI improvements
 
 ## Version 1.8
 * CHANGE: Python Package in now known as `fmu-manipulation-toolbox`
 * ADDED: `fmucontainer` support `canHandleVariableCommunicationStepSize`
-* ADDED: `fmucontainer` support `.spp` or `.json` as input files
+* ADDED: `fmucontainer` support `.ssp` or `.json` as input files
 * ADDED: `fmucontainer` new `-dump` option to save container description 
 
 ## Version 1.7.4
