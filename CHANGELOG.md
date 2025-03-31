@@ -1,6 +1,13 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.8.2.3
+* FIXED: `fmucontainer` supports correctly auto-link for 1-to-n links
+
+# Version 1.8.2.2
+* ADDED: `fmucontainer` support fmi2Strings
+* FIXED: `fmucontainer` freeInstance correctly frees memory
+
 ## Version 1.8.2.1
 * FIXED: `fmucontainer` exposed parameters name (using fmu name instead of fmu's model identifier)
 * FIXED: `fmucontainer` support for long path (on Windows)

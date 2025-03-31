@@ -146,7 +146,7 @@ class ContainerPort:
         return f"Port {self.fmu.name}/{self.port.name}"
 
     def __hash__(self):
-        return hash(f"{self.fmu.name}/{self.port.name}")
+        return hash("{self.fmu.name}/{self.port.name}")
 
     def __eq__(self, other):
         return str(self) == str(other)
@@ -300,13 +300,14 @@ class FMUContainer:
 
         self.start_values[cport] = value
 
-    def find_input(self, port_to_connect: FMUPort) -> Optional[ContainerPort]:
+    def find_inputs(self, port_to_connect: FMUPort) -> List[ContainerPort]:
+        candidates = []
         for fmu in self.execution_order:
             for port in fmu.ports.values():
                 if (port.causality == 'input' and port.name == port_to_connect.name
                         and port.type_name == port_to_connect.type_name):
-                    return ContainerPort(fmu, port.name)
-        return None
+                    candidates.append(ContainerPort(fmu, port.name))
+        return candidates
 
     def add_implicit_rule(self, auto_input=True, auto_output=True, auto_link=True, auto_parameter=False,
                           auto_local=False):
@@ -321,14 +322,16 @@ class FMUContainer:
                         self.inputs[parameter_name] = cport
                         self.mark_ruled(cport, 'PARAMETER')
                     elif cport.port.causality == 'output':
-                        candidate_cport = self.find_input(cport.port)
-                        if auto_link and candidate_cport:
-                            local = Local(cport)
-                            local.add_target(candidate_cport)
-                            logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
+                        candidates_cport_list = self.find_inputs(cport.port)
+                        if cport.port.name == "BattChil_CltQth_W":
+                            logger.critical(f"{cport} {candidates_cport_list}")
+                        if auto_link and candidates_cport_list:
+                            self.locals[cport] = Local(cport)
                             self.mark_ruled(cport, 'LINK')
-                            self.mark_ruled(candidate_cport, 'LINK')
-                            self.locals[cport] = local
+                            for candidate_cport in candidates_cport_list:
+                                self.locals[cport].add_target(candidate_cport)
+                                self.mark_ruled(candidate_cport, 'LINK')
+                                logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
                         elif auto_output:
                             self.mark_ruled(cport, 'OUTPUT')
                             self.outputs[port_name] = cport
@@ -354,6 +357,8 @@ class FMUContainer:
                         if cport.port.causality == 'input':
                             self.mark_ruled(cport, 'INPUT')
                             self.inputs[port_name] = cport
+                            if cport.port.name == "BattChil_CltQth_W":
+                                logger.critical(f"INPUT: {cport} !!!!")
                             logger.info(f"AUTO INPUT: Expose {cport}")
 
     def minimum_step_size(self) -> float:
