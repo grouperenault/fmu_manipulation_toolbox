@@ -1,7 +1,7 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
-# Version 1.8.2.3
+# Version 1.8.3
 * FIXED: `fmucontainer` supports correctly auto-link for 1-to-n links
 
 # Version 1.8.2.2

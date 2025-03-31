@@ -323,8 +323,6 @@ class FMUContainer:
                         self.mark_ruled(cport, 'PARAMETER')
                     elif cport.port.causality == 'output':
                         candidates_cport_list = self.find_inputs(cport.port)
-                        if cport.port.name == "BattChil_CltQth_W":
-                            logger.critical(f"{cport} {candidates_cport_list}")
                         if auto_link and candidates_cport_list:
                             self.locals[cport] = Local(cport)
                             self.mark_ruled(cport, 'LINK')
@@ -357,8 +355,6 @@ class FMUContainer:
                         if cport.port.causality == 'input':
                             self.mark_ruled(cport, 'INPUT')
                             self.inputs[port_name] = cport
-                            if cport.port.name == "BattChil_CltQth_W":
-                                logger.critical(f"INPUT: {cport} !!!!")
                             logger.info(f"AUTO INPUT: Expose {cport}")
 
     def minimum_step_size(self) -> float:
