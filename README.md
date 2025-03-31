@@ -6,7 +6,7 @@ without recompilation. It is highly customizable. It can even modify the `modelD
 Manipulating the `modelDescription.xml` can be a dangerous thing! Communicating with the FMU-developer and adapting
 the way the FMU is generated, is preferable when possible.
 
-FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers. (see [container/README.md](container/README.md))
+FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers. (see [doc/container.md](doc/container.md))
 
 ## Installation
 
