@@ -244,6 +244,9 @@ class FMUContainer:
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
                                     f"'{cport_to.port.causality}'.")
 
+        if container_port_name in self.inputs:
+            raise FMUContainerError(f"Duplicate INPUT {container_port_name} already connected to {cport_to}")
+
         logger.debug(f"INPUT: {to_fmu_filename}:{to_port_name}")
         self.mark_ruled(cport_to, 'INPUT')
         self.inputs[container_port_name] = cport_to
@@ -256,6 +259,9 @@ class FMUContainer:
         if cport_from.port.causality not in ("output", "local"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_from}' as OUTPUT of the container but FMU causality is "
                                     f"'{cport_from.port.causality}'.")
+
+        if container_port_name in self.outputs:
+            raise FMUContainerError(f"Duplicate OUTPUT {container_port_name} already connected to {cport_from}")
 
         logger.debug(f"OUTPUT: {from_fmu_filename}:{from_port_name}")
         self.mark_ruled(cport_from, 'OUTPUT')
