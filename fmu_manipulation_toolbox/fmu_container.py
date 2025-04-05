@@ -146,7 +146,7 @@ class ContainerPort:
         return f"Port {self.fmu.name}/{self.port.name}"
 
     def __hash__(self):
-        return hash("{self.fmu.name}/{self.port.name}")
+        return hash(f"{self}")
 
     def __eq__(self, other):
         return str(self) == str(other)
@@ -313,44 +313,31 @@ class FMUContainer:
                           auto_local=False):
         # Auto Link outputs
         for fmu in self.execution_order:
-            for port_name in fmu.ports:
-                cport = ContainerPort(fmu, port_name)
-                #if cport not in self.rules:
-                if cport.port.causality == 'parameter' and auto_parameter:
-                    parameter_name = cport.fmu.id + "." + cport.port.name
-                    logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
-                    self.add_input(parameter_name, cport.fmu.name, cport.port.name)
-                    #self.inputs[parameter_name] = cport
-                    #self.mark_ruled(cport, 'PARAMETER')
-                elif cport.port.causality == 'output':
-                    candidates_cport_list = self.find_inputs(cport.port)
+            for port_name, fmu_port in fmu.ports.items():
+                if fmu_port.causality == 'parameter' and auto_parameter:
+                    parameter_name = fmu.id + "." + port_name
+                    logger.info(f"AUTO PARAMETER: {fmu.name}/{port_name} as {parameter_name}")
+                    self.add_input(parameter_name, fmu.name, port_name)
+                elif fmu_port.causality == 'output':
+                    candidates_cport_list = self.find_inputs(fmu_port)
                     if auto_link and candidates_cport_list:
                         for candidate_cport in candidates_cport_list:
-                            self.add_link(cport.fmu.name, cport.port.name,
+                            self.add_link(fmu.name, port_name,
                                           candidate_cport.fmu.name, candidate_cport.port.name)
-                        #self.locals[cport] = Local(cport)
-                        #self.mark_ruled(cport, 'LINK')
-                        #for candidate_cport in candidates_cport_list:
-                        #    self.locals[cport].add_target(candidate_cport)
-                        #    self.mark_ruled(candidate_cport, 'LINK')
-                            logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
-                    elif auto_output:
-                        self.add_output(cport.fmu.name, cport.port.name, cport.port.name)
-                        #self.mark_ruled(cport, 'OUTPUT')
-                        #self.outputs[port_name] = cport
-                        logger.info(f"AUTO OUTPUT: Expose {cport}")
-                elif cport.port.causality == 'local':
+                            logger.info(f"AUTO LINK: {fmu.name}/{port_name} -> {candidate_cport}")
+                    elif auto_output and ContainerPort(fmu, port_name) not in self.rules:
+                        self.add_output(fmu.name, port_name, port_name)
+                        logger.info(f"AUTO OUTPUT: Expose {fmu.name}/{port_name}")
+                elif fmu_port.causality == 'local':
                     local_portname = None
                     if port_name.startswith("container."):
-                        local_portname = "container." + cport.fmu.id + "." + port_name[10:]
-                        logger.info(f"PROFILING: Expose {cport}")
+                        local_portname = "container." + fmu.id + "." + port_name[10:]
+                        logger.info(f"PROFILING: Expose {fmu.name}/{port_name}")
                     elif auto_local:
-                        local_portname = cport.fmu.id + "." + port_name
-                        logger.info(f"AUTO LOCAL: Expose {cport}")
+                        local_portname = fmu.id + "." + port_name
+                        logger.info(f"AUTO LOCAL: Expose {fmu.name}/{port_name}")
                     if local_portname:
-                        self.add_output(cport.fmu.name, cport.port.name, local_portname)
-                        #self.mark_ruled(cport, 'OUTPUT')
-                        #self.outputs[local_portname] = cport
+                        self.add_output(fmu.name, port_name, local_portname)
 
         if auto_input:
             # Auto link inputs
@@ -359,9 +346,8 @@ class FMUContainer:
                     cport = ContainerPort(fmu, port_name)
                     if cport not in self.rules:
                         if cport.port.causality == 'input':
-                            self.mark_ruled(cport, 'INPUT')
-                            self.inputs[port_name] = cport
-                            logger.info(f"AUTO INPUT: Expose {cport}")
+                            self.add_input(port_name, cport.fmu.name, cport.port.name)
+                            logger.info(f"AUTO INPUT: Expose {fmu.name}/{port_name}")
 
     def minimum_step_size(self) -> float:
         step_size = None
