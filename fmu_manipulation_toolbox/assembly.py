@@ -126,11 +126,17 @@ class AssemblyNode:
         for port, value in self.start_values.items():
             container.add_start_value(port.fmu_name, port.port_name, value)
 
-        container.add_implicit_rule(auto_input=self.auto_input,
-                                    auto_output=self.auto_output,
-                                    auto_link=self.auto_link,
-                                    auto_parameter=self.auto_parameter,
-                                    auto_local=self.auto_local)
+        added_input, added_output, added_link = container.add_implicit_rule(auto_input=self.auto_input,
+                                                                            auto_output=self.auto_output,
+                                                                            auto_link=self.auto_link,
+                                                                            auto_parameter=self.auto_parameter,
+                                                                            auto_local=self.auto_local)
+        for input_rule in added_input:
+            self.add_input(input_rule[0], input_rule[1], input_rule[2])
+        for output_rule in added_output:
+            self.add_output(output_rule[0], output_rule[1], output_rule[2])
+        for link_rule in added_link:
+            self.add_link(link_rule[0], link_rule[1], link_rule[2], link_rule[3])
 
         container.make_fmu(self.name, self.step_size, mt=self.mt, profiling=self.profiling, debug=debug)
 
@@ -505,11 +511,11 @@ class Assembly:
             self.root.name = str(self.filename.with_suffix(".fmu"))
 
     def make_fmu(self, dump_json=False):
+        self.root.make_fmu(self.fmu_directory, debug=self.debug, description_pathname=self.description_pathname)
         if dump_json:
             dump_file = Path(self.input_pathname.stem + "-dump").with_suffix(".json")
             logger.info(f"Dump Json '{dump_file}'")
             self.write_json(dump_file)
-        self.root.make_fmu(self.fmu_directory, debug=self.debug, description_pathname=self.description_pathname)
 
 
 class SSDParser:

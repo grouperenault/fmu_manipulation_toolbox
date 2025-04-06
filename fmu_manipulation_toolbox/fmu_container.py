@@ -236,6 +236,9 @@ class FMUContainer:
 
         self.rules[cport] = rule
 
+    def get_all_cports(self):
+        return [ContainerPort(fmu, port_name) for fmu in self.execution_order for port_name in fmu.ports]
+
     def add_input(self, container_port_name: str, to_fmu_filename: str, to_port_name: str):
         if not container_port_name:
             container_port_name = to_port_name
@@ -308,52 +311,62 @@ class FMUContainer:
 
     def find_inputs(self, port_to_connect: FMUPort) -> List[ContainerPort]:
         candidates = []
-        for fmu in self.execution_order:
-            for port in fmu.ports.values():
-                if (port.causality == 'input' and port.name == port_to_connect.name
-                        and port.type_name == port_to_connect.type_name):
-                    candidates.append(ContainerPort(fmu, port.name))
+        for cport in self.get_all_cports():
+            if cport in self.rules:
+                continue
+            if (cport.port.causality == 'input' and cport.port.name == port_to_connect.name
+                    and cport.port.type_name == port_to_connect.type_name):
+                candidates.append(cport)
         return candidates
 
     def add_implicit_rule(self, auto_input=True, auto_output=True, auto_link=True, auto_parameter=False,
-                          auto_local=False):
+                          auto_local=False) -> Tuple[List, List, List]:
+        added_input = []
+        added_output = []
+        added_link = []
+
         # Auto Link outputs
-        for fmu in self.execution_order:
-            for port_name, fmu_port in fmu.ports.items():
-                if fmu_port.causality == 'parameter' and auto_parameter:
-                    parameter_name = fmu.id + "." + port_name
-                    logger.info(f"AUTO PARAMETER: {fmu.name}/{port_name} as {parameter_name}")
-                    self.add_input(parameter_name, fmu.name, port_name)
-                elif fmu_port.causality == 'output':
-                    candidates_cport_list = self.find_inputs(fmu_port)
-                    if auto_link and candidates_cport_list:
-                        for candidate_cport in candidates_cport_list:
-                            self.add_link(fmu.name, port_name,
-                                          candidate_cport.fmu.name, candidate_cport.port.name)
-                            logger.info(f"AUTO LINK: {fmu.name}/{port_name} -> {candidate_cport}")
-                    elif auto_output and ContainerPort(fmu, port_name) not in self.rules:
-                        self.add_output(fmu.name, port_name, port_name)
-                        logger.info(f"AUTO OUTPUT: Expose {fmu.name}/{port_name}")
-                elif fmu_port.causality == 'local':
-                    local_portname = None
-                    if port_name.startswith("container."):
-                        local_portname = "container." + fmu.id + "." + port_name[10:]
-                        logger.info(f"PROFILING: Expose {fmu.name}/{port_name}")
-                    elif auto_local:
-                        local_portname = fmu.id + "." + port_name
-                        logger.info(f"AUTO LOCAL: Expose {fmu.name}/{port_name}")
-                    if local_portname:
-                        self.add_output(fmu.name, port_name, local_portname)
+        for cport in self.get_all_cports():
+            if cport.port.causality == 'output':
+                candidates_cport_list = self.find_inputs(cport.port)
+                if auto_link and candidates_cport_list:
+                    for candidate_cport in candidates_cport_list:
+                        logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
+                        self.add_link(cport.fmu.name, cport.port.name,
+                                      candidate_cport.fmu.name, candidate_cport.port.name)
+                        added_link.append([cport.fmu.name, cport.port.name,
+                                           candidate_cport.fmu.name, candidate_cport.port.name])
+                elif auto_output and cport not in self.rules:
+                    logger.info(f"AUTO OUTPUT: Expose {cport}")
+                    self.add_output(cport.fmu.name, cport.port.name, cport.port.name)
+                    added_output.append([cport.fmu.name, cport.port.name, cport.port.name])
+            elif cport.port.causality == 'local':
+                local_portname = None
+                if cport.port.name.startswith("container."):
+                    local_portname = "container." + cport.fmu.id + "." + cport.port.name[10:]
+                    logger.info(f"PROFILING: Expose {cport}")
+                elif auto_local:
+                    local_portname = cport.fmu.id + "." + cport.port.name
+                    logger.info(f"AUTO LOCAL: Expose {cport}")
+                if local_portname:
+                    self.add_output(cport.fmu.name, cport.port.name, local_portname)
+                    added_output.append([cport.fmu.name, cport.port.name, local_portname])
 
         if auto_input:
             # Auto link inputs
-            for fmu in self.execution_order:
-                for port_name in fmu.ports:
-                    cport = ContainerPort(fmu, port_name)
-                    if cport not in self.rules:
-                        if cport.port.causality == 'input':
-                            self.add_input(port_name, cport.fmu.name, cport.port.name)
-                            logger.info(f"AUTO INPUT: Expose {fmu.name}/{port_name}")
+            for cport in self.get_all_cports():
+                if cport not in self.rules:
+                    if cport.port.causality == 'parameter' and auto_parameter:
+                        parameter_name = cport.fmu.id + "." + cport.port.name
+                        logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
+                        self.add_input(parameter_name, cport.fmu.name, cport.port.name)
+                        added_input.append([parameter_name, cport.fmu.name, cport.port.name])
+                    elif cport.port.causality == 'input':
+                        logger.info(f"AUTO INPUT: Expose {cport}")
+                        self.add_input(cport.port.name, cport.fmu.name, cport.port.name)
+                        added_input.append([cport.port.name, cport.fmu.name, cport.port.name])
+
+        return added_input, added_output, added_link
 
     def minimum_step_size(self) -> float:
         step_size = None
