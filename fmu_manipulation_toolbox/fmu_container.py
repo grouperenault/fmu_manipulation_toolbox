@@ -190,6 +190,31 @@ class ValueReferenceTable:
         return vr
 
 
+class AutoWired:
+    def __init__(self):
+        self.rule_input = []
+        self.rule_output = []
+        self.rule_link = []
+        self.nb_param = 0
+
+    def __repr__(self):
+        return (f"{self.nb_param} parameters, {len(self.rule_input) - self.nb_param} inputs,"
+                f" {len(self.rule_output)} outputs, {len(self.rule_link)} links.")
+
+    def add_input(self, from_port, to_fmu, to_port):
+        self.rule_input.append([from_port, to_fmu, to_port])
+
+    def add_parameter(self, from_port, to_fmu, to_port):
+        self.rule_input.append([from_port, to_fmu, to_port])
+        self.nb_param += 1
+
+    def add_output(self, from_fmu, from_port, to_port):
+        self.rule_output.append([from_fmu, from_port, to_port])
+
+    def add_link(self, from_fmu, from_port, to_fmu, to_port):
+        self.rule_link.append([from_fmu, from_port, to_fmu, to_port])
+
+
 class FMUContainer:
     def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None):
         self.fmu_directory = Path(fmu_directory)
@@ -312,19 +337,15 @@ class FMUContainer:
     def find_inputs(self, port_to_connect: FMUPort) -> List[ContainerPort]:
         candidates = []
         for cport in self.get_all_cports():
-            if cport in self.rules:
-                continue
-            if (cport.port.causality == 'input' and cport.port.name == port_to_connect.name
+            if (cport.port.causality == 'input' and cport not in self.rules and cport.port.name == port_to_connect.name
                     and cport.port.type_name == port_to_connect.type_name):
                 candidates.append(cport)
         return candidates
 
     def add_implicit_rule(self, auto_input=True, auto_output=True, auto_link=True, auto_parameter=False,
-                          auto_local=False) -> Tuple[List, List, List]:
-        added_input = []
-        added_output = []
-        added_link = []
+                          auto_local=False) -> AutoWired:
 
+        auto_wired = AutoWired()
         # Auto Link outputs
         for cport in self.get_all_cports():
             if cport.port.causality == 'output':
@@ -334,12 +355,12 @@ class FMUContainer:
                         logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
                         self.add_link(cport.fmu.name, cport.port.name,
                                       candidate_cport.fmu.name, candidate_cport.port.name)
-                        added_link.append([cport.fmu.name, cport.port.name,
-                                           candidate_cport.fmu.name, candidate_cport.port.name])
+                        auto_wired.add_link(cport.fmu.name, cport.port.name,
+                                            candidate_cport.fmu.name, candidate_cport.port.name)
                 elif auto_output and cport not in self.rules:
                     logger.info(f"AUTO OUTPUT: Expose {cport}")
                     self.add_output(cport.fmu.name, cport.port.name, cport.port.name)
-                    added_output.append([cport.fmu.name, cport.port.name, cport.port.name])
+                    auto_wired.add_output(cport.fmu.name, cport.port.name, cport.port.name)
             elif cport.port.causality == 'local':
                 local_portname = None
                 if cport.port.name.startswith("container."):
@@ -350,7 +371,7 @@ class FMUContainer:
                     logger.info(f"AUTO LOCAL: Expose {cport}")
                 if local_portname:
                     self.add_output(cport.fmu.name, cport.port.name, local_portname)
-                    added_output.append([cport.fmu.name, cport.port.name, local_portname])
+                    auto_wired.add_output(cport.fmu.name, cport.port.name, local_portname)
 
         if auto_input:
             # Auto link inputs
@@ -360,13 +381,15 @@ class FMUContainer:
                         parameter_name = cport.fmu.id + "." + cport.port.name
                         logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
                         self.add_input(parameter_name, cport.fmu.name, cport.port.name)
-                        added_input.append([parameter_name, cport.fmu.name, cport.port.name])
+                        auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
                     elif cport.port.causality == 'input':
                         logger.info(f"AUTO INPUT: Expose {cport}")
                         self.add_input(cport.port.name, cport.fmu.name, cport.port.name)
-                        added_input.append([cport.port.name, cport.fmu.name, cport.port.name])
+                        auto_wired.add_input(cport.port.name, cport.fmu.name, cport.port.name)
 
-        return added_input, added_output, added_link
+        logger.info(f"Auto-wiring: {auto_wired}")
+
+        return auto_wired
 
     def minimum_step_size(self) -> float:
         step_size = None
