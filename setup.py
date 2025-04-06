@@ -21,6 +21,11 @@ try:
 except Exception as e:
     print(f"Cannot create __version__.py: {e}")
 
+# Read requirements from requirements.txt
+def parse_requirements(filename):
+    with open(filename, 'r') as file:
+        return [line.strip() for line in file if line.strip() and not line.startswith('#')]
+
 setup(
     name="fmu_manipulation_toolbox",
     version=version,
@@ -55,12 +60,7 @@ the way the FMU is generated, is the preferable when possible.
 
 FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers.
     """,
-    install_requires=[
-        "PySide6 >= 6.8.0",
-        "xmlschema >= 3.3.1",
-        "elementpath >= 4.4.0",
-        "colorama >= 0.4.6",
-    ],
+    install_requires=parse_requirements("requirements.txt"),
 )
 
 os.remove("fmu_manipulation_toolbox/__version__.py")
