@@ -1,6 +1,9 @@
+from ctypes import pythonapi
+
 from setuptools import setup
 import os
 import re
+from pathlib import Path
 
 from fmu_manipulation_toolbox.version import __author__ as author, __version__ as default_version
 
@@ -50,9 +53,9 @@ setup(
                   },
     author=author,
     url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
-    description="FMU Manipulation Toobox is a python application which help to modify a Functional Mock-up Units (FMUs) "
-                "without recompilation or to group them into FMU Containers",
-    long_description="""FMU Manipulation Toolbox is a python application which help to modify a Functional Mock-up Units (FMUs) 
+    description="FMU Manipulation Toolbox is a python application for modifying Functional Mock-up Units "
+                "(FMUs) without recompilation or bundling them into FMU Containers",
+    long_description="""FMU Manipulation Toolbox is a python application for modifying Functional Mock-up Units (FMUs) 
 without recompilation. It mainly modifies the `modelDescription.xml` file. It is highly customizable.
 
 Manipulating the `modelDescription.xml` can be a dangerous thing! Communicating with the FMU-developer and adapting
@@ -60,7 +63,9 @@ the way the FMU is generated, is the preferable when possible.
 
 FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers.
     """,
-    install_requires=parse_requirements("requirements.txt"),
+    install_requires=parse_requirements(Path(__file__).parent / "requirements.txt"),
+    license="BSD-2-Clause",
+    python_requires=">=3.8",
 )
 
 os.remove("fmu_manipulation_toolbox/__version__.py")
