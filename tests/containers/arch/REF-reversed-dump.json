@@ -21,6 +21,20 @@
       "step_size": 0.5,
       "fmu": [
         "gain.fmu"
+      ],
+      "input": [
+        [
+          "integrate",
+          "gain.fmu",
+          "integrate"
+        ]
+      ],
+      "output": [
+        [
+          "gain.fmu",
+          "final",
+          "final"
+        ]
       ]
     }
   ],
@@ -28,5 +42,26 @@
     "integrate.fmu",
     "level1.fmu",
     "sine.fmu"
+  ],
+  "output": [
+    [
+      "level1.fmu",
+      "final",
+      "final"
+    ]
+  ],
+  "link": [
+    [
+      "sine.fmu",
+      "sine",
+      "integrate.fmu",
+      "sine"
+    ],
+    [
+      "integrate.fmu",
+      "integrate",
+      "level1.fmu",
+      "integrate"
+    ]
   ]
 }
