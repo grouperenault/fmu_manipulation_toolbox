@@ -1,6 +1,9 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.8.4
+* CHANGE: `fmucontainer` option `-dump` saves explicitly auto-wiring data. Auto-wiring is off for SSP format.
+
 # Version 1.8.3
 * FIXED: `fmucontainer` supports correctly auto-link for 1-to-n links
 
