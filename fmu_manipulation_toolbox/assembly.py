@@ -504,9 +504,9 @@ class Assembly:
 
         self.description_pathname = self.fmu_directory / "SystemStructure.ssd"
         if self.description_pathname.is_file():
-            sdd = SSDParser(step_size=self.default_step_size, auto_link=self.default_auto_link,
+            sdd = SSDParser(step_size=self.default_step_size, auto_link=False,
                             mt=self.default_mt, profiling=self.default_profiling,
-                            auto_input=self.default_auto_input, auto_output=self.default_auto_output)
+                            auto_input=False, auto_output=False)
             self.root = sdd.parse(self.description_pathname)
             self.root.name = str(self.filename.with_suffix(".fmu"))
 
