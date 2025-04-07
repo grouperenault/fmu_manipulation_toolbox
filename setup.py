@@ -1,9 +1,6 @@
-from ctypes import pythonapi
-
-from setuptools import setup
 import os
 import re
-from pathlib import Path
+from setuptools import setup
 
 from fmu_manipulation_toolbox.version import __author__ as author, __version__ as default_version
 
@@ -24,30 +21,25 @@ try:
 except Exception as e:
     print(f"Cannot create __version__.py: {e}")
 
-# Read requirements from requirements.txt
-def parse_requirements(filename):
-    with open(filename, 'r') as file:
-        return [line.strip() for line in file if line.strip() and not line.startswith('#')]
-
 setup(
     name="fmu_manipulation_toolbox",
     version=version,
     packages=["fmu_manipulation_toolbox"],
-    package_data={"fmu_manipulation_toolbox": ["resources/win32/client_sm.dll",
-                              "resources/win32/server_sm.exe",
-                              "resources/win64/client_sm.dll",
-                              "resources/win64/server_sm.exe",
-                              "resources/win64/container.dll",
-                              "resources/linux64/client_sm.so",
-                              "resources/linux64/server_sm",
-                              "resources/linux64/container.so",
-                              "resources/linux32/client_sm.so",
-                              "resources/linux32/server_sm",
-                              "resources/license.txt",
-                              "resources/*.png",
-                              "resources/fmi-2.0/*.xsd",
-                              ],
-                  },
+    package_data={"fmu_manipulation_toolbox": [
+        "resources/win32/client_sm.dll",
+        "resources/win32/server_sm.exe",
+        "resources/win64/client_sm.dll",
+        "resources/win64/server_sm.exe",
+        "resources/win64/container.dll",
+        "resources/linux64/client_sm.so",
+        "resources/linux64/server_sm",
+        "resources/linux64/container.so",
+        "resources/linux32/client_sm.so",
+        "resources/linux32/server_sm",
+        "resources/license.txt",
+        "resources/*.png",
+        "resources/fmi-2.0/*.xsd",
+    ]},
     entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.__main__:main",
                                       "fmucontainer = fmu_manipulation_toolbox.cli:fmucontainer"],
                   },
@@ -63,7 +55,12 @@ the way the FMU is generated, is the preferable when possible.
 
 FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers.
     """,
-    install_requires=parse_requirements(Path(__file__).parent / "requirements.txt"),
+    install_requires=[
+        "PySide6 >= 6.8.0",
+        "xmlschema >= 3.3.1",
+        "elementpath >= 4.4.0",
+        "colorama >= 0.4.6",
+    ],
     license="BSD-2-Clause",
     python_requires=">=3.8",
 )
