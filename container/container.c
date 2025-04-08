@@ -714,6 +714,20 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
        container->tolerance = tolerance;
 
     for(int i=0; i < container->nb_fmu; i += 1) {
+        /*
+         * Set start values!
+         */
+#define SET_START(fmi_type, type) \
+        if (container->fmu[i].fmu_io.start_ ## type .nb > 0) { \
+            fmuSet ## fmi_type (&container->fmu[i], container->fmu[i].fmu_io.start_ ## type .vr, \
+            container->fmu[i].fmu_io.start_ ## type .nb, container->fmu[i].fmu_io.start_ ## type .values); \
+        }
+        SET_START(Real, reals);
+        SET_START(Integer, integers);
+        SET_START(Boolean, booleans);
+        SET_START(String, strings);
+#undef SET_START
+
         fmi2Status status = fmuSetupExperiment(&container->fmu[i],
                                                toleranceDefined, tolerance,
                                                startTime,
@@ -736,23 +750,8 @@ fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
         fmi2Status status = fmuEnterInitializationMode(&container->fmu[i]);
         if (status != fmi2OK)
             return status;
-        /*
-         * Matlab set its start value _after_ fmi2EnterInitializationMode(). If we need to override them,
-         * we need to do it after this point!
-         */
-
-#define SET_START(fmi_type, type) \
-        if (container->fmu[i].fmu_io.start_ ## type .nb > 0) { \
-            fmuSet ## fmi_type (&container->fmu[i], container->fmu[i].fmu_io.start_ ## type .vr, \
-            container->fmu[i].fmu_io.start_ ## type .nb, container->fmu[i].fmu_io.start_ ## type .values); \
-        }
-        SET_START(Real, reals);
-        SET_START(Integer, integers);
-        SET_START(Boolean, booleans);
-        SET_START(String, strings);
-#undef SET_START
     }
- 
+
     return fmi2OK;
 }
 
