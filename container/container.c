@@ -827,14 +827,8 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 FMI_GETTER(reals, Real);
 FMI_GETTER(integers, Integer);
 FMI_GETTER(booleans, Boolean);
-
+FMI_GETTER(strings, String);
 #undef FMI_GETTER
-
-
-fmi2Status fmi2GetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2String value[]) {
-    __NOT_IMPLEMENTED__
-}
-
 
 #define FMI_SETTER(type, fmi_type) \
 fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2 ## fmi_type value[]) { \
