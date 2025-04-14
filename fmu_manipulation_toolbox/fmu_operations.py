@@ -313,10 +313,11 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         else:
             os.mkdir(fmu_bin[self.bitness_to])
 
-        from_path = Path(__file__).parent / "resources" / self.bitness_to
-        shutil.copyfile(from_path / "client_sm.dll",
+        to_path = Path(__file__).parent / "resources" / self.bitness_to
+        shutil.copyfile(to_path / "client_sm.dll",
                         Path(fmu_bin[self.bitness_to]) / Path(attrs['modelIdentifier']).with_suffix(".dll"))
 
+        from_path = Path(__file__).parent / "resources" / self.bitness_from
         shutil.copyfile(from_path / "server_sm.exe",
                         Path(fmu_bin[self.bitness_from]) / "server_sm.exe")
 
