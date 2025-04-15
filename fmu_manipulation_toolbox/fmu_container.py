@@ -152,6 +152,29 @@ class ContainerPort:
         return str(self) == str(other)
 
 
+class ContainerInput:
+    def __init__(self, name: str, cport_to: ContainerPort):
+        self.name = name
+        self.type_name = cport_to.port.type_name
+        self.causality = cport_to.port.causality
+        self.cport_list = [cport_to]
+        self.vr = None
+
+    def add_cport(self, cport_to: ContainerPort):
+        if cport_to in self.cport_list: # Cannot be reached ! (Assembly prevent this to happen)
+            raise FMUContainerError(f"Duplicate INPUT {cport_to} already connected to {self.name}")
+
+        if cport_to.port.type_name != self.type_name:
+            raise FMUContainerError(f"Cannot connect {self.name} of type {self.type_name} to "
+                                    f"{cport_to} of type {cport_to.port.type_name}")
+
+        if cport_to.port.causality != self.causality:
+            raise FMUContainerError(f"Cannot connect {self.causality.upper()} {self.name} to "
+                                    f"{cport_to.port.causality.upper()} {cport_to}")
+
+        self.cport_list.append(cport_to)
+
+
 class Local:
     def __init__(self, cport_from: ContainerPort):
         self.name = cport_from.fmu.id + "." + cport_from.port.name  # strip .fmu suffix
@@ -230,7 +253,7 @@ class FMUContainer:
         self.stop_time = None
 
         # Rules
-        self.inputs: Dict[str, ContainerPort] = {}
+        self.inputs: Dict[str, ContainerInput] = {}
         self.outputs: Dict[str, ContainerPort] = {}
         self.locals: Dict[ContainerPort, Local] = {}
 
@@ -272,12 +295,14 @@ class FMUContainer:
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
                                     f"'{cport_to.port.causality}'.")
 
-        if container_port_name in self.inputs:
-            raise FMUContainerError(f"Duplicate INPUT {container_port_name} already connected to {cport_to}")
+        try:
+            input_port = self.inputs[container_port_name]
+            input_port.add_cport(cport_to)
+        except KeyError:
+            self.inputs[container_port_name] = ContainerInput(container_port_name, cport_to)
 
         logger.debug(f"INPUT: {to_fmu_filename}:{to_port_name}")
         self.mark_ruled(cport_to, 'INPUT')
-        self.inputs[container_port_name] = cport_to
 
     def add_output(self, from_fmu_filename: str, from_port_name: str, container_port_name: str):
         if not container_port_name:  # empty is allowed
@@ -523,11 +548,12 @@ class FMUContainer:
             print(f'    {local.cport_from.port.xml(vr, name=local.name, causality="local")}', file=xml_file)
             local.vr = vr
 
-        for input_port_name, cport in self.inputs.items():
-            vr = vr_table.get_vr(cport)
-            start = self.start_values.get(cport, None)
-            print(f"    {cport.port.xml(vr, name=input_port_name, start=start)}", file=xml_file)
-            cport.vr = vr
+        for input_port_name, input_port in self.inputs.items():
+            vr = vr_table.add_vr(input_port.type_name)
+            # Get Start and XML from first connected input
+            start = self.start_values.get(input_port.cport_list[0], None)
+            print(f"    {input_port.cport_list[0].port.xml(vr, name=input_port_name, start=start)}", file=xml_file)
+            input_port.vr = vr
 
         for output_port_name, cport in self.outputs.items():
             vr = vr_table.get_vr(cport)
@@ -578,7 +604,7 @@ class FMUContainer:
 
         # Prepare data structure
         type_names_list = ("Real", "Integer", "Boolean", "String")  # Ordered list
-        inputs_per_type: Dict[str, List[ContainerPort]] = {}        # Container's INPUT
+        inputs_per_type: Dict[str, List[ContainerInput]] = {}        # Container's INPUT
         outputs_per_type: Dict[str, List[ContainerPort]] = {}       # Container's OUTPUT
 
         inputs_fmu_per_type: Dict[str, Dict[str, Dict[ContainerPort, int]]] = {}      # [type][fmu]
@@ -602,8 +628,8 @@ class FMUContainer:
 
         # Fill data structure
         # Inputs
-        for input_port_name, cport in self.inputs.items():
-            inputs_per_type[cport.port.type_name].append(cport)
+        for input_port_name, input_port in self.inputs.items():
+            inputs_per_type[input_port.type_name].append(input_port)
         for cport, value in self.start_values.items():
             start_values_fmu_per_type[cport.port.type_name][cport.fmu.name][cport] = value
         # Outputs
@@ -625,23 +651,28 @@ class FMUContainer:
             print(f"{nb} ", file=txt_file, end='')
         print("", file=txt_file)
 
-        print("# CONTAINER I/O: <VR> <FMU_INDEX> <FMU_VR>", file=txt_file)
+        print("# CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]", file=txt_file)
         for type_name in type_names_list:
             print(f"# {type_name}", file=txt_file)
-            nb = len(inputs_per_type[type_name])+len(outputs_per_type[type_name])+len(locals_per_type[type_name])
+            nb = len(inputs_per_type[type_name]) + len(outputs_per_type[type_name]) + len(locals_per_type[type_name])
+            nb_input_link = 0
+            for input_port in inputs_per_type[type_name]:
+                nb_input_link += len(input_port.cport_list) - 1
+
             if profiling and type_name == "Real":
                 nb += len(self.execution_order)
-                print(nb, file=txt_file)
+                print(f"{nb} {nb+nb_input_link}", file=txt_file)
                 for profiling_port, _ in enumerate(self.execution_order):
                     print(f"{profiling_port} -2 {profiling_port}", file=txt_file)
             else:
-                print(nb, file=txt_file)
-            for cport in inputs_per_type[type_name]:
-                print(f"{cport.vr} {fmu_rank[cport.fmu.name]} {cport.port.vr}", file=txt_file)
+                print(f"{nb} {nb+nb_input_link}", file=txt_file)
+            for input_port in inputs_per_type[type_name]:
+                cport_string = [f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list]
+                print(f"{input_port.vr} {len(input_port.cport_list)}", " ".join(cport_string), file=txt_file)
             for cport in outputs_per_type[type_name]:
-                print(f"{cport.vr} {fmu_rank[cport.fmu.name]} {cport.port.vr}", file=txt_file)
+                print(f"{cport.vr} 1 {fmu_rank[cport.fmu.name]} {cport.port.vr}", file=txt_file)
             for local in locals_per_type[type_name]:
-                print(f"{local.vr} -1 {local.vr}", file=txt_file)
+                print(f"{local.vr} 1 -1 {local.vr}", file=txt_file)
 
         # LINKS
         for fmu in self.execution_order:

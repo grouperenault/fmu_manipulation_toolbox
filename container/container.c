@@ -184,31 +184,43 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
     if (get_line(file)) \
         return -1;\
 \
-    if (sscanf(file->line, "%d", &container->nb_ports_ ## type) < 1) \
+    fmi2ValueReference nb_links; \
+    if (sscanf(file->line, "%d %d", &container->nb_ports_ ## type, &nb_links) < 2) \
         return -1; \
     if (container->nb_ports_ ## type > 0) { \
-        container->vr_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->vr_ ##type)); \
+        container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ##type)); \
+        container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->vr_ ##type)); \
         if (!container->vr_ ## type) \
             return -2; \
         for (fmi2ValueReference i = 0; i < container->nb_ports_ ## type; i += 1) { \
             fmi2ValueReference vr; \
+            int offset; \
+            int nb_links; \
             int fmu_id; \
             fmi2ValueReference fmu_vr; \
 \
             if (get_line(file)) \
                 return -3; \
 \
-            if (sscanf(file->line, "%d %d %d", &vr, &fmu_id, &fmu_vr) < 3) \
+            if (sscanf(file->line, "%d %d %n", &vr, &nb_links, &fmu_vr) < 3) \
                 return -4; \
+            for(int j=0; j<nb_links; j += 1) { \
+                int read; \
+                if (sscanf(file->line+off, "%d %d %n", &, &, &read) < 3) \
+                    return -5; \
+                off += read; \
+            } \
 \
             if (vr < container->nb_ports_ ## type) { \
                 container->vr_ ## type [vr].fmu_id = fmu_id; \
                 container->vr_ ## type [vr].fmu_vr = fmu_vr; \
             } else \
-                return -5; \
+                return -6; \
         } \
-    } else \
+    } else { \
         container->vr_ ## type = NULL; \
+        container->port_ ## type = NULL; \
+    } \
 \
     return 0; \
 }
@@ -686,9 +698,13 @@ void fmi2FreeInstance(fmi2Component c) {
         free(container->uuid);
 
         free(container->vr_reals);
+        free(container->port_reals);
         free(container->vr_integers);
+        free(container->port_integers);
         free(container->vr_booleans);
+        free(container->port_booleans);
         free(container->vr_strings);
+        free(container->port_strings);
 
         free(container->reals);
         free(container->integers);
