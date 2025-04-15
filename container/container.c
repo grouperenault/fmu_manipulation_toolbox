@@ -189,39 +189,40 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
         return -1; \
     if (container->nb_ports_ ## type > 0) { \
         container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ##type)); \
-        container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->vr_ ##type)); \
+        container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->port_ ##type)); \
         if (!container->vr_ ## type) \
             return -2; \
+        int vr_counter = 0; \
         for (fmi2ValueReference i = 0; i < container->nb_ports_ ## type; i += 1) { \
             fmi2ValueReference vr; \
             int offset; \
-            int nb_links; \
             int fmu_id; \
             fmi2ValueReference fmu_vr; \
 \
             if (get_line(file)) \
                 return -3; \
 \
-            if (sscanf(file->line, "%d %d %n", &vr, &nb_links, &fmu_vr) < 3) \
+            if (sscanf(file->line, "%d %d%n", &vr, &container->port_ ## type [i].nb, &offset) < 2) \
                 return -4; \
-            for(int j=0; j<nb_links; j += 1) { \
+            container->port_ ## type [i].links = &container->vr_ ## type [vr_counter]; \
+            for(int j=0; j < container->port_ ## type [i].nb; j += 1) { \
                 int read; \
-                if (sscanf(file->line+off, "%d %d %n", &, &, &read) < 3) \
-                    return -5; \
-                off += read; \
-            } \
+                if (vr_counter > nb_links) {\
+                    logger(fmi2Fatal, "Read %d links", vr_counter); \
+                    return -7; \
+                }\
 \
-            if (vr < container->nb_ports_ ## type) { \
-                container->vr_ ## type [vr].fmu_id = fmu_id; \
-                container->vr_ ## type [vr].fmu_vr = fmu_vr; \
-            } else \
-                return -6; \
+                if (sscanf(file->line+offset, " %d %d%n", &container->vr_ ## type [vr_counter].fmu_id, \
+                                                          &container->vr_ ## type [vr_counter].fmu_vr, &read) < 2) \
+                    return -5; \
+                offset += read; \
+                vr_counter += 1; \
+            } \
         } \
     } else { \
         container->vr_ ## type = NULL; \
         container->port_ ## type = NULL; \
     } \
-\
     return 0; \
 }
 
@@ -821,12 +822,13 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
     fmi2Status status = fmi2OK; \
 \
     for (size_t i = 0; i < nvr; i += 1) { \
-        const int fmu_id = container->vr_ ## type [vr[i]].fmu_id; \
+        const container_port_t *port = &container->port_ ##type [vr[i]]; \
+        const int fmu_id = port->links[0].fmu_id; \
 \
         if (fmu_id < 0) { \
             value[i] = container-> type [vr[i]]; \
         } else { \
-            const fmi2ValueReference fmu_vr = container->vr_ ## type [vr[i]].fmu_vr; \
+            const fmi2ValueReference fmu_vr = port->links[0].fmu_vr; \
             const fmu_t *fmu = &container->fmu[fmu_id]; \
 \
             status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &value[i]); \
@@ -851,16 +853,20 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
     fmi2Status status = fmi2OK; \
 \
     for (size_t i = 0; i < nvr; i += 1) { \
-        const int fmu_id = container->vr_ ##type [vr[i]].fmu_id; \
-        if (fmu_id < 0) {\
-             container-> type [vr[i]] = value[i]; \
-        } else { \
-            const fmu_t* fmu = &container->fmu[fmu_id]; \
-            const fmi2ValueReference fmu_vr = container->vr_ ## type [vr[i]].fmu_vr; \
+        const container_port_t *port = &container->port_ ##type [vr[i]]; \
+        for(int j = 0; j < port->nb; j += 1) { \
+            const int fmu_id = port->links[j].fmu_id; \
 \
-            status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &value[i]); \
-            if (status != fmi2OK) \
-                break; \
+            if (fmu_id < 0) {\
+                 container-> type [vr[i]] = value[i]; \
+            } else { \
+                const fmu_t* fmu = &container->fmu[fmu_id]; \
+                const fmi2ValueReference fmu_vr = port->links[j].fmu_vr; \
+\
+                status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &value[i]); \
+                if (status != fmi2OK) \
+                    break; \
+            } \
         } \
     } \
 \
