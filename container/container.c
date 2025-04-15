@@ -184,32 +184,50 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
     if (get_line(file)) \
         return -1;\
 \
-    if (sscanf(file->line, "%d", &container->nb_ports_ ## type) < 1) \
+    fmi2ValueReference nb_links; \
+    if (sscanf(file->line, "%d %d", &container->nb_ports_ ## type, &nb_links) < 2) \
         return -1; \
     if (container->nb_ports_ ## type > 0) { \
-        container->vr_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->vr_ ##type)); \
+        container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ##type)); \
+        container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->port_ ##type)); \
         if (!container->vr_ ## type) \
             return -2; \
+        int vr_counter = 0; \
         for (fmi2ValueReference i = 0; i < container->nb_ports_ ## type; i += 1) { \
+            container_port_t port; \
             fmi2ValueReference vr; \
+            int offset; \
             int fmu_id; \
             fmi2ValueReference fmu_vr; \
 \
             if (get_line(file)) \
                 return -3; \
 \
-            if (sscanf(file->line, "%d %d %d", &vr, &fmu_id, &fmu_vr) < 3) \
+            if (sscanf(file->line, "%d %d%n", &vr, &port.nb, &offset) < 2) \
                 return -4; \
+            port.links = &container->vr_ ## type [vr_counter]; \
+            for(int j=0; j < port.nb; j += 1) { \
+                int read; \
+                if (vr_counter > nb_links) {\
+                    logger(fmi2Fatal, "Read %d links", vr_counter); \
+                    return -7; \
+                }\
 \
-            if (vr < container->nb_ports_ ## type) { \
-                container->vr_ ## type [vr].fmu_id = fmu_id; \
-                container->vr_ ## type [vr].fmu_vr = fmu_vr; \
-            } else \
-                return -5; \
+                if (sscanf(file->line+offset, " %d %d%n", &container->vr_ ## type [vr_counter].fmu_id, \
+                                                          &container->vr_ ## type [vr_counter].fmu_vr, &read) < 2) \
+                    return -5; \
+                offset += read; \
+                vr_counter += 1; \
+            } \
+            if (vr < container->nb_ports_ ## type) \
+                container->port_ ##type[vr] = port; \
+            else \
+                return -8; \
         } \
-    } else \
+    } else { \
         container->vr_ ## type = NULL; \
-\
+        container->port_ ## type = NULL; \
+    } \
     return 0; \
 }
 
@@ -686,9 +704,13 @@ void fmi2FreeInstance(fmi2Component c) {
         free(container->uuid);
 
         free(container->vr_reals);
+        free(container->port_reals);
         free(container->vr_integers);
+        free(container->port_integers);
         free(container->vr_booleans);
+        free(container->port_booleans);
         free(container->vr_strings);
+        free(container->port_strings);
 
         free(container->reals);
         free(container->integers);
@@ -714,6 +736,20 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
        container->tolerance = tolerance;
 
     for(int i=0; i < container->nb_fmu; i += 1) {
+        /*
+         * Set start values!
+         */
+#define SET_START(fmi_type, type) \
+        if (container->fmu[i].fmu_io.start_ ## type .nb > 0) { \
+            fmuSet ## fmi_type (&container->fmu[i], container->fmu[i].fmu_io.start_ ## type .vr, \
+            container->fmu[i].fmu_io.start_ ## type .nb, container->fmu[i].fmu_io.start_ ## type .values); \
+        }
+        SET_START(Real, reals);
+        SET_START(Integer, integers);
+        SET_START(Boolean, booleans);
+        SET_START(String, strings);
+#undef SET_START
+
         fmi2Status status = fmuSetupExperiment(&container->fmu[i],
                                                toleranceDefined, tolerance,
                                                startTime,
@@ -736,23 +772,8 @@ fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
         fmi2Status status = fmuEnterInitializationMode(&container->fmu[i]);
         if (status != fmi2OK)
             return status;
-        /*
-         * Matlab set its start value _after_ fmi2EnterInitializationMode(). If we need to override them,
-         * we need to do it after this point!
-         */
-
-#define SET_START(fmi_type, type) \
-        if (container->fmu[i].fmu_io.start_ ## type .nb > 0) { \
-            fmuSet ## fmi_type (&container->fmu[i], container->fmu[i].fmu_io.start_ ## type .vr, \
-            container->fmu[i].fmu_io.start_ ## type .nb, container->fmu[i].fmu_io.start_ ## type .values); \
-        }
-        SET_START(Real, reals);
-        SET_START(Integer, integers);
-        SET_START(Boolean, booleans);
-        SET_START(String, strings);
-#undef SET_START
     }
- 
+
     return fmi2OK;
 }
 
@@ -806,12 +827,13 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
     fmi2Status status = fmi2OK; \
 \
     for (size_t i = 0; i < nvr; i += 1) { \
-        const int fmu_id = container->vr_ ## type [vr[i]].fmu_id; \
+        const container_port_t *port = &container->port_ ##type [vr[i]]; \
+        const int fmu_id = port->links[0].fmu_id; \
 \
         if (fmu_id < 0) { \
             value[i] = container-> type [vr[i]]; \
         } else { \
-            const fmi2ValueReference fmu_vr = container->vr_ ## type [vr[i]].fmu_vr; \
+            const fmi2ValueReference fmu_vr = port->links[0].fmu_vr; \
             const fmu_t *fmu = &container->fmu[fmu_id]; \
 \
             status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &value[i]); \
@@ -827,14 +849,8 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 FMI_GETTER(reals, Real);
 FMI_GETTER(integers, Integer);
 FMI_GETTER(booleans, Boolean);
-
+FMI_GETTER(strings, String);
 #undef FMI_GETTER
-
-
-fmi2Status fmi2GetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2String value[]) {
-    __NOT_IMPLEMENTED__
-}
-
 
 #define FMI_SETTER(type, fmi_type) \
 fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2 ## fmi_type value[]) { \
@@ -842,16 +858,20 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
     fmi2Status status = fmi2OK; \
 \
     for (size_t i = 0; i < nvr; i += 1) { \
-        const int fmu_id = container->vr_ ##type [vr[i]].fmu_id; \
-        if (fmu_id < 0) {\
-             container-> type [vr[i]] = value[i]; \
-        } else { \
-            const fmu_t* fmu = &container->fmu[fmu_id]; \
-            const fmi2ValueReference fmu_vr = container->vr_ ## type [vr[i]].fmu_vr; \
+        const container_port_t *port = &container->port_ ##type [vr[i]]; \
+        for(int j = 0; j < port->nb; j += 1) { \
+            const int fmu_id = port->links[j].fmu_id; \
 \
-            status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &value[i]); \
-            if (status != fmi2OK) \
-                break; \
+            if (fmu_id < 0) {\
+                 container-> type [vr[i]] = value[i]; \
+            } else { \
+                const fmu_t* fmu = &container->fmu[fmu_id]; \
+                const fmi2ValueReference fmu_vr = port->links[j].fmu_vr; \
+\
+                status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &value[i]); \
+                if (status != fmi2OK) \
+                    break; \
+            } \
         } \
     } \
 \

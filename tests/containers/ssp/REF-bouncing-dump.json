@@ -2,9 +2,9 @@
   "name": "bouncing.fmu",
   "mt": false,
   "profiling": false,
-  "auto_link": true,
-  "auto_input": true,
-  "auto_output": true,
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": false,
   "auto_parameter": false,
   "auto_local": false,
   "fmu": [

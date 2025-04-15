@@ -12,5 +12,26 @@
     "gain.fmu",
     "integrate.fmu",
     "sine.fmu"
+  ],
+  "output": [
+    [
+      "gain.fmu",
+      "final",
+      "final"
+    ]
+  ],
+  "link": [
+    [
+      "sine.fmu",
+      "sine",
+      "integrate.fmu",
+      "sine"
+    ],
+    [
+      "integrate.fmu",
+      "integrate",
+      "gain.fmu",
+      "integrate"
+    ]
   ]
 }

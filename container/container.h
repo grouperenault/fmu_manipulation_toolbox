@@ -15,6 +15,15 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
+                      C O N T A I N E R _ P O R T _ T
+----------------------------------------------------------------------------*/
+typedef struct {
+    int                         nb;
+    container_vr_t              *links;
+} container_port_t;
+
+
+/*----------------------------------------------------------------------------
                             C O N T A I N E R _ T
 ----------------------------------------------------------------------------*/
 typedef struct container_s {
@@ -37,14 +46,16 @@ typedef struct container_s {
 	fmi2Boolean                 *booleans;
 	fmi2String                  *strings;
 
-	fmi2ValueReference   		nb_ports_reals;
-	fmi2ValueReference			nb_ports_integers;
-	fmi2ValueReference			nb_ports_booleans;
-	fmi2ValueReference			nb_ports_strings;
-	container_vr_t				*vr_reals;
-	container_vr_t				*vr_integers;
-	container_vr_t				*vr_booleans;
-	container_vr_t				*vr_strings;
+#define DECLARE_PORT(type) \
+    fmi2ValueReference   		nb_ports_ ## type; \
+    container_vr_t				*vr_ ## type; \
+    container_port_t            *port_ ## type
+
+    DECLARE_PORT(reals);
+    DECLARE_PORT(integers);
+    DECLARE_PORT(booleans);
+    DECLARE_PORT(strings);
+#undef DECLARE_PORT
 
 	fmi2Real					time_step;
 	fmi2Real					time;

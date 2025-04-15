@@ -146,10 +146,33 @@ class ContainerPort:
         return f"Port {self.fmu.name}/{self.port.name}"
 
     def __hash__(self):
-        return hash("{self.fmu.name}/{self.port.name}")
+        return hash(f"{self}")
 
     def __eq__(self, other):
         return str(self) == str(other)
+
+
+class ContainerInput:
+    def __init__(self, name: str, cport_to: ContainerPort):
+        self.name = name
+        self.type_name = cport_to.port.type_name
+        self.causality = cport_to.port.causality
+        self.cport_list = [cport_to]
+        self.vr = None
+
+    def add_cport(self, cport_to: ContainerPort):
+        if cport_to in self.cport_list: # Cannot be reached ! (Assembly prevent this to happen)
+            raise FMUContainerError(f"Duplicate INPUT {cport_to} already connected to {self.name}")
+
+        if cport_to.port.type_name != self.type_name:
+            raise FMUContainerError(f"Cannot connect {self.name} of type {self.type_name} to "
+                                    f"{cport_to} of type {cport_to.port.type_name}")
+
+        if cport_to.port.causality != self.causality:
+            raise FMUContainerError(f"Cannot connect {self.causality.upper()} {self.name} to "
+                                    f"{cport_to.port.causality.upper()} {cport_to}")
+
+        self.cport_list.append(cport_to)
 
 
 class Local:
@@ -190,6 +213,31 @@ class ValueReferenceTable:
         return vr
 
 
+class AutoWired:
+    def __init__(self):
+        self.rule_input = []
+        self.rule_output = []
+        self.rule_link = []
+        self.nb_param = 0
+
+    def __repr__(self):
+        return (f"{self.nb_param} parameters, {len(self.rule_input) - self.nb_param} inputs,"
+                f" {len(self.rule_output)} outputs, {len(self.rule_link)} links.")
+
+    def add_input(self, from_port, to_fmu, to_port):
+        self.rule_input.append([from_port, to_fmu, to_port])
+
+    def add_parameter(self, from_port, to_fmu, to_port):
+        self.rule_input.append([from_port, to_fmu, to_port])
+        self.nb_param += 1
+
+    def add_output(self, from_fmu, from_port, to_port):
+        self.rule_output.append([from_fmu, from_port, to_port])
+
+    def add_link(self, from_fmu, from_port, to_fmu, to_port):
+        self.rule_link.append([from_fmu, from_port, to_fmu, to_port])
+
+
 class FMUContainer:
     def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None):
         self.fmu_directory = Path(fmu_directory)
@@ -205,7 +253,7 @@ class FMUContainer:
         self.stop_time = None
 
         # Rules
-        self.inputs: Dict[str, ContainerPort] = {}
+        self.inputs: Dict[str, ContainerInput] = {}
         self.outputs: Dict[str, ContainerPort] = {}
         self.locals: Dict[ContainerPort, Local] = {}
 
@@ -236,17 +284,25 @@ class FMUContainer:
 
         self.rules[cport] = rule
 
+    def get_all_cports(self):
+        return [ContainerPort(fmu, port_name) for fmu in self.execution_order for port_name in fmu.ports]
+
     def add_input(self, container_port_name: str, to_fmu_filename: str, to_port_name: str):
         if not container_port_name:
             container_port_name = to_port_name
         cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
-        if not cport_to.port.causality == "input":  # check causality
+        if cport_to.port.causality not in ("input", "parameter"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
                                     f"'{cport_to.port.causality}'.")
 
+        try:
+            input_port = self.inputs[container_port_name]
+            input_port.add_cport(cport_to)
+        except KeyError:
+            self.inputs[container_port_name] = ContainerInput(container_port_name, cport_to)
+
         logger.debug(f"INPUT: {to_fmu_filename}:{to_port_name}")
         self.mark_ruled(cport_to, 'INPUT')
-        self.inputs[container_port_name] = cport_to
 
     def add_output(self, from_fmu_filename: str, from_port_name: str, container_port_name: str):
         if not container_port_name:  # empty is allowed
@@ -254,8 +310,11 @@ class FMUContainer:
 
         cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
         if cport_from.port.causality not in ("output", "local"):  # check causality
-            raise FMUContainerError(f"Tried to use '{cport_from}' as INPUT of the container but FMU causality is "
+            raise FMUContainerError(f"Tried to use '{cport_from}' as OUTPUT of the container but FMU causality is "
                                     f"'{cport_from.port.causality}'.")
+
+        if container_port_name in self.outputs:
+            raise FMUContainerError(f"Duplicate OUTPUT {container_port_name} already connected to {cport_from}")
 
         logger.debug(f"OUTPUT: {from_fmu_filename}:{from_port_name}")
         self.mark_ruled(cport_from, 'OUTPUT')
@@ -302,60 +361,60 @@ class FMUContainer:
 
     def find_inputs(self, port_to_connect: FMUPort) -> List[ContainerPort]:
         candidates = []
-        for fmu in self.execution_order:
-            for port in fmu.ports.values():
-                if (port.causality == 'input' and port.name == port_to_connect.name
-                        and port.type_name == port_to_connect.type_name):
-                    candidates.append(ContainerPort(fmu, port.name))
+        for cport in self.get_all_cports():
+            if (cport.port.causality == 'input' and cport not in self.rules and cport.port.name == port_to_connect.name
+                    and cport.port.type_name == port_to_connect.type_name):
+                candidates.append(cport)
         return candidates
 
     def add_implicit_rule(self, auto_input=True, auto_output=True, auto_link=True, auto_parameter=False,
-                          auto_local=False):
+                          auto_local=False) -> AutoWired:
+
+        auto_wired = AutoWired()
         # Auto Link outputs
-        for fmu in self.execution_order:
-            for port_name in fmu.ports:
-                cport = ContainerPort(fmu, port_name)
+        for cport in self.get_all_cports():
+            if cport.port.causality == 'output':
+                candidates_cport_list = self.find_inputs(cport.port)
+                if auto_link and candidates_cport_list:
+                    for candidate_cport in candidates_cport_list:
+                        logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
+                        self.add_link(cport.fmu.name, cport.port.name,
+                                      candidate_cport.fmu.name, candidate_cport.port.name)
+                        auto_wired.add_link(cport.fmu.name, cport.port.name,
+                                            candidate_cport.fmu.name, candidate_cport.port.name)
+                elif auto_output and cport not in self.rules:
+                    logger.info(f"AUTO OUTPUT: Expose {cport}")
+                    self.add_output(cport.fmu.name, cport.port.name, cport.port.name)
+                    auto_wired.add_output(cport.fmu.name, cport.port.name, cport.port.name)
+            elif cport.port.causality == 'local':
+                local_portname = None
+                if cport.port.name.startswith("container."):
+                    local_portname = "container." + cport.fmu.id + "." + cport.port.name[10:]
+                    logger.info(f"PROFILING: Expose {cport}")
+                elif auto_local:
+                    local_portname = cport.fmu.id + "." + cport.port.name
+                    logger.info(f"AUTO LOCAL: Expose {cport}")
+                if local_portname:
+                    self.add_output(cport.fmu.name, cport.port.name, local_portname)
+                    auto_wired.add_output(cport.fmu.name, cport.port.name, local_portname)
+
+        if auto_input:
+            # Auto link inputs
+            for cport in self.get_all_cports():
                 if cport not in self.rules:
                     if cport.port.causality == 'parameter' and auto_parameter:
                         parameter_name = cport.fmu.id + "." + cport.port.name
                         logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
-                        self.inputs[parameter_name] = cport
-                        self.mark_ruled(cport, 'PARAMETER')
-                    elif cport.port.causality == 'output':
-                        candidates_cport_list = self.find_inputs(cport.port)
-                        if auto_link and candidates_cport_list:
-                            self.locals[cport] = Local(cport)
-                            self.mark_ruled(cport, 'LINK')
-                            for candidate_cport in candidates_cport_list:
-                                self.locals[cport].add_target(candidate_cport)
-                                self.mark_ruled(candidate_cport, 'LINK')
-                                logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
-                        elif auto_output:
-                            self.mark_ruled(cport, 'OUTPUT')
-                            self.outputs[port_name] = cport
-                            logger.info(f"AUTO OUTPUT: Expose {cport}")
-                    elif cport.port.causality == 'local':
-                        local_portname = None
-                        if port_name.startswith("container."):
-                            local_portname = "container." + cport.fmu.id + "." + port_name[10:]
-                            logger.info(f"PROFILING: Expose {cport}")
-                        elif auto_local:
-                            local_portname = cport.fmu.id + "." + port_name
-                            logger.info(f"AUTO LOCAL: Expose {cport}")
-                        if local_portname:
-                            self.mark_ruled(cport, 'OUTPUT')
-                            self.outputs[local_portname] = cport
+                        self.add_input(parameter_name, cport.fmu.name, cport.port.name)
+                        auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
+                    elif cport.port.causality == 'input':
+                        logger.info(f"AUTO INPUT: Expose {cport}")
+                        self.add_input(cport.port.name, cport.fmu.name, cport.port.name)
+                        auto_wired.add_input(cport.port.name, cport.fmu.name, cport.port.name)
 
-        if auto_input:
-            # Auto link inputs
-            for fmu in self.execution_order:
-                for port_name in fmu.ports:
-                    cport = ContainerPort(fmu, port_name)
-                    if cport not in self.rules:
-                        if cport.port.causality == 'input':
-                            self.mark_ruled(cport, 'INPUT')
-                            self.inputs[port_name] = cport
-                            logger.info(f"AUTO INPUT: Expose {cport}")
+        logger.info(f"Auto-wiring: {auto_wired}")
+
+        return auto_wired
 
     def minimum_step_size(self) -> float:
         step_size = None
@@ -489,11 +548,12 @@ class FMUContainer:
             print(f'    {local.cport_from.port.xml(vr, name=local.name, causality="local")}', file=xml_file)
             local.vr = vr
 
-        for input_port_name, cport in self.inputs.items():
-            vr = vr_table.get_vr(cport)
-            start = self.start_values.get(cport, None)
-            print(f"    {cport.port.xml(vr, name=input_port_name, start=start)}", file=xml_file)
-            cport.vr = vr
+        for input_port_name, input_port in self.inputs.items():
+            vr = vr_table.add_vr(input_port.type_name)
+            # Get Start and XML from first connected input
+            start = self.start_values.get(input_port.cport_list[0], None)
+            print(f"    {input_port.cport_list[0].port.xml(vr, name=input_port_name, start=start)}", file=xml_file)
+            input_port.vr = vr
 
         for output_port_name, cport in self.outputs.items():
             vr = vr_table.get_vr(cport)
@@ -544,7 +604,7 @@ class FMUContainer:
 
         # Prepare data structure
         type_names_list = ("Real", "Integer", "Boolean", "String")  # Ordered list
-        inputs_per_type: Dict[str, List[ContainerPort]] = {}        # Container's INPUT
+        inputs_per_type: Dict[str, List[ContainerInput]] = {}        # Container's INPUT
         outputs_per_type: Dict[str, List[ContainerPort]] = {}       # Container's OUTPUT
 
         inputs_fmu_per_type: Dict[str, Dict[str, Dict[ContainerPort, int]]] = {}      # [type][fmu]
@@ -568,8 +628,8 @@ class FMUContainer:
 
         # Fill data structure
         # Inputs
-        for input_port_name, cport in self.inputs.items():
-            inputs_per_type[cport.port.type_name].append(cport)
+        for input_port_name, input_port in self.inputs.items():
+            inputs_per_type[input_port.type_name].append(input_port)
         for cport, value in self.start_values.items():
             start_values_fmu_per_type[cport.port.type_name][cport.fmu.name][cport] = value
         # Outputs
@@ -591,23 +651,28 @@ class FMUContainer:
             print(f"{nb} ", file=txt_file, end='')
         print("", file=txt_file)
 
-        print("# CONTAINER I/O: <VR> <FMU_INDEX> <FMU_VR>", file=txt_file)
+        print("# CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]", file=txt_file)
         for type_name in type_names_list:
             print(f"# {type_name}", file=txt_file)
-            nb = len(inputs_per_type[type_name])+len(outputs_per_type[type_name])+len(locals_per_type[type_name])
+            nb = len(inputs_per_type[type_name]) + len(outputs_per_type[type_name]) + len(locals_per_type[type_name])
+            nb_input_link = 0
+            for input_port in inputs_per_type[type_name]:
+                nb_input_link += len(input_port.cport_list) - 1
+
             if profiling and type_name == "Real":
                 nb += len(self.execution_order)
-                print(nb, file=txt_file)
+                print(f"{nb} {nb+nb_input_link}", file=txt_file)
                 for profiling_port, _ in enumerate(self.execution_order):
                     print(f"{profiling_port} -2 {profiling_port}", file=txt_file)
             else:
-                print(nb, file=txt_file)
-            for cport in inputs_per_type[type_name]:
-                print(f"{cport.vr} {fmu_rank[cport.fmu.name]} {cport.port.vr}", file=txt_file)
+                print(f"{nb} {nb+nb_input_link}", file=txt_file)
+            for input_port in inputs_per_type[type_name]:
+                cport_string = [f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list]
+                print(f"{input_port.vr} {len(input_port.cport_list)}", " ".join(cport_string), file=txt_file)
             for cport in outputs_per_type[type_name]:
-                print(f"{cport.vr} {fmu_rank[cport.fmu.name]} {cport.port.vr}", file=txt_file)
+                print(f"{cport.vr} 1 {fmu_rank[cport.fmu.name]} {cport.port.vr}", file=txt_file)
             for local in locals_per_type[type_name]:
-                print(f"{local.vr} -1 {local.vr}", file=txt_file)
+                print(f"{local.vr} 1 -1 {local.vr}", file=txt_file)
 
         # LINKS
         for fmu in self.execution_order:

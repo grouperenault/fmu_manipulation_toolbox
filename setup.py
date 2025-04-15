@@ -1,6 +1,6 @@
-from setuptools import setup
 import os
 import re
+from setuptools import setup
 
 from fmu_manipulation_toolbox.version import __author__ as author, __version__ as default_version
 
@@ -25,29 +25,29 @@ setup(
     name="fmu_manipulation_toolbox",
     version=version,
     packages=["fmu_manipulation_toolbox"],
-    package_data={"fmu_manipulation_toolbox": ["resources/win32/client_sm.dll",
-                              "resources/win32/server_sm.exe",
-                              "resources/win64/client_sm.dll",
-                              "resources/win64/server_sm.exe",
-                              "resources/win64/container.dll",
-                              "resources/linux64/client_sm.so",
-                              "resources/linux64/server_sm",
-                              "resources/linux64/container.so",
-                              "resources/linux32/client_sm.so",
-                              "resources/linux32/server_sm",
-                              "resources/license.txt",
-                              "resources/*.png",
-                              "resources/fmi-2.0/*.xsd",
-                              ],
-                  },
+    package_data={"fmu_manipulation_toolbox": [
+        "resources/win32/client_sm.dll",
+        "resources/win32/server_sm.exe",
+        "resources/win64/client_sm.dll",
+        "resources/win64/server_sm.exe",
+        "resources/win64/container.dll",
+        "resources/linux64/client_sm.so",
+        "resources/linux64/server_sm",
+        "resources/linux64/container.so",
+        "resources/linux32/client_sm.so",
+        "resources/linux32/server_sm",
+        "resources/license.txt",
+        "resources/*.png",
+        "resources/fmi-2.0/*.xsd",
+    ]},
     entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.__main__:main",
                                       "fmucontainer = fmu_manipulation_toolbox.cli:fmucontainer"],
                   },
     author=author,
     url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
-    description="FMU Manipulation Toobox is a python application which help to modify a Functional Mock-up Units (FMUs) "
-                "without recompilation or to group them into FMU Containers",
-    long_description="""FMU Manipulation Toolbox is a python application which help to modify a Functional Mock-up Units (FMUs) 
+    description="FMU Manipulation Toolbox is a python application for modifying Functional Mock-up Units "
+                "(FMUs) without recompilation or bundling them into FMU Containers",
+    long_description="""FMU Manipulation Toolbox is a python application for modifying Functional Mock-up Units (FMUs) 
 without recompilation. It mainly modifies the `modelDescription.xml` file. It is highly customizable.
 
 Manipulating the `modelDescription.xml` can be a dangerous thing! Communicating with the FMU-developer and adapting
@@ -61,6 +61,8 @@ FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers.
         "elementpath >= 4.4.0",
         "colorama >= 0.4.6",
     ],
+    license="BSD-2-Clause",
+    python_requires=">=3.8",
 )
 
 os.remove("fmu_manipulation_toolbox/__version__.py")

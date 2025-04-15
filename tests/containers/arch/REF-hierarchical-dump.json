@@ -22,11 +22,41 @@
       "fmu": [
         "integrate.fmu",
         "sine.fmu"
+      ],
+      "output": [
+        [
+          "integrate.fmu",
+          "integrate",
+          "integrate"
+        ]
+      ],
+      "link": [
+        [
+          "sine.fmu",
+          "sine",
+          "integrate.fmu",
+          "sine"
+        ]
       ]
     }
   ],
   "fmu": [
     "gain.fmu",
     "level1.fmu"
+  ],
+  "output": [
+    [
+      "gain.fmu",
+      "final",
+      "final"
+    ]
+  ],
+  "link": [
+    [
+      "level1.fmu",
+      "integrate",
+      "gain.fmu",
+      "integrate"
+    ]
   ]
 }
