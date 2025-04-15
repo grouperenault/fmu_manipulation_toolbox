@@ -194,6 +194,7 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
             return -2; \
         int vr_counter = 0; \
         for (fmi2ValueReference i = 0; i < container->nb_ports_ ## type; i += 1) { \
+            container_port_t port; \
             fmi2ValueReference vr; \
             int offset; \
             int fmu_id; \
@@ -202,10 +203,10 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
             if (get_line(file)) \
                 return -3; \
 \
-            if (sscanf(file->line, "%d %d%n", &vr, &container->port_ ## type [i].nb, &offset) < 2) \
+            if (sscanf(file->line, "%d %d%n", &vr, &port.nb, &offset) < 2) \
                 return -4; \
-            container->port_ ## type [i].links = &container->vr_ ## type [vr_counter]; \
-            for(int j=0; j < container->port_ ## type [i].nb; j += 1) { \
+            port.links = &container->vr_ ## type [vr_counter]; \
+            for(int j=0; j < port.nb; j += 1) { \
                 int read; \
                 if (vr_counter > nb_links) {\
                     logger(fmi2Fatal, "Read %d links", vr_counter); \
@@ -218,6 +219,10 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
                 offset += read; \
                 vr_counter += 1; \
             } \
+            if (vr < container->nb_ports_ ## type) \
+                container->port_ ##type[vr] = port; \
+            else \
+                return -8; \
         } \
     } else { \
         container->vr_ ## type = NULL; \
