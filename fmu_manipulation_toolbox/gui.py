@@ -11,7 +11,7 @@ from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopS
 from functools import partial
 from typing import Optional
 
-from .gui_style import *
+from .gui_style import gui_style
 from .fmu_operations import *
 from .assembly import Assembly, AssemblyNode
 from .checker import checker_list
@@ -728,7 +728,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor)
 
         QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "resources"))
-        self.setStyleSheet(gui_style_dark)
+        self.setStyleSheet(gui_style)
 
         if os.name == 'nt':
             import ctypes
