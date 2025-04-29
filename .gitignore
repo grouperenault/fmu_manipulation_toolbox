@@ -37,3 +37,4 @@ tests/containers/ssp/bouncing.fmu
 tests/containers/arch/flat-dump.json
 tests/containers/arch/hierarchical-dump.json
 tests/containers/arch/reversed-dump.json
+tests/containers/arch/sub.fmu

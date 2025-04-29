@@ -77,6 +77,14 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files("containers/arch/REF-flat-dump.json",
                                     "containers/arch/flat-dump.json")
 
+    def test_container_subdir_flat(self):
+        container = FMUContainer("sub.fmu", fmu_directory=Path("containers/arch"))
+        container.get_fmu("subdir/gain2.fmu")
+        container.get_fmu("integrate.fmu")
+        container.get_fmu("sine.fmu")
+        container.add_implicit_rule()
+        container.make_fmu("sub.fmu", step_size=0.5)
+
     def test_container_json_hierarchical(self):
         assembly = Assembly("hierarchical.json", fmu_directory=Path("containers/arch"))
         assembly.make_fmu(dump_json=True)

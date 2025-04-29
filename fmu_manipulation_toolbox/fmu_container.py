@@ -146,7 +146,7 @@ class ContainerPort:
         return f"Port {self.fmu.name}/{self.port.name}"
 
     def __hash__(self):
-        return hash(f"{self}")
+        return hash(str(self))
 
     def __eq__(self, other):
         return str(self) == str(other)
@@ -266,7 +266,7 @@ class FMUContainer:
 
         try:
             fmu = EmbeddedFMU(self.fmu_directory / fmu_filename)
-            self.involved_fmu[fmu_filename] = fmu
+            self.involved_fmu[fmu.name] = fmu
             self.execution_order.append(fmu)
             if not fmu.fmi_version == "2.0":
                 raise FMUContainerError("Only FMI-2.0 is supported by FMUContainer")
