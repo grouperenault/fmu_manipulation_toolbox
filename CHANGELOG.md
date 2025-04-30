@@ -1,6 +1,10 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.8.4.1
+* FIXED: `fmucontainer` store embedded FMUs into shorter named directories to avoid windows-long-path-issue
+* FIXED: `fmucontainer` can refer to FMU located in subdirectory
+
 # Version 1.8.4
 * CHANGE: `fmucontainer` option `-dump` saves explicitly auto-wiring data. Auto-wiring is off for SSP format.
 

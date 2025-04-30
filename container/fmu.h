@@ -171,8 +171,8 @@ typedef struct {
 
 extern fmi2Status fmu_set_inputs(fmu_t *fmu);
 extern int fmu_load_from_directory(struct container_s *container, int i,
-                                   const char *directory, const char *identifier,
-                                   const char *guid);
+                                   const char *directory, const char *name,
+                                   const char *identifier, const char *guid);
 extern void fmu_unload(fmu_t *fmu);
 
 extern fmi2Status fmuGetReal(const fmu_t *fmu, const fmi2ValueReference vr[],

@@ -727,9 +727,9 @@ class FMUContainer:
                 binary_directory.mkdir(exist_ok=True)
                 shutil.copy(library_filename, binary_directory / f"{self.identifier}.dll")
 
-        for fmu in self.involved_fmu.values():
+        for i, fmu in enumerate(self.involved_fmu.values()):
             shutil.copytree(self.long_path(fmu.fmu.tmp_directory),
-                            self.long_path(resources_directory / fmu.name), dirs_exist_ok=True)
+                            self.long_path(resources_directory / f"{i:02x}"), dirs_exist_ok=True)
         return resources_directory
 
     def make_fmu_package(self, base_directory: Path, fmu_filename: Path):

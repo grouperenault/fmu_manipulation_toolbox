@@ -110,17 +110,12 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
     for (int i = 0; i < nb_fmu; i += 1) {
         container->fmu[i].container = container;
         char directory[CONFIG_FILE_SZ];
-        
+        snprintf(directory, CONFIG_FILE_SZ, "%s/%02x", dirname, i);
+
         if (get_line(file))
             return -1;
-
-        strncpy(directory, dirname, sizeof(directory) - 1);
-        directory[sizeof(directory) - 1] = '\0';
-        strncat(directory, "/", sizeof(directory) - strlen(directory) - 1);
-        directory[sizeof(directory) - 1] = '\0';
-        strncat(directory, file->line, sizeof(directory) - strlen(directory) - 1);
-        directory[sizeof(directory) - 1] = '\0';
-        
+        char* name = strdup(file->line);
+      
         if (get_line(file))
             return -1;
         char *identifier = strdup(file->line);
@@ -131,8 +126,9 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
 
         logger(fmi2OK, "Loading '%s.dll' from directory '%s'", identifier, directory);
 
-        int status = fmu_load_from_directory(container, i, directory, identifier, guid);
+        int status = fmu_load_from_directory(container, i, directory, name, identifier, guid);
         free(identifier);
+        free(name);
         if (status) {
             logger(fmi2Error, "Cannot load from directory '%s' (status=%d)", directory, status);
             free(container->fmu);

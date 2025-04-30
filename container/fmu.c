@@ -111,22 +111,6 @@ static int fmu_map_functions(fmu_t *fmu){
 }
 
 
-static char* fs_basename(const char* path) {
-    const int len = strlen(path);
-    int offset = 0;
-    char* basename;
-
-    for(int i = 0; i < len; i += 1) {
-        if ((path[i] == '\\') || (path[i] == '/'))
-            offset = i + 1;
-    }
-
-    basename = strdup(path+offset);
-
-    return basename;
-}
-
-
 static void fs_make_path(char* buffer, size_t len, ...) {
 	va_list params;
 	va_start(params, len);
@@ -155,15 +139,15 @@ static void fs_make_path(char* buffer, size_t len, ...) {
 /** 
  * Specific: FMI2.0
  */
-int fmu_load_from_directory(container_t *container, int i, const char *directory, const char *identifier, const char *guid) {
+int fmu_load_from_directory(container_t *container, int i, const char *directory, const char *name,
+                            const char *identifier, const char *guid) {
     if (! container)
         return -1;
     fmu_t *fmu = &container->fmu[i];
     fmu->container = container;
-    fmu->name = fs_basename(directory);
+    fmu->name = strdup(name);
     fmu->index = i;
     
-
     char library_filename[FMU_PATH_MAX_LEN];
 
     fmu->guid = strdup(guid);
