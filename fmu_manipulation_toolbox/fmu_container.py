@@ -663,7 +663,7 @@ class FMUContainer:
                 nb += len(self.execution_order)
                 print(f"{nb} {nb+nb_input_link}", file=txt_file)
                 for profiling_port, _ in enumerate(self.execution_order):
-                    print(f"{profiling_port} -2 {profiling_port}", file=txt_file)
+                    print(f"{profiling_port} 1 -2 {profiling_port}", file=txt_file)
             else:
                 print(f"{nb} {nb+nb_input_link}", file=txt_file)
             for input_port in inputs_per_type[type_name]:
