@@ -38,3 +38,6 @@ tests/containers/arch/flat-dump.json
 tests/containers/arch/hierarchical-dump.json
 tests/containers/arch/reversed-dump.json
 tests/containers/arch/sub.fmu
+/tests/containers/bouncing_ball/bouncing-profiling/
+tests/containers/bouncing_ball/bouncing-profiling.fmu
+tests/containers/bouncing_ball/bouncing-profiling.json

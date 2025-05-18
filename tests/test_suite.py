@@ -17,6 +17,13 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         with open(filename1, mode="rt", newline=None) as a, open(filename2, mode="rt", newline=None) as b:
             self.assertTrue(all(lineA == lineB for lineA, lineB in zip(a, b)))
 
+    def assert_identical_files_but_guid(self, filename1, filename2):
+        with open(filename1, mode="rt", newline=None) as a, open(filename2, mode="rt", newline=None) as b:
+            for lineA, lineB in zip(a, b):
+                if not "guid" in lineA and not lineA == lineB:
+                    return False
+        return True
+
     def assert_names_match_ref(self, fmu_filename):
         fmu = FMU(fmu_filename)
         csv_filename = Path(fmu_filename).with_suffix(".csv")
@@ -64,6 +71,19 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
                                     "containers/bouncing_ball/bouncing/resources/container.txt")
         self.assert_identical_files("containers/bouncing_ball/REF-bouncing.json",
                                     "containers/bouncing_ball/bouncing.json")
+
+    def test_container_bouncing_ball_profiling(self):
+        assembly = Assembly("bouncing-profiling.csv", fmu_directory=Path("containers/bouncing_ball"), profiling=True,
+                            debug=True)
+        assembly.write_json("bouncing-profiling.json")
+        assembly.make_fmu()
+        self.assert_identical_files("containers/bouncing_ball/REF-container-profiling.txt",
+                                    "containers/bouncing_ball/bouncing-profiling/resources/container.txt")
+        self.assert_identical_files("containers/bouncing_ball/REF-bouncing-profiling.json",
+                                    "containers/bouncing_ball/bouncing-profiling.json")
+        self.assert_identical_files_but_guid("containers/bouncing_ball/REF-modelDescription-profiling.xml",
+                                             "containers/bouncing_ball/bouncing-profiling/modelDescription.xml")
+
 
     def test_container_ssp(self):
         assembly = Assembly("bouncing.ssp", fmu_directory=Path("containers/ssp"))

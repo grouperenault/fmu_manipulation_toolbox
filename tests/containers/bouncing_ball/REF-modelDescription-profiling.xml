@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<fmiModelDescription
+  fmiVersion="2.0"
+  modelName="bouncing-profiling"
+  generationTool="FMUContainer-0.0.dev0"
+  generationDateAndTime="2025-05-18T20:00:36Z"
+  guid="90fad056-ece4-4a8c-9d95-dd95c977995f"
+  description="FMUContainer with bb_position.fmu, bb_velocity.fmu"
+  author="a067220"
+  license="Proprietary"
+  copyright="See Embedded FMU's copyrights."
+  variableNamingConvention="structured">
+
+  <CoSimulation
+    modelIdentifier="bouncing-profiling"
+    canHandleVariableCommunicationStepSize="true"
+    canBeInstantiatedOnlyOncePerProcess="true"
+    canNotUseMemoryManagementFunctions="true"
+    canGetAndSetFMUstate="false"
+    canSerializeFMUstate="false"
+    providesDirectionalDerivative="false"
+    needsExecutionTool="false">
+  </CoSimulation>
+
+  <LogCategories>
+    <Category name="fmucontainer"/>
+  </LogCategories>
+
+  <DefaultExperiment stepSize="0.001" startTime="0.0" stopTime="10.0"/>
+
+  <ModelVariables>
+<ScalarVariable valueReference="0" name="container.bb_position.rt_ratio" causality="local"><Real /></ScalarVariable>
+<ScalarVariable valueReference="1" name="container.bb_velocity.rt_ratio" causality="local"><Real /></ScalarVariable>
+    <ScalarVariable name="bb_position.is_ground" valueReference="0" causality="local" variability="discrete" description="is_ground" initial="calculated"><Boolean/></ScalarVariable>
+    <ScalarVariable name="bb_velocity.velocity" valueReference="2" causality="local" variability="continuous" description="velocity" initial="calculated"><Real/></ScalarVariable>
+    <ScalarVariable name="position" valueReference="3" causality="output" variability="continuous" description="position1" initial="calculated"><Real/></ScalarVariable>
+    <ScalarVariable name="velocity" valueReference="4" causality="output" variability="continuous" description="velocity" initial="calculated"><Real/></ScalarVariable>
+  </ModelVariables>
+
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="3"/>
+      <Unknown index="4"/>
+    </Outputs>
+    <InitialUnknowns>
+      <Unknown index="3"/>
+      <Unknown index="4"/>
+    </InitialUnknowns>
+  </ModelStructure>
+
+</fmiModelDescription>
