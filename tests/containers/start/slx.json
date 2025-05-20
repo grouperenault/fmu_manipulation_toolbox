@@ -1,0 +1,8 @@
+{
+  "name": "container-slx.fmu",
+  "fmu": [ "slx.fmu" ],
+  "auto_parameter":true,
+  "start": [
+    ["slx.fmu", "g_1", 10.0]
+  ]
+}

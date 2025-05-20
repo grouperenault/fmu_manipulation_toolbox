@@ -6,11 +6,11 @@
 0.1
 # NB of embedded FMU's
 1
-G.fmu
+slx.fmu
 G
 {6853134c-427d-44a3-ac7a-36eca9552797}
 # NB local variables Real, Integer, Boolean, String
-0 0 0 0 
+0 0 0 0
 # CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
 # Real
 2 2
@@ -22,28 +22,28 @@ G
 0 0
 # String
 0 0
-# Inputs of G.fmu - Real: <VR> <FMU_VR>
+# Inputs of slx.fmu - Real: <VR> <FMU_VR>
 0
-# Inputs of G.fmu - Integer: <VR> <FMU_VR>
+# Inputs of slx.fmu - Integer: <VR> <FMU_VR>
 0
-# Inputs of G.fmu - Boolean: <VR> <FMU_VR>
+# Inputs of slx.fmu - Boolean: <VR> <FMU_VR>
 0
-# Inputs of G.fmu - String: <VR> <FMU_VR>
+# Inputs of slx.fmu - String: <VR> <FMU_VR>
 0
-# Start values of G.fmu - Real: <FMU_VR> <VALUE>
+# Start values of slx.fmu - Real: <FMU_VR> <VALUE>
 1
 2 10.0
-# Start values of G.fmu - Integer: <FMU_VR> <VALUE>
+# Start values of slx.fmu - Integer: <FMU_VR> <VALUE>
 0
-# Start values of G.fmu - Boolean: <FMU_VR> <VALUE>
+# Start values of slx.fmu - Boolean: <FMU_VR> <VALUE>
 0
-# Start values of G.fmu - String: <FMU_VR> <VALUE>
+# Start values of slx.fmu - String: <FMU_VR> <VALUE>
 0
-# Outputs of G.fmu - Real: <VR> <FMU_VR>
+# Outputs of slx.fmu - Real: <VR> <FMU_VR>
 0
-# Outputs of G.fmu - Integer: <VR> <FMU_VR>
+# Outputs of slx.fmu - Integer: <VR> <FMU_VR>
 0
-# Outputs of G.fmu - Boolean: <VR> <FMU_VR>
+# Outputs of slx.fmu - Boolean: <VR> <FMU_VR>
 0
-# Outputs of G.fmu - String: <VR> <FMU_VR>
+# Outputs of slx.fmu - String: <VR> <FMU_VR>
 0
