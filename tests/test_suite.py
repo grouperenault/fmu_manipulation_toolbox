@@ -117,6 +117,14 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files("containers/arch/REF-reversed-dump.json",
                                     "containers/arch/reversed-dump.json")
 
+    def test_container_start(self):
+        assembly = Assembly("g.json", fmu_directory=Path("containers/start"), debug=True)
+        assembly.make_fmu()
+        self.assert_identical_files("containers/start/REF-container.txt",
+                                    "containers/start/container-g/resources/container.txt")
+        self.assert_identical_files_but_guid("containers/start/REF-modelDescription.xml",
+                                             "containers/start/container-g/modelDescription.xml")
+
     def test_container_move(self):
         #bb = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"))
         #links = bb.root.get_fmu_connections("bb_position.fmu")

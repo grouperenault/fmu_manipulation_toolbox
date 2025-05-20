@@ -41,3 +41,5 @@ tests/containers/arch/sub.fmu
 /tests/containers/bouncing_ball/bouncing-profiling/
 tests/containers/bouncing_ball/bouncing-profiling.fmu
 tests/containers/bouncing_ball/bouncing-profiling.json
+tests/containers/start/container-g
+tests/containers/start/container-g.fmu

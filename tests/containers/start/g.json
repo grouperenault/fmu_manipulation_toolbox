@@ -1,0 +1,8 @@
+{
+  "name": "container-g.fmu",
+  "fmu": [ "G.fmu" ],
+  "auto_parameter":true,
+  "start": [
+    ["G.fmu", "g_1", 10.0]
+  ]
+}
