@@ -293,8 +293,7 @@ static int read_conf_fmu_start_values_ ## type (fmu_io_t *fmu_io, config_file_t*
     if (get_line(file)) \
         return -1; \
 \
-    fmu_io->start_ ## type .vr = NULL; \
-    fmu_io->start_ ## type .values = NULL; \
+    fmu_io->start_ ## type .start_values = NULL; \
     fmu_io->start_ ## type .nb = 0; \
 \
     if (sscanf(file->line, "%d", &fmu_io->start_ ## type .nb) < 1) \
@@ -303,19 +302,18 @@ static int read_conf_fmu_start_values_ ## type (fmu_io_t *fmu_io, config_file_t*
     if (fmu_io->start_ ## type .nb == 0) \
         return 0; \
 \
-    fmu_io->start_ ## type .vr = malloc(fmu_io->start_ ## type .nb * sizeof(*fmu_io->start_ ## type .vr)); \
-    if (! fmu_io->start_ ## type .vr) \
-        return -3; \
-    fmu_io->start_ ## type .values = malloc(fmu_io->start_ ## type .nb * sizeof(*fmu_io->start_ ## type .values)); \
-    if (! fmu_io->start_ ## type .values) \
+    fmu_io->start_ ## type .start_values = malloc(fmu_io->start_ ## type .nb * sizeof(*fmu_io->start_ ## type .start_values)); \
+    if (! fmu_io->start_ ## type .start_values) \
         return -3; \
 \
     for (fmi2ValueReference i = 0; i < fmu_io->start_ ## type .nb; i += 1) { \
         if (get_line(file)) \
             return -4; \
 \
-       if (sscanf(file->line, "%d " format, &fmu_io->start_ ## type .vr[i], \
-         &fmu_io->start_ ## type . values[i]) < 2) \
+       if (sscanf(file->line, "%d %d " format, \
+         &fmu_io->start_ ## type .start_values[i].vr, \
+         &fmu_io->start_ ## type .start_values[i].reset, \
+         &fmu_io->start_ ## type .start_values[i].value) < 3) \
             return -5; \
     } \
 \
@@ -351,8 +349,7 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
     if (get_line(file))
         return -1;
 
-    fmu_io->start_strings.vr = NULL;
-    fmu_io->start_strings.values = NULL;
+    fmu_io->start_strings.start_values = NULL;
     fmu_io->start_strings.nb = 0;
     
 
@@ -362,16 +359,12 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
     if (fmu_io->start_strings.nb == 0)
         return 0;
                     
-    fmu_io->start_strings.vr = malloc(fmu_io->start_strings.nb * sizeof(*fmu_io->start_strings.vr));
-    if (!fmu_io->start_strings.vr)
-        return -3;
-
-    fmu_io->start_strings.values = malloc(fmu_io->start_strings.nb * sizeof(*fmu_io->start_strings.values));
-    if (!fmu_io->start_strings.values)
+    fmu_io->start_strings.start_values = malloc(fmu_io->start_strings.nb * sizeof(*fmu_io->start_strings.start_values));
+    if (!fmu_io->start_strings.start_values)
         return -3;
                             
     for (fmi2ValueReference i = 0; i < fmu_io->start_strings.nb; i += 1)
-        fmu_io->start_strings.values[i] = NULL; /* in case on ealry fmuFreeInstance() */
+        fmu_io->start_strings.start_values[i].value = NULL; /* in case on ealry fmuFreeInstance() */
 
     for (fmi2ValueReference i = 0; i < fmu_io->start_strings.nb; i += 1) {
         char buffer[CONFIG_FILE_SZ];
@@ -381,8 +374,10 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
             return -4;
     
         char *value_string = string_token(file->line);
-        fmu_io->start_strings.vr[i] = strtoul(file->line, NULL, 10);
-        fmu_io->start_strings.values[i] = strdup(value_string);
+        if (sscanf(file->line, "%d %d", &fmu_io->start_strings.start_values[i].vr, &fmu_io->start_strings.start_values[i].reset) < 2) {
+            return -5;
+        }
+        fmu_io->start_strings.start_values[i].value = strdup(value_string);
     }
 
     return 0;
@@ -680,17 +675,13 @@ void fmi2FreeInstance(fmi2Component c) {
                 free(container->fmu[i].fmu_io.booleans.out.translations);
                 free(container->fmu[i].fmu_io.strings.out.translations);
 
-                free(container->fmu[i].fmu_io.start_reals.values);
-                free(container->fmu[i].fmu_io.start_reals.vr);
-                free(container->fmu[i].fmu_io.start_integers.values);
-                free(container->fmu[i].fmu_io.start_integers.vr);
-                free(container->fmu[i].fmu_io.start_booleans.values);
-                free(container->fmu[i].fmu_io.start_booleans.vr);
+                free(container->fmu[i].fmu_io.start_reals.start_values);
+                free(container->fmu[i].fmu_io.start_integers.start_values);
+                free(container->fmu[i].fmu_io.start_booleans.start_values);
 
                 for (int j = 0; j < container->fmu[i].fmu_io.start_strings.nb; j += 1)
-                    free((char *)container->fmu[i].fmu_io.start_strings.values[j]);
-                free(container->fmu[i].fmu_io.start_strings.values);
-                free(container->fmu[i].fmu_io.start_strings.vr);
+                    free((char *)container->fmu[i].fmu_io.start_strings.start_values[j].value);
+                free(container->fmu[i].fmu_io.start_strings.start_values);
             }
 
             free(container->fmu);
@@ -720,6 +711,26 @@ void fmi2FreeInstance(fmi2Component c) {
 }
 
 
+static void container_set_start_values(container_t* container, int initialized) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+#define SET_START(fmi_type, type) \
+        for(fmi2ValueReference j=0; j<container->fmu[i].fmu_io.start_ ## type .nb; j ++) { \
+            if (initialized || container->fmu[i].fmu_io.start_ ## type.start_values[j].reset) \
+                fmuSet ## fmi_type(&container->fmu[i], &container->fmu[i].fmu_io.start_ ## type.start_values[j].vr, 1, \
+                    &container->fmu[i].fmu_io.start_ ## type.start_values[j].value); \
+        }
+ 
+    SET_START(Real, reals);
+        SET_START(Integer, integers);
+        SET_START(Boolean, booleans);
+        SET_START(String, strings);
+#undef SET_START
+    }
+
+        return;
+}
+
+
 fmi2Status fmi2SetupExperiment(fmi2Component c,
     fmi2Boolean toleranceDefined,
     fmi2Real tolerance,
@@ -732,20 +743,6 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
        container->tolerance = tolerance;
 
     for(int i=0; i < container->nb_fmu; i += 1) {
-        /*
-         * Set start values!
-         */
-#define SET_START(fmi_type, type) \
-        if (container->fmu[i].fmu_io.start_ ## type .nb > 0) { \
-            fmuSet ## fmi_type (&container->fmu[i], container->fmu[i].fmu_io.start_ ## type .vr, \
-            container->fmu[i].fmu_io.start_ ## type .nb, container->fmu[i].fmu_io.start_ ## type .values); \
-        }
-        SET_START(Real, reals);
-        SET_START(Integer, integers);
-        SET_START(Boolean, booleans);
-        SET_START(String, strings);
-#undef SET_START
-
         fmi2Status status = fmuSetupExperiment(&container->fmu[i],
                                                toleranceDefined, tolerance,
                                                startTime,
@@ -764,11 +761,15 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
 fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
     container_t* container = (container_t*)c;
 
+    container_set_start_values(container, 0);
+
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmi2Status status = fmuEnterInitializationMode(&container->fmu[i]);
         if (status != fmi2OK)
             return status;
     }
+
+    container_set_start_values(container, 1);
 
     return fmi2OK;
 }

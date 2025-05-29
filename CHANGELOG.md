@@ -1,6 +1,9 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.8.4.2
+* FIXED: `fmucontainer` re-set start values for causality=input after fmi2EnterInitialization as workaround for some FMUs.
+
 # Version 1.8.4.1
 * FIXED: `fmucontainer` store embedded FMUs into shorter named directories to avoid windows-long-path-issue
 * FIXED: `fmucontainer` can refer to FMU located in subdirectory

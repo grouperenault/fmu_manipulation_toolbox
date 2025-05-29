@@ -36,13 +36,13 @@ bb_velocity
 0
 # Inputs of bb_position.fmu - String: <VR> <FMU_VR>
 0
-# Start values of bb_position.fmu - Real: <FMU_VR> <VALUE>
+# Start values of bb_position.fmu - Real: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of bb_position.fmu - Integer: <FMU_VR> <VALUE>
+# Start values of bb_position.fmu - Integer: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of bb_position.fmu - Boolean: <FMU_VR> <VALUE>
+# Start values of bb_position.fmu - Boolean: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of bb_position.fmu - String: <FMU_VR> <VALUE>
+# Start values of bb_position.fmu - String: <FMU_VR> <RESET> <VALUE>
 0
 # Outputs of bb_position.fmu - Real: <VR> <FMU_VR>
 0
@@ -62,13 +62,13 @@ bb_velocity
 0 0
 # Inputs of bb_velocity.fmu - String: <VR> <FMU_VR>
 0
-# Start values of bb_velocity.fmu - Real: <FMU_VR> <VALUE>
+# Start values of bb_velocity.fmu - Real: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of bb_velocity.fmu - Integer: <FMU_VR> <VALUE>
+# Start values of bb_velocity.fmu - Integer: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of bb_velocity.fmu - Boolean: <FMU_VR> <VALUE>
+# Start values of bb_velocity.fmu - Boolean: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of bb_velocity.fmu - String: <FMU_VR> <VALUE>
+# Start values of bb_velocity.fmu - String: <FMU_VR> <RESET> <VALUE>
 0
 # Outputs of bb_velocity.fmu - Real: <VR> <FMU_VR>
 1

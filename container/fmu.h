@@ -36,43 +36,25 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
-              F M U _ S T A R T _ R E A L S _ T
+              F M U _ S T A R T _ xxx _ T
 ----------------------------------------------------------------------------*/
-typedef struct {
-    fmi2ValueReference          nb;
-    fmi2ValueReference          *vr;
-    fmi2Real                    *values;
-} fmu_start_reals_t;
 
+#define DECLARE_START_TYPE(name, type) \
+typedef struct { \
+    fmi2ValueReference          nb; \
+    struct { \
+        fmi2ValueReference      vr; \
+        int                     reset; \
+        type                    value; \
+    } *start_values; \
+} fmu_start_ ## name ## _t
 
-/*----------------------------------------------------------------------------
-              F M U _ S T A R T _ I N T E G E R S _ T
-----------------------------------------------------------------------------*/
-typedef struct {
-    fmi2ValueReference          nb;
-    fmi2ValueReference          *vr;
-    fmi2Integer                 *values;
-} fmu_start_integers_t;
+DECLARE_START_TYPE(reals, fmi2Real);
+DECLARE_START_TYPE(integers, fmi2Integer);
+DECLARE_START_TYPE(booleans, fmi2Boolean);
+DECLARE_START_TYPE(strings, fmi2String);
 
-
-/*----------------------------------------------------------------------------
-              F M U _ S T A R T _ B O O L E A N S _ T
-----------------------------------------------------------------------------*/
-typedef struct {
-    fmi2ValueReference          nb;
-    fmi2ValueReference          *vr;
-    fmi2Boolean                 *values;
-} fmu_start_booleans_t;
-
-
-/*----------------------------------------------------------------------------
-              F M U _ S T A R T _ S T R I N G S _ T
-----------------------------------------------------------------------------*/
-typedef struct {
-    fmi2ValueReference          nb;
-    fmi2ValueReference          *vr;
-    fmi2String                  *values;
-} fmu_start_strings_t;
+#undef DECLARE_TYPE_START
 
 
 /*----------------------------------------------------------------------------
@@ -139,8 +121,8 @@ typedef struct {
 #   define FMU_PATH_MAX_LEN 4096
 
 typedef struct {
-    char                        *name;               /* based on directory */
-    int                         index;
+    char                        *name; /* based on directory */
+    int                         index; /* index of this FMU in container */
 	library_t                   library;
 	char						resource_dir[FMU_PATH_MAX_LEN];
 	char						*guid;

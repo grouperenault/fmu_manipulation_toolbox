@@ -30,14 +30,14 @@ G
 0
 # Inputs of slx.fmu - String: <VR> <FMU_VR>
 0
-# Start values of slx.fmu - Real: <FMU_VR> <VALUE>
+# Start values of slx.fmu - Real: <FMU_VR> <RESET> <VALUE>
 1
-2 10.0
-# Start values of slx.fmu - Integer: <FMU_VR> <VALUE>
+2 0 10.0
+# Start values of slx.fmu - Integer: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of slx.fmu - Boolean: <FMU_VR> <VALUE>
+# Start values of slx.fmu - Boolean: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of slx.fmu - String: <FMU_VR> <VALUE>
+# Start values of slx.fmu - String: <FMU_VR> <RESET> <VALUE>
 0
 # Outputs of slx.fmu - Real: <VR> <FMU_VR>
 0

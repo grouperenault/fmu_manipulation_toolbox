@@ -683,10 +683,11 @@ class FMUContainer:
                     print(f"{vr} {cport.port.vr}", file=txt_file)
 
             for type_name in type_names_list:
-                print(f"# Start values of {fmu.name} - {type_name}: <FMU_VR> <VALUE>", file=txt_file)
+                print(f"# Start values of {fmu.name} - {type_name}: <FMU_VR> <RESET> <VALUE>", file=txt_file)
                 print(len(start_values_fmu_per_type[type_name][fmu.name]), file=txt_file)
                 for cport, value in start_values_fmu_per_type[type_name][fmu.name].items():
-                    print(f"{cport.port.vr} {value}", file=txt_file)
+                    reset = 1 if cport.port.causality == "input" else 0
+                    print(f"{cport.port.vr} {reset} {value}", file=txt_file)
 
             for type_name in type_names_list:
                 print(f"# Outputs of {fmu.name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
