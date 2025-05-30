@@ -15,6 +15,22 @@ thread_t thread_new(thread_function_t function, void *data) {
 }
 
 
+void thread_join(thread_t thread) {
+#ifdef WIN32
+    WaitForSingleObject(thread, INFINITE);
+    CloseHandle(thread);
+#else
+    pthread_join(thread, NULL);
+#endif
+
+
+    
+#ifdef WIN32
+    
+#endif
+}
+
+
 mutex_t thread_mutex_new(void) {
 #ifdef WIN32
     return CreateEventA(NULL, FALSE, FALSE, NULL);

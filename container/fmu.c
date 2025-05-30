@@ -186,18 +186,8 @@ void fmu_unload(fmu_t *fmu) {
     fmu->cancel = 1;
     thread_mutex_unlock(&fmu->mutex_container);
     thread_mutex_lock(&fmu->mutex_fmu);
-#ifdef WIN32
-    WaitForSingleObject(fmu->thread, INFINITE);
-#else
-    pthread_join(fmu->thread, NULL);
-#endif
-
 
     /* Free resources linked to threading */
-#ifdef WIN32
-    CloseHandle(fmu->thread);
-#endif
-
     thread_mutex_free(&fmu->mutex_fmu);
     thread_mutex_free(&fmu->mutex_container);
 

@@ -26,8 +26,9 @@ typedef void *(*thread_function_t)(void *);
 ----------------------------------------------------------------------------*/
 
 extern thread_t thread_new(thread_function_t function, void *data);
+extern void thread_join(thread_t thread);
 extern mutex_t thread_mutex_new(void);
-void thread_mutex_free(mutex_t *mutex);
+extern void thread_mutex_free(mutex_t *mutex);
 extern void thread_mutex_lock(mutex_t *mutex);
 extern void thread_mutex_unlock(mutex_t *mutex);
 
