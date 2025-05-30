@@ -1,6 +1,9 @@
 #ifndef PROFILE_H
 #   define PROFILE_H
 
+#	ifdef __cplusplus
+extern "C" {
+#	endif
 
 /*-----------------------------------------------------------------------------
                               P R O F I L E _ T
@@ -23,4 +26,7 @@ extern void profile_free(profile_t *profile);
 extern void profile_tic(profile_t *profile);
 extern double profile_toc(profile_t *profile, double current_time);
 
+#	ifdef __cplusplus
+}
+#	endif
 #endif

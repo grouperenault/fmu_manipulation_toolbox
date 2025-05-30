@@ -37,5 +37,4 @@ extern void library_unload(library_t library);
 #	ifdef __cplusplus
 }
 #	endif
-
 #endif

@@ -1,11 +1,16 @@
 #ifndef FMU_H
 #   define FMU_H
 
+#	ifdef __cplusplus
+extern "C" {
+#	endif
+
 #   include "fmi2Functions.h"
 #   include "container.h"
 #   include "library.h"
 #   include "profile.h"
 #   include "thread.h"
+
 
 
 /*----------------------------------------------------------------------------
@@ -197,4 +202,7 @@ extern fmi2Status fmi2GetBooleanStatus(fmi2Component c, const fmi2StatusKind s, 
 extern fmi2Status fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real* value);
 extern fmi2Status fmuGetBooleanStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Boolean* value);
 
+#	ifdef __cplusplus
+}
+#	endif
 #endif

@@ -1,6 +1,10 @@
 #ifndef THREAD_H
 #   define THREAD_H
 
+#	ifdef __cplusplus
+extern "C" {
+#	endif
+
 #   ifdef WIN32
 #       include <windows.h>
 #   else
@@ -27,4 +31,7 @@ void thread_mutex_free(mutex_t *mutex);
 extern void thread_mutex_lock(mutex_t *mutex);
 extern void thread_mutex_unlock(mutex_t *mutex);
 
+#	ifdef __cplusplus
+}
+#	endif
 #endif
