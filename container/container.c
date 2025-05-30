@@ -184,9 +184,9 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
     if (sscanf(file->line, "%d %d", &container->nb_ports_ ## type, &nb_links) < 2) \
         return -1; \
     if (container->nb_ports_ ## type > 0) { \
-        container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ##type)); \
+        container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ## type)); \
         container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->port_ ##type)); \
-        if (!container->vr_ ## type) \
+        if ((!container->vr_ ## type) || (!container->port_ ## type)) \
             return -2; \
         int vr_counter = 0; \
         for (fmi2ValueReference i = 0; i < container->nb_ports_ ## type; i += 1) { \
@@ -204,8 +204,8 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
             port.links = &container->vr_ ## type [vr_counter]; \
             for(int j=0; j < port.nb; j += 1) { \
                 int read; \
-                if (vr_counter > nb_links) {\
-                    logger(fmi2Fatal, "Read %d links", vr_counter); \
+                if (vr_counter >= nb_links) {\
+                    logger(fmi2Fatal, "Read %d links for %d expected.", vr_counter, nb_links); \
                     return -7; \
                 }\
 \
@@ -975,7 +975,7 @@ GETTER(strings, String);
 
 
 static fmi2Status do_internal_step_serie(container_t *container, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
-    fmi2Status status;
+    fmi2Status status = fmi2OK;;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
