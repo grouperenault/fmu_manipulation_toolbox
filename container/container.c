@@ -711,23 +711,27 @@ void fmi2FreeInstance(fmi2Component c) {
 }
 
 
-static void container_set_start_values(container_t* container, int initialized) {
+static void container_set_start_values(container_t* container, int early_set) {
+    if (early_set)
+        logger(fmi2OK, "Setting start values...");
+    else
+        logger(fmi2OK, "Re-setting some start values...");
     for (int i = 0; i < container->nb_fmu; i += 1) {
 #define SET_START(fmi_type, type) \
         for(fmi2ValueReference j=0; j<container->fmu[i].fmu_io.start_ ## type .nb; j ++) { \
-            if (initialized || container->fmu[i].fmu_io.start_ ## type.start_values[j].reset) \
+            if (early_set || container->fmu[i].fmu_io.start_ ## type.start_values[j].reset) \
                 fmuSet ## fmi_type(&container->fmu[i], &container->fmu[i].fmu_io.start_ ## type.start_values[j].vr, 1, \
                     &container->fmu[i].fmu_io.start_ ## type.start_values[j].value); \
         }
  
-    SET_START(Real, reals);
+        SET_START(Real, reals);
         SET_START(Integer, integers);
         SET_START(Boolean, booleans);
         SET_START(String, strings);
 #undef SET_START
     }
-
-        return;
+    logger(fmi2OK, "Start values are set.");
+    return;
 }
 
 
@@ -753,7 +757,9 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
     }
 
     container->time = startTime;
+    container_set_start_values(container, 1);
     logger(fmi2OK, "fmi2SetupExperiment -- OK");
+
     return fmi2OK;
 }
 
@@ -761,15 +767,13 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
 fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
     container_t* container = (container_t*)c;
 
-    container_set_start_values(container, 0);
-
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmi2Status status = fmuEnterInitializationMode(&container->fmu[i]);
         if (status != fmi2OK)
             return status;
     }
 
-    container_set_start_values(container, 1);
+    container_set_start_values(container, 0);
 
     return fmi2OK;
 }
@@ -860,7 +864,7 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
             const int fmu_id = port->links[j].fmu_id; \
 \
             if (fmu_id < 0) {\
-                 container-> type [vr[i]] = value[i]; \
+                container-> type [vr[i]] = value[i]; \
             } else { \
                 const fmu_t* fmu = &container->fmu[fmu_id]; \
                 const fmi2ValueReference fmu_vr = port->links[j].fmu_vr; \
@@ -962,6 +966,7 @@ static fmi2Status do_step_get_outputs(container_t* container, int fmu_id) {
 GETTER(reals, Real);
 GETTER(integers, Integer);
 GETTER(booleans, Boolean);
+GETTER(strings, String);
 
 #undef GETTER
 
