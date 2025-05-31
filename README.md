@@ -12,12 +12,21 @@ FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers. (see 
 
 Two options available to install FMU Manipulation Toolbox:
 
-- (Easiest option) Install with from PyPI: `python -m pip install fmu_manipulation`
+- (*Easiest option*) Install with from PyPI: `pip install fmu-manipulation-toolbox`. This will install the latest
+  version of FMU Manipulation Toolbox and all its dependencies. See [PyPI page](https://pypi.org/project/fmu-manipulation-toolbox/).
 - Compile and install from [github repository](https://github.com/grouperenault/fmu_manipulation_toolbox). You will need 
-  - Python required packages. See `requirements.txt`.
-  - C compiler
+  - Python required packages. See [`requirements.txt`](requirements.txt).
+  - C compiler (C99 or later)
+  - CMake (>= 3.16)
 
-    
+### Supported platforms
+FMU Manipulation Toolbox is tested on:
+- Windows 10/11
+- Linux (Ubuntu 22.04)
+
+Compilation is reported to work on:
+- MacOS (Apple Silicon and Intel)
+
 ## Graphical User Interface
 
 FMU Manipulation Toolbox is released with a GUI. You can launch it with the following command `fmutool`
