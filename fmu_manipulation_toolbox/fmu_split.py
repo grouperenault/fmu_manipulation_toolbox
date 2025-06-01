@@ -8,15 +8,16 @@ from pathlib import Path
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
-class UNcontainerError(Exception):
+
+class FMUSplitterError(Exception):
     def __init__(self, message: str):
         self.message = message
 
-def __str__(self):
-    return str(self.message)
+    def __str__(self):
+        return str(self.message)
 
 
-class UNcontainerPort:
+class FMUSplitterPort:
     def __init__(self, fmu_filename: str, port_name):
         self.fmu_filename = fmu_filename
         self.port_name = port_name
@@ -25,28 +26,17 @@ class UNcontainerPort:
         return f"{self.fmu_filename}/{self.port_name}"
 
 
-class UNcontainerLink:
+class FMUSplitterLink:
     def __init__(self):
-        self.from_port: Optional[UNcontainerPort] = None
-        self.to_port: List[UNcontainerPort] = []
+        self.from_port: Optional[FMUSplitterPort] = None
+        self.to_port: List[FMUSplitterPort] = []
 
     def __str__(self):
         to_str = ", ".join([f"{port}" for port in self.to_port])
         return f"{self.from_port} -> {to_str}"
 
 
-class UNcontainerStart:
-    def __init__(self, fmu_filename: str, port_name: str, value: Any):
-        self.port = UNcontainerPort(fmu_filename, port_name)
-        self.value = value
-
-
-class UNcontainer:
-    """
-    UNcontainer is a class that provides methods to uncontainer FMU Containers.
-    It is used by the command line tool `uncontainer`.
-    """
-
+class FMUSplitter:
     def __init__(self, fmu_filename: str):
         self.fmu_filename = Path(fmu_filename)
         self.directory = self.fmu_filename.with_suffix(".dir")
@@ -55,10 +45,10 @@ class UNcontainer:
         self.dir_set = self.get_dir_set()
 
         if "resources/container.txt" not in self.filenames_list:
-                raise UNcontainerError(f"FMU file {self.fmu_filename} is not an FMU Container.")
+                raise FMUSplitterError(f"FMU file {self.fmu_filename} is not an FMU Container.")
 
         self.directory.mkdir(exist_ok=True)
-        logger.info(f"UNcontainer '{self.fmu_filename}' into '{self.directory}'")
+        logger.info(f"Preparing to split '{self.fmu_filename}' into '{self.directory}'")
 
     def get_dir_set(self) -> Set[str]:
         dir_set = set()
@@ -71,18 +61,18 @@ class UNcontainer:
         self.zip.close()
 
     def split_fmu(self):
-        logger.info(f"Splitting {self.fmu_filename}...")
+        logger.info(f"Splitting...")
         config = self._split_fmu(fmu_filename=str(self.fmu_filename), relative_path="")
         config_filename = self.directory / self.fmu_filename.with_suffix(".json")
         with open(config_filename, "w") as file:
             json.dump(config, file, indent=2)
-        logger.info(f"Configuration saved to '{config_filename}'")
+        logger.info(f"Container definition saved to '{config_filename}'")
 
     def _split_fmu(self, fmu_filename: str, relative_path: str) -> Dict[str, Any]:
         txt_filename = f"{relative_path}resources/container.txt"
 
         if txt_filename in self.filenames_list:
-            description = Description(self.zip)
+            description = FMUSplitterDescription(self.zip)
             config = description.parse_txt_file(txt_filename)
             config["name"] = fmu_filename
             for i, fmu_filename in enumerate(config["candidate_fmu"]):
@@ -117,10 +107,10 @@ class UNcontainer:
         logger.info(f"FMU Extraction of '{filename}'")
 
 
-class Description:
+class FMUSplitterDescription:
     def __init__(self, zip):
         self.zip = zip
-        self.links: Dict[str, Dict[int, UNcontainerLink]] = {
+        self.links: Dict[str, Dict[int, FMUSplitterLink]] = {
             "Real": {},
             "Integer": {},
             "Boolean": {},
@@ -189,7 +179,7 @@ class Description:
     def parse_txt_file_header(self, file, txt_filename):
         self.config["mt"] = self.get_line(file) == "1"
         self.config["profiling"] = self.get_line(file) == "1"
-        self.config["time_step"] = float(self.get_line(file))
+        self.config["step_size"] = float(self.get_line(file))
         nb_fmu = int(self.get_line(file))
         logger.debug(f"Number of FMUs: {nb_fmu}")
         self.config["candidate_fmu"] = []
@@ -225,7 +215,6 @@ class Description:
             logger.debug(f"Adding container port {causality}: {definition}")
 
     def parse_txt_file_ports(self, file):
-        self.config["candidate_port"] = []
         for fmi_type in ("Real", "Integer", "Boolean", "String"):
             nb_port_variables, _ = self.get_line(file).split(" ")
             for i in range(int(nb_port_variables)):
@@ -260,9 +249,9 @@ class Description:
                         try:
                             link = self.links[fmi_type][local]
                         except KeyError:
-                            link = UNcontainerLink()
+                            link = FMUSplitterLink()
                             self.links[fmi_type][local] = link
-                        link.to_port.append(UNcontainerPort(fmu_filename,
+                        link.to_port.append(FMUSplitterPort(fmu_filename,
                                                             self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]))
 
                 for fmi_type in ("Real", "Integer", "Boolean", "String"):
@@ -271,10 +260,12 @@ class Description:
                         tokens = self.get_line(file).split(" ")
                         vr = tokens[0]
                         value = tokens[-1]
-                        start = UNcontainerStart(fmu_filename,
-                                                 self.vr_to_name[fmu_filename][fmi_type][vr]["name"],
-                                                 value)
-                        logger.error(start)
+                        start_definition = [fmu_filename, self.vr_to_name[fmu_filename][fmi_type][vr]["name"],
+                                            value]
+                        try:
+                            self.config["sart"].append(start_definition)
+                        except KeyError:
+                            self.config["sart"] = [start_definition]
 
                 # Output per FMUs
                 for fmi_type in ("Real", "Integer", "Boolean", "String"):
@@ -284,9 +275,9 @@ class Description:
                         try:
                             link = self.links[fmi_type][local]
                         except KeyError:
-                            link = UNcontainerLink()
+                            link = FMUSplitterLink()
                             self.links[fmi_type][local] = link
-                        link.from_port = UNcontainerPort(fmu_filename,
+                        link.from_port = FMUSplitterPort(fmu_filename,
                                                          self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"])
 
             logger.debug("End of parsing.")
