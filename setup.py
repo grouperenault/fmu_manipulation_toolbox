@@ -40,8 +40,11 @@ setup(
         "resources/*.png",
         "resources/fmi-2.0/*.xsd",
     ]},
-    entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.__main__:main",
-                                      "fmucontainer = fmu_manipulation_toolbox.cli:fmucontainer"],
+    entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.cli:fmutool",
+                                      "fmucontainer = fmu_manipulation_toolbox.cli:fmucontainer",
+                                      "uncontainer = fmu_manipulation_toolbox.cli:uncontainer"
+                                      ],
+                    "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui:main"]
                   },
     author=author,
     url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
