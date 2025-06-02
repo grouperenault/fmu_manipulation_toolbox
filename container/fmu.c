@@ -147,7 +147,22 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->container = container;
     fmu->name = strdup(name);
     fmu->index = i;
-    
+
+    fmu->fmu_io.reals.in.translations = NULL;
+    fmu->fmu_io.integers.in.translations = NULL;
+    fmu->fmu_io.booleans.in.translations = NULL;
+    fmu->fmu_io.strings.in.translations = NULL;
+
+    fmu->fmu_io.reals.out.translations = NULL;
+    fmu->fmu_io.integers.out.translations = NULL;
+    fmu->fmu_io.booleans.out.translations = NULL;
+    fmu->fmu_io.strings.out.translations = NULL;
+
+    fmu->fmu_io.start_reals.start_values = NULL;
+    fmu->fmu_io.start_integers.start_values = NULL;
+    fmu->fmu_io.start_booleans.start_values = NULL;
+    fmu->fmu_io.start_strings.start_values = NULL;
+
     char library_filename[FMU_PATH_MAX_LEN];
 
     fmu->guid = strdup(guid);
@@ -186,6 +201,8 @@ void fmu_unload(fmu_t *fmu) {
     fmu->cancel = 1;
     thread_mutex_unlock(&fmu->mutex_container);
     thread_mutex_lock(&fmu->mutex_fmu);
+    
+    thread_join(fmu->thread);
 
     /* Free resources linked to threading */
     thread_mutex_free(&fmu->mutex_fmu);
