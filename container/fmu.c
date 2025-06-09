@@ -69,9 +69,8 @@ static int fmu_do_step_thread(fmu_t* fmu) {
  */
 static int fmu_map_functions(fmu_t *fmu){
 
-#define OPT_MAP(x) fmu->fmi_functions.x = (x ## TYPE*)library_symbol(fmu->library, #x)
-#define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.x) return -1
-
+#define OPT_MAP(x) fmu->fmi_functions.version_2.x = (x ## TYPE*)library_symbol(fmu->library, #x)
+#define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_2.x) return -1
     OPT_MAP(fmi2GetTypesPlatform);
     OPT_MAP(fmi2GetVersion);
     OPT_MAP(fmi2SetDebugLogging);
@@ -106,7 +105,76 @@ static int fmu_map_functions(fmu_t *fmu){
     OPT_MAP(fmi2GetIntegerStatus);
     REQ_MAP(fmi2GetBooleanStatus);
     OPT_MAP(fmi2GetStringStatus);
-#undef MAP
+#undef OPT_MAP
+#undef REQ_MAP
+
+#define OPT_MAP(x) fmu->fmi_functions.version_3.x = (x ## TYPE*)library_symbol(fmu->library, #x)
+#define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_3.x) return -1
+    OPT_MAP(fmi3GetVersion);
+    OPT_MAP(fmi3SetDebugLogging);
+    OPT_MAP(fmi3InstantiateCoSimulation);
+    OPT_MAP(fmi3FreeInstance);
+    OPT_MAP(fmi3EnterInitializationMode);
+    OPT_MAP(fmi3ExitInitializationMode);
+    OPT_MAP(fmi3EnterEventMode);
+    OPT_MAP(fmi3Terminate);
+    OPT_MAP(fmi3Reset);
+    OPT_MAP(fmi3GetFloat32);
+    OPT_MAP(fmi3GetFloat64);
+    OPT_MAP(fmi3GetInt8);
+    OPT_MAP(fmi3GetUInt8);
+    OPT_MAP(fmi3GetInt16);        
+    OPT_MAP(fmi3GetUInt16);
+    OPT_MAP(fmi3GetInt32);
+    OPT_MAP(fmi3GetUInt32);
+    OPT_MAP(fmi3GetInt64);        
+    OPT_MAP(fmi3GetUInt64);
+    OPT_MAP(fmi3GetBoolean);
+    OPT_MAP(fmi3GetString);
+    OPT_MAP(fmi3GetBinary);
+    OPT_MAP(fmi3GetClock);
+    OPT_MAP(fmi3SetFloat32);
+    OPT_MAP(fmi3SetFloat64);
+    OPT_MAP(fmi3SetInt8);
+    OPT_MAP(fmi3SetUInt8);
+    OPT_MAP(fmi3SetInt16);        
+    OPT_MAP(fmi3SetUInt16);
+    OPT_MAP(fmi3SetInt32);
+    OPT_MAP(fmi3SetUInt32);
+    OPT_MAP(fmi3SetInt64);        
+    OPT_MAP(fmi3SetUInt64);
+    OPT_MAP(fmi3SetBoolean);
+    OPT_MAP(fmi3SetString);
+    OPT_MAP(fmi3SetBinary);
+    OPT_MAP(fmi3SetClock);
+    OPT_MAP(fmi3GetNumberOfVariableDependencies);
+    OPT_MAP(fmi3GetVariableDependencies);
+    OPT_MAP(fmi3GetFMUState);
+    OPT_MAP(fmi3SetFMUState);
+    OPT_MAP(fmi3FreeFMUState);
+    OPT_MAP(fmi3SerializedFMUStateSize);
+    OPT_MAP(fmi3SerializeFMUState);
+    OPT_MAP(fmi3DeserializeFMUState);
+    OPT_MAP(fmi3GetDirectionalDerivative);
+    OPT_MAP(fmi3GetAdjointDerivative);
+    OPT_MAP(fmi3EnterConfigurationMode);
+    OPT_MAP(fmi3ExitConfigurationMode);
+    OPT_MAP(fmi3GetIntervalDecimal);
+    OPT_MAP(fmi3GetIntervalFraction);
+    OPT_MAP(fmi3GetShiftDecimal);
+    OPT_MAP(fmi3GetShiftFraction);
+    OPT_MAP(fmi3SetIntervalDecimal);
+    OPT_MAP(fmi3SetIntervalFraction);
+    OPT_MAP(fmi3SetShiftDecimal);
+    OPT_MAP(fmi3SetShiftFraction);
+    OPT_MAP(fmi3EvaluateDiscreteStates);
+    OPT_MAP(fmi3UpdateDiscreteStates);
+    OPT_MAP(fmi3EnterStepMode);
+    OPT_MAP(fmi3GetOutputDerivatives);
+    OPT_MAP(fmi3DoStep);
+#undef OPT_MAP
+#undef REQ_MAP
+
     return 0;
 }
 
@@ -218,7 +286,7 @@ void fmu_unload(fmu_t *fmu) {
 
 
 fmi2Status fmuGetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, fmi2Real value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2GetReal(fmu->component, vr, nvr, value);
+    fmi2Status status = fmu->fmi_functions.version_2.fmi2GetReal(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
         logger(status, "%s: fmuGetReal status=%d", fmu->name, status);
     return status;
@@ -226,7 +294,7 @@ fmi2Status fmuGetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nv
 
 
 fmi2Status fmuGetInteger(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, fmi2Integer value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2GetInteger(fmu->component, vr, nvr, value);
+    fmi2Status status = fmu->fmi_functions.version_2.fmi2GetInteger(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
         logger(status, "%s: fmuGetInteger status=%d", fmu->name, status);
     return status;
@@ -234,7 +302,7 @@ fmi2Status fmuGetInteger(const fmu_t *fmu, const fmi2ValueReference vr[], size_t
 
 
 fmi2Status fmuGetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, fmi2Boolean value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2GetBoolean(fmu->component, vr, nvr, value);
+    fmi2Status status = fmu->fmi_functions.version_2.fmi2GetBoolean(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
         logger(status, "%s: fmuGetBoolean status=%d", fmu->name, status);
     return status;
@@ -242,7 +310,7 @@ fmi2Status fmuGetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t
 
 
 fmi2Status fmuGetString(const fmu_t* fmu, const fmi2ValueReference vr[], size_t nvr, fmi2String value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2GetString(fmu->component, vr, nvr, value);
+    fmi2Status status = fmu->fmi_functions.version_2.fmi2GetString(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
         logger(status, "%s: fmuGetString status=%d", fmu->name, status);
     return status;
@@ -250,7 +318,7 @@ fmi2Status fmuGetString(const fmu_t* fmu, const fmi2ValueReference vr[], size_t 
 
 
 fmi2Status fmuSetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2Real value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2SetReal(fmu->component, vr, nvr, value);
+    fmi2Status status = fmu->fmi_functions.version_2.fmi2SetReal(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
         logger(status, "%s: fmuSetReal status=%d", fmu->name, status);
     return status;
@@ -258,7 +326,7 @@ fmi2Status fmuSetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nv
 
 
 fmi2Status fmuSetInteger(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2Integer value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2SetInteger(fmu->component, vr, nvr, value);
+    fmi2Status status = fmu->fmi_functions.version_2.fmi2SetInteger(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
         logger(status, "%s: fmuSetInteger status=%d", fmu->name, status);
     return status;
@@ -266,7 +334,7 @@ fmi2Status fmuSetInteger(const fmu_t *fmu, const fmi2ValueReference vr[], size_t
 
 
 fmi2Status fmuSetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2Boolean value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2SetBoolean(fmu->component, vr, nvr, value);
+    fmi2Status status = fmu->fmi_functions.version_2.fmi2SetBoolean(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
         logger(status, "%s: fmuSetBoolean status=%d", fmu->name, status);
     return status;
@@ -274,7 +342,7 @@ fmi2Status fmuSetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t
 
 
 fmi2Status fmuSetString(const fmu_t* fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2SetString(fmu->component, vr, nvr, value);
+    fmi2Status status = fmu->fmi_functions.version_2.fmi2SetString(fmu->component, vr, nvr, value);
     if (status != fmi2OK)
         logger(status, "%s: fmuSetString status=%d", fmu->name, status);
     return status;
@@ -289,10 +357,10 @@ fmi2Status fmuDoStep(const fmu_t *fmu,
     if (fmu->profile)
         profile_tic(fmu->profile);
 
-    fmi2Status status = fmu->fmi_functions.fmi2DoStep(fmu->component, 
-                                                     currentCommunicationPoint,
-                                                     communicationStepSize,
-                                                     noSetFMUStatePriorToCurrentPoint);
+    fmi2Status status = fmu->fmi_functions.version_2.fmi2DoStep(fmu->component, 
+                                                                currentCommunicationPoint,
+                                                                communicationStepSize,
+                                                                noSetFMUStatePriorToCurrentPoint);
 
     if (fmu->profile) {
         fmu->container->reals[fmu->index] = profile_toc(fmu->profile, currentCommunicationPoint+communicationStepSize);
@@ -303,12 +371,12 @@ fmi2Status fmuDoStep(const fmu_t *fmu,
 
 
 fmi2Status fmuEnterInitializationMode(const fmu_t *fmu) {
-    return fmu->fmi_functions.fmi2EnterInitializationMode(fmu->component);
+    return fmu->fmi_functions.version_2.fmi2EnterInitializationMode(fmu->component);
 }
 
 
 fmi2Status fmuExitInitializationMode(const fmu_t *fmu) {
-    return fmu->fmi_functions.fmi2ExitInitializationMode(fmu->component);
+    return fmu->fmi_functions.version_2.fmi2ExitInitializationMode(fmu->component);
 }
 
 
@@ -320,35 +388,47 @@ fmi2Status fmuSetupExperiment(const fmu_t *fmu,
                               fmi2Real stopTime) {
     fmi2Status status;
 
-    status = fmu->fmi_functions.fmi2SetupExperiment(fmu->component,
-                                                    toleranceDefined, tolerance,
-                                                    startTime,
-                                                    stopTimeDefined, stopTime);
+    status = fmu->fmi_functions.version_2.fmi2SetupExperiment(fmu->component,
+                                                              toleranceDefined, tolerance,
+                                                              startTime,
+                                                              stopTimeDefined, stopTime);
     
     return status;
 }
 
 
-fmi2Status fmuInstantiate(fmu_t *fmu,
-                          fmi2String instanceName,
-                          fmi2Type fmuType,
-                          fmi2Boolean visible,
-                          fmi2Boolean loggingOn) {
+fmi2Status fmuInstantiate(fmu_t *fmu, const char *instanceName) {
+    if (fmu->fmi_version == 2) {
+        fmi2CallbackFunctions fmi2_callback_functions;
+        fmi2_callback_functions.componentEnvironment = fmu;
+        fmi2_callback_functions.logger = (fmi2CallbackLogger)logger_embedded_fmu;
+        fmi2_callback_functions.allocateMemory = NULL;
+        fmi2_callback_functions.freeMemory = NULL;
+        fmi2_callback_functions.stepFinished = NULL;
 
-    fmu->fmi_callback_functions.componentEnvironment = fmu;
-    fmu->fmi_callback_functions.logger = (fmi2CallbackLogger)logger_embedded_fmu;
-    fmu->fmi_callback_functions.allocateMemory = fmu->container->callback_functions->allocateMemory;
-    fmu->fmi_callback_functions.freeMemory = fmu->container->callback_functions->freeMemory;
-    fmu->fmi_callback_functions.stepFinished = NULL;
-
-    fmu->component = fmu->fmi_functions.fmi2Instantiate(instanceName,
-                                                        fmuType,
-                                                        fmu->guid,
-                                                        fmu->resource_dir,
-                                                        &fmu->fmi_callback_functions,
-                                                        fmi2False,
-                                                        fmu->container->debug);
-
+        fmu->component = fmu->fmi_functions.version_2.fmi2Instantiate(instanceName,
+                                                                      fmi2CoSimulation,
+                                                                      fmu->guid,
+                                                                      fmu->resource_dir,
+                                                                      &fmi2_callback_functions,
+                                                                      fmi2False,    /* visible */
+                                                                      fmu->container->debug);
+    } else {
+        fmu->component =  fmu->fmi_functions.version_3.fmi3InstantiateCoSimulation(
+            instanceName, 
+            fmu->guid,
+            fmu->resource_dir,
+            fmi3False,  /* visible */
+            fmu->container->debug,
+            fmi3False, /* eventModeUsed */
+            fmi3False, /* earlyReturnAllowed */
+            NULL, /* requiredIntermediateVariables[] */
+            0, /*  nRequiredIntermediateVariables */
+            fmu, /* fmi3InstanceEnvironment */
+            (fmi3LogMessageCallback)logger_embedded_fmu,
+            NULL /* intermediateUpdateCallback */
+        );
+    } 
     if (!fmu->component)
         return fmi2Error;
 
@@ -358,25 +438,25 @@ fmi2Status fmuInstantiate(fmu_t *fmu,
 
 void fmuFreeInstance(const fmu_t *fmu) {
     if (fmu && fmu->component) /* if embedded FMU is not weel initialized */
-        fmu->fmi_functions.fmi2FreeInstance(fmu->component);
+        fmu->fmi_functions.version_2.fmi2FreeInstance(fmu->component);
 }
 
 
 fmi2Status fmuTerminate(const fmu_t *fmu) {
-    return fmu->fmi_functions.fmi2Terminate(fmu->component);
+    return fmu->fmi_functions.version_2.fmi2Terminate(fmu->component);
 }
 
 
 fmi2Status fmuReset(const fmu_t *fmu) {
-    return fmu->fmi_functions.fmi2Reset(fmu->component);
+    return fmu->fmi_functions.version_2.fmi2Reset(fmu->component);
 }
 
 
 fmi2Status fmuGetBooleanStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Boolean* value) {
-    return fmu->fmi_functions.fmi2GetBooleanStatus(fmu->component, s, value);
+    return fmu->fmi_functions.version_2.fmi2GetBooleanStatus(fmu->component, s, value);
 }
 
 
 fmi2Status fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real* value) {
-    return fmu->fmi_functions.fmi2GetRealStatus(fmu->component, s, value);
+    return fmu->fmi_functions.version_2.fmi2GetRealStatus(fmu->component, s, value);
 }

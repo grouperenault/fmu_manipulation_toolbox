@@ -593,7 +593,6 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
     container = malloc(sizeof(*container));
     if (container) {
-        container->callback_functions = functions;
         container->environment = functions->componentEnvironment;
         container->instance_name = strdup(instanceName);
         container->uuid = strdup(fmuGUID);
@@ -640,10 +639,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
         for(int i=0; i < container->nb_fmu; i += 1) {
             fmi2Status status = fmuInstantiate(&container->fmu[i], 
-                                               container->instance_name,
-                                               fmi2CoSimulation,
-                                               visible,
-                                               container->debug);
+                                               container->instance_name);
             if (status != fmi2OK) {
                 logger(fmi2Error, "Cannot Instantiate FMU#%d", i);
                 fmi2FreeInstance(container);
@@ -1004,15 +1000,15 @@ static fmi2Status do_internal_step_parallel_mt(container_t* container, fmi2Boole
 
     /* Launch computation for all threads*/
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        container->fmu[i].status = fmi2Error;
+        container->fmu[i].status = FMU_ERROR;
         thread_mutex_unlock(&container->fmu[i].mutex_container);
     }
 
     /* Consolidate results */
     for (int i = 0; i < container->nb_fmu; i += 1) {
         thread_mutex_lock(&container->fmu[i].mutex_fmu);
-        if ((container->fmu[i].status != fmi2OK) && (container->fmu[i].status != fmi2Warning))
-            return container->fmu[i].status;
+        if ((container->fmu[i].status != FMU_OK) && (container->fmu[i].status != FMU_WARNING))
+            return fmi2Error;
     }
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
