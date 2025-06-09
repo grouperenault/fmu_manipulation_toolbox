@@ -6,6 +6,7 @@ extern "C" {
 #	endif
 
 #   include "fmi2Functions.h"
+#   include "fmi3Functions.h"
 #   include "container.h"
 #   include "library.h"
 #   include "profile.h"
@@ -81,44 +82,121 @@ typedef struct {
 /*----------------------------------------------------------------------------
                         F M U _ I N T E R F A C E _ T
 ----------------------------------------------------------------------------*/
-typedef struct {
+typedef union {
 #	define DECLARE_FMI_FUNCTION(x) x ## TYPE *x
-    DECLARE_FMI_FUNCTION(fmi2GetTypesPlatform);
-    DECLARE_FMI_FUNCTION(fmi2GetVersion);
-    DECLARE_FMI_FUNCTION(fmi2SetDebugLogging);
-    DECLARE_FMI_FUNCTION(fmi2Instantiate);
-    DECLARE_FMI_FUNCTION(fmi2FreeInstance);
-    DECLARE_FMI_FUNCTION(fmi2SetupExperiment);
-    DECLARE_FMI_FUNCTION(fmi2EnterInitializationMode);
-    DECLARE_FMI_FUNCTION(fmi2ExitInitializationMode);
-    DECLARE_FMI_FUNCTION(fmi2Terminate);
-    DECLARE_FMI_FUNCTION(fmi2Reset);
-    DECLARE_FMI_FUNCTION(fmi2GetReal);
-    DECLARE_FMI_FUNCTION(fmi2GetInteger);
-    DECLARE_FMI_FUNCTION(fmi2GetBoolean);
-    DECLARE_FMI_FUNCTION(fmi2GetString);
-    DECLARE_FMI_FUNCTION(fmi2SetReal);
-    DECLARE_FMI_FUNCTION(fmi2SetInteger);
-    DECLARE_FMI_FUNCTION(fmi2SetBoolean);
-    DECLARE_FMI_FUNCTION(fmi2SetString);
-    DECLARE_FMI_FUNCTION(fmi2GetFMUstate);
-    DECLARE_FMI_FUNCTION(fmi2SetFMUstate);
-    DECLARE_FMI_FUNCTION(fmi2FreeFMUstate);
-    DECLARE_FMI_FUNCTION(fmi2SerializedFMUstateSize);
-    DECLARE_FMI_FUNCTION(fmi2SerializeFMUstate);
-    DECLARE_FMI_FUNCTION(fmi2DeSerializeFMUstate);
-    DECLARE_FMI_FUNCTION(fmi2GetDirectionalDerivative);
-    DECLARE_FMI_FUNCTION(fmi2SetRealInputDerivatives);
-    DECLARE_FMI_FUNCTION(fmi2GetRealOutputDerivatives);
-    DECLARE_FMI_FUNCTION(fmi2DoStep);
-    DECLARE_FMI_FUNCTION(fmi2CancelStep);
-    DECLARE_FMI_FUNCTION(fmi2GetStatus);
-    DECLARE_FMI_FUNCTION(fmi2GetRealStatus);
-    DECLARE_FMI_FUNCTION(fmi2GetIntegerStatus);
-    DECLARE_FMI_FUNCTION(fmi2GetBooleanStatus);
-    DECLARE_FMI_FUNCTION(fmi2GetStringStatus);
+    struct {
+        DECLARE_FMI_FUNCTION(fmi2GetTypesPlatform);
+        DECLARE_FMI_FUNCTION(fmi2GetVersion);
+        DECLARE_FMI_FUNCTION(fmi2SetDebugLogging);
+        DECLARE_FMI_FUNCTION(fmi2Instantiate);
+        DECLARE_FMI_FUNCTION(fmi2FreeInstance);
+        DECLARE_FMI_FUNCTION(fmi2SetupExperiment);
+        DECLARE_FMI_FUNCTION(fmi2EnterInitializationMode);
+        DECLARE_FMI_FUNCTION(fmi2ExitInitializationMode);
+        DECLARE_FMI_FUNCTION(fmi2Terminate);
+        DECLARE_FMI_FUNCTION(fmi2Reset);
+        DECLARE_FMI_FUNCTION(fmi2GetReal);
+        DECLARE_FMI_FUNCTION(fmi2GetInteger);
+        DECLARE_FMI_FUNCTION(fmi2GetBoolean);
+        DECLARE_FMI_FUNCTION(fmi2GetString);
+        DECLARE_FMI_FUNCTION(fmi2SetReal);
+        DECLARE_FMI_FUNCTION(fmi2SetInteger);
+        DECLARE_FMI_FUNCTION(fmi2SetBoolean);
+        DECLARE_FMI_FUNCTION(fmi2SetString);
+        DECLARE_FMI_FUNCTION(fmi2GetFMUstate);
+        DECLARE_FMI_FUNCTION(fmi2SetFMUstate);
+        DECLARE_FMI_FUNCTION(fmi2FreeFMUstate);
+        DECLARE_FMI_FUNCTION(fmi2SerializedFMUstateSize);
+        DECLARE_FMI_FUNCTION(fmi2SerializeFMUstate);
+        DECLARE_FMI_FUNCTION(fmi2DeSerializeFMUstate);
+        DECLARE_FMI_FUNCTION(fmi2GetDirectionalDerivative);
+        DECLARE_FMI_FUNCTION(fmi2SetRealInputDerivatives);
+        DECLARE_FMI_FUNCTION(fmi2GetRealOutputDerivatives);
+        DECLARE_FMI_FUNCTION(fmi2DoStep);
+        DECLARE_FMI_FUNCTION(fmi2CancelStep);
+        DECLARE_FMI_FUNCTION(fmi2GetStatus);
+        DECLARE_FMI_FUNCTION(fmi2GetRealStatus);
+        DECLARE_FMI_FUNCTION(fmi2GetIntegerStatus);
+        DECLARE_FMI_FUNCTION(fmi2GetBooleanStatus);
+        DECLARE_FMI_FUNCTION(fmi2GetStringStatus);
+    } version_2;
+    struct {
+        DECLARE_FMI_FUNCTION(fmi3GetVersion);
+        DECLARE_FMI_FUNCTION(fmi3SetDebugLogging);
+        DECLARE_FMI_FUNCTION(fmi3InstantiateCoSimulation);
+        DECLARE_FMI_FUNCTION(fmi3FreeInstance);
+        DECLARE_FMI_FUNCTION(fmi3EnterInitializationMode);
+        DECLARE_FMI_FUNCTION(fmi3ExitInitializationMode);
+        DECLARE_FMI_FUNCTION(fmi3EnterEventMode);
+        DECLARE_FMI_FUNCTION(fmi3Terminate);
+        DECLARE_FMI_FUNCTION(fmi3Reset);
+        DECLARE_FMI_FUNCTION(fmi3GetFloat32);
+        DECLARE_FMI_FUNCTION(fmi3GetFloat64);
+        DECLARE_FMI_FUNCTION(fmi3GetInt8);
+        DECLARE_FMI_FUNCTION(fmi3GetUInt8);
+        DECLARE_FMI_FUNCTION(fmi3GetInt16);        
+        DECLARE_FMI_FUNCTION(fmi3GetUInt16);
+        DECLARE_FMI_FUNCTION(fmi3GetInt32);
+        DECLARE_FMI_FUNCTION(fmi3GetUInt32);
+        DECLARE_FMI_FUNCTION(fmi3GetInt64);        
+        DECLARE_FMI_FUNCTION(fmi3GetUInt64);
+        DECLARE_FMI_FUNCTION(fmi3GetBoolean);
+        DECLARE_FMI_FUNCTION(fmi3GetString);
+        DECLARE_FMI_FUNCTION(fmi3GetBinary);
+        DECLARE_FMI_FUNCTION(fmi3GetClock);
+        DECLARE_FMI_FUNCTION(fmi3SetFloat32);
+        DECLARE_FMI_FUNCTION(fmi3SetFloat64);
+        DECLARE_FMI_FUNCTION(fmi3SetInt8);
+        DECLARE_FMI_FUNCTION(fmi3SetUInt8);
+        DECLARE_FMI_FUNCTION(fmi3SetInt16);        
+        DECLARE_FMI_FUNCTION(fmi3SetUInt16);
+        DECLARE_FMI_FUNCTION(fmi3SetInt32);
+        DECLARE_FMI_FUNCTION(fmi3SetUInt32);
+        DECLARE_FMI_FUNCTION(fmi3SetInt64);        
+        DECLARE_FMI_FUNCTION(fmi3SetUInt64);
+        DECLARE_FMI_FUNCTION(fmi3SetBoolean);
+        DECLARE_FMI_FUNCTION(fmi3SetString);
+        DECLARE_FMI_FUNCTION(fmi3SetBinary);
+        DECLARE_FMI_FUNCTION(fmi3SetClock);
+        DECLARE_FMI_FUNCTION(fmi3GetNumberOfVariableDependencies);
+        DECLARE_FMI_FUNCTION(fmi3GetVariableDependencies);
+        DECLARE_FMI_FUNCTION(fmi3GetFMUState);
+        DECLARE_FMI_FUNCTION(fmi3SetFMUState);
+        DECLARE_FMI_FUNCTION(fmi3FreeFMUState);
+        DECLARE_FMI_FUNCTION(fmi3SerializedFMUStateSize);
+        DECLARE_FMI_FUNCTION(fmi3SerializeFMUState);
+        DECLARE_FMI_FUNCTION(fmi3DeserializeFMUState);
+        DECLARE_FMI_FUNCTION(fmi3GetDirectionalDerivative);
+        DECLARE_FMI_FUNCTION(fmi3GetAdjointDerivative);
+        DECLARE_FMI_FUNCTION(fmi3EnterConfigurationMode);
+        DECLARE_FMI_FUNCTION(fmi3ExitConfigurationMode);
+        DECLARE_FMI_FUNCTION(fmi3GetIntervalDecimal);
+        DECLARE_FMI_FUNCTION(fmi3GetIntervalFraction);
+        DECLARE_FMI_FUNCTION(fmi3GetShiftDecimal);
+        DECLARE_FMI_FUNCTION(fmi3GetShiftFraction);
+        DECLARE_FMI_FUNCTION(fmi3SetIntervalDecimal);
+        DECLARE_FMI_FUNCTION(fmi3SetIntervalFraction);
+        DECLARE_FMI_FUNCTION(fmi3SetShiftDecimal);
+        DECLARE_FMI_FUNCTION(fmi3SetShiftFraction);
+        DECLARE_FMI_FUNCTION(fmi3EvaluateDiscreteStates);
+        DECLARE_FMI_FUNCTION(fmi3UpdateDiscreteStates);
+        DECLARE_FMI_FUNCTION(fmi3EnterStepMode);
+        DECLARE_FMI_FUNCTION(fmi3GetOutputDerivatives);
+        DECLARE_FMI_FUNCTION(fmi3DoStep);
+    } version_3;
 } fmu_interface_t;
 #	undef DECLARE_FMI_FUNCTION
+
+
+/*----------------------------------------------------------------------------
+                           F M U _ S T A T U S _ T
+----------------------------------------------------------------------------*/
+typedef enum {
+    FMU_OK=0,
+    FMU_WARNING=1,
+    FMU_ERROR=2
+} fmu_status_t;
+
 
 /*----------------------------------------------------------------------------
                                 F M U _ T
@@ -131,9 +209,9 @@ typedef struct {
 	library_t                   library;
 	char						resource_dir[FMU_PATH_MAX_LEN];
 	char						*guid;
-	fmi2Component				component;
+    int                         fmi_version;
+    void                        *component; /* fmi2Component or fmi3Instance */
 
-    fmi2CallbackFunctions       fmi_callback_functions;
 	fmu_interface_t				fmi_functions;
 
 	thread_t			    	thread;
@@ -142,7 +220,7 @@ typedef struct {
 
 	fmu_io_t					fmu_io;
 	
-	fmi2Status					status;
+	fmu_status_t				status;
 	int							cancel;
     int                         set_input;
 	
@@ -190,11 +268,7 @@ extern fmi2Status fmuSetupExperiment(const fmu_t *fmu,
                                      fmi2Real startTime,
                                      fmi2Boolean stopTimeDefined,
                                      fmi2Real stopTime);
-extern fmi2Status fmuInstantiate(fmu_t *fmu,
-                                 fmi2String instanceName,
-								 fmi2Type fmuType,
-								 fmi2Boolean visible,
-								 fmi2Boolean loggingOn);
+extern fmi2Status fmuInstantiate(fmu_t *fmu, fmi2String instanceName);
 extern void fmuFreeInstance(const fmu_t *fmu);
 extern fmi2Status fmuTerminate(const fmu_t *fmu);
 extern fmi2Status fmuReset(const fmu_t *fmu);

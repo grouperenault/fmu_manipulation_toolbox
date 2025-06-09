@@ -39,7 +39,6 @@ typedef struct container_s {
 	char						*instance_name;
 	char						*uuid;
 	fmi2Boolean					debug;
-	const fmi2CallbackFunctions	*callback_functions;
 
 	/* storage of local variables (conveyed from one FMU to an other) */
 	fmi2ValueReference		    nb_local_reals;

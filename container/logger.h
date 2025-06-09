@@ -5,20 +5,26 @@
 extern "C" {
 #	endif
 
-#include "fmi2Functions.h"
 
 #include "container.h"
 
+
+/*---------------------------------------------------------------------------
+             L O G G E R _ F U N C T I O N _ T Y P E _ T
+---------------------------------------------------------------------------*/
+
+typedef void (*logger_function_t)(void *environement, const char *instanceName,
+                                  int status, const char *category, const char *message, ...);
 
 /*----------------------------------------------------------------------------
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
 void logger_init(const container_t *container);
-void logger(fmi2Status status, const char *message, ...);
+void logger(int status, const char *message, ...);
 void logger_embedded_fmu(fmu_t *fmu,
-                         fmi2String instanceName, fmi2Status status,
-                         fmi2String category, fmi2String message, ...);
+                         const char *instanceName, int status,
+                         const char *category, const char *message, ...);
 
 #	ifdef __cplusplus
 }
