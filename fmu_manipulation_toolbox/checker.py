@@ -7,7 +7,7 @@ from .fmu_operations import OperationAbstract
 
 
 class OperationGenericCheck(OperationAbstract):
-    SUPPORTED_FMI_VERSIONS = ('2.0',)
+    SUPPORTED_FMI_VERSIONS = ('2.0', '3.0')
 
     def __init__(self):
         self.compliant_with_version = None
@@ -20,8 +20,10 @@ class OperationGenericCheck(OperationAbstract):
             print(f"ERROR: Expected FMI {','.join(self.SUPPORTED_FMI_VERSIONS)} versions.")
             return
 
+        fmi_name = f"fmi{attrs['fmiVersion'][0]}"
+
         xsd_filename = os.path.join(os.path.dirname(__file__), "resources", "fmi-" + attrs['fmiVersion'],
-                                    "fmi2ModelDescription.xsd")
+                                    f"{fmi_name}ModelDescription.xsd")
         try:
             xmlschema.validate(self.fmu.descriptor_filename, schema=xsd_filename)
         except XMLSchemaValidationError as error:
