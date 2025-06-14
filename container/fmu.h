@@ -13,13 +13,19 @@ extern "C" {
 #   include "thread.h"
 
 
+/*----------------------------------------------------------------------------
+                            F M U _ V R _ T
+----------------------------------------------------------------------------*/
+
+typedef unsigned int fmu_vr_t;
+
 
 /*----------------------------------------------------------------------------
                    F M U _ T R A N S L A T I O N _ T
 ----------------------------------------------------------------------------*/
 typedef struct {
-	fmi2ValueReference			vr;
-	fmi2ValueReference			fmu_vr;
+	fmu_vr_t                    vr;
+	fmu_vr_t                    fmu_vr;
 } fmu_translation_t;
 
 
@@ -27,7 +33,7 @@ typedef struct {
               F M U _ T R A N S L A T I O N _ L I S T _ T
 ----------------------------------------------------------------------------*/
 typedef struct {
-	fmi2ValueReference			nb;
+	size_t          	        nb;
 	fmu_translation_t			*translations;
 } fmu_translation_list_t;
 
@@ -47,9 +53,9 @@ typedef struct {
 
 #define DECLARE_START_TYPE(name, type) \
 typedef struct { \
-    fmi2ValueReference          nb; \
+    size_t                      nb; \
     struct { \
-        fmi2ValueReference      vr; \
+        fmu_vr_t                vr; \
         int                     reset; \
         type                    value; \
     } *start_values; \
@@ -192,9 +198,8 @@ typedef union {
                            F M U _ S T A T U S _ T
 ----------------------------------------------------------------------------*/
 typedef enum {
-    FMU_OK=0,
-    FMU_WARNING=1,
-    FMU_ERROR=2
+    FMU_STATUS_OK = 0,
+    FMU_STATUS_ERROR = 2
 } fmu_status_t;
 
 
@@ -205,11 +210,14 @@ typedef enum {
 
 typedef struct {
     char                        *name; /* based on directory */
-    int                         index; /* index of this FMU in container */
+    size_t                      index; /* index of this FMU in container */
 	library_t                   library;
 	char						resource_dir[FMU_PATH_MAX_LEN];
 	char						*guid;
-    int                         fmi_version;
+    enum {
+        FMU_2 = 2,
+        FMU_3 = 3
+    }                          fmi_version;
     void                        *component; /* fmi2Component or fmi3Instance */
 
 	fmu_interface_t				fmi_functions;
@@ -229,52 +237,69 @@ typedef struct {
 	struct container_s			*container;
 } fmu_t;
 
+#ifdef __linux__
+#   define FMI2_BINDIR  "linux64"
+#   define FMU3_BINDIR  "x86_64-linux"
+#endif
+#ifdef __APPLE__
+#   define FMU2_BINDIR  "darwin64"
+#   define FMU3_BINDIR  "x86_64-darwin"
+#endif
+#ifdef WIN32
+#   if defined(_WIN64) || defined(__amd64__)
+#       define FMU2_BINDIR  "win64"
+#       define FMU3_BINDIR  "x86_64-windows"
+#   else
+#       define FMU2_BINDIR "win32"
+#       define FMU3_BINDIR "x86-windows"
+#   endif
+#endif
+
+
 
 /*----------------------------------------------------------------------------
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
-extern fmi2Status fmu_set_inputs(fmu_t *fmu);
+extern fmu_status_t fmu_set_inputs(fmu_t *fmu);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid);
 extern void fmu_unload(fmu_t *fmu);
 
-extern fmi2Status fmuGetReal(const fmu_t *fmu, const fmi2ValueReference vr[],
-                             size_t nvr, fmi2Real value[]);
-extern fmi2Status fmuGetInteger(const fmu_t *fmu, const fmi2ValueReference vr[],
-                                size_t nvr, fmi2Integer value[]);
-extern fmi2Status fmuGetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[],
-                                size_t nvr, fmi2Boolean value[]);
-extern fmi2Status fmuGetString(const fmu_t* fmu, const fmi2ValueReference vr[],
-                               size_t nvr, fmi2String value[]);
-extern fmi2Status fmuSetReal(const fmu_t *fmu, const fmi2ValueReference vr[],
-                             size_t nvr, const fmi2Real value[]);
-extern fmi2Status fmuSetInteger(const fmu_t *fmu, const fmi2ValueReference vr[],
-                                size_t nvr, const fmi2Integer value[]);
-extern fmi2Status fmuSetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[],
-                                size_t nvr, const fmi2Boolean value[]);
-extern fmi2Status fmuSetString(const fmu_t* fmu, const fmi2ValueReference vr[],
-                               size_t nvr, const fmi2String value[]);
-extern fmi2Status fmuDoStep(const fmu_t *fmu, 
-                            fmi2Real currentCommunicationPoint, 
-                            fmi2Real communicationStepSize, 
-                            fmi2Boolean noSetFMUStatePriorToCurrentPoint);
-extern fmi2Status fmuEnterInitializationMode(const fmu_t *fmu);
-extern fmi2Status fmuExitInitializationMode(const fmu_t *fmu);
-extern fmi2Status fmuSetupExperiment(const fmu_t *fmu,
-                                     fmi2Boolean toleranceDefined,
-                                     fmi2Real tolerance,
-                                     fmi2Real startTime,
-                                     fmi2Boolean stopTimeDefined,
-                                     fmi2Real stopTime);
-extern fmi2Status fmuInstantiate(fmu_t *fmu, fmi2String instanceName);
+extern fmu_status_t fmuGetReal(const fmu_t *fmu, const fmu_vr_t vr[],
+                               size_t nvr, double value[]);
+extern fmu_status_t fmuGetInteger(const fmu_t *fmu, const fmu_vr_t vr[],
+                                  size_t nvr, int value[]);
+extern fmu_status_t fmuGetBoolean(const fmu_t *fmu, const fmu_vr_t vr[],
+                                  size_t nvr, int value[]);
+extern fmu_status_t fmuGetString(const fmu_t* fmu, const fmu_vr_t vr[],
+                                 size_t nvr, const char *value[]);
+extern fmu_status_t fmuSetReal(const fmu_t *fmu, const fmu_vr_t vr[],
+                               size_t nvr, const double value[]);
+extern fmu_status_t fmuSetInteger(const fmu_t *fmu, const fmu_vr_t vr[],
+                                  size_t nvr, const int value[]);
+extern fmu_status_t fmuSetBoolean(const fmu_t *fmu, const fmu_vr_t vr[],
+                                  size_t nvr, const int value[]);
+extern fmu_status_t fmuSetString(const fmu_t* fmu, const fmu_vr_t vr[],
+                                 size_t nvr, const char * const value[]);
+extern fmu_status_t fmuDoStep(const fmu_t *fmu, 
+                              fmi2Real currentCommunicationPoint, 
+                              fmi2Real communicationStepSize);
+extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu);
+extern fmu_status_t fmuExitInitializationMode(const fmu_t *fmu);
+extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu,
+                                       fmi2Boolean toleranceDefined,
+                                       fmi2Real tolerance,
+                                       fmi2Real startTime,
+                                       fmi2Boolean stopTimeDefined,
+                                       fmi2Real stopTime);
+extern fmu_status_t fmuInstantiate(fmu_t *fmu, fmi2String instanceName);
 extern void fmuFreeInstance(const fmu_t *fmu);
-extern fmi2Status fmuTerminate(const fmu_t *fmu);
-extern fmi2Status fmuReset(const fmu_t *fmu);
-extern fmi2Status fmi2GetBooleanStatus(fmi2Component c, const fmi2StatusKind s, fmi2Boolean* value);
-extern fmi2Status fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real* value);
-extern fmi2Status fmuGetBooleanStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Boolean* value);
+extern fmu_status_t fmuTerminate(const fmu_t *fmu);
+extern fmu_status_t fmuReset(const fmu_t *fmu);
+extern fmu_status_t fmuGetBooleanStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Boolean* value);
+extern fmu_status_t fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real* value);
 
 #	ifdef __cplusplus
 }

@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "container.h"
+#include "logger.h"
 
 static const container_t *logger_container = NULL;
 
@@ -20,7 +21,7 @@ void logger(int status, const char *message, ...) {
         vsnprintf(buffer, sizeof(buffer), message, ap);
         va_end(ap);
 
-        if ((status != 0) || (logger_container->debug)) {
+        if ((status != LOGGER_DEBUG) || (logger_container->debug)) {
             logger_container->logger(logger_container->environment,
                                      logger_container->instance_name,
                                      status, NULL, "%s", buffer);
