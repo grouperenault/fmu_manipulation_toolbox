@@ -33,6 +33,8 @@ message("FMI_PLATFORM: ${FMI_PLATFORM}")
 ####################
 add_library(container SHARED
 		container.c	container.h
+        fmi2.c
+        fmi3.c
 		fmu.c		fmu.h
 		hash.c      hash.h
 		library.c	library.h
