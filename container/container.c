@@ -265,7 +265,7 @@ static int read_conf_fmu_io_ ## causality ## _ ## type (fmu_io_t *fmu_io, config
 \
     fmu_io-> type . causality .translations = NULL; \
 \
-    if (sscanf(file->line, "%d", &fmu_io-> type . causality .nb) < 1) \
+    if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) \
         return -2; \
 \
     if (fmu_io-> type . causality .nb == 0) \
@@ -275,11 +275,11 @@ static int read_conf_fmu_io_ ## causality ## _ ## type (fmu_io_t *fmu_io, config
     if (! fmu_io-> type . causality .translations) \
         return -3; \
 \
-    for(fmi2ValueReference i = 0; i < fmu_io-> type . causality .nb; i += 1) { \
+    for(size_t i = 0; i < fmu_io-> type . causality .nb; i += 1) { \
         if (get_line(file)) \
             return -4; \
 \
-        if (sscanf(file->line, "%d %d", &fmu_io-> type . causality .translations[i].vr, \
+        if (sscanf(file->line, "%u %u", &fmu_io-> type . causality .translations[i].vr, \
          &fmu_io-> type . causality .translations[i].fmu_vr) < 2) \
             return -5; \
     } \
@@ -296,7 +296,7 @@ static int read_conf_fmu_start_values_ ## type (fmu_io_t *fmu_io, config_file_t*
     fmu_io->start_ ## type .start_values = NULL; \
     fmu_io->start_ ## type .nb = 0; \
 \
-    if (sscanf(file->line, "%d", &fmu_io->start_ ## type .nb) < 1) \
+    if (sscanf(file->line, "%lu", &fmu_io->start_ ## type .nb) < 1) \
         return -2; \
 \
     if (fmu_io->start_ ## type .nb == 0) \
@@ -306,11 +306,11 @@ static int read_conf_fmu_start_values_ ## type (fmu_io_t *fmu_io, config_file_t*
     if (! fmu_io->start_ ## type .start_values) \
         return -3; \
 \
-    for (fmi2ValueReference i = 0; i < fmu_io->start_ ## type .nb; i += 1) { \
+    for (size_t i = 0; i < fmu_io->start_ ## type .nb; i += 1) { \
         if (get_line(file)) \
             return -4; \
 \
-       if (sscanf(file->line, "%d %d " format, \
+       if (sscanf(file->line, "%u %d " format, \
          &fmu_io->start_ ## type .start_values[i].vr, \
          &fmu_io->start_ ## type .start_values[i].reset, \
          &fmu_io->start_ ## type .start_values[i].value) < 3) \
@@ -353,7 +353,7 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
     fmu_io->start_strings.nb = 0;
     
 
-    if (sscanf(file->line, "%d", &fmu_io->start_strings.nb) < 1)
+    if (sscanf(file->line, "%lu", &fmu_io->start_strings.nb) < 1)
         return -2;
                 
     if (fmu_io->start_strings.nb == 0)
@@ -363,10 +363,10 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
     if (!fmu_io->start_strings.start_values)
         return -3;
                             
-    for (fmi2ValueReference i = 0; i < fmu_io->start_strings.nb; i += 1)
+    for (size_t i = 0; i < fmu_io->start_strings.nb; i += 1)
         fmu_io->start_strings.start_values[i].value = NULL; /* in case on ealry fmuFreeInstance() */
 
-    for (fmi2ValueReference i = 0; i < fmu_io->start_strings.nb; i += 1) {
+    for (size_t i = 0; i < fmu_io->start_strings.nb; i += 1) {
         char buffer[CONFIG_FILE_SZ];
         buffer[0] = '\0';
 
@@ -374,7 +374,7 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
             return -4;
     
         char *value_string = string_token(file->line);
-        if (sscanf(file->line, "%d %d", &fmu_io->start_strings.start_values[i].vr, &fmu_io->start_strings.start_values[i].reset) < 2) {
+        if (sscanf(file->line, "%u %d", &fmu_io->start_strings.start_values[i].vr, &fmu_io->start_strings.start_values[i].reset) < 2) {
             return -5;
         }
         fmu_io->start_strings.start_values[i].value = strdup(value_string);
@@ -638,10 +638,10 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
             container->fmu[i].component = NULL;
 
         for(int i=0; i < container->nb_fmu; i += 1) {
-            fmi2Status status = fmuInstantiate(&container->fmu[i], 
-                                               container->instance_name);
-            if (status != fmi2OK) {
-                logger(fmi2Error, "Cannot Instantiate FMU#%d", i);
+            fmu_status_t status = fmuInstantiate(&container->fmu[i], 
+                                                 container->instance_name);
+            if (status != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
                 fmi2FreeInstance(container);
                 return NULL;
             }
@@ -743,18 +743,18 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
        container->tolerance = tolerance;
 
     for(int i=0; i < container->nb_fmu; i += 1) {
-        fmi2Status status = fmuSetupExperiment(&container->fmu[i],
-                                               toleranceDefined, tolerance,
-                                               startTime,
-                                               fmi2False, stopTime);    /* stopTime can cause rounding issues. Disbale it.*/
+        fmu_status_t status = fmuSetupExperiment(&container->fmu[i],
+                                                 toleranceDefined, tolerance,
+                                                 startTime,
+                                                 fmi2False, stopTime);    /* stopTime can cause rounding issues. Disbale it.*/
         
-        if (status != fmi2OK)
-            return status;
+        if (status != FMU_STATUS_OK)
+            return fmi2OK;
     }
 
     container->time = startTime;
     container_set_start_values(container, 1);
-    logger(fmi2OK, "fmi2SetupExperiment -- OK");
+    logger(LOGGER_DEBUG, "fmi2SetupExperiment -- OK");
 
     return fmi2OK;
 }
@@ -764,9 +764,9 @@ fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
     container_t* container = (container_t*)c;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmi2Status status = fmuEnterInitializationMode(&container->fmu[i]);
-        if (status != fmi2OK)
-            return status;
+        fmu_status_t status = fmuEnterInitializationMode(&container->fmu[i]);
+        if (status != FMU_STATUS_OK)
+            return fmi2Error;
     }
 
     container_set_start_values(container, 0);
@@ -779,10 +779,10 @@ fmi2Status fmi2ExitInitializationMode(fmi2Component c) {
     container_t* container = (container_t*)c;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmi2Status status = fmuExitInitializationMode(&container->fmu[i]);
+        fmu_status_t status = fmuExitInitializationMode(&container->fmu[i]);
 
-        if (status != fmi2OK)
-            return status;
+        if (status != FMU_STATUS_OK)
+            return fmi2Error;
     }
  
     return fmi2OK;
@@ -793,10 +793,10 @@ fmi2Status fmi2Terminate(fmi2Component c) {
     container_t* container = (container_t*)c;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmi2Status status = fmuTerminate(&container->fmu[i]);
+        fmu_status_t status = fmuTerminate(&container->fmu[i]);
 
-        if (status != fmi2OK)
-            return status;
+        if (status != FMU_STATUS_OK)
+            return fmi2Error;
     }
  
     return fmi2OK;
@@ -807,10 +807,10 @@ fmi2Status fmi2Reset(fmi2Component c) {
     container_t* container = (container_t*)c;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmi2Status status = fmuReset(&container->fmu[i]);
+        fmu_status_t status = fmuReset(&container->fmu[i]);
 
-        if (status != fmi2OK)
-            return status;
+        if (status != FMU_STATUS_OK)
+            return fmi2Error;
     }
  
     return fmi2OK;
@@ -821,7 +821,7 @@ fmi2Status fmi2Reset(fmi2Component c) {
 #define FMI_GETTER(type, fmi_type) \
 fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2 ## fmi_type value[]) { \
     container_t* container = (container_t*)c; \
-    fmi2Status status = fmi2OK; \
+    fmu_status_t status; \
 \
     for (size_t i = 0; i < nvr; i += 1) { \
         const container_port_t *port = &container->port_ ##type [vr[i]]; \
@@ -830,16 +830,16 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
         if (fmu_id < 0) { \
             value[i] = container-> type [vr[i]]; \
         } else { \
-            const fmi2ValueReference fmu_vr = port->links[0].fmu_vr; \
+            const fmu_vr_t fmu_vr = port->links[0].fmu_vr; \
             const fmu_t *fmu = &container->fmu[fmu_id]; \
 \
             status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &value[i]); \
-            if (status != fmi2OK) \
-                break; \
+            if (status != FMU_STATUS_OK) \
+                return fmi2Error; \
         } \
     } \
 \
-    return status; \
+    return fmi2OK; \
 }
 
 
@@ -852,7 +852,7 @@ FMI_GETTER(strings, String);
 #define FMI_SETTER(type, fmi_type) \
 fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2 ## fmi_type value[]) { \
     container_t* container = (container_t*)c; \
-    fmi2Status status = fmi2OK; \
+    fmu_status_t status; \
 \
     for (size_t i = 0; i < nvr; i += 1) { \
         const container_port_t *port = &container->port_ ##type [vr[i]]; \
@@ -866,13 +866,13 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                 const fmi2ValueReference fmu_vr = port->links[j].fmu_vr; \
 \
                 status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &value[i]); \
-                if (status != fmi2OK) \
-                    break; \
+                if (status != FMU_STATUS_OK) \
+                    return fmi2Error; \
             } \
         } \
     } \
 \
-    return status; \
+    return fmi2OK; \
 }
 
 
@@ -945,17 +945,17 @@ fmi2Status fmi2GetRealOutputDerivatives(fmi2Component c,
 }
 
 
-static fmi2Status do_step_get_outputs(container_t* container, int fmu_id) {
+static fmu_status_t do_step_get_outputs(container_t* container, int fmu_id) {
     const fmu_t* fmu = &container->fmu[fmu_id];
     const fmu_io_t* fmu_io = &fmu->fmu_io;
-    fmi2Status status = fmi2OK;
+    fmu_status_t status = FMU_STATUS_OK;
 
 #define GETTER(type, fmi_type) \
-    for (fmi2ValueReference i = 0; i < fmu_io-> type .out.nb; i += 1) { \
-        const fmi2ValueReference fmu_vr = fmu_io-> type .out.translations[i].fmu_vr; \
-        const fmi2ValueReference local_vr = fmu_io-> type .out.translations[i].vr; \
+    for (size_t i = 0; i < fmu_io-> type .out.nb; i += 1) { \
+        const fmu_vr_t fmu_vr = fmu_io-> type .out.translations[i].fmu_vr; \
+        const fmu_vr_t local_vr = fmu_io-> type .out.translations[i].vr; \
         status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> type [local_vr]); \
-        if (status != fmi2OK) \
+        if (status != FMU_STATUS_OK) \
             return status; \
     }
 
@@ -970,23 +970,23 @@ GETTER(strings, String);
 }
 
 
-static fmi2Status do_internal_step_serie(container_t *container, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
-    fmi2Status status = fmi2OK;;
+static fmu_status_t do_internal_step_serie(container_t *container, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
+    fmu_status_t status;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
 
         status = fmu_set_inputs(fmu);
-        if ((status != fmi2OK) && (status != fmi2Warning))
+        if (status != FMU_STATUS_OK)
             return status;
             
         /* COMPUTATION */
-        status = fmuDoStep(fmu, container->time, container->time_step, noSetFMUStatePriorToCurrentPoint);
-        if ((status != fmi2OK) && (status != fmi2Warning))
+        status = fmuDoStep(fmu, container->time, container->time_step);
+        if (status != FMU_STATUS_OK)
             return status;
 
         status = do_step_get_outputs(container, i);
-        if ((status != fmi2OK) && (status != fmi2Warning))
+        if (status != FMU_STATUS_OK)
             return status;
         
     }
@@ -995,27 +995,28 @@ static fmi2Status do_internal_step_serie(container_t *container, fmi2Boolean noS
 }
 
 
-static fmi2Status do_internal_step_parallel_mt(container_t* container, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
-    fmi2Status status = fmi2OK;
+static fmu_status_t do_internal_step_parallel_mt(container_t* container) {
+    fmu_status_t status = FMU_STATUS_OK;
 
     /* Launch computation for all threads*/
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        container->fmu[i].status = FMU_ERROR;
+    for(size_t i = 0; i < container->nb_fmu; i += 1) {
+        if (container->fmu[i].fmi_version == 2)
+            container->fmu[i].status = FMU_STATUS_ERROR;
         thread_mutex_unlock(&container->fmu[i].mutex_container);
     }
 
     /* Consolidate results */
-    for (int i = 0; i < container->nb_fmu; i += 1) {
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
         thread_mutex_lock(&container->fmu[i].mutex_fmu);
-        if ((container->fmu[i].status != FMU_OK) && (container->fmu[i].status != FMU_WARNING))
-            return fmi2Error;
+        if (container->fmu[i].status != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
     }
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
         status = do_step_get_outputs(container, i);
-        if ((status != fmi2OK) && (status != fmi2Warning)) {
-            logger(fmi2Error, "Container: FMU#%d failed doStep.", i);
-            return status;
+        if (status != FMU_STATUS_ERROR) {
+            logger(LOGGER_ERROR, "Container: FMU#%d failed doStep.", i);
+            return FMU_STATUS_ERROR;
         }
     }
     
@@ -1023,29 +1024,29 @@ static fmi2Status do_internal_step_parallel_mt(container_t* container, fmi2Boole
 }
 
 
-static fmi2Status do_internal_step_parallel(container_t* container, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
+static fmu_status_t do_internal_step_parallel(container_t* container) {
     static int set_input = 0;
-    fmi2Status status = fmi2OK;
+    fmu_status_t status = FMU_STATUS_OK;
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {          
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {          
         status = fmu_set_inputs(&container->fmu[i]);
-        if ((status != fmi2OK) && (status != fmi2Warning))
+        if (status != FMU_STATUS_OK) 
             return status;
     }
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
         const fmu_t* fmu = &container->fmu[i];
         /* COMPUTATION */
-        status = fmuDoStep(fmu, container->time, container->time_step, noSetFMUStatePriorToCurrentPoint);
-        if ((status != fmi2OK) && (status != fmi2Warning)) {
+        status = fmuDoStep(fmu, container->time, container->time_step);
+        if (status != FMU_STATUS_OK) {
             logger(fmi2Error, "Container: FMU#%d failed doStep.", i);
             return status;
         }
     }
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
         status = do_step_get_outputs(container, i);
-        if ((status != fmi2OK) && (status != fmi2Warning))
+        if (status != FMU_STATUS_OK)
             return status;
     }
     
@@ -1059,7 +1060,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
     fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     container_t *container = (container_t*)c;
     const fmi2Real end_time = currentCommunicationPoint + communicationStepSize;
-    fmi2Status status = fmi2OK;
+    fmu_status_t status = FMU_STATUS_OK;
 
     const int nb_step = (int)((end_time - container->time + container->tolerance) / container->time_step);
     
@@ -1068,22 +1069,20 @@ fmi2Status fmi2DoStep(fmi2Component c,
      */
     if (nb_step == 0)
         return fmi2OK;
-
-    container->noSetFMUStatePriorToCurrentPoint = noSetFMUStatePriorToCurrentPoint; /* for MT */
     
     for(int i = 0; i < nb_step; i += 1) {
 #if 1
         if (container->mt)
-            status = do_internal_step_parallel_mt(container, noSetFMUStatePriorToCurrentPoint);
+            status = do_internal_step_parallel_mt(container);
         else
-            status = do_internal_step_parallel(container, noSetFMUStatePriorToCurrentPoint);
+            status = do_internal_step_parallel(container);
         container->time += container->time_step;
-        if ((status != fmi2OK) && (status != fmi2Warning)) {
-            logger(fmi2Error, "Container cannot do_internal_step. Status=%d", status);
-            return status;
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container cannot do_internal_step.");
+            return fmi2Error;
         }
 #else
-        status = do_internal_step_serie(container, noSetFMUStatePriorToCurrentPoint);
+        status = do_internal_step_serie(container);
         container->time = start_time + (i + 1) * container->time_step;
         if ((status != fmi2OK) && (status != fmi2Warning)) {
             logger(fmi2Error, "Container cannot do_internal_step. Status=%d", status);
@@ -1098,7 +1097,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
         return fmi2Warning;
     }
 
-    return status;
+    return fmi2OK;
 }
 
 

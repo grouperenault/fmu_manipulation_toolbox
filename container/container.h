@@ -30,6 +30,7 @@ typedef struct {
                             C O N T A I N E R _ T
 ----------------------------------------------------------------------------*/
 typedef struct container_s {
+	int							fmi_version;
 	int							mt;
 	int							profiling;
 	int							nb_fmu;
