@@ -234,11 +234,11 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     switch(container->fmi_version) {
         case 2:
            strncpy(fmu->resource_dir, "file:///", FMU_PATH_MAX_LEN);
-           fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries\\" FMU2_BINDIR, identifier, NULL);
+           fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU2_BINDIR, identifier, NULL);
             break;
         case 3:
             fmu->resource_dir[0] = '\0';
-            fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries\\" FMU3_BINDIR, identifier, NULL);
+            fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU3_BINDIR, identifier, NULL);
             break;
         default:
             logger(LOGGER_ERROR, "Unsupported FMI-%d version.", container->fmi_version);
