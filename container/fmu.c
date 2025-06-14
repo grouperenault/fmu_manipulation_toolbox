@@ -63,11 +63,10 @@ static int fmu_do_step_thread(fmu_t* fmu) {
 }
 
 
-/** 
- * Specific: FMI2.0
- */
 static int fmu_map_functions(fmu_t *fmu){
-
+    /*
+     * FMI-2.0 API
+     */
 #define OPT_MAP(x) fmu->fmi_functions.version_2.x = (x ## TYPE*)library_symbol(fmu->library, #x)
 #define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_2.x) return -1
     OPT_MAP(fmi2GetTypesPlatform);
@@ -83,11 +82,11 @@ static int fmu_map_functions(fmu_t *fmu){
     REQ_MAP(fmi2GetReal);
     REQ_MAP(fmi2GetInteger);
     REQ_MAP(fmi2GetBoolean);
-    OPT_MAP(fmi2GetString);
+    REQ_MAP(fmi2GetString);
     REQ_MAP(fmi2SetReal);
     REQ_MAP(fmi2SetInteger);
     REQ_MAP(fmi2SetBoolean);
-    OPT_MAP(fmi2SetString);
+    REQ_MAP(fmi2SetString);
     OPT_MAP(fmi2GetFMUstate);
     OPT_MAP(fmi2SetFMUstate);
     OPT_MAP(fmi2FreeFMUstate);
@@ -107,45 +106,48 @@ static int fmu_map_functions(fmu_t *fmu){
 #undef OPT_MAP
 #undef REQ_MAP
 
+    /*
+     * FMI-3.0 API
+     */
 #define OPT_MAP(x) fmu->fmi_functions.version_3.x = (x ## TYPE*)library_symbol(fmu->library, #x)
 #define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_3.x) return -1
     OPT_MAP(fmi3GetVersion);
     OPT_MAP(fmi3SetDebugLogging);
-    OPT_MAP(fmi3InstantiateCoSimulation);
-    OPT_MAP(fmi3FreeInstance);
-    OPT_MAP(fmi3EnterInitializationMode);
-    OPT_MAP(fmi3ExitInitializationMode);
-    OPT_MAP(fmi3EnterEventMode);
-    OPT_MAP(fmi3Terminate);
-    OPT_MAP(fmi3Reset);
-    OPT_MAP(fmi3GetFloat32);
-    OPT_MAP(fmi3GetFloat64);
-    OPT_MAP(fmi3GetInt8);
-    OPT_MAP(fmi3GetUInt8);
-    OPT_MAP(fmi3GetInt16);        
-    OPT_MAP(fmi3GetUInt16);
-    OPT_MAP(fmi3GetInt32);
-    OPT_MAP(fmi3GetUInt32);
-    OPT_MAP(fmi3GetInt64);        
-    OPT_MAP(fmi3GetUInt64);
-    OPT_MAP(fmi3GetBoolean);
-    OPT_MAP(fmi3GetString);
-    OPT_MAP(fmi3GetBinary);
-    OPT_MAP(fmi3GetClock);
-    OPT_MAP(fmi3SetFloat32);
-    OPT_MAP(fmi3SetFloat64);
-    OPT_MAP(fmi3SetInt8);
-    OPT_MAP(fmi3SetUInt8);
-    OPT_MAP(fmi3SetInt16);        
-    OPT_MAP(fmi3SetUInt16);
-    OPT_MAP(fmi3SetInt32);
-    OPT_MAP(fmi3SetUInt32);
-    OPT_MAP(fmi3SetInt64);        
-    OPT_MAP(fmi3SetUInt64);
-    OPT_MAP(fmi3SetBoolean);
-    OPT_MAP(fmi3SetString);
-    OPT_MAP(fmi3SetBinary);
-    OPT_MAP(fmi3SetClock);
+    REQ_MAP(fmi3InstantiateCoSimulation);
+    REQ_MAP(fmi3FreeInstance);
+    REQ_MAP(fmi3EnterInitializationMode);
+    REQ_MAP(fmi3ExitInitializationMode);
+    REQ_MAP(fmi3EnterEventMode);
+    REQ_MAP(fmi3Terminate);
+    REQ_MAP(fmi3Reset);
+    REQ_MAP(fmi3GetFloat32);
+    REQ_MAP(fmi3GetFloat64);
+    REQ_MAP(fmi3GetInt8);
+    REQ_MAP(fmi3GetUInt8);
+    REQ_MAP(fmi3GetInt16);        
+    REQ_MAP(fmi3GetUInt16);
+    REQ_MAP(fmi3GetInt32);
+    REQ_MAP(fmi3GetUInt32);
+    REQ_MAP(fmi3GetInt64);        
+    REQ_MAP(fmi3GetUInt64);
+    REQ_MAP(fmi3GetBoolean);
+    REQ_MAP(fmi3GetString);
+    REQ_MAP(fmi3GetBinary);
+    REQ_MAP(fmi3GetClock);
+    REQ_MAP(fmi3SetFloat32);
+    REQ_MAP(fmi3SetFloat64);
+    REQ_MAP(fmi3SetInt8);
+    REQ_MAP(fmi3SetUInt8);
+    REQ_MAP(fmi3SetInt16);        
+    REQ_MAP(fmi3SetUInt16);
+    REQ_MAP(fmi3SetInt32);
+    REQ_MAP(fmi3SetUInt32);
+    REQ_MAP(fmi3SetInt64);        
+    REQ_MAP(fmi3SetUInt64);
+    REQ_MAP(fmi3SetBoolean);
+    REQ_MAP(fmi3SetString);
+    REQ_MAP(fmi3SetBinary);
+    REQ_MAP(fmi3SetClock);
     OPT_MAP(fmi3GetNumberOfVariableDependencies);
     OPT_MAP(fmi3GetVariableDependencies);
     OPT_MAP(fmi3GetFMUState);
@@ -156,8 +158,8 @@ static int fmu_map_functions(fmu_t *fmu){
     OPT_MAP(fmi3DeserializeFMUState);
     OPT_MAP(fmi3GetDirectionalDerivative);
     OPT_MAP(fmi3GetAdjointDerivative);
-    OPT_MAP(fmi3EnterConfigurationMode);
-    OPT_MAP(fmi3ExitConfigurationMode);
+    REQ_MAP(fmi3EnterConfigurationMode);
+    REQ_MAP(fmi3ExitConfigurationMode);
     OPT_MAP(fmi3GetIntervalDecimal);
     OPT_MAP(fmi3GetIntervalFraction);
     OPT_MAP(fmi3GetShiftDecimal);
@@ -166,11 +168,11 @@ static int fmu_map_functions(fmu_t *fmu){
     OPT_MAP(fmi3SetIntervalFraction);
     OPT_MAP(fmi3SetShiftDecimal);
     OPT_MAP(fmi3SetShiftFraction);
-    OPT_MAP(fmi3EvaluateDiscreteStates);
+    REQ_MAP(fmi3EvaluateDiscreteStates);
     OPT_MAP(fmi3UpdateDiscreteStates);
-    OPT_MAP(fmi3EnterStepMode);
+    REQ_MAP(fmi3EnterStepMode);
     OPT_MAP(fmi3GetOutputDerivatives);
-    OPT_MAP(fmi3DoStep);
+    REQ_MAP(fmi3DoStep);
 #undef OPT_MAP
 #undef REQ_MAP
 
@@ -244,7 +246,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
             logger(LOGGER_ERROR, "Unsupported FMI-%d version.", container->fmi_version);
             return -1;
     }
-    strncat(library_filename, ".dll", FMU_PATH_MAX_LEN - strlen(library_filename));
+    strncat(library_filename, FMU_BIN_SUFFIXE, FMU_PATH_MAX_LEN - strlen(library_filename));
  	fs_make_path(fmu->resource_dir, FMU_PATH_MAX_LEN, directory, "resources", NULL);
 
     fmu->library = library_load(library_filename);

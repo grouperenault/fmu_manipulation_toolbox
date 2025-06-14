@@ -240,10 +240,12 @@ typedef struct {
 #ifdef __linux__
 #   define FMU2_BINDIR      "linux64"
 #   define FMU3_BINDIR      "x86_64-linux"
+#   define FMU_BIN_SUFFIXE  "so"
 #endif
 #ifdef __APPLE__
 #   define FMU2_BINDIR      "darwin64"
 #   define FMU3_BINDIR      "x86_64-darwin"
+#   define FMU_BIN_SUFFIXE  "dlsym"
 #endif
 #ifdef WIN32
 #   if defined(_WIN64) || defined(__amd64__)
@@ -253,6 +255,7 @@ typedef struct {
 #       define FMU2_BINDIR  "win32"
 #       define FMU3_BINDIR  "x86-windows"
 #   endif
+#   define FMU_BIN_SUFFIXE  "dll"
 #endif
 
 
