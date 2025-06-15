@@ -10,25 +10,26 @@
 #pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
 
 
-fmi2Status fmu_set_inputs(fmu_t *fmu) {
-    fmi2Status status = fmi2OK;
+fmu_status_t fmu_set_inputs(fmu_t *fmu) {
+    fmu_status_t status = FMU_STATUS_OK;
 
     if (fmu->set_input) {
         const container_t *container = fmu->container;
         const fmu_io_t *fmu_io = &fmu->fmu_io;
         
 #define SETTER(type, fmi_type) \
-    for (fmi2ValueReference i = 0; i < fmu_io-> type .in.nb; i += 1) { \
-        const fmi2ValueReference fmu_vr = fmu_io-> type .in.translations[i].fmu_vr; \
-        const fmi2ValueReference local_vr = fmu_io-> type .in.translations[i].vr; \
+    for (size_t i = 0; i < fmu_io-> type .in.nb; i += 1) { \
+        const unsigned int fmu_vr = fmu_io-> type .in.translations[i].fmu_vr; \
+        const unsigned int local_vr = fmu_io-> type .in.translations[i].vr; \
         status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> type [local_vr]); \
-        if (status != fmi2OK) \
+        if (status != FMU_STATUS_OK) \
             return status; \
     }
 
         SETTER(reals, Real);
         SETTER(integers, Integer);
         SETTER(booleans, Boolean);
+        SETTER(strings, String);
 #undef SETTER
     } else
         fmu->set_input = 1; /* Skip only the first doStep() */
@@ -46,15 +47,14 @@ static int fmu_do_step_thread(fmu_t* fmu) {
             break;
 
         fmu->status = fmu_set_inputs(fmu);
-        if (fmu->status != fmi2OK) {
+        if (fmu->status != FMU_STATUS_OK) {
             thread_mutex_unlock(&fmu->mutex_fmu);
             continue;
         }
 
         fmu->status = fmuDoStep(fmu, 
                                 container->time,
-                                container->time_step,
-                                container->noSetFMUStatePriorToCurrentPoint);
+                                container->time_step);
 
         thread_mutex_unlock(&fmu->mutex_fmu);
     }
@@ -64,14 +64,12 @@ static int fmu_do_step_thread(fmu_t* fmu) {
 }
 
 
-/** 
- * Specific: FMI2.0
- */
 static int fmu_map_functions(fmu_t *fmu){
-
-#define OPT_MAP(x) fmu->fmi_functions.x = (x ## TYPE*)library_symbol(fmu->library, #x)
-#define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.x) return -1
-
+    /*
+     * FMI-2.0 API
+     */
+#define OPT_MAP(x) fmu->fmi_functions.version_2.x = (x ## TYPE*)library_symbol(fmu->library, #x)
+#define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_2.x) return -1
     OPT_MAP(fmi2GetTypesPlatform);
     OPT_MAP(fmi2GetVersion);
     OPT_MAP(fmi2SetDebugLogging);
@@ -85,11 +83,11 @@ static int fmu_map_functions(fmu_t *fmu){
     REQ_MAP(fmi2GetReal);
     REQ_MAP(fmi2GetInteger);
     REQ_MAP(fmi2GetBoolean);
-    OPT_MAP(fmi2GetString);
+    REQ_MAP(fmi2GetString);
     REQ_MAP(fmi2SetReal);
     REQ_MAP(fmi2SetInteger);
     REQ_MAP(fmi2SetBoolean);
-    OPT_MAP(fmi2SetString);
+    REQ_MAP(fmi2SetString);
     OPT_MAP(fmi2GetFMUstate);
     OPT_MAP(fmi2SetFMUstate);
     OPT_MAP(fmi2FreeFMUstate);
@@ -106,7 +104,79 @@ static int fmu_map_functions(fmu_t *fmu){
     OPT_MAP(fmi2GetIntegerStatus);
     REQ_MAP(fmi2GetBooleanStatus);
     OPT_MAP(fmi2GetStringStatus);
-#undef MAP
+#undef OPT_MAP
+#undef REQ_MAP
+
+    /*
+     * FMI-3.0 API
+     */
+#define OPT_MAP(x) fmu->fmi_functions.version_3.x = (x ## TYPE*)library_symbol(fmu->library, #x)
+#define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_3.x) return -1
+    OPT_MAP(fmi3GetVersion);
+    OPT_MAP(fmi3SetDebugLogging);
+    REQ_MAP(fmi3InstantiateCoSimulation);
+    REQ_MAP(fmi3FreeInstance);
+    REQ_MAP(fmi3EnterInitializationMode);
+    REQ_MAP(fmi3ExitInitializationMode);
+    REQ_MAP(fmi3EnterEventMode);
+    REQ_MAP(fmi3Terminate);
+    REQ_MAP(fmi3Reset);
+    REQ_MAP(fmi3GetFloat32);
+    REQ_MAP(fmi3GetFloat64);
+    REQ_MAP(fmi3GetInt8);
+    REQ_MAP(fmi3GetUInt8);
+    REQ_MAP(fmi3GetInt16);        
+    REQ_MAP(fmi3GetUInt16);
+    REQ_MAP(fmi3GetInt32);
+    REQ_MAP(fmi3GetUInt32);
+    REQ_MAP(fmi3GetInt64);        
+    REQ_MAP(fmi3GetUInt64);
+    REQ_MAP(fmi3GetBoolean);
+    REQ_MAP(fmi3GetString);
+    REQ_MAP(fmi3GetBinary);
+    REQ_MAP(fmi3GetClock);
+    REQ_MAP(fmi3SetFloat32);
+    REQ_MAP(fmi3SetFloat64);
+    REQ_MAP(fmi3SetInt8);
+    REQ_MAP(fmi3SetUInt8);
+    REQ_MAP(fmi3SetInt16);        
+    REQ_MAP(fmi3SetUInt16);
+    REQ_MAP(fmi3SetInt32);
+    REQ_MAP(fmi3SetUInt32);
+    REQ_MAP(fmi3SetInt64);        
+    REQ_MAP(fmi3SetUInt64);
+    REQ_MAP(fmi3SetBoolean);
+    REQ_MAP(fmi3SetString);
+    REQ_MAP(fmi3SetBinary);
+    REQ_MAP(fmi3SetClock);
+    OPT_MAP(fmi3GetNumberOfVariableDependencies);
+    OPT_MAP(fmi3GetVariableDependencies);
+    OPT_MAP(fmi3GetFMUState);
+    OPT_MAP(fmi3SetFMUState);
+    OPT_MAP(fmi3FreeFMUState);
+    OPT_MAP(fmi3SerializedFMUStateSize);
+    OPT_MAP(fmi3SerializeFMUState);
+    OPT_MAP(fmi3DeserializeFMUState);
+    OPT_MAP(fmi3GetDirectionalDerivative);
+    OPT_MAP(fmi3GetAdjointDerivative);
+    REQ_MAP(fmi3EnterConfigurationMode);
+    REQ_MAP(fmi3ExitConfigurationMode);
+    OPT_MAP(fmi3GetIntervalDecimal);
+    OPT_MAP(fmi3GetIntervalFraction);
+    OPT_MAP(fmi3GetShiftDecimal);
+    OPT_MAP(fmi3GetShiftFraction);
+    OPT_MAP(fmi3SetIntervalDecimal);
+    OPT_MAP(fmi3SetIntervalFraction);
+    OPT_MAP(fmi3SetShiftDecimal);
+    OPT_MAP(fmi3SetShiftFraction);
+    REQ_MAP(fmi3EvaluateDiscreteStates);
+    OPT_MAP(fmi3UpdateDiscreteStates);
+    REQ_MAP(fmi3EnterStepMode);
+    OPT_MAP(fmi3GetOutputDerivatives);
+    REQ_MAP(fmi3DoStep);
+#undef OPT_MAP
+#undef REQ_MAP
+
     return 0;
 }
 
@@ -136,9 +206,6 @@ static void fs_make_path(char* buffer, size_t len, ...) {
 }
 
 
-/** 
- * Specific: FMI2.0
- */
 int fmu_load_from_directory(container_t *container, int i, const char *directory, const char *name,
                             const char *identifier, const char *guid) {
     if (! container)
@@ -167,11 +234,21 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
 
     fmu->guid = strdup(guid);
     library_filename[0] = '\0';
-    fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries\\win64", identifier, NULL);
-    strncat(library_filename, ".dll", FMU_PATH_MAX_LEN - strlen(library_filename));
-
-    strncpy(fmu->resource_dir, "file:///", FMU_PATH_MAX_LEN);
-	fs_make_path(fmu->resource_dir, FMU_PATH_MAX_LEN, directory, "resources", NULL);
+    switch(container->fmi_version) {
+        case 2:
+           strncpy(fmu->resource_dir, "file:///", FMU_PATH_MAX_LEN);
+           fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU2_BINDIR, identifier, NULL);
+            break;
+        case 3:
+            fmu->resource_dir[0] = '\0';
+            fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU3_BINDIR, identifier, NULL);
+            break;
+        default:
+            logger(LOGGER_ERROR, "Unsupported FMI-%d version.", container->fmi_version);
+            return -1;
+    }
+    strncat(library_filename, FMU_BIN_SUFFIXE, FMU_PATH_MAX_LEN - strlen(library_filename));
+ 	fs_make_path(fmu->resource_dir, FMU_PATH_MAX_LEN, directory, "resources", NULL);
 
     fmu->library = library_load(library_filename);
     if (!fmu->library)
@@ -217,83 +294,217 @@ void fmu_unload(fmu_t *fmu) {
 }
 
 
-fmi2Status fmuGetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, fmi2Real value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2GetReal(fmu->component, vr, nvr, value);
-    if (status != fmi2OK)
-        logger(status, "%s: fmuGetReal status=%d", fmu->name, status);
+fmu_status_t fmuGetReal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, double value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == FMU_2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2GetReal(fmu->component, vr, nvr, value);
+            if (status2 != fmi2OK) {
+                logger(LOGGER_ERROR, "%s: fmuGetReal status=%d", fmu->name, status2);
+                status = FMU_STATUS_ERROR;
+            }
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetFloat64(fmu->component, vr, nvr, value, nvr);
+            if (status3 != fmi3OK) {
+                logger(LOGGER_ERROR, "%s: fmuGetReal status=%d", fmu->name, status3);
+                status = FMU_STATUS_ERROR;
+            }
+    }
+
     return status;
 }
 
 
-fmi2Status fmuGetInteger(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, fmi2Integer value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2GetInteger(fmu->component, vr, nvr, value);
-    if (status != fmi2OK)
-        logger(status, "%s: fmuGetInteger status=%d", fmu->name, status);
+fmu_status_t fmuGetInteger(const fmu_t *fmu, const fmu_vr_t vr[],  size_t nvr, int value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2GetInteger(fmu->component, vr, nvr, value);
+        if (status2 != fmi2OK) {
+            logger(LOGGER_ERROR, "%s: fmuGetInteger status=%d", fmu->name, status2);
+            status = FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetInt32(fmu->component, vr, nvr, value, nvr);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "%s: fmuGetInteger status=%d", fmu->name, status3);
+            status = FMU_STATUS_ERROR;
+        }
+    }
+
     return status;
 }
 
 
-fmi2Status fmuGetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, fmi2Boolean value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2GetBoolean(fmu->component, vr, nvr, value);
-    if (status != fmi2OK)
-        logger(status, "%s: fmuGetBoolean status=%d", fmu->name, status);
+fmu_status_t fmuGetBoolean(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, int value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2GetBoolean(fmu->component, vr, nvr, value);
+        if (status2 != fmi2OK) {
+            logger(LOGGER_ERROR, "%s: fmuGetBoolean status=%d", fmu->name, status2);
+            status = FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetBoolean(fmu->component, vr, nvr, (bool *)value, nvr);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "%s: fmuGetBoolean status=%d", fmu->name, status3);
+            status = FMU_STATUS_ERROR;
+        }
+    }
+
     return status;
 }
 
 
-fmi2Status fmuGetString(const fmu_t* fmu, const fmi2ValueReference vr[], size_t nvr, fmi2String value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2GetString(fmu->component, vr, nvr, value);
-    if (status != fmi2OK)
-        logger(status, "%s: fmuGetString status=%d", fmu->name, status);
+fmu_status_t fmuGetString(const fmu_t* fmu, const fmu_vr_t vr[], size_t nvr, const char *value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2GetString(fmu->component, vr, nvr, value);
+        if (status2 != fmi2OK) {
+            logger(LOGGER_ERROR, "%s: fmuGetString status=%d", fmu->name, status2);
+            status = FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetString(fmu->component, vr, nvr, value, nvr);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "%s: fmuGetString status=%d", fmu->name, status3);
+            status = FMU_STATUS_ERROR;
+        }
+    }
+
     return status;
 }
 
 
-fmi2Status fmuSetReal(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2Real value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2SetReal(fmu->component, vr, nvr, value);
-    if (status != fmi2OK)
-        logger(status, "%s: fmuSetReal status=%d", fmu->name, status);
+fmu_status_t fmuSetReal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const double value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == FMU_2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetReal(fmu->component, vr, nvr, value);
+            if (status2 != fmi2OK) {
+                logger(LOGGER_ERROR, "%s: fmuSetReal status=%d", fmu->name, status2);
+                status = FMU_STATUS_ERROR;
+            }
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetFloat64(fmu->component, vr, nvr, value, nvr);
+            if (status3 != fmi3OK) {
+                logger(LOGGER_ERROR, "%s: fmuSetReal status=%d", fmu->name, status3);
+                status = FMU_STATUS_ERROR;
+            }
+    }
+
     return status;
 }
 
 
-fmi2Status fmuSetInteger(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2Integer value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2SetInteger(fmu->component, vr, nvr, value);
-    if (status != fmi2OK)
-        logger(status, "%s: fmuSetInteger status=%d", fmu->name, status);
+fmu_status_t fmuSetInteger(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const int value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetInteger(fmu->component, vr, nvr, value);
+        if (status2 != fmi2OK) {
+            logger(LOGGER_ERROR, "%s: fmuSetInteger status=%d", fmu->name, status2);
+            status = FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetInt32(fmu->component, vr, nvr, value, nvr);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "%s: fmuSetInteger status=%d", fmu->name, status3);
+            status = FMU_STATUS_ERROR;
+        }
+    }
+
     return status;
 }
 
 
-fmi2Status fmuSetBoolean(const fmu_t *fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2Boolean value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2SetBoolean(fmu->component, vr, nvr, value);
-    if (status != fmi2OK)
-        logger(status, "%s: fmuSetBoolean status=%d", fmu->name, status);
+fmu_status_t fmuSetBoolean(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const int value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetBoolean(fmu->component, vr, nvr, value);
+        if (status2 != fmi2OK) {
+            logger(LOGGER_ERROR, "%s: fmuSetBoolean status=%d", fmu->name, status2);
+            status = FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetBoolean(fmu->component, vr, nvr, (bool *)value, nvr);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "%s: fmuSetBoolean status=%d", fmu->name, status3);
+            status = FMU_STATUS_ERROR;
+        }
+    }
+
     return status;
 }
 
 
-fmi2Status fmuSetString(const fmu_t* fmu, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[]) {
-    fmi2Status status = fmu->fmi_functions.fmi2SetString(fmu->component, vr, nvr, value);
-    if (status != fmi2OK)
-        logger(status, "%s: fmuSetString status=%d", fmu->name, status);
+fmu_status_t fmuSetString(const fmu_t* fmu, const fmu_vr_t vr[], size_t nvr, const char * const value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetString(fmu->component, vr, nvr, value);
+        if (status2 != fmi2OK) {
+            logger(LOGGER_ERROR, "%s: fmuSetString status=%d", fmu->name, status2);
+            status = FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetString(fmu->component, vr, nvr, value, nvr);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "%s: fmuSetString status=%d", fmu->name, status3);
+            status = FMU_STATUS_ERROR;
+        }       
+    }
+
     return status;
 }
 
 
-fmi2Status fmuDoStep(const fmu_t *fmu, 
-                     fmi2Real currentCommunicationPoint, 
-                     fmi2Real communicationStepSize, 
-                     fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
-
+fmu_status_t fmuDoStep(const fmu_t *fmu, 
+                       double currentCommunicationPoint, 
+                       double communicationStepSize) {
+    fmu_status_t status = FMU_STATUS_ERROR;
     if (fmu->profile)
         profile_tic(fmu->profile);
 
-    fmi2Status status = fmu->fmi_functions.fmi2DoStep(fmu->component, 
-                                                     currentCommunicationPoint,
-                                                     communicationStepSize,
-                                                     noSetFMUStatePriorToCurrentPoint);
-
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2;
+        status2 = fmu->fmi_functions.version_2.fmi2DoStep(fmu->component,
+                                                          currentCommunicationPoint,
+                                                          communicationStepSize,
+                                                          fmi2True); /* noSetFMUStatePriorToCurrentPoint */
+        if ((status2 == fmi2OK) || (status2 == fmi2Warning))
+            status = FMU_STATUS_OK;
+    } else {
+        fmi3Status status3;
+        fmi3Boolean eventHandlingNeeded, terminateSimulation, earlyReturn;
+        fmi3Float64 lastSuccessfulTime;
+        status3 = fmu->fmi_functions.version_3.fmi3DoStep(fmu->component,
+                                                          currentCommunicationPoint,
+                                                          communicationStepSize,
+                                                          fmi3True, 
+                                                          &eventHandlingNeeded, 
+                                                          &terminateSimulation, 
+                                                          &earlyReturn, 
+                                                          &lastSuccessfulTime);
+        if (terminateSimulation) {
+            logger(LOGGER_WARNING, "FMU '%s' requested to end the simulation.", fmu->name);
+            status = FMU_STATUS_ERROR;
+        }
+        if (earlyReturn) {
+            logger(LOGGER_ERROR, "FMU '%s' made an early return which is not supported.", fmu->name);
+            status = FMU_STATUS_ERROR;
+        }
+        if (eventHandlingNeeded) {
+            logger(LOGGER_ERROR, "FMU '%s' requested event handling which is not supported.", fmu->name);
+            status = FMU_STATUS_ERROR;
+        }
+        if ((status3 == fmi3OK) || (status3 == fmi3Warning))
+            status = FMU_STATUS_OK;
+    }
+      
     if (fmu->profile) {
         fmu->container->reals[fmu->index] = profile_toc(fmu->profile, currentCommunicationPoint+communicationStepSize);
     }
@@ -302,81 +513,163 @@ fmi2Status fmuDoStep(const fmu_t *fmu,
 }
 
 
-fmi2Status fmuEnterInitializationMode(const fmu_t *fmu) {
-    return fmu->fmi_functions.fmi2EnterInitializationMode(fmu->component);
+fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu) {
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2EnterInitializationMode(fmu->component);
+        if (status2 == fmi2OK)
+            return FMU_STATUS_OK;
+        else
+            return FMU_STATUS_ERROR;
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3EnterInitializationMode(fmu->component,
+                                                                                      fmu->container->tolerance_defined, fmu->container->tolerance,
+                                                                                      fmu->container->start_time,
+                                                                                      fmu->container->stop_time_defined, fmu->container->stop_time);
+        if (status3 == fmi3OK)
+            return FMU_STATUS_OK;
+        else
+            return FMU_STATUS_ERROR;
+    }
 }
 
 
-fmi2Status fmuExitInitializationMode(const fmu_t *fmu) {
-    return fmu->fmi_functions.fmi2ExitInitializationMode(fmu->component);
+fmu_status_t fmuExitInitializationMode(const fmu_t *fmu) {
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2ExitInitializationMode(fmu->component);
+        if (status2 == fmi2OK)
+            return FMU_STATUS_OK;
+        else
+            return FMU_STATUS_ERROR;
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3ExitInitializationMode(fmu->component);
+        if (status3 == fmi3OK)
+            return FMU_STATUS_OK;
+        else
+            return FMU_STATUS_ERROR;
+    }
 }
 
 
-fmi2Status fmuSetupExperiment(const fmu_t *fmu,
-                              fmi2Boolean toleranceDefined,
-                              fmi2Real tolerance,
-                              fmi2Real startTime,
-                              fmi2Boolean stopTimeDefined,
-                              fmi2Real stopTime) {
-    fmi2Status status;
+fmu_status_t fmuSetupExperiment(const fmu_t *fmu) {
+    fmu_status_t status = FMU_STATUS_ERROR;
 
-    status = fmu->fmi_functions.fmi2SetupExperiment(fmu->component,
-                                                    toleranceDefined, tolerance,
-                                                    startTime,
-                                                    stopTimeDefined, stopTime);
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetupExperiment(fmu->component,
+                                                                              fmu->container->tolerance_defined, fmu->container->tolerance,
+                                                                              fmu->container->start_time,
+                                                                              fmu->container->stop_time_defined, fmu->container->stop_time);
+        if ((status2 == fmi2OK) || (status2 == fmi2Warning))
+            status = FMU_STATUS_OK;
+    } else {
+        /* No such API in FMI-3.0 */
+        status = FMU_STATUS_OK;
+    }
     
     return status;
 }
 
 
-fmi2Status fmuInstantiate(fmu_t *fmu,
-                          fmi2String instanceName,
-                          fmi2Type fmuType,
-                          fmi2Boolean visible,
-                          fmi2Boolean loggingOn) {
+fmu_status_t fmuInstantiate(fmu_t *fmu, const char *instanceName) {
+    if (fmu->fmi_version == 2) {
+        fmi2CallbackFunctions fmi2_callback_functions;
+        fmi2_callback_functions.componentEnvironment = fmu;
+        fmi2_callback_functions.logger = (fmi2CallbackLogger)logger_embedded_fmu;
+        fmi2_callback_functions.allocateMemory = NULL;
+        fmi2_callback_functions.freeMemory = NULL;
+        fmi2_callback_functions.stepFinished = NULL;
 
-    fmu->fmi_callback_functions.componentEnvironment = fmu;
-    fmu->fmi_callback_functions.logger = (fmi2CallbackLogger)logger_embedded_fmu;
-    fmu->fmi_callback_functions.allocateMemory = fmu->container->callback_functions->allocateMemory;
-    fmu->fmi_callback_functions.freeMemory = fmu->container->callback_functions->freeMemory;
-    fmu->fmi_callback_functions.stepFinished = NULL;
-
-    fmu->component = fmu->fmi_functions.fmi2Instantiate(instanceName,
-                                                        fmuType,
-                                                        fmu->guid,
-                                                        fmu->resource_dir,
-                                                        &fmu->fmi_callback_functions,
-                                                        fmi2False,
-                                                        fmu->container->debug);
-
+        fmu->component = fmu->fmi_functions.version_2.fmi2Instantiate(instanceName,
+                                                                      fmi2CoSimulation,
+                                                                      fmu->guid,
+                                                                      fmu->resource_dir,
+                                                                      &fmi2_callback_functions,
+                                                                      fmi2False,    /* visible */
+                                                                      logger_get_debug());
+    } else {
+        fmu->component =  fmu->fmi_functions.version_3.fmi3InstantiateCoSimulation(
+            instanceName, 
+            fmu->guid,
+            fmu->resource_dir,
+            fmi3False,  /* visible */
+            logger_get_debug(),
+            fmi3False, /* eventModeUsed */
+            fmi3False, /* earlyReturnAllowed */
+            NULL, /* requiredIntermediateVariables[] */
+            0, /*  nRequiredIntermediateVariables */
+            fmu, /* fmi3InstanceEnvironment */
+            (fmi3LogMessageCallback)logger_embedded_fmu,
+            NULL /* intermediateUpdateCallback */
+        );
+    } 
     if (!fmu->component)
-        return fmi2Error;
+        return FMU_STATUS_ERROR;
 
-    return fmi2OK;                
+    return FMU_STATUS_OK;                
 }
 
 
 void fmuFreeInstance(const fmu_t *fmu) {
-    if (fmu && fmu->component) /* if embedded FMU is not weel initialized */
-        fmu->fmi_functions.fmi2FreeInstance(fmu->component);
+    if (fmu && fmu->component) {/* if embedded FMU is not weel initialized */
+        if (fmu->fmi_version == 2)
+            fmu->fmi_functions.version_2.fmi2FreeInstance(fmu->component);
+        else
+            fmu->fmi_functions.version_3.fmi3FreeInstance(fmu->component);
+    }
 }
 
 
-fmi2Status fmuTerminate(const fmu_t *fmu) {
-    return fmu->fmi_functions.fmi2Terminate(fmu->component);
+fmu_status_t fmuTerminate(const fmu_t *fmu) {
+    fmu_status_t status = FMU_STATUS_ERROR;
+
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2Terminate(fmu->component);
+        if (status2 == fmi2OK)
+            status = FMU_STATUS_OK;
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3Terminate(fmu->component);
+        if (status3 == fmi3OK)
+            status = FMU_STATUS_OK;
+    } 
+    return status;
 }
 
 
-fmi2Status fmuReset(const fmu_t *fmu) {
-    return fmu->fmi_functions.fmi2Reset(fmu->component);
+fmu_status_t fmuReset(const fmu_t *fmu) {
+    fmu_status_t status = FMU_STATUS_ERROR;
+
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2Reset(fmu->component);
+        if (status2 == fmi2OK)
+            status = FMU_STATUS_OK;
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3Reset(fmu->component);
+        if (status3 == fmi3OK)
+            status = FMU_STATUS_OK;
+    } 
+    return status;
 }
 
 
-fmi2Status fmuGetBooleanStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Boolean* value) {
-    return fmu->fmi_functions.fmi2GetBooleanStatus(fmu->component, s, value);
+fmu_status_t fmuGetBooleanStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Boolean* value) {
+    fmu_status_t status = FMU_STATUS_ERROR;
+
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2GetBooleanStatus(fmu->component, s, value);
+        if (status2 == fmi2OK)
+            status = FMU_STATUS_OK;
+    }
+
+    return status;
 }
 
 
-fmi2Status fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real* value) {
-    return fmu->fmi_functions.fmi2GetRealStatus(fmu->component, s, value);
+fmu_status_t fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real* value) {
+    fmu_status_t status = FMU_STATUS_ERROR;
+    if (fmu->fmi_version == 2) {
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2GetRealStatus(fmu->component, s, value);
+        if (status2 == fmi2OK)
+            status = FMU_STATUS_OK;
+    }
+    
+    return status;
 }
