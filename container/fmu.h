@@ -292,12 +292,7 @@ extern fmu_status_t fmuDoStep(const fmu_t *fmu,
                               fmi2Real communicationStepSize);
 extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu);
 extern fmu_status_t fmuExitInitializationMode(const fmu_t *fmu);
-extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu,
-                                       fmi2Boolean toleranceDefined,
-                                       fmi2Real tolerance,
-                                       fmi2Real startTime,
-                                       fmi2Boolean stopTimeDefined,
-                                       fmi2Real stopTime);
+extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu);
 extern fmu_status_t fmuInstantiate(fmu_t *fmu, fmi2String instanceName);
 extern void fmuFreeInstance(const fmu_t *fmu);
 extern fmu_status_t fmuTerminate(const fmu_t *fmu);
