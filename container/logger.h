@@ -15,19 +15,23 @@ extern "C" {
 /*---------------------------------------------------------------------------
              L O G G E R _ F U N C T I O N _ T Y P E _ T
 ---------------------------------------------------------------------------*/
-
-typedef void (*logger_function_t)(void *environement, const char *instanceName,
-                                  int status, const char *category, const char *message, ...);
+typedef union {
+    fmi2CallbackLogger          logger_fmi2;
+    fmi3LogMessageCallback      logger_fmi3;
+} logger_function_t;
 
 /*----------------------------------------------------------------------------
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
-void logger_init(const container_t *container);
-void logger(int status, const char *message, ...);
-void logger_embedded_fmu(fmu_t *fmu,
-                         const char *instanceName, int status,
-                         const char *category, const char *message, ...);
+extern void logger_init(fmu_version_t version, logger_function_t callback, void *environment,
+                 const char *instance_name, int debug);
+extern void logger_set_debug(int debug);
+extern int logger_get_debug(void);
+extern void logger(int status, const char *message, ...);
+extern void logger_embedded_fmu(fmu_t *fmu,
+                                const char *instanceName, int status,
+                                const char *category, const char *message, ...);
 
 #	ifdef __cplusplus
 }

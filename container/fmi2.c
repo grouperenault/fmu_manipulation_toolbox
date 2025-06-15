@@ -38,7 +38,7 @@ fmi2Status  fmi2SetDebugLogging(fmi2Component c,
     const fmi2String categories[]) {
     container_t* container = (container_t*)c;
 
-    container->debug = loggingOn;
+    logger_set_debug(loggingOn);
 
     return fmi2OK;
 }
@@ -55,13 +55,13 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
     container = malloc(sizeof(*container));
     if (container) {
-        container->environment = functions->componentEnvironment;
         container->instance_name = strdup(instanceName);
         container->uuid = strdup(fmuGUID);
-        container->debug = loggingOn;
-        container->logger = functions->logger;
 
-        logger_init(container);  /* logger() is available starting this point ! */
+        logger_function_t container_logger;
+        container_logger.logger_fmi2 = functions->logger;
+        logger_init(FMU_2, container_logger, functions->componentEnvironment, container->instance_name, loggingOn);  /* logger() is available starting this point ! */
+
         container->mt = 0;
         container->nb_fmu = 0;
         container->fmu = NULL;
