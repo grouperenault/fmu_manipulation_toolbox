@@ -29,6 +29,7 @@ fmu_status_t fmu_set_inputs(fmu_t *fmu) {
         SETTER(reals, Real);
         SETTER(integers, Integer);
         SETTER(booleans, Boolean);
+        SETTER(strings, String);
 #undef SETTER
     } else
         fmu->set_input = 1; /* Skip only the first doStep() */
@@ -530,6 +531,7 @@ fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu) {
             return FMU_STATUS_ERROR;
     }
 }
+
 
 fmu_status_t fmuExitInitializationMode(const fmu_t *fmu) {
     if (fmu->fmi_version == 2) {
