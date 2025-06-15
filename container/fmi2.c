@@ -204,20 +204,19 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
     fmi2Real stopTime) {
     container_t* container = (container_t*)c;
 
-    if (toleranceDefined)
-       container->tolerance = tolerance;
+    container->tolerance_defined = toleranceDefined;
+    container->tolerance = tolerance;
+    container->start_time = startTime;
+    container->stop_time_defined = 0; /* stopTime can cause rounding issues. Disbale it.*/
+    container->stop_time = stopTime;
 
     for(int i=0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuSetupExperiment(&container->fmu[i],
-                                                 toleranceDefined, tolerance,
-                                                 startTime,
-                                                 fmi2False, stopTime);    /* stopTime can cause rounding issues. Disbale it.*/
+        fmu_status_t status = fmuSetupExperiment(&container->fmu[i]);    
         
         if (status != FMU_STATUS_OK)
             return fmi2OK;
     }
 
-    container->time = startTime;
     container_set_start_values(container, 1);
     logger(LOGGER_DEBUG, "fmi2SetupExperiment -- OK");
 

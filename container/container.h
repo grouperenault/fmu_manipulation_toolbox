@@ -67,6 +67,9 @@ typedef struct container_s {
 	double						time;
 	double						tolerance;
 	double						start_time;
+	double						stop_time;
+	int							tolerance_defined;
+	int							stop_time_defined;
 } container_t;
 
 
