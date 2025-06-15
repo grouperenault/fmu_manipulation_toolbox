@@ -566,14 +566,14 @@ fmu_status_t fmuInstantiate(fmu_t *fmu, const char *instanceName) {
                                                                       fmu->resource_dir,
                                                                       &fmi2_callback_functions,
                                                                       fmi2False,    /* visible */
-                                                                      fmu->container->debug);
+                                                                      logger_get_debug());
     } else {
         fmu->component =  fmu->fmi_functions.version_3.fmi3InstantiateCoSimulation(
             instanceName, 
             fmu->guid,
             fmu->resource_dir,
             fmi3False,  /* visible */
-            fmu->container->debug,
+            logger_get_debug(),
             fmi3False, /* eventModeUsed */
             fmi3False, /* earlyReturnAllowed */
             NULL, /* requiredIntermediateVariables[] */

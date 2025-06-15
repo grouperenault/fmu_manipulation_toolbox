@@ -7,6 +7,7 @@ extern "C" {
 
 #include "fmu.h"
 #include "library.h"
+#include "logger.h"
 
 /*----------------------------------------------------------------------------
                       C O N T A I N E R _ V R _ T
@@ -30,27 +31,25 @@ typedef struct {
                             C O N T A I N E R _ T
 ----------------------------------------------------------------------------*/
 typedef struct container_s {
-	int							fmi_version;
+	fmu_version_t			   fmi_version;
 	int							mt;
 	int							profiling;
-	int							nb_fmu;
+	size_t					    nb_fmu;
 	fmu_t						*fmu;
-	fmi2CallbackLogger			logger;
-	fmi2ComponentEnvironment	environment;
 	char						*instance_name;
 	char						*uuid;
-	int							debug;
+
 
 	/* storage of local variables (conveyed from one FMU to an other) */
-	fmi2ValueReference		    nb_local_reals;
-	fmi2ValueReference			nb_local_integers;
-	fmi2ValueReference			nb_local_booleans;
-	fmi2ValueReference			nb_local_strings;
+	size_t		   				nb_local_reals;
+	size_t						nb_local_integers;
+	size_t						nb_local_booleans;
+	size_t						nb_local_strings;
 
-	fmi2Real					*reals;
-	fmi2Integer                 *integers;
-	fmi2Boolean                 *booleans;
-	fmi2String                  *strings;
+	double						*reals;
+	int                 		*integers;
+	int                 		*booleans;
+	const char                  **strings;
 
 	/* container ports definition */
 #define DECLARE_PORT(type) \

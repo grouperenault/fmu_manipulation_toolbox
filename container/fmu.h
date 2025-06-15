@@ -202,6 +202,10 @@ typedef enum {
     FMU_STATUS_ERROR = 2
 } fmu_status_t;
 
+typedef enum {
+        FMU_2 = 2,
+        FMU_3 = 3
+} fmu_version_t;
 
 /*----------------------------------------------------------------------------
                                 F M U _ T
@@ -214,10 +218,7 @@ typedef struct {
 	library_t                   library;
 	char						resource_dir[FMU_PATH_MAX_LEN];
 	char						*guid;
-    enum {
-        FMU_2 = 2,
-        FMU_3 = 3
-    }                          fmi_version;
+    fmu_version_t               fmi_version;
     void                        *component; /* fmi2Component or fmi3Instance */
 
 	fmu_interface_t				fmi_functions;

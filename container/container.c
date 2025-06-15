@@ -163,7 +163,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
         return -1;
     }
 
-    if (sscanf(file->line, "%d %d %d %d",
+    if (sscanf(file->line, "%lu %lu %lu %lu",
         &container->nb_local_reals,
         &container->nb_local_integers,
         &container->nb_local_booleans,
@@ -179,7 +179,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             logger(LOGGER_ERROR, "Memory exhauseted."); \
             return -2; \
         } \
-        for(fmi2ValueReference i=0; i < container->nb_local_ ## type; i += 1) \
+        for(size_t i=0; i < container->nb_local_ ## type; i += 1) \
             container-> type [i] = value; \
     } else \
         container-> type = NULL 
@@ -215,12 +215,12 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
             return -1; \
         } \
         int vr_counter = 0; \
-        for (fmi2ValueReference i = 0; i < container->nb_ports_ ## type; i += 1) { \
+        for (size_t i = 0; i < container->nb_ports_ ## type; i += 1) { \
             container_port_t port; \
-            fmi2ValueReference vr; \
+            fmu_vr_t vr; \
             int offset; \
             int fmu_id; \
-            fmi2ValueReference fmu_vr; \
+            fmu_vr_t fmu_vr; \
 \
             if (get_line(file)) { \
                 logger(LOGGER_ERROR, "Cannot read I/O " #type " details."); \
