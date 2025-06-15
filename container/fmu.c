@@ -473,16 +473,34 @@ fmu_status_t fmuDoStep(const fmu_t *fmu,
         status2 = fmu->fmi_functions.version_2.fmi2DoStep(fmu->component,
                                                           currentCommunicationPoint,
                                                           communicationStepSize,
-                                                          fmi2True);
+                                                          fmi2True); /* noSetFMUStatePriorToCurrentPoint */
         if ((status2 == fmi2OK) || (status2 == fmi2Warning))
             status = FMU_STATUS_OK;
     } else {
-        fmi2Status status3;
-        /*status3 = fmu->fmi_functions.version_3.fmi3DoStep(fmu->component,
+        fmi3Status status3;
+        fmi3Boolean eventHandlingNeeded, terminateSimulation, earlyReturn;
+        fmi3Float64 lastSuccessfulTime;
+        status3 = fmu->fmi_functions.version_3.fmi3DoStep(fmu->component,
                                                           currentCommunicationPoint,
                                                           communicationStepSize,
-                                                          noSetFMUStatePriorToCurrentPoint);*/
-        if ((status3 == fmi2OK) || (status3 == fmi2Warning))
+                                                          fmi3True, 
+                                                          &eventHandlingNeeded, 
+                                                          &terminateSimulation, 
+                                                          &earlyReturn, 
+                                                          &lastSuccessfulTime);
+        if (terminateSimulation) {
+            logger(LOGGER_WARNING, "FMU '%s' requested to end the simulation.", fmu->name);
+            status = FMU_STATUS_ERROR;
+        }
+        if (earlyReturn) {
+            logger(LOGGER_ERROR, "FMU '%s' made an early return which is not supported.", fmu->name);
+            status = FMU_STATUS_ERROR;
+        }
+        if (eventHandlingNeeded) {
+            logger(LOGGER_ERROR, "FMU '%s' requested event handling which is not supported.", fmu->name);
+            status = FMU_STATUS_ERROR;
+        }
+        if ((status3 == fmi3OK) || (status3 == fmi3Warning))
             status = FMU_STATUS_OK;
     }
       
