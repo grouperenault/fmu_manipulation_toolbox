@@ -33,17 +33,17 @@ typedef struct {
 typedef struct container_s {
 	int							mt;
 	int							profiling;
-	size_t					    nb_fmu;
+	unsigned long				nb_fmu;
 	fmu_t						*fmu;
 	char						*instance_name;
 	char						*uuid;
 
 
 	/* storage of local variables (conveyed from one FMU to an other) */
-	size_t		   				nb_local_reals;
-	size_t						nb_local_integers;
-	size_t						nb_local_booleans;
-	size_t						nb_local_strings;
+	unsigned long		   		nb_local_reals;
+	unsigned long				nb_local_integers;
+	unsigned long				nb_local_booleans;
+	unsigned long				nb_local_strings;
 
 	double						*reals;
 	int                 		*integers;
@@ -52,7 +52,7 @@ typedef struct container_s {
 
 	/* container ports definition */
 #define DECLARE_PORT(type) \
-    int				   			nb_ports_ ## type; \
+    unsigned long	   			nb_ports_ ## type; \
     container_vr_t				*vr_ ## type; /* used as buffer to optimize malloc() operations */ \
     container_port_t            *port_ ## type
 

@@ -33,7 +33,7 @@ typedef struct {
               F M U _ T R A N S L A T I O N _ L I S T _ T
 ----------------------------------------------------------------------------*/
 typedef struct {
-	size_t          	        nb;
+	unsigned long               nb;
 	fmu_translation_t			*translations;
 } fmu_translation_list_t;
 
@@ -53,7 +53,7 @@ typedef struct {
 
 #define DECLARE_START_TYPE(name, type) \
 typedef struct { \
-    size_t                      nb; \
+    unsigned long               nb; \
     struct { \
         fmu_vr_t                vr; \
         int                     reset; \
@@ -214,7 +214,7 @@ typedef enum {
 
 typedef struct {
     char                        *name; /* based on directory */
-    size_t                      index; /* index of this FMU in container */
+    unsigned long               index; /* index of this FMU in container */
 	library_t                   library;
 	char						resource_dir[FMU_PATH_MAX_LEN];
 	char						*guid;

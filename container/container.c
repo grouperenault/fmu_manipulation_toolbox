@@ -114,25 +114,25 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         return -1;
     }
 
-    for (size_t i = 0; i < nb_fmu; i += 1) {
+    for (unsigned long i = 0; i < nb_fmu; i += 1) {
         char directory[CONFIG_FILE_SZ];
-        snprintf(directory, CONFIG_FILE_SZ, "%s/%02zx", dirname, i);
+        snprintf(directory, CONFIG_FILE_SZ, "%s/%02lx", dirname, i);
 
         if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read embedded FMU%zu's name.", i);
+            logger(LOGGER_ERROR, "Cannot read embedded FMU%lu's name.", i);
             return -1;
         }
 
         char* name = strdup(file->line);
       
         if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read embedded FMU%zu's identifier.", i);
+            logger(LOGGER_ERROR, "Cannot read embedded FMU%lu's identifier.", i);
             return -1;
         }
         char *identifier = strdup(file->line);
 
         if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read embedded FMU%zu's uuid.", i);
+            logger(LOGGER_ERROR, "Cannot read embedded FMU%lu's uuid.", i);
             return -1;
         }
         const char *guid = file->line;
@@ -161,7 +161,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
         return -1;
     }
 
-    if (sscanf(file->line, "%zu %zu %zu %zu",
+    if (sscanf(file->line, "%lu %lu %lu %lu",
         &container->nb_local_reals,
         &container->nb_local_integers,
         &container->nb_local_booleans,
@@ -177,7 +177,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             logger(LOGGER_ERROR, "Memory exhauseted."); \
             return -2; \
         } \
-        for(size_t i=0; i < container->nb_local_ ## type; i += 1) \
+        for(unsigned long i=0; i < container->nb_local_ ## type; i += 1) \
             container-> type [i] = value; \
     } else \
         container-> type = NULL 
@@ -200,8 +200,8 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
         return -1;\
     } \
 \
-    size_t nb_links; \
-    if (sscanf(file->line, "%d %zu", &container->nb_ports_ ## type, &nb_links) < 2) { \
+    unsigned long nb_links; \
+    if (sscanf(file->line, "%d %lu", &container->nb_ports_ ## type, &nb_links) < 2) { \
         logger(LOGGER_ERROR, "Cannot read I/O " #type " '%s'.", file->line); \
         return -1; \
     } \
@@ -213,7 +213,7 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
             return -1; \
         } \
         int vr_counter = 0; \
-        for (size_t i = 0; i < container->nb_ports_ ## type; i += 1) { \
+        for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) { \
             container_port_t port; \
             fmu_vr_t vr; \
             int offset; \
@@ -291,7 +291,7 @@ static int read_conf_fmu_io_ ## causality ## _ ## type (fmu_io_t *fmu_io, config
 \
     fmu_io-> type . causality .translations = NULL; \
 \
-    if (sscanf(file->line, "%zu", &fmu_io-> type . causality .nb) < 1) \
+    if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) \
         return -2; \
 \
     if (fmu_io-> type . causality .nb == 0) \
@@ -301,7 +301,7 @@ static int read_conf_fmu_io_ ## causality ## _ ## type (fmu_io_t *fmu_io, config
     if (! fmu_io-> type . causality .translations) \
         return -3; \
 \
-    for(size_t i = 0; i < fmu_io-> type . causality .nb; i += 1) { \
+    for(unsigned long i = 0; i < fmu_io-> type . causality .nb; i += 1) { \
         if (get_line(file)) \
             return -4; \
 \
@@ -322,7 +322,7 @@ static int read_conf_fmu_start_values_ ## type (fmu_io_t *fmu_io, config_file_t*
     fmu_io->start_ ## type .start_values = NULL; \
     fmu_io->start_ ## type .nb = 0; \
 \
-    if (sscanf(file->line, "%zu", &fmu_io->start_ ## type .nb) < 1) \
+    if (sscanf(file->line, "%lu", &fmu_io->start_ ## type .nb) < 1) \
         return -2; \
 \
     if (fmu_io->start_ ## type .nb == 0) \
@@ -332,7 +332,7 @@ static int read_conf_fmu_start_values_ ## type (fmu_io_t *fmu_io, config_file_t*
     if (! fmu_io->start_ ## type .start_values) \
         return -3; \
 \
-    for (size_t i = 0; i < fmu_io->start_ ## type .nb; i += 1) { \
+    for (unsigned long i = 0; i < fmu_io->start_ ## type .nb; i += 1) { \
         if (get_line(file)) \
             return -4; \
 \
@@ -379,7 +379,7 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
     fmu_io->start_strings.nb = 0;
     
 
-    if (sscanf(file->line, "%zu", &fmu_io->start_strings.nb) < 1)
+    if (sscanf(file->line, "%lu", &fmu_io->start_strings.nb) < 1)
         return -2;
                 
     if (fmu_io->start_strings.nb == 0)
@@ -389,10 +389,10 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
     if (!fmu_io->start_strings.start_values)
         return -3;
                             
-    for (size_t i = 0; i < fmu_io->start_strings.nb; i += 1)
+    for (unsigned long i = 0; i < fmu_io->start_strings.nb; i += 1)
         fmu_io->start_strings.start_values[i].value = NULL; /* in case on ealry fmuFreeInstance() */
 
-    for (size_t i = 0; i < fmu_io->start_strings.nb; i += 1) {
+    for (unsigned long i = 0; i < fmu_io->start_strings.nb; i += 1) {
         char buffer[CONFIG_FILE_SZ];
         buffer[0] = '\0';
 
