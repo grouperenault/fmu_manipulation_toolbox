@@ -31,7 +31,6 @@ typedef struct {
                             C O N T A I N E R _ T
 ----------------------------------------------------------------------------*/
 typedef struct container_s {
-	fmu_version_t			   fmi_version;
 	int							mt;
 	int							profiling;
 	size_t					    nb_fmu;

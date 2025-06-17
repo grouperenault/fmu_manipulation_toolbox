@@ -115,9 +115,8 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
     }
 
     for (size_t i = 0; i < nb_fmu; i += 1) {
-        container->fmu[i].container = container;
         char directory[CONFIG_FILE_SZ];
-        snprintf(directory, CONFIG_FILE_SZ, "%s/%02lx", dirname, i);
+        snprintf(directory, CONFIG_FILE_SZ, "%s/%02zx", dirname, i);
 
         if (get_line(file)) {
             logger(LOGGER_ERROR, "Cannot read embedded FMU%zu's name.", i);
@@ -138,15 +137,14 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         }
         const char *guid = file->line;
 
-        logger(LOGGER_DEBUG, "Loading '%s." FMU_BIN_SUFFIXE "' from directory '%s'", identifier, directory);
-
-        int status = fmu_load_from_directory(container, i, directory, name, identifier, guid);
+        int status = fmu_load_from_directory(container, i, directory, name, identifier, guid, 2);
         free(identifier);
         free(name);
         if (status) {
             logger(LOGGER_ERROR, "Cannot load from directory '%s' (status=%d)", directory, status);
             free(container->fmu);
             container->fmu = NULL; /* to allow freeInstance on container */
+            container->nb_fmu = 0;
             return -1;
         }
 

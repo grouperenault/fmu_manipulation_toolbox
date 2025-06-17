@@ -241,12 +241,12 @@ typedef struct {
 #ifdef __linux__
 #   define FMU2_BINDIR      "linux64"
 #   define FMU3_BINDIR      "x86_64-linux"
-#   define FMU_BIN_SUFFIXE  "so"
+#   define FMU_BIN_SUFFIXE  ".so"
 #endif
 #ifdef __APPLE__
 #   define FMU2_BINDIR      "darwin64"
 #   define FMU3_BINDIR      "x86_64-darwin"
-#   define FMU_BIN_SUFFIXE  "dlsym"
+#   define FMU_BIN_SUFFIXE  ".dlsym"
 #endif
 #ifdef WIN32
 #   if defined(_WIN64) || defined(__amd64__)
@@ -256,7 +256,7 @@ typedef struct {
 #       define FMU2_BINDIR  "win32"
 #       define FMU3_BINDIR  "x86-windows"
 #   endif
-#   define FMU_BIN_SUFFIXE  "dll"
+#   define FMU_BIN_SUFFIXE  ".dll"
 #endif
 
 
@@ -268,7 +268,8 @@ typedef struct {
 extern fmu_status_t fmu_set_inputs(fmu_t *fmu);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
-                                   const char *identifier, const char *guid);
+                                   const char *identifier, const char *guid,
+                                   fmu_version_t fmi_version);
 extern void fmu_unload(fmu_t *fmu);
 
 extern fmu_status_t fmuGetReal(const fmu_t *fmu, const fmu_vr_t vr[],

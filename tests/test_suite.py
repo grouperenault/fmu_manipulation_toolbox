@@ -53,7 +53,7 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         fmu = FMU(self.fmu_filename)
         operation = OperationAddRemotingWin32()
         fmu.apply_operation(operation)
-        fmu.repack("bouncing_ball-win32.fmu")
+        fmu.repack("operations/bouncing_ball-win32.fmu")
 
     def test_remove_regexp(self):
         self.assert_operation_match_ref("operations/bouncing_ball-removed.fmu",

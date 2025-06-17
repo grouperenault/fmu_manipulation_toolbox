@@ -64,120 +64,126 @@ static int fmu_do_step_thread(fmu_t* fmu) {
 }
 
 
-static int fmu_map_functions(fmu_t *fmu){
-    /*
-     * FMI-2.0 API
-     */
+static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version){
+    int status = 0;
+
+    if (fmi_version == 2) {
 #define OPT_MAP(x) fmu->fmi_functions.version_2.x = (x ## TYPE*)library_symbol(fmu->library, #x)
-#define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_2.x) return -1
-    OPT_MAP(fmi2GetTypesPlatform);
-    OPT_MAP(fmi2GetVersion);
-    OPT_MAP(fmi2SetDebugLogging);
-    REQ_MAP(fmi2Instantiate);
-    REQ_MAP(fmi2FreeInstance);
-    REQ_MAP(fmi2SetupExperiment);
-    REQ_MAP(fmi2EnterInitializationMode);
-    REQ_MAP(fmi2ExitInitializationMode);
-    REQ_MAP(fmi2Terminate);
-    REQ_MAP(fmi2Reset);
-    REQ_MAP(fmi2GetReal);
-    REQ_MAP(fmi2GetInteger);
-    REQ_MAP(fmi2GetBoolean);
-    REQ_MAP(fmi2GetString);
-    REQ_MAP(fmi2SetReal);
-    REQ_MAP(fmi2SetInteger);
-    REQ_MAP(fmi2SetBoolean);
-    REQ_MAP(fmi2SetString);
-    OPT_MAP(fmi2GetFMUstate);
-    OPT_MAP(fmi2SetFMUstate);
-    OPT_MAP(fmi2FreeFMUstate);
-    OPT_MAP(fmi2SerializedFMUstateSize);
-    OPT_MAP(fmi2SerializeFMUstate);
-    OPT_MAP(fmi2DeSerializeFMUstate);
-    OPT_MAP(fmi2GetDirectionalDerivative);
-    OPT_MAP(fmi2SetRealInputDerivatives);
-    OPT_MAP(fmi2GetRealOutputDerivatives);
-    REQ_MAP(fmi2DoStep);
-    OPT_MAP(fmi2CancelStep);
-    OPT_MAP(fmi2GetStatus);
-    REQ_MAP(fmi2GetRealStatus);
-    OPT_MAP(fmi2GetIntegerStatus);
-    REQ_MAP(fmi2GetBooleanStatus);
-    OPT_MAP(fmi2GetStringStatus);
+#define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_2.x) { \
+    logger(LOGGER_ERROR, "Missiong API '" #x "'."); \
+    status = -1; \
+}
+        OPT_MAP(fmi2GetTypesPlatform);
+        OPT_MAP(fmi2GetVersion);
+        OPT_MAP(fmi2SetDebugLogging);
+        REQ_MAP(fmi2Instantiate);
+        REQ_MAP(fmi2FreeInstance);
+        REQ_MAP(fmi2SetupExperiment);
+        REQ_MAP(fmi2EnterInitializationMode);
+        REQ_MAP(fmi2ExitInitializationMode);
+        REQ_MAP(fmi2Terminate);
+        REQ_MAP(fmi2Reset);
+        REQ_MAP(fmi2GetReal);
+        REQ_MAP(fmi2GetInteger);
+        REQ_MAP(fmi2GetBoolean);
+        REQ_MAP(fmi2GetString);
+        REQ_MAP(fmi2SetReal);
+        REQ_MAP(fmi2SetInteger);
+        REQ_MAP(fmi2SetBoolean);
+        REQ_MAP(fmi2SetString);
+        OPT_MAP(fmi2GetFMUstate);
+        OPT_MAP(fmi2SetFMUstate);
+        OPT_MAP(fmi2FreeFMUstate);
+        OPT_MAP(fmi2SerializedFMUstateSize);
+        OPT_MAP(fmi2SerializeFMUstate);
+        OPT_MAP(fmi2DeSerializeFMUstate);
+        OPT_MAP(fmi2GetDirectionalDerivative);
+        OPT_MAP(fmi2SetRealInputDerivatives);
+        OPT_MAP(fmi2GetRealOutputDerivatives);
+        REQ_MAP(fmi2DoStep);
+        OPT_MAP(fmi2CancelStep);
+        OPT_MAP(fmi2GetStatus);
+        REQ_MAP(fmi2GetRealStatus);
+        OPT_MAP(fmi2GetIntegerStatus);
+        REQ_MAP(fmi2GetBooleanStatus);
+        OPT_MAP(fmi2GetStringStatus);
 #undef OPT_MAP
 #undef REQ_MAP
+    }
 
-    /*
-     * FMI-3.0 API
-     */
+    if (fmi_version == 3) {
 #define OPT_MAP(x) fmu->fmi_functions.version_3.x = (x ## TYPE*)library_symbol(fmu->library, #x)
-#define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_3.x) return -1
-    OPT_MAP(fmi3GetVersion);
-    OPT_MAP(fmi3SetDebugLogging);
-    REQ_MAP(fmi3InstantiateCoSimulation);
-    REQ_MAP(fmi3FreeInstance);
-    REQ_MAP(fmi3EnterInitializationMode);
-    REQ_MAP(fmi3ExitInitializationMode);
-    REQ_MAP(fmi3EnterEventMode);
-    REQ_MAP(fmi3Terminate);
-    REQ_MAP(fmi3Reset);
-    REQ_MAP(fmi3GetFloat32);
-    REQ_MAP(fmi3GetFloat64);
-    REQ_MAP(fmi3GetInt8);
-    REQ_MAP(fmi3GetUInt8);
-    REQ_MAP(fmi3GetInt16);        
-    REQ_MAP(fmi3GetUInt16);
-    REQ_MAP(fmi3GetInt32);
-    REQ_MAP(fmi3GetUInt32);
-    REQ_MAP(fmi3GetInt64);        
-    REQ_MAP(fmi3GetUInt64);
-    REQ_MAP(fmi3GetBoolean);
-    REQ_MAP(fmi3GetString);
-    REQ_MAP(fmi3GetBinary);
-    REQ_MAP(fmi3GetClock);
-    REQ_MAP(fmi3SetFloat32);
-    REQ_MAP(fmi3SetFloat64);
-    REQ_MAP(fmi3SetInt8);
-    REQ_MAP(fmi3SetUInt8);
-    REQ_MAP(fmi3SetInt16);        
-    REQ_MAP(fmi3SetUInt16);
-    REQ_MAP(fmi3SetInt32);
-    REQ_MAP(fmi3SetUInt32);
-    REQ_MAP(fmi3SetInt64);        
-    REQ_MAP(fmi3SetUInt64);
-    REQ_MAP(fmi3SetBoolean);
-    REQ_MAP(fmi3SetString);
-    REQ_MAP(fmi3SetBinary);
-    REQ_MAP(fmi3SetClock);
-    OPT_MAP(fmi3GetNumberOfVariableDependencies);
-    OPT_MAP(fmi3GetVariableDependencies);
-    OPT_MAP(fmi3GetFMUState);
-    OPT_MAP(fmi3SetFMUState);
-    OPT_MAP(fmi3FreeFMUState);
-    OPT_MAP(fmi3SerializedFMUStateSize);
-    OPT_MAP(fmi3SerializeFMUState);
-    OPT_MAP(fmi3DeserializeFMUState);
-    OPT_MAP(fmi3GetDirectionalDerivative);
-    OPT_MAP(fmi3GetAdjointDerivative);
-    REQ_MAP(fmi3EnterConfigurationMode);
-    REQ_MAP(fmi3ExitConfigurationMode);
-    OPT_MAP(fmi3GetIntervalDecimal);
-    OPT_MAP(fmi3GetIntervalFraction);
-    OPT_MAP(fmi3GetShiftDecimal);
-    OPT_MAP(fmi3GetShiftFraction);
-    OPT_MAP(fmi3SetIntervalDecimal);
-    OPT_MAP(fmi3SetIntervalFraction);
-    OPT_MAP(fmi3SetShiftDecimal);
-    OPT_MAP(fmi3SetShiftFraction);
-    REQ_MAP(fmi3EvaluateDiscreteStates);
-    OPT_MAP(fmi3UpdateDiscreteStates);
-    REQ_MAP(fmi3EnterStepMode);
-    OPT_MAP(fmi3GetOutputDerivatives);
-    REQ_MAP(fmi3DoStep);
+#define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_3.x) { \
+    logger(LOGGER_ERROR, "Missiong API '" #x "'."); \
+    status = -1; \
+}
+        OPT_MAP(fmi3GetVersion);
+        OPT_MAP(fmi3SetDebugLogging);
+        REQ_MAP(fmi3InstantiateCoSimulation);
+        REQ_MAP(fmi3FreeInstance);
+        REQ_MAP(fmi3EnterInitializationMode);
+        REQ_MAP(fmi3ExitInitializationMode);
+        REQ_MAP(fmi3EnterEventMode);
+        REQ_MAP(fmi3Terminate);
+        REQ_MAP(fmi3Reset);
+        REQ_MAP(fmi3GetFloat32);
+        REQ_MAP(fmi3GetFloat64);
+        REQ_MAP(fmi3GetInt8);
+        REQ_MAP(fmi3GetUInt8);
+        REQ_MAP(fmi3GetInt16);
+        REQ_MAP(fmi3GetUInt16);
+        REQ_MAP(fmi3GetInt32);
+        REQ_MAP(fmi3GetUInt32);
+        REQ_MAP(fmi3GetInt64);
+        REQ_MAP(fmi3GetUInt64);
+        REQ_MAP(fmi3GetBoolean);
+        REQ_MAP(fmi3GetString);
+        REQ_MAP(fmi3GetBinary);
+        REQ_MAP(fmi3GetClock);
+        REQ_MAP(fmi3SetFloat32);
+        REQ_MAP(fmi3SetFloat64);
+        REQ_MAP(fmi3SetInt8);
+        REQ_MAP(fmi3SetUInt8);
+        REQ_MAP(fmi3SetInt16);
+        REQ_MAP(fmi3SetUInt16);
+        REQ_MAP(fmi3SetInt32);
+        REQ_MAP(fmi3SetUInt32);
+        REQ_MAP(fmi3SetInt64);
+        REQ_MAP(fmi3SetUInt64);
+        REQ_MAP(fmi3SetBoolean);
+        REQ_MAP(fmi3SetString);
+        REQ_MAP(fmi3SetBinary);
+        REQ_MAP(fmi3SetClock);
+        OPT_MAP(fmi3GetNumberOfVariableDependencies);
+        OPT_MAP(fmi3GetVariableDependencies);
+        OPT_MAP(fmi3GetFMUState);
+        OPT_MAP(fmi3SetFMUState);
+        OPT_MAP(fmi3FreeFMUState);
+        OPT_MAP(fmi3SerializedFMUStateSize);
+        OPT_MAP(fmi3SerializeFMUState);
+        OPT_MAP(fmi3DeserializeFMUState);
+        OPT_MAP(fmi3GetDirectionalDerivative);
+        OPT_MAP(fmi3GetAdjointDerivative);
+        REQ_MAP(fmi3EnterConfigurationMode);
+        REQ_MAP(fmi3ExitConfigurationMode);
+        OPT_MAP(fmi3GetIntervalDecimal);
+        OPT_MAP(fmi3GetIntervalFraction);
+        OPT_MAP(fmi3GetShiftDecimal);
+        OPT_MAP(fmi3GetShiftFraction);
+        OPT_MAP(fmi3SetIntervalDecimal);
+        OPT_MAP(fmi3SetIntervalFraction);
+        OPT_MAP(fmi3SetShiftDecimal);
+        OPT_MAP(fmi3SetShiftFraction);
+        REQ_MAP(fmi3EvaluateDiscreteStates);
+        OPT_MAP(fmi3UpdateDiscreteStates);
+        REQ_MAP(fmi3EnterStepMode);
+        OPT_MAP(fmi3GetOutputDerivatives);
+        REQ_MAP(fmi3DoStep);
 #undef OPT_MAP
 #undef REQ_MAP
+    }
 
-    return 0;
+    return status;
 }
 
 
@@ -207,10 +213,11 @@ static void fs_make_path(char* buffer, size_t len, ...) {
 
 
 int fmu_load_from_directory(container_t *container, int i, const char *directory, const char *name,
-                            const char *identifier, const char *guid) {
-    if (! container)
-        return -1;
+                            const char *identifier, const char *guid, fmu_version_t fmi_version) {
+    logger(LOGGER_DEBUG, "FMU#%d: loading '%s" FMU_BIN_SUFFIXE "' from directory '%s'", i, identifier, directory);
+
     fmu_t *fmu = &container->fmu[i];
+
     fmu->container = container;
     fmu->name = strdup(name);
     fmu->index = i;
@@ -230,11 +237,11 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->fmu_io.start_booleans.start_values = NULL;
     fmu->fmu_io.start_strings.start_values = NULL;
 
-    char library_filename[FMU_PATH_MAX_LEN];
-
     fmu->guid = strdup(guid);
+
+    char library_filename[FMU_PATH_MAX_LEN];
     library_filename[0] = '\0';
-    switch(container->fmi_version) {
+    switch(fmi_version) {
         case 2:
            strncpy(fmu->resource_dir, "file:///", FMU_PATH_MAX_LEN);
            fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU2_BINDIR, identifier, NULL);
@@ -244,7 +251,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
             fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU3_BINDIR, identifier, NULL);
             break;
         default:
-            logger(LOGGER_ERROR, "Unsupported FMI-%d version.", container->fmi_version);
+            logger(LOGGER_ERROR, "Unsupported FMI-%d version.", fmi_version);
             return -1;
     }
     strncat(library_filename, FMU_BIN_SUFFIXE, FMU_PATH_MAX_LEN - strlen(library_filename));
@@ -254,8 +261,10 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     if (!fmu->library)
         return -2;
     
-    if (fmu_map_functions(fmu))
+    if (fmu_map_functions(fmu, fmi_version)) {
+        logger(LOGGER_ERROR, "missing API in %s", library_filename);
         return -3;
+    }
 
     fmu->cancel = 0;
     fmu->set_input = 0;
@@ -273,6 +282,8 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
 
 
 void fmu_unload(fmu_t *fmu) {
+
+    logger(LOGGER_DEBUG, "Unload FMU %s", fmu->name);
 
     /* Stop the thread */
     fmu->cancel = 1;
@@ -466,15 +477,21 @@ fmu_status_t fmuDoStep(const fmu_t *fmu,
                        double currentCommunicationPoint, 
                        double communicationStepSize) {
     fmu_status_t status = FMU_STATUS_ERROR;
+
+    logger(LOGGER_DEBUG, "%s fmuDoStep() %d %x", fmu->name, fmu->fmi_version, fmu->fmi_functions.version_2.fmi2DoStep);
     if (fmu->profile)
         profile_tic(fmu->profile);
 
     if (fmu->fmi_version == 2) {
         fmi2Status status2;
+        logger(LOGGER_DEBUG, "%s fmuDoStep(%x, %f, %f) start %x", fmu->name, fmu->component, currentCommunicationPoint, communicationStepSize,
+            fmu->fmi_functions.version_2.fmi2DoStep);
+
         status2 = fmu->fmi_functions.version_2.fmi2DoStep(fmu->component,
                                                           currentCommunicationPoint,
                                                           communicationStepSize,
                                                           fmi2True); /* noSetFMUStatePriorToCurrentPoint */
+        logger(LOGGER_DEBUG, "%s fmuDoStep() end %d", fmu->name, status2);
         if ((status2 == fmi2OK) || (status2 == fmi2Warning))
             status = FMU_STATUS_OK;
     } else {
@@ -508,7 +525,7 @@ fmu_status_t fmuDoStep(const fmu_t *fmu,
     if (fmu->profile) {
         fmu->container->reals[fmu->index] = profile_toc(fmu->profile, currentCommunicationPoint+communicationStepSize);
     }
-
+    logger(LOGGER_DEBUG, "%s fmuDoStep() --OK", fmu->name);
     return status;
 }
 
@@ -554,6 +571,10 @@ fmu_status_t fmuSetupExperiment(const fmu_t *fmu) {
     fmu_status_t status = FMU_STATUS_ERROR;
 
     if (fmu->fmi_version == 2) {
+        logger(LOGGER_DEBUG, "fmi2SetupExperiment(%p, %d, %e, %e, %d, %e)", fmu->component,
+            fmu->container->tolerance_defined, fmu->container->tolerance,
+            fmu->container->start_time,
+            fmu->container->stop_time_defined, fmu->container->stop_time);
         fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetupExperiment(fmu->component,
                                                                               fmu->container->tolerance_defined, fmu->container->tolerance,
                                                                               fmu->container->start_time,
