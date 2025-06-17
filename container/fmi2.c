@@ -60,7 +60,14 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
         logger_function_t container_logger;
         container_logger.logger_fmi2 = functions->logger;
-        logger_init(FMU_2, container_logger, functions->componentEnvironment, container->instance_name, loggingOn);  /* logger() is available starting this point ! */
+        logger_init(FMU_2, container_logger, functions->componentEnvironment, container->instance_name, loggingOn); 
+        /* logger() is available starting this point ! */
+
+        if (fmi2CoSimulation != fmi2CoSimulation) {
+            logger(LOGGER_ERROR, "Only cosimulation is supported.");
+            free(container);
+            return NULL;
+        }
 
         container->mt = 0;
         container->nb_fmu = 0;
@@ -103,8 +110,8 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
             container->fmu[i].component = NULL;
 
         for(int i=0; i < container->nb_fmu; i += 1) {
-            fmu_status_t status = fmuInstantiate(&container->fmu[i], 
-                                                 container->instance_name);
+            fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i],
+                                                             container->instance_name);
             if (status != FMU_STATUS_OK) {
                 logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
                 fmi2FreeInstance(container);
@@ -525,6 +532,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
     container_t *container = (container_t*)c;
     const fmi2Real end_time = currentCommunicationPoint + communicationStepSize;
     fmu_status_t status = FMU_STATUS_OK;
+
 
     const int nb_step = (int)((end_time - container->time + container->tolerance) / container->time_step);
     

@@ -12,7 +12,7 @@ static struct {
     void                *environment;
     const char          *instance_name;
     int                 debug;
-} _logger = { 0, NULL, NULL, NULL};
+} _logger = { 0, NULL, NULL, NULL, 0};
 
 void logger_init(fmu_version_t  version, logger_function_t callback, void *environment, const char *instance_name, int debug) {
     _logger.version = version;

@@ -294,7 +294,7 @@ extern fmu_status_t fmuDoStep(const fmu_t *fmu,
 extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu);
 extern fmu_status_t fmuExitInitializationMode(const fmu_t *fmu);
 extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu);
-extern fmu_status_t fmuInstantiate(fmu_t *fmu, fmi2String instanceName);
+extern fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, fmi2String instanceName);
 extern void fmuFreeInstance(const fmu_t *fmu);
 extern fmu_status_t fmuTerminate(const fmu_t *fmu);
 extern fmu_status_t fmuReset(const fmu_t *fmu);

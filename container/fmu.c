@@ -10,15 +10,15 @@
 #pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
 
 
-fmu_status_t fmu_set_inputs(fmu_t *fmu) {
+fmu_status_t fmu_set_inputs(fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
 
     if (fmu->set_input) {
-        const container_t *container = fmu->container;
-        const fmu_io_t *fmu_io = &fmu->fmu_io;
-        
+        const container_t* container = fmu->container;
+        const fmu_io_t* fmu_io = &fmu->fmu_io;
+
 #define SETTER(type, fmi_type) \
-    for (size_t i = 0; i < fmu_io-> type .in.nb; i += 1) { \
+    for (int i = 0; i < fmu_io-> type .in.nb; i += 1) { \
         const unsigned int fmu_vr = fmu_io-> type .in.translations[i].fmu_vr; \
         const unsigned int local_vr = fmu_io-> type .in.translations[i].vr; \
         status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> type [local_vr]); \
@@ -31,9 +31,10 @@ fmu_status_t fmu_set_inputs(fmu_t *fmu) {
         SETTER(booleans, Boolean);
         SETTER(strings, String);
 #undef SETTER
-    } else
+    }
+    else
         fmu->set_input = 1; /* Skip only the first doStep() */
- 
+
     return status;
 }
 
@@ -70,7 +71,7 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version){
     if (fmi_version == 2) {
 #define OPT_MAP(x) fmu->fmi_functions.version_2.x = (x ## TYPE*)library_symbol(fmu->library, #x)
 #define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_2.x) { \
-    logger(LOGGER_ERROR, "Missiong API '" #x "'."); \
+    logger(LOGGER_ERROR, "Missing API '" #x "'."); \
     status = -1; \
 }
         OPT_MAP(fmi2GetTypesPlatform);
@@ -114,7 +115,7 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version){
     if (fmi_version == 3) {
 #define OPT_MAP(x) fmu->fmi_functions.version_3.x = (x ## TYPE*)library_symbol(fmu->library, #x)
 #define REQ_MAP(x) OPT_MAP(x); if (!fmu->fmi_functions.version_3.x) { \
-    logger(LOGGER_ERROR, "Missiong API '" #x "'."); \
+    logger(LOGGER_ERROR, "Missing API '" #x "'."); \
     status = -1; \
 }
         OPT_MAP(fmi3GetVersion);
@@ -571,10 +572,6 @@ fmu_status_t fmuSetupExperiment(const fmu_t *fmu) {
     fmu_status_t status = FMU_STATUS_ERROR;
 
     if (fmu->fmi_version == 2) {
-        logger(LOGGER_DEBUG, "fmi2SetupExperiment(%p, %d, %e, %e, %d, %e)", fmu->component,
-            fmu->container->tolerance_defined, fmu->container->tolerance,
-            fmu->container->start_time,
-            fmu->container->stop_time_defined, fmu->container->stop_time);
         fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetupExperiment(fmu->component,
                                                                               fmu->container->tolerance_defined, fmu->container->tolerance,
                                                                               fmu->container->start_time,
@@ -590,9 +587,10 @@ fmu_status_t fmuSetupExperiment(const fmu_t *fmu) {
 }
 
 
-fmu_status_t fmuInstantiate(fmu_t *fmu, const char *instanceName) {
+fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
     if (fmu->fmi_version == 2) {
-        fmi2CallbackFunctions fmi2_callback_functions;
+        /* simulink expect this fmi2CallbcakFunction to live all the simulation ! */
+        static fmi2CallbackFunctions fmi2_callback_functions;   /* TODO: keep inside FMU instead of static */
         fmi2_callback_functions.componentEnvironment = fmu;
         fmi2_callback_functions.logger = (fmi2CallbackLogger)logger_embedded_fmu;
         fmi2_callback_functions.allocateMemory = NULL;
@@ -630,7 +628,7 @@ fmu_status_t fmuInstantiate(fmu_t *fmu, const char *instanceName) {
 
 
 void fmuFreeInstance(const fmu_t *fmu) {
-    if (fmu && fmu->component) {/* if embedded FMU is not weel initialized */
+    if (fmu && fmu->component) { /* if embedded FMU is not well initialized */
         if (fmu->fmi_version == 2)
             fmu->fmi_functions.version_2.fmi2FreeInstance(fmu->component);
         else
