@@ -186,11 +186,12 @@ class FMUSplitterDescription:
 
         for i in range(nb_fmu):
             fmu_filename = self.get_line(file)
+            base_directory = "/".join(txt_filename.split("/")[0:-1])
             try:
-                self.parse_model_description(str(Path(txt_filename).parent / fmu_filename), fmu_filename)
+                self.parse_model_description(f"{base_directory}/{fmu_filename}", fmu_filename)
             except KeyError:
-                self.parse_model_description(str(Path(txt_filename).parent / f"{i:02x}"), fmu_filename)
-            self.config["candidate_fmu"].append(fmu_filename)
+                self.parse_model_description(f"{base_directory}/{i:02x}", fmu_filename)
+            self.config["candixdate_fmu"].append(fmu_filename)
             _library = self.get_line(file)
             _uuid = self.get_line(file)
         _nb_local_variables = self.get_line(file)
@@ -216,7 +217,7 @@ class FMUSplitterDescription:
 
     def parse_txt_file_ports(self, file):
         for fmi_type in ("Real", "Integer", "Boolean", "String"):
-            nb_port_variables, _ = self.get_line(file).split(" ")
+            nb_port_variables = self.get_line(file).split(" ")[0]
             for i in range(int(nb_port_variables)):
                 tokens = self.get_line(file).split(" ")
                 if len(tokens) > 3:
@@ -258,7 +259,7 @@ class FMUSplitterDescription:
                     nb_start = int(self.get_line(file))
                     for i in range(nb_start):
                         tokens = self.get_line(file).split(" ")
-                        vr = tokens[0]
+                        vr = int(tokens[0])
                         value = tokens[-1]
                         start_definition = [fmu_filename, self.vr_to_name[fmu_filename][fmi_type][vr]["name"],
                                             value]
