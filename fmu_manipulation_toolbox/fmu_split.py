@@ -191,7 +191,7 @@ class FMUSplitterDescription:
                 self.parse_model_description(f"{base_directory}/{fmu_filename}", fmu_filename)
             except KeyError:
                 self.parse_model_description(f"{base_directory}/{i:02x}", fmu_filename)
-            self.config["candixdate_fmu"].append(fmu_filename)
+            self.config["candidate_fmu"].append(fmu_filename)
             _library = self.get_line(file)
             _uuid = self.get_line(file)
         _nb_local_variables = self.get_line(file)

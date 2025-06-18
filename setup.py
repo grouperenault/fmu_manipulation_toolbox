@@ -40,9 +40,9 @@ setup(
         "resources/*.png",
         "resources/fmi-2.0/*.xsd",
     ]},
-    entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.cli:fmutool",
-                                      "fmucontainer = fmu_manipulation_toolbox.cli:fmucontainer",
-                                      "uncontainer = fmu_manipulation_toolbox.cli:uncontainer"
+    entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.cli.fmutool:fmutool",
+                                      "fmucontainer = fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer",
+                                      "fmusplit = fmu_manipulation_toolbox.cli:fmusplit:fmusplit"
                                       ],
                     "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui:main"]
                   },
