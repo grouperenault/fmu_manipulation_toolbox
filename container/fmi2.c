@@ -63,8 +63,8 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         logger_init(FMU_2, container_logger, functions->componentEnvironment, container->instance_name, loggingOn); 
         /* logger() is available starting this point ! */
 
-        if (fmi2CoSimulation != fmi2CoSimulation) {
-            logger(LOGGER_ERROR, "Only cosimulation is supported.");
+        if (fmuType != fmi2CoSimulation) {
+            logger(LOGGER_ERROR, "Only CoSimulation mode is supported.");
             free(container);
             return NULL;
         }
@@ -396,10 +396,6 @@ fmi2Status fmi2GetDirectionalDerivative(fmi2Component c,
 }
 
 
-/*----------------------------------------------------------------------------
-          F M I 2   F U N C T I O N S   ( C O S I M U L A T I O N )
-----------------------------------------------------------------------------*/
-
 fmi2Status fmi2SetRealInputDerivatives(fmi2Component c,
     const fmi2ValueReference vr[], size_t nvr,
     const fmi2Integer order[],
@@ -415,6 +411,10 @@ fmi2Status fmi2GetRealOutputDerivatives(fmi2Component c,
     __NOT_IMPLEMENTED__
 }
 
+
+/*----------------------------------------------------------------------------
+          F M I 2   F U N C T I O N S   ( C O S I M U L A T I O N )
+----------------------------------------------------------------------------*/
 
 static fmu_status_t do_step_get_outputs(container_t* container, int fmu_id) {
     const fmu_t* fmu = &container->fmu[fmu_id];
