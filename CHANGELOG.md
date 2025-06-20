@@ -1,6 +1,10 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.9
+* ADDED: `fmusplit` command to split container into FMU's and provide a json file
+* ADDED: FMI-3.0 early support
+
 # Version 1.8.4.2
 * FIXED: `fmucontainer` re-set start values for causality=input after fmi2EnterInitialization as workaround for some FMUs.
 
