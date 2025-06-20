@@ -201,7 +201,7 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
     } \
 \
     unsigned long nb_links; \
-    if (sscanf(file->line, "%d %lu", &container->nb_ports_ ## type, &nb_links) < 2) { \
+    if (sscanf(file->line, "%lu %lu", &container->nb_ports_ ## type, &nb_links) < 2) { \
         logger(LOGGER_ERROR, "Cannot read I/O " #type " '%s'.", file->line); \
         return -1; \
     } \
