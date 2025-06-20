@@ -646,14 +646,14 @@ fmi3Status fmi3GetOutputDerivatives(fmi3Instance instance,
 }
 
 
- fmi3Status fmi3DoStep(fmi3Instance instance,
-                       fmi3Float64 currentCommunicationPoint,
-                       fmi3Float64 communicationStepSize,
-                       fmi3Boolean noSetFMUStatePriorToCurrentPoint,
-                       fmi3Boolean* eventHandlingNeeded,
-                       fmi3Boolean* terminateSimulation,
-                       fmi3Boolean* earlyReturn,
-                       fmi3Float64* lastSuccessfulTime) {
+fmi3Status fmi3DoStep(fmi3Instance instance,
+                      fmi3Float64 currentCommunicationPoint,
+                      fmi3Float64 communicationStepSize,
+                      fmi3Boolean noSetFMUStatePriorToCurrentPoint,
+                      fmi3Boolean* eventHandlingNeeded,
+                      fmi3Boolean* terminateSimulation,
+                      fmi3Boolean* earlyReturn,
+                      fmi3Float64* lastSuccessfulTime) {
     container_t* container = (container_t*)instance;
 
     __NOT_IMPLEMENTED__
