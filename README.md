@@ -158,8 +158,9 @@ You can write your own FMU Manipulation scripts. Once you downloaded fmutool mod
 adding the `import` statement lets you access the API :
 
 ```python
-from fmu_manipulation_toolbox.fmu_operations import FMU, OperationExtractNames, OperationStripTopLevel,
-  OperationRenameFromCSV
+from fmu_manipulation_toolbox.operations import FMU, OperationExtractNames, OperationStripTopLevel,
+
+OperationRenameFromCSV
 ```
 
 ### remove toplevel bus (if any)

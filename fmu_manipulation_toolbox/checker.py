@@ -3,7 +3,7 @@ import inspect
 import os
 import xmlschema
 from xmlschema.validators.exceptions import XMLSchemaValidationError
-from .fmu_operations import OperationAbstract
+from .operations import OperationAbstract
 
 
 class OperationGenericCheck(OperationAbstract):

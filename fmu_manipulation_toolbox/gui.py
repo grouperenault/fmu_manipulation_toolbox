@@ -12,7 +12,7 @@ from functools import partial
 from typing import Optional
 
 from .gui_style import gui_style
-from .fmu_operations import *
+from .operations import *
 from .assembly import Assembly, AssemblyNode
 from .checker import checker_list
 from .help import Help
