@@ -1,7 +1,7 @@
 import argparse
 
 from .utils import *
-from ..fmu_operations import *
+from ..operations import *
 from ..checker import checker_list
 from ..version import __version__ as version
 from ..help import Help
@@ -72,7 +72,7 @@ def fmutool():
     print(f"READING Input='{cli_options.fmu_input}'")
     try:
         fmu = FMU(cli_options.fmu_input)
-    except FMUException as reason:
+    except FMUError as reason:
         print(f"FATAL ERROR: {reason}")
         sys.exit(-4)
 
@@ -100,7 +100,7 @@ def fmutool():
         print(f"WRITING Output='{cli_options.fmu_output}'")
         try:
             fmu.repack(cli_options.fmu_output)
-        except FMUException as reason:
+        except FMUError as reason:
             print(f"FATAL ERROR: {reason}")
             sys.exit(-5)
     else:

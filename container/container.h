@@ -7,13 +7,14 @@ extern "C" {
 
 #include "fmu.h"
 #include "library.h"
+#include "logger.h"
 
 /*----------------------------------------------------------------------------
                       C O N T A I N E R _ V R _ T
 ----------------------------------------------------------------------------*/
 typedef struct {
-	fmi2ValueReference			fmu_vr;
-	int							fmu_id;
+	fmu_vr_t			fmu_vr;
+	int					fmu_id;
 } container_vr_t;
 
 
@@ -32,28 +33,26 @@ typedef struct {
 typedef struct container_s {
 	int							mt;
 	int							profiling;
-	int							nb_fmu;
+	unsigned long				nb_fmu;
 	fmu_t						*fmu;
-	fmi2CallbackLogger			logger;
-	fmi2ComponentEnvironment	environment;
 	char						*instance_name;
 	char						*uuid;
-	fmi2Boolean					debug;
-	const fmi2CallbackFunctions	*callback_functions;
+
 
 	/* storage of local variables (conveyed from one FMU to an other) */
-	fmi2ValueReference		    nb_local_reals;
-	fmi2ValueReference			nb_local_integers;
-	fmi2ValueReference			nb_local_booleans;
-	fmi2ValueReference			nb_local_strings;
-	fmi2Real					*reals;
-	fmi2Integer                 *integers;
-	fmi2Boolean                 *booleans;
-	fmi2String                  *strings;
+	unsigned long		   		nb_local_reals;
+	unsigned long				nb_local_integers;
+	unsigned long				nb_local_booleans;
+	unsigned long				nb_local_strings;
+
+	double						*reals;
+	int                 		*integers;
+	int                 		*booleans;
+	const char                  **strings;
 
 	/* container ports definition */
 #define DECLARE_PORT(type) \
-    fmi2ValueReference   		nb_ports_ ## type; \
+    unsigned long	   			nb_ports_ ## type; \
     container_vr_t				*vr_ ## type; /* used as buffer to optimize malloc() operations */ \
     container_port_t            *port_ ## type
 
@@ -63,18 +62,21 @@ typedef struct container_s {
     DECLARE_PORT(strings);
 #undef DECLARE_PORT
 
-	/* for doStep() operations */
-	fmi2Real					time_step;
-	fmi2Real					time;
-	fmi2Real					tolerance;
-	fmi2Boolean					noSetFMUStatePriorToCurrentPoint;
-
+	double						time_step;
+	double						time;
+	double						tolerance;
+	double						start_time;
+	double						stop_time;
+	int							tolerance_defined;
+	int							stop_time_defined;
 } container_t;
 
 
-/*
- * No prototypes explicitly exposed here: this file implemenets FMI2 API !
- */
+/*----------------------------------------------------------------------------
+                            P R O T O T Y P E S
+----------------------------------------------------------------------------*/
+
+extern int container_read_conf(container_t* container, const char* dirname);
 
 #	ifdef __cplusplus
 }

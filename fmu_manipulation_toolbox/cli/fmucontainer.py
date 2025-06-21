@@ -4,7 +4,7 @@ from pathlib import Path
 
 from .utils import *
 from ..assembly import Assembly, AssemblyError
-from ..fmu_container import FMUContainerError
+from ..container import FMUContainerError
 from ..version import __version__ as version
 
 
@@ -23,6 +23,10 @@ def fmucontainer():
     parser.add_argument("-fmu-directory", action="store", dest="fmu_directory", required=False, default=".",
                         help="Directory containing initial FMU’s and used to generate containers. "
                              "If not defined, current directory is used.")
+
+    parser.add_argument("-fmi", action="store", dest="fmi_version", required=False, default="2",
+                        help="Define version of FMI to be used for container interface."
+                             "Only '2' or '3' is supported.")
 
     parser.add_argument("-container", action="append", dest="container_descriptions_list", default=[],
                         metavar="filename.{csv|json|ssp},[:step_size]", required=True,

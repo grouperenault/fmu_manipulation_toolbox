@@ -7,7 +7,7 @@ import uuid
 import xml.parsers.expat
 import zipfile
 
-from .fmu_container import FMUContainer, AutoWired
+from .container import FMUContainer, AutoWired
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
