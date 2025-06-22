@@ -14,7 +14,7 @@ extern "C" {
 ----------------------------------------------------------------------------*/
 typedef struct {
 	fmu_vr_t			fmu_vr;
-	int					fmu_id;
+	long				fmu_id;
 } container_vr_t;
 
 
@@ -22,7 +22,7 @@ typedef struct {
                       C O N T A I N E R _ P O R T _ T
 ----------------------------------------------------------------------------*/
 typedef struct {
-    int                         nb;	 /* number of connected FMU from a container port */
+    unsigned long               nb;	 /* number of connected FMU from a container port */
     container_vr_t              *links;
 } container_port_t;
 
@@ -46,6 +46,7 @@ typedef struct container_s {
 	unsigned long				nb_local_strings;
 
 	double						*reals;
+	float						*reals16;
 	int                 		*integers;
 	int                 		*booleans;
 	const char                  **strings;

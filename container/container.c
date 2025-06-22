@@ -225,7 +225,7 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
                 return -1; \
             } \
 \
-            if (sscanf(file->line, "%d %d%n", &vr, &port.nb, &offset) < 2) { \
+            if (sscanf(file->line, "%d %ld%n", &vr, &port.nb, &offset) < 2) { \
                 logger(LOGGER_ERROR, "Cannot read I/O " #type " details '%s'.", file->line); \
                 return -1; \
             } \
@@ -237,7 +237,7 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
                     return -1; \
                 }\
 \
-                if (sscanf(file->line+offset, " %d %d%n", &container->vr_ ## type [vr_counter].fmu_id, \
+                if (sscanf(file->line+offset, " %ld %d%n", &container->vr_ ## type [vr_counter].fmu_id, \
                                                           &container->vr_ ## type [vr_counter].fmu_vr, &read) < 2) { \
                     logger(LOGGER_ERROR, "Cannot read I/O " #type " link details '%s'.", file->line+offset); \
                     return -1; \
