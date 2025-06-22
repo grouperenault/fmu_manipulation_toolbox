@@ -589,19 +589,17 @@ fmu_status_t fmuSetupExperiment(const fmu_t *fmu) {
 
 fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
     if (fmu->fmi_version == 2) {
-        /* simulink expect this fmi2CallbcakFunction to live all the simulation ! */
-        static fmi2CallbackFunctions fmi2_callback_functions;   /* TODO: keep inside FMU instead of static */
-        fmi2_callback_functions.componentEnvironment = fmu;
-        fmi2_callback_functions.logger = (fmi2CallbackLogger)logger_embedded_fmu;
-        fmi2_callback_functions.allocateMemory = NULL;
-        fmi2_callback_functions.freeMemory = NULL;
-        fmi2_callback_functions.stepFinished = NULL;
+        fmu->fmi2_callback_functions.componentEnvironment = fmu;
+        fmu->fmi2_callback_functions.logger = (fmi2CallbackLogger)logger_embedded_fmu;
+        fmu->fmi2_callback_functions.allocateMemory = NULL;
+        fmu->fmi2_callback_functions.freeMemory = NULL;
+        fmu->fmi2_callback_functions.stepFinished = NULL;
 
         fmu->component = fmu->fmi_functions.version_2.fmi2Instantiate(instanceName,
                                                                       fmi2CoSimulation,
                                                                       fmu->guid,
                                                                       fmu->resource_dir,
-                                                                      &fmi2_callback_functions,
+                                                                      &fmu->fmi2_callback_functions,
                                                                       fmi2False,    /* visible */
                                                                       logger_get_debug());
     } else {

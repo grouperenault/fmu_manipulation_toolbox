@@ -236,6 +236,12 @@ typedef struct {
     profile_t                   *profile;
 
 	struct container_s			*container;
+
+    /* desptis FMI spec, simulink expect this fmi2CallbcakFunction to live 
+     *  all the simulation !
+     * Keep track this structure here.
+     */
+    fmi2CallbackFunctions fmi2_callback_functions;
 } fmu_t;
 
 #ifdef __linux__
