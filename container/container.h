@@ -47,7 +47,15 @@ typedef struct container_s {
 
 	double						*reals;
 	float						*reals16;
-	int                 		*integers;
+	int8_t						*integers8;
+	uint8_t						*uintegers8;
+	int16_t						*integers16;
+	uint16_t					*uintegers16;
+	int32_t                		*integers;
+	uint32_t               		*uintegers32;
+	int64_t						*integers64;
+	uint64_t					*uintegers64;
+
 	int                 		*booleans;
 	const char                  **strings;
 
