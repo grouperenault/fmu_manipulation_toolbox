@@ -54,7 +54,8 @@ class FMUPort:
                 type_name = self.type_name
 
             child_str = (f"<{type_name} " +
-                         " ".join([f'{key}="{value}"' if value is not None else "" for (key, value) in child_dict.items()]) +
+                         " ".join([f'{key}="{value}"' if value is not None else ""
+                                   for (key, value) in child_dict.items()]) +
                          "/>")
 
             scalar_attrs = {
@@ -65,7 +66,8 @@ class FMUPort:
                 "initial": self.initial,
                 "description": self.description,
             }
-            scalar_attrs_str = " ".join([f'{key}="{value}"' if value is not None else "" for (key, value) in scalar_attrs.items()])
+            scalar_attrs_str = " ".join([f'{key}="{value}"' if value is not None else ""
+                                         for (key, value) in scalar_attrs.items()])
             return f'<ScalarVariable {scalar_attrs_str}>{child_str}</ScalarVariable>'
         else:
             return f'FIX ME'
