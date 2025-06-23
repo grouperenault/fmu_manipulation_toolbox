@@ -137,7 +137,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         }
         const char *guid = file->line;
 
-        int status = fmu_load_from_directory(container, i, directory, name, identifier, guid, 2);
+        int status = fmu_load_from_directory(container, i, directory, name, identifier, guid, FMU_2); /* TODO: dynamic */
         free(identifier);
         free(name);
         if (status) {

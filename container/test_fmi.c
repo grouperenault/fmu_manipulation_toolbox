@@ -17,7 +17,7 @@ int main(int argc, char **argv) {
     }   
 
     printf("Check INTEGERS\n");
-    printf("sizeof(uint_32_t)   = %d\n", sizeof(int32_t));
+    printf("sizeof(int_32_t)    = %d\n", sizeof(int32_t));
     printf("sizeof(fmi2Integer) = %d\n", sizeof(fmi2Integer));
     printf("sizeof(fmi3Int32)   = %d\n", sizeof(fmi3Int32));
     if ((sizeof(fmi2Integer) != sizeof(int32_t)) || (sizeof(fmi3Int32) != sizeof(int32_t))) {

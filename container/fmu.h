@@ -241,7 +241,7 @@ typedef struct {
      *  all the simulation !
      * Keep track this structure here.
      */
-    fmi2CallbackFunctions fmi2_callback_functions;
+    fmi2CallbackFunctions       fmi2_callback_functions;
 } fmu_t;
 
 #ifdef __linux__

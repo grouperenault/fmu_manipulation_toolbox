@@ -215,13 +215,14 @@ static void fs_make_path(char* buffer, size_t len, ...) {
 
 int fmu_load_from_directory(container_t *container, int i, const char *directory, const char *name,
                             const char *identifier, const char *guid, fmu_version_t fmi_version) {
-    logger(LOGGER_DEBUG, "FMU#%d: loading '%s" FMU_BIN_SUFFIXE "' from directory '%s'", i, identifier, directory);
+    logger(LOGGER_DEBUG, "FMU#%d: loading '%s" FMU_BIN_SUFFIXE "' from directory '%s' (FMI-%d)", i, identifier, directory, fmi_version);
 
     fmu_t *fmu = &container->fmu[i];
 
     fmu->container = container;
     fmu->name = strdup(name);
     fmu->index = i;
+    fmu->fmi_version = fmi_version;
 
     fmu->fmu_io.reals.in.translations = NULL;
     fmu->fmu_io.integers.in.translations = NULL;
