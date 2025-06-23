@@ -471,8 +471,7 @@ static fmu_status_t do_internal_step_parallel_mt(container_t* container) {
 
     /* Launch computation for all threads*/
     for(size_t i = 0; i < container->nb_fmu; i += 1) {
-        if (container->fmu[i].fmi_version == 2)
-            container->fmu[i].status = FMU_STATUS_ERROR;
+        container->fmu[i].status = FMU_STATUS_ERROR;
         thread_mutex_unlock(&container->fmu[i].mutex_container);
     }
 
@@ -485,7 +484,7 @@ static fmu_status_t do_internal_step_parallel_mt(container_t* container) {
 
     for (size_t i = 0; i < container->nb_fmu; i += 1) {
         status = do_step_get_outputs(container, i);
-        if (status != FMU_STATUS_ERROR) {
+        if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU#%d failed doStep.", i);
             return FMU_STATUS_ERROR;
         }
