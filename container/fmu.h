@@ -61,10 +61,10 @@ typedef struct { \
     } *start_values; \
 } fmu_start_ ## name ## _t
 
-DECLARE_START_TYPE(reals, fmi2Real);
-DECLARE_START_TYPE(integers, fmi2Integer);
-DECLARE_START_TYPE(booleans, fmi2Boolean);
-DECLARE_START_TYPE(strings, fmi2String);
+DECLARE_START_TYPE(reals64, double);
+DECLARE_START_TYPE(integers32, int32_t);
+DECLARE_START_TYPE(booleans, int);
+DECLARE_START_TYPE(strings, const char *);
 
 #undef DECLARE_TYPE_START
 
@@ -73,13 +73,13 @@ DECLARE_START_TYPE(strings, fmi2String);
                               F M U _ I O _ T
 ----------------------------------------------------------------------------*/
 typedef struct {
-	fmu_translation_port_t		reals;
-	fmu_translation_port_t		integers;
+	fmu_translation_port_t		reals64;
+	fmu_translation_port_t		integers32;
 	fmu_translation_port_t		booleans;
 	fmu_translation_port_t		strings;
 
-    fmu_start_reals_t           start_reals;
-    fmu_start_integers_t        start_integers;
+    fmu_start_reals64_t         start_reals64;
+    fmu_start_integers32_t      start_integers32;
     fmu_start_booleans_t        start_booleans;
     fmu_start_strings_t         start_strings;
 } fmu_io_t;

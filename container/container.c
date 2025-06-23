@@ -162,8 +162,8 @@ static int read_conf_io(container_t* container, config_file_t* file) {
     }
 
     if (sscanf(file->line, "%lu %lu %lu %lu",
-        &container->nb_local_reals,
-        &container->nb_local_integers,
+        &container->nb_local_reals64,
+        &container->nb_local_integers32,
         &container->nb_local_booleans,
         &container->nb_local_strings) < 4) {
         logger(LOGGER_ERROR, "Cannort read container I/O '%s'.", file->line);
@@ -182,8 +182,8 @@ static int read_conf_io(container_t* container, config_file_t* file) {
     } else \
         container-> type = NULL 
     
-    ALLOC(reals, 0.0);
-    ALLOC(integers, 0);
+    ALLOC(reals64, 0.0);
+    ALLOC(integers32, 0);
     ALLOC(booleans, 0);
     ALLOC(strings, NULL);
 
@@ -260,8 +260,8 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
 }
 
 
-READ_CONF_VR(reals);
-READ_CONF_VR(integers);
+READ_CONF_VR(reals64);
+READ_CONF_VR(integers32);
 READ_CONF_VR(booleans);
 READ_CONF_VR(strings);
 
@@ -269,10 +269,10 @@ READ_CONF_VR(strings);
 
 
 static int read_conf_vr(container_t* container, config_file_t* file) {
-    if (read_conf_vr_reals(container, file))
+    if (read_conf_vr_reals64(container, file))
         return -1;
 
-    if (read_conf_vr_integers(container, file))
+    if (read_conf_vr_integers32(container, file))
         return -2;
     
     if (read_conf_vr_booleans(container, file))
@@ -347,13 +347,13 @@ static int read_conf_fmu_start_values_ ## type (fmu_io_t *fmu_io, config_file_t*
 }
 
 
-READER_FMU_IO(reals, in);
-READER_FMU_IO(integers, in);
+READER_FMU_IO(reals64, in);
+READER_FMU_IO(integers32, in);
 READER_FMU_IO(booleans, in);
 READER_FMU_IO(strings, in);
 
-READER_FMU_START_VALUES(reals, "%lf");
-READER_FMU_START_VALUES(integers, "%d");
+READER_FMU_START_VALUES(reals64, "%lf");
+READER_FMU_START_VALUES(integers32, "%d");
 READER_FMU_START_VALUES(booleans, "%d");
 
 
@@ -410,8 +410,8 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
 }
 
 
-READER_FMU_IO(reals, out);
-READER_FMU_IO(integers, out);
+READER_FMU_IO(reals64, out);
+READER_FMU_IO(integers32, out);
 READER_FMU_IO(booleans, out);
 READER_FMU_IO(strings, out);
 
@@ -422,10 +422,10 @@ READER_FMU_IO(strings, out);
 static int read_conf_fmu_io_in(fmu_io_t* fmu_io, config_file_t* file) {
     int status;
 
-    status = read_conf_fmu_io_in_reals(fmu_io, file);
+    status = read_conf_fmu_io_in_reals64(fmu_io, file);
     if (status)
         return status * 1;
-    status = read_conf_fmu_io_in_integers(fmu_io, file);
+    status = read_conf_fmu_io_in_integers32(fmu_io, file);
     if (status)
         return status * 10;
     status = read_conf_fmu_io_in_booleans(fmu_io, file);
@@ -442,10 +442,10 @@ static int read_conf_fmu_io_in(fmu_io_t* fmu_io, config_file_t* file) {
 static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
     int status;
 
-    status = read_conf_fmu_start_values_reals(fmu_io, file);
+    status = read_conf_fmu_start_values_reals64(fmu_io, file);
     if (status)
         return status * 1;
-    status = read_conf_fmu_start_values_integers(fmu_io, file);
+    status = read_conf_fmu_start_values_integers32(fmu_io, file);
     if (status)
         return status * 10;
     status = read_conf_fmu_start_values_booleans(fmu_io, file);
@@ -462,10 +462,10 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
 static int read_conf_fmu_io_out(fmu_io_t* fmu_io, config_file_t* file) {
     int status;
 
-    status = read_conf_fmu_io_out_reals(fmu_io, file);
+    status = read_conf_fmu_io_out_reals64(fmu_io, file);
     if (status)
         return status * 1;
-    status = read_conf_fmu_io_out_integers(fmu_io, file);
+    status = read_conf_fmu_io_out_integers32(fmu_io, file);
     if (status)
         return status * 10;
     status = read_conf_fmu_io_out_booleans(fmu_io, file);
@@ -543,8 +543,8 @@ int container_read_conf(container_t* container, const char* dirname) {
         return -5;
     }
 
-    logger(LOGGER_DEBUG, "Real    : %d local variables and %d ports", container->nb_local_reals, container->nb_ports_reals);
-    logger(LOGGER_DEBUG, "Integer : %d local variables and %d ports", container->nb_local_integers, container->nb_ports_integers);
+    logger(LOGGER_DEBUG, "Real    : %d local variables and %d ports", container->nb_local_reals64, container->nb_ports_reals64);
+    logger(LOGGER_DEBUG, "Integer : %d local variables and %d ports", container->nb_local_integers32, container->nb_ports_integers32);
     logger(LOGGER_DEBUG, "Boolean : %d local variables and %d ports", container->nb_local_booleans, container->nb_ports_booleans);
     logger(LOGGER_DEBUG, "String  : %d local variables and %d ports", container->nb_local_strings, container->nb_ports_strings);
 
@@ -555,18 +555,18 @@ int container_read_conf(container_t* container, const char* dirname) {
         }
 
         logger(LOGGER_DEBUG, "FMU#%d: IN     %d reals, %d integers, %d booleans, %d strings", i,
-            container->fmu[i].fmu_io.reals.in.nb,
-            container->fmu[i].fmu_io.integers.in.nb,
+            container->fmu[i].fmu_io.reals64.in.nb,
+            container->fmu[i].fmu_io.integers32.in.nb,
             container->fmu[i].fmu_io.booleans.in.nb,
             container->fmu[i].fmu_io.strings.in.nb);
         logger(LOGGER_DEBUG, "FMU#%d: START  %d reals, %d integers, %d booleans, %d strings", i,
-            container->fmu[i].fmu_io.start_reals.nb,
-            container->fmu[i].fmu_io.start_integers.nb,
+            container->fmu[i].fmu_io.start_reals64.nb,
+            container->fmu[i].fmu_io.start_integers32.nb,
             container->fmu[i].fmu_io.start_strings.nb,
             container->fmu[i].fmu_io.start_strings.nb);
         logger(LOGGER_DEBUG, "FMU#%d: OUT    %d reals, %d integers, %d booleans, %d strings", i,
-            container->fmu[i].fmu_io.reals.out.nb,
-            container->fmu[i].fmu_io.integers.out.nb,
+            container->fmu[i].fmu_io.reals64.out.nb,
+            container->fmu[i].fmu_io.integers32.out.nb,
             container->fmu[i].fmu_io.booleans.out.nb,
             container->fmu[i].fmu_io.strings.out.nb);
     }

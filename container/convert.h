@@ -29,7 +29,7 @@ typedef struct {
 } convert_table_t;
 
 typedef enum {
-    CONVERT_F16_F32 = 0,
+    CONVERT_F32_F64 = 0,
     CONVERT_D8_D16 = 1,
     CONVERT_D8_U16 = 2,
     CONVERT_D8_D32 = 3,

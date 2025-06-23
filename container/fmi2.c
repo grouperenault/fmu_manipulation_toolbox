@@ -73,21 +73,21 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         container->nb_fmu = 0;
         container->fmu = NULL;
 
-        container->nb_local_reals = 0;
-        container->nb_local_integers = 0;
+        container->nb_local_reals64 = 0;
+        container->nb_local_integers32 = 0;
         container->nb_local_booleans = 0;
         container->nb_local_strings = 0;
-        container->reals = NULL;
-        container->integers = NULL;
+        container->reals64 = NULL;
+        container->integers32 = NULL;
         container->booleans = NULL;
         container->strings = NULL;
 
-        container->nb_ports_reals = 0;
-        container->nb_ports_integers = 0;
+        container->nb_ports_reals64 = 0;
+        container->nb_ports_integers32 = 0;
         container->nb_ports_booleans = 0;
         container->nb_ports_strings = 0;
-        container->vr_reals = NULL;
-        container->vr_integers = NULL;
+        container->vr_reals64 = NULL;
+        container->vr_integers32 = NULL;
         container->vr_booleans = NULL;
         container->vr_strings = NULL;
 
@@ -133,18 +133,18 @@ void fmi2FreeInstance(fmi2Component c) {
                 fmuFreeInstance(&container->fmu[i]);
                 fmu_unload(&container->fmu[i]);
 
-                free(container->fmu[i].fmu_io.reals.in.translations);
-                free(container->fmu[i].fmu_io.integers.in.translations);
+                free(container->fmu[i].fmu_io.reals64.in.translations);
+                free(container->fmu[i].fmu_io.integers32.in.translations);
                 free(container->fmu[i].fmu_io.booleans.in.translations);
                 free(container->fmu[i].fmu_io.strings.in.translations);
 
-                free(container->fmu[i].fmu_io.reals.out.translations);
-                free(container->fmu[i].fmu_io.integers.out.translations);
+                free(container->fmu[i].fmu_io.reals64.out.translations);
+                free(container->fmu[i].fmu_io.integers32.out.translations);
                 free(container->fmu[i].fmu_io.booleans.out.translations);
                 free(container->fmu[i].fmu_io.strings.out.translations);
 
-                free(container->fmu[i].fmu_io.start_reals.start_values);
-                free(container->fmu[i].fmu_io.start_integers.start_values);
+                free(container->fmu[i].fmu_io.start_reals64.start_values);
+                free(container->fmu[i].fmu_io.start_integers32.start_values);
                 free(container->fmu[i].fmu_io.start_booleans.start_values);
 
                 for (int j = 0; j < container->fmu[i].fmu_io.start_strings.nb; j += 1)
@@ -158,17 +158,17 @@ void fmi2FreeInstance(fmi2Component c) {
         free(container->instance_name);
         free(container->uuid);
 
-        free(container->vr_reals);
-        free(container->port_reals);
-        free(container->vr_integers);
-        free(container->port_integers);
+        free(container->vr_reals64);
+        free(container->port_reals64);
+        free(container->vr_integers32);
+        free(container->port_integers32);
         free(container->vr_booleans);
         free(container->port_booleans);
         free(container->vr_strings);
         free(container->port_strings);
 
-        free(container->reals);
-        free(container->integers);
+        free(container->reals64);
+        free(container->integers32);
         free(container->booleans);
         free((void*)container->strings);
 
@@ -192,8 +192,8 @@ static void container_set_start_values(container_t* container, int early_set) {
                     &container->fmu[i].fmu_io.start_ ## type.start_values[j].value); \
         }
  
-        SET_START(Real, reals);
-        SET_START(Integer, integers);
+        SET_START(Real, reals64);
+        SET_START(Integer, integers32);
         SET_START(Boolean, booleans);
         SET_START(String, strings);
 #undef SET_START
@@ -314,8 +314,8 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 }
 
 
-FMI_GETTER(reals, Real);
-FMI_GETTER(integers, Integer);
+FMI_GETTER(reals64, Real);
+FMI_GETTER(integers32, Integer);
 FMI_GETTER(booleans, Boolean);
 FMI_GETTER(strings, String);
 #undef FMI_GETTER
@@ -347,8 +347,8 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 }
 
 
-FMI_SETTER(reals, Real);
-FMI_SETTER(integers, Integer);
+FMI_SETTER(reals64, Real);
+FMI_SETTER(integers32, Integer);
 FMI_SETTER(booleans, Boolean);
 FMI_SETTER(strings, String);
 
@@ -430,8 +430,8 @@ static fmu_status_t do_step_get_outputs(container_t* container, int fmu_id) {
             return status; \
     }
 
-GETTER(reals, Real);
-GETTER(integers, Integer);
+GETTER(reals64, Real);
+GETTER(integers32, Integer);
 GETTER(booleans, Boolean);
 GETTER(strings, String);
 

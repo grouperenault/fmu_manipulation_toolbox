@@ -26,8 +26,8 @@ fmu_status_t fmu_set_inputs(fmu_t* fmu) {
             return status; \
     }
 
-        SETTER(reals, Real);
-        SETTER(integers, Integer);
+        SETTER(reals64, Real);
+        SETTER(integers32, Integer);
         SETTER(booleans, Boolean);
         SETTER(strings, String);
 #undef SETTER
@@ -224,18 +224,18 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->index = i;
     fmu->fmi_version = fmi_version;
 
-    fmu->fmu_io.reals.in.translations = NULL;
-    fmu->fmu_io.integers.in.translations = NULL;
+    fmu->fmu_io.reals64.in.translations = NULL;
+    fmu->fmu_io.integers32.in.translations = NULL;
     fmu->fmu_io.booleans.in.translations = NULL;
     fmu->fmu_io.strings.in.translations = NULL;
 
-    fmu->fmu_io.reals.out.translations = NULL;
-    fmu->fmu_io.integers.out.translations = NULL;
+    fmu->fmu_io.reals64.out.translations = NULL;
+    fmu->fmu_io.integers32.out.translations = NULL;
     fmu->fmu_io.booleans.out.translations = NULL;
     fmu->fmu_io.strings.out.translations = NULL;
 
-    fmu->fmu_io.start_reals.start_values = NULL;
-    fmu->fmu_io.start_integers.start_values = NULL;
+    fmu->fmu_io.start_reals64.start_values = NULL;
+    fmu->fmu_io.start_integers32.start_values = NULL;
     fmu->fmu_io.start_booleans.start_values = NULL;
     fmu->fmu_io.start_strings.start_values = NULL;
 
@@ -525,7 +525,7 @@ fmu_status_t fmuDoStep(const fmu_t *fmu,
     }
       
     if (fmu->profile) {
-        fmu->container->reals[fmu->index] = profile_toc(fmu->profile, currentCommunicationPoint+communicationStepSize);
+        fmu->container->reals64[fmu->index] = profile_toc(fmu->profile, currentCommunicationPoint+communicationStepSize);
     }
     logger(LOGGER_DEBUG, "%s fmuDoStep() --OK", fmu->name);
     return status;

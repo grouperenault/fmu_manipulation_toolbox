@@ -10,8 +10,8 @@ void convert_proceed(const container_t *container, const convert_table_t *table)
 }
 
 
-static void convert_F16_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals[to] = container->reals16[from];
+static void convert_F32_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
+    container->reals64[to] = container->reals32[from];
 }
 
 
@@ -26,7 +26,7 @@ static void convert_D8_U16(const container_t *container, fmu_vr_t from, fmu_vr_t
 
 
 static void convert_D8_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers[to] = container->integers8[from];
+    container->integers32[to] = container->integers8[from];
 }
 
 
@@ -56,7 +56,7 @@ static void convert_U8_U16(const container_t *container, fmu_vr_t from, fmu_vr_t
 
 
 static void convert_U8_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers[to] = container->uintegers8[from];
+    container->integers32[to] = container->uintegers8[from];
 }
 
 
@@ -76,7 +76,7 @@ static void convert_U8_U64(const container_t *container, fmu_vr_t from, fmu_vr_t
 
 
 static void convert_D16_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers[to] = container->integers16[from];
+    container->integers32[to] = container->integers16[from];
 }
 
 
@@ -96,7 +96,7 @@ static void convert_D16_U64(const container_t *container, fmu_vr_t from, fmu_vr_
 
 
 static void convert_U16_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers[to] = container->uintegers16[from];
+    container->integers32[to] = container->uintegers16[from];
 }
 
 
@@ -116,12 +116,12 @@ static void convert_U16_U64(const container_t *container, fmu_vr_t from, fmu_vr_
 
 
 static void convert_D32_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = container->integers[from];
+    container->integers64[to] = container->integers32[from];
 }
 
 
 static void convert_D32_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = container->integers[from];
+    container->uintegers64[to] = container->integers32[from];
 }
 
 
@@ -138,7 +138,7 @@ static void convert_U32_U64(const container_t *container, fmu_vr_t from, fmu_vr_
 convert_function_t convert_function_get(convert_function_id_t id) {
 #define CASE(x) case CONVERT_ ## x: return convert_ ## x
     switch(id) {
-        CASE(F16_F32);
+        CASE(F32_F64);
 
         CASE(D8_D16);
         CASE(D8_U16);

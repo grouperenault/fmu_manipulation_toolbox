@@ -40,18 +40,18 @@ typedef struct container_s {
 
 
 	/* storage of local variables (conveyed from one FMU to an other) */
-	unsigned long		   		nb_local_reals;
-	unsigned long				nb_local_integers;
+	unsigned long		   		nb_local_reals64;
+	unsigned long				nb_local_integers32;
 	unsigned long				nb_local_booleans;
 	unsigned long				nb_local_strings;
 
-	double						*reals;
-	float						*reals16;
+	double						*reals64;
+	float						*reals32;
 	int8_t						*integers8;
 	uint8_t						*uintegers8;
 	int16_t						*integers16;
 	uint16_t					*uintegers16;
-	int32_t                		*integers;
+	int32_t                		*integers32;
 	uint32_t               		*uintegers32;
 	int64_t						*integers64;
 	uint64_t					*uintegers64;
@@ -65,8 +65,8 @@ typedef struct container_s {
     container_vr_t				*vr_ ## type; /* used as buffer to optimize malloc() operations */ \
     container_port_t            *port_ ## type
 
-    DECLARE_PORT(reals);
-    DECLARE_PORT(integers);
+    DECLARE_PORT(reals64);
+    DECLARE_PORT(integers32);
     DECLARE_PORT(booleans);
     DECLARE_PORT(strings);
 #undef DECLARE_PORT
