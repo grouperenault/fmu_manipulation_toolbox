@@ -35,7 +35,6 @@ typedef fmu_status_t (*container_do_step_function_t)(struct container_s *contain
 ----------------------------------------------------------------------------*/
 typedef struct container_s {
 	/* configuration */
-	int							mt;
 	int							profiling;
 	int							nb_fmu;
 	fmu_t						*fmu;		/* embedded FMUs */

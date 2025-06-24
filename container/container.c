@@ -704,7 +704,6 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->instance_name = strdup(instance_name);
         container->uuid = strdup(fmu_uuid);
 
-        container->mt = 0;
         container->nb_fmu = 0;
         container->fmu = NULL;
 
