@@ -687,8 +687,19 @@ int container_read_conf(container_t* container, const char* dirname) {
             container->fmu[i].fmu_io.booleans.out.nb,
             container->fmu[i].fmu_io.strings.out.nb);
     }
-
     fclose(file.fp);
+
+    
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        logger(LOGGER_DEBUG, "FMU#%d: Instanciate for CoSimulaiont");
+        fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i],
+            container->instance_name);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
+            container_free(container);
+            return -1;
+        }
+    }
 
     return 0;
 }
@@ -728,22 +739,10 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->time_step = 0.001;
         container->time = 0.0;
         container->tolerance = 1.0e-8;
-
-        for (int i = 0; i < container->nb_fmu; i += 1)
-            container->fmu[i].component = NULL;
-
-        for(int i = 0; i < container->nb_fmu; i += 1) {
-            fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i],
-                                                             container->instance_name);
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
-                container_free(container);
-                return NULL;
-            }
-        }
     }
     return container;
 }
+
 
 void container_free(container_t *container) {
     if (container->fmu) {

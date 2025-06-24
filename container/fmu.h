@@ -213,7 +213,7 @@ typedef enum {
 
 typedef struct {
     char                        *name; /* based on directory */
-    unsigned long               index; /* index of this FMU in container */
+    int                         index; /* index of this FMU in container */
 	library_t                   library;
 	char						resource_dir[FMU_PATH_MAX_LEN];
 	char						*guid;

@@ -246,8 +246,21 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
 
     fmu->container = container;
     fmu->name = strdup(name);
+    fmu->guid = strdup(guid);
     fmu->index = i;
     fmu->fmi_version = fmi_version;
+    fmu->component = NULL;  /* will be set by fmuInstantiateCoSimulation() */
+
+#define INIT_FMU_DATA(type) \
+    fmu->fmu_io. type .in.translations = NULL; \
+    fmu->fmu_io. type .out.translations = NULL; \
+    fmu->fmu_io.start_ ## type .start_values = NULL;
+
+    INIT_FMU_DATA(reals64);
+    INIT_FMU_DATA(integers32);
+    INIT_FMU_DATA(booleans);
+    INIT_FMU_DATA(strings);
+#undef INIT_FMU_DATA
 
     fmu->fmu_io.reals64.in.translations = NULL;
     fmu->fmu_io.integers32.in.translations = NULL;
@@ -264,7 +277,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->fmu_io.start_booleans.start_values = NULL;
     fmu->fmu_io.start_strings.start_values = NULL;
 
-    fmu->guid = strdup(guid);
+
 
     char library_filename[FMU_PATH_MAX_LEN];
     library_filename[0] = '\0';
