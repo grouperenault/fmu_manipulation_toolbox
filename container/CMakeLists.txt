@@ -26,13 +26,29 @@ else ()
         set(FMI_PLATFORM linux64)
     endif()
 endif ()
-message("FMI_PLATFORM: ${FMI_PLATFORM}")
+message("--- FMI_PLATFORM: ${FMI_PLATFORM}")
+
+try_run(test_fmi test_fmi_compilation ${CMAKE_CURRENT_BINARY_DIR}/ ${CMAKE_CURRENT_SOURCE_DIR}/test_fmi.c
+    CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${CMAKE_CURRENT_SOURCE_DIR}/../fmi"
+    COMPILE_OUTPUT_VARIABLE test_fmi_compilation_output
+    RUN_OUTPUT_VARIABLE test_fmi_output)
+if("${test_fmi_compilation}" AND ("${test_fmi}" EQUAL 0))
+    message(${test_fmi_output})
+    message("--- FMI support seems to be OK.")
+ELSE()
+    # Error on failure and print error message:
+    MESSAGE(FATAL_ERROR "Failed check: ${test_fmi_compilation_output}")
+ENDIF()
+
 
 ####################
 # Create CONTAINER #
 ####################
 add_library(container SHARED
 		container.c	container.h
+        convert.c convert.h
+        fmi2.c
+        fmi3.c
 		fmu.c		fmu.h
 		hash.c      hash.h
 		library.c	library.h

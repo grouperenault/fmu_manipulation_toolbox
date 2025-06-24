@@ -39,6 +39,7 @@ setup(
         "resources/license.txt",
         "resources/*.png",
         "resources/fmi-2.0/*.xsd",
+        "resources/fmi-3.0/*.xsd",
     ]},
     entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.cli.fmutool:fmutool",
                                       "fmucontainer = fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer",

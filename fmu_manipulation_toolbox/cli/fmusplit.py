@@ -1,7 +1,7 @@
 import argparse
 
 from .utils import *
-from ..fmu_split import FMUSplitter, FMUSplitterError
+from ..split import FMUSplitter, FMUSplitterError
 from ..version import __version__ as version
 
 
