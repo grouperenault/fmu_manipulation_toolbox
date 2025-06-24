@@ -272,7 +272,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
 }
 
 
-static int read_conf_io(container_t* container, config_file_t* file) {
+static int read_conf_local(container_t* container, config_file_t* file) {
     if (get_line(file)) {
         logger(LOGGER_ERROR, "Cannot read container I/O.");
         return -1;
@@ -648,7 +648,7 @@ int container_read_conf(container_t* container, const char* dirname) {
         return -3;
     }
 
-    if (read_conf_io(container, &file)) {
+    if (read_conf_local(container, &file)) {
         fclose(file.fp);
         logger(LOGGER_ERROR, "Cannot allocate local variables.");
         return -4;
@@ -718,23 +718,18 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->nb_fmu = 0;
         container->fmu = NULL;
 
-        container->nb_local_reals64 = 0;
-        container->nb_local_integers32 = 0;
-        container->nb_local_booleans = 0;
-        container->nb_local_strings = 0;
-        container->reals64 = NULL;
-        container->integers32 = NULL;
-        container->booleans = NULL;
-        container->strings = NULL;
+#define INIT(type) \
+        container->nb_local_ ## type = 0; \
+        container-> type = NULL; \
+        container->nb_ports_ ## type = 0; \
+        container->vr_ ## type = NULL; \
+        container->port_ ## type = NULL
 
-        container->nb_ports_reals64 = 0;
-        container->nb_ports_integers32 = 0;
-        container->nb_ports_booleans = 0;
-        container->nb_ports_strings = 0;
-        container->vr_reals64 = NULL;
-        container->vr_integers32 = NULL;
-        container->vr_booleans = NULL;
-        container->vr_strings = NULL;
+        INIT(reals64);
+        INIT(integers32);
+        INIT(booleans);
+        INIT(strings);
+#undef INIT
 
         container->time_step = 0.001;
         container->time = 0.0;
@@ -749,45 +744,25 @@ void container_free(container_t *container) {
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmuFreeInstance(&container->fmu[i]);
             fmu_unload(&container->fmu[i]);
-
-            free(container->fmu[i].fmu_io.reals64.in.translations);
-            free(container->fmu[i].fmu_io.integers32.in.translations);
-            free(container->fmu[i].fmu_io.booleans.in.translations);
-            free(container->fmu[i].fmu_io.strings.in.translations);
-
-            free(container->fmu[i].fmu_io.reals64.out.translations);
-            free(container->fmu[i].fmu_io.integers32.out.translations);
-            free(container->fmu[i].fmu_io.booleans.out.translations);
-            free(container->fmu[i].fmu_io.strings.out.translations);
-
-            free(container->fmu[i].fmu_io.start_reals64.start_values);
-            free(container->fmu[i].fmu_io.start_integers32.start_values);
-            free(container->fmu[i].fmu_io.start_booleans.start_values);
-
-            for (int j = 0; j < container->fmu[i].fmu_io.start_strings.nb; j += 1)
-                free((char *)container->fmu[i].fmu_io.start_strings.start_values[j].value);
-            free(container->fmu[i].fmu_io.start_strings.start_values);
         }
 
         free(container->fmu);
     }
 
+    
     free(container->instance_name);
     free(container->uuid);
 
-    free(container->vr_reals64);
-    free(container->port_reals64);
-    free(container->vr_integers32);
-    free(container->port_integers32);
-    free(container->vr_booleans);
-    free(container->port_booleans);
-    free(container->vr_strings);
-    free(container->port_strings);
+#define FREE(type) \
+    free(container->vr_ ## type); \
+    free(container->port_ ## type); \
+    free(container-> type)
 
-    free(container->reals64);
-    free(container->integers32);
-    free(container->booleans);
-    free((void*)container->strings);
+    FREE(reals64);
+    FREE(integers32);
+    FREE(booleans);
+    FREE(strings);
+#undef FREE
 
     free(container);
 }

@@ -254,6 +254,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
 #define INIT_FMU_DATA(type) \
     fmu->fmu_io. type .in.translations = NULL; \
     fmu->fmu_io. type .out.translations = NULL; \
+    fmu->fmu_io.start_ ## type .nb = 0; \
     fmu->fmu_io.start_ ## type .start_values = NULL;
 
     INIT_FMU_DATA(reals64);
@@ -261,23 +262,6 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     INIT_FMU_DATA(booleans);
     INIT_FMU_DATA(strings);
 #undef INIT_FMU_DATA
-
-    fmu->fmu_io.reals64.in.translations = NULL;
-    fmu->fmu_io.integers32.in.translations = NULL;
-    fmu->fmu_io.booleans.in.translations = NULL;
-    fmu->fmu_io.strings.in.translations = NULL;
-
-    fmu->fmu_io.reals64.out.translations = NULL;
-    fmu->fmu_io.integers32.out.translations = NULL;
-    fmu->fmu_io.booleans.out.translations = NULL;
-    fmu->fmu_io.strings.out.translations = NULL;
-
-    fmu->fmu_io.start_reals64.start_values = NULL;
-    fmu->fmu_io.start_integers32.start_values = NULL;
-    fmu->fmu_io.start_booleans.start_values = NULL;
-    fmu->fmu_io.start_strings.start_values = NULL;
-
-
 
     char library_filename[FMU_PATH_MAX_LEN];
     library_filename[0] = '\0';
@@ -342,6 +326,21 @@ void fmu_unload(fmu_t *fmu) {
 
     /* and finally unload the library */
     library_unload(fmu->library);
+
+#define FREE_FMU_DATA(type) \
+    free(fmu->fmu_io. type .in.translations); \
+    free(fmu->fmu_io. type .out.translations); \
+    free(fmu->fmu_io.start_ ## type .start_values)
+
+    FREE_FMU_DATA(reals64);
+    FREE_FMU_DATA(integers32);
+    FREE_FMU_DATA(booleans);
+    for (int i = 0; i < fmu->fmu_io.start_strings.nb; i += 1)
+        free((char*)fmu->fmu_io.start_strings.start_values[i].value);
+    FREE_FMU_DATA(strings);
+#undef FREE_FMU_DATA
+
+    return;
 }
 
 
