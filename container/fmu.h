@@ -7,7 +7,6 @@ extern "C" {
 
 #   include "fmi2Functions.h"
 #   include "fmi3Functions.h"
-#   include "container.h"
 #   include "library.h"
 #   include "profile.h"
 #   include "thread.h"
@@ -272,6 +271,7 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 extern fmu_status_t fmu_set_inputs(fmu_t *fmu);
+extern fmu_status_t fmu_get_outputs(fmu_t* fmu);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,

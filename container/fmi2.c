@@ -92,30 +92,6 @@ void fmi2FreeInstance(fmi2Component c) {
 }
 
 
-static void container_set_start_values(container_t* container, int early_set) {
-    if (early_set)
-        logger(LOGGER_DEBUG, "Setting start values...");
-    else
-        logger(LOGGER_DEBUG, "Re-setting some start values...");
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-#define SET_START(fmi_type, type) \
-        for(fmi2ValueReference j=0; j<container->fmu[i].fmu_io.start_ ## type .nb; j ++) { \
-            if (early_set || container->fmu[i].fmu_io.start_ ## type.start_values[j].reset) \
-                fmuSet ## fmi_type(&container->fmu[i], &container->fmu[i].fmu_io.start_ ## type.start_values[j].vr, 1, \
-                    &container->fmu[i].fmu_io.start_ ## type.start_values[j].value); \
-        }
- 
-        SET_START(Real, reals64);
-        SET_START(Integer, integers32);
-        SET_START(Boolean, booleans);
-        SET_START(String, strings);
-#undef SET_START
-    }
-    logger(LOGGER_DEBUG, "Start values are set.");
-    return;
-}
-
-
 fmi2Status fmi2SetupExperiment(fmi2Component c,
     fmi2Boolean toleranceDefined,
     fmi2Real tolerance,
@@ -455,6 +431,14 @@ fmi2Status fmi2DoStep(fmi2Component c,
         return fmi2OK;
     
     for(int i = 0; i < nb_step; i += 1) {
+        container->do_step(container);
+        container->time += container->time_step;
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container cannot DoStep.");
+            return fmi2Error;
+        }
+    }       
+/*
 #if 1
         if (container->mt)
             status = do_internal_step_parallel_mt(container);
@@ -473,7 +457,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
             return status;
         }
 #endif
-    }
+*/
 
     if (fabs(end_time - container->time) > container->tolerance) {
         logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, nb_step=%d)", 

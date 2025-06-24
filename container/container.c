@@ -13,9 +13,122 @@
 #pragma warning(disable : 4100)     /* no complain abourt unref formal param */
 #pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
 
+
+/*----------------------------------------------------------------------------
+                       D O   S T E P
+----------------------------------------------------------------------------*/
+
+void container_set_start_values(container_t* container, int early_set) {
+    if (early_set)
+        logger(LOGGER_DEBUG, "Setting start values...");
+    else
+        logger(LOGGER_DEBUG, "Re-setting some start values...");
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+#define SET_START(fmi_type, type) \
+        for(unsigned long j=0; j<container->fmu[i].fmu_io.start_ ## type .nb; j ++) { \
+            if (early_set || container->fmu[i].fmu_io.start_ ## type.start_values[j].reset) \
+                fmuSet ## fmi_type(&container->fmu[i], &container->fmu[i].fmu_io.start_ ## type.start_values[j].vr, 1, \
+                    &container->fmu[i].fmu_io.start_ ## type.start_values[j].value); \
+        }
+ 
+        SET_START(Real, reals64);
+        SET_START(Integer, integers32);
+        SET_START(Boolean, booleans);
+        SET_START(String, strings);
+#undef SET_START
+    }
+    logger(LOGGER_DEBUG, "Start values are set.");
+    return;
+}
+
+
+static fmu_status_t container_do_step_serie(container_t *container, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
+    fmu_status_t status;
+
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_t* fmu = &container->fmu[i];
+
+        status = fmu_set_inputs(fmu);
+        if (status != FMU_STATUS_OK)
+            return status;
+            
+        /* COMPUTATION */
+        status = fmuDoStep(fmu, container->time, container->time_step);
+        if (status != FMU_STATUS_OK)
+            return status;
+
+        status = fmu_get_outputs(fmu);
+        if (status != FMU_STATUS_OK)
+            return status;
+        
+    }
+
+    return status;
+}
+
+
+static fmu_status_t container_do_step_parallel_mt(container_t* container) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    /* Launch computation for all threads*/
+    for(size_t i = 0; i < container->nb_fmu; i += 1) {
+        container->fmu[i].status = FMU_STATUS_ERROR;
+        thread_mutex_unlock(&container->fmu[i].mutex_container);
+    }
+
+    /* Consolidate results */
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+        thread_mutex_lock(&container->fmu[i].mutex_fmu);
+        if (container->fmu[i].status != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+        status = fmu_get_outputs(&container->fmu[i]);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU#%d failed doStep.", i);
+            return FMU_STATUS_ERROR;
+        }
+    }
+    
+    return status;
+}
+
+
+static fmu_status_t container_do_step_parallel(container_t* container) {
+    static int set_input = 0;
+    fmu_status_t status = FMU_STATUS_OK;
+
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {          
+        status = fmu_set_inputs(&container->fmu[i]);
+        if (status != FMU_STATUS_OK) 
+            return status;
+    }
+
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+        const fmu_t* fmu = &container->fmu[i];
+        /* COMPUTATION */
+        status = fmuDoStep(fmu, container->time, container->time_step);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU#%d failed doStep.", i);
+            return status;
+        }
+    }
+
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+        status = fmu_get_outputs(&container->fmu[i]);
+        if (status != FMU_STATUS_OK)
+            return status;
+    }
+    
+    return status;
+}
+
+
 /*----------------------------------------------------------------------------
                  R E A D   C O N F I G U R A T I O N
 ----------------------------------------------------------------------------*/
+
 #define CONFIG_FILE_SZ			4096
 typedef struct {
 	FILE						*fp;
@@ -40,16 +153,20 @@ static int get_line(config_file_t* file) {
 
 
 static int read_mt_flag(container_t* container, config_file_t* file) {
+    int mt;
+
     if (get_line(file))
         return -1;
-    if (sscanf(file->line, "%d", &container->mt) < 1)
+    if (sscanf(file->line, "%d", &mt) < 1)
         return -2;
 
-    if (container->mt)
+    if (mt) {
         logger(LOGGER_WARNING, "Container use MULTI thread");
-    else   
+        container->do_step = container_do_step_parallel_mt;
+    } else {   
         logger(LOGGER_WARNING, "Container use MONO thread");
-
+        container->do_step = container_do_step_parallel;
+    }
     return 0;
 }
 
@@ -575,6 +692,11 @@ int container_read_conf(container_t* container, const char* dirname) {
 
     return 0;
 }
+
+
+/*----------------------------------------------------------------------------
+             C O N S T R U C T O R   /   D E S T R U C T O R
+----------------------------------------------------------------------------*/
 
 container_t *container_new(const char *instance_name, const char *fmu_uuid) {
     container_t *container = malloc(sizeof(*container));

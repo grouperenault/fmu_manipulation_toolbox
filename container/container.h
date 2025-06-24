@@ -5,6 +5,7 @@
 extern "C" {
 #	endif
 
+#include "convert.h"
 #include "fmu.h"
 #include "library.h"
 #include "logger.h"
@@ -27,6 +28,8 @@ typedef struct {
 } container_port_t;
 
 
+typedef fmu_status_t (*container_do_step_function_t)(struct container_s *container);
+
 /*----------------------------------------------------------------------------
                             C O N T A I N E R _ T
 ----------------------------------------------------------------------------*/
@@ -34,7 +37,7 @@ typedef struct container_s {
 	/* configuration */
 	int							mt;
 	int							profiling;
-	unsigned long				nb_fmu;
+	int							nb_fmu;
 	fmu_t						*fmu;		/* embedded FMUs */
 	char						*instance_name;
 	char						*uuid;
@@ -80,7 +83,10 @@ typedef struct container_s {
     DECLARE_PORT(strings);
 #undef DECLARE_PORT
 
+	convert_table_t				conversions;
+
 	/* Simulation */
+	container_do_step_function_t do_step;
 	double						time_step;
 	double						time;
 	double						tolerance;
@@ -91,6 +97,7 @@ typedef struct container_s {
 } container_t;
 
 
+
 /*----------------------------------------------------------------------------
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
@@ -98,6 +105,8 @@ typedef struct container_s {
 extern container_t *container_new(const char *instance_name, const char *fmu_uuid);
 extern int container_read_conf(container_t* container, const char* dirname);
 extern void container_free(container_t *container);
+
+extern void container_set_start_values(container_t* container, int early_set);
 
 #	ifdef __cplusplus
 }

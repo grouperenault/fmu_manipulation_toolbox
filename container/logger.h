@@ -6,7 +6,7 @@ extern "C" {
 #	endif
 
 
-#include "container.h"
+#include "fmu.h"
 
 #define LOGGER_DEBUG        0   /* fmi2OK or fmi3OK */
 #define LOGGER_WARNING      1   /* fmi2Warning or fmi3Warning */

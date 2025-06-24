@@ -5,14 +5,13 @@
 extern "C" {
 #	endif
 
-#include "container.h"
 #include "fmu.h"
 
 /*----------------------------------------------------------------------------
                      C O N V E R T _ F U N C T I O N _ T
 ----------------------------------------------------------------------------*/
 
-typedef void (*convert_function_t)(const container_t *,
+typedef void (*convert_function_t)(const struct container_s *,
 	                               fmu_vr_t,
                     			   fmu_vr_t);
 
@@ -27,6 +26,11 @@ typedef struct {
 	fmu_vr_t 			to;
 	convert_function_t  function;
 } convert_table_t;
+
+
+/*----------------------------------------------------------------------------
+                  C O N V E R T _ F U N C T I O N _ I D _ T
+----------------------------------------------------------------------------*/
 
 typedef enum {
     CONVERT_F32_F64 = 0,
@@ -56,9 +60,13 @@ typedef enum {
     CONVERT_U32_U64 = 24
 } convert_function_id_t;
 
+
 /*----------------------------------------------------------------------------
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
+
+void convert_proceed(const struct container_s *container,
+                     const convert_table_t *table);
 
 #	ifdef __cplusplus
 }

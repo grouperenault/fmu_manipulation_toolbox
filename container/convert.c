@@ -1,4 +1,5 @@
 #include "convert.h"
+#include "container.h"
 
 
 void convert_proceed(const container_t *container, const convert_table_t *table) {

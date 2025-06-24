@@ -39,6 +39,31 @@ fmu_status_t fmu_set_inputs(fmu_t* fmu) {
 }
 
 
+fmu_status_t fmu_get_outputs(fmu_t* fmu) {
+    container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+    fmu_status_t status = FMU_STATUS_OK;
+
+#define GETTER(type, fmi_type) \
+    for (size_t i = 0; i < fmu_io-> type .out.nb; i += 1) { \
+        const fmu_vr_t fmu_vr = fmu_io-> type .out.translations[i].fmu_vr; \
+        const fmu_vr_t local_vr = fmu_io-> type .out.translations[i].vr; \
+        status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> type [local_vr]); \
+        if (status != FMU_STATUS_OK) \
+            return status; \
+    }
+
+GETTER(reals64, Real);
+GETTER(integers32, Integer);
+GETTER(booleans, Boolean);
+GETTER(strings, String);
+
+#undef GETTER
+
+    return status;
+}
+
+
 static int fmu_do_step_thread(fmu_t* fmu) {
     const container_t* container =fmu->container;
 
