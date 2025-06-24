@@ -53,11 +53,9 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
     fmi2Boolean loggingOn) {
     container_t* container;
 
-    container = malloc(sizeof(*container));
-    if (container) {
-        container->instance_name = strdup(instanceName);
-        container->uuid = strdup(fmuGUID);
+    container = container_new(instanceName, fmuGUID);
 
+    if (container) {
         logger_function_t container_logger;
         container_logger.logger_fmi2 = functions->logger;
         logger_init(FMU_2, container_logger, functions->componentEnvironment, container->instance_name, loggingOn); 
@@ -65,35 +63,9 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
         if (fmuType != fmi2CoSimulation) {
             logger(LOGGER_ERROR, "Only CoSimulation mode is supported.");
-            free(container);
+            container_free(container);
             return NULL;
-        }
-
-        container->mt = 0;
-        container->nb_fmu = 0;
-        container->fmu = NULL;
-
-        container->nb_local_reals64 = 0;
-        container->nb_local_integers32 = 0;
-        container->nb_local_booleans = 0;
-        container->nb_local_strings = 0;
-        container->reals64 = NULL;
-        container->integers32 = NULL;
-        container->booleans = NULL;
-        container->strings = NULL;
-
-        container->nb_ports_reals64 = 0;
-        container->nb_ports_integers32 = 0;
-        container->nb_ports_booleans = 0;
-        container->nb_ports_strings = 0;
-        container->vr_reals64 = NULL;
-        container->vr_integers32 = NULL;
-        container->vr_booleans = NULL;
-        container->vr_strings = NULL;
-
-        container->time_step = 0.001;
-        container->time = 0.0;
-        container->tolerance = 1.0e-8;
+        } 
 
         logger(LOGGER_DEBUG, "Container model loading...");
         if (strncmp(fmuResourceLocation, "file:///", 8) == 0)
@@ -101,23 +73,10 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
         if (container_read_conf(container, fmuResourceLocation)) {
             logger(LOGGER_ERROR, "Cannot read container configuration.");
-            fmi2FreeInstance(container);
+            container_free(container);
             return NULL;
         }
         logger(LOGGER_DEBUG, "Container configuration read.");
-
-        for (int i = 0; i < container->nb_fmu; i += 1)
-            container->fmu[i].component = NULL;
-
-        for(int i=0; i < container->nb_fmu; i += 1) {
-            fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i],
-                                                             container->instance_name);
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
-                fmi2FreeInstance(container);
-                return NULL;
-            }
-        }
     }
     return container;
 }
@@ -126,54 +85,8 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 void fmi2FreeInstance(fmi2Component c) {
     container_t* container = (container_t*)c;
 
-    if (container) {
-
-        if (container->fmu) {
-            for (int i = 0; i < container->nb_fmu; i += 1) {
-                fmuFreeInstance(&container->fmu[i]);
-                fmu_unload(&container->fmu[i]);
-
-                free(container->fmu[i].fmu_io.reals64.in.translations);
-                free(container->fmu[i].fmu_io.integers32.in.translations);
-                free(container->fmu[i].fmu_io.booleans.in.translations);
-                free(container->fmu[i].fmu_io.strings.in.translations);
-
-                free(container->fmu[i].fmu_io.reals64.out.translations);
-                free(container->fmu[i].fmu_io.integers32.out.translations);
-                free(container->fmu[i].fmu_io.booleans.out.translations);
-                free(container->fmu[i].fmu_io.strings.out.translations);
-
-                free(container->fmu[i].fmu_io.start_reals64.start_values);
-                free(container->fmu[i].fmu_io.start_integers32.start_values);
-                free(container->fmu[i].fmu_io.start_booleans.start_values);
-
-                for (int j = 0; j < container->fmu[i].fmu_io.start_strings.nb; j += 1)
-                    free((char *)container->fmu[i].fmu_io.start_strings.start_values[j].value);
-                free(container->fmu[i].fmu_io.start_strings.start_values);
-            }
-
-            free(container->fmu);
-        }
-
-        free(container->instance_name);
-        free(container->uuid);
-
-        free(container->vr_reals64);
-        free(container->port_reals64);
-        free(container->vr_integers32);
-        free(container->port_integers32);
-        free(container->vr_booleans);
-        free(container->port_booleans);
-        free(container->vr_strings);
-        free(container->port_strings);
-
-        free(container->reals64);
-        free(container->integers32);
-        free(container->booleans);
-        free((void*)container->strings);
-
-        free(container);
-    }
+    if (container)
+        container_free(container);
 
     return;
 }

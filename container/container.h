@@ -31,33 +31,33 @@ typedef struct {
                             C O N T A I N E R _ T
 ----------------------------------------------------------------------------*/
 typedef struct container_s {
+	/* configuration */
 	int							mt;
 	int							profiling;
 	unsigned long				nb_fmu;
-	fmu_t						*fmu;
+	fmu_t						*fmu;		/* embedded FMUs */
 	char						*instance_name;
 	char						*uuid;
 
-
 	/* storage of local variables (conveyed from one FMU to an other) */
-	unsigned long		   		nb_local_reals64;
-	unsigned long				nb_local_integers32;
-	unsigned long				nb_local_booleans;
-	unsigned long				nb_local_strings;
+#define DECLARE_LOCAL(name, type) \
+	unsigned long				nb_local_ ## name; \
+	type						* name
 
-	double						*reals64;
-	float						*reals32;
-	int8_t						*integers8;
-	uint8_t						*uintegers8;
-	int16_t						*integers16;
-	uint16_t					*uintegers16;
-	int32_t                		*integers32;
-	uint32_t               		*uintegers32;
-	int64_t						*integers64;
-	uint64_t					*uintegers64;
-
-	int                 		*booleans;
-	const char                  **strings;
+	DECLARE_LOCAL(reals64, double);
+	DECLARE_LOCAL(reals32, float);
+	DECLARE_LOCAL(integers8, int8_t);
+	DECLARE_LOCAL(uintegers8, uint8_t);
+	DECLARE_LOCAL(integers16, int16_t);
+	DECLARE_LOCAL(uintegers16, uint16_t);
+	DECLARE_LOCAL(integers32, int32_t);
+	DECLARE_LOCAL(uintegers32, uint32_t);
+	DECLARE_LOCAL(integers64, int64_t);
+	DECLARE_LOCAL(uintegers64, uint64_t);
+	DECLARE_LOCAL(booleans, int);
+	DECLARE_LOCAL(booleans1, bool);
+	DECLARE_LOCAL(strings, const char *);
+#undef DECLARE_LOCAL
 
 	/* container ports definition */
 #define DECLARE_PORT(type) \
@@ -66,11 +66,21 @@ typedef struct container_s {
     container_port_t            *port_ ## type
 
     DECLARE_PORT(reals64);
+	DECLARE_PORT(reals32);
+    DECLARE_PORT(integers8);
+    DECLARE_PORT(uintegers8);
+    DECLARE_PORT(integers16);
+    DECLARE_PORT(uintegers16);
     DECLARE_PORT(integers32);
+    DECLARE_PORT(uintegers32);
+    DECLARE_PORT(integers64);
+    DECLARE_PORT(uintegers64);
     DECLARE_PORT(booleans);
+    DECLARE_PORT(booleans1);
     DECLARE_PORT(strings);
 #undef DECLARE_PORT
 
+	/* Simulation */
 	double						time_step;
 	double						time;
 	double						tolerance;
@@ -85,7 +95,9 @@ typedef struct container_s {
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
+extern container_t *container_new(const char *instance_name, const char *fmu_uuid);
 extern int container_read_conf(container_t* container, const char* dirname);
+extern void container_free(container_t *container);
 
 #	ifdef __cplusplus
 }

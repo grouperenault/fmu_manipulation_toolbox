@@ -110,7 +110,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
 
     container->fmu = malloc(nb_fmu * sizeof(*container->fmu));
     if (!container->fmu) {
-        logger(LOGGER_ERROR, "Memory exhauseted.");
+        logger(LOGGER_ERROR, "Memory exhausted.");
         return -1;
     }
 
@@ -576,3 +576,98 @@ int container_read_conf(container_t* container, const char* dirname) {
     return 0;
 }
 
+container_t *container_new(const char *instance_name, const char *fmu_uuid) {
+    container_t *container = malloc(sizeof(*container));
+    if (container) {
+        container->instance_name = strdup(instance_name);
+        container->uuid = strdup(fmu_uuid);
+
+        container->mt = 0;
+        container->nb_fmu = 0;
+        container->fmu = NULL;
+
+        container->nb_local_reals64 = 0;
+        container->nb_local_integers32 = 0;
+        container->nb_local_booleans = 0;
+        container->nb_local_strings = 0;
+        container->reals64 = NULL;
+        container->integers32 = NULL;
+        container->booleans = NULL;
+        container->strings = NULL;
+
+        container->nb_ports_reals64 = 0;
+        container->nb_ports_integers32 = 0;
+        container->nb_ports_booleans = 0;
+        container->nb_ports_strings = 0;
+        container->vr_reals64 = NULL;
+        container->vr_integers32 = NULL;
+        container->vr_booleans = NULL;
+        container->vr_strings = NULL;
+
+        container->time_step = 0.001;
+        container->time = 0.0;
+        container->tolerance = 1.0e-8;
+
+        for (int i = 0; i < container->nb_fmu; i += 1)
+            container->fmu[i].component = NULL;
+
+        for(int i = 0; i < container->nb_fmu; i += 1) {
+            fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i],
+                                                             container->instance_name);
+            if (status != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
+                container_free(container);
+                return NULL;
+            }
+        }
+    }
+    return container;
+}
+
+void container_free(container_t *container) {
+    if (container->fmu) {
+        for (int i = 0; i < container->nb_fmu; i += 1) {
+            fmuFreeInstance(&container->fmu[i]);
+            fmu_unload(&container->fmu[i]);
+
+            free(container->fmu[i].fmu_io.reals64.in.translations);
+            free(container->fmu[i].fmu_io.integers32.in.translations);
+            free(container->fmu[i].fmu_io.booleans.in.translations);
+            free(container->fmu[i].fmu_io.strings.in.translations);
+
+            free(container->fmu[i].fmu_io.reals64.out.translations);
+            free(container->fmu[i].fmu_io.integers32.out.translations);
+            free(container->fmu[i].fmu_io.booleans.out.translations);
+            free(container->fmu[i].fmu_io.strings.out.translations);
+
+            free(container->fmu[i].fmu_io.start_reals64.start_values);
+            free(container->fmu[i].fmu_io.start_integers32.start_values);
+            free(container->fmu[i].fmu_io.start_booleans.start_values);
+
+            for (int j = 0; j < container->fmu[i].fmu_io.start_strings.nb; j += 1)
+                free((char *)container->fmu[i].fmu_io.start_strings.start_values[j].value);
+            free(container->fmu[i].fmu_io.start_strings.start_values);
+        }
+
+        free(container->fmu);
+    }
+
+    free(container->instance_name);
+    free(container->uuid);
+
+    free(container->vr_reals64);
+    free(container->port_reals64);
+    free(container->vr_integers32);
+    free(container->port_integers32);
+    free(container->vr_booleans);
+    free(container->port_booleans);
+    free(container->vr_strings);
+    free(container->port_strings);
+
+    free(container->reals64);
+    free(container->integers32);
+    free(container->booleans);
+    free((void*)container->strings);
+
+    free(container);
+}
