@@ -151,7 +151,10 @@ static int get_line(config_file_t* file) {
     return 0;
 }
 
-
+/*
+ * # Use MT
+ * 1  
+ */
 static int read_mt_flag(container_t* container, config_file_t* file) {
     int mt;
 
@@ -171,6 +174,10 @@ static int read_mt_flag(container_t* container, config_file_t* file) {
 }
 
 
+/*
+ * # Profiling DISABLED
+ * 0
+ */
 static int read_profiling_flag(container_t* container, config_file_t* file) {
     if (get_line(file)) {
         logger(LOGGER_ERROR, "Cannot read profiling flag.");
@@ -189,6 +196,10 @@ static int read_profiling_flag(container_t* container, config_file_t* file) {
 }
 
 
+/*
+ * # Internal time step in seconds
+ * .001
+ */
 static int read_conf_time_step(container_t* container, config_file_t* file) {
     if (get_line(file)) {
         logger(LOGGER_ERROR, "Cannot read time_step.");
@@ -206,6 +217,16 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
 }
 
 
+/*
+ * # NB of embedded FMU's
+ * 2
+ * bb_position.fmu
+ * bb_position
+ * {8fbd9f16-ceaa-97ed-127f-987a60b25648}
+ * bb_velocity.fmu
+ * bb_velocity
+ * {abf5f61d-b459-3641-3a2c-1e594b990280}
+ */
 static int read_conf_fmu(container_t *container, const char *dirname, config_file_t* file) {
     int nb_fmu;
 
@@ -272,6 +293,10 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
 }
 
 
+/*
+ * # NB local variables Real, Integer, Boolean, String
+ * 1 0 1 0 
+ */
 static int read_conf_local(container_t* container, config_file_t* file) {
     if (get_line(file)) {
         logger(LOGGER_ERROR, "Cannot read container I/O.");
@@ -291,13 +316,13 @@ static int read_conf_local(container_t* container, config_file_t* file) {
     if (container->nb_local_ ## type) { \
         container-> type = malloc(container->nb_local_ ## type * sizeof(*container-> type)); \
         if (!container-> type) { \
-            logger(LOGGER_ERROR, "Memory exhauseted."); \
+            logger(LOGGER_ERROR, "Read container I/O: Memory exhauseted."); \
             return -2; \
         } \
         for(unsigned long i=0; i < container->nb_local_ ## type; i += 1) \
             container-> type [i] = value; \
     } else \
-        container-> type = NULL 
+        container-> type = NULL
     
     ALLOC(reals64, 0.0);
     ALLOC(integers32, 0);
@@ -310,14 +335,28 @@ static int read_conf_local(container_t* container, config_file_t* file) {
 }
 
 
-#define READ_CONF_VR(type) \
-static int read_conf_vr_ ## type (container_t* container, config_file_t* file) { \
+/*
+ * # CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
+ * # Real
+ * 3 3
+ * 1 1 0 1
+ * 2 1 1 0
+ * 0 1 -1 0
+ * # Integer
+ * 0 0
+ * # Boolean
+ * 1 1
+ * 0 1 -1 0
+ * # String
+ * 0 0
+ */
+static int read_conf_io(container_t* container, config_file_t* file) {
+#define READ_CONF_IO(type) \
     if (get_line(file)) { \
         logger(LOGGER_ERROR, "Cannot read I/O " #type "."); \
         return -1;\
     } \
 \
-    unsigned long nb_links; \
     if (sscanf(file->line, "%lu %lu", &container->nb_ports_ ## type, &nb_links) < 2) { \
         logger(LOGGER_ERROR, "Cannot read I/O " #type " '%s'.", file->line); \
         return -1; \
@@ -372,67 +411,73 @@ static int read_conf_vr_ ## type (container_t* container, config_file_t* file) {
     } else { \
         container->vr_ ## type = NULL; \
         container->port_ ## type = NULL; \
-    } \
-    return 0; \
-}
+    }
 
 
-READ_CONF_VR(reals64);
-READ_CONF_VR(integers32);
-READ_CONF_VR(booleans);
-READ_CONF_VR(strings);
+    unsigned long nb_links;
 
-#undef READ_CONF_VR
+    READ_CONF_IO(reals64);
+    READ_CONF_IO(integers32);
+    READ_CONF_IO(booleans);
+    READ_CONF_IO(strings);
 
-
-static int read_conf_vr(container_t* container, config_file_t* file) {
-    if (read_conf_vr_reals64(container, file))
-        return -1;
-
-    if (read_conf_vr_integers32(container, file))
-        return -2;
-    
-    if (read_conf_vr_booleans(container, file))
-        return -3;
-    
-    if (read_conf_vr_strings(container, file))
-        return -4;
-    
     return 0;
+#undef READ_CONF_IO
 }
 
+
+
+/*
+ * # Inputs of bb_position.fmu - Real: <VR> <FMU_VR>
+ * 1
+ * 0 0
+ *
+ * or
+ * 
+ * # Outputs of bb_position.fmu - Real: <VR> <FMU_VR>
+ * 0
+ */
 #define READER_FMU_IO(type, causality) \
-static int read_conf_fmu_io_ ## causality ## _ ## type (fmu_io_t *fmu_io, config_file_t* file) { \
-    if (get_line(file)) \
+    logger(LOGGER_ERROR, "*************** '" #type "' (" #causality ")"); \
+    if (get_line(file)) { \
+        logger(LOGGER_ERROR, "Cannot get FMU description for '" #type "' (" #causality ")"); \
         return -1; \
+    } \
 \
     fmu_io-> type . causality .translations = NULL; \
+    logger(LOGGER_ERROR, "*************** '" #type "' (" #causality "): %s", file->line); \
 \
-    if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) \
+    if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) { \
+        logger(LOGGER_ERROR, "Cannot interpret FMU description for '" #type "' (" #causality ")"); \
         return -2; \
+    }\
 \
-    if (fmu_io-> type . causality .nb == 0) \
-        return 0; \
+    if (fmu_io-> type . causality .nb > 0) { \
+        fmu_io-> type . causality .translations = malloc(fmu_io-> type . causality .nb * sizeof(*fmu_io-> type . causality .translations)); \
+        if (! fmu_io-> type . causality .translations) { \
+            logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted."); \
+            return -3; \
+        } \
 \
-    fmu_io-> type . causality .translations = malloc(fmu_io-> type . causality .nb * sizeof(*fmu_io-> type . causality .translations)); \
-    if (! fmu_io-> type . causality .translations) \
-        return -3; \
+        for(unsigned long i = 0; i < fmu_io-> type . causality .nb; i += 1) { \
+            if (get_line(file)) { \
+                logger(LOGGER_ERROR, "Cannot get FMU I/O for '" #type "' (" #causality ")"); \
+                return -4; \
+        } \
 \
-    for(unsigned long i = 0; i < fmu_io-> type . causality .nb; i += 1) { \
-        if (get_line(file)) \
-            return -4; \
-\
-        if (sscanf(file->line, "%u %u", &fmu_io-> type . causality .translations[i].vr, \
-         &fmu_io-> type . causality .translations[i].fmu_vr) < 2) \
-            return -5; \
-    } \
-\
-    return 0; \
-}
+            if (sscanf(file->line, "%u %u", &fmu_io-> type . causality .translations[i].vr, \
+             &fmu_io-> type . causality .translations[i].fmu_vr) < 2) { \
+                logger(LOGGER_ERROR, "Cannot interpret FMU I/O for '" #type "' (" #causality ")"); \
+                return -5; \
+            } \
+        } \
+    }
 
-
+/*
+ * # Start values of bb_velocity.fmu - Real: <FMU_VR> <RESET> <VALUE>
+ * 0
+ */
 #define READER_FMU_START_VALUES(type, format) \
-static int read_conf_fmu_start_values_ ## type (fmu_io_t *fmu_io, config_file_t* file) { \
     if (get_line(file)) \
         return -1; \
 \
@@ -442,37 +487,22 @@ static int read_conf_fmu_start_values_ ## type (fmu_io_t *fmu_io, config_file_t*
     if (sscanf(file->line, "%lu", &fmu_io->start_ ## type .nb) < 1) \
         return -2; \
 \
-    if (fmu_io->start_ ## type .nb == 0) \
-        return 0; \
+    if (fmu_io->start_ ## type .nb > 0) { \
+        fmu_io->start_ ## type .start_values = malloc(fmu_io->start_ ## type .nb * sizeof(*fmu_io->start_ ## type .start_values)); \
+        if (! fmu_io->start_ ## type .start_values) \
+            return -3; \
 \
-    fmu_io->start_ ## type .start_values = malloc(fmu_io->start_ ## type .nb * sizeof(*fmu_io->start_ ## type .start_values)); \
-    if (! fmu_io->start_ ## type .start_values) \
-        return -3; \
+        for (unsigned long i = 0; i < fmu_io->start_ ## type .nb; i += 1) { \
+            if (get_line(file)) \
+                return -4; \
 \
-    for (unsigned long i = 0; i < fmu_io->start_ ## type .nb; i += 1) { \
-        if (get_line(file)) \
-            return -4; \
-\
-       if (sscanf(file->line, "%u %d " format, \
-         &fmu_io->start_ ## type .start_values[i].vr, \
-         &fmu_io->start_ ## type .start_values[i].reset, \
-         &fmu_io->start_ ## type .start_values[i].value) < 3) \
-            return -5; \
-    } \
-\
-    return 0; \
-}
-
-
-READER_FMU_IO(reals64, in);
-READER_FMU_IO(integers32, in);
-READER_FMU_IO(booleans, in);
-READER_FMU_IO(strings, in);
-
-READER_FMU_START_VALUES(reals64, "%lf");
-READER_FMU_START_VALUES(integers32, "%d");
-READER_FMU_START_VALUES(booleans, "%d");
-
+           if (sscanf(file->line, "%u %d " format, \
+             &fmu_io->start_ ## type .start_values[i].vr, \
+             &fmu_io->start_ ## type .start_values[i].reset, \
+             &fmu_io->start_ ## type .start_values[i].value) < 3) \
+                return -5; \
+        } \
+    }
 
 static char* string_token(char* buffer) {
     int len = strlen(buffer);
@@ -527,92 +557,30 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
 }
 
 
-READER_FMU_IO(reals64, out);
-READER_FMU_IO(integers32, out);
-READER_FMU_IO(booleans, out);
-READER_FMU_IO(strings, out);
+static int read_conf_fmu_io(fmu_io_t* fmu_io, config_file_t* file) {
+    READER_FMU_IO(reals64,    in);
+    READER_FMU_IO(integers32, in);
+    READER_FMU_IO(booleans,   in);
+    READER_FMU_IO(strings,    in);
+
+    READER_FMU_START_VALUES(reals64,    "%lf");
+    READER_FMU_START_VALUES(integers32, "%d");
+    READER_FMU_START_VALUES(booleans,   "%d");
+    int status = read_conf_fmu_start_values_strings(fmu_io, file);
+    if (status)
+        return status;
+
+    READER_FMU_IO(reals64,    out);
+    READER_FMU_IO(integers32, out);
+    READER_FMU_IO(booleans,   out);
+    READER_FMU_IO(strings,    out);
+
+    return 0;
 
 #undef READER_FMU_IO
 #undef READER_FMU_START_VALUE
-
-
-static int read_conf_fmu_io_in(fmu_io_t* fmu_io, config_file_t* file) {
-    int status;
-
-    status = read_conf_fmu_io_in_reals64(fmu_io, file);
-    if (status)
-        return status * 1;
-    status = read_conf_fmu_io_in_integers32(fmu_io, file);
-    if (status)
-        return status * 10;
-    status = read_conf_fmu_io_in_booleans(fmu_io, file);
-    if (status)
-        return status * 100;
-    status = read_conf_fmu_io_in_strings(fmu_io, file);
-    if (status)
-        return status * 1000;
-
-    return 0;
 }
 
-
-static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
-    int status;
-
-    status = read_conf_fmu_start_values_reals64(fmu_io, file);
-    if (status)
-        return status * 1;
-    status = read_conf_fmu_start_values_integers32(fmu_io, file);
-    if (status)
-        return status * 10;
-    status = read_conf_fmu_start_values_booleans(fmu_io, file);
-    if (status)
-        return status * 100;
-    status = read_conf_fmu_start_values_strings(fmu_io, file);
-    if (status)
-        return status * 1000;
-
-    return 0;
-}
-
-
-static int read_conf_fmu_io_out(fmu_io_t* fmu_io, config_file_t* file) {
-    int status;
-
-    status = read_conf_fmu_io_out_reals64(fmu_io, file);
-    if (status)
-        return status * 1;
-    status = read_conf_fmu_io_out_integers32(fmu_io, file);
-    if (status)
-        return status * 10;
-    status = read_conf_fmu_io_out_booleans(fmu_io, file);
-    if (status)
-        return status * 100;
-    status = read_conf_fmu_io_out_strings(fmu_io, file);
-    if (status)
-        return status * 1000;
-
-    return 0;
-}
-
-
-static int read_conf_fmu_io(fmu_io_t* fmu_io, config_file_t* file) {
-    int status;
-
-    status = read_conf_fmu_io_in(fmu_io, file);
-    if (status)
-        return status;
-
-    status = read_conf_fmu_start_values(fmu_io, file);
-    if (status)
-        return status;
-
-    status = read_conf_fmu_io_out(fmu_io, file);
-    if (status)
-        return status * 10;
-
-    return 0;
-}
 
 int container_read_conf(container_t* container, const char* dirname) {
     config_file_t file;
@@ -654,16 +622,20 @@ int container_read_conf(container_t* container, const char* dirname) {
         return -4;
     }
 
-    if (read_conf_vr(container, &file)) {
+    if (read_conf_io(container, &file)) {
         fclose(file.fp);
         logger(LOGGER_ERROR, "Cannot read translation table.");
         return -5;
     }
 
-    logger(LOGGER_DEBUG, "Real    : %d local variables and %d ports", container->nb_local_reals64, container->nb_ports_reals64);
-    logger(LOGGER_DEBUG, "Integer : %d local variables and %d ports", container->nb_local_integers32, container->nb_ports_integers32);
-    logger(LOGGER_DEBUG, "Boolean : %d local variables and %d ports", container->nb_local_booleans, container->nb_ports_booleans);
-    logger(LOGGER_DEBUG, "String  : %d local variables and %d ports", container->nb_local_strings, container->nb_ports_strings);
+#define LOG_IO(type) \
+    logger(LOGGER_DEBUG, "%-15s: %d local variables and %d ports", #type, container->nb_local_ ## type, container->nb_ports_ ## type)
+
+    LOG_IO(reals64);
+    LOG_IO(integers32);
+    LOG_IO(booleans);
+    LOG_IO(strings);
+#undef LOG_IO
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (read_conf_fmu_io(&container->fmu[i].fmu_io, &file)) {
@@ -691,7 +663,7 @@ int container_read_conf(container_t* container, const char* dirname) {
 
     
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        logger(LOGGER_DEBUG, "FMU#%d: Instanciate for CoSimulaiont");
+        logger(LOGGER_DEBUG, "FMU#%d: Instanciate for CoSimulation");
         fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i],
             container->instance_name);
         if (status != FMU_STATUS_OK) {
