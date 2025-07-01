@@ -262,9 +262,9 @@ class FMUSplitterDescription:
                         start_definition = [fmu_filename, self.vr_to_name[fmu_filename][fmi_type][vr]["name"],
                                             value]
                         try:
-                            self.config["sart"].append(start_definition)
+                            self.config["start"].append(start_definition)
                         except KeyError:
-                            self.config["sart"] = [start_definition]
+                            self.config["start"] = [start_definition]
 
                 # Output per FMUs
                 for fmi_type in ("Real", "Integer", "Boolean", "String"):
