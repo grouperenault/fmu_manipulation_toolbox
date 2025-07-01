@@ -76,12 +76,10 @@ class FMUSplitter:
             config = description.parse_txt_file(txt_filename)
             config["name"] = fmu_filename
             for i, fmu_filename in enumerate(config["candidate_fmu"]):
-                directory = relative_path=f"{relative_path}resources/{i:02x}/"
-                if directory in self.dir_set:
-                    sub_config = self._split_fmu(fmu_filename=fmu_filename, relative_path=directory)
-                else:
-                    sub_config = self._split_fmu(fmu_filename=fmu_filename,
-                                                 relative_path=str(self.directory / fmu_filename))
+                directory = f"{relative_path}resources/{i:02x}/"
+                if directory not in self.dir_set:
+                    directory = f"{relative_path}resources/{fmu_filename}/"
+                sub_config = self._split_fmu(fmu_filename=fmu_filename, relative_path=directory)
                 if isinstance(sub_config, str):
                     key = "fmu"
                 else:
