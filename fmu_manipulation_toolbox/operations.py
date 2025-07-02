@@ -8,6 +8,7 @@ import xml.parsers.expat
 import zipfile
 import hashlib
 from pathlib import Path
+from typing import *
 
 
 class FMU:
@@ -68,13 +69,13 @@ class Manipulation:
         self.parser.StartElementHandler = self.start_element
         self.parser.EndElementHandler = self.end_element
         self.parser.CharacterDataHandler = self.char_data
-        self.skip_until = None
+        self.skip_until: Optional[str] = None
         self.operation.set_fmu(fmu)
         self.fmu = fmu
 
-        self.current_port = 0
-        self.port_translation = []
-        self.port_name = []
+        self.current_port: int = 0
+        self.port_translation: List[int] = []
+        self.port_names_list: List[str] = []
         self.apply_on = None
 
     @staticmethod
@@ -86,8 +87,8 @@ class Manipulation:
 
     def start_variable(self, attrs):
         causality = OperationAbstract.scalar_get_causality(attrs)
+        port_name = attrs['name']
         if not self.apply_on or causality in self.apply_on:
-            port_name = attrs['name']
             if self.operation.scalar_attrs(attrs):
                 self.remove_port(port_name)
             else:
@@ -128,8 +129,10 @@ class Manipulation:
             print(f"<{name}>", end='', file=self.out)
 
     def end_element(self, name):
-        if self.skip_until and self.skip_until == name:
-            self.skip_until = None
+        if self.skip_until:
+            if self.skip_until == name:
+                self.skip_until = None
+            return
         else:
             print(f"</{name}>", end='', file=self.out)
 
@@ -138,12 +141,12 @@ class Manipulation:
             print(data, end='', file=self.out)
 
     def remove_port(self, name):
-        self.port_name.append(name)
+        self.port_names_list.append(name)
         self.port_translation.append(None)
         raise ManipulationSkipTag
 
     def keep_port(self, name):
-        self.port_name.append(name)
+        self.port_names_list.append(name)
         self.current_port += 1
         self.port_translation.append(self.current_port)
 
@@ -153,7 +156,7 @@ class Manipulation:
         if new_index:
             attrs['index'] = self.port_translation[int(attrs['index']) - 1]
         else:
-            print(f"WARNING: Removed port '{self.port_name[index]}' is involved in dependencies tree.")
+            print(f"WARNING: Removed port '{self.port_names_list[index]}' is involved in dependencies tree.")
             raise ManipulationSkipTag
 
     def manipulate(self, descriptor_filename, apply_on=None):

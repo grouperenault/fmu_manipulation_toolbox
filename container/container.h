@@ -87,7 +87,7 @@ typedef struct container_s {
 	/* Simulation */
 	container_do_step_function_t do_step;
 	double						time_step;
-	double						time;
+	long long					nb_steps;
 	double						tolerance;
 	double						start_time;
 	double						stop_time;

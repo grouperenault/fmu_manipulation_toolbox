@@ -4,11 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-
 #include "container.h"
 #include "logger.h"
 #include "fmu.h"
+#include "version.h"
 
 #pragma warning(disable : 4100)     /* no complain abourt unref formal param */
 #pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
@@ -42,8 +41,9 @@ void container_set_start_values(container_t* container, int early_set) {
 }
 
 
-static fmu_status_t container_do_step_serie(container_t *container, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
-    fmu_status_t status;
+static fmu_status_t container_do_step_sequencial(container_t *container) {
+    fmu_status_t status = FMU_STATUS_OK;
+    double time = container->time_step * container->nb_steps + container->start_time;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
@@ -53,7 +53,7 @@ static fmu_status_t container_do_step_serie(container_t *container, fmi2Boolean 
             return status;
             
         /* COMPUTATION */
-        status = fmuDoStep(fmu, container->time, container->time_step);
+        status = fmuDoStep(fmu, time, container->time_step);
         if (status != FMU_STATUS_OK)
             return status;
 
@@ -90,7 +90,7 @@ static fmu_status_t container_do_step_parallel_mt(container_t* container) {
             return FMU_STATUS_ERROR;
         }
     }
-    
+
     return status;
 }
 
@@ -105,10 +105,11 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
             return status;
     }
 
+    double time = container->time_step * container->nb_steps + container->start_time;
     for (size_t i = 0; i < container->nb_fmu; i += 1) {
         const fmu_t* fmu = &container->fmu[i];
         /* COMPUTATION */
-        status = fmuDoStep(fmu, container->time, container->time_step);
+        status = fmuDoStep(fmu, time, container->time_step);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU#%d failed doStep.", i);
             return status;
@@ -120,7 +121,7 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
         if (status != FMU_STATUS_OK)
             return status;
     }
-    
+
     return status;
 }
 
@@ -164,6 +165,7 @@ static int read_mt_flag(container_t* container, config_file_t* file) {
         return -2;
 
     if (mt) {
+        //logger(LOGGER_WARNING, "Container use EXPERIMENTAL sequential");
         logger(LOGGER_WARNING, "Container use MULTI thread");
         container->do_step = container_do_step_parallel_mt;
     } else {   
@@ -438,14 +440,12 @@ static int read_conf_io(container_t* container, config_file_t* file) {
  * 0
  */
 #define READER_FMU_IO(type, causality) \
-    logger(LOGGER_ERROR, "*************** '" #type "' (" #causality ")"); \
     if (get_line(file)) { \
         logger(LOGGER_ERROR, "Cannot get FMU description for '" #type "' (" #causality ")"); \
         return -1; \
     } \
 \
     fmu_io-> type . causality .translations = NULL; \
-    logger(LOGGER_ERROR, "*************** '" #type "' (" #causality "): %s", file->line); \
 \
     if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) { \
         logger(LOGGER_ERROR, "Cannot interpret FMU description for '" #type "' (" #causality ")"); \
@@ -586,6 +586,7 @@ int container_read_conf(container_t* container, const char* dirname) {
     config_file_t file;
     char filename[CONFIG_FILE_SZ];
 
+    logger(LOGGER_WARNING, "FMUContainer '" VERSION_TAG "'");
     strncpy(filename, dirname, sizeof(filename) - 1);
     filename[sizeof(filename) - 1] = '\0';
     strncat(filename, "/container.txt", sizeof(filename) - strlen(filename) - 1);
@@ -603,29 +604,29 @@ int container_read_conf(container_t* container, const char* dirname) {
 
     if (read_profiling_flag(container, &file)) {
         fclose(file.fp);
-        return -2;
+        return -3;
     }
 
     if (read_conf_time_step(container, &file)) {
         fclose(file.fp);
-        return -2;
+        return -4;
     }
 
     if (read_conf_fmu(container, dirname, &file)) {
         fclose(file.fp);
-        return -3;
+        return -5;
     }
 
     if (read_conf_local(container, &file)) {
         fclose(file.fp);
         logger(LOGGER_ERROR, "Cannot allocate local variables.");
-        return -4;
+        return -6;
     }
 
     if (read_conf_io(container, &file)) {
         fclose(file.fp);
         logger(LOGGER_ERROR, "Cannot read translation table.");
-        return -5;
+        return -7;
     }
 
 #define LOG_IO(type) \
@@ -640,7 +641,8 @@ int container_read_conf(container_t* container, const char* dirname) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (read_conf_fmu_io(&container->fmu[i].fmu_io, &file)) {
             fclose(file.fp);
-            return -6;
+            logger(LOGGER_ERROR, "Cannot read I/O table for FMU#%d", i);
+            return -8;
         }
 
         logger(LOGGER_DEBUG, "FMU#%d: IN     %d reals, %d integers, %d booleans, %d strings", i,
@@ -661,17 +663,18 @@ int container_read_conf(container_t* container, const char* dirname) {
     }
     fclose(file.fp);
 
-    
+    logger(LOGGER_DEBUG, "Instanciate embedded FMUs...");
     for (int i = 0; i < container->nb_fmu; i += 1) {
         logger(LOGGER_DEBUG, "FMU#%d: Instanciate for CoSimulation");
-        fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i],
-            container->instance_name);
+        fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i], container->instance_name);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
             container_free(container);
-            return -1;
+            return -9;
         }
     }
+
+    logger(LOGGER_DEBUG, "Container is configured.");
 
     return 0;
 }
@@ -704,7 +707,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
 #undef INIT
 
         container->time_step = 0.001;
-        container->time = 0.0;
+        container->nb_steps = 0;
         container->tolerance = 1.0e-8;
     }
     return container;

@@ -617,7 +617,7 @@ class FMUContainer:
             fmu_rank[fmu.name] = i
 
         # Prepare data structure
-        type_names_list = ("Real", "Float64", "Integer", "Boolean", "String")  # Ordered list
+        type_names_list = ("Real", "Integer", "Boolean", "String")  # Ordered list
         inputs_per_type: Dict[str, List[ContainerInput]] = {}        # Container's INPUT
         outputs_per_type: Dict[str, List[ContainerPort]] = {}       # Container's OUTPUT
 

@@ -269,6 +269,7 @@ class FMUSplitterDescription:
                 # Output per FMUs
                 for fmi_type in ("Real", "Integer", "Boolean", "String"):
                     nb_output = int(self.get_line(file))
+
                     for i in range(nb_output):
                         local, vr = self.get_line(file).split(" ")
                         try:
