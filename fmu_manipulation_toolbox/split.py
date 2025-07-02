@@ -53,7 +53,8 @@ class FMUSplitter:
     def get_dir_set(self) -> Set[str]:
         dir_set = set()
         for filename in self.filenames_list:
-            dir_set.add(str(Path(filename).parent)+"/")
+            parent = "/".join(filename.split("/")[:-1])
+            dir_set.add(parent+"/")
         return dir_set
 
     def __del__(self):
@@ -79,6 +80,8 @@ class FMUSplitter:
                 directory = f"{relative_path}resources/{i:02x}/"
                 if directory not in self.dir_set:
                     directory = f"{relative_path}resources/{fmu_filename}/"
+                    if directory not in self.dir_set:
+                        raise FMUSplitterError(f"{directory} not found in FMU")
                 sub_config = self._split_fmu(fmu_filename=fmu_filename, relative_path=directory)
                 if isinstance(sub_config, str):
                     key = "fmu"
