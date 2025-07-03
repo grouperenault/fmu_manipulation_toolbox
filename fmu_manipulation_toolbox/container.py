@@ -16,15 +16,15 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 
 class FMUPort:
     def __init__(self, attrs: Dict[str, str]):
-        self.causality = attrs.pop("causality", "local")
-        self.variability = attrs.pop("variability", "continuous")
-        self.name = attrs.pop("name")
-        self.vr = int(attrs.pop("valueReference"))
-        self.description = attrs.pop("description", None)
+        self.causality = attrs.get("causality", "local")
+        self.variability = attrs.get("variability", "continuous")
+        self.name = attrs.get("name")
+        self.vr = int(attrs.get("valueReference"))
+        self.description = attrs.get("description", None)
 
-        self.type_name = attrs.pop("type_name", None)
-        self.start_value = attrs.pop("start", None)
-        self.initial = attrs.pop("initial", None)
+        self.type_name = attrs.get("type_name", None)
+        self.start_value = attrs.get("start", None)
+        self.initial = attrs.get("initial", None)
 
     def set_port_type(self, type_name: str, attrs: Dict[str, str]):
         self.type_name = type_name
