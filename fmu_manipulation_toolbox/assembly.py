@@ -403,7 +403,7 @@ class Assembly:
                             auto_local=auto_local)
 
         for key, value in data.items():
-            if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling', 'sequential'
+            if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling', 'sequential',
                        'auto_parameter', 'auto_local'):
                 continue  # Already read
 
