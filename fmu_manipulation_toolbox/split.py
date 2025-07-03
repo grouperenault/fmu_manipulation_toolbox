@@ -40,6 +40,7 @@ class FMUSplitter:
     def __init__(self, fmu_filename: str):
         self.fmu_filename = Path(fmu_filename)
         self.directory = self.fmu_filename.with_suffix(".dir")
+        self.zip = None # to handle error
         self.zip = zipfile.ZipFile(self.fmu_filename)
         self.filenames_list = self.zip.namelist()
         self.dir_set = self.get_dir_set()
@@ -58,8 +59,9 @@ class FMUSplitter:
         return dir_set
 
     def __del__(self):
-        logger.debug("Closing zip file")
-        self.zip.close()
+        if self.zip is not None:
+            logger.debug("Closing zip file")
+            self.zip.close()
 
     def split_fmu(self):
         logger.info(f"Splitting...")
@@ -178,8 +180,18 @@ class FMUSplitterDescription:
             parser.ParseFile(file)
 
     def parse_txt_file_header(self, file, txt_filename):
-        self.config["mt"] = self.get_line(file) == "1"
-        self.config["profiling"] = self.get_line(file) == "1"
+        flags = self.get_line(file).split(" ")
+        if len(flags) == 1:
+            self.config["mt"] = flags[0] == "1"
+            self.config["profiling"] = self.get_line(file) == "1"
+            self.config["sequential"] = False
+        elif len(flags) == 3:
+            self.config["mt"] = flags[0] == "1"
+            self.config["profiling"] = flags[1] == "1"
+            self.config["sequential"] = flags[2] == "1"
+        else:
+            raise FMUSplitterError(f"Cannot interpret flags '{flags}'")
+
         self.config["step_size"] = float(self.get_line(file))
         nb_fmu = int(self.get_line(file))
         logger.debug(f"Number of FMUs: {nb_fmu}")
@@ -188,10 +200,15 @@ class FMUSplitterDescription:
         for i in range(nb_fmu):
             fmu_filename = self.get_line(file)
             base_directory = "/".join(txt_filename.split("/")[0:-1])
-            try:
-                self.parse_model_description(f"{base_directory}/{fmu_filename}", fmu_filename)
-            except KeyError:
-                self.parse_model_description(f"{base_directory}/{i:02x}", fmu_filename)
+
+            directory = f"{base_directory}/{fmu_filename}"
+            if f"{directory}/modelDescription.xml" not in self.zip.namelist():
+                directory = f"{base_directory}/{i:02x}"
+                if f"{directory}/modelDescription.xml" not in self.zip.namelist():
+                    print(self.zip.namelist())
+                    raise FMUSplitterError(f"Cannot find in FMU directory in {directory}.")
+
+            self.parse_model_description(directory, fmu_filename)
             self.config["candidate_fmu"].append(fmu_filename)
             _library = self.get_line(file)
             _uuid = self.get_line(file)
@@ -240,7 +257,6 @@ class FMUSplitterDescription:
         with (self.zip.open(txt_filename) as file):
             self.parse_txt_file_header(file, txt_filename)
             self.parse_txt_file_ports(file)
-
 
             for fmu_filename in self.config["candidate_fmu"]:
                 # Inputs per FMUs
