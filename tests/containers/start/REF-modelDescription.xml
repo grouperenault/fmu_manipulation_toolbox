@@ -1,18 +1,18 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <fmiModelDescription
   fmiVersion="2.0"
-  modelName="container-g"
+  modelName="container-slx"
   generationTool="FMUContainer-0.0.dev0"
-  generationDateAndTime="2025-05-20T15:36:23Z"
-  guid="87675c55-61e4-494e-94ab-e86d16b6cae2"
-  description="FMUContainer with G.fmu"
+  generationDateAndTime="2025-07-03T12:10:28Z"
+  guid="1975798f-a43a-4a18-bed6-3d58a9368c64"
+  description="FMUContainer with slx.fmu"
   author="a067220"
   license="Proprietary"
   copyright="See Embedded FMU's copyrights."
   variableNamingConvention="structured">
 
   <CoSimulation
-    modelIdentifier="container-g"
+    modelIdentifier="container-slx"
     canHandleVariableCommunicationStepSize="true"
     canBeInstantiatedOnlyOncePerProcess="true"
     canNotUseMemoryManagementFunctions="true"
@@ -29,8 +29,8 @@
   <DefaultExperiment stepSize="0.1" startTime="0.0" stopTime="10.0"/>
 
   <ModelVariables>
-    <ScalarVariable name="G.g_1" valueReference="0" causality="parameter" variability="tunable" description="g" initial="exact"><Real start="10.0"/></ScalarVariable>
-    <ScalarVariable name="g" valueReference="1" causality="output" variability="continuous" description="g" initial="calculated"><Real/></ScalarVariable>
+    <ScalarVariable name="slx.g_1" valueReference="0" causality="parameter" variability="tunable"  description="g"><Real start="10.0"/></ScalarVariable>
+    <ScalarVariable name="g" valueReference="1" causality="output" variability="continuous"  description="g"><Real /></ScalarVariable>
   </ModelVariables>
 
   <ModelStructure>

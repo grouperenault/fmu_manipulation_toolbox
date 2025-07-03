@@ -131,24 +131,29 @@ optional arguments:
 ### FMU Containers
 
 ```
-usage: fmucontainer [-h] [-fmu-directory FMU_DIRECTORY] -container filename.{csv|json|ssp},[:step_size] [-debug]
-                    [-no-auto-input] [-no-auto-output] [-auto-parameter] [-no-auto-link] [-mt] [-profile] [-dump-json]
+usage: fmucontainer [-h] [-fmu-directory FMU_DIRECTORY] [-fmi FMI_VERSION]
+                    -container filename.{csv|json|ssp},[:step_size] [-debug] [-no-auto-input] [-no-auto-output]
+                    [-auto-parameter] [-auto-local] [-no-auto-link] [-mt] [-profile] [-sequential] [-dump-json]
 
 Generate FMU from FMU's
 
-optional arguments:
+options:
   -h, -help
   -fmu-directory FMU_DIRECTORY      Directory containing initial FMU’s and used to generate containers. If not defined,
                                     current directory is used. (default: .)
+  -fmi FMI_VERSION                  Define version of FMI to be used for container interface.Only '2' or '3' is
+                                    supported. (default: 2)
   -container filename.{csv|json|ssp},[:step_size]
                                     Description of the container to create. (default: [])
   -debug                            Add lot of useful log during the process. (default: False)
   -no-auto-input                    Create ONLY explicit input. (default: True)
   -no-auto-output                   Create ONLY explicit output. (default: True)
   -auto-parameter                   Expose parameters of the embedded fmu's. (default: False)
+  -auto-local                       Expose local variables of the embedded fmu's. (default: False)
   -no-auto-link                     Create ONLY explicit links. (default: True)
   -mt                               Enable Multi-Threaded mode for the generated container. (default: False)
   -profile                          Enable Profiling mode for the generated container. (default: False)
+  -sequential                       Use sequential mode to schedule embedded fmu's. (default: False)
   -dump-json                        Dump a JSON file for each container. (default: False)
 ```
 
@@ -158,8 +163,9 @@ You can write your own FMU Manipulation scripts. Once you downloaded fmutool mod
 adding the `import` statement lets you access the API :
 
 ```python
-from fmu_manipulation_toolbox.fmu_operations import FMU, OperationExtractNames, OperationStripTopLevel,
-  OperationRenameFromCSV
+from fmu_manipulation_toolbox.operations import FMU, OperationExtractNames, OperationStripTopLevel,
+
+OperationRenameFromCSV
 ```
 
 ### remove toplevel bus (if any)

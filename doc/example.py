@@ -1,4 +1,4 @@
-from fmu_manipulation_toolbox.fmu_operations import FMU, OperationSaveNamesToCSV, OperationStripTopLevel, \
+from fmu_manipulation_toolbox.operations import FMU, OperationSaveNamesToCSV, OperationStripTopLevel, \
     OperationRenameFromCSV, OperationAddRemotingWin32, OperationGetNames
 # 1st Use Case: remove toplevel bus (if any)
 fmu = FMU("tests/bouncing_ball.fmu")

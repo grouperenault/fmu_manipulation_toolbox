@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import *
 
-from .fmu_operations import FMU, OperationAbstract
+from .operations import FMU, OperationAbstract, FMUError
 from .version import __version__ as tool_version
 
 
@@ -16,55 +16,61 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 
 class FMUPort:
     def __init__(self, attrs: Dict[str, str]):
-        self.name = attrs["name"]
-        self.vr = int(attrs["valueReference"])
         self.causality = attrs.get("causality", "local")
-        self.attrs = attrs.copy()
-        self.attrs.pop("name")
-        self.attrs.pop("valueReference")
-        if "causality" in self.attrs:
-            self.attrs.pop("causality")
-        self.type_name = None
-        self.child = None
+        self.variability = attrs.get("variability", "continuous")
+        self.name = attrs.get("name")
+        self.vr = int(attrs.get("valueReference"))
+        self.description = attrs.get("description", None)
+
+        self.type_name = attrs.get("type_name", None)
+        self.start_value = attrs.get("start", None)
+        self.initial = attrs.get("initial", None)
 
     def set_port_type(self, type_name: str, attrs: Dict[str, str]):
         self.type_name = type_name
-        self.child = attrs.copy()
-        for unsupported in ("unit", "declaredType"):
-            if unsupported in self.child:
-                self.child.pop(unsupported)
+        self.start_value = attrs.pop("start", None)
+        self.initial = attrs.pop("initial", None)
 
-    def xml(self, vr: int, name=None, causality=None, start=None):
-
-        if self.child is None:
-            raise FMUContainerError(f"FMUPort has no child. Bug?")
-
-        child_str = f"<{self.type_name}"
-        if self.child:
-            if start is not None and 'start' in self.child:
-                self.child['start'] = start
-            child_str += " " + " ".join([f'{key}="{value}"' for (key, value) in self.child.items()]) + "/>"
-        else:
-            child_str += "/>"
-
+    def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2):
         if name is None:
             name = self.name
         if causality is None:
             causality = self.causality
+        if start is None:
+            start = self.start_value
+        if self.variability is None:
+            self.variability = "continuous" if self.type_name == "Real" else "discrete"
 
-        variability = "continuous" if self.type_name == "Real" else "discrete"
 
-        scalar_attrs = {
-            "name": name,
-            "valueReference": vr,
-            "causality": causality,
-            "variability": variability,
-        }
-        scalar_attrs.update(self.attrs)
+        if fmi_version == 2:
+            child_dict =  {
+                "start": start,
+            }
+            if "Float" in self.type_name:
+                type_name = "Real"
+            elif "Int" in self.type_name:
+                type_name = "Integer"
+            else:
+                type_name = self.type_name
 
-        scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in scalar_attrs.items()])
+            child_str = (f"<{type_name} " +
+                         " ".join([f'{key}="{value}"' if value is not None else ""
+                                   for (key, value) in child_dict.items()]) +
+                         "/>")
 
-        return f'<ScalarVariable {scalar_attrs_str}>{child_str}</ScalarVariable>'
+            scalar_attrs = {
+                "name": name,
+                "valueReference": vr,
+                "causality": causality,
+                "variability": self.variability,
+                "initial": self.initial,
+                "description": self.description,
+            }
+            scalar_attrs_str = " ".join([f'{key}="{value}"' if value is not None else ""
+                                         for (key, value) in scalar_attrs.items()])
+            return f'<ScalarVariable {scalar_attrs_str}>{child_str}</ScalarVariable>'
+        else:
+            return f'FIX ME'
 
 
 class EmbeddedFMU(OperationAbstract):
@@ -76,7 +82,6 @@ class EmbeddedFMU(OperationAbstract):
         self.name = Path(filename).name
         self.id = Path(filename).stem
 
-        self.fmi_version = None
         self.step_size = None
         self.start_time = None
         self.stop_time = None
@@ -92,12 +97,22 @@ class EmbeddedFMU(OperationAbstract):
             raise FMUContainerError(f"FMU '{self.name}' does not implement Co-Simulation mode.")
 
     def fmi_attrs(self, attrs):
-        self.guid = attrs['guid']
-        self.fmi_version = attrs['fmiVersion']
+        fmi_version = attrs['fmiVersion']
+        if fmi_version == "2.0":
+            self.guid = attrs['guid']
+        if fmi_version == "3.0":
+            self.guid = attrs['instantiationToken']
+
 
     def scalar_attrs(self, attrs) -> int:
-        self.current_port = FMUPort(attrs)
-        self.ports[self.current_port.name] = self.current_port
+        if 'type_name' in attrs:  # FMI 3.0
+            type_name = attrs.pop('type_name')
+            port = FMUPort(attrs)
+            port.type_name = type_name
+            self.ports[port.name] = port
+        else: # FMI 2.0
+            self.current_port = FMUPort(attrs)
+            self.ports[self.current_port.name] = self.current_port
 
         return 0
 
@@ -199,6 +214,7 @@ class ValueReferenceTable:
     def __init__(self):
         self.vr_table: Dict[str, int] = {
             "Real": 0,
+            "Float64": 0,
             "Integer": 0,
             "Boolean": 0,
             "String": 0,
@@ -268,10 +284,8 @@ class FMUContainer:
             fmu = EmbeddedFMU(self.fmu_directory / fmu_filename)
             self.involved_fmu[fmu.name] = fmu
             self.execution_order.append(fmu)
-            if not fmu.fmi_version == "2.0":
-                raise FMUContainerError("Only FMI-2.0 is supported by FMUContainer")
             logger.debug(f"Adding FMU #{len(self.execution_order)}: {fmu}")
-        except Exception as e:
+        except (FMUContainerError, FMUError) as e:
             raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}")
 
         return fmu
@@ -346,9 +360,9 @@ class FMUContainer:
         cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
 
         try:
-            if cport.port.type_name == 'Real':
+            if cport.port.type_name in ('Real', 'Float64', 'Float32'):
                 value = float(value)
-            elif cport.port.type_name == 'Integer':
+            elif cport.port.type_name in ('Integer', 'Int8', 'UInt8', 'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64'):
                 value = int(value)
             elif cport.port.type_name == 'Boolean':
                 value = int(bool(value))
@@ -451,7 +465,7 @@ class FMUContainer:
                         logger.warning(f"{cport} is not connected")
 
     def make_fmu(self, fmu_filename: Union[str, Path], step_size: Optional[float] = None, debug=False, mt=False,
-                 profiling=False):
+                 profiling=False, sequential=False):
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)
 
@@ -467,7 +481,7 @@ class FMUContainer:
         with open(base_directory / "modelDescription.xml", "wt") as xml_file:
             self.make_fmu_xml(xml_file, step_size, profiling)
         with open(resources_directory / "container.txt", "wt") as txt_file:
-            self.make_fmu_txt(txt_file, step_size, mt, profiling)
+            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential)
 
         self.make_fmu_package(base_directory, fmu_filename)
         if not debug:
@@ -580,16 +594,10 @@ class FMUContainer:
 </fmiModelDescription>
 """)
 
-    def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool):
-        if mt:
-            print("# Use MT\n1", file=txt_file)
-        else:
-            print("# Don't use MT\n0", file=txt_file)
-
-        if profiling:
-            print("# Profiling ENABLED\n1", file=txt_file)
-        else:
-            print("# Profiling DISABLED\n0", file=txt_file)
+    def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
+        print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
+        flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
+        print(" ".join(flags), file=txt_file)
 
         print(f"# Internal time step in seconds", file=txt_file)
         print(f"{step_size}", file=txt_file)

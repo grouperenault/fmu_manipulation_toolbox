@@ -3,8 +3,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from fmu_manipulation_toolbox.fmu_operations import *
-from fmu_manipulation_toolbox.fmu_container import *
+from fmu_manipulation_toolbox.operations import *
+from fmu_manipulation_toolbox.container import *
 from fmu_manipulation_toolbox.assembly import *
 
 
@@ -53,7 +53,7 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         fmu = FMU(self.fmu_filename)
         operation = OperationAddRemotingWin32()
         fmu.apply_operation(operation)
-        fmu.repack("bouncing_ball-win32.fmu")
+        fmu.repack("operations/bouncing_ball-win32.fmu")
 
     def test_remove_regexp(self):
         self.assert_operation_match_ref("operations/bouncing_ball-removed.fmu",
@@ -71,6 +71,16 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
                                     "containers/bouncing_ball/bouncing/resources/container.txt")
         self.assert_identical_files("containers/bouncing_ball/REF-bouncing.json",
                                     "containers/bouncing_ball/bouncing.json")
+
+    def test_container_bouncing_ball_seq(self):
+        assembly = Assembly("bouncing-seq.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True, debug=True,
+                            sequential=True)
+        assembly.write_json("bouncing-seq.json")
+        assembly.make_fmu()
+        self.assert_identical_files("containers/bouncing_ball/REF-container-seq.txt",
+                                    "containers/bouncing_ball/bouncing-seq/resources/container.txt")
+        self.assert_identical_files("containers/bouncing_ball/REF-bouncing-seq.json",
+                                    "containers/bouncing_ball/bouncing-seq.json")
 
     def test_container_bouncing_ball_profiling(self):
         assembly = Assembly("bouncing-profiling.csv", fmu_directory=Path("containers/bouncing_ball"), profiling=True,

@@ -1,0 +1,7 @@
+rule;from_fmu;from_port;to_fmu;to_port
+FMU;bb_position.fmu;;;
+FMU;bb_velocity.fmu;;;
+OUTPUT;bb_position.fmu;position1;;position
+LINK;bb_position.fmu;is_ground;bb_velocity.fmu;reset
+LINK;bb_velocity.fmu;velocity;bb_position.fmu;velocity
+OUTPUT;bb_velocity.fmu;velocity;;

@@ -8,23 +8,29 @@ import xml.parsers.expat
 import zipfile
 import hashlib
 from pathlib import Path
+from typing import *
 
 
 class FMU:
     """Unpack and Repack facilities for FMU package. Once unpacked, we can process Operation on
     modelDescription.xml file."""
+
+    FMI2_TYPES = ('Real', 'Integer', 'String', 'Boolean', 'Enumeration')
+    FMI3_TYPES = ('Float64')
+
     def __init__(self, fmu_filename):
         self.fmu_filename = fmu_filename
         self.tmp_directory = tempfile.mkdtemp()
+        self.fmi_version = None
 
         try:
             with zipfile.ZipFile(self.fmu_filename) as zin:
                 zin.extractall(self.tmp_directory)
         except FileNotFoundError:
-            raise FMUException(f"'{fmu_filename}' does not exist")
+            raise FMUError(f"'{fmu_filename}' does not exist")
         self.descriptor_filename = os.path.join(self.tmp_directory, "modelDescription.xml")
         if not os.path.isfile(self.descriptor_filename):
-            raise FMUException(f"'{fmu_filename}' is not valid: {self.descriptor_filename} not found")
+            raise FMUError(f"'{fmu_filename}' is not valid: {self.descriptor_filename} not found")
 
     def __del__(self):
         shutil.rmtree(self.tmp_directory)
@@ -45,7 +51,7 @@ class FMU:
         manipulation.manipulate(self.descriptor_filename, apply_on)
 
 
-class FMUException(Exception):
+class FMUError(Exception):
     def __init__(self, reason):
         self.reason = reason
 
@@ -63,12 +69,13 @@ class Manipulation:
         self.parser.StartElementHandler = self.start_element
         self.parser.EndElementHandler = self.end_element
         self.parser.CharacterDataHandler = self.char_data
-        self.skip_until = None
+        self.skip_until: Optional[str] = None
         self.operation.set_fmu(fmu)
+        self.fmu = fmu
 
-        self.current_port = 0
-        self.port_translation = []
-        self.port_name = []
+        self.current_port: int = 0
+        self.port_translation: List[int] = []
+        self.port_names_list: List[str] = []
         self.apply_on = None
 
     @staticmethod
@@ -78,19 +85,27 @@ class Manipulation:
         else:
             return value
 
+    def start_variable(self, attrs):
+        causality = OperationAbstract.scalar_get_causality(attrs)
+        port_name = attrs['name']
+        if not self.apply_on or causality in self.apply_on:
+            if self.operation.scalar_attrs(attrs):
+                self.remove_port(port_name)
+            else:
+                self.keep_port(port_name)
+        else:  # Keep ScalarVariable as it is.
+            self.keep_port(port_name)
+
+
     def start_element(self, name, attrs):
         if self.skip_until:
             return
         try:
             if name == 'ScalarVariable':
-                causality = OperationAbstract.scalar_get_causality(attrs)
-                if not self.apply_on or causality in self.apply_on:
-                    if self.operation.scalar_attrs(attrs):
-                        self.remove_port(attrs['name'])
-                    else:
-                        self.keep_port(attrs['name'])
-                else:  # Keep ScalarVariable as it is.
-                    self.keep_port(attrs['name'])
+                self.start_variable(attrs)
+            elif name in self.fmu.FMI3_TYPES:
+                attrs['type_name'] = name
+                self.start_variable(attrs)
             elif name == 'CoSimulation':
                 self.operation.cosimulation_attrs(attrs)
             elif name == 'DefaultExperiment':
@@ -99,7 +114,7 @@ class Manipulation:
                 self.operation.fmi_attrs(attrs)
             elif name == 'Unknown':
                 self.unknown_attrs(attrs)
-            elif name in ('Real', 'Integer', 'String', 'Boolean', 'Enumeration'):
+            elif name in self.fmu.FMI2_TYPES:
                 self.operation.scalar_type(name, attrs)
 
         except ManipulationSkipTag:
@@ -107,6 +122,7 @@ class Manipulation:
             return
 
         if attrs:
+            attrs.pop('fmi_type', None) # FMI 3.0: this attr was added during manipulation
             attrs_list = [f'{key}="{self.escape(value)}"' for (key, value) in attrs.items()]
             print(f"<{name}", " ".join(attrs_list), ">", end='', file=self.out)
         else:
@@ -125,12 +141,12 @@ class Manipulation:
             print(data, end='', file=self.out)
 
     def remove_port(self, name):
-        self.port_name.append(name)
+        self.port_names_list.append(name)
         self.port_translation.append(None)
         raise ManipulationSkipTag
 
     def keep_port(self, name):
-        self.port_name.append(name)
+        self.port_names_list.append(name)
         self.current_port += 1
         self.port_translation.append(self.current_port)
 
@@ -140,7 +156,7 @@ class Manipulation:
         if new_index:
             attrs['index'] = self.port_translation[int(attrs['index']) - 1]
         else:
-            print(f"WARNING: Removed port '{self.port_name[index]}' is involved in dependencies tree.")
+            print(f"WARNING: Removed port '{self.port_names_list[index]}' is involved in dependencies tree.")
             raise ManipulationSkipTag
 
     def manipulate(self, descriptor_filename, apply_on=None):
