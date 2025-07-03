@@ -465,7 +465,7 @@ class FMUContainer:
                         logger.warning(f"{cport} is not connected")
 
     def make_fmu(self, fmu_filename: Union[str, Path], step_size: Optional[float] = None, debug=False, mt=False,
-                 profiling=False):
+                 profiling=False, sequential=False):
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)
 
@@ -481,7 +481,7 @@ class FMUContainer:
         with open(base_directory / "modelDescription.xml", "wt") as xml_file:
             self.make_fmu_xml(xml_file, step_size, profiling)
         with open(resources_directory / "container.txt", "wt") as txt_file:
-            self.make_fmu_txt(txt_file, step_size, mt, profiling)
+            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential)
 
         self.make_fmu_package(base_directory, fmu_filename)
         if not debug:
@@ -594,16 +594,10 @@ class FMUContainer:
 </fmiModelDescription>
 """)
 
-    def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool):
-        if mt:
-            print("# Use MT\n1", file=txt_file)
-        else:
-            print("# Don't use MT\n0", file=txt_file)
-
-        if profiling:
-            print("# Profiling ENABLED\n1", file=txt_file)
-        else:
-            print("# Profiling DISABLED\n0", file=txt_file)
+    def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
+        print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
+        flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
+        print(" ".join(flags), file=txt_file)
 
         print(f"# Internal time step in seconds", file=txt_file)
         print(f"{step_size}", file=txt_file)

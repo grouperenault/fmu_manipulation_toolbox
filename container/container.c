@@ -41,7 +41,7 @@ void container_set_start_values(container_t* container, int early_set) {
 }
 
 
-static fmu_status_t container_do_step_sequencial(container_t *container) {
+static fmu_status_t container_do_step_sequential(container_t *container) {
     fmu_status_t status = FMU_STATUS_OK;
     double time = container->time_step * container->nb_steps + container->start_time;
 
@@ -152,43 +152,36 @@ static int get_line(config_file_t* file) {
     return 0;
 }
 
-/*
- * # Use MT
- * 1  
- */
-static int read_mt_flag(container_t* container, config_file_t* file) {
-    int mt;
-
-    if (get_line(file))
-        return -1;
-    if (sscanf(file->line, "%d", &mt) < 1)
-        return -2;
-
-    if (mt) {
-        //logger(LOGGER_WARNING, "Container use EXPERIMENTAL sequential");
-        logger(LOGGER_WARNING, "Container use MULTI thread");
-        container->do_step = container_do_step_parallel_mt;
-    } else {   
-        logger(LOGGER_WARNING, "Container use MONO thread");
-        container->do_step = container_do_step_parallel;
-    }
-    return 0;
-}
-
 
 /*
- * # Profiling DISABLED
- * 0
+ * # Container flags <MT> <Profiling> <Sequential>
+ * 1 0 0 
  */
-static int read_profiling_flag(container_t* container, config_file_t* file) {
+static int read_flags(container_t* container, config_file_t* file) {
+    int mt, sequential;
+
     if (get_line(file)) {
-        logger(LOGGER_ERROR, "Cannot read profiling flag.");
+        logger(LOGGER_ERROR, "Cannot read container flags.");
         return -1;
     }
 
-    if (sscanf(file->line, "%d", &container->profiling) < 1) {
-        logger(LOGGER_ERROR, "Cannot interpret profiling flag '%s'.", file->line);
+    if (sscanf(file->line, "%d %d %d", &mt, &container->profiling, &sequential) < 3) {
+        logger(LOGGER_ERROR, "Cannot interpret container flags '%s'.", file->line);
         return -1;
+    }
+
+    if (sequential) {
+        logger(LOGGER_WARNING, "Container use SEQUENTIAL mode.");
+        container->do_step = container_do_step_sequential;
+    }
+    else {
+        if (mt) {
+            logger(LOGGER_WARNING, "Container use PARALLEL mode with MULTI thread");
+            container->do_step = container_do_step_parallel_mt;
+        } else {
+            logger(LOGGER_WARNING, "Container use PARALLEL mode with MONO thread.");
+            container->do_step = container_do_step_parallel;
+        }
     }
 
     if (container->profiling)
@@ -582,7 +575,7 @@ static int read_conf_fmu_io(fmu_io_t* fmu_io, config_file_t* file) {
 }
 
 
-int container_read_conf(container_t* container, const char* dirname) {
+int container_configure(container_t* container, const char* dirname) {
     config_file_t file;
     char filename[CONFIG_FILE_SZ];
 
@@ -597,36 +590,31 @@ int container_read_conf(container_t* container, const char* dirname) {
         logger(LOGGER_ERROR, "Cannot open '%s': %s.", filename, strerror(errno));
         return -1;
     }
-    if (read_mt_flag(container, &file)) {
+    if (read_flags(container, &file)) {
         fclose(file.fp);
         return -2;
     }
 
-    if (read_profiling_flag(container, &file)) {
+    if (read_conf_time_step(container, &file)) {
         fclose(file.fp);
         return -3;
     }
 
-    if (read_conf_time_step(container, &file)) {
-        fclose(file.fp);
-        return -4;
-    }
-
     if (read_conf_fmu(container, dirname, &file)) {
         fclose(file.fp);
-        return -5;
+        return -4;
     }
 
     if (read_conf_local(container, &file)) {
         fclose(file.fp);
         logger(LOGGER_ERROR, "Cannot allocate local variables.");
-        return -6;
+        return -5;
     }
 
     if (read_conf_io(container, &file)) {
         fclose(file.fp);
         logger(LOGGER_ERROR, "Cannot read translation table.");
-        return -7;
+        return -6;
     }
 
 #define LOG_IO(type) \
@@ -642,7 +630,7 @@ int container_read_conf(container_t* container, const char* dirname) {
         if (read_conf_fmu_io(&container->fmu[i].fmu_io, &file)) {
             fclose(file.fp);
             logger(LOGGER_ERROR, "Cannot read I/O table for FMU#%d", i);
-            return -8;
+            return -7;
         }
 
         logger(LOGGER_DEBUG, "FMU#%d: IN     %d reals, %d integers, %d booleans, %d strings", i,
@@ -670,7 +658,7 @@ int container_read_conf(container_t* container, const char* dirname) {
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
             container_free(container);
-            return -9;
+            return -8;
         }
     }
 

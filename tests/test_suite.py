@@ -72,6 +72,16 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files("containers/bouncing_ball/REF-bouncing.json",
                                     "containers/bouncing_ball/bouncing.json")
 
+    def test_container_bouncing_ball_seq(self):
+        assembly = Assembly("bouncing-seq.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True, debug=True,
+                            sequential=True)
+        assembly.write_json("bouncing-seq.json")
+        assembly.make_fmu()
+        self.assert_identical_files("containers/bouncing_ball/REF-container-seq.txt",
+                                    "containers/bouncing_ball/bouncing-seq/resources/container.txt")
+        self.assert_identical_files("containers/bouncing_ball/REF-bouncing-seq.json",
+                                    "containers/bouncing_ball/bouncing-seq.json")
+
     def test_container_bouncing_ball_profiling(self):
         assembly = Assembly("bouncing-profiling.csv", fmu_directory=Path("containers/bouncing_ball"), profiling=True,
                             debug=True)

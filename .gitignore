@@ -43,3 +43,6 @@ tests/containers/bouncing_ball/bouncing-profiling.json
 tests/containers/start/container-slx
 tests/containers/start/container-slx.fmu
 tests/operations/bouncing_ball-win32.fmu
+/tests/containers/bouncing_ball/bouncing-seq/
+/tests/containers/bouncing_ball/bouncing-seq.fmu
+tests/containers/bouncing_ball/bouncing-seq.json

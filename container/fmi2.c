@@ -71,7 +71,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         if (strncmp(fmuResourceLocation, "file:///", 8) == 0)
             fmuResourceLocation += 8;
 
-        if (container_read_conf(container, fmuResourceLocation)) {
+        if (container_configure(container, fmuResourceLocation)) {
             logger(LOGGER_ERROR, "Cannot read container configuration.");
             container_free(container);
             return NULL;

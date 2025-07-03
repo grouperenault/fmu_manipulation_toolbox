@@ -37,7 +37,7 @@ class Connection:
 
 
 class AssemblyNode:
-    def __init__(self, name: Optional[str], step_size: float = None, mt=False, profiling=False,
+    def __init__(self, name: Optional[str], step_size: float = None, mt=False, profiling=False, sequential=False,
                  auto_link=True, auto_input=True, auto_output=True, auto_parameter=False, auto_local=False):
         self.name = name
         if step_size:
@@ -50,6 +50,7 @@ class AssemblyNode:
             self.step_size = None
         self.mt = mt
         self.profiling = profiling
+        self.sequential = sequential
         self.auto_link = auto_link
         self.auto_input = auto_input
         self.auto_output = auto_output
@@ -138,7 +139,8 @@ class AssemblyNode:
         for link_rule in wired.rule_link:
             self.add_link(link_rule[0], link_rule[1], link_rule[2], link_rule[3])
 
-        container.make_fmu(self.name, self.step_size, mt=self.mt, profiling=self.profiling, debug=debug)
+        container.make_fmu(self.name, self.step_size, mt=self.mt, profiling=self.profiling, sequential=self.sequential,
+                           debug=debug)
 
         for node in self.children.values():
             logger.info(f"Deleting transient FMU Container '{node.name}'")
@@ -216,7 +218,7 @@ class AssemblyError(Exception):
 
 
 class Assembly:
-    def __init__(self, filename: str, step_size=None, auto_link=True,  auto_input=True, debug=False,
+    def __init__(self, filename: str, step_size=None, auto_link=True,  auto_input=True, debug=False, sequential=False,
                  auto_output=True, mt=False, profiling=False, fmu_directory: Path = Path("."), auto_parameter=False,
                  auto_local=False):
         self.filename = Path(filename)
@@ -228,6 +230,7 @@ class Assembly:
         self.default_auto_parameter = auto_parameter
         self.default_auto_local = auto_local
         self.default_mt = mt
+        self.default_sequential = sequential
         self.default_profiling = profiling
         self.fmu_directory = fmu_directory
         self.transient_filenames: List[Path] = []
@@ -283,8 +286,9 @@ class Assembly:
         name = str(self.filename.with_suffix(".fmu"))
         self.root = AssemblyNode(name, step_size=self.default_step_size, auto_link=self.default_auto_link,
                                  mt=self.default_mt, profiling=self.default_profiling,
-                                 auto_input=self.default_auto_input, auto_output=self.default_auto_output,
-                                 auto_parameter=self.default_auto_parameter, auto_local=self.default_auto_local)
+                                 sequential=self.default_sequential, auto_input=self.default_auto_input,
+                                 auto_output=self.default_auto_output, auto_parameter=self.default_auto_parameter,
+                                 auto_local=self.default_auto_local)
 
         with open(self.input_pathname) as file:
             reader = csv.reader(file, delimiter=';')
@@ -385,6 +389,7 @@ class Assembly:
         name = data.get("name", None)                                                       # 1
         mt = data.get("mt", self.default_mt)                                                # 2
         profiling = data.get("profiling", self.default_profiling)                           # 3
+        sequential = data.get("sequential", self.default_sequential)                        # 3b
         auto_link = data.get("auto_link", self.default_auto_link)                           # 4
         auto_input = data.get("auto_input", self.default_auto_input)                        # 5
         auto_output = data.get("auto_output", self.default_auto_output)                     # 6
@@ -393,11 +398,12 @@ class Assembly:
         step_size = data.get("step_size", self.default_step_size)                           # 7
 
         node = AssemblyNode(name, step_size=step_size, auto_link=auto_link, mt=mt, profiling=profiling,
+                            sequential=sequential,
                             auto_input=auto_input, auto_output=auto_output, auto_parameter=auto_parameter,
                             auto_local=auto_local)
 
         for key, value in data.items():
-            if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling',
+            if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling', 'sequential'
                        'auto_parameter', 'auto_local'):
                 continue  # Already read
 
@@ -455,6 +461,7 @@ class Assembly:
         json_node["name"] = node.name                      # 1
         json_node["mt"] = node.mt                          # 2
         json_node["profiling"] = node.profiling            # 3
+        json_node["sequential"] = node.sequential          # 3b
         json_node["auto_link"] = node.auto_link            # 4
         json_node["auto_input"] = node.auto_input          # 5
         json_node["auto_output"] = node.auto_output        # 6

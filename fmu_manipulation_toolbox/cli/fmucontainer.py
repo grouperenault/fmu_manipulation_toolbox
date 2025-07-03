@@ -56,6 +56,9 @@ def fmucontainer():
     parser.add_argument("-profile", action="store_true", dest="profiling", default=False,
                         help="Enable Profiling mode for the generated container.")
 
+    parser.add_argument("-sequential", action="store_true", dest="sequential", default=False,
+                        help="Use sequential mode to schedule embedded fmu's.")
+
     parser.add_argument("-dump-json",  action="store_true", dest="dump", default=False,
                         help="Dump a JSON file for each container.")
 
@@ -79,7 +82,7 @@ def fmucontainer():
         try:
             assembly = Assembly(filename, step_size=step_size, auto_link=config.auto_link,
                                 auto_input=config.auto_input, auto_output=config.auto_output,
-                                auto_local=config.auto_local, mt=config.mt,
+                                auto_local=config.auto_local, mt=config.mt, sequential=config.sequential,
                                 profiling=config.profiling, fmu_directory=fmu_directory, debug=config.debug,
                                 auto_parameter=config.auto_parameter)
         except FileNotFoundError as e:

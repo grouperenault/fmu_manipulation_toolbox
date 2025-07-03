@@ -102,7 +102,7 @@ typedef struct container_s {
 ----------------------------------------------------------------------------*/
 
 extern container_t *container_new(const char *instance_name, const char *fmu_uuid);
-extern int container_read_conf(container_t* container, const char* dirname);
+extern int container_configure(container_t* container, const char* dirname);
 extern void container_free(container_t *container);
 
 extern void container_set_start_values(container_t* container, int early_set);
