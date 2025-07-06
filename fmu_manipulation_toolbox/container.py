@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import uuid
+import platform
 import zipfile
 from datetime import datetime
 from pathlib import Path
@@ -15,6 +16,18 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
 class FMUPort:
+
+    @staticmethod
+    def simple_type_name(type_name: str) -> str:
+        table = {
+            'Float64': 'Real',
+            'Int32': 'Integer'
+        }
+        try:
+            return table[type_name]
+        except KeyError:
+            return type_name
+
     def __init__(self, attrs: Dict[str, str]):
         self.causality = attrs.get("causality", "local")
         self.variability = attrs.get("variability", "continuous")
@@ -22,14 +35,14 @@ class FMUPort:
         self.vr = int(attrs.get("valueReference"))
         self.description = attrs.get("description", None)
 
-        self.type_name = attrs.get("type_name", None)
+        self.type_name = self.simple_type_name(attrs.pop("type_name", None))
         self.start_value = attrs.get("start", None)
         self.initial = attrs.get("initial", None)
 
     def set_port_type(self, type_name: str, attrs: Dict[str, str]):
-        self.type_name = type_name
-        self.start_value = attrs.pop("start", None)
-        self.initial = attrs.pop("initial", None)
+        self.type_name = self.simple_type_name(type_name)
+        self.start_value = attrs.get("start", None)
+        self.initial = attrs.get("initial", None)
 
     def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2):
         if name is None:
@@ -87,6 +100,7 @@ class EmbeddedFMU(OperationAbstract):
         self.stop_time = None
         self.model_identifier = None
         self.guid = None
+        self.fmi_version = None
         self.ports: Dict[str, FMUPort] = {}
 
         self.capabilities: Dict[str, str] = {}
@@ -100,15 +114,15 @@ class EmbeddedFMU(OperationAbstract):
         fmi_version = attrs['fmiVersion']
         if fmi_version == "2.0":
             self.guid = attrs['guid']
+            self.fmi_version = 2
         if fmi_version == "3.0":
             self.guid = attrs['instantiationToken']
+            self.fmi_version = 3
 
 
     def scalar_attrs(self, attrs) -> int:
         if 'type_name' in attrs:  # FMI 3.0
-            type_name = attrs.pop('type_name')
             port = FMUPort(attrs)
-            port.type_name = type_name
             self.ports[port.name] = port
         else: # FMI 2.0
             self.current_port = FMUPort(attrs)
@@ -214,7 +228,6 @@ class ValueReferenceTable:
     def __init__(self):
         self.vr_table: Dict[str, int] = {
             "Real": 0,
-            "Float64": 0,
             "Integer": 0,
             "Boolean": 0,
             "String": 0,
@@ -255,7 +268,40 @@ class AutoWired:
 
 
 class FMUContainer:
-    def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None):
+    HEADER_XML_2 =         header = """<?xml version="1.0" encoding="ISO-8859-1"?>
+<fmiModelDescription
+  fmiVersion="2.0"
+  modelName="{identifier}"
+  generationTool="FMUContainer-{tool_version}"
+  generationDateAndTime="{timestamp}"
+  guid="{guid}"
+  description="FMUContainer with {embedded_fmu}"
+  author="{author}"
+  license="Proprietary"
+  copyright="See Embedded FMU's copyrights."
+  variableNamingConvention="structured">
+
+  <CoSimulation
+    modelIdentifier="{identifier}"
+    canHandleVariableCommunicationStepSize="true"
+    canBeInstantiatedOnlyOncePerProcess="{only_once}"
+    canNotUseMemoryManagementFunctions="true"
+    canGetAndSetFMUstate="false"
+    canSerializeFMUstate="false"
+    providesDirectionalDerivative="false"
+    needsExecutionTool="{execution_tool}">
+  </CoSimulation>
+
+  <LogCategories>
+    <Category name="fmucontainer"/>
+  </LogCategories>
+
+  <DefaultExperiment stepSize="{step_size}" startTime="{start_time}" stopTime="{stop_time}"/>
+
+  <ModelVariables>
+"""
+
+    def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2):
         self.fmu_directory = Path(fmu_directory)
         self.identifier = identifier
         if not self.fmu_directory.is_dir():
@@ -264,6 +310,7 @@ class FMUContainer:
         self.execution_order: List[EmbeddedFMU] = []
 
         self.description_pathname = description_pathname
+        self.fmi_version = fmi_version
 
         self.start_time = None
         self.stop_time = None
@@ -276,12 +323,28 @@ class FMUContainer:
         self.rules: Dict[ContainerPort, str] = {}
         self.start_values: Dict[ContainerPort, str] = {}
 
+
+    def convert_type_name(self, type_name: str) -> str:
+        if self.fmi_version == 2:
+            table = {}
+        elif self.fmi_version == 3:
+            table = {}
+        else:
+            table = {}
+
+        try:
+            return table[type_name]
+        except KeyError:
+            return type_name
+
     def get_fmu(self, fmu_filename: str) -> EmbeddedFMU:
         if fmu_filename in self.involved_fmu:
             return self.involved_fmu[fmu_filename]
 
         try:
             fmu = EmbeddedFMU(self.fmu_directory / fmu_filename)
+            if fmu.fmi_version > self.fmi_version:
+                logger.fatal(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}")
             self.involved_fmu[fmu.name] = fmu
             self.execution_order.append(fmu)
             logger.debug(f"Adding FMU #{len(self.execution_order)}: {fmu}")
@@ -517,38 +580,15 @@ class FMUContainer:
         else:
             logger.info(f"stop_time={self.stop_time}")
 
-        xml_file.write(f"""<?xml version="1.0" encoding="ISO-8859-1"?>
-<fmiModelDescription
-  fmiVersion="2.0"
-  modelName="{self.identifier}"
-  generationTool="FMUContainer-{tool_version}"
-  generationDateAndTime="{timestamp}"
-  guid="{guid}"
-  description="FMUContainer with {embedded_fmu}"
-  author="{author}"
-  license="Proprietary"
-  copyright="See Embedded FMU's copyrights."
-  variableNamingConvention="structured">
+        if self.fmi_version == 2:
+            xml_file.write(self.HEADER_XML_2.format(identifier=self.identifier, tool_version=tool_version,
+                                                    timestamp=timestamp, guid=guid, embedded_fmu=embedded_fmu,
+                                                    author=author,
+                                                    only_once=capabilities['canBeInstantiatedOnlyOncePerProcess'],
+                                                    execution_tool=capabilities['needsExecutionTool'],
+                                                    start_time=self.start_time, stop_time=self.stop_time,
+                                                    step_size=step_size))
 
-  <CoSimulation
-    modelIdentifier="{self.identifier}"
-    canHandleVariableCommunicationStepSize="true"
-    canBeInstantiatedOnlyOncePerProcess="{capabilities['canBeInstantiatedOnlyOncePerProcess']}"
-    canNotUseMemoryManagementFunctions="true"
-    canGetAndSetFMUstate="false"
-    canSerializeFMUstate="false"
-    providesDirectionalDerivative="false"
-    needsExecutionTool="{capabilities['needsExecutionTool']}">
-  </CoSimulation>
-
-  <LogCategories>
-    <Category name="fmucontainer"/>
-  </LogCategories>
-
-  <DefaultExperiment stepSize="{step_size}" startTime="{self.start_time}" stopTime="{self.stop_time}"/>
-
-  <ModelVariables>
-""")
         if profiling:
             for fmu in self.execution_order:
                 vr = vr_table.add_vr("Real")
@@ -605,7 +645,7 @@ class FMUContainer:
         print(f"{len(self.involved_fmu)}", file=txt_file)
         fmu_rank: Dict[str, int] = {}
         for i, fmu in enumerate(self.execution_order):
-            print(f"{fmu.name}", file=txt_file)
+            print(f"{fmu.name} {fmu.fmi_version}", file=txt_file)
             print(f"{fmu.model_identifier}", file=txt_file)
             print(f"{fmu.guid}", file=txt_file)
             fmu_rank[fmu.name] = i
@@ -711,6 +751,39 @@ class FMUContainer:
         else:
             return path
 
+    @staticmethod
+    def copyfile(origin, destination):
+        logger.debug(f"Copying {origin} in {destination}")
+        shutil.copy(origin, destination)
+
+    def get_bindir_and_suffixe(self) -> (str, str, str):
+        suffixes = {
+            "Windows": "dll",
+            "Linux": "so",
+            "Darwin": "dylib"
+        }
+
+        origin_bindirs = {
+            "Windows": "win64",
+            "Linux": "linux64",
+            "Darwin": "darwin64"
+        }
+
+        if self.fmi_version == 2:
+            target_bindirs = origin_bindirs
+        elif self.fmi_version == 3:
+            target_bindirs = {
+                "Windows": "poil",
+                "Linux": "poil",
+                "Darwin": "poil"
+            }
+
+        os_name = platform.system()
+        try:
+            return origin_bindirs[os_name], suffixes[os_name], target_bindirs[os_name]
+        except KeyError:
+            raise FMUContainerError(f"OS '{os_name}' is not supported.")
+
     def make_fmu_skeleton(self, base_directory: Path) -> Path:
         logger.debug(f"Initialize directory '{base_directory}'")
 
@@ -725,20 +798,23 @@ class FMUContainer:
         documentation_directory.mkdir(exist_ok=True)
 
         if self.description_pathname:
-            logger.debug(f"Copying {self.description_pathname}")
-            shutil.copy(self.description_pathname, documentation_directory)
+            self.copyfile(self.description_pathname, documentation_directory)
 
-        shutil.copy(origin / "model.png", base_directory)
-        for bitness in ('win32', 'win64'):
-            library_filename = origin / bitness / "container.dll"
-            if library_filename.is_file():
-                binary_directory = binaries_directory / bitness
-                binary_directory.mkdir(exist_ok=True)
-                shutil.copy(library_filename, binary_directory / f"{self.identifier}.dll")
+        self.copyfile(origin / "model.png", base_directory)
+
+        origin_bindir, suffixe, target_bindir = self.get_bindir_and_suffixe()
+
+        library_filename = origin / origin_bindir / f"container.{suffixe}"
+        if not library_filename.is_file():
+            raise FMUContainerError(f"File {library_filename} not found")
+        binary_directory = binaries_directory / target_bindir
+        binary_directory.mkdir(exist_ok=True)
+        self.copyfile(library_filename, binary_directory / f"{self.identifier}.{suffixe}")
 
         for i, fmu in enumerate(self.involved_fmu.values()):
             shutil.copytree(self.long_path(fmu.fmu.tmp_directory),
                             self.long_path(resources_directory / f"{i:02x}"), dirs_exist_ok=True)
+
         return resources_directory
 
     def make_fmu_package(self, base_directory: Path, fmu_filename: Path):

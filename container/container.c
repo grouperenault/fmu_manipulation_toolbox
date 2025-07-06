@@ -257,6 +257,14 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         }
 
         char* name = strdup(file->line);
+        int fmi_version = 2;
+        for(int i=0; i < strlen(name); i += 1) {
+            if (name[i] == ' ') {
+                name[i] = '\0';
+                fmi_version = atoi(name+i+1);  
+                break;
+            } 
+        }
       
         if (get_line(file)) {
             logger(LOGGER_ERROR, "Cannot read embedded FMU%lu's identifier.", i);
@@ -270,7 +278,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         }
         const char *guid = file->line;
 
-        int status = fmu_load_from_directory(container, i, directory, name, identifier, guid, FMU_2); /* TODO: dynamic */
+        int status = fmu_load_from_directory(container, i, directory, name, identifier, guid, fmi_version);
         free(identifier);
         free(name);
         if (status) {

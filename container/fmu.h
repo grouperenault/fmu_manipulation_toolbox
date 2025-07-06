@@ -250,8 +250,12 @@ typedef struct {
 #endif
 #ifdef __APPLE__
 #   define FMU2_BINDIR      "darwin64"
-#   define FMU3_BINDIR      "x86_64-darwin"
-#   define FMU_BIN_SUFFIXE  ".dlsym"
+#   ifdef __aarch64__
+#       define FMU3_BINDIR      "aarch64-darwin"
+#   else
+#       define FMU3_BINDIR      "x86_64-darwin"
+#   endif
+#   define FMU_BIN_SUFFIXE  ".dylib"
 #endif
 #ifdef WIN32
 #   if defined(_WIN64) || defined(__amd64__)
