@@ -4,7 +4,7 @@
 0.1
 # NB of embedded FMU's
 1
-slx.fmu
+slx.fmu 2
 G
 {6853134c-427d-44a3-ac7a-36eca9552797}
 # NB local variables Real, Integer, Boolean, String

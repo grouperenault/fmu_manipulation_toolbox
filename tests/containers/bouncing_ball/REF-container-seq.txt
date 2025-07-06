@@ -4,10 +4,10 @@
 0.001
 # NB of embedded FMU's
 2
-bb_position.fmu
+bb_position.fmu 2
 bb_position
 {8fbd9f16-ceaa-97ed-127f-987a60b25648}
-bb_velocity.fmu
+bb_velocity.fmu 2
 bb_velocity
 {abf5f61d-b459-3641-3a2c-1e594b990280}
 # NB local variables Real, Integer, Boolean, String
