@@ -198,7 +198,15 @@ class FMUSplitterDescription:
         self.config["candidate_fmu"] = []
 
         for i in range(nb_fmu):
+            # format is
+            #    filename.fmu
+            # or
+            #    filename.fmu fmi_version
             fmu_filename = self.get_line(file)
+            if ' ' in fmu_filename:
+                fmu_filename = fmu_filename.split(' ')[0]
+                # fmi version is not needed for further operations
+
             base_directory = "/".join(txt_filename.split("/")[0:-1])
 
             directory = f"{base_directory}/{fmu_filename}"
