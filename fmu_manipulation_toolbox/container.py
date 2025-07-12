@@ -694,14 +694,16 @@ class FMUContainer:
             for cport_to in local.cport_to_list:
                 inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = vr
 
-        print(f"# NB local variables Real, Integer, Boolean, String", file=txt_file)
+        print(f"# NB local variables ", ", ".join(type_names_list), file=txt_file)
+        nb_local = []
         for type_name in type_names_list:
             nb = len(locals_per_type[type_name])
             if type_name == "Real":
                 nb += 1  # reserver a slot for "time"
                 if profiling:
                     nb += len(self.execution_order)
-            print(f"{nb} ", file=txt_file, end='')
+            nb_local.append(str(nb))
+        print(" ".join(nb_local), file=txt_file, end='')
         print("", file=txt_file)
 
         print("# CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]", file=txt_file)
