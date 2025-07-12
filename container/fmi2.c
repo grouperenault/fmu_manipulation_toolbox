@@ -329,91 +329,6 @@ GETTER(strings, String);
     return status;
 }
 
-#if 0
-static fmu_status_t do_internal_step_serie(container_t *container, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
-    fmu_status_t status;
-    double time = container->time_step * container->nb_steps + container->start_time;
-
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t* fmu = &container->fmu[i];
-
-        status = fmu_set_inputs(fmu);
-        if (status != FMU_STATUS_OK)
-            return status;
-            
-        /* COMPUTATION */
-        status = fmuDoStep(fmu, time, container->time_step);
-        if (status != FMU_STATUS_OK)
-            return status;
-
-        status = do_step_get_outputs(container, i);
-        if (status != FMU_STATUS_OK)
-            return status;
-        
-    }
-
-    return status;
-}
-
-
-static fmu_status_t do_internal_step_parallel_mt(container_t* container) {
-    fmu_status_t status = FMU_STATUS_OK;
-
-    /* Launch computation for all threads*/
-    for(size_t i = 0; i < container->nb_fmu; i += 1) {
-        container->fmu[i].status = FMU_STATUS_ERROR;
-        thread_mutex_unlock(&container->fmu[i].mutex_container);
-    }
-
-    /* Consolidate results */
-    for (size_t i = 0; i < container->nb_fmu; i += 1) {
-        thread_mutex_lock(&container->fmu[i].mutex_fmu);
-        if (container->fmu[i].status != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-    }
-
-    for (size_t i = 0; i < container->nb_fmu; i += 1) {
-        status = do_step_get_outputs(container, i);
-        if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU#%d failed doStep.", i);
-            return FMU_STATUS_ERROR;
-        }
-    }
-    
-    return status;
-}
-
-
-static fmu_status_t do_internal_step_parallel(container_t* container) {
-    static int set_input = 0;
-    fmu_status_t status = FMU_STATUS_OK;
-    double time = container->time_step * container->nb_steps + container->start_time;
-
-    for (size_t i = 0; i < container->nb_fmu; i += 1) {          
-        status = fmu_set_inputs(&container->fmu[i]);
-        if (status != FMU_STATUS_OK) 
-            return status;
-    }
-
-    for (size_t i = 0; i < container->nb_fmu; i += 1) {
-        const fmu_t* fmu = &container->fmu[i];
-        /* COMPUTATION */
-        status = fmuDoStep(fmu,time, container->time_step);
-        if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU#%d failed doStep.", i);
-            return status;
-        }
-    }
-
-    for (size_t i = 0; i < container->nb_fmu; i += 1) {
-        status = do_step_get_outputs(container, i);
-        if (status != FMU_STATUS_OK)
-            return status;
-    }
-    
-    return status;
-}
-#endif
 
 fmi2Status fmi2DoStep(fmi2Component c,
     fmi2Real currentCommunicationPoint,
@@ -442,26 +357,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
             return fmi2Error;
         }
     }       
-/*
-#if 1
-        if (container->mt)
-            status = do_internal_step_parallel_mt(container);
-        else
-            status = do_internal_step_parallel(container);
-        container->time += container->time_step;
-        if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container cannot do_internal_step.");
-            return fmi2Error;
-        }
-#else
-        status = do_internal_step_serie(container);
-        container->time = start_time + (i + 1) * container->time_step;
-        if ((status != fmi2OK) && (status != fmi2Warning)) {
-            logger(LOGGER_ERROR, "Container cannot do_internal_step. Status=%d", status);
-            return status;
-        }
-#endif
-*/
+
     const double new_time = container->start_time + container->time_step * container->nb_steps;
     if (fabs(end_time - new_time) > container->tolerance) {
         logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, local_steps=%d, nb_steps=%lld)", 
