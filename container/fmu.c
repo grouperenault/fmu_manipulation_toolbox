@@ -517,7 +517,6 @@ fmu_status_t fmuDoStep(const fmu_t *fmu,
                        double communicationStepSize) {
     fmu_status_t status = FMU_STATUS_ERROR;
 
-    logger(LOGGER_DEBUG, "%s fmuDoStep() %d %x", fmu->name, fmu->fmi_version, fmu->fmi_functions.version_2.fmi2DoStep);
     if (fmu->profile)
         profile_tic(fmu->profile);
 
