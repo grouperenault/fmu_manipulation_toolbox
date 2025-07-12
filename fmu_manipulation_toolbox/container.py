@@ -299,6 +299,7 @@ class FMUContainer:
   <DefaultExperiment stepSize="{step_size}" startTime="{start_time}" stopTime="{stop_time}"/>
 
   <ModelVariables>
+    <ScalarVariable valueReference="0" name="time" causality="independent"><Real /></ScalarVariable>
 """
 
     def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2):
@@ -589,11 +590,13 @@ class FMUContainer:
                                                     start_time=self.start_time, stop_time=self.stop_time,
                                                     step_size=step_size))
 
+        vr_time = vr_table.add_vr("Real")
+        logger.debug(f"Time as vr = {vr_time}")
         if profiling:
             for fmu in self.execution_order:
                 vr = vr_table.add_vr("Real")
                 name = f"container.{fmu.id}.rt_ratio"
-                print(f'<ScalarVariable valueReference="{vr}" name="{name}" causality="local">'
+                print(f'    <ScalarVariable valueReference="{vr}" name="{name}" causality="local">'
                       f'<Real /></ScalarVariable>', file=xml_file)
 
         # Local variable should be first to ensure to attribute them the lowest VR.
@@ -694,8 +697,10 @@ class FMUContainer:
         print(f"# NB local variables Real, Integer, Boolean, String", file=txt_file)
         for type_name in type_names_list:
             nb = len(locals_per_type[type_name])
-            if profiling and type_name == "Real":
-                nb += len(self.execution_order)
+            if type_name == "Real":
+                nb += 1  # reserver a slot for "time"
+                if profiling:
+                    nb += len(self.execution_order)
             print(f"{nb} ", file=txt_file, end='')
         print("", file=txt_file)
 
@@ -707,11 +712,17 @@ class FMUContainer:
             for input_port in inputs_per_type[type_name]:
                 nb_input_link += len(input_port.cport_list) - 1
 
-            if profiling and type_name == "Real":
-                nb += len(self.execution_order)
-                print(f"{nb} {nb+nb_input_link}", file=txt_file)
-                for profiling_port, _ in enumerate(self.execution_order):
-                    print(f"{profiling_port} 1 -2 {profiling_port}", file=txt_file)
+            if type_name == "Real":
+                nb += 1  # reserver a slot for "time"
+                if profiling:
+                    nb += len(self.execution_order)
+                    print(f"{nb} {nb+nb_input_link}", file=txt_file)
+                    print(f"0 1 -1 0", file=txt_file)  # Time slot
+                    for profiling_port, _ in enumerate(self.execution_order):
+                        print(f"{profiling_port+1} 1 -2 {profiling_port+1}", file=txt_file)
+                else:
+                    print(f"{nb} {nb + nb_input_link}", file=txt_file)
+                    print(f"0 1 -1 0", file=txt_file)  # Time slot
             else:
                 print(f"{nb} {nb+nb_input_link}", file=txt_file)
             for input_port in inputs_per_type[type_name]:
