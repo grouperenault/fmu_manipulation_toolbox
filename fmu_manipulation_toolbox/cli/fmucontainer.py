@@ -93,7 +93,7 @@ def fmucontainer():
             continue
 
         try:
-            assembly.make_fmu(dump_json=config.dump)
+            assembly.make_fmu(dump_json=config.dump, fmi_version=int(config.fmi_version))
         except FMUContainerError as e:
             logger.fatal(f"{filename}: {e}")
             continue

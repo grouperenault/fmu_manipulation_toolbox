@@ -83,7 +83,26 @@ class FMUPort:
                                          for (key, value) in scalar_attrs.items()])
             return f'<ScalarVariable {scalar_attrs_str}>{child_str}</ScalarVariable>'
         else:
-            return f'FIX ME'
+            if "Real" == self.type_name:
+                type_name = "Float64"
+            elif "Integer" == self.type_name:
+                type_name = "Int32"
+            else:
+                type_name = self.type_name
+
+            scalar_attrs = {
+                "name": name,
+                "valueReference": vr,
+                "causality": causality,
+                "variability": self.variability,
+                "initial": self.initial,
+                "description": self.description,
+                "start": start
+            }
+            scalar_attrs_str = " ".join([f'{key}="{value}"' if value is not None else ""
+                                         for (key, value) in scalar_attrs.items()])
+
+            return f'<{type_name} {scalar_attrs_str}/>'
 
 
 class EmbeddedFMU(OperationAbstract):
@@ -268,7 +287,7 @@ class AutoWired:
 
 
 class FMUContainer:
-    HEADER_XML_2 =         header = """<?xml version="1.0" encoding="ISO-8859-1"?>
+    HEADER_XML_2 = """<?xml version="1.0" encoding="ISO-8859-1"?>
 <fmiModelDescription
   fmiVersion="2.0"
   modelName="{identifier}"
@@ -301,6 +320,40 @@ class FMUContainer:
   <ModelVariables>
     <ScalarVariable valueReference="0" name="time" causality="independent"><Real /></ScalarVariable>
 """
+
+    HEADER_XML_3 = """<?xml version="1.0" encoding="ISO-8859-1"?>
+    <fmiModelDescription
+      fmiVersion="3.0"
+      modelName="{identifier}"
+      generationTool="FMUContainer-{tool_version}"
+      generationDateAndTime="{timestamp}"
+      instantiationToken="{guid}"
+      description="FMUContainer with {embedded_fmu}"
+      author="{author}"
+      license="Proprietary"
+      copyright="See Embedded FMU's copyrights."
+      variableNamingConvention="structured">
+
+      <CoSimulation
+        modelIdentifier="{identifier}"
+        canHandleVariableCommunicationStepSize="true"
+        canBeInstantiatedOnlyOncePerProcess="{only_once}"
+        canNotUseMemoryManagementFunctions="true"
+        canGetAndSetFMUstate="false"
+        canSerializeFMUstate="false"
+        providesDirectionalDerivative="false"
+        needsExecutionTool="{execution_tool}">
+      </CoSimulation>
+
+      <LogCategories>
+        <Category name="fmucontainer"/>
+      </LogCategories>
+
+      <DefaultExperiment stepSize="{step_size}" startTime="{start_time}" stopTime="{stop_time}"/>
+
+      <ModelVariables>
+        <Float64 valueReference="0" name="time" causality="independent"/>
+    """
 
     def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2):
         self.fmu_directory = Path(fmu_directory)
@@ -589,6 +642,14 @@ class FMUContainer:
                                                     execution_tool=capabilities['needsExecutionTool'],
                                                     start_time=self.start_time, stop_time=self.stop_time,
                                                     step_size=step_size))
+        elif self.fmi_version == 3:
+            xml_file.write(self.HEADER_XML_3.format(identifier=self.identifier, tool_version=tool_version,
+                                                    timestamp=timestamp, guid=guid, embedded_fmu=embedded_fmu,
+                                                    author=author,
+                                                    only_once=capabilities['canBeInstantiatedOnlyOncePerProcess'],
+                                                    execution_tool=capabilities['needsExecutionTool'],
+                                                    start_time=self.start_time, stop_time=self.stop_time,
+                                                    step_size=step_size))
 
         vr_time = vr_table.add_vr("Real")
         logger.debug(f"Time as vr = {vr_time}")
@@ -609,29 +670,55 @@ class FMUContainer:
             vr = vr_table.add_vr(input_port.type_name)
             # Get Start and XML from first connected input
             start = self.start_values.get(input_port.cport_list[0], None)
-            print(f"    {input_port.cport_list[0].port.xml(vr, name=input_port_name, start=start)}", file=xml_file)
+            print(f"    {input_port.cport_list[0].port.xml(vr, name=input_port_name, start=start, fmi_version=self.fmi_version)}", file=xml_file)
             input_port.vr = vr
 
         for output_port_name, cport in self.outputs.items():
             vr = vr_table.get_vr(cport)
-            print(f"    {cport.port.xml(vr, name=output_port_name)}", file=xml_file)
+            print(f"    {cport.port.xml(vr, name=output_port_name, fmi_version=self.fmi_version)}", file=xml_file)
             cport.vr = vr
 
-        xml_file.write("""  </ModelVariables>
+        if self.fmi_version == 2:
+            self.make_fmu_xml_epilog_2(xml_file)
+        elif self.fmi_version == 3:
+            self.make_fmu_xml_epilog_3(xml_file)
+
+    def make_fmu_xml_epilog_2(self, xml_file):
+        xml_file.write(f"""  </ModelVariables>
 
   <ModelStructure>
     <Outputs>
-""")
-
+ """)
         index_offset = len(self.locals) + len(self.inputs) + 1
         for i, _ in enumerate(self.outputs.keys()):
             print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
+
         xml_file.write("""    </Outputs>
     <InitialUnknowns>
 """)
+
         for i, _ in enumerate(self.outputs.keys()):
             print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
-        xml_file.write("""    </InitialUnknowns>
+
+            xml_file.write("""    </InitialUnknowns>
+  </ModelStructure>
+
+</fmiModelDescription>
+ """)
+
+    def make_fmu_xml_epilog_3(self, xml_file):
+        xml_file.write(f"""  </ModelVariables>
+
+  <ModelStructure>
+""")
+        # index_offset = len(self.locals) + len(self.inputs) + 1
+        # for i, _ in enumerate(self.outputs.keys()):
+        #     print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
+        #
+        # for i, _ in enumerate(self.outputs.keys()):
+        #     print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
+
+        xml_file.write("""
   </ModelStructure>
 
 </fmiModelDescription>
@@ -784,9 +871,9 @@ class FMUContainer:
             target_bindirs = origin_bindirs
         elif self.fmi_version == 3:
             target_bindirs = {
-                "Windows": "poil",
-                "Linux": "poil",
-                "Darwin": "poil"
+                "Windows": "x86_64-windows",
+                "Linux": "x86_64-linux",
+                "Darwin": "aarch64-darwin"
             }
 
         os_name = platform.system()
