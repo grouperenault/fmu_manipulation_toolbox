@@ -1,4 +1,5 @@
 import logging
+import getpass
 import os
 import shutil
 import uuid
@@ -610,7 +611,7 @@ class FMUContainer:
         guid = str(uuid.uuid4())
         embedded_fmu = ", ".join([fmu_name for fmu_name in self.involved_fmu])
         try:
-            author = os.getlogin()
+            author = getpass.getuser()
         except OSError:
             author = "Unspecified"
 
@@ -711,12 +712,8 @@ class FMUContainer:
 
   <ModelStructure>
 """)
-        # index_offset = len(self.locals) + len(self.inputs) + 1
-        # for i, _ in enumerate(self.outputs.keys()):
-        #     print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
-        #
-        # for i, _ in enumerate(self.outputs.keys()):
-        #     print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
+        for output in self.outputs.values():
+            print(f'      <Output valueReference="{output.vr}"/>', file=xml_file)
 
         xml_file.write("""
   </ModelStructure>
