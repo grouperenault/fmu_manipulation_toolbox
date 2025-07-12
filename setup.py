@@ -36,6 +36,7 @@ setup(
         "resources/linux64/container.so",
         "resources/linux32/client_sm.so",
         "resources/linux32/server_sm",
+        "resources/darwin64/container.dylib",
         "resources/license.txt",
         "resources/*.png",
         "resources/fmi-2.0/*.xsd",
