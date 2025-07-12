@@ -202,31 +202,9 @@ FMI_GETTER(integers32, Int32, Integer);
 FMI_GETTER(uintegers32, UInt32, Integer); // TODO
 FMI_GETTER(integers64, Int64, Integer); // TODO
 FMI_GETTER(uintegers64, UInt64, Integer); // TODO
-
+FMI_GETTER(booleans1, Boolean, Integer); // TODO
+FMI_GETTER(strings, String, String);
 #undef FMI_GETTER
-
-
-
-fmi3Status fmi3GetBoolean(fmi3Instance instance,
-                          const fmi3ValueReference valueReferences[],
-                          size_t nValueReferences,
-                          fmi3Boolean values[],
-                          size_t nValues) {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3GetString(fmi3Instance instance,
-                         const fmi3ValueReference valueReferences[],
-                         size_t nValueReferences,
-                         fmi3String values[],
-                         size_t nValues) {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
 
 
 fmi3Status fmi3GetBinary(fmi3Instance instance,
@@ -251,136 +229,45 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
 }
 
 
-fmi3Status fmi3SetFloat32(fmi3Instance instance,
-                          const fmi3ValueReference valueReferences[],
-                          size_t nValueReferences,
-                          const fmi3Float32 values[],
-                          size_t nValues)  {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
+#define FMI_SETTER(type, fmi_type, fmu_type) \
+fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference valueReferences[], size_t nValueReferences, const fmi3 ## fmi_type value[], size_t nValues) { \
+    container_t* container = (container_t*)instance; \
+    fmu_status_t status; \
+\
+    for (size_t i = 0; i < nValueReferences; i += 1) { \
+        const container_port_t *port = &container->port_ ##type [valueReferences[i]]; \
+        const int fmu_id = port->links[0].fmu_id; \
+\
+        if (fmu_id < 0) { \
+            container-> type [valueReferences[i]] = value[i]; \
+        } else { \
+            const fmu_vr_t fmu_vr = port->links[0].fmu_vr; \
+            const fmu_t *fmu = &container->fmu[fmu_id]; \
+\
+            status = fmuSet ## fmu_type (fmu, &fmu_vr, 1, &value[i]); \
+            if (status != FMU_STATUS_OK) \
+                return fmi3Error; \
+        } \
+    } \
+\
+    return fmi3OK; \
 }
+FMI_SETTER(reals64, Float64, Real);
+FMI_SETTER(reals32, Float32, Real); // TODO
+FMI_SETTER(integers8, Int8, Integer); // TODO
+FMI_SETTER(uintegers8, UInt8, Integer); // TODO
+FMI_SETTER(integers16, Int16, Integer); // TODO
+FMI_SETTER(uintegers16, UInt16, Integer); // TODO
+FMI_SETTER(integers32, Int32, Integer);
+FMI_SETTER(uintegers32, UInt32, Integer); // TODO
+FMI_SETTER(integers64, Int64, Integer); // TODO
+FMI_SETTER(uintegers64, UInt64, Integer); // TODO
+FMI_SETTER(booleans1, Boolean, Integer); // TODO
+FMI_SETTER(strings, String, String);
+#undef FMI_SETTER
 
 
-fmi3Status fmi3SetFloat64(fmi3Instance instance,
-                          const fmi3ValueReference valueReferences[],
-                          size_t nValueReferences,
-                          const fmi3Float64 values[],
-                          size_t nValues)  {
-    container_t* container = (container_t*)instance;
 
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3SetInt8(fmi3Instance instance,
-                       const fmi3ValueReference valueReferences[],
-                       size_t nValueReferences,
-                       const fmi3Int8 values[],
-                       size_t nValues) {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3SetUInt8(fmi3Instance instance,
-                        const fmi3ValueReference valueReferences[],
-                        size_t nValueReferences,
-                        const fmi3UInt8 values[],
-                        size_t nValues)  {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3SetInt16(fmi3Instance instance,
-                        const fmi3ValueReference valueReferences[],
-                        size_t nValueReferences,
-                        const fmi3Int16 values[],
-                        size_t nValues) {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3SetUInt16(fmi3Instance instance,
-                         const fmi3ValueReference valueReferences[],
-                         size_t nValueReferences,
-                         const fmi3UInt16 values[],
-                         size_t nValues) {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3SetInt32(fmi3Instance instance,
-                        const fmi3ValueReference valueReferences[],
-                        size_t nValueReferences,
-                        const fmi3Int32 values[],
-                        size_t nValues)  {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3SetUInt32(fmi3Instance instance,
-                         const fmi3ValueReference valueReferences[],
-                         size_t nValueReferences,
-                         const fmi3UInt32 values[],
-                         size_t nValues) {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3SetInt64(fmi3Instance instance,
-                        const fmi3ValueReference valueReferences[],
-                        size_t nValueReferences,
-                        const fmi3Int64 values[],
-                        size_t nValues) {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3SetUInt64(fmi3Instance instance,
-                         const fmi3ValueReference valueReferences[],
-                         size_t nValueReferences,
-                         const fmi3UInt64 values[],
-                         size_t nValues) {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3SetBoolean(fmi3Instance instance,
-                          const fmi3ValueReference valueReferences[],
-                          size_t nValueReferences,
-                          const fmi3Boolean values[],
-                          size_t nValues) {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
-
-
-fmi3Status fmi3SetString(fmi3Instance instance,
-                         const fmi3ValueReference valueReferences[],
-                         size_t nValueReferences,
-                         const fmi3String values[],
-                         size_t nValues) {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
-}
 
 
 fmi3Status fmi3SetBinary(fmi3Instance instance,
