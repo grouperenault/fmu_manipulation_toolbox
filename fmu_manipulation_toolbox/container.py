@@ -307,8 +307,7 @@ class FMUContainer:
         self.identifier = identifier
         if not self.fmu_directory.is_dir():
             raise FMUContainerError(f"{self.fmu_directory} is not a valid directory")
-        self.involved_fmu: Dict[str, EmbeddedFMU] = {}
-        self.execution_order: List[EmbeddedFMU] = []
+        self.involved_fmu: OrderedDict[str, EmbeddedFMU] = OrderedDict()
 
         self.description_pathname = description_pathname
         self.fmi_version = fmi_version
@@ -347,8 +346,8 @@ class FMUContainer:
             if fmu.fmi_version > self.fmi_version:
                 logger.fatal(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}")
             self.involved_fmu[fmu.name] = fmu
-            self.execution_order.append(fmu)
-            logger.debug(f"Adding FMU #{len(self.execution_order)}: {fmu}")
+
+            logger.debug(f"Adding FMU #{len(self.involved_fmu)}: {fmu}")
         except (FMUContainerError, FMUError) as e:
             raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}")
 
@@ -363,7 +362,7 @@ class FMUContainer:
         self.rules[cport] = rule
 
     def get_all_cports(self):
-        return [ContainerPort(fmu, port_name) for fmu in self.execution_order for port_name in fmu.ports]
+        return [ContainerPort(fmu, port_name) for fmu in self.involved_fmu.values() for port_name in fmu.ports]
 
     def add_input(self, container_port_name: str, to_fmu_filename: str, to_port_name: str):
         if not container_port_name:
@@ -496,7 +495,7 @@ class FMUContainer:
 
     def minimum_step_size(self) -> float:
         step_size = None
-        for fmu in self.execution_order:
+        for fmu in self.involved_fmu.values():
             if step_size:
                 if fmu.step_size and fmu.step_size < step_size:
                     step_size = fmu.step_size
@@ -510,7 +509,7 @@ class FMUContainer:
         return step_size
 
     def sanity_check(self, step_size: Optional[float]):
-        for fmu in self.execution_order:
+        for fmu in self.involved_fmu.values():
             if not fmu.step_size:
                 continue
             ts_ratio = step_size / fmu.step_size
@@ -569,15 +568,16 @@ class FMUContainer:
                 if fmu.capabilities[capability] == "true":
                     capabilities[capability] = "true"
 
+        first_fmu = next(iter(self.involved_fmu.values()))
         if self.start_time is None:
-            self.start_time = self.execution_order[0].start_time
-            logger.info(f"start_time={self.start_time} (deduced from '{self.execution_order[0].name}')")
+            self.start_time = first_fmu.start_time
+            logger.info(f"start_time={self.start_time} (deduced from '{first_fmu.name}')")
         else:
             logger.info(f"start_time={self.start_time}")
 
         if self.stop_time is None:
-            self.stop_time = self.execution_order[0].stop_time
-            logger.info(f"stop_time={self.stop_time} (deduced from '{self.execution_order[0].name}')")
+            self.stop_time = first_fmu.stop_time
+            logger.info(f"stop_time={self.stop_time} (deduced from '{first_fmu.name}')")
         else:
             logger.info(f"stop_time={self.stop_time}")
 
@@ -593,7 +593,7 @@ class FMUContainer:
         vr_time = vr_table.add_vr("Real")
         logger.debug(f"Time as vr = {vr_time}")
         if profiling:
-            for fmu in self.execution_order:
+            for fmu in self.involved_fmu.values():
                 vr = vr_table.add_vr("Real")
                 name = f"container.{fmu.id}.rt_ratio"
                 print(f'    <ScalarVariable valueReference="{vr}" name="{name}" causality="local">'
@@ -647,7 +647,7 @@ class FMUContainer:
         print(f"# NB of embedded FMU's", file=txt_file)
         print(f"{len(self.involved_fmu)}", file=txt_file)
         fmu_rank: Dict[str, int] = {}
-        for i, fmu in enumerate(self.execution_order):
+        for i, fmu in enumerate(self.involved_fmu.values()):
             print(f"{fmu.name} {fmu.fmi_version}", file=txt_file)
             print(f"{fmu.model_identifier}", file=txt_file)
             print(f"{fmu.guid}", file=txt_file)
@@ -655,7 +655,7 @@ class FMUContainer:
 
         # Prepare data structure
         type_names_list = ("Real", "Integer", "Boolean", "String")  # Ordered list
-        inputs_per_type: Dict[str, List[ContainerInput]] = {}        # Container's INPUT
+        inputs_per_type: Dict[str, List[ContainerInput]] = {}       # Container's INPUT
         outputs_per_type: Dict[str, List[ContainerPort]] = {}       # Container's OUTPUT
 
         inputs_fmu_per_type: Dict[str, Dict[str, Dict[ContainerPort, int]]] = {}      # [type][fmu]
@@ -672,7 +672,7 @@ class FMUContainer:
             start_values_fmu_per_type[type_name] = {}
             outputs_fmu_per_type[type_name] = {}
 
-            for fmu in self.execution_order:
+            for fmu in self.involved_fmu.values():
                 inputs_fmu_per_type[type_name][fmu.name] = {}
                 start_values_fmu_per_type[type_name][fmu.name] = {}
                 outputs_fmu_per_type[type_name][fmu.name] = {}
@@ -701,7 +701,7 @@ class FMUContainer:
             if type_name == "Real":
                 nb += 1  # reserver a slot for "time"
                 if profiling:
-                    nb += len(self.execution_order)
+                    nb += len(self.involved_fmu)
             nb_local.append(str(nb))
         print(" ".join(nb_local), file=txt_file, end='')
         print("", file=txt_file)
@@ -717,14 +717,12 @@ class FMUContainer:
             if type_name == "Real":
                 nb += 1  # reserver a slot for "time"
                 if profiling:
-                    nb += len(self.execution_order)
-                    print(f"{nb} {nb+nb_input_link}", file=txt_file)
-                    print(f"0 1 -1 0", file=txt_file)  # Time slot
-                    for profiling_port, _ in enumerate(self.execution_order):
+                    nb += len(self.involved_fmu)
+                print(f"{nb} {nb + nb_input_link}", file=txt_file)
+                print(f"0 1 -1 0", file=txt_file)  # Time slot
+                if profiling:
+                    for profiling_port, _ in enumerate(self.involved_fmu.values()):
                         print(f"{profiling_port+1} 1 -2 {profiling_port+1}", file=txt_file)
-                else:
-                    print(f"{nb} {nb + nb_input_link}", file=txt_file)
-                    print(f"0 1 -1 0", file=txt_file)  # Time slot
             else:
                 print(f"{nb} {nb+nb_input_link}", file=txt_file)
             for input_port in inputs_per_type[type_name]:
@@ -736,7 +734,7 @@ class FMUContainer:
                 print(f"{local.vr} 1 -1 {local.vr}", file=txt_file)
 
         # LINKS
-        for fmu in self.execution_order:
+        for fmu in self.involved_fmu.values():
             for type_name in type_names_list:
                 print(f"# Inputs of {fmu.name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
                 print(len(inputs_fmu_per_type[type_name][fmu.name]), file=txt_file)
