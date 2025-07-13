@@ -866,14 +866,14 @@ class FMUContainer:
             "Darwin": "darwin64"
         }
 
-        if self.fmi_version == 2:
-            target_bindirs = origin_bindirs
-        elif self.fmi_version == 3:
+        if self.fmi_version == 3:
             target_bindirs = {
                 "Windows": "x86_64-windows",
                 "Linux": "x86_64-linux",
                 "Darwin": "aarch64-darwin"
             }
+        else:
+            target_bindirs = origin_bindirs
 
         os_name = platform.system()
         try:
