@@ -94,6 +94,14 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files_but_guid("containers/bouncing_ball/REF-modelDescription-profiling.xml",
                                              "containers/bouncing_ball/bouncing-profiling/modelDescription.xml")
 
+    def test_container_bouncing_ball_profiling_3(self):
+        assembly = Assembly("bouncing-3.csv", fmu_directory=Path("containers/bouncing_ball"), profiling=True,
+                            debug=True)
+        assembly.make_fmu(fmi_version=3)
+        self.assert_identical_files("containers/bouncing_ball/REF-container-3.txt",
+                                    "containers/bouncing_ball/bouncing-3/resources/container.txt")
+        self.assert_identical_files_but_guid("containers/bouncing_ball/REF-modelDescription-3.xml",
+                                             "containers/bouncing_ball/bouncing-3/modelDescription.xml")
 
     def test_container_ssp(self):
         assembly = Assembly("bouncing.ssp", fmu_directory=Path("containers/ssp"))

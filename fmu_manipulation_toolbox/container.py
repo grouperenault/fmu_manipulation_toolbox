@@ -57,7 +57,7 @@ class FMUPort:
 
 
         if fmi_version == 2:
-            child_dict =  {
+            child_attrs =  {
                 "start": start,
             }
             if "Float" in self.type_name:
@@ -67,9 +67,9 @@ class FMUPort:
             else:
                 type_name = self.type_name
 
+            filtered_child_attrs = {key: value for key, value in child_attrs.items() if value is not None}
             child_str = (f"<{type_name} " +
-                         " ".join([f'{key}="{value}"' if value is not None else ""
-                                   for (key, value) in child_dict.items()]) +
+                         " ".join([f'{key}="{value}"' for (key, value) in filtered_child_attrs.items()]) +
                          "/>")
 
             scalar_attrs = {
@@ -80,8 +80,8 @@ class FMUPort:
                 "initial": self.initial,
                 "description": self.description,
             }
-            scalar_attrs_str = " ".join([f'{key}="{value}"' if value is not None else ""
-                                         for (key, value) in scalar_attrs.items()])
+            filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
+            scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
             return f'<ScalarVariable {scalar_attrs_str}>{child_str}</ScalarVariable>'
         else:
             if "Real" == self.type_name:
@@ -100,8 +100,8 @@ class FMUPort:
                 "description": self.description,
                 "start": start
             }
-            scalar_attrs_str = " ".join([f'{key}="{value}"' if value is not None else ""
-                                         for (key, value) in scalar_attrs.items()])
+            filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
+            scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
 
             return f'<{type_name} {scalar_attrs_str}/>'
 
@@ -113,7 +113,7 @@ class EmbeddedFMU(OperationAbstract):
     def __init__(self, filename):
         self.fmu = FMU(filename)
         self.name = Path(filename).name
-        self.id = Path(filename).stem
+        self.id = Path(filename).stem.lower()
 
         self.step_size = None
         self.start_time = None
@@ -354,7 +354,7 @@ class FMUContainer:
 
       <ModelVariables>
         <Float64 valueReference="0" name="time" causality="independent"/>
-    """
+"""
 
     def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2):
         self.fmu_directory = Path(fmu_directory)
@@ -657,26 +657,28 @@ class FMUContainer:
         if profiling:
             for fmu in self.involved_fmu.values():
                 vr = vr_table.add_vr("Real")
-                name = f"container.{fmu.id}.rt_ratio"
-                print(f'    <ScalarVariable valueReference="{vr}" name="{name}" causality="local">'
-                      f'<Real /></ScalarVariable>', file=xml_file)
+                port = FMUPort({"valueReference": vr,
+                                "name": f"container.{fmu.id}.rt_ratio",
+                                "type_name": "Real",
+                                "description": f"RT ratio for embedded FMU '{fmu.name}'"})
+                print(f"        {port.xml(vr, fmi_version=self.fmi_version)}", file=xml_file)
 
         # Local variable should be first to ensure to attribute them the lowest VR.
         for local in self.locals.values():
             vr = vr_table.get_vr(local.cport_from)
-            print(f'    {local.cport_from.port.xml(vr, name=local.name, causality="local")}', file=xml_file)
+            print(f"        {local.cport_from.port.xml(vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
             local.vr = vr
 
         for input_port_name, input_port in self.inputs.items():
             vr = vr_table.add_vr(input_port.type_name)
             # Get Start and XML from first connected input
             start = self.start_values.get(input_port.cport_list[0], None)
-            print(f"    {input_port.cport_list[0].port.xml(vr, name=input_port_name, start=start, fmi_version=self.fmi_version)}", file=xml_file)
+            print(f"        {input_port.cport_list[0].port.xml(vr, name=input_port_name, start=start, fmi_version=self.fmi_version)}", file=xml_file)
             input_port.vr = vr
 
         for output_port_name, cport in self.outputs.items():
             vr = vr_table.get_vr(cport)
-            print(f"    {cport.port.xml(vr, name=output_port_name, fmi_version=self.fmi_version)}", file=xml_file)
+            print(f"        {cport.port.xml(vr, name=output_port_name, fmi_version=self.fmi_version)}", file=xml_file)
             cport.vr = vr
 
         if self.fmi_version == 2:

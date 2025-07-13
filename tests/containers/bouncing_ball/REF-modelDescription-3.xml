@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+    <fmiModelDescription
+      fmiVersion="3.0"
+      modelName="bouncing-3"
+      generationTool="FMUContainer-0.0.dev0"
+      generationDateAndTime="2025-07-13T07:48:53Z"
+      instantiationToken="38ddc60f-fe96-41a3-b12a-83c03e3d0c6c"
+      description="FMUContainer with bb_position.fmu, bb_velocity.fmu"
+      author="nl"
+      license="Proprietary"
+      copyright="See Embedded FMU's copyrights."
+      variableNamingConvention="structured">
+
+      <CoSimulation
+        modelIdentifier="bouncing-3"
+        canHandleVariableCommunicationStepSize="true"
+        canBeInstantiatedOnlyOncePerProcess="true"
+        canNotUseMemoryManagementFunctions="true"
+        canGetAndSetFMUstate="false"
+        canSerializeFMUstate="false"
+        providesDirectionalDerivative="false"
+        needsExecutionTool="false">
+      </CoSimulation>
+
+      <LogCategories>
+        <Category name="fmucontainer"/>
+      </LogCategories>
+
+      <DefaultExperiment stepSize="0.001" startTime="0.0" stopTime="10.0"/>
+
+      <ModelVariables>
+        <Float64 valueReference="0" name="time" causality="independent"/>
+        <Float64 name="container.bb_position.rt_ratio" valueReference="1" causality="local" variability="continuous"  description="RT ratio for embedded FMU 'bb_position.fmu'" />
+        <Float64 name="container.bb_velocity.rt_ratio" valueReference="2" causality="local" variability="continuous"  description="RT ratio for embedded FMU 'bb_velocity.fmu'" />
+        <Boolean name="bb_position.is_ground" valueReference="0" causality="local" variability="discrete"  description="is_ground" />
+        <Float64 name="bb_velocity.velocity" valueReference="3" causality="local" variability="continuous"  description="velocity" />
+        <Float64 name="position" valueReference="4" causality="output" variability="continuous"  description="position1" />
+        <Float64 name="velocity" valueReference="5" causality="output" variability="continuous"  description="velocity" />
+  </ModelVariables>
+
+  <ModelStructure>
+      <Output valueReference="4"/>
+      <Output valueReference="5"/>
+
+  </ModelStructure>
+
+</fmiModelDescription>
