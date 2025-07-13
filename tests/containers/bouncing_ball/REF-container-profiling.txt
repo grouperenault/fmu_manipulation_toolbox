@@ -25,7 +25,7 @@ bb_velocity
 0 0
 # Boolean
 1 1
-0 1 -1 0
+33554432 1 -1 0
 # String
 0 0
 # Inputs of bb_position.fmu - Real: <VR> <FMU_VR>
@@ -51,7 +51,7 @@ bb_velocity
 0
 # Outputs of bb_position.fmu - Boolean: <VR> <FMU_VR>
 1
-0 0
+33554432 0
 # Outputs of bb_position.fmu - String: <VR> <FMU_VR>
 0
 # Inputs of bb_velocity.fmu - Real: <VR> <FMU_VR>
@@ -60,7 +60,7 @@ bb_velocity
 0
 # Inputs of bb_velocity.fmu - Boolean: <VR> <FMU_VR>
 1
-0 0
+33554432 0
 # Inputs of bb_velocity.fmu - String: <VR> <FMU_VR>
 0
 # Start values of bb_velocity.fmu - Real: <FMU_VR> <RESET> <VALUE>

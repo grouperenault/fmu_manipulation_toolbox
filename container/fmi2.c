@@ -184,11 +184,12 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
     fmu_status_t status; \
 \
     for (size_t i = 0; i < nvr; i += 1) { \
-        const container_port_t *port = &container->port_ ##type [vr[i]]; \
+        const uint32_t local_vr = vr[i] & 0xFFFFFF; \
+        const container_port_t *port = &container->port_ ##type [local_vr]; \
         const int fmu_id = port->links[0].fmu_id; \
 \
         if (fmu_id < 0) { \
-            value[i] = container-> type [vr[i]]; \
+            value[i] = container-> type [local_vr]; \
         } else { \
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr; \
             const fmu_t *fmu = &container->fmu[fmu_id]; \
@@ -215,12 +216,13 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
     fmu_status_t status; \
 \
     for (size_t i = 0; i < nvr; i += 1) { \
-        const container_port_t *port = &container->port_ ##type [vr[i]]; \
+        const uint32_t local_vr = vr[i] & 0xFFFFFF; \
+        const container_port_t *port = &container->port_ ##type [local_vr]; \
         for(int j = 0; j < port->nb; j += 1) { \
             const int fmu_id = port->links[j].fmu_id; \
 \
             if (fmu_id < 0) {\
-                container-> type [vr[i]] = value[i]; \
+                container-> type [local_vr] = value[i]; \
             } else { \
                 const fmu_t* fmu = &container->fmu[fmu_id]; \
                 const fmi2ValueReference fmu_vr = port->links[j].fmu_vr; \

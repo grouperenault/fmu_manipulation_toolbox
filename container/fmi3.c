@@ -173,11 +173,12 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     fmu_status_t status; \
 \
     for (size_t i = 0; i < nValueReferences; i += 1) { \
-        const container_port_t *port = &container->port_ ##type [valueReferences[i]]; \
+        const int32_t vr = valueReferences[i] & 0xFFFFFF; \
+        const container_port_t *port = &container->port_ ##type [vr]; \
         const int fmu_id = port->links[0].fmu_id; \
 \
         if (fmu_id < 0) { \
-            value[i] = container-> type [valueReferences[i]]; \
+            value[i] = container-> type [vr]; \
         } else { \
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr; \
             const fmu_t *fmu = &container->fmu[fmu_id]; \
@@ -235,11 +236,12 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     fmu_status_t status; \
 \
     for (size_t i = 0; i < nValueReferences; i += 1) { \
-        const container_port_t *port = &container->port_ ##type [valueReferences[i]]; \
+        const int32_t vr = valueReferences[i] & 0xFFFFFF; \
+        const container_port_t *port = &container->port_ ##type [vr]; \
         const int fmu_id = port->links[0].fmu_id; \
 \
         if (fmu_id < 0) { \
-            container-> type [valueReferences[i]] = value[i]; \
+            container-> type [vr] = value[i]; \
         } else { \
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr; \
             const fmu_t *fmu = &container->fmu[fmu_id]; \
@@ -265,9 +267,6 @@ FMI_SETTER(uintegers64, UInt64, Integer); // TODO
 FMI_SETTER(booleans1, Boolean, Integer); // TODO
 FMI_SETTER(strings, String, String);
 #undef FMI_SETTER
-
-
-
 
 
 fmi3Status fmi3SetBinary(fmi3Instance instance,

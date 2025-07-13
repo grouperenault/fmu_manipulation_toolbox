@@ -246,20 +246,23 @@ class Local:
 
 class ValueReferenceTable:
     def __init__(self):
-        self.vr_table: Dict[str, int] = {
-            "Real": 0,
-            "Integer": 0,
-            "Boolean": 0,
-            "String": 0,
-        }
+        self.vr_table = {}
+        self.masks = {}
+        for i, type_name in enumerate(["Real", "Integer", "Boolean", "String"]):
+            self.vr_table[type_name] = 0
+            self.masks[type_name] = i << 24
 
-    def get_vr(self, cport: ContainerPort) -> int:
-        return self.add_vr(cport.port.type_name)
 
-    def add_vr(self, type_name: str) -> int:
+    def add_vr(self, port_or_type_name: Union[ContainerPort, str]) -> int:
+        if isinstance(port_or_type_name, ContainerPort):
+            type_name = port_or_type_name.port.type_name
+        else:
+            type_name = port_or_type_name
+
         vr = self.vr_table[type_name]
         self.vr_table[type_name] += 1
-        return vr
+
+        return vr | self.masks[type_name]
 
 
 class AutoWired:
@@ -323,37 +326,37 @@ class FMUContainer:
 """
 
     HEADER_XML_3 = """<?xml version="1.0" encoding="ISO-8859-1"?>
-    <fmiModelDescription
-      fmiVersion="3.0"
-      modelName="{identifier}"
-      generationTool="FMUContainer-{tool_version}"
-      generationDateAndTime="{timestamp}"
-      instantiationToken="{guid}"
-      description="FMUContainer with {embedded_fmu}"
-      author="{author}"
-      license="Proprietary"
-      copyright="See Embedded FMU's copyrights."
-      variableNamingConvention="structured">
+<fmiModelDescription
+  fmiVersion="3.0"
+  modelName="{identifier}"
+  generationTool="FMUContainer-{tool_version}"
+  generationDateAndTime="{timestamp}"
+  instantiationToken="{guid}"
+  description="FMUContainer with {embedded_fmu}"
+  author="{author}"
+  license="Proprietary"
+  copyright="See Embedded FMU's copyrights."
+  variableNamingConvention="structured">
 
-      <CoSimulation
-        modelIdentifier="{identifier}"
-        canHandleVariableCommunicationStepSize="true"
-        canBeInstantiatedOnlyOncePerProcess="{only_once}"
-        canNotUseMemoryManagementFunctions="true"
-        canGetAndSetFMUstate="false"
-        canSerializeFMUstate="false"
-        providesDirectionalDerivative="false"
-        needsExecutionTool="{execution_tool}">
-      </CoSimulation>
+  <CoSimulation
+    modelIdentifier="{identifier}"
+    canHandleVariableCommunicationStepSize="true"
+    canBeInstantiatedOnlyOncePerProcess="{only_once}"
+    canNotUseMemoryManagementFunctions="true"
+    canGetAndSetFMUstate="false"
+    canSerializeFMUstate="false"
+    providesDirectionalDerivative="false"
+    needsExecutionTool="{execution_tool}">
+  </CoSimulation>
 
-      <LogCategories>
-        <Category name="fmucontainer"/>
-      </LogCategories>
+  <LogCategories>
+    <Category name="fmucontainer"/>
+  </LogCategories>
 
-      <DefaultExperiment stepSize="{step_size}" startTime="{start_time}" stopTime="{stop_time}"/>
+  <DefaultExperiment stepSize="{step_size}" startTime="{start_time}" stopTime="{stop_time}"/>
 
-      <ModelVariables>
-        <Float64 valueReference="0" name="time" causality="independent"/>
+  <ModelVariables>
+    <Float64 valueReference="0" name="time" causality="independent"/>
 """
 
     def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2):
@@ -653,7 +656,7 @@ class FMUContainer:
                                                     step_size=step_size))
 
         vr_time = vr_table.add_vr("Real")
-        logger.debug(f"Time as vr = {vr_time}")
+        logger.debug(f"Time vr = {vr_time}")
         if profiling:
             for fmu in self.involved_fmu.values():
                 vr = vr_table.add_vr("Real")
@@ -661,24 +664,24 @@ class FMUContainer:
                                 "name": f"container.{fmu.id}.rt_ratio",
                                 "type_name": "Real",
                                 "description": f"RT ratio for embedded FMU '{fmu.name}'"})
-                print(f"        {port.xml(vr, fmi_version=self.fmi_version)}", file=xml_file)
+                print(f"    {port.xml(vr, fmi_version=self.fmi_version)}", file=xml_file)
 
         # Local variable should be first to ensure to attribute them the lowest VR.
         for local in self.locals.values():
-            vr = vr_table.get_vr(local.cport_from)
-            print(f"        {local.cport_from.port.xml(vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
+            vr = vr_table.add_vr(local.cport_from)
+            print(f"    {local.cport_from.port.xml(vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
             local.vr = vr
 
         for input_port_name, input_port in self.inputs.items():
             vr = vr_table.add_vr(input_port.type_name)
             # Get Start and XML from first connected input
             start = self.start_values.get(input_port.cport_list[0], None)
-            print(f"        {input_port.cport_list[0].port.xml(vr, name=input_port_name, start=start, fmi_version=self.fmi_version)}", file=xml_file)
+            print(f"    {input_port.cport_list[0].port.xml(vr, name=input_port_name, start=start, fmi_version=self.fmi_version)}", file=xml_file)
             input_port.vr = vr
 
         for output_port_name, cport in self.outputs.items():
-            vr = vr_table.get_vr(cport)
-            print(f"        {cport.port.xml(vr, name=output_port_name, fmi_version=self.fmi_version)}", file=xml_file)
+            vr = vr_table.add_vr(cport)
+            print(f"    {cport.port.xml(vr, name=output_port_name, fmi_version=self.fmi_version)}", file=xml_file)
             cport.vr = vr
 
         if self.fmi_version == 2:
@@ -687,41 +690,24 @@ class FMUContainer:
             self.make_fmu_xml_epilog_3(xml_file)
 
     def make_fmu_xml_epilog_2(self, xml_file):
-        xml_file.write(f"""  </ModelVariables>
-
-  <ModelStructure>
-    <Outputs>
- """)
+        xml_file.write(f"  </ModelVariables>\n\n  <ModelStructure>\n    <Outputs>\n")
         index_offset = len(self.locals) + len(self.inputs) + 1
         for i, _ in enumerate(self.outputs.keys()):
             print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
 
-        xml_file.write("""    </Outputs>
-    <InitialUnknowns>
-""")
+        xml_file.write("    </Outputs>\n    <InitialUnknowns>\n")
 
         for i, _ in enumerate(self.outputs.keys()):
             print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
 
-            xml_file.write("""    </InitialUnknowns>
-  </ModelStructure>
-
-</fmiModelDescription>
- """)
+        xml_file.write("    </InitialUnknowns>\n  </ModelStructure>\n\n</fmiModelDescription>")
 
     def make_fmu_xml_epilog_3(self, xml_file):
-        xml_file.write(f"""  </ModelVariables>
-
-  <ModelStructure>
-""")
+        xml_file.write(f"  </ModelVariables>\n\n  <ModelStructure>\n")
         for output in self.outputs.values():
             print(f'      <Output valueReference="{output.vr}"/>', file=xml_file)
 
-        xml_file.write("""
-  </ModelStructure>
-
-</fmiModelDescription>
-""")
+        xml_file.write("  </ModelStructure>\n\n</fmiModelDescription>\n""")
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
@@ -817,7 +803,7 @@ class FMUContainer:
             for cport in outputs_per_type[type_name]:
                 print(f"{cport.vr} 1 {fmu_rank[cport.fmu.name]} {cport.port.vr}", file=txt_file)
             for local in locals_per_type[type_name]:
-                print(f"{local.vr} 1 -1 {local.vr}", file=txt_file)
+                print(f"{local.vr} 1 -1 {local.vr &0xFFFFFF}", file=txt_file)
 
         # LINKS
         for fmu in self.involved_fmu.values():
