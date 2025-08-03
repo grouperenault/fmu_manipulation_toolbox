@@ -173,7 +173,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     fmu_status_t status; \
 \
     for (size_t i = 0; i < nValueReferences; i += 1) { \
-        const int32_t vr = valueReferences[i] & 0xFFFFFF; \
+        const uint32_t vr = valueReferences[i] & 0xFFFFFF; \
         const container_port_t *port = &container->port_ ##type [vr]; \
         const int fmu_id = port->links[0].fmu_id; \
 \
@@ -236,7 +236,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     fmu_status_t status; \
 \
     for (size_t i = 0; i < nValueReferences; i += 1) { \
-        const int32_t vr = valueReferences[i] & 0xFFFFFF; \
+        const uint32_t vr = valueReferences[i] & 0xFFFFFF; \
         const container_port_t *port = &container->port_ ##type [vr]; \
         const int fmu_id = port->links[0].fmu_id; \
 \
