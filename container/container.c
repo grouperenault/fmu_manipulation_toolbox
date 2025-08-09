@@ -31,8 +31,17 @@ void container_set_start_values(container_t* container, int early_set) {
         }
  
         SET_START(Real64, reals64);
+        SET_START(Real32, reals32);
+        SET_START(Integer8, integers8);
+        SET_START(UInteger8, uintegers8);
+        SET_START(Integer16, integers16);
+        SET_START(UInteger16, uintegers16);
         SET_START(Integer32, integers32);
+        SET_START(UInteger32, uintegers32);
+        SET_START(Integer64, integers64);
+        SET_START(UInteger64, uintegers64);
         SET_START(Boolean, booleans);
+        SET_START(Boolean1, booleans1);
         SET_START(String, strings);
 #undef SET_START
     }

@@ -61,8 +61,17 @@ typedef struct { \
 } fmu_start_ ## name ## _t
 
 DECLARE_START_TYPE(reals64, double);
+DECLARE_START_TYPE(reals32, float);
+DECLARE_START_TYPE(integers8, int8_t);
+DECLARE_START_TYPE(uintegers8, uint8_t);
+DECLARE_START_TYPE(integers16, int16_t);
+DECLARE_START_TYPE(uintegers16, uint16_t);
 DECLARE_START_TYPE(integers32, int32_t);
+DECLARE_START_TYPE(uintegers32, uint32_t);
+DECLARE_START_TYPE(integers64, int64_t);
+DECLARE_START_TYPE(uintegers64, uint64_t);
 DECLARE_START_TYPE(booleans, int);
+DECLARE_START_TYPE(booleans1, bool);
 DECLARE_START_TYPE(strings, const char *);
 
 #undef DECLARE_TYPE_START
@@ -73,13 +82,31 @@ DECLARE_START_TYPE(strings, const char *);
 ----------------------------------------------------------------------------*/
 typedef struct {
 	fmu_translation_port_t		reals64;
-	fmu_translation_port_t		integers32;
+    fmu_translation_port_t		reals32;
+    fmu_translation_port_t		integers8;
+	fmu_translation_port_t		uintegers8;
+    fmu_translation_port_t		integers16;
+	fmu_translation_port_t		uintegers16;
+    fmu_translation_port_t		integers32;
+	fmu_translation_port_t		uintegers32;
+    fmu_translation_port_t		integers64;
+	fmu_translation_port_t		uintegers64;
 	fmu_translation_port_t		booleans;
+	fmu_translation_port_t		booleans1;
 	fmu_translation_port_t		strings;
 
     fmu_start_reals64_t         start_reals64;
+    fmu_start_reals32_t         start_reals32;
+    fmu_start_integers8_t       start_integers8;
+    fmu_start_uintegers8_t      start_uintegers8;
+    fmu_start_integers16_t      start_integers16;
+    fmu_start_uintegers16_t     start_uintegers16;
     fmu_start_integers32_t      start_integers32;
+    fmu_start_uintegers32_t     start_uintegers32;
+    fmu_start_integers64_t      start_integers64;
+    fmu_start_uintegers64_t     start_uintegers64;
     fmu_start_booleans_t        start_booleans;
+    fmu_start_booleans1_t       start_booleans1;
     fmu_start_strings_t         start_strings;
 } fmu_io_t;
 
