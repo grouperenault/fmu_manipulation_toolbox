@@ -178,7 +178,7 @@ fmi2Status fmi2Reset(fmi2Component c) {
 
 
 /* Getting and setting variable values */
-#define FMI_GETTER(type, fmi_type) \
+#define FMI_GETTER(type, fmi_type, name) \
 fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2 ## fmi_type value[]) { \
     container_t* container = (container_t*)c; \
     fmu_status_t status; \
@@ -194,7 +194,7 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr; \
             const fmu_t *fmu = &container->fmu[fmu_id]; \
 \
-            status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &value[i]); \
+            status = fmuGet ## name (fmu, &fmu_vr, 1, &value[i]); \
             if (status != FMU_STATUS_OK) \
                 return fmi2Error; \
         } \
@@ -204,13 +204,13 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 }
 
 
-FMI_GETTER(reals64, Real);
-FMI_GETTER(integers32, Integer);
-FMI_GETTER(booleans, Boolean);
-FMI_GETTER(strings, String);
+FMI_GETTER(reals64, Real, Real64);
+FMI_GETTER(integers32, Integer, Integer32);
+FMI_GETTER(booleans, Boolean, Boolean);
+FMI_GETTER(strings, String, String);
 #undef FMI_GETTER
 
-#define FMI_SETTER(type, fmi_type) \
+#define FMI_SETTER(type, fmi_type, name) \
 fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2 ## fmi_type value[]) { \
     container_t* container = (container_t*)c; \
     fmu_status_t status; \
@@ -227,7 +227,7 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                 const fmu_t* fmu = &container->fmu[fmu_id]; \
                 const fmi2ValueReference fmu_vr = port->links[j].fmu_vr; \
 \
-                status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &value[i]); \
+                status = fmuSet ## name (fmu, &fmu_vr, 1, &value[i]); \
                 if (status != FMU_STATUS_OK) \
                     return fmi2Error; \
             } \
@@ -238,10 +238,10 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 }
 
 
-FMI_SETTER(reals64, Real);
-FMI_SETTER(integers32, Integer);
-FMI_SETTER(booleans, Boolean);
-FMI_SETTER(strings, String);
+FMI_SETTER(reals64, Real, Real64);
+FMI_SETTER(integers32, Integer, Integer32);
+FMI_SETTER(booleans, Boolean, Boolean);
+FMI_SETTER(strings, String, String);
 
 #undef FMI_SETTER
 
@@ -306,31 +306,6 @@ fmi2Status fmi2GetRealOutputDerivatives(fmi2Component c,
 /*----------------------------------------------------------------------------
           F M I 2   F U N C T I O N S   ( C O S I M U L A T I O N )
 ----------------------------------------------------------------------------*/
-
-static fmu_status_t do_step_get_outputs(container_t* container, int fmu_id) {
-    const fmu_t* fmu = &container->fmu[fmu_id];
-    const fmu_io_t* fmu_io = &fmu->fmu_io;
-    fmu_status_t status = FMU_STATUS_OK;
-
-#define GETTER(type, fmi_type) \
-    for (size_t i = 0; i < fmu_io-> type .out.nb; i += 1) { \
-        const fmu_vr_t fmu_vr = fmu_io-> type .out.translations[i].fmu_vr; \
-        const fmu_vr_t local_vr = fmu_io-> type .out.translations[i].vr; \
-        status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> type [local_vr]); \
-        if (status != FMU_STATUS_OK) \
-            return status; \
-    }
-
-GETTER(reals64, Real);
-GETTER(integers32, Integer);
-GETTER(booleans, Boolean);
-GETTER(strings, String);
-
-#undef GETTER
-
-    return status;
-}
-
 
 fmi2Status fmi2DoStep(fmi2Component c,
     fmi2Real currentCommunicationPoint,

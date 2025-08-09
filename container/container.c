@@ -30,8 +30,8 @@ void container_set_start_values(container_t* container, int early_set) {
                     &container->fmu[i].fmu_io.start_ ## type.start_values[j].value); \
         }
  
-        SET_START(Real, reals64);
-        SET_START(Integer, integers32);
+        SET_START(Real64, reals64);
+        SET_START(Integer32, integers32);
         SET_START(Boolean, booleans);
         SET_START(String, strings);
 #undef SET_START

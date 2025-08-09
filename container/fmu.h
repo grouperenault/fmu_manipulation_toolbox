@@ -282,20 +282,56 @@ extern int fmu_load_from_directory(struct container_s *container, int i,
                                    fmu_version_t fmi_version);
 extern void fmu_unload(fmu_t *fmu);
 
-extern fmu_status_t fmuGetReal(const fmu_t *fmu, const fmu_vr_t vr[],
-                               size_t nvr, double value[]);
-extern fmu_status_t fmuGetInteger(const fmu_t *fmu, const fmu_vr_t vr[],
-                                  size_t nvr, int value[]);
+extern fmu_status_t fmuGetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
+                                 size_t nvr, double value[]);
+extern fmu_status_t fmuGetReal32(const fmu_t *fmu, const fmu_vr_t vr[],
+                                 size_t nvr, float value[]);
+extern fmu_status_t fmuGetInteger8(const fmu_t *fmu, const fmu_vr_t vr[],
+                                   size_t nvr, int8_t value[]);
+extern fmu_status_t fmuGetUInteger8(const fmu_t *fmu, const fmu_vr_t vr[],
+                                    size_t nvr, uint8_t value[]);
+extern fmu_status_t fmuGetInteger16(const fmu_t *fmu, const fmu_vr_t vr[],
+                                    size_t nvr, int16_t value[]);
+extern fmu_status_t fmuGetUInteger16(const fmu_t *fmu, const fmu_vr_t vr[],
+                                    size_t nvr, uint16_t value[]);
+extern fmu_status_t fmuGetInteger32(const fmu_t *fmu, const fmu_vr_t vr[],
+                                    size_t nvr, int32_t value[]);
+extern fmu_status_t fmuGetUInteger32(const fmu_t *fmu, const fmu_vr_t vr[],
+                                     size_t nvr, uint32_t value[]);
+extern fmu_status_t fmuGetInteger64(const fmu_t *fmu, const fmu_vr_t vr[],
+                                    size_t nvr, int64_t value[]);
+extern fmu_status_t fmuGetUInteger64(const fmu_t *fmu, const fmu_vr_t vr[],
+                                    size_t nvr, uint64_t value[]);
 extern fmu_status_t fmuGetBoolean(const fmu_t *fmu, const fmu_vr_t vr[],
                                   size_t nvr, int value[]);
+extern fmu_status_t fmuGetBoolean1(const fmu_t *fmu, const fmu_vr_t vr[],
+                                  size_t nvr, bool value[]);
 extern fmu_status_t fmuGetString(const fmu_t* fmu, const fmu_vr_t vr[],
                                  size_t nvr, const char *value[]);
-extern fmu_status_t fmuSetReal(const fmu_t *fmu, const fmu_vr_t vr[],
-                               size_t nvr, const double value[]);
-extern fmu_status_t fmuSetInteger(const fmu_t *fmu, const fmu_vr_t vr[],
-                                  size_t nvr, const int value[]);
+extern fmu_status_t fmuSetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
+                                 size_t nvr, const double value[]);
+extern fmu_status_t fmuSetReal32(const fmu_t *fmu, const fmu_vr_t vr[],
+                                 size_t nvr, const float value[]);
+extern fmu_status_t fmuSetInteger8(const fmu_t *fmu, const fmu_vr_t vr[],
+                                   size_t nvr, const int8_t value[]);
+extern fmu_status_t fmuSetUInteger8(const fmu_t *fmu, const fmu_vr_t vr[],
+                                    size_t nvr, const uint8_t value[]);
+extern fmu_status_t fmuSetInteger16(const fmu_t *fmu, const fmu_vr_t vr[],
+                                   size_t nvr, const int16_t value[]);
+extern fmu_status_t fmuSetUInteger16(const fmu_t *fmu, const fmu_vr_t vr[],
+                                    size_t nvr, const uint16_t value[]);
+extern fmu_status_t fmuSetInteger32(const fmu_t *fmu, const fmu_vr_t vr[],
+                                   size_t nvr, const int32_t value[]);
+extern fmu_status_t fmuSetUInteger32(const fmu_t *fmu, const fmu_vr_t vr[],
+                                    size_t nvr, const uint32_t value[]);
+extern fmu_status_t fmuSetInteger64(const fmu_t *fmu, const fmu_vr_t vr[],
+                                   size_t nvr, const int64_t value[]);
+extern fmu_status_t fmuSetUInteger64(const fmu_t *fmu, const fmu_vr_t vr[],
+                                    size_t nvr, const uint64_t value[]);
 extern fmu_status_t fmuSetBoolean(const fmu_t *fmu, const fmu_vr_t vr[],
                                   size_t nvr, const int value[]);
+extern fmu_status_t fmuSetBoolean1(const fmu_t *fmu, const fmu_vr_t vr[],
+                                  size_t nvr, const bool value[]);
 extern fmu_status_t fmuSetString(const fmu_t* fmu, const fmu_vr_t vr[],
                                  size_t nvr, const char * const value[]);
 extern fmu_status_t fmuDoStep(const fmu_t *fmu, 

@@ -193,17 +193,17 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
 }
 
 
-FMI_GETTER(reals64, Float64, Real);
-FMI_GETTER(reals32, Float32, Real); // TODO
-FMI_GETTER(integers8, Int8, Integer); // TODO
-FMI_GETTER(uintegers8, UInt8, Integer); // TODO
-FMI_GETTER(integers16, Int16, Integer); // TODO
-FMI_GETTER(uintegers16, UInt16, Integer); // TODO
-FMI_GETTER(integers32, Int32, Integer);
-FMI_GETTER(uintegers32, UInt32, Integer); // TODO
-FMI_GETTER(integers64, Int64, Integer); // TODO
-FMI_GETTER(uintegers64, UInt64, Integer); // TODO
-FMI_GETTER(booleans1, Boolean, Integer); // TODO
+FMI_GETTER(reals64, Float64, Real64);
+FMI_GETTER(reals32, Float32, Real32);
+FMI_GETTER(integers8, Int8, Integer8);
+FMI_GETTER(uintegers8, UInt8, UInteger8);
+FMI_GETTER(integers16, Int16, Integer16);
+FMI_GETTER(uintegers16, UInt16, UInteger16);
+FMI_GETTER(integers32, Int32, Integer32);
+FMI_GETTER(uintegers32, UInt32, UInteger32);
+FMI_GETTER(integers64, Int64, Integer64);
+FMI_GETTER(uintegers64, UInt64, UInteger64);
+FMI_GETTER(booleans1, Boolean, Boolean1);
 FMI_GETTER(strings, String, String);
 #undef FMI_GETTER
 
@@ -254,17 +254,17 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
 \
     return fmi3OK; \
 }
-FMI_SETTER(reals64, Float64, Real);
-FMI_SETTER(reals32, Float32, Real); // TODO
-FMI_SETTER(integers8, Int8, Integer); // TODO
-FMI_SETTER(uintegers8, UInt8, Integer); // TODO
-FMI_SETTER(integers16, Int16, Integer); // TODO
-FMI_SETTER(uintegers16, UInt16, Integer); // TODO
-FMI_SETTER(integers32, Int32, Integer);
-FMI_SETTER(uintegers32, UInt32, Integer); // TODO
-FMI_SETTER(integers64, Int64, Integer); // TODO
-FMI_SETTER(uintegers64, UInt64, Integer); // TODO
-FMI_SETTER(booleans1, Boolean, Integer); // TODO
+FMI_SETTER(reals64, Float64, Real64);
+FMI_SETTER(reals32, Float32, Real32);
+FMI_SETTER(integers8, Int8, Integer8);
+FMI_SETTER(uintegers8, UInt8, UInteger8);
+FMI_SETTER(integers16, Int16, Integer16);
+FMI_SETTER(uintegers16, UInt16, UInteger16);
+FMI_SETTER(integers32, Int32, Integer32);
+FMI_SETTER(uintegers32, UInt32, UInteger32);
+FMI_SETTER(integers64, Int64, Integer64);
+FMI_SETTER(uintegers64, UInt64, UInteger64);
+FMI_SETTER(booleans1, Boolean, Boolean1);
 FMI_SETTER(strings, String, String);
 #undef FMI_SETTER
 

@@ -17,20 +17,20 @@ fmu_status_t fmu_set_inputs(fmu_t* fmu) {
         const container_t* container = fmu->container;
         const fmu_io_t* fmu_io = &fmu->fmu_io;
 
-#define SETTER(type, fmi_type) \
-    for (int i = 0; i < fmu_io-> type .in.nb; i += 1) { \
-        const unsigned int fmu_vr = fmu_io-> type .in.translations[i].fmu_vr; \
-        const unsigned int local_vr = fmu_io-> type .in.translations[i].vr; \
-        status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> type [local_vr]); \
+#define SET_INPUT(variable, fmi_type) \
+    for (int i = 0; i < fmu_io-> variable .in.nb; i += 1) { \
+        const unsigned int fmu_vr = fmu_io-> variable .in.translations[i].fmu_vr; \
+        const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr; \
+        status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr]); \
         if (status != FMU_STATUS_OK) \
             return status; \
     }
 
-        SETTER(reals64, Real);
-        SETTER(integers32, Integer);
-        SETTER(booleans, Boolean);
-        SETTER(strings, String);
-#undef SETTER
+        SET_INPUT(reals64, Real64);
+        SET_INPUT(integers32, Integer32);
+        SET_INPUT(booleans, Boolean);
+        SET_INPUT(strings, String);
+#undef SET_INPUT
     }
     else
         fmu->set_input = 1; /* Skip only the first doStep() */
@@ -44,21 +44,21 @@ fmu_status_t fmu_get_outputs(fmu_t* fmu) {
     const fmu_io_t* fmu_io = &fmu->fmu_io;
     fmu_status_t status = FMU_STATUS_OK;
 
-#define GETTER(type, fmi_type) \
-    for (size_t i = 0; i < fmu_io-> type .out.nb; i += 1) { \
-        const fmu_vr_t fmu_vr = fmu_io-> type .out.translations[i].fmu_vr; \
-        const fmu_vr_t local_vr = fmu_io-> type .out.translations[i].vr; \
-        status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> type [local_vr]); \
+#define GET_OUTPUT(variable, fmi_type) \
+    for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) { \
+        const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr; \
+        const fmu_vr_t local_vr = fmu_io-> variable .out.translations[i].vr; \
+        status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr]); \
         if (status != FMU_STATUS_OK) \
             return status; \
     }
 
-GETTER(reals64, Real);
-GETTER(integers32, Integer);
-GETTER(booleans, Boolean);
-GETTER(strings, String);
+GET_OUTPUT(reals64, Real64);
+GET_OUTPUT(integers32, Integer32);
+GET_OUTPUT(booleans, Boolean);
+GET_OUTPUT(strings, String);
 
-#undef GETTER
+#undef GET_OUTPUT
 
     return status;
 }
@@ -344,172 +344,163 @@ void fmu_unload(fmu_t *fmu) {
 }
 
 
-fmu_status_t fmuGetReal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, double value[]) {
-    fmu_status_t status = FMU_STATUS_OK;
-
-    if (fmu->fmi_version == FMU_2) {
-        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2GetReal(fmu->component, vr, nvr, value);
-            if (status2 != fmi2OK) {
-                logger(LOGGER_ERROR, "%s: fmuGetReal status=%d", fmu->name, status2);
-                status = FMU_STATUS_ERROR;
-            }
-    } else {
-        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetFloat64(fmu->component, vr, nvr, value, nvr);
-            if (status3 != fmi3OK) {
-                logger(LOGGER_ERROR, "%s: fmuGetReal status=%d", fmu->name, status3);
-                status = FMU_STATUS_ERROR;
-            }
-    }
-
-    return status;
+#define GETTER_BOTH(type, fmi_type, fmi2_function, fmi3_function) \
+fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, type value[]) { \
+    fmu_status_t status = FMU_STATUS_OK; \
+\
+    if (fmu->fmi_version == FMU_2) { \
+        fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value); \
+        if (status2 != fmi2OK) { \
+            logger(LOGGER_ERROR, "%s: fmuGet" #fmi_type " status=%d", fmu->name, status2); \
+            status = FMU_STATUS_ERROR; \
+        } \
+    } else { \
+        fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvr); \
+        if (status3 != fmi3OK) { \
+            logger(LOGGER_ERROR, "%s: fmuGet" #fmi_type " status=%d", fmu->name, status3); \
+            status = FMU_STATUS_ERROR; \
+        } \
+    } \
+\
+    return status;\
 }
 
 
-fmu_status_t fmuGetInteger(const fmu_t *fmu, const fmu_vr_t vr[],  size_t nvr, int value[]) {
-    fmu_status_t status = FMU_STATUS_OK;
-
-    if (fmu->fmi_version == 2) {
-        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2GetInteger(fmu->component, vr, nvr, value);
-        if (status2 != fmi2OK) {
-            logger(LOGGER_ERROR, "%s: fmuGetInteger status=%d", fmu->name, status2);
-            status = FMU_STATUS_ERROR;
-        }
-    } else {
-        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetInt32(fmu->component, vr, nvr, value, nvr);
-        if (status3 != fmi3OK) {
-            logger(LOGGER_ERROR, "%s: fmuGetInteger status=%d", fmu->name, status3);
-            status = FMU_STATUS_ERROR;
-        }
-    }
-
-    return status;
+#define GETTER_3(type, fmi_type, fmi3_function) \
+fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, type value[]) { \
+    fmu_status_t status = FMU_STATUS_OK; \
+\
+    if (fmu->fmi_version == FMU_2) { \
+        logger(LOGGER_ERROR, "%s: fmuGet" #fmi_type " not supported.", fmu->name); \
+        status = FMU_STATUS_ERROR; \
+    } else { \
+        fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvr); \
+        if (status3 != fmi3OK) { \
+            logger(LOGGER_ERROR, "%s: fmuGet" #fmi_type " status=%d", fmu->name, status3); \
+            status = FMU_STATUS_ERROR; \
+        } \
+    } \
+\
+    return status;\
 }
 
 
-fmu_status_t fmuGetBoolean(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, int value[]) {
-    fmu_status_t status = FMU_STATUS_OK;
-
-    if (fmu->fmi_version == 2) {
-        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2GetBoolean(fmu->component, vr, nvr, value);
-        if (status2 != fmi2OK) {
-            logger(LOGGER_ERROR, "%s: fmuGetBoolean status=%d", fmu->name, status2);
-            status = FMU_STATUS_ERROR;
-        }
-    } else {
-        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetBoolean(fmu->component, vr, nvr, (bool *)value, nvr);
-        if (status3 != fmi3OK) {
-            logger(LOGGER_ERROR, "%s: fmuGetBoolean status=%d", fmu->name, status3);
-            status = FMU_STATUS_ERROR;
-        }
-    }
-
-    return status;
+#define GETTER_2(type, fmi_type, fmi2_function) \
+fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, type value[]) { \
+    fmu_status_t status = FMU_STATUS_OK; \
+\
+    if (fmu->fmi_version == FMU_2) { \
+        fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value); \
+        if (status2 != fmi2OK) { \
+            logger(LOGGER_ERROR, "%s: fmuGet" #fmi_type " status=%d", fmu->name, status2); \
+            status = FMU_STATUS_ERROR; \
+        } \
+    } else { \
+        logger(LOGGER_ERROR, "%s: fmuGet" #fmi_type " not supported.", fmu->name); \
+        status = FMU_STATUS_ERROR; \
+    } \
+\
+    return status;\
 }
 
 
-fmu_status_t fmuGetString(const fmu_t* fmu, const fmu_vr_t vr[], size_t nvr, const char *value[]) {
-    fmu_status_t status = FMU_STATUS_OK;
+GETTER_BOTH(double,        Real64,      fmi2GetReal,    fmi3GetFloat64);
 
-    if (fmu->fmi_version == 2) {
-        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2GetString(fmu->component, vr, nvr, value);
-        if (status2 != fmi2OK) {
-            logger(LOGGER_ERROR, "%s: fmuGetString status=%d", fmu->name, status2);
-            status = FMU_STATUS_ERROR;
-        }
-    } else {
-        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetString(fmu->component, vr, nvr, value, nvr);
-        if (status3 != fmi3OK) {
-            logger(LOGGER_ERROR, "%s: fmuGetString status=%d", fmu->name, status3);
-            status = FMU_STATUS_ERROR;
-        }
-    }
+GETTER_3   (float,         Real32,                      fmi3GetFloat32);
+GETTER_3   (int8_t,        Integer8,                    fmi3GetInt8);
+GETTER_3   (uint8_t,       UInteger8,                   fmi3GetUInt8);
+GETTER_3   (int16_t,       Integer16,                   fmi3GetInt16);
+GETTER_3   (uint16_t,      UInteger16,                  fmi3GetUInt16);
+GETTER_BOTH(int32_t,       Integer32,  fmi2GetInteger,  fmi3GetInt32);
+GETTER_3   (uint32_t,      UInteger32,                  fmi3GetUInt32);
+GETTER_3   (int64_t,       Integer64,                   fmi3GetInt64);
+GETTER_3   (uint64_t,      UInteger64,                  fmi3GetUInt64);
+GETTER_2   (int,           Boolean,    fmi2GetBoolean)
+GETTER_3   (bool,          Boolean1,                    fmi3GetBoolean)
+GETTER_BOTH(const char *,  String,     fmi2GetString,   fmi3GetString);
 
-    return status;
+#undef GETTER_BOTH
+#undef GETTER_3
+#undef GETTER_2
+
+
+#define SETTER_BOTH(type, fmi_type, fmi2_function, fmi3_function) \
+fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const type value[]) { \
+    fmu_status_t status = FMU_STATUS_OK; \
+\
+    if (fmu->fmi_version == FMU_2) { \
+        fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value); \
+        if (status2 != fmi2OK) { \
+            logger(LOGGER_ERROR, "%s: fmuSet" #fmi_type " status=%d", fmu->name, status2); \
+            status = FMU_STATUS_ERROR; \
+        } \
+    } else { \
+        fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvr); \
+        if (status3 != fmi3OK) { \
+            logger(LOGGER_ERROR, "%s: fmuSet" #fmi_type " status=%d", fmu->name, status3); \
+            status = FMU_STATUS_ERROR; \
+        } \
+    } \
+\
+    return status; \
+} 
+
+
+#define SETTER_3(type, fmi_type, fmi3_function) \
+fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const type value[]) { \
+    fmu_status_t status = FMU_STATUS_OK; \
+\
+    if (fmu->fmi_version == FMU_2) { \
+        logger(LOGGER_ERROR, "%s: fmuSet" #fmi_type " not supported.", fmu->name); \
+        status = FMU_STATUS_ERROR; \
+    } else { \
+        fmi3Status status3 = fmu->fmi_functions.version_3. fmi3_function (fmu->component, vr, nvr, value, nvr); \
+        if (status3 != fmi3OK) { \
+            logger(LOGGER_ERROR, "%s: fmuSet" #fmi_type " tatus=%d", fmu->name, status3); \
+            status = FMU_STATUS_ERROR; \
+        } \
+    } \
+\
+    return status;\
 }
 
 
-fmu_status_t fmuSetReal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const double value[]) {
-    fmu_status_t status = FMU_STATUS_OK;
-
-    if (fmu->fmi_version == FMU_2) {
-        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetReal(fmu->component, vr, nvr, value);
-            if (status2 != fmi2OK) {
-                logger(LOGGER_ERROR, "%s: fmuSetReal status=%d", fmu->name, status2);
-                status = FMU_STATUS_ERROR;
-            }
-    } else {
-        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetFloat64(fmu->component, vr, nvr, value, nvr);
-            if (status3 != fmi3OK) {
-                logger(LOGGER_ERROR, "%s: fmuSetReal status=%d", fmu->name, status3);
-                status = FMU_STATUS_ERROR;
-            }
-    }
-
-    return status;
+#define SETTER_2(type, fmi_type, fmi2_function) \
+fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const type value[]) { \
+    fmu_status_t status = FMU_STATUS_OK; \
+\
+    if (fmu->fmi_version == FMU_2) { \
+        fmi2Status status2 = fmu->fmi_functions.version_2. fmi2_function (fmu->component, vr, nvr, value); \
+        if (status2 != fmi2OK) { \
+            logger(LOGGER_ERROR, "%s: fmuSet" #fmi_type " status=%d", fmu->name, status2); \
+            status = FMU_STATUS_ERROR; \
+        } \
+    } else { \
+        logger(LOGGER_ERROR, "%s: fmuSet" #fmi_type " not supported.", fmu->name); \
+        status = FMU_STATUS_ERROR; \
+    } \
+\
+    return status;\
 }
 
 
-fmu_status_t fmuSetInteger(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const int value[]) {
-    fmu_status_t status = FMU_STATUS_OK;
+SETTER_BOTH(double,        Real64,      fmi2SetReal,    fmi3SetFloat64);
+SETTER_3   (float,         Real32,                      fmi3SetFloat32);
+SETTER_3   (int8_t,        Integer8,                    fmi3SetInt8);
+SETTER_3   (uint8_t,       UInteger8,                   fmi3SetUInt8);
+SETTER_3   (int16_t,       Integer16,                   fmi3SetInt16);
+SETTER_3   (uint16_t,      UInteger16,                  fmi3SetUInt16);
+SETTER_BOTH(int32_t,       Integer32,  fmi2SetInteger,  fmi3SetInt32);
+SETTER_3   (uint32_t,      UInteger32,                  fmi3SetUInt32);
+SETTER_3   (int64_t,       Integer64,                   fmi3SetInt64);
+SETTER_3   (uint64_t,      UInteger64,                  fmi3SetUInt64);
+SETTER_2   (int,           Boolean,    fmi2SetBoolean)
+SETTER_3   (bool,          Boolean1,                    fmi3SetBoolean)
+SETTER_BOTH(char * const,  String,     fmi2SetString,   fmi3SetString);
 
-    if (fmu->fmi_version == 2) {
-        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetInteger(fmu->component, vr, nvr, value);
-        if (status2 != fmi2OK) {
-            logger(LOGGER_ERROR, "%s: fmuSetInteger status=%d", fmu->name, status2);
-            status = FMU_STATUS_ERROR;
-        }
-    } else {
-        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetInt32(fmu->component, vr, nvr, value, nvr);
-        if (status3 != fmi3OK) {
-            logger(LOGGER_ERROR, "%s: fmuSetInteger status=%d", fmu->name, status3);
-            status = FMU_STATUS_ERROR;
-        }
-    }
-
-    return status;
-}
-
-
-fmu_status_t fmuSetBoolean(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const int value[]) {
-    fmu_status_t status = FMU_STATUS_OK;
-
-    if (fmu->fmi_version == 2) {
-        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetBoolean(fmu->component, vr, nvr, value);
-        if (status2 != fmi2OK) {
-            logger(LOGGER_ERROR, "%s: fmuSetBoolean status=%d", fmu->name, status2);
-            status = FMU_STATUS_ERROR;
-        }
-    } else {
-        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetBoolean(fmu->component, vr, nvr, (bool *)value, nvr);
-        if (status3 != fmi3OK) {
-            logger(LOGGER_ERROR, "%s: fmuSetBoolean status=%d", fmu->name, status3);
-            status = FMU_STATUS_ERROR;
-        }
-    }
-
-    return status;
-}
-
-
-fmu_status_t fmuSetString(const fmu_t* fmu, const fmu_vr_t vr[], size_t nvr, const char * const value[]) {
-    fmu_status_t status = FMU_STATUS_OK;
-
-    if (fmu->fmi_version == 2) {
-        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetString(fmu->component, vr, nvr, value);
-        if (status2 != fmi2OK) {
-            logger(LOGGER_ERROR, "%s: fmuSetString status=%d", fmu->name, status2);
-            status = FMU_STATUS_ERROR;
-        }
-    } else {
-        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetString(fmu->component, vr, nvr, value, nvr);
-        if (status3 != fmi3OK) {
-            logger(LOGGER_ERROR, "%s: fmuSetString status=%d", fmu->name, status3);
-            status = FMU_STATUS_ERROR;
-        }       
-    }
-
-    return status;
-}
+#undef SETTER_BOTH
+#undef SETTER_3
+#undef SETTER_2
 
 
 fmu_status_t fmuDoStep(const fmu_t *fmu, 
