@@ -315,11 +315,20 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         return -1;
     }
 
-    if (sscanf(file->line, "%lu %lu %lu %lu",
+    if (sscanf(file->line, "%lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
         &container->nb_local_reals64,
+        &container->nb_local_reals32,
+        &container->nb_local_integers8,
+        &container->nb_local_uintegers8,
+        &container->nb_local_integers16,
+        &container->nb_local_uintegers16,
         &container->nb_local_integers32,
+        &container->nb_local_uintegers32,
+        &container->nb_local_integers64,
+        &container->nb_local_uintegers64,
         &container->nb_local_booleans,
-        &container->nb_local_strings) < 4) {
+        &container->nb_local_booleans1,
+        &container->nb_local_strings) < 13) {
         logger(LOGGER_ERROR, "Cannort read container I/O '%s'.", file->line);
         return -1;
     }
@@ -337,8 +346,17 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         container-> type = NULL
     
     ALLOC(reals64, 0.0);
+    ALLOC(reals32, 0.0);
+    ALLOC(integers8, 0);
+    ALLOC(uintegers8, 0);
+    ALLOC(integers16, 0);
+    ALLOC(uintegers16, 0);
     ALLOC(integers32, 0);
+    ALLOC(uintegers32, 0);
+    ALLOC(integers64, 0);
+    ALLOC(uintegers64, 0);
     ALLOC(booleans, 0);
+    ALLOC(booleans1, false);
     ALLOC(strings, NULL);
 
 #undef ALLOC
@@ -429,8 +447,17 @@ static int read_conf_io(container_t* container, config_file_t* file) {
     unsigned long nb_links;
 
     READ_CONF_IO(reals64);
+    READ_CONF_IO(reals32);
+    READ_CONF_IO(integers8);
+    READ_CONF_IO(uintegers8);
+    READ_CONF_IO(integers16);
+    READ_CONF_IO(uintegers16);
     READ_CONF_IO(integers32);
+    READ_CONF_IO(uintegers32);
+    READ_CONF_IO(integers64);
+    READ_CONF_IO(uintegers64);
     READ_CONF_IO(booleans);
+    READ_CONF_IO(booleans1);
     READ_CONF_IO(strings);
 
     return 0;
@@ -514,6 +541,39 @@ static int read_conf_io(container_t* container, config_file_t* file) {
         } \
     }
 
+static int read_conf_fmu_start_values_booleans1(fmu_io_t* fmu_io, config_file_t* file) {
+
+    if (get_line(file))
+        return -1;
+
+    fmu_io->start_booleans1.start_values = NULL;
+    fmu_io->start_booleans1.nb = 0;
+    
+
+    if (sscanf(file->line, "%lu", &fmu_io->start_booleans1.nb) < 1)
+        return -2;
+                
+    if (fmu_io->start_booleans1.nb == 0)
+        return 0;
+                    
+    fmu_io->start_booleans1.start_values = malloc(fmu_io->start_booleans1.nb * sizeof(*fmu_io->start_booleans1.start_values));
+    if (!fmu_io->start_booleans1.start_values)
+        return -3;
+
+    for (unsigned long i = 0; i < fmu_io->start_booleans1.nb; i += 1) {
+        if (get_line(file))
+            return -4;
+        int boolean;
+
+        if (sscanf(file->line, "%u %d %d", &fmu_io->start_booleans1.start_values[i].vr, &fmu_io->start_booleans1.start_values[i].reset, &boolean) < 3)
+            return -5;
+        fmu_io->start_booleans1.start_values[i].value = boolean;
+    }
+
+    return 0;
+}
+
+
 static char* string_token(char* buffer) {
     int len = strlen(buffer);
 
@@ -568,22 +628,54 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
 
 
 static int read_conf_fmu_io(fmu_io_t* fmu_io, config_file_t* file) {
-    READER_FMU_IO(reals64,    in);
-    READER_FMU_IO(integers32, in);
-    READER_FMU_IO(booleans,   in);
-    READER_FMU_IO(strings,    in);
+    READER_FMU_IO(reals64,     in);
+    READER_FMU_IO(reals32,     in);
+    READER_FMU_IO(integers8,   in);
+    READER_FMU_IO(uintegers8,  in);
+    READER_FMU_IO(integers16,  in);
+    READER_FMU_IO(uintegers16, in);
+    READER_FMU_IO(integers32,  in);
+    READER_FMU_IO(uintegers32, in);    
+    READER_FMU_IO(integers64,  in);
+    READER_FMU_IO(uintegers64, in);
+    READER_FMU_IO(booleans,    in);
+    READER_FMU_IO(booleans1,   in);
+    READER_FMU_IO(strings,     in);
 
-    READER_FMU_START_VALUES(reals64,    "%lf");
-    READER_FMU_START_VALUES(integers32, "%d");
-    READER_FMU_START_VALUES(booleans,   "%d");
-    int status = read_conf_fmu_start_values_strings(fmu_io, file);
+    READER_FMU_START_VALUES(reals64,     "%lf");
+    READER_FMU_START_VALUES(reals32,     "%f");
+    READER_FMU_START_VALUES(integers8,   "%hhd");
+    READER_FMU_START_VALUES(uintegers8,  "%hhu");
+    READER_FMU_START_VALUES(integers16,  "%hd");
+    READER_FMU_START_VALUES(uintegers16, "%hu");
+    READER_FMU_START_VALUES(integers32,  "%d");
+    READER_FMU_START_VALUES(uintegers32, "%d");
+    READER_FMU_START_VALUES(integers64,  "%lld");
+    READER_FMU_START_VALUES(uintegers64, "%llu");
+    READER_FMU_START_VALUES(booleans,    "%d");
+    int status;
+
+    status = read_conf_fmu_start_values_booleans1(fmu_io, file);
     if (status)
         return status;
 
-    READER_FMU_IO(reals64,    out);
-    READER_FMU_IO(integers32, out);
-    READER_FMU_IO(booleans,   out);
-    READER_FMU_IO(strings,    out);
+    status = read_conf_fmu_start_values_strings(fmu_io, file);
+    if (status)
+        return status;
+
+    READER_FMU_IO(reals64,     out);
+    READER_FMU_IO(reals32,     out);
+    READER_FMU_IO(integers8,   out);
+    READER_FMU_IO(uintegers8,  out);
+    READER_FMU_IO(integers16,  out);
+    READER_FMU_IO(uintegers16, out);
+    READER_FMU_IO(integers32,  out);
+    READER_FMU_IO(uintegers32, out);    
+    READER_FMU_IO(integers64,  out);
+    READER_FMU_IO(uintegers64, out);
+    READER_FMU_IO(booleans,    out);
+    READER_FMU_IO(booleans1,   out);
+    READER_FMU_IO(strings,     out);
 
     return 0;
 
@@ -638,8 +730,17 @@ int container_configure(container_t* container, const char* dirname) {
     logger(LOGGER_DEBUG, "%-15s: %d local variables and %d ports", #type, container->nb_local_ ## type, container->nb_ports_ ## type)
 
     LOG_IO(reals64);
+    LOG_IO(reals32);
+    LOG_IO(integers8);
+    LOG_IO(uintegers8);
+    LOG_IO(integers16);
+    LOG_IO(uintegers16);
     LOG_IO(integers32);
+    LOG_IO(uintegers32);
+    LOG_IO(integers64);
+    LOG_IO(uintegers64);
     LOG_IO(booleans);
+    LOG_IO(booleans1);
     LOG_IO(strings);
 #undef LOG_IO
 
@@ -650,21 +751,63 @@ int container_configure(container_t* container, const char* dirname) {
             return -7;
         }
 
-        logger(LOGGER_DEBUG, "FMU#%d: IN     %d reals, %d integers, %d booleans, %d strings", i,
-            container->fmu[i].fmu_io.reals64.in.nb,
-            container->fmu[i].fmu_io.integers32.in.nb,
-            container->fmu[i].fmu_io.booleans.in.nb,
-            container->fmu[i].fmu_io.strings.in.nb);
+#define LOG_IO(orientation, type) \
+    if (container->fmu[i].fmu_io. type . orientation .nb > 0) \
+        logger(LOGGER_DEBUG, "FMU#%d: [" #orientation "] %d " #type, i, container->fmu[i].fmu_io. type . orientation .nb);
+#define LOG_START(type) \
+    if (container->fmu[i].fmu_io.start_ ## type .nb > 0) \
+        logger(LOGGER_DEBUG, "FMU#%d: [start] %d " #type, i, container->fmu[i].fmu_io.start_ ## type .nb);
+    LOG_IO(in, reals64);
+    LOG_IO(in, reals32);
+    LOG_IO(in, integers8);
+    LOG_IO(in, uintegers8);
+    LOG_IO(in, integers16);
+    LOG_IO(in, uintegers16);
+    LOG_IO(in, integers32);
+    LOG_IO(in, uintegers32);
+    LOG_IO(in, integers64);
+    LOG_IO(in, uintegers64);
+    LOG_IO(in, booleans);
+    LOG_IO(in, booleans1);
+    LOG_IO(in, strings);
+
+    LOG_START(reals64);
+    LOG_START(reals32);
+    LOG_START(integers8);
+    LOG_START(uintegers8);
+    LOG_START(integers16);
+    LOG_START(uintegers16);
+    LOG_START(integers32);
+    LOG_START(uintegers32);
+    LOG_START(integers64);
+    LOG_START(uintegers64);
+    LOG_START(booleans);
+    LOG_START(booleans1);
+    LOG_START(strings);
+
+    LOG_IO(out, reals64);
+    LOG_IO(out, reals32);
+    LOG_IO(out, integers8);
+    LOG_IO(out, uintegers8);
+    LOG_IO(out, integers16);
+    LOG_IO(out, uintegers16);
+    LOG_IO(out, integers32);
+    LOG_IO(out, uintegers32);
+    LOG_IO(out, integers64);
+    LOG_IO(out, uintegers64);
+    LOG_IO(out, booleans);
+    LOG_IO(out, booleans1);
+    LOG_IO(out, strings);
+
+#undef LOG_IO
+#undef LOG_START
+
         logger(LOGGER_DEBUG, "FMU#%d: START  %d reals, %d integers, %d booleans, %d strings", i,
             container->fmu[i].fmu_io.start_reals64.nb,
             container->fmu[i].fmu_io.start_integers32.nb,
             container->fmu[i].fmu_io.start_strings.nb,
             container->fmu[i].fmu_io.start_strings.nb);
-        logger(LOGGER_DEBUG, "FMU#%d: OUT    %d reals, %d integers, %d booleans, %d strings", i,
-            container->fmu[i].fmu_io.reals64.out.nb,
-            container->fmu[i].fmu_io.integers32.out.nb,
-            container->fmu[i].fmu_io.booleans.out.nb,
-            container->fmu[i].fmu_io.strings.out.nb);
+
     }
     fclose(file.fp);
 
@@ -706,8 +849,17 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->port_ ## type = NULL
 
         INIT(reals64);
+        INIT(reals32);
+        INIT(integers8);
+        INIT(uintegers8);
+        INIT(integers16);
+        INIT(uintegers16);
         INIT(integers32);
+        INIT(uintegers32);
+        INIT(integers64);
+        INIT(uintegers64);
         INIT(booleans);
+        INIT(booleans1);
         INIT(strings);
 #undef INIT
 
@@ -739,8 +891,17 @@ void container_free(container_t *container) {
     free(container-> type)
 
     FREE(reals64);
+    FREE(reals32);
+    FREE(integers8);
+    FREE(uintegers8);
+    FREE(integers16);
+    FREE(uintegers16);
     FREE(integers32);
+    FREE(uintegers32);
+    FREE(integers64);
+    FREE(uintegers64);
     FREE(booleans);
+    FREE(booleans1);
     FREE(strings);
 #undef FREE
 

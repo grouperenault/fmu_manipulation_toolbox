@@ -27,8 +27,17 @@ fmu_status_t fmu_set_inputs(fmu_t* fmu) {
     }
 
         SET_INPUT(reals64, Real64);
+        SET_INPUT(reals32, Real32);
+        SET_INPUT(integers8, Integer8);
+        SET_INPUT(uintegers8, UInteger8);
+        SET_INPUT(integers16, Integer16);
+        SET_INPUT(uintegers16, UInteger16);
         SET_INPUT(integers32, Integer32);
+        SET_INPUT(uintegers32, UInteger32);
+        SET_INPUT(integers64, Integer64);
+        SET_INPUT(uintegers64, UInteger64);
         SET_INPUT(booleans, Boolean);
+        SET_INPUT(booleans1, Boolean1);
         SET_INPUT(strings, String);
 #undef SET_INPUT
     }
@@ -54,8 +63,17 @@ fmu_status_t fmu_get_outputs(fmu_t* fmu) {
     }
 
 GET_OUTPUT(reals64, Real64);
+GET_OUTPUT(reals32, Real32);
+GET_OUTPUT(integers8, Integer8);
+GET_OUTPUT(uintegers8, UInteger8);
+GET_OUTPUT(integers16, Integer16);
+GET_OUTPUT(uintegers16, UInteger16);
 GET_OUTPUT(integers32, Integer32);
+GET_OUTPUT(uintegers32, UInteger32);
+GET_OUTPUT(integers64, Integer64);
+GET_OUTPUT(uintegers64, UInteger64);
 GET_OUTPUT(booleans, Boolean);
+GET_OUTPUT(booleans1, Boolean1);
 GET_OUTPUT(strings, String);
 
 #undef GET_OUTPUT
@@ -258,8 +276,17 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->fmu_io.start_ ## type .start_values = NULL;
 
     INIT_FMU_DATA(reals64);
+    INIT_FMU_DATA(reals32);
+    INIT_FMU_DATA(integers8);
+    INIT_FMU_DATA(uintegers8);
+    INIT_FMU_DATA(integers16);
+    INIT_FMU_DATA(uintegers16);
     INIT_FMU_DATA(integers32);
+    INIT_FMU_DATA(uintegers32);
+    INIT_FMU_DATA(integers64);
+    INIT_FMU_DATA(uintegers64);
     INIT_FMU_DATA(booleans);
+    INIT_FMU_DATA(booleans1);
     INIT_FMU_DATA(strings);
 #undef INIT_FMU_DATA
 
@@ -333,8 +360,17 @@ void fmu_unload(fmu_t *fmu) {
     free(fmu->fmu_io.start_ ## type .start_values)
 
     FREE_FMU_DATA(reals64);
+    FREE_FMU_DATA(reals32);
+    FREE_FMU_DATA(integers8);
+    FREE_FMU_DATA(integers8);
+    FREE_FMU_DATA(uintegers16);
+    FREE_FMU_DATA(integers16);
+    FREE_FMU_DATA(uintegers32);
     FREE_FMU_DATA(integers32);
+    FREE_FMU_DATA(uintegers64);
+    FREE_FMU_DATA(uintegers64);
     FREE_FMU_DATA(booleans);
+    FREE_FMU_DATA(booleans1);
     for (int i = 0; i < fmu->fmu_io.start_strings.nb; i += 1)
         free((char*)fmu->fmu_io.start_strings.start_values[i].value);
     FREE_FMU_DATA(strings);
