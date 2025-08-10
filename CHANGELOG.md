@@ -4,7 +4,9 @@ This package was formerly known as `fmutool`.
 # Version 1.9
 * ADDED: `fmusplit` command to split container into FMU's and provide a json file
 * ADDED: `fmucontainer` support `-sequential` mode
-* ADDED: FMI-3.0 early support
+* ADDED: FMI-3.0 early support. Use `-fmi 3` option for `fmucontainer`
+* CHANGE: `fmu_operations` and `fmu_container` packages are renamed `operations` and `container`
+* CHANGE: `FMUException` class is renamed `FMUError`
 
 # Version 1.8.4.2
 * FIXED: `fmucontainer` re-set start values for causality=input after fmi2EnterInitialization as workaround for some FMUs.
