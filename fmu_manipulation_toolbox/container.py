@@ -17,31 +17,19 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
 class FMUPort:
-
-    @staticmethod
-    def simple_type_name(type_name: str) -> str:
-        table = {
-            'Float64': 'Real',
-            'Int32': 'Integer'
-        }
-        try:
-            return table[type_name]
-        except KeyError:
-            return type_name
-
-    def __init__(self, attrs: Dict[str, str]):
+    def __init__(self, type_name, attrs: Dict[str, str]):
         self.causality = attrs.get("causality", "local")
         self.variability = attrs.get("variability", "continuous")
-        self.name = attrs.get("name")
-        self.vr = int(attrs.get("valueReference"))
+        self.name = attrs["name"]
+        self.vr = int(attrs["valueReference"])
         self.description = attrs.get("description", None)
 
-        self.type_name = self.simple_type_name(attrs.pop("type_name", None))
+        self.type_name = type_name
         self.start_value = attrs.get("start", None)
         self.initial = attrs.get("initial", None)
 
     def set_port_type(self, type_name: str, attrs: Dict[str, str]):
-        self.type_name = self.simple_type_name(type_name)
+        self.type_name = type_name
         self.start_value = attrs.get("start", None)
         self.initial = attrs.get("initial", None)
 
@@ -139,17 +127,6 @@ class EmbeddedFMU(OperationAbstract):
             self.guid = attrs['instantiationToken']
             self.fmi_version = 3
 
-
-    def scalar_attrs(self, attrs) -> int:
-        if 'type_name' in attrs:  # FMI 3.0
-            port = FMUPort(attrs)
-            self.ports[port.name] = port
-        else: # FMI 2.0
-            self.current_port = FMUPort(attrs)
-            self.ports[self.current_port.name] = self.current_port
-
-        return 0
-
     def cosimulation_attrs(self, attrs: Dict[str, str]):
         self.model_identifier = attrs['modelIdentifier']
         for capability in self.capability_list:
@@ -163,12 +140,9 @@ class EmbeddedFMU(OperationAbstract):
         self.start_time = float(attrs.get("startTime", 0.0))
         self.stop_time = float(attrs.get("stopTime", self.start_time + 1.0))
 
-    def scalar_type(self, type_name, attrs):
-        if self.current_port:
-            if type_name == "Enumeration":
-                type_name = "Integer"
-            self.current_port.set_port_type(type_name, attrs)
-        self.current_port = None
+    def port_attrs(self, fmu_port):
+        port = FMUPort(fmu_port.fmi_type, fmu_port)
+        self.ports[port.name] = port
 
     def __repr__(self):
         return f"FMU '{self.name}' ({len(self.ports)} variables)"
@@ -660,10 +634,9 @@ class FMUContainer:
         if profiling:
             for fmu in self.involved_fmu.values():
                 vr = vr_table.add_vr("Real")
-                port = FMUPort({"valueReference": vr,
-                                "name": f"container.{fmu.id}.rt_ratio",
-                                "type_name": "Real",
-                                "description": f"RT ratio for embedded FMU '{fmu.name}'"})
+                port = FMUPort("Real", {"valueReference": vr,
+                                        "name": f"container.{fmu.id}.rt_ratio",
+                                        "description": f"RT ratio for embedded FMU '{fmu.name}'"})
                 print(f"    {port.xml(vr, fmi_version=self.fmi_version)}", file=xml_file)
 
         # Local variable should be first to ensure to attribute them the lowest VR.

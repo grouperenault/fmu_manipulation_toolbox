@@ -150,7 +150,6 @@ class Manipulation:
         else:  # Keep ScalarVariable as it is.
             self.keep_port(port_name)
 
-
     def start_element(self, name, attrs):
         if self.skip_until:
             return
@@ -158,12 +157,13 @@ class Manipulation:
             if name == 'ScalarVariable': # FMI 2.0 only
                 self.current_port = FMUPort()
                 self.current_port.push_attrs(attrs)
-                #self.start_variable(attrs)
-            elif name in self.fmu.FMI3_TYPES:
+            elif self.fmu.fmi_version == 2 and name in self.fmu.FMI2_TYPES:
+                self.current_port.fmi_type = name
+                self.current_port.push_attrs(attrs)
+            elif self.fmu.fmi_version == 3 and name in self.fmu.FMI3_TYPES:
                 self.current_port = FMUPort()
                 self.current_port.fmi_type = name
                 self.current_port.push_attrs(attrs)
-                #self.start_variable(attrs)
             elif name == 'CoSimulation':
                 self.operation.cosimulation_attrs(attrs)
             elif name == 'DefaultExperiment':
@@ -173,10 +173,6 @@ class Manipulation:
                 self.operation.fmi_attrs(attrs)
             elif name == 'Unknown':
                 self.unknown_attrs(attrs)
-            elif name in self.fmu.FMI2_TYPES:
-                self.current_port.fmi_type = name
-                self.current_port.push_attrs(attrs)
-                # self.operation.scalar_type(name, attrs)
 
             if self.current_port and self.current_port.is_ready():
                 self.handle_port()
@@ -189,7 +185,7 @@ class Manipulation:
             if self.current_port.is_ready():
                 self.current_port.write_xml(self.fmu.fmi_version, self.out)
                 self.current_port = None
-        else:
+        else: # re-copy tags
             if attrs:
                 attrs_list = [f'{key}="{self.escape(value)}"' for (key, value) in attrs.items()]
                 print(f"<{name}", " ".join(attrs_list), ">", end='', file=self.out)
