@@ -588,7 +588,7 @@ fmu_status_t fmuDoStep(const fmu_t *fmu,
     }
       
     if (fmu->profile) {
-        fmu->container->reals64[fmu->index] = profile_toc(fmu->profile, currentCommunicationPoint+communicationStepSize);
+        fmu->container->reals64[fmu->index+1] = profile_toc(fmu->profile, currentCommunicationPoint+communicationStepSize);
     }
     logger(LOGGER_DEBUG, "%s fmuDoStep() --OK", fmu->name);
     return status;
