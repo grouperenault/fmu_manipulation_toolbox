@@ -37,6 +37,7 @@ mutex_t thread_mutex_new(void) {
 #else
     pthread_mutex_t mutex;
     pthread_mutex_init(&mutex, NULL);
+    pthread_mutex_lock(&mutex);
     return mutex;
 #endif
 }
