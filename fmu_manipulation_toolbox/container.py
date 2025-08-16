@@ -16,22 +16,101 @@ from .version import __version__ as tool_version
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
-class FMUPort:
-    def __init__(self, type_name, attrs: Dict[str, str]):
+class EmbeddedFMUPort:
+    FMI_TO_CONTAINER = {
+        2: {
+            'Real': 'real64',
+            'Integer': 'integer32',
+            'String': 'string',
+            'Boolean': 'boolean'
+        },
+        3: {
+            'Float64': 'real64',
+            'Float32': 'real32',
+            'Int8': 'integer8',
+            'UInt8': 'uinteger8',
+            'Int16': 'integer16',
+            'UInt16': 'uinteger16',
+            'Int32': 'integer32',
+            'UInt32': 'uinteger32',
+            'Int64': 'integer64',
+            'UInt64': 'uinteger64',
+            'String': 'string',
+            'Boolean': 'boolean1'
+        }
+    }
+
+    FMI_TO_CONTAINER = {
+        2: {
+            'Real': 'real64',
+            'Integer': 'integer32',
+            'String': 'string',
+            'Boolean': 'boolean'
+        },
+        3: {
+            'Float64': 'real64',
+            'Float32': 'real32',
+            'Int8': 'integer8',
+            'UInt8': 'uinteger8',
+            'Int16': 'integer16',
+            'UInt16': 'uinteger16',
+            'Int32': 'integer32',
+            'UInt32': 'uinteger32',
+            'Int64': 'integer64',
+            'UInt64': 'uinteger64',
+            'String': 'string',
+            'Boolean': 'boolean1'
+        }
+    }
+
+    CONTAINER_TO_FMI = {
+        2: {
+            'real64': 'Real',
+            'integer32': 'Integer',
+            'string': 'String',
+            'boolean': 'Boolean'
+        },
+        3: {
+            'real64': 'Float64' ,
+            'real32': 'Float32' ,
+            'integer8': 'Int8' ,
+            'uinteger8': 'UInt8' ,
+            'integer16': 'Int16' ,
+            'uinteger16': 'UInt16' ,
+            'integer32': 'Int32' ,
+            'uinteger32': 'UInt32' ,
+            'integer64': 'Int64' ,
+            'uinteger64': 'UInt64' ,
+            'string': 'String' ,
+            'boolean1': 'Boolean'
+        }
+    }
+
+    ALL_TYPES = (
+        "real64", "real32",
+        "integer8", "uinteger8", "integer16", "uinteger16", "integer32", "uinteger32", "integer64", "uinteger64",
+        "boolean", "boolean1",
+        "strings"
+    )
+
+
+
+    def __init__(self, fmi_type, attrs: Dict[str, str], fmi_version=0):
         self.causality = attrs.get("causality", "local")
         self.variability = attrs.get("variability", "continuous")
         self.name = attrs["name"]
         self.vr = int(attrs["valueReference"])
         self.description = attrs.get("description", None)
 
-        self.type_name = type_name
+        if fmi_version > 0:
+            self.type_name = self.FMI_TO_CONTAINER[fmi_version][fmi_type]
+        else:
+            self.type_name = fmi_type
+
         self.start_value = attrs.get("start", None)
         self.initial = attrs.get("initial", None)
 
-    def set_port_type(self, type_name: str, attrs: Dict[str, str]):
-        self.type_name = type_name
-        self.start_value = attrs.get("start", None)
-        self.initial = attrs.get("initial", None)
+
 
     def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2):
         if name is None:
@@ -41,22 +120,16 @@ class FMUPort:
         if start is None:
             start = self.start_value
         if self.variability is None:
-            self.variability = "continuous" if self.type_name == "Real" else "discrete"
+            self.variability = "continuous" if "real" in self.type_name else "discrete"
 
-
+        fmi_type = self.CONTAINER_TO_FMI[fmi_version][self.type_name]
         if fmi_version == 2:
             child_attrs =  {
                 "start": start,
             }
-            if "Float" in self.type_name:
-                type_name = "Real"
-            elif "Int" in self.type_name:
-                type_name = "Integer"
-            else:
-                type_name = self.type_name
 
             filtered_child_attrs = {key: value for key, value in child_attrs.items() if value is not None}
-            child_str = (f"<{type_name} " +
+            child_str = (f"<{fmi_type} " +
                          " ".join([f'{key}="{value}"' for (key, value) in filtered_child_attrs.items()]) +
                          "/>")
 
@@ -72,13 +145,6 @@ class FMUPort:
             scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
             return f'<ScalarVariable {scalar_attrs_str}>{child_str}</ScalarVariable>'
         else:
-            if "Real" == self.type_name:
-                type_name = "Float64"
-            elif "Integer" == self.type_name:
-                type_name = "Int32"
-            else:
-                type_name = self.type_name
-
             scalar_attrs = {
                 "name": name,
                 "valueReference": vr,
@@ -91,7 +157,7 @@ class FMUPort:
             filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
             scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
 
-            return f'<{type_name} {scalar_attrs_str}/>'
+            return f'<{fmi_type} {scalar_attrs_str}/>'
 
 
 class EmbeddedFMU(OperationAbstract):
@@ -109,7 +175,7 @@ class EmbeddedFMU(OperationAbstract):
         self.model_identifier = None
         self.guid = None
         self.fmi_version = None
-        self.ports: Dict[str, FMUPort] = {}
+        self.ports: Dict[str, EmbeddedFMUPort] = {}
 
         self.capabilities: Dict[str, str] = {}
         self.current_port = None  # used during apply_operation()
@@ -141,7 +207,7 @@ class EmbeddedFMU(OperationAbstract):
         self.stop_time = float(attrs.get("stopTime", self.start_time + 1.0))
 
     def port_attrs(self, fmu_port):
-        port = FMUPort(fmu_port.fmi_type, fmu_port)
+        port = EmbeddedFMUPort(fmu_port.fmi_type, fmu_port, fmi_version=self.fmi_version)
         self.ports[port.name] = port
 
     def __repr__(self):
@@ -222,7 +288,7 @@ class ValueReferenceTable:
     def __init__(self):
         self.vr_table = {}
         self.masks = {}
-        for i, type_name in enumerate(["Real", "Integer", "Boolean", "String"]):
+        for i, type_name in enumerate(EmbeddedFMUPort.ALL_TYPES):
             self.vr_table[type_name] = 0
             self.masks[type_name] = i << 24
 
@@ -467,7 +533,7 @@ class FMUContainer:
 
         self.start_values[cport] = value
 
-    def find_inputs(self, port_to_connect: FMUPort) -> List[ContainerPort]:
+    def find_inputs(self, port_to_connect: EmbeddedFMUPort) -> List[ContainerPort]:
         candidates = []
         for cport in self.get_all_cports():
             if (cport.port.causality == 'input' and cport not in self.rules and cport.port.name == port_to_connect.name
@@ -629,12 +695,12 @@ class FMUContainer:
                                                     start_time=self.start_time, stop_time=self.stop_time,
                                                     step_size=step_size))
 
-        vr_time = vr_table.add_vr("Real")
+        vr_time = vr_table.add_vr("real64")
         logger.debug(f"Time vr = {vr_time}")
         if profiling:
             for fmu in self.involved_fmu.values():
-                vr = vr_table.add_vr("Real")
-                port = FMUPort("Real", {"valueReference": vr,
+                vr = vr_table.add_vr("real64")
+                port = EmbeddedFMUPort("real64", {"valueReference": vr,
                                         "name": f"container.{fmu.id}.rt_ratio",
                                         "description": f"RT ratio for embedded FMU '{fmu.name}'"})
                 print(f"    {port.xml(vr, fmi_version=self.fmi_version)}", file=xml_file)
@@ -699,7 +765,6 @@ class FMUContainer:
             fmu_rank[fmu.name] = i
 
         # Prepare data structure
-        type_names_list = ("Real", "Integer", "Boolean", "String")  # Ordered list
         inputs_per_type: Dict[str, List[ContainerInput]] = {}       # Container's INPUT
         outputs_per_type: Dict[str, List[ContainerPort]] = {}       # Container's OUTPUT
 
@@ -708,7 +773,7 @@ class FMUContainer:
         outputs_fmu_per_type = {}
         locals_per_type: Dict[str, List[Local]] = {}
 
-        for type_name in type_names_list:
+        for type_name in EmbeddedFMUPort.ALL_TYPES:
             inputs_per_type[type_name] = []
             outputs_per_type[type_name] = []
             locals_per_type[type_name] = []
@@ -739,11 +804,11 @@ class FMUContainer:
             for cport_to in local.cport_to_list:
                 inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = vr
 
-        print(f"# NB local variables ", ", ".join(type_names_list), file=txt_file)
+        print(f"# NB local variables:", ", ".join(EmbeddedFMUPort.ALL_TYPES), file=txt_file)
         nb_local = []
-        for type_name in type_names_list:
+        for type_name in EmbeddedFMUPort.ALL_TYPES:
             nb = len(locals_per_type[type_name])
-            if type_name == "Real":
+            if type_name == "real64":
                 nb += 1  # reserver a slot for "time"
                 if profiling:
                     nb += len(self.involved_fmu)
@@ -752,14 +817,14 @@ class FMUContainer:
         print("", file=txt_file)
 
         print("# CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]", file=txt_file)
-        for type_name in type_names_list:
+        for type_name in EmbeddedFMUPort.ALL_TYPES:
             print(f"# {type_name}", file=txt_file)
             nb = len(inputs_per_type[type_name]) + len(outputs_per_type[type_name]) + len(locals_per_type[type_name])
             nb_input_link = 0
             for input_port in inputs_per_type[type_name]:
                 nb_input_link += len(input_port.cport_list) - 1
 
-            if type_name == "Real":
+            if type_name == "real64":
                 nb += 1  # reserver a slot for "time"
                 if profiling:
                     nb += len(self.involved_fmu)
@@ -776,24 +841,24 @@ class FMUContainer:
             for cport in outputs_per_type[type_name]:
                 print(f"{cport.vr} 1 {fmu_rank[cport.fmu.name]} {cport.port.vr}", file=txt_file)
             for local in locals_per_type[type_name]:
-                print(f"{local.vr} 1 -1 {local.vr &0xFFFFFF}", file=txt_file)
+                print(f"{local.vr} 1 -1 {local.vr & 0xFFFFFF}", file=txt_file)
 
         # LINKS
         for fmu in self.involved_fmu.values():
-            for type_name in type_names_list:
+            for type_name in EmbeddedFMUPort.ALL_TYPES:
                 print(f"# Inputs of {fmu.name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
                 print(len(inputs_fmu_per_type[type_name][fmu.name]), file=txt_file)
                 for cport, vr in inputs_fmu_per_type[type_name][fmu.name].items():
                     print(f"{vr} {cport.port.vr}", file=txt_file)
 
-            for type_name in type_names_list:
+            for type_name in EmbeddedFMUPort.ALL_TYPES:
                 print(f"# Start values of {fmu.name} - {type_name}: <FMU_VR> <RESET> <VALUE>", file=txt_file)
                 print(len(start_values_fmu_per_type[type_name][fmu.name]), file=txt_file)
                 for cport, value in start_values_fmu_per_type[type_name][fmu.name].items():
                     reset = 1 if cport.port.causality == "input" else 0
                     print(f"{cport.port.vr} {reset} {value}", file=txt_file)
 
-            for type_name in type_names_list:
+            for type_name in EmbeddedFMUPort.ALL_TYPES:
                 print(f"# Outputs of {fmu.name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
                 print(len(outputs_fmu_per_type[type_name][fmu.name]), file=txt_file)
                 for cport, vr in outputs_fmu_per_type[type_name][fmu.name].items():
