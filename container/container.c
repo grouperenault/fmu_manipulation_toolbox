@@ -337,7 +337,7 @@ static int read_conf_local(container_t* container, config_file_t* file) {
     if (container->nb_local_ ## type) { \
         container-> type = malloc(container->nb_local_ ## type * sizeof(*container-> type)); \
         if (!container-> type) { \
-            logger(LOGGER_ERROR, "Read container I/O: Memory exhauseted."); \
+            logger(LOGGER_ERROR, "Read container local: Memory exhauseted."); \
             return -2; \
         } \
         for(unsigned long i=0; i < container->nb_local_ ## type; i += 1) \
@@ -434,7 +434,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             if (vr < container->nb_ports_ ## type) \
                 container->port_ ##type[vr] = port; \
             else { \
-                logger(LOGGER_ERROR, "Cannot read I/O " #type ": to many links!"); \
+                logger(LOGGER_ERROR, "Cannot read I/O " #type ": too many links!"); \
                 return -8; \
             } \
         } \

@@ -3,11 +3,13 @@ This package was formerly known as `fmutool`.
 
 # Version 1.9
 * ADDED: `fmusplit` command to split container into FMU's and provide a json file
-* ADDED: `fmucontainer` support `-sequential` mode
+* ADDED: `fmucontainer` support of `-sequential` mode
 * ADDED: FMI-3.0 early support. Use `-fmi 3` option for `fmucontainer`
-* CHANGE: `fmu_operations` and `fmu_container` packages are renamed `operations` and `container`
-* CHANGE: Introduction of `FMUPort` and `port_attrs` method to replace `scalar_attrs` and `scalar_type`
-* CHANGE: `FMUException` and `OperationException`  classes are renamed `FMUError` and `OperationError`
+* FIXED: `fmucontainer` MT mode on Linux and Darwin
+* CHANGE: (API) `fmu_operations` and `fmu_container` packages are renamed `operations` and `container`
+* CHANGE: (API) Introduction of `FMUPort` and `port_attrs` method to replace `scalar_attrs` and `scalar_type`
+* CHANGE: (API) `FMUException` and `OperationException`  classes are renamed `FMUError` and `OperationError`
+
 
 # Version 1.8.4.2
 * FIXED: `fmucontainer` re-set start values for causality=input after fmi2EnterInitialization as workaround for some FMUs.
