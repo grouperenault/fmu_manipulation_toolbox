@@ -123,6 +123,7 @@ class EmbeddedFMUPort:
             self.variability = "continuous" if "real" in self.type_name else "discrete"
 
         fmi_type = self.CONTAINER_TO_FMI[fmi_version][self.type_name]
+
         if fmi_version == 2:
             child_attrs =  {
                 "start": start,
@@ -708,7 +709,10 @@ class FMUContainer:
         # Local variable should be first to ensure to attribute them the lowest VR.
         for local in self.locals.values():
             vr = vr_table.add_vr(local.cport_from)
-            print(f"    {local.cport_from.port.xml(vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
+            try:
+                print(f"    {local.cport_from.port.xml(vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
+            except KeyError:
+                logger.error(f"Cannot expose '{local.name}' because type '{local.cport_from.port.type_name}' is not compatible with FMI-{self.fmi_version}.0")
             local.vr = vr
 
         for input_port_name, input_port in self.inputs.items():
