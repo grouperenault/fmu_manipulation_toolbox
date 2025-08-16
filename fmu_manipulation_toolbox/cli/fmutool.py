@@ -81,14 +81,11 @@ def fmutool():
         for causality in cli_options.apply_on:
             print(f"     - causality = {causality}")
 
-    def flatten(list_of_list: list):
-        return [x for xs in list_of_list for x in xs]
-
-    for operation in flatten(cli_options.operations_list):
+    for operation in cli_options.operations_list:
         print(f"     => {operation}")
         try:
             fmu.apply_operation(operation, cli_options.apply_on)
-        except OperationException as reason:
+        except OperationError as reason:
             print(f"ERROR: {reason}")
             sys.exit(-6)
 

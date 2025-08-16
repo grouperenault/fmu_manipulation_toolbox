@@ -16,7 +16,9 @@ class FMU:
     modelDescription.xml file."""
 
     FMI2_TYPES = ('Real', 'Integer', 'String', 'Boolean', 'Enumeration')
-    FMI3_TYPES = ('Float64')
+    FMI3_TYPES = ('Float64', 'Float32',
+                  'Int8', 'UInt8', 'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64',
+                  'String', 'Boolean', 'Enumeration')
 
     def __init__(self, fmu_filename):
         self.fmu_filename = fmu_filename
@@ -51,6 +53,56 @@ class FMU:
         manipulation.manipulate(self.descriptor_filename, apply_on)
 
 
+class FMUPort:
+    def __init__(self):
+        self.fmi_type = None
+        self.attrs_list: List[Dict] = []
+
+    def dict_level(self, nb):
+        return " ".join([f'{key}="{value}"' for key, value in self.attrs_list[nb].items()])
+
+    def write_xml(self, fmi_version: int, file):
+        if fmi_version == 2:
+            print(f"    <ScalarVariable {self.dict_level(0)}>", file=file)
+            print(f"      <{self.fmi_type} {self.dict_level(1)}/>", file=file)
+            print(f"    </ScalarVariable>", file=file)
+        elif fmi_version == 3:
+            print(f"    <{self.fmi_type} {self.dict_level(0)}/>", file=file)
+        else:
+            raise FMUError(f"FMUPort writing: unsupported FMI version {fmi_version}")
+
+    def __contains__(self, item):
+        for attrs in self.attrs_list:
+            if item in attrs:
+                return True
+        return False
+
+    def __getitem__(self, item):
+        for attrs in self.attrs_list:
+            if item in attrs:
+                return attrs[item]
+        raise KeyError
+
+    def __setitem__(self, key, value):
+        for attrs in self.attrs_list:
+            if key in attrs:
+                attrs[key] = value
+                return
+        raise KeyError
+
+    def get(self, item, default_value):
+        try:
+            return self[item]
+        except KeyError:
+            return default_value
+
+    def push_attrs(self, attrs):
+        self.attrs_list.append(attrs)
+
+    def is_ready(self):
+        return self.fmi_type is not None
+
+
 class FMUError(Exception):
     def __init__(self, reason):
         self.reason = reason
@@ -73,8 +125,10 @@ class Manipulation:
         self.operation.set_fmu(fmu)
         self.fmu = fmu
 
-        self.current_port: int = 0
-        self.port_translation: List[int] = []
+        self.current_port: Optional[FMUPort] = None
+
+        self.current_port_number: int = 0
+        self.port_translation: List[Optional[int]] = []
         self.port_names_list: List[str] = []
         self.apply_on = None
 
@@ -85,11 +139,11 @@ class Manipulation:
         else:
             return value
 
-    def start_variable(self, attrs):
-        causality = OperationAbstract.scalar_get_causality(attrs)
-        port_name = attrs['name']
+    def handle_port(self):
+        causality = self.current_port.get('causality', 'local')
+        port_name = self.current_port['name']
         if not self.apply_on or causality in self.apply_on:
-            if self.operation.scalar_attrs(attrs):
+            if self.operation.port_attrs(self.current_port):
                 self.remove_port(port_name)
             else:
                 self.keep_port(port_name)
@@ -101,32 +155,46 @@ class Manipulation:
         if self.skip_until:
             return
         try:
-            if name == 'ScalarVariable':
-                self.start_variable(attrs)
+            if name == 'ScalarVariable': # FMI 2.0 only
+                self.current_port = FMUPort()
+                self.current_port.push_attrs(attrs)
+                #self.start_variable(attrs)
             elif name in self.fmu.FMI3_TYPES:
-                attrs['type_name'] = name
-                self.start_variable(attrs)
+                self.current_port = FMUPort()
+                self.current_port.fmi_type = name
+                self.current_port.push_attrs(attrs)
+                #self.start_variable(attrs)
             elif name == 'CoSimulation':
                 self.operation.cosimulation_attrs(attrs)
             elif name == 'DefaultExperiment':
                 self.operation.experiment_attrs(attrs)
             elif name == 'fmiModelDescription':
+                self.fmu.fmi_version = int(float(attrs["fmiVersion"]))
                 self.operation.fmi_attrs(attrs)
             elif name == 'Unknown':
                 self.unknown_attrs(attrs)
             elif name in self.fmu.FMI2_TYPES:
-                self.operation.scalar_type(name, attrs)
+                self.current_port.fmi_type = name
+                self.current_port.push_attrs(attrs)
+                # self.operation.scalar_type(name, attrs)
+
+            if self.current_port and self.current_port.is_ready():
+                self.handle_port()
 
         except ManipulationSkipTag:
             self.skip_until = name
             return
 
-        if attrs:
-            attrs.pop('fmi_type', None) # FMI 3.0: this attr was added during manipulation
-            attrs_list = [f'{key}="{self.escape(value)}"' for (key, value) in attrs.items()]
-            print(f"<{name}", " ".join(attrs_list), ">", end='', file=self.out)
+        if self.current_port:
+            if self.current_port.is_ready():
+                self.current_port.write_xml(self.fmu.fmi_version, self.out)
+                self.current_port = None
         else:
-            print(f"<{name}>", end='', file=self.out)
+            if attrs:
+                attrs_list = [f'{key}="{self.escape(value)}"' for (key, value) in attrs.items()]
+                print(f"<{name}", " ".join(attrs_list), ">", end='', file=self.out)
+            else:
+                print(f"<{name}>", end='', file=self.out)
 
     def end_element(self, name):
         if self.skip_until:
@@ -134,7 +202,8 @@ class Manipulation:
                 self.skip_until = None
             return
         else:
-            print(f"</{name}>", end='', file=self.out)
+            if name not in FMU.FMI3_TYPES and name not in FMU.FMI2_TYPES and not name == "ScalarVariable":
+                print(f"</{name}>", end='', file=self.out)
 
     def char_data(self, data):
         if not self.skip_until:
@@ -147,8 +216,8 @@ class Manipulation:
 
     def keep_port(self, name):
         self.port_names_list.append(name)
-        self.current_port += 1
-        self.port_translation.append(self.current_port)
+        self.current_port_number += 1
+        self.port_translation.append(self.current_port_number)
 
     def unknown_attrs(self, attrs):
         index = int(attrs['index']) - 1
@@ -181,30 +250,18 @@ class OperationAbstract:
     def fmi_attrs(self, attrs):
         pass
 
-    def scalar_attrs(self, attrs) -> int:
-        """ return 0 to keep port, otherwise remove it"""
-        return 0
-
     def cosimulation_attrs(self, attrs):
         pass
 
     def experiment_attrs(self, attrs):
         pass
 
-    def scalar_type(self, type_name, attrs):
-        pass
+    def port_attrs(self, fmu_port) -> int:
+        """ return 0 to keep port, otherwise remove it"""
+        return 0
 
     def closure(self):
         pass
-
-    @staticmethod
-    def scalar_get_causality(attrs) -> str:
-        try:
-            causality = attrs['causality']
-        except KeyError:
-            causality = 'local'  # Default value according to FMI Specifications.
-
-        return causality
 
 
 class OperationSaveNamesToCSV(OperationAbstract):
@@ -217,48 +274,29 @@ class OperationSaveNamesToCSV(OperationAbstract):
         self.writer = csv.writer(self.csvfile, delimiter=';', quotechar="'", quoting=csv.QUOTE_MINIMAL)
         self.writer.writerow(['name', 'newName', 'valueReference', 'causality', 'variability', 'scalarType',
                               'startValue'])
-        self.name = None
-        self.vr = None
-        self.variability = None
-        self.causality = None
-
-    def reset(self):
-        self.name = None
-        self.vr = None
-        self.variability = None
-        self.causality = None
 
     def closure(self):
         self.csvfile.close()
 
-    def scalar_attrs(self, attrs):
-        self.name = attrs['name']
-        self.vr = attrs['valueReference']
-        self.causality = self.scalar_get_causality(attrs)
-
-        try:
-            self.variability = attrs['variability']
-        except KeyError:
-            self.variability = 'continuous'   # Default value according to FMI Specifications.
+    def port_attrs(self, fmu_port: FMUPort) -> int:
+        self.writer.writerow([fmu_port["name"],
+                              fmu_port["name"],
+                              fmu_port["valueReference"],
+                              fmu_port.get("causality", "local"),
+                              fmu_port.get("variability", "continuous"),
+                              fmu_port.fmi_type,
+                              fmu_port.get("start", "")])
 
         return 0
-
-    def scalar_type(self, type_name, attrs):
-        if "start" in attrs:
-            start = attrs["start"]
-        else:
-            start = ""
-        self.writer.writerow([self.name, self.name, self.vr, self.causality, self.variability, type_name, start])
-        self.reset()
 
 
 class OperationStripTopLevel(OperationAbstract):
     def __repr__(self):
         return "Remove Top Level Bus"
 
-    def scalar_attrs(self, attrs):
-        new_name = attrs['name'].split('.', 1)[-1]
-        attrs['name'] = new_name
+    def port_attrs(self, fmu_port):
+        new_name = fmu_port['name'].split('.', 1)[-1]
+        fmu_port['name'] = new_name
         return 0
 
 
@@ -266,9 +304,9 @@ class OperationMergeTopLevel(OperationAbstract):
     def __repr__(self):
         return "Merge Top Level Bus with signal names"
 
-    def scalar_attrs(self, attrs):
-        old = attrs['name']
-        attrs['name'] = old.replace('.', '_', 1)
+    def port_attrs(self, fmu_port):
+        old = fmu_port['name']
+        fmu_port['name'] = old.replace('.', '_', 1)
         return 0
 
 
@@ -279,27 +317,26 @@ class OperationRenameFromCSV(OperationAbstract):
     def __init__(self, csv_filename):
         self.csv_filename = csv_filename
         self.translations = {}
-        self.current_port = 0
-        self.port_translation = []
+
         try:
             with open(csv_filename, newline='') as csvfile:
                 reader = csv.reader(csvfile, delimiter=';', quotechar="'")
                 for row in reader:
                     self.translations[row[0]] = row[1]
         except FileNotFoundError:
-            raise OperationException(f"file '{csv_filename}' is not found")
+            raise OperationError(f"file '{csv_filename}' is not found")
         except KeyError:
-            raise OperationException(f"file '{csv_filename}' should contain two columns")
+            raise OperationError(f"file '{csv_filename}' should contain two columns")
 
-    def scalar_attrs(self, attrs):
-        name = attrs['name']
+    def port_attrs(self, fmu_port):
+        name = fmu_port['name']
         try:
-            new_name = self.translations[attrs['name']]
+            new_name = self.translations[fmu_port['name']]
         except KeyError:
             new_name = name  # if port is not in CSV file, keep old name
 
         if new_name:
-            attrs['name'] = new_name
+            fmu_port['name'] = new_name
             return 0
         else:
             # we want to delete this name!
@@ -313,6 +350,10 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
     def __repr__(self):
         return f"Add '{self.bitness_to}' remoting on '{self.bitness_from}' FMU"
 
+    def fmi_attrs(self, attrs):
+        if not attrs["fmi_version"] == "2.0":
+            raise OperationError(f"Adding remoting is only available for FMI-2.0")
+
     def cosimulation_attrs(self, attrs):
         fmu_bin = {
             "win32":  os.path.join(self.fmu.tmp_directory, "binaries", f"win32"),
@@ -320,7 +361,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         }
 
         if not os.path.isdir(fmu_bin[self.bitness_from]):
-            raise OperationException(f"{self.bitness_from} interface does not exist")
+            raise OperationError(f"{self.bitness_from} interface does not exist")
 
         if os.path.isdir(fmu_bin[self.bitness_to]):
             print(f"INFO: {self.bitness_to} already exists. Add front-end.")
@@ -368,11 +409,11 @@ class OperationRemoveRegexp(OperationAbstract):
     def __init__(self, regex_string):
         self.regex_string = regex_string
         self.regex = re.compile(regex_string)
-        self.current_port = 0
+        self.current_port_number = 0
         self.port_translation = []
 
-    def scalar_attrs(self, attrs):
-        name = attrs['name']
+    def port_attrs(self, fmu_port):
+        name = fmu_port['name']
         if self.regex.match(name):
             return 1  # Remove port
         else:
@@ -387,8 +428,8 @@ class OperationKeepOnlyRegexp(OperationAbstract):
         self.regex_string = regex_string
         self.regex = re.compile(regex_string)
 
-    def scalar_attrs(self, attrs):
-        name = attrs['name']
+    def port_attrs(self, fmu_port):
+        name = fmu_port['name']
         if self.regex.match(name):
             return 0
         else:
@@ -429,8 +470,8 @@ class OperationSummary(OperationAbstract):
             print(f"|  - {k} = {v}")
         print(f"|")
 
-    def scalar_attrs(self, attrs) -> int:
-        causality = self.scalar_get_causality(attrs)
+    def port_attrs(self, fmu_port) -> int:
+        causality = fmu_port.get("causality", "local")
 
         try:
             self.nb_port_per_causality[causality] += 1
@@ -487,17 +528,17 @@ class OperationTrimUntil(OperationAbstract):
     def __repr__(self):
         return f"Trim names until (and including) '{self.separator}'"
 
-    def scalar_attrs(self, attrs) -> int:
-        name = attrs['name']
+    def port_attrs(self, fmu_port) -> int:
+        name = fmu_port['name']
         try:
-            attrs['name'] = name[name.index(self.separator)+len(self.separator):-1]
+            fmu_port['name'] = name[name.index(self.separator)+len(self.separator):-1]
         except KeyError:
             pass  # no separator
 
         return 0
 
 
-class OperationException(Exception):
+class OperationError(Exception):
     def __init__(self, reason):
         self.reason = reason
 
