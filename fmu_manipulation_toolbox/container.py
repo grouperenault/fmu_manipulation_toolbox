@@ -40,29 +40,6 @@ class EmbeddedFMUPort:
         }
     }
 
-    FMI_TO_CONTAINER = {
-        2: {
-            'Real': 'real64',
-            'Integer': 'integer32',
-            'String': 'string',
-            'Boolean': 'boolean'
-        },
-        3: {
-            'Float64': 'real64',
-            'Float32': 'real32',
-            'Int8': 'integer8',
-            'UInt8': 'uinteger8',
-            'Int16': 'integer16',
-            'UInt16': 'uinteger16',
-            'Int32': 'integer32',
-            'UInt32': 'uinteger32',
-            'Int64': 'integer64',
-            'UInt64': 'uinteger64',
-            'String': 'string',
-            'Boolean': 'boolean1'
-        }
-    }
-
     CONTAINER_TO_FMI = {
         2: {
             'real64': 'Real',
@@ -425,20 +402,6 @@ class FMUContainer:
 
         self.rules: Dict[ContainerPort, str] = {}
         self.start_values: Dict[ContainerPort, str] = {}
-
-
-    def convert_type_name(self, type_name: str) -> str:
-        if self.fmi_version == 2:
-            table = {}
-        elif self.fmi_version == 3:
-            table = {}
-        else:
-            table = {}
-
-        try:
-            return table[type_name]
-        except KeyError:
-            return type_name
 
     def get_fmu(self, fmu_filename: str) -> EmbeddedFMU:
         if fmu_filename in self.involved_fmu:
