@@ -112,7 +112,7 @@ class EmbeddedFMUPort:
 
 
 
-    def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2):
+    def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> str:
         if name is None:
             name = self.name
         if causality is None:
@@ -122,7 +122,12 @@ class EmbeddedFMUPort:
         if self.variability is None:
             self.variability = "continuous" if "real" in self.type_name else "discrete"
 
-        fmi_type = self.CONTAINER_TO_FMI[fmi_version][self.type_name]
+        try:
+            fmi_type = self.CONTAINER_TO_FMI[fmi_version][self.type_name]
+        except KeyError:
+            logger.error(f"Cannot expose '{name}' because type '{self.type_name}' is not compatible "
+                         f"with FMI-{fmi_version}.0")
+            return ""
 
         if fmi_version == 2:
             child_attrs =  {
@@ -709,10 +714,7 @@ class FMUContainer:
         # Local variable should be first to ensure to attribute them the lowest VR.
         for local in self.locals.values():
             vr = vr_table.add_vr(local.cport_from)
-            try:
-                print(f"    {local.cport_from.port.xml(vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
-            except KeyError:
-                logger.error(f"Cannot expose '{local.name}' because type '{local.cport_from.port.type_name}' is not compatible with FMI-{self.fmi_version}.0")
+            print(f"    {local.cport_from.port.xml(vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
             local.vr = vr
 
         for input_port_name, input_port in self.inputs.items():
