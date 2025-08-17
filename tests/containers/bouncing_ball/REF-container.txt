@@ -124,6 +124,8 @@ bb_velocity
 0
 # Outputs of bb_position.fmu - strings: <VR> <FMU_VR>
 0
+# Conversion table of bb_position.fmu: <VR_FROM> <VR_TO> <CONVERSION>
+0
 # Inputs of bb_velocity.fmu - real64: <VR> <FMU_VR>
 0
 # Inputs of bb_velocity.fmu - real32: <VR> <FMU_VR>
@@ -203,4 +205,6 @@ bb_velocity
 # Outputs of bb_velocity.fmu - boolean1: <VR> <FMU_VR>
 0
 # Outputs of bb_velocity.fmu - strings: <VR> <FMU_VR>
+0
+# Conversion table of bb_velocity.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0

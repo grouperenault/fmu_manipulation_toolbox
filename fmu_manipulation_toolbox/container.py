@@ -878,6 +878,9 @@ class FMUContainer:
                 for cport, vr in outputs_fmu_per_type[type_name][fmu.name].items():
                     print(f"{vr} {cport.port.vr}", file=txt_file)
 
+            print(f"# Conversion table of {fmu.name}: <VR_FROM> <VR_TO> <CONVERSION>", file=txt_file)
+            print("0", file=txt_file)
+
     @staticmethod
     def long_path(path: Union[str, Path]) -> str:
         # https://stackoverflow.com/questions/14075465/copy-a-file-with-a-too-long-path-to-another-directory-in-python

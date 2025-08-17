@@ -354,6 +354,7 @@ void fmu_unload(fmu_t *fmu) {
 
     free(fmu->guid);
     free(fmu->name);
+    convert_free(fmu->conversions);
     profile_free(fmu->profile);
 
     /* and finally unload the library */

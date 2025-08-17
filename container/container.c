@@ -510,36 +510,44 @@ static int read_conf_io(container_t* container, config_file_t* file) {
         } \
     }
 
-/*
- * # Start values of bb_velocity.fmu - Real: <FMU_VR> <RESET> <VALUE>
- * 0
- */
-#define READER_FMU_START_VALUES(type, format) \
-    if (get_line(file)) \
-        return -1; \
-\
-    fmu_io->start_ ## type .start_values = NULL; \
-    fmu_io->start_ ## type .nb = 0; \
-\
-    if (sscanf(file->line, "%lu", &fmu_io->start_ ## type .nb) < 1) \
-        return -2; \
-\
-    if (fmu_io->start_ ## type .nb > 0) { \
-        fmu_io->start_ ## type .start_values = malloc(fmu_io->start_ ## type .nb * sizeof(*fmu_io->start_ ## type .start_values)); \
-        if (! fmu_io->start_ ## type .start_values) \
-            return -3; \
-\
-        for (unsigned long i = 0; i < fmu_io->start_ ## type .nb; i += 1) { \
-            if (get_line(file)) \
-                return -4; \
-\
-           if (sscanf(file->line, "%u %d " format, \
-             &fmu_io->start_ ## type .start_values[i].vr, \
-             &fmu_io->start_ ## type .start_values[i].reset, \
-             &fmu_io->start_ ## type .start_values[i].value) < 3) \
-                return -5; \
-        } \
-    }
+static int read_conf_fmu_io_in(fmu_io_t* fmu_io, config_file_t* file) {
+    READER_FMU_IO(reals64,     in);
+    READER_FMU_IO(reals32,     in);
+    READER_FMU_IO(integers8,   in);
+    READER_FMU_IO(uintegers8,  in);
+    READER_FMU_IO(integers16,  in);
+    READER_FMU_IO(uintegers16, in);
+    READER_FMU_IO(integers32,  in);
+    READER_FMU_IO(uintegers32, in);    
+    READER_FMU_IO(integers64,  in);
+    READER_FMU_IO(uintegers64, in);
+    READER_FMU_IO(booleans,    in);
+    READER_FMU_IO(booleans1,   in);
+    READER_FMU_IO(strings,     in);
+
+    return 0;
+}
+
+
+static int read_conf_fmu_io_out(fmu_io_t* fmu_io, config_file_t* file) {
+    READER_FMU_IO(reals64,     out);
+    READER_FMU_IO(reals32,     out);
+    READER_FMU_IO(integers8,   out);
+    READER_FMU_IO(uintegers8,  out);
+    READER_FMU_IO(integers16,  out);
+    READER_FMU_IO(uintegers16, out);
+    READER_FMU_IO(integers32,  out);
+    READER_FMU_IO(uintegers32, out);    
+    READER_FMU_IO(integers64,  out);
+    READER_FMU_IO(uintegers64, out);
+    READER_FMU_IO(booleans,    out);
+    READER_FMU_IO(booleans1,   out);
+    READER_FMU_IO(strings,     out);
+
+    return 0;
+}
+#undef READER_FMU_IO
+
 
 static int read_conf_fmu_start_values_booleans1(fmu_io_t* fmu_io, config_file_t* file) {
 
@@ -587,8 +595,35 @@ static char* string_token(char* buffer) {
 }
 
 
-static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* file) {
+#define READER_FMU_START_VALUES(type, format) \
+    if (get_line(file)) \
+        return -1; \
+\
+    fmu_io->start_ ## type .start_values = NULL; \
+    fmu_io->start_ ## type .nb = 0; \
+\
+    if (sscanf(file->line, "%lu", &fmu_io->start_ ## type .nb) < 1) \
+        return -2; \
+\
+    if (fmu_io->start_ ## type .nb > 0) { \
+        fmu_io->start_ ## type .start_values = malloc(fmu_io->start_ ## type .nb * sizeof(*fmu_io->start_ ## type .start_values)); \
+        if (! fmu_io->start_ ## type .start_values) \
+            return -3; \
+\
+        for (unsigned long i = 0; i < fmu_io->start_ ## type .nb; i += 1) { \
+            if (get_line(file)) \
+                return -4; \
+\
+           if (sscanf(file->line, "%u %d " format, \
+             &fmu_io->start_ ## type .start_values[i].vr, \
+             &fmu_io->start_ ## type .start_values[i].reset, \
+             &fmu_io->start_ ## type .start_values[i].value) < 3) \
+                return -5; \
+        } \
+    }
 
+
+static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* file) {
     if (get_line(file))
         return -1;
 
@@ -627,21 +662,11 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
 }
 
 
-static int read_conf_fmu_io(fmu_io_t* fmu_io, config_file_t* file) {
-    READER_FMU_IO(reals64,     in);
-    READER_FMU_IO(reals32,     in);
-    READER_FMU_IO(integers8,   in);
-    READER_FMU_IO(uintegers8,  in);
-    READER_FMU_IO(integers16,  in);
-    READER_FMU_IO(uintegers16, in);
-    READER_FMU_IO(integers32,  in);
-    READER_FMU_IO(uintegers32, in);    
-    READER_FMU_IO(integers64,  in);
-    READER_FMU_IO(uintegers64, in);
-    READER_FMU_IO(booleans,    in);
-    READER_FMU_IO(booleans1,   in);
-    READER_FMU_IO(strings,     in);
-
+/*
+ * # Start values of bb_velocity.fmu - Real: <FMU_VR> <RESET> <VALUE>
+ * 0
+ */
+static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
     READER_FMU_START_VALUES(reals64,     "%lf");
     READER_FMU_START_VALUES(reals32,     "%f");
     READER_FMU_START_VALUES(integers8,   "%hhd");
@@ -653,6 +678,7 @@ static int read_conf_fmu_io(fmu_io_t* fmu_io, config_file_t* file) {
     READER_FMU_START_VALUES(integers64,  "%lld");
     READER_FMU_START_VALUES(uintegers64, "%llu");
     READER_FMU_START_VALUES(booleans,    "%d");
+
     int status;
 
     status = read_conf_fmu_start_values_booleans1(fmu_io, file);
@@ -663,24 +689,68 @@ static int read_conf_fmu_io(fmu_io_t* fmu_io, config_file_t* file) {
     if (status)
         return status;
 
-    READER_FMU_IO(reals64,     out);
-    READER_FMU_IO(reals32,     out);
-    READER_FMU_IO(integers8,   out);
-    READER_FMU_IO(uintegers8,  out);
-    READER_FMU_IO(integers16,  out);
-    READER_FMU_IO(uintegers16, out);
-    READER_FMU_IO(integers32,  out);
-    READER_FMU_IO(uintegers32, out);    
-    READER_FMU_IO(integers64,  out);
-    READER_FMU_IO(uintegers64, out);
-    READER_FMU_IO(booleans,    out);
-    READER_FMU_IO(booleans1,   out);
-    READER_FMU_IO(strings,     out);
+    return 0;
+}
+#undef READER_FMU_START_VALUE
+
+
+static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
+    unsigned long nb;
+
+    if (get_line(file)) {
+        logger(LOGGER_ERROR, "Cannot read conversion table.");
+        return -1;
+    }
+
+    if (sscanf(file->line, "%lu", &nb) < 1) {
+        logger(LOGGER_ERROR, "Cannot get size of conversion table.");
+        return -2;
+    }
+
+    fmu->conversions = convert_new(nb);
+    if (nb && !fmu->conversions) {
+        logger(LOGGER_ERROR, "Cannot allocate conversion table for %lu entries.", nb);
+        return -3;
+    }
+
+    for(unsigned long i = 0; i < nb; i += 1) {
+        int offset;
+        if (get_line(file)) {
+            logger(LOGGER_ERROR, "Cannot read conversion table entries.");
+            return -4;
+        }
+        
+        if (sscanf(file->line, "%u %u %n", &fmu->conversions->entries[i].from, &fmu->conversions->entries[i].to, &offset) < 3) {
+            logger(LOGGER_ERROR, "Cannot read conversion table entry %lu.", i);
+            return -5;
+        }
+
+        fmu->conversions->entries[i].function = convert_function_get(file->line+offset);
+        if (!fmu->conversions->entries[i].function) {
+            logger(LOGGER_ERROR, "Cannot configure conversion entry %lu from %s", i, file->line+offset);
+            return -6;
+        }
+    }
 
     return 0;
+}
 
-#undef READER_FMU_IO
-#undef READER_FMU_START_VALUE
+
+static int read_conf_fmu_io(fmu_t* fmu, config_file_t* file) {
+
+    if (read_conf_fmu_io_in(&fmu->fmu_io, file))
+        return -1;
+
+    if (read_conf_fmu_start_values(&fmu->fmu_io, file))
+        return -2;
+
+    if (read_conf_fmu_io_out(&fmu->fmu_io, file))
+        return -3;
+
+    if (read_conf_fmu_conversion(fmu, file))
+        return -4;
+
+    return 0;
 }
 
 
@@ -745,7 +815,7 @@ int container_configure(container_t* container, const char* dirname) {
 #undef LOG_IO
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        if (read_conf_fmu_io(&container->fmu[i].fmu_io, &file)) {
+        if (read_conf_fmu_io(&container->fmu[i], &file)) {
             fclose(file.fp);
             logger(LOGGER_ERROR, "Cannot read I/O table for FMU#%d", i);
             return -7;
