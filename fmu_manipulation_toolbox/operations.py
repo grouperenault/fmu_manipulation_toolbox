@@ -130,6 +130,7 @@ class Manipulation:
         self.current_port_number: int = 0
         self.port_translation: List[Optional[int]] = []
         self.port_names_list: List[str] = []
+        self.port_removed_vr: Set[str] = set()
         self.apply_on = None
 
     @staticmethod
@@ -142,9 +143,10 @@ class Manipulation:
     def handle_port(self):
         causality = self.current_port.get('causality', 'local')
         port_name = self.current_port['name']
+        vr = self.current_port['valueReference']
         if not self.apply_on or causality in self.apply_on:
             if self.operation.port_attrs(self.current_port):
-                self.remove_port(port_name)
+                self.remove_port(port_name, vr)
             else:
                 self.keep_port(port_name)
         else:  # Keep ScalarVariable as it is.
@@ -171,8 +173,10 @@ class Manipulation:
             elif name == 'fmiModelDescription':
                 self.fmu.fmi_version = int(float(attrs["fmiVersion"]))
                 self.operation.fmi_attrs(attrs)
-            elif name == 'Unknown':
+            elif name == 'Unknown': # FMI-2.0 only
                 self.unknown_attrs(attrs)
+            elif name == 'Output' or name == "ContinuousStateDerivative" or "InitialUnknown":
+                self.handle_structure(attrs)
 
             if self.current_port and self.current_port.is_ready():
                 self.handle_port()
@@ -205,9 +209,10 @@ class Manipulation:
         if not self.skip_until:
             print(data, end='', file=self.out)
 
-    def remove_port(self, name):
+    def remove_port(self, name, vr):
         self.port_names_list.append(name)
         self.port_translation.append(None)
+        self.port_removed_vr.add(vr)
         raise ManipulationSkipTag
 
     def keep_port(self, name):
@@ -223,6 +228,26 @@ class Manipulation:
         else:
             print(f"WARNING: Removed port '{self.port_names_list[index]}' is involved in dependencies tree.")
             raise ManipulationSkipTag
+
+    def handle_structure(self, attrs):
+        try:
+            vr = attrs['valueReference']
+            if vr in self.port_removed_vr:
+                raise ManipulationSkipTag
+        except KeyError:
+            return
+
+        try:
+            dependencies = attrs['dependencies']
+            new_dependencies = []
+            for dependency in dependencies.split(" "):
+                if dependency in self.port_removed_vr:
+                    print(f"WARNING: Removed port 'vr={dependency}' was involved in dependencies tree.")
+                else:
+                    new_dependencies.append(dependency)
+            attrs['dependencies'] = " ".join(new_dependencies)
+        except KeyError:
+            return
 
     def manipulate(self, descriptor_filename, apply_on=None):
         self.apply_on = apply_on
