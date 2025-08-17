@@ -728,29 +728,37 @@ class FMUContainer:
             cport.vr = vr
 
         if self.fmi_version == 2:
-            self.make_fmu_xml_epilog_2(xml_file)
+            self.make_fmu_xml_epilog_2(xml_file, profiling)
         elif self.fmi_version == 3:
             self.make_fmu_xml_epilog_3(xml_file)
 
-    def make_fmu_xml_epilog_2(self, xml_file):
-        xml_file.write(f"  </ModelVariables>\n\n  <ModelStructure>\n    <Outputs>\n")
-        index_offset = len(self.locals) + len(self.inputs) + 1
+    def make_fmu_xml_epilog_2(self, xml_file, profiling: bool):
+        xml_file.write("  </ModelVariables>\n"
+                       "\n"
+                       "  <ModelStructure>\n"
+                       "    <Outputs>\n")
+        index_offset = len(self.locals) + len(self.inputs) + 2  # Index is starting to 1 + 1 for skipping time variable
+        if profiling:
+            index_offset += len(self.involved_fmu) # skip rt_ratio variables
+
         for i, _ in enumerate(self.outputs.keys()):
             print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
 
-        xml_file.write("    </Outputs>\n    <InitialUnknowns>\n")
-
-        for i, _ in enumerate(self.outputs.keys()):
-            print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
-
-        xml_file.write("    </InitialUnknowns>\n  </ModelStructure>\n\n</fmiModelDescription>")
+        xml_file.write("    </Outputs>\n"
+                       "  </ModelStructure>\n"
+                       "\n"
+                       "</fmiModelDescription>")
 
     def make_fmu_xml_epilog_3(self, xml_file):
-        xml_file.write(f"  </ModelVariables>\n\n  <ModelStructure>\n")
+        xml_file.write("  </ModelVariables>\n"
+                       "\n"
+                       "  <ModelStructure>\n")
         for output in self.outputs.values():
             print(f'      <Output valueReference="{output.vr}"/>', file=xml_file)
 
-        xml_file.write("  </ModelStructure>\n\n</fmiModelDescription>\n""")
+        xml_file.write("  </ModelStructure>\n"
+                       "\n"
+                       "</fmiModelDescription>")
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
