@@ -1,6 +1,7 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "convert.h"
 #include "container.h"
 #include "fmu.h"
 #include "logger.h"
@@ -77,6 +78,9 @@ GET_OUTPUT(booleans1, Boolean1);
 GET_OUTPUT(strings, String);
 
 #undef GET_OUTPUT
+
+    /* cast conversion between local variables */
+    convert_proceed(fmu->container, fmu->conversions);
 
     return status;
 }
@@ -263,6 +267,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu_t *fmu = &container->fmu[i];
 
     fmu->container = container;
+    fmu->conversions = NULL;
     fmu->name = strdup(name);
     fmu->guid = strdup(guid);
     fmu->index = i;

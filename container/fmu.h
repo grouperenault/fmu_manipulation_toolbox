@@ -237,7 +237,7 @@ typedef enum {
                                 F M U _ T
 ----------------------------------------------------------------------------*/
 #   define FMU_PATH_MAX_LEN 4096
-
+ 
 typedef struct {
     char                        *name; /* based on directory */
     int                         index; /* index of this FMU in container */
@@ -261,11 +261,12 @@ typedef struct {
 	
     profile_t                   *profile;
 
+    struct convert_table_s      *conversions;
+
 	struct container_s			*container;
 
-    /* desptis FMI spec, simulink expect this fmi2CallbcakFunction to live 
-     *  all the simulation !
-     * Keep track this structure here.
+    /* despite the FMI spec, simulink expects this fmi2CallbackFunctions to live 
+     * during all the simulation ! Keep track this structure here.
      */
     fmi2CallbackFunctions       fmi2_callback_functions;
 } fmu_t;
