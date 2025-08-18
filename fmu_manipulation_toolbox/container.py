@@ -269,24 +269,30 @@ class Local:
 
 class ValueReferenceTable:
     def __init__(self):
-        self.vr_table = {}
-        self.masks = {}
+        self.vr_table:Dict[str, int] = {}
+        self.masks: Dict[str, int] = {}
+        self.nb_local_variable:Dict[str, int] = {}
         for i, type_name in enumerate(EmbeddedFMUPort.ALL_TYPES):
             self.vr_table[type_name] = 0
             self.masks[type_name] = i << 24
+            self.nb_local_variable[type_name] = 0
 
-
-    def add_vr(self, port_or_type_name: Union[ContainerPort, str]) -> int:
+    def add_vr(self, port_or_type_name: Union[ContainerPort, str], local: bool = False) -> int:
         if isinstance(port_or_type_name, ContainerPort):
             type_name = port_or_type_name.port.type_name
         else:
             type_name = port_or_type_name
+
+        if local:
+            self.nb_local_variable[type_name] += 1
 
         vr = self.vr_table[type_name]
         self.vr_table[type_name] += 1
 
         return vr | self.masks[type_name]
 
+    def nb_local(self, type_name: str) -> int:
+        return self.nb_local_variable[type_name]
 
 class AutoWired:
     def __init__(self):
@@ -402,6 +408,8 @@ class FMUContainer:
 
         self.rules: Dict[ContainerPort, str] = {}
         self.start_values: Dict[ContainerPort, str] = {}
+
+        self.vr_table = ValueReferenceTable()
 
     def get_fmu(self, fmu_filename: str) -> EmbeddedFMU:
         if fmu_filename in self.involved_fmu:
@@ -617,8 +625,6 @@ class FMUContainer:
             self.make_fmu_cleanup(base_directory)
 
     def make_fmu_xml(self, xml_file, step_size: float, profiling: bool):
-        vr_table = ValueReferenceTable()
-
         timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
         guid = str(uuid.uuid4())
         embedded_fmu = ", ".join([fmu_name for fmu_name in self.involved_fmu])
@@ -664,11 +670,11 @@ class FMUContainer:
                                                     start_time=self.start_time, stop_time=self.stop_time,
                                                     step_size=step_size))
 
-        vr_time = vr_table.add_vr("real64")
+        vr_time = self.vr_table.add_vr("real64", local=True)
         logger.debug(f"Time vr = {vr_time}")
         if profiling:
             for fmu in self.involved_fmu.values():
-                vr = vr_table.add_vr("real64")
+                vr = self.vr_table.add_vr("real64", local=True)
                 port = EmbeddedFMUPort("real64", {"valueReference": vr,
                                         "name": f"container.{fmu.id}.rt_ratio",
                                         "description": f"RT ratio for embedded FMU '{fmu.name}'"})
@@ -676,19 +682,19 @@ class FMUContainer:
 
         # Local variable should be first to ensure to attribute them the lowest VR.
         for local in self.locals.values():
-            vr = vr_table.add_vr(local.cport_from)
+            vr = self.vr_table.add_vr(local.cport_from, local=True)
             print(f"    {local.cport_from.port.xml(vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
             local.vr = vr
 
         for input_port_name, input_port in self.inputs.items():
-            vr = vr_table.add_vr(input_port.type_name)
+            vr = self.vr_table.add_vr(input_port.type_name)
             # Get Start and XML from first connected input
             start = self.start_values.get(input_port.cport_list[0], None)
             print(f"    {input_port.cport_list[0].port.xml(vr, name=input_port_name, start=start, fmi_version=self.fmi_version)}", file=xml_file)
             input_port.vr = vr
 
         for output_port_name, cport in self.outputs.items():
-            vr = vr_table.add_vr(cport)
+            vr = self.vr_table.add_vr(cport)
             print(f"    {cport.port.xml(vr, name=output_port_name, fmi_version=self.fmi_version)}", file=xml_file)
             cport.vr = vr
 
@@ -782,14 +788,7 @@ class FMUContainer:
                 inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = vr
 
         print(f"# NB local variables:", ", ".join(EmbeddedFMUPort.ALL_TYPES), file=txt_file)
-        nb_local = []
-        for type_name in EmbeddedFMUPort.ALL_TYPES:
-            nb = len(locals_per_type[type_name])
-            if type_name == "real64":
-                nb += 1  # reserver a slot for "time"
-                if profiling:
-                    nb += len(self.involved_fmu)
-            nb_local.append(str(nb))
+        nb_local = [f"{self.vr_table.nb_local(type_name)}" for type_name in EmbeddedFMUPort.ALL_TYPES]
         print(" ".join(nb_local), file=txt_file, end='')
         print("", file=txt_file)
 
