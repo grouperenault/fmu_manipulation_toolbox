@@ -372,7 +372,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         return f"Add '{self.bitness_to}' remoting on '{self.bitness_from}' FMU"
 
     def fmi_attrs(self, attrs):
-        if not attrs["fmi_version"] == "2.0":
+        if not attrs["fmiVersion"] == "2.0":
             raise OperationError(f"Adding remoting is only available for FMI-2.0")
 
     def cosimulation_attrs(self, attrs):
