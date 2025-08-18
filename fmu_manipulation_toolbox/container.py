@@ -672,6 +672,7 @@ class FMUContainer:
 
         vr_time = self.vr_table.add_vr("real64", local=True)
         logger.debug(f"Time vr = {vr_time}")
+
         if profiling:
             for fmu in self.involved_fmu.values():
                 vr = self.vr_table.add_vr("real64", local=True)
@@ -682,21 +683,18 @@ class FMUContainer:
 
         # Local variable should be first to ensure to attribute them the lowest VR.
         for local in self.locals.values():
-            vr = self.vr_table.add_vr(local.cport_from, local=True)
-            print(f"    {local.cport_from.port.xml(vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
-            local.vr = vr
+            local.vr = self.vr_table.add_vr(local.cport_from, local=True)
+            print(f"    {local.cport_from.port.xml(local.vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
 
         for input_port_name, input_port in self.inputs.items():
-            vr = self.vr_table.add_vr(input_port.type_name)
+            input_port.vr = self.vr_table.add_vr(input_port.type_name)
             # Get Start and XML from first connected input
             start = self.start_values.get(input_port.cport_list[0], None)
-            print(f"    {input_port.cport_list[0].port.xml(vr, name=input_port_name, start=start, fmi_version=self.fmi_version)}", file=xml_file)
-            input_port.vr = vr
+            print(f"    {input_port.cport_list[0].port.xml(input_port.vr, name=input_port_name, start=start, fmi_version=self.fmi_version)}", file=xml_file)
 
-        for output_port_name, cport in self.outputs.items():
-            vr = self.vr_table.add_vr(cport)
-            print(f"    {cport.port.xml(vr, name=output_port_name, fmi_version=self.fmi_version)}", file=xml_file)
-            cport.vr = vr
+        for output_port_name, output_port in self.outputs.items():
+            output_port.vr = self.vr_table.add_vr(output_port)
+            print(f"    {output_port.port.xml(output_port.vr, name=output_port_name, fmi_version=self.fmi_version)}", file=xml_file)
 
         if self.fmi_version == 2:
             self.make_fmu_xml_epilog_2(xml_file, profiling)
@@ -774,11 +772,11 @@ class FMUContainer:
         # Inputs
         for input_port_name, input_port in self.inputs.items():
             inputs_per_type[input_port.type_name].append(input_port)
-        for cport, value in self.start_values.items():
-            start_values_fmu_per_type[cport.port.type_name][cport.fmu.name][cport] = value
+        for input_port, value in self.start_values.items():
+            start_values_fmu_per_type[input_port.port.type_name][input_port.fmu.name][input_port] = value
         # Outputs
-        for output_port_name, cport in self.outputs.items():
-            outputs_per_type[cport.port.type_name].append(cport)
+        for output_port_name, output_port in self.outputs.items():
+            outputs_per_type[output_port.port.type_name].append(output_port)
         # Locals
         for local in self.locals.values():
             vr = local.vr
@@ -814,8 +812,8 @@ class FMUContainer:
             for input_port in inputs_per_type[type_name]:
                 cport_string = [f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list]
                 print(f"{input_port.vr} {len(input_port.cport_list)}", " ".join(cport_string), file=txt_file)
-            for cport in outputs_per_type[type_name]:
-                print(f"{cport.vr} 1 {fmu_rank[cport.fmu.name]} {cport.port.vr}", file=txt_file)
+            for output_port in outputs_per_type[type_name]:
+                print(f"{output_port.vr} 1 {fmu_rank[output_port.fmu.name]} {output_port.port.vr}", file=txt_file)
             for local in locals_per_type[type_name]:
                 print(f"{local.vr} 1 -1 {local.vr & 0xFFFFFF}", file=txt_file)
 
@@ -824,21 +822,21 @@ class FMUContainer:
             for type_name in EmbeddedFMUPort.ALL_TYPES:
                 print(f"# Inputs of {fmu.name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
                 print(len(inputs_fmu_per_type[type_name][fmu.name]), file=txt_file)
-                for cport, vr in inputs_fmu_per_type[type_name][fmu.name].items():
-                    print(f"{vr} {cport.port.vr}", file=txt_file)
+                for input_port, vr in inputs_fmu_per_type[type_name][fmu.name].items():
+                    print(f"{vr} {input_port.port.vr}", file=txt_file)
 
             for type_name in EmbeddedFMUPort.ALL_TYPES:
                 print(f"# Start values of {fmu.name} - {type_name}: <FMU_VR> <RESET> <VALUE>", file=txt_file)
                 print(len(start_values_fmu_per_type[type_name][fmu.name]), file=txt_file)
-                for cport, value in start_values_fmu_per_type[type_name][fmu.name].items():
-                    reset = 1 if cport.port.causality == "input" else 0
-                    print(f"{cport.port.vr} {reset} {value}", file=txt_file)
+                for input_port, value in start_values_fmu_per_type[type_name][fmu.name].items():
+                    reset = 1 if input_port.port.causality == "input" else 0
+                    print(f"{input_port.port.vr} {reset} {value}", file=txt_file)
 
             for type_name in EmbeddedFMUPort.ALL_TYPES:
                 print(f"# Outputs of {fmu.name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
                 print(len(outputs_fmu_per_type[type_name][fmu.name]), file=txt_file)
-                for cport, vr in outputs_fmu_per_type[type_name][fmu.name].items():
-                    print(f"{vr} {cport.port.vr}", file=txt_file)
+                for output_port, vr in outputs_fmu_per_type[type_name][fmu.name].items():
+                    print(f"{vr} {output_port.port.vr}", file=txt_file)
 
             print(f"# Conversion table of {fmu.name}: <VR_FROM> <VR_TO> <CONVERSION>", file=txt_file)
             print("0", file=txt_file)
