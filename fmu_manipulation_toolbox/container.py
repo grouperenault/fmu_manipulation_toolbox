@@ -247,12 +247,50 @@ class ContainerInput:
         self.cport_list.append(cport_to)
 
 
-class Local:
+class Link:
+    CONVERSION_FUNCTION = {
+        "real32/real64": "F32_F64",
+
+        "Int8/Int16": "D8_D16",
+        "Int8/UInt16": "D8_U16",
+        "Int8/Int32": "D8_D32",
+        "Int8/UInt32": "D8_U32",
+        "Int8/Int64": "D8_D64",
+        "Int8/UInt64": "D8_U64",
+
+        "UInt8/Int16": "U8_D16",
+        "UInt8/UInt16": "U8_U16",
+        "UInt8/Int32": "U8_D32",
+        "UInt8/UInt32": "U8_U32",
+        "UInt8/Int64": "U8_D64",
+        "UInt8/UInt64": "U8_U64",
+
+        "Int16/Int32": "D16_D32",
+        "Int16/UInt32": "D16_U32",
+        "Int16/Int64": "D16_D64",
+        "Int16/UInt64": "D16_U64",
+
+        "UInt16/Int32": "U16_D32",
+        "UInt16/UInt32": "U16_U32",
+        "UInt16/Int64": "U16_D64",
+        "UInt16/UInt64": "U16_U64",
+
+        "Int32/Int64": "D32_D64",
+        "Int32/UInt64": "D32_U64",
+
+        "UInt32/Int64": "U32_D64",
+        "UInt32/UInt64": "U32_U64",
+
+        "boolean/boolean1": "B_B1",
+        "boolean1/boolean": "B1_B",
+    }
+
     def __init__(self, cport_from: ContainerPort):
         self.name = cport_from.fmu.id + "." + cport_from.port.name  # strip .fmu suffix
         self.cport_from = cport_from
         self.cport_to_list: List[ContainerPort] = []
-        self.vr = None
+        self.vr: Optional[int] = None
+        self.vr_converted: Dict[str, int] = {}
 
         if not cport_from.port.causality == "output":
             raise FMUContainerError(f"{cport_from} is  {cport_from.port.causality} instead of OUTPUT")
@@ -261,10 +299,20 @@ class Local:
         if not cport_to.port.causality == "input":
             raise FMUContainerError(f"{cport_to} is {cport_to.port.causality} instead of INPUT")
 
-        if cport_to.port.type_name == self.cport_from.port.type_name:
+        if cport_to.port.type_name == self.cport_from.port.type_name or self.get_conversion(cport_to):
             self.cport_to_list.append(cport_to)
         else:
             raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
+
+    def get_conversion(self, cport_to: ContainerPort) -> Optional[str]:
+        try:
+            conversion = f"{self.cport_from.port.type_name}/{cport_to.port.type_name}"
+            return self.CONVERSION_FUNCTION[conversion]
+        except KeyError:
+            return None
+
+    def nb_local(self) -> int:
+        return 1+len(self.vr_converted)
 
 
 class ValueReferenceTable:
@@ -290,6 +338,11 @@ class ValueReferenceTable:
         self.vr_table[type_name] += 1
 
         return vr | self.masks[type_name]
+
+    def set_link_vr(self, link: Link):
+        link.vr = self.add_vr(link.cport_from, local=True)
+        for type_name in link.vr_converted.keys():
+            link.vr_converted[type_name] = self.add_vr(link.cport_from, local=True)
 
     def nb_local(self, type_name: str) -> int:
         return self.nb_local_variable[type_name]
@@ -404,7 +457,7 @@ class FMUContainer:
         # Rules
         self.inputs: Dict[str, ContainerInput] = {}
         self.outputs: Dict[str, ContainerPort] = {}
-        self.locals: Dict[ContainerPort, Local] = {}
+        self.locals: Dict[ContainerPort, Link] = {}
 
         self.rules: Dict[ContainerPort, str] = {}
         self.start_values: Dict[ContainerPort, str] = {}
@@ -484,7 +537,7 @@ class FMUContainer:
         try:
             local = self.locals[cport_from]
         except KeyError:
-            local = Local(cport_from)
+            local = Link(cport_from)
 
         cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
         local.add_target(cport_to)  # Causality is check in the add() function
@@ -682,9 +735,9 @@ class FMUContainer:
                 print(f"    {port.xml(vr, fmi_version=self.fmi_version)}", file=xml_file)
 
         # Local variable should be first to ensure to attribute them the lowest VR.
-        for local in self.locals.values():
-            local.vr = self.vr_table.add_vr(local.cport_from, local=True)
-            print(f"    {local.cport_from.port.xml(local.vr, name=local.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
+        for link in self.locals.values():
+            self.vr_table.set_link_vr(link)
+            print(f"    {link.cport_from.port.xml(link.vr, name=link.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
 
         for input_port_name, input_port in self.inputs.items():
             input_port.vr = self.vr_table.add_vr(input_port.type_name)
@@ -752,7 +805,7 @@ class FMUContainer:
         inputs_fmu_per_type: Dict[str, Dict[str, Dict[ContainerPort, int]]] = {}      # [type][fmu]
         start_values_fmu_per_type = {}
         outputs_fmu_per_type = {}
-        locals_per_type: Dict[str, List[Local]] = {}
+        locals_per_type: Dict[str, List[Link]] = {}
 
         for type_name in EmbeddedFMUPort.ALL_TYPES:
             inputs_per_type[type_name] = []
@@ -779,11 +832,10 @@ class FMUContainer:
             outputs_per_type[output_port.port.type_name].append(output_port)
         # Locals
         for local in self.locals.values():
-            vr = local.vr
             locals_per_type[local.cport_from.port.type_name].append(local)
-            outputs_fmu_per_type[local.cport_from.port.type_name][local.cport_from.fmu.name][local.cport_from] = vr
+            outputs_fmu_per_type[local.cport_from.port.type_name][local.cport_from.fmu.name][local.cport_from] = local.vr
             for cport_to in local.cport_to_list:
-                inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = vr
+                inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = local.vr
 
         print(f"# NB local variables:", ", ".join(EmbeddedFMUPort.ALL_TYPES), file=txt_file)
         nb_local = [f"{self.vr_table.nb_local(type_name)}" for type_name in EmbeddedFMUPort.ALL_TYPES]
