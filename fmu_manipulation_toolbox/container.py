@@ -67,7 +67,7 @@ class EmbeddedFMUPort:
         "real64", "real32",
         "integer8", "uinteger8", "integer16", "uinteger16", "integer32", "uinteger32", "integer64", "uinteger64",
         "boolean", "boolean1",
-        "strings"
+        "string"
     )
 
 
@@ -128,19 +128,36 @@ class EmbeddedFMUPort:
             scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
             return f'<ScalarVariable {scalar_attrs_str}>{child_str}</ScalarVariable>'
         else:
-            scalar_attrs = {
-                "name": name,
-                "valueReference": vr,
-                "causality": causality,
-                "variability": self.variability,
-                "initial": self.initial,
-                "description": self.description,
-                "start": start
-            }
-            filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
-            scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
+            if fmi_type in ('String', 'Binary'):
+                if start:
+                    child_str = f'<Start value="{start}"/>'
+                else:
+                    child_str = ''
+                scalar_attrs = {
+                    "name": name,
+                    "valueReference": vr,
+                    "causality": causality,
+                    "variability": self.variability,
+                    "initial": self.initial,
+                    "description": self.description,
+                }
+                filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
+                scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
+                return f'<{fmi_type} {scalar_attrs_str}>{child_str}</{fmi_type}>'
+            else:
+                scalar_attrs = {
+                    "name": name,
+                    "valueReference": vr,
+                    "causality": causality,
+                    "variability": self.variability,
+                    "initial": self.initial,
+                    "description": self.description,
+                    "start": start
+                }
+                filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
+                scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
 
-            return f'<{fmi_type} {scalar_attrs_str}/>'
+                return f'<{fmi_type} {scalar_attrs_str}/>'
 
 
 class EmbeddedFMU(OperationAbstract):
@@ -759,6 +776,7 @@ class FMUContainer:
                        "\n"
                        "  <ModelStructure>\n"
                        "    <Outputs>\n")
+        index_offset = 0
         index_offset = len(self.locals) + len(self.inputs) + 2  # Index is starting to 1 + 1 for skipping time variable
         if profiling:
             index_offset += len(self.involved_fmu) # skip rt_ratio variables
