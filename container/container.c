@@ -431,6 +431,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                 offset += read; \
                 vr_counter += 1; \
             } \
+            vr &= 0xFFFFFF; \
             if (vr < container->nb_ports_ ## type) \
                 container->port_ ##type[vr] = port; \
             else { \
@@ -871,19 +872,12 @@ int container_configure(container_t* container, const char* dirname) {
 
 #undef LOG_IO
 #undef LOG_START
-
-        logger(LOGGER_DEBUG, "FMU#%d: START  %d reals, %d integers, %d booleans, %d strings", i,
-            container->fmu[i].fmu_io.start_reals64.nb,
-            container->fmu[i].fmu_io.start_integers32.nb,
-            container->fmu[i].fmu_io.start_strings.nb,
-            container->fmu[i].fmu_io.start_strings.nb);
-
     }
     fclose(file.fp);
 
     logger(LOGGER_DEBUG, "Instanciate embedded FMUs...");
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        logger(LOGGER_DEBUG, "FMU#%d: Instanciate for CoSimulation");
+        logger(LOGGER_DEBUG, "FMU#%d: Instanciate for CoSimulation", i);
         fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i], container->instance_name);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
@@ -893,7 +887,6 @@ int container_configure(container_t* container, const char* dirname) {
     }
 
     logger(LOGGER_DEBUG, "Container is configured.");
-
     return 0;
 }
 
