@@ -751,38 +751,50 @@ class FMUContainer:
                                         "description": f"RT ratio for embedded FMU '{fmu.name}'"})
                 print(f"    {port.xml(vr, fmi_version=self.fmi_version)}", file=xml_file)
 
+        index_offset = 2    # index of output ports. Start at 2 to skip "time" port
+
         # Local variable should be first to ensure to attribute them the lowest VR.
         for link in self.locals.values():
             self.vr_table.set_link_vr(link)
-            print(f"    {link.cport_from.port.xml(link.vr, name=link.name, causality='local', fmi_version=self.fmi_version)}", file=xml_file)
+            port_local_def = link.cport_from.port.xml(link.vr, name=link.name, causality='local',
+                                                      fmi_version=self.fmi_version)
+            if port_local_def:
+                print(f"    {port_local_def}", file=xml_file)
+                index_offset += 1
 
         for input_port_name, input_port in self.inputs.items():
             input_port.vr = self.vr_table.add_vr(input_port.type_name)
             # Get Start and XML from first connected input
             start = self.start_values.get(input_port.cport_list[0], None)
-            print(f"    {input_port.cport_list[0].port.xml(input_port.vr, name=input_port_name, start=start, fmi_version=self.fmi_version)}", file=xml_file)
+            port_input_def = input_port.cport_list[0].port.xml(input_port.vr, name=input_port_name,
+                                                               start=start, fmi_version=self.fmi_version)
+            if port_input_def:
+                print(f"    {port_input_def}", file=xml_file)
+                index_offset += 1
 
         for output_port_name, output_port in self.outputs.items():
             output_port.vr = self.vr_table.add_vr(output_port)
-            print(f"    {output_port.port.xml(output_port.vr, name=output_port_name, fmi_version=self.fmi_version)}", file=xml_file)
+            port_output_def = output_port.port.xml(output_port.vr, name=output_port_name,
+                                                   fmi_version=self.fmi_version)
+            if port_output_def:
+                print(f"    {port_output_def}", file=xml_file)
 
         if self.fmi_version == 2:
-            self.make_fmu_xml_epilog_2(xml_file, profiling)
+            self.make_fmu_xml_epilog_2(xml_file, index_offset)
         elif self.fmi_version == 3:
             self.make_fmu_xml_epilog_3(xml_file)
 
-    def make_fmu_xml_epilog_2(self, xml_file, profiling: bool):
+    def make_fmu_xml_epilog_2(self, xml_file, index_offset):
         xml_file.write("  </ModelVariables>\n"
                        "\n"
                        "  <ModelStructure>\n"
                        "    <Outputs>\n")
-        index_offset = 0
-        index_offset = len(self.locals) + len(self.inputs) + 2  # Index is starting to 1 + 1 for skipping time variable
-        if profiling:
-            index_offset += len(self.involved_fmu) # skip rt_ratio variables
 
-        for i, _ in enumerate(self.outputs.keys()):
-            print(f'      <Unknown index="{index_offset+i}"/>', file=xml_file)
+        index = index_offset
+        for output in self.outputs.values():
+            if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[2]:
+                print(f'      <Unknown index="{index}"/>', file=xml_file)
+                index += 1
 
         xml_file.write("    </Outputs>\n"
                        "  </ModelStructure>\n"
@@ -794,7 +806,8 @@ class FMUContainer:
                        "\n"
                        "  <ModelStructure>\n")
         for output in self.outputs.values():
-            print(f'      <Output valueReference="{output.vr}"/>', file=xml_file)
+            if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[3]:
+                print(f'      <Output valueReference="{output.vr}"/>', file=xml_file)
 
         xml_file.write("  </ModelStructure>\n"
                        "\n"
@@ -864,21 +877,19 @@ class FMUContainer:
         for type_name in EmbeddedFMUPort.ALL_TYPES:
             print(f"# {type_name}", file=txt_file)
             nb = len(inputs_per_type[type_name]) + len(outputs_per_type[type_name]) + len(locals_per_type[type_name])
+            nb_local = (len(inputs_per_type[type_name]) +
+                        len(outputs_per_type[type_name]) +
+                        self.vr_table.nb_local(type_name))
             nb_input_link = 0
             for input_port in inputs_per_type[type_name]:
                 nb_input_link += len(input_port.cport_list) - 1
-
+            print(f"{nb_local} {nb_local + nb_input_link}", file=txt_file)
             if type_name == "real64":
-                nb += 1  # reserver a slot for "time"
-                if profiling:
-                    nb += len(self.involved_fmu)
-                print(f"{nb} {nb + nb_input_link}", file=txt_file)
                 print(f"0 1 -1 0", file=txt_file)  # Time slot
                 if profiling:
                     for profiling_port, _ in enumerate(self.involved_fmu.values()):
-                        print(f"{profiling_port+1} 1 -2 {profiling_port+1}", file=txt_file)
-            else:
-                print(f"{nb} {nb+nb_input_link}", file=txt_file)
+                        print(f"{profiling_port + 1} 1 -2 {profiling_port + 1}", file=txt_file)
+
             for input_port in inputs_per_type[type_name]:
                 cport_string = [f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list]
                 print(f"{input_port.vr} {len(input_port.cport_list)}", " ".join(cport_string), file=txt_file)
