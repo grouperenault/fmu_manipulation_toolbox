@@ -368,12 +368,12 @@ void fmu_unload(fmu_t *fmu) {
     FREE_FMU_DATA(reals64);
     FREE_FMU_DATA(reals32);
     FREE_FMU_DATA(integers8);
-    FREE_FMU_DATA(integers8);
-    FREE_FMU_DATA(uintegers16);
+    FREE_FMU_DATA(uintegers8);
     FREE_FMU_DATA(integers16);
-    FREE_FMU_DATA(uintegers32);
+    FREE_FMU_DATA(uintegers16);
     FREE_FMU_DATA(integers32);
-    FREE_FMU_DATA(uintegers64);
+    FREE_FMU_DATA(uintegers32);
+    FREE_FMU_DATA(integers64);
     FREE_FMU_DATA(uintegers64);
     FREE_FMU_DATA(booleans);
     FREE_FMU_DATA(booleans1);
@@ -555,14 +555,10 @@ fmu_status_t fmuDoStep(const fmu_t *fmu,
 
     if (fmu->fmi_version == 2) {
         fmi2Status status2;
-        logger(LOGGER_DEBUG, "%s fmuDoStep(%x, %f, %f) start %x", fmu->name, fmu->component, currentCommunicationPoint, communicationStepSize,
-            fmu->fmi_functions.version_2.fmi2DoStep);
-
         status2 = fmu->fmi_functions.version_2.fmi2DoStep(fmu->component,
                                                           currentCommunicationPoint,
                                                           communicationStepSize,
                                                           fmi2True); /* noSetFMUStatePriorToCurrentPoint */
-        logger(LOGGER_DEBUG, "%s fmuDoStep() end %d", fmu->name, status2);
         if ((status2 == fmi2OK) || (status2 == fmi2Warning))
             status = FMU_STATUS_OK;
     } else {
@@ -660,7 +656,7 @@ fmu_status_t fmuSetupExperiment(const fmu_t *fmu) {
 fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
     if (fmu->fmi_version == 2) {
         fmu->fmi2_callback_functions.componentEnvironment = fmu;
-        fmu->fmi2_callback_functions.logger = (fmi2CallbackLogger)logger_embedded_fmu;
+        fmu->fmi2_callback_functions.logger = (fmi2CallbackLogger)logger_embedded_fmu2;
         fmu->fmi2_callback_functions.allocateMemory = NULL;
         fmu->fmi2_callback_functions.freeMemory = NULL;
         fmu->fmi2_callback_functions.stepFinished = NULL;
@@ -684,7 +680,7 @@ fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
             NULL, /* requiredIntermediateVariables[] */
             0, /*  nRequiredIntermediateVariables */
             fmu, /* fmi3InstanceEnvironment */
-            (fmi3LogMessageCallback)logger_embedded_fmu,
+            (fmi3LogMessageCallback)logger_embedded_fmu3,
             NULL /* intermediateUpdateCallback */
         );
     } 

@@ -24,15 +24,17 @@ typedef union {
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
-extern void logger_init(fmu_version_t version, logger_function_t callback, void *environment,
-                 const char *instance_name, int debug);
+extern void logger_init(fmu_version_t version, logger_function_t callback,
+                        void *environment,
+                        const char *instance_name, int debug);
 extern void logger_set_debug(int debug);
 extern int logger_get_debug(void);
 extern void logger(int status, const char *message, ...);
-extern void logger_embedded_fmu(fmu_t *fmu,
-                                const char *instanceName, int status,
-                                const char *category, const char *message, ...);
-
+extern void logger_embedded_fmu2(fmu_t *fmu,
+                                 const char *instanceName, int status,
+                                 const char *category, const char *message, ...);
+extern void logger_embedded_fmu3(fmu_t* fmu,
+                                 int status, const char* category, const char* message);
 #	ifdef __cplusplus
 }
 #	endif
