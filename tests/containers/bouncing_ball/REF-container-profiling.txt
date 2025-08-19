@@ -10,7 +10,7 @@ bb_position
 bb_velocity.fmu 2
 bb_velocity
 {abf5f61d-b459-3641-3a2c-1e594b990280}
-# NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, strings
+# NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string
 4 0 0 0 0 0 0 0 0 0 1 0 0
 # CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
 # real64
@@ -44,7 +44,7 @@ bb_velocity
 167772160 1 -1 0
 # boolean1
 0 0
-# strings
+# string
 0 0
 # Inputs of bb_position.fmu - real64: <VR> <FMU_VR>
 1
@@ -71,7 +71,7 @@ bb_velocity
 0
 # Inputs of bb_position.fmu - boolean1: <VR> <FMU_VR>
 0
-# Inputs of bb_position.fmu - strings: <VR> <FMU_VR>
+# Inputs of bb_position.fmu - string: <VR> <FMU_VR>
 0
 # Start values of bb_position.fmu - real64: <FMU_VR> <RESET> <VALUE>
 0
@@ -97,7 +97,7 @@ bb_velocity
 0
 # Start values of bb_position.fmu - boolean1: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of bb_position.fmu - strings: <FMU_VR> <RESET> <VALUE>
+# Start values of bb_position.fmu - string: <FMU_VR> <RESET> <VALUE>
 0
 # Outputs of bb_position.fmu - real64: <VR> <FMU_VR>
 0
@@ -124,7 +124,7 @@ bb_velocity
 167772160 0
 # Outputs of bb_position.fmu - boolean1: <VR> <FMU_VR>
 0
-# Outputs of bb_position.fmu - strings: <VR> <FMU_VR>
+# Outputs of bb_position.fmu - string: <VR> <FMU_VR>
 0
 # Conversion table of bb_position.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
@@ -153,7 +153,7 @@ bb_velocity
 167772160 0
 # Inputs of bb_velocity.fmu - boolean1: <VR> <FMU_VR>
 0
-# Inputs of bb_velocity.fmu - strings: <VR> <FMU_VR>
+# Inputs of bb_velocity.fmu - string: <VR> <FMU_VR>
 0
 # Start values of bb_velocity.fmu - real64: <FMU_VR> <RESET> <VALUE>
 0
@@ -179,7 +179,7 @@ bb_velocity
 0
 # Start values of bb_velocity.fmu - boolean1: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of bb_velocity.fmu - strings: <FMU_VR> <RESET> <VALUE>
+# Start values of bb_velocity.fmu - string: <FMU_VR> <RESET> <VALUE>
 0
 # Outputs of bb_velocity.fmu - real64: <VR> <FMU_VR>
 1
@@ -206,7 +206,7 @@ bb_velocity
 0
 # Outputs of bb_velocity.fmu - boolean1: <VR> <FMU_VR>
 0
-# Outputs of bb_velocity.fmu - strings: <VR> <FMU_VR>
+# Outputs of bb_velocity.fmu - string: <VR> <FMU_VR>
 0
 # Conversion table of bb_velocity.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
