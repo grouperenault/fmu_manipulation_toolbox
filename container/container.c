@@ -60,7 +60,7 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
         status = fmu_set_inputs(fmu);
         if (status != FMU_STATUS_OK)
             return status;
-            
+    
         /* COMPUTATION */
         status = fmuDoStep(fmu, time, container->time_step);
         if (status != FMU_STATUS_OK)
@@ -508,6 +508,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                 logger(LOGGER_ERROR, "Cannot interpret FMU I/O for '" #type "' (" #causality ")"); \
                 return -5; \
             } \
+            fmu_io-> type . causality .translations[i].vr &= 0xFFFFFF; \
         } \
     }
 

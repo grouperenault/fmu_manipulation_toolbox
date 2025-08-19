@@ -67,8 +67,8 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         } 
 
         logger(LOGGER_DEBUG, "Container model loading...");
-        if (strncmp(fmuResourceLocation, "file://", 7) == 0)
-            fmuResourceLocation += 7;
+        if (strncmp(fmuResourceLocation, "file:///", 8) == 0)
+            fmuResourceLocation += 8;
 
         if (container_configure(container, fmuResourceLocation)) {
             logger(LOGGER_ERROR, "Cannot read container configuration.");
@@ -332,7 +332,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
             logger(LOGGER_ERROR, "Container cannot DoStep.");
             return fmi2Error;
         }
-    }       
+    }
 
     const double new_time = container->start_time + container->time_step * container->nb_steps;
     if (fabs(end_time - new_time) > container->tolerance) {
