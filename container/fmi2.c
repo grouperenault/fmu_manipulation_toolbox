@@ -67,8 +67,12 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         } 
 
         logger(LOGGER_DEBUG, "Container model loading...");
-        if (strncmp(fmuResourceLocation, "file:///", 8) == 0)
-            fmuResourceLocation += 8;
+        if (strncmp(fmuResourceLocation, "file:///", 7) == 0)
+            fmuResourceLocation += 7;
+#ifdef WIN32
+        if (fmuResourceLocation[0] == '/')
+            fmuResourceLocation += 1;
+#endif
 
         if (container_configure(container, fmuResourceLocation)) {
             logger(LOGGER_ERROR, "Cannot read container configuration.");
