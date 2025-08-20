@@ -795,8 +795,14 @@ class FMUContainer:
             if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[2]:
                 print(f'      <Unknown index="{index}"/>', file=xml_file)
                 index += 1
-
         xml_file.write("    </Outputs>\n"
+                       "    <InitialUnknowns>\n")
+        index = index_offset
+        for output in self.outputs.values():
+            if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[2]:
+                print(f'      <Unknown index="{index}"/>', file=xml_file)
+                index += 1
+        xml_file.write("    </InitialUnknowns>\n"
                        "  </ModelStructure>\n"
                        "\n"
                        "</fmiModelDescription>")
@@ -808,7 +814,9 @@ class FMUContainer:
         for output in self.outputs.values():
             if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[3]:
                 print(f'      <Output valueReference="{output.vr}"/>', file=xml_file)
-
+        for output in self.outputs.values():
+            if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[3]:
+                print(f'      <InitialUnknown valueReference="{output.vr}"/>', file=xml_file)
         xml_file.write("  </ModelStructure>\n"
                        "\n"
                        "</fmiModelDescription>")
