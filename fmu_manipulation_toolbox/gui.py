@@ -2,21 +2,23 @@ import os.path
 import sys
 import textwrap
 
-from PySide6.QtCore import Qt, QObject, QUrl, QDir, Signal, QPoint, QModelIndex
+from PySide6.QtCore import Qt, QUrl, QDir, Signal, QPoint, QModelIndex
 from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
                                QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView, QTabWidget, QTableView,
                                QCheckBox)
 from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
                            QPainter, QColor, QImage, QStandardItemModel)
 from functools import partial
-from typing import Optional
 
-from .gui_style import gui_style
+
+from .gui_style import gui_style, log_color
 from .operations import *
 from .assembly import Assembly, AssemblyNode
 from .checker import checker_list
 from .help import Help
 from .version import __version__ as version
+
+logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
 class DropZoneWidget(QLabel):
@@ -51,7 +53,7 @@ class DropZoneWidget(QLabel):
             try:
                 file_path = event.mimeData().urls()[0].toLocalFile()
             except IndexError:
-                print("Please select a regular file.")
+                logger.error("Please select a regular file.")
                 return
             self.set_fmu(file_path)
             event.accept()
@@ -98,54 +100,41 @@ class DropZoneWidget(QLabel):
             self.fmu = FMU(filename)
             self.set_image(os.path.join(self.fmu.tmp_directory, "model.png"))
         except Exception as e:
-            print(f"ERROR: Cannot load this FMU: {e}")
+            logger.error(f"Cannot load this FMU: {e}")
             self.set_image(None)
             self.fmu = None
         self.clicked.emit()
 
 
+class LogHandler(logging.Handler):
+    LOG_COLOR = {
+        logging.DEBUG: QColor(log_color["DEBUG"]),
+        logging.INFO: QColor(log_color["INFO"]),
+        logging.WARNING: QColor(log_color["WARNING"]),
+        logging.ERROR: QColor(log_color["ERROR"]),
+        logging.CRITICAL: QColor(log_color["CRITICAL"]),
+    }
+
+    def __init__(self, text_browser, level):
+        super().__init__(level)
+        self.text_browser: QTextBrowser = text_browser
+        logger.addHandler(self)
+        logger.setLevel(level)
+
+    def emit(self, record) -> None:
+        self.text_browser.setTextColor(self.LOG_COLOR[record.levelno])
+        self.text_browser.insertPlainText(record.msg+"\n")
+
+
 class LogWidget(QTextBrowser):
-    class XStream(QObject):
-        _stdout = None
-        _stderr = None
-        messageWritten = Signal(str)
+    def __init__(self, parent=None, level=logging.INFO):
+        super().__init__(parent)
 
-        def __init__(self):
-            super().__init__()
-
-        def flush(self):
-            pass
-
-        @staticmethod
-        def fileno():
-            return -1
-
-        def write(self, msg):
-            if not self.signalsBlocked():
-                self.messageWritten.emit(msg)
-
-        @staticmethod
-        def stdout():
-            if not LogWidget.XStream._stdout:
-                LogWidget.XStream._stdout = LogWidget.XStream()
-                sys.stdout = LogWidget.XStream._stdout
-            return LogWidget.XStream._stdout
-
-        @staticmethod
-        def stderr():
-            if not LogWidget.XStream._stderr:
-                LogWidget.XStream._stderr = LogWidget.XStream()
-                sys.stderr = LogWidget.XStream._stderr
-            return LogWidget.XStream._stderr
-
-    def __init__(self):
-        super().__init__()
         self.setMinimumWidth(900)
         self.setMinimumHeight(500)
         self.setSearchPaths([os.path.join(os.path.dirname(__file__), "resources")])
         self.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
-        LogWidget.XStream.stdout().messageWritten.connect(self.insertPlainText)
-        LogWidget.XStream.stderr().messageWritten.connect(self.insertPlainText)
+        self.log_handler = LogHandler(self, logging.DEBUG)
 
     def loadResource(self, _, name):
         image_path = os.path.join(os.path.dirname(__file__), "resources", name.toString())
@@ -255,10 +244,10 @@ class AssemblyTreeWidget(QTreeView):
 
         def removeRows(self, row, count, parent=QModelIndex()):
             if not self.dnd_target_node:
-                print("NO DROP NODE!?")
+                logger.error("NO DROP NODE!?")
 
             source_index = self.itemFromIndex(parent).child(row, 0).data(role=Qt.ItemDataRole.UserRole+1)
-            print(f"{source_index} ==> {self.dnd_target_node.name}")
+            logger.debug(f"{source_index} ==> {self.dnd_target_node.name}")
 
             self.dnd_target_node = None
             return super().removeRows(row, count, parent)
@@ -289,7 +278,7 @@ class AssemblyTreeWidget(QTreeView):
 
     def setTopIndex(self):
         topIndex = self.model.index(0, 0, self.rootIndex())
-        print(topIndex.isValid(), topIndex.model())
+        logger.debug(topIndex.isValid(), topIndex.model())
         if topIndex.isValid():
             self.setCurrentIndex(topIndex)
             if self.layoutCheck:
@@ -318,9 +307,9 @@ class AssemblyTreeWidget(QTreeView):
             try:
                 file_path = event.mimeData().urls()[0].toLocalFile()
             except IndexError:
-                print("Please select a regular file.")
+                logger.error("Please select a regular file.")
                 return
-            print(f"DROP: {file_path}")
+            logger.debug(f"DROP: {file_path}")
             event.accept()
         else:
             event.ignore()
@@ -518,7 +507,7 @@ class MainWindow(WindowWithLayout):
                                                        "FMU files (*.fmu)")
             if ok and filename:
                 fmu.repack(filename)
-                print(f"Modified version saved as {filename}.")
+                logger.info(f"Modified version saved as {filename}.")
 
     def save_log(self):
         if self.dropped_fmu.fmu:
@@ -533,7 +522,7 @@ class MainWindow(WindowWithLayout):
                 with open(filename, "wt") as file:
                     file.write(str(self.log_widget.toPlainText()))
             except Exception as e:
-                print(f"ERROR: {e}")
+                logger.error(f"{e}")
 
     def add_operation(self, name, usage, severity, operation, x, y, prompt=None, prompt_file=None, arg=None,
                       func=None):
@@ -603,18 +592,18 @@ class MainWindow(WindowWithLayout):
         if self.dropped_fmu.fmu:
             self.log_widget.moveCursor(QTextCursor.MoveOperation.End)
             fmu_filename = os.path.basename(self.dropped_fmu.fmu.fmu_filename)
-            print('-' * 100)
+            logger.info('-' * 100)
             self.log_widget.insertHtml(f"<strong>{fmu_filename}: {operation}</strong><br>")
 
             apply_on = self.filter_list.get()
             if apply_on:
                 self.log_widget.insertHtml(f"<i>Applied only for ports with  causality = " +
                                            ", ".join(apply_on) + "</i><br>")
-            print('-' * 100)
+            logger.info('-' * 100)
             try:
                 self.dropped_fmu.fmu.apply_operation(operation, apply_on=apply_on)
             except Exception as e:
-                print(f"ERROR: {e}")
+                logger.error(f"{e}")
 
             scroll_bar = self.log_widget.verticalScrollBar()
             scroll_bar.setValue(scroll_bar.maximum())
@@ -712,7 +701,7 @@ class ContainerWindow(WindowWithLayout):
                 self.last_directory = os.path.dirname(filename)
                 self.assembly_tree.load_container(filename)
             except Exception as e:
-                print(e)
+                logger.error(e)
 
 
 class Application(QApplication):
@@ -724,8 +713,9 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 
     """
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
         self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor)
+        super().__init__(*args, **kwargs)
+
 
         QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "resources"))
         self.setStyleSheet(gui_style)
@@ -747,8 +737,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 def main():
     application = Application(sys.argv)
 
-    print(" " * 80, f"Version {version}")
-    print(application.__doc__)
+    logger.info(" " * 80 + f"Version {version}")
+    logger.info(application.__doc__)
 
     sys.exit(application.exec())
 

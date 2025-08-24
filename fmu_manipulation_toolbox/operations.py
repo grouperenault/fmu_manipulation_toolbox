@@ -1,5 +1,6 @@
 import csv
 import html
+import logging
 import os
 import re
 import shutil
@@ -10,6 +11,7 @@ import hashlib
 from pathlib import Path
 from typing import *
 
+logger = logging.getLogger("fmu_manipulation_toolbox")
 
 class FMU:
     """Unpack and Repack facilities for FMU package. Once unpacked, we can process Operation on
@@ -199,7 +201,7 @@ class Manipulation:
                     self.handle_port()
                     self.current_port.write_xml(self.fmu.fmi_version, self.out)
                 except ManipulationSkipTag:
-                    print(f"INFO: Port '{self.current_port['name']}' is removed.")
+                    logger.info(f"Port '{self.current_port['name']}' is removed.")
                 self.current_port = None
 
             elif self.current_port is None:
@@ -226,7 +228,7 @@ class Manipulation:
         if new_index:
             attrs['index'] = self.port_translation[int(attrs['index']) - 1]
         else:
-            print(f"WARNING: Removed port '{self.port_names_list[index]}' is involved in dependencies tree.")
+            logger.warning(f"Removed port '{self.port_names_list[index]}' is involved in dependencies tree.")
             raise ManipulationSkipTag
 
     def handle_structure(self, attrs):
@@ -242,7 +244,7 @@ class Manipulation:
             new_dependencies = []
             for dependency in dependencies.split(" "):
                 if dependency in self.port_removed_vr:
-                    print(f"WARNING: Removed port 'vr={dependency}' was involved in dependencies tree.")
+                    logger.warning(f"Removed port 'vr={dependency}' was involved in dependencies tree.")
                 else:
                     new_dependencies.append(dependency)
             attrs['dependencies'] = " ".join(new_dependencies)
@@ -385,7 +387,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
             raise OperationError(f"{self.bitness_from} interface does not exist")
 
         if os.path.isdir(fmu_bin[self.bitness_to]):
-            print(f"INFO: {self.bitness_to} already exists. Add front-end.")
+            logger.info(f"{self.bitness_to} already exists. Add front-end.")
             shutil.move(os.path.join(fmu_bin[self.bitness_to], attrs['modelIdentifier'] + ".dll"),
                         os.path.join(fmu_bin[self.bitness_to], attrs['modelIdentifier'] + "-remoted.dll"))
         else:
@@ -465,31 +467,31 @@ class OperationSummary(OperationAbstract):
         return f"FMU Summary"
 
     def fmi_attrs(self, attrs):
-        print(f"| fmu filename = {self.fmu.fmu_filename}")
-        print(f"| temporary directory = {self.fmu.tmp_directory}")
+        logger.info(f"| fmu filename = {self.fmu.fmu_filename}")
+        logger.info(f"| temporary directory = {self.fmu.tmp_directory}")
         hash_md5 = hashlib.md5()
         with open(self.fmu.fmu_filename, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
         digest = hash_md5.hexdigest()
-        print(f"| MD5Sum = {digest}")
+        logger.info(f"| MD5Sum = {digest}")
 
-        print(f"|\n| FMI properties: ")
+        logger.info(f"|\n| FMI properties: ")
         for (k, v) in attrs.items():
-            print(f"|  - {k} = {v}")
-        print(f"|")
+            logger.info(f"|  - {k} = {v}")
+        logger.info(f"|")
 
     def cosimulation_attrs(self, attrs):
-        print("| Co-Simulation capabilities: ")
+        logger.info("| Co-Simulation capabilities: ")
         for (k, v) in attrs.items():
-            print(f"|  - {k} = {v}")
-        print(f"|")
+            logger.info(f"|  - {k} = {v}")
+        logger.info(f"|")
 
     def experiment_attrs(self, attrs):
-        print("| Default Experiment values: ")
+        logger.info("| Default Experiment values: ")
         for (k, v) in attrs.items():
-            print(f"|  - {k} = {v}")
-        print(f"|")
+            logger.info(f"|  - {k} = {v}")
+        logger.info(f"|")
 
     def port_attrs(self, fmu_port) -> int:
         causality = fmu_port.get("causality", "local")
@@ -502,33 +504,33 @@ class OperationSummary(OperationAbstract):
         return 0
 
     def closure(self):
-        print("| Supported platforms: ")
+        logger.info("| Supported platforms: ")
         try:
             for platform in os.listdir(os.path.join(self.fmu.tmp_directory, "binaries")):
-                print(f"|  - {platform}")
+                logger.info(f"|  - {platform}")
         except FileNotFoundError:
             pass  # no binaries
 
         if os.path.isdir(os.path.join(self.fmu.tmp_directory, "sources")):
-            print(f"|  - RT (sources available)")
+            logger.info(f"|  - RT (sources available)")
 
         resource_dir = os.path.join(self.fmu.tmp_directory, "resources")
         if os.path.isdir(resource_dir):
-            print("|\n| Embedded resources:")
+            logger.info("|\n| Embedded resources:")
             for resource in os.listdir(resource_dir):
-                print(f"|  - {resource}")
+                logger.info(f"|  - {resource}")
 
         extra_dir = os.path.join(self.fmu.tmp_directory, "extra")
         if os.path.isdir(extra_dir):
-            print("|\n| Additional (meta-)data:")
+            logger.info("|\n| Additional (meta-)data:")
             for extra in os.listdir(extra_dir):
-                print(f"|  - {extra}")
+                logger.info(f"|  - {extra}")
 
-        print("|\n| Number of signals")
+        logger.info("|\n| Number of ports")
         for causality, nb_ports in self.nb_port_per_causality.items():
-            print(f"|  {causality} : {nb_ports}")
+            logger.info(f"|  {causality} : {nb_ports}")
 
-        print("|\n| [End of report]")
+        logger.info("|\n| [End of report]")
 
 
 class OperationRemoveSources(OperationAbstract):
@@ -539,7 +541,7 @@ class OperationRemoveSources(OperationAbstract):
         try:
             shutil.rmtree(os.path.join(self.fmu.tmp_directory, "sources"))
         except FileNotFoundError:
-            print("This FMU does not embed sources.")
+            logger.info("This FMU does not embed sources.")
 
 
 class OperationTrimUntil(OperationAbstract):

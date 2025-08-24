@@ -1,13 +1,16 @@
 import argparse
+import sys
 
-from .utils import *
+from .utils import setup_logger, make_wide
 from ..operations import *
 from ..checker import checker_list
 from ..version import __version__ as version
 from ..help import Help
 
 def fmutool():
-    print(f"FMU Manipulation Toolbox version {version}")
+    logger = setup_logger()
+
+    logger.info(f"FMU Manipulation Toolbox version {version}")
     help_message = Help()
 
     parser = argparse.ArgumentParser(prog='fmutool',
@@ -66,42 +69,42 @@ def fmutool():
         cli_options.operations_list = []
 
     if cli_options.fmu_input == cli_options.fmu_output:
-        print(f"FATAL ERROR: '-input' and '-output' should point to different files.")
+        logger.fatal(f"'-input' and '-output' should point to different files.")
         sys.exit(-3)
 
-    print(f"READING Input='{cli_options.fmu_input}'")
+    logger.info(f"READING Input='{cli_options.fmu_input}'")
     try:
         fmu = FMU(cli_options.fmu_input)
     except FMUError as reason:
-        print(f"FATAL ERROR: {reason}")
+        logger.fatal(f"{reason}")
         sys.exit(-4)
 
     if cli_options.apply_on:
-        print("Applying operation for :")
+        logger.info("Applying operation for :")
         for causality in cli_options.apply_on:
-            print(f"     - causality = {causality}")
+            logger.info(f"     - causality = {causality}")
 
     for operation in cli_options.operations_list:
-        print(f"     => {operation}")
+        logger.info(f"     => {operation}")
         try:
             fmu.apply_operation(operation, cli_options.apply_on)
         except OperationError as reason:
-            print(f"ERROR: {reason}")
+            logger.fatal(f"{reason}")
             sys.exit(-6)
 
     if cli_options.extract_description:
-        print(f"WRITING ModelDescriptor='{cli_options.extract_description}'")
+        logger.info(f"WRITING ModelDescriptor='{cli_options.extract_description}'")
         fmu.save_descriptor(cli_options.extract_description)
 
     if cli_options.fmu_output:
-        print(f"WRITING Output='{cli_options.fmu_output}'")
+        logger.info(f"WRITING Output='{cli_options.fmu_output}'")
         try:
             fmu.repack(cli_options.fmu_output)
         except FMUError as reason:
-            print(f"FATAL ERROR: {reason}")
+            logger.fatal(f"FATAL ERROR: {reason}")
             sys.exit(-5)
     else:
-        print(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
+        logger.info(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
 
 if __name__ == "__main__":
     fmutool()
