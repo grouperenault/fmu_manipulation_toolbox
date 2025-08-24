@@ -1,0 +1,7 @@
+{
+  "name": "container-passthrough.fmu",
+  "fmu": [
+    "constant.fmu",
+    "passthrough.fmu"
+  ]
+}
