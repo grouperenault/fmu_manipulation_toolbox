@@ -1,6 +1,7 @@
 import argparse
+import logging
 
-from .utils import *
+from .utils import setup_logger, make_wide
 from ..split import FMUSplitter, FMUSplitterError
 from ..version import __version__ as version
 

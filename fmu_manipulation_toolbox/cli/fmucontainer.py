@@ -1,8 +1,9 @@
 import argparse
+import logging
 
 from pathlib import Path
 
-from .utils import *
+from .utils import setup_logger, make_wide
 from ..assembly import Assembly, AssemblyError
 from ..container import FMUContainerError
 from ..version import __version__ as version
