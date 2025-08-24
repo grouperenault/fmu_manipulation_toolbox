@@ -562,7 +562,7 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
         return fmi3OK;
     
     for(int i = 0; i < local_steps; i += 1) {
-        container->do_step(container);
+        status = container->do_step(container);
         container->nb_steps += 1;
 
         if (status != FMU_STATUS_OK) {
