@@ -2,10 +2,15 @@ import argparse
 import sys
 
 from .utils import setup_logger, make_wide
-from ..operations import *
+from ..operations import (OperationSummary, OperationError, OperationRemoveRegexp,
+                          OperationRemoveSources, OperationTrimUntil, OperationKeepOnlyRegexp, OperationMergeTopLevel,
+                          OperationStripTopLevel, OperationRenameFromCSV, OperationSaveNamesToCSV,
+                          OperationAddFrontendWin32, OperationAddFrontendWin64, OperationAddRemotingWin32,
+                          OperationAddRemotingWin64, FMU, FMUError)
 from ..checker import checker_list
 from ..version import __version__ as version
 from ..help import Help
+
 
 def fmutool():
     logger = setup_logger()

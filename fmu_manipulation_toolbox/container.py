@@ -884,7 +884,6 @@ class FMUContainer:
         print("# CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]", file=txt_file)
         for type_name in EmbeddedFMUPort.ALL_TYPES:
             print(f"# {type_name}", file=txt_file)
-            nb = len(inputs_per_type[type_name]) + len(outputs_per_type[type_name]) + len(locals_per_type[type_name])
             nb_local = (len(inputs_per_type[type_name]) +
                         len(outputs_per_type[type_name]) +
                         self.vr_table.nb_local(type_name))
