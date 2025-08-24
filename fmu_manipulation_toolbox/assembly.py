@@ -103,7 +103,7 @@ class AssemblyNode:
 
     def make_fmu(self, fmu_directory: Path, debug=False, description_pathname=None, fmi_version=2):
         for node in self.children.values():
-            node.make_fmu(fmu_directory, debug=debug)
+            node.make_fmu(fmu_directory, debug=debug, fmi_version=fmi_version)
 
         identifier = str(Path(self.name).stem)
         container = FMUContainer(identifier, fmu_directory, description_pathname=description_pathname,
