@@ -57,6 +57,7 @@ class FMUPort:
     def __init__(self):
         self.fmi_type = None
         self.attrs_list: List[Dict] = []
+        self.dimension = None
 
     def dict_level(self, nb):
         return " ".join([f'{key}="{value}"' for key, value in self.attrs_list[nb].items()])
@@ -98,9 +99,6 @@ class FMUPort:
 
     def push_attrs(self, attrs):
         self.attrs_list.append(attrs)
-
-    def is_ready(self):
-        return self.fmi_type is not None
 
 
 class FMUError(Exception):
@@ -147,6 +145,7 @@ class Manipulation:
         if not self.apply_on or causality in self.apply_on:
             if self.operation.port_attrs(self.current_port):
                 self.remove_port(port_name, vr)
+                # Exception is raised by remove port !
             else:
                 self.keep_port(port_name)
         else:  # Keep ScalarVariable as it is.
@@ -178,18 +177,11 @@ class Manipulation:
             elif name == 'Output' or name == "ContinuousStateDerivative" or "InitialUnknown":
                 self.handle_structure(attrs)
 
-            if self.current_port and self.current_port.is_ready():
-                self.handle_port()
-
         except ManipulationSkipTag:
             self.skip_until = name
             return
 
-        if self.current_port:
-            if self.current_port.is_ready():
-                self.current_port.write_xml(self.fmu.fmi_version, self.out)
-                self.current_port = None
-        else: # re-copy tags
+        if self.current_port is None:
             if attrs:
                 attrs_list = [f'{key}="{self.escape(value)}"' for (key, value) in attrs.items()]
                 print(f"<{name}", " ".join(attrs_list), ">", end='', file=self.out)
@@ -202,7 +194,15 @@ class Manipulation:
                 self.skip_until = None
             return
         else:
-            if name not in FMU.FMI3_TYPES and name not in FMU.FMI2_TYPES and not name == "ScalarVariable":
+            if name == "ScalarVariable" or (self.fmu.fmi_version == 3 and name in FMU.FMI3_TYPES):
+                try:
+                    self.handle_port()
+                    self.current_port.write_xml(self.fmu.fmi_version, self.out)
+                except ManipulationSkipTag:
+                    print(f"INFO: Port '{self.current_port['name']}' is removed.")
+                self.current_port = None
+
+            elif self.current_port is None:
                 print(f"</{name}>", end='', file=self.out)
 
     def char_data(self, data):
