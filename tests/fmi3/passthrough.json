@@ -2,6 +2,10 @@
   "name": "container-passthrough.fmu",
   "fmu": [
     "constant.fmu",
-    "passthrough.fmu"
+    "passthrough.fmu",
+    "not2.fmu"
+  ],
+  "link": [
+    ["passthrough.fmu", "Out_boolean", "not2.fmu", "in_bool"]
   ]
 }
