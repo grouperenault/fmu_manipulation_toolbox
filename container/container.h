@@ -93,6 +93,9 @@ typedef struct container_s {
 	double						stop_time;
 	int							tolerance_defined;
 	int							stop_time_defined;
+
+	fmi2CallbackAllocateMemory	allocate_memory;		/* used to embed FMU-2.0 */
+	fmi2CallbackFreeMemory      free_memory;			/* used to embed FMU-2.0 */
 } container_t;
 
 

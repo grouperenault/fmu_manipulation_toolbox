@@ -57,6 +57,10 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
     if (container) {
         logger_function_t container_logger;
         container_logger.logger_fmi2 = functions->logger;
+        if (functions->allocateMemory) {
+            container->allocate_memory = functions->allocateMemory;
+            container->free_memory = functions->freeMemory;
+        }
         logger_init(FMU_2, container_logger, functions->componentEnvironment, container->instance_name, loggingOn); 
         /* logger() is available starting this point ! */
 
@@ -67,7 +71,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         } 
 
         logger(LOGGER_DEBUG, "Container model loading...");
-        if (strncmp(fmuResourceLocation, "file:///", 7) == 0)
+        if (strncmp(fmuResourceLocation, "file://", 7) == 0)
             fmuResourceLocation += 7;
 #ifdef WIN32
         if (fmuResourceLocation[0] == '/')

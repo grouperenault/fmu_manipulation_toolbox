@@ -899,6 +899,8 @@ int container_configure(container_t* container, const char* dirname) {
 container_t *container_new(const char *instance_name, const char *fmu_uuid) {
     container_t *container = malloc(sizeof(*container));
     if (container) {
+        container->allocate_memory = calloc;
+        container->free_memory = free;
         container->instance_name = strdup(instance_name);
         container->uuid = strdup(fmu_uuid);
 
