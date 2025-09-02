@@ -306,8 +306,9 @@ class Link:
         self.name = cport_from.fmu.id + "." + cport_from.port.name  # strip .fmu suffix
         self.cport_from = cport_from
         self.cport_to_list: List[ContainerPort] = []
+
         self.vr: Optional[int] = None
-        self.vr_converted: Dict[str, int] = {}
+        self.vr_converted: Dict[str, Optional[int]] = {}
 
         if not cport_from.port.causality == "output":
             raise FMUContainerError(f"{cport_from} is  {cport_from.port.causality} instead of OUTPUT")
@@ -316,10 +317,13 @@ class Link:
         if not cport_to.port.causality == "input":
             raise FMUContainerError(f"{cport_to} is {cport_to.port.causality} instead of INPUT")
 
-        if cport_to.port.type_name == self.cport_from.port.type_name or self.get_conversion(cport_to):
+        if cport_to.port.type_name == self.cport_from.port.type_name:
             self.cport_to_list.append(cport_to)
+        elif self.get_conversion(cport_to):
+            self.cport_to_list.append(cport_to)
+            self.vr_converted[cport_to.port.type_name] = None
         else:
-            raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
+                raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
 
     def get_conversion(self, cport_to: ContainerPort) -> Optional[str]:
         try:
@@ -488,7 +492,7 @@ class FMUContainer:
         try:
             fmu = EmbeddedFMU(self.fmu_directory / fmu_filename)
             if fmu.fmi_version > self.fmi_version:
-                logger.fatal(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}")
+                logger.warning(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}")
             self.involved_fmu[fmu.name] = fmu
 
             logger.debug(f"Adding FMU #{len(self.involved_fmu)}: {fmu}")
@@ -559,6 +563,7 @@ class FMUContainer:
         cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
         local.add_target(cport_to)  # Causality is check in the add() function
 
+        logger.debug(f"LINK: {cport_from} -> {cport_to}")
         self.mark_ruled(cport_from, 'LINK')
         self.mark_ruled(cport_to, 'LINK')
         self.locals[cport_from] = local
@@ -874,7 +879,13 @@ class FMUContainer:
             locals_per_type[local.cport_from.port.type_name].append(local)
             outputs_fmu_per_type[local.cport_from.port.type_name][local.cport_from.fmu.name][local.cport_from] = local.vr
             for cport_to in local.cport_to_list:
-                inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = local.vr
+                if cport_to.port.type_name == local.cport_from.port.type_name:
+                    inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = local.vr
+                else:
+                    conversion =  local.get_conversion(cport_to)
+                    inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = local.vr_converted[cport_to.port.type_name]
+                    logger.critical(f"{local.cport_from} {local.vr} {cport_to} {conversion} {local.vr_converted[cport_to.port.type_name]}")
+
 
         print(f"# NB local variables:", ", ".join(EmbeddedFMUPort.ALL_TYPES), file=txt_file)
         nb_local = [f"{self.vr_table.nb_local(type_name)}" for type_name in EmbeddedFMUPort.ALL_TYPES]
@@ -942,7 +953,7 @@ class FMUContainer:
         logger.debug(f"Copying {origin} in {destination}")
         shutil.copy(origin, destination)
 
-    def get_bindir_and_suffixe(self) -> (str, str, str):
+    def get_bindir_and_suffixe(self) -> Tuple[str, str, str]:
         suffixes = {
             "Windows": "dll",
             "Linux": "so",
