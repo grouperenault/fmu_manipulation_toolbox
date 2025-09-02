@@ -49,6 +49,5 @@ tests/containers/bouncing_ball/bouncing-seq.json
 /tests/containers/bouncing_ball/bouncing-3/
 /tests/containers/bouncing_ball/bouncing-3.fmu
 tests/fmi3/bouncing_ball/bouncing.fmu
-tests/fmi3/passthrough.fmu
 tests/fmi3/container-passthrough.fmu
 tests/fmi3/container-passthrough
