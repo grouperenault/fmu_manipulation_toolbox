@@ -38,7 +38,15 @@ fmu_status_t fmu_set_inputs(fmu_t* fmu) {
     SET_INPUT(uintegers64, UInteger64);
     SET_INPUT(booleans, Boolean);
     SET_INPUT(booleans1, Boolean1);
-    SET_INPUT(strings, String);
+
+    /* Need to add a (cast) to avod a warning */
+    for (int i = 0; i < fmu_io->strings.in.nb; i += 1) {
+        const unsigned int fmu_vr = fmu_io->strings.in.translations[i].fmu_vr;
+        const unsigned int local_vr = fmu_io->strings.in.translations[i].vr;
+        status = fmuSetString(fmu, &fmu_vr, 1, (const char *const*)&container->strings[local_vr]);
+        if (status != FMU_STATUS_OK) \
+            return status; \
+    }
 #undef SET_INPUT
 
     return status;
