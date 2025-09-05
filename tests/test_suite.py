@@ -143,6 +143,12 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files_but_guid("containers/start/REF-modelDescription.xml",
                                              "containers/start/container-slx/modelDescription.xml")
 
+    def test_fmi3_pt2(self):
+        assembly = Assembly("passthrough.json", fmu_directory=Path("fmi3/passthrough"), debug=True)
+        assembly.make_fmu(fmi_version=2)
+        self.assert_identical_files("fmi3/passthrough/REF-container.txt",
+                                    "fmi3/passthrough/container-passthrough/resources/container.txt")
+
     def test_container_move(self):
         #bb = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"))
         #links = bb.root.get_fmu_connections("bb_position.fmu")
