@@ -76,6 +76,8 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
         
     }
 
+    container->nb_steps += 1;
+
     return status;
 }
 
@@ -103,13 +105,12 @@ static fmu_status_t container_do_step_parallel_mt(container_t* container) {
             return FMU_STATUS_ERROR;
         }
     }
-
+    container->nb_steps += 1;
     return status;
 }
 
 
 static fmu_status_t container_do_step_parallel(container_t* container) {
-    static int set_input = 0;
     fmu_status_t status = FMU_STATUS_OK;
 
     for (size_t i = 0; i < container->nb_fmu; i += 1) {          
@@ -138,7 +139,7 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
             return status;
         }
     }
-
+    container->nb_steps += 1;
     return status;
 }
 

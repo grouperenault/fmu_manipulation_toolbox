@@ -331,10 +331,9 @@ fmi2Status fmi2DoStep(fmi2Component c,
      */
     if (local_steps == 0)
         return fmi2OK;
-    
+
     for(int i = 0; i < local_steps; i += 1) {
         container->do_step(container);
-        container->nb_steps += 1;
 
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container cannot DoStep.");

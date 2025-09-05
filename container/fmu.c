@@ -568,7 +568,7 @@ fmu_status_t fmuDoStep(const fmu_t *fmu,
         status3 = fmu->fmi_functions.version_3.fmi3DoStep(fmu->component,
                                                           currentCommunicationPoint,
                                                           communicationStepSize,
-                                                          fmi3True, 
+                                                          fmi3True, /* noSetFMUStatePriorToCurrentPoint */
                                                           &eventHandlingNeeded, 
                                                           &terminateSimulation, 
                                                           &earlyReturn, 
