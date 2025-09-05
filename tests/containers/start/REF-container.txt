@@ -1,49 +1,122 @@
-# Don't use MT
-0
-# Profiling DISABLED
-0
+# Container flags <MT> <Profiling> <Sequential>
+0 0 0
 # Internal time step in seconds
 0.1
 # NB of embedded FMU's
 1
-slx.fmu
+slx.fmu 2
 G
 {6853134c-427d-44a3-ac7a-36eca9552797}
-# NB local variables Real, Integer, Boolean, String
-0 0 0 0 
+# NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string
+1 0 0 0 0 0 0 0 0 0 0 0 0
 # CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
-# Real
-2 2
-0 1 0 2
-1 1 0 0
-# Integer
+# real64
+3 3
+0 1 -1 0
+1 1 0 2
+2 1 0 0
+# real32
 0 0
-# Boolean
+# integer8
 0 0
-# String
+# uinteger8
 0 0
-# Inputs of slx.fmu - Real: <VR> <FMU_VR>
+# integer16
+0 0
+# uinteger16
+0 0
+# integer32
+0 0
+# uinteger32
+0 0
+# integer64
+0 0
+# uinteger64
+0 0
+# boolean
+0 0
+# boolean1
+0 0
+# string
+0 0
+# Inputs of slx.fmu - real64: <VR> <FMU_VR>
 0
-# Inputs of slx.fmu - Integer: <VR> <FMU_VR>
+# Inputs of slx.fmu - real32: <VR> <FMU_VR>
 0
-# Inputs of slx.fmu - Boolean: <VR> <FMU_VR>
+# Inputs of slx.fmu - integer8: <VR> <FMU_VR>
 0
-# Inputs of slx.fmu - String: <VR> <FMU_VR>
+# Inputs of slx.fmu - uinteger8: <VR> <FMU_VR>
 0
-# Start values of slx.fmu - Real: <FMU_VR> <RESET> <VALUE>
+# Inputs of slx.fmu - integer16: <VR> <FMU_VR>
+0
+# Inputs of slx.fmu - uinteger16: <VR> <FMU_VR>
+0
+# Inputs of slx.fmu - integer32: <VR> <FMU_VR>
+0
+# Inputs of slx.fmu - uinteger32: <VR> <FMU_VR>
+0
+# Inputs of slx.fmu - integer64: <VR> <FMU_VR>
+0
+# Inputs of slx.fmu - uinteger64: <VR> <FMU_VR>
+0
+# Inputs of slx.fmu - boolean: <VR> <FMU_VR>
+0
+# Inputs of slx.fmu - boolean1: <VR> <FMU_VR>
+0
+# Inputs of slx.fmu - string: <VR> <FMU_VR>
+0
+# Start values of slx.fmu - real64: <FMU_VR> <RESET> <VALUE>
 1
 2 0 10.0
-# Start values of slx.fmu - Integer: <FMU_VR> <RESET> <VALUE>
+# Start values of slx.fmu - real32: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of slx.fmu - Boolean: <FMU_VR> <RESET> <VALUE>
+# Start values of slx.fmu - integer8: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of slx.fmu - String: <FMU_VR> <RESET> <VALUE>
+# Start values of slx.fmu - uinteger8: <FMU_VR> <RESET> <VALUE>
 0
-# Outputs of slx.fmu - Real: <VR> <FMU_VR>
+# Start values of slx.fmu - integer16: <FMU_VR> <RESET> <VALUE>
 0
-# Outputs of slx.fmu - Integer: <VR> <FMU_VR>
+# Start values of slx.fmu - uinteger16: <FMU_VR> <RESET> <VALUE>
 0
-# Outputs of slx.fmu - Boolean: <VR> <FMU_VR>
+# Start values of slx.fmu - integer32: <FMU_VR> <RESET> <VALUE>
 0
-# Outputs of slx.fmu - String: <VR> <FMU_VR>
+# Start values of slx.fmu - uinteger32: <FMU_VR> <RESET> <VALUE>
+0
+# Start values of slx.fmu - integer64: <FMU_VR> <RESET> <VALUE>
+0
+# Start values of slx.fmu - uinteger64: <FMU_VR> <RESET> <VALUE>
+0
+# Start values of slx.fmu - boolean: <FMU_VR> <RESET> <VALUE>
+0
+# Start values of slx.fmu - boolean1: <FMU_VR> <RESET> <VALUE>
+0
+# Start values of slx.fmu - string: <FMU_VR> <RESET> <VALUE>
+0
+# Outputs of slx.fmu - real64: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - real32: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - integer8: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - uinteger8: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - integer16: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - uinteger16: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - integer32: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - uinteger32: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - integer64: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - uinteger64: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - boolean: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - boolean1: <VR> <FMU_VR>
+0
+# Outputs of slx.fmu - string: <VR> <FMU_VR>
+0
+# Conversion table of slx.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0

@@ -2,6 +2,7 @@
   "name": "bouncing-profiling.fmu",
   "mt": false,
   "profiling": true,
+  "sequential": false,
   "auto_link": true,
   "auto_input": true,
   "auto_output": true,

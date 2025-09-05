@@ -1,10 +1,11 @@
 import argparse
+import logging
 
 from pathlib import Path
 
-from .utils import *
+from .utils import setup_logger, make_wide
 from ..assembly import Assembly, AssemblyError
-from ..fmu_container import FMUContainerError
+from ..container import FMUContainerError
 from ..version import __version__ as version
 
 
@@ -23,6 +24,10 @@ def fmucontainer():
     parser.add_argument("-fmu-directory", action="store", dest="fmu_directory", required=False, default=".",
                         help="Directory containing initial FMU’s and used to generate containers. "
                              "If not defined, current directory is used.")
+
+    parser.add_argument("-fmi", action="store", dest="fmi_version", required=False, default="2",
+                        help="Define version of FMI to be used for container interface."
+                             "Only '2' or '3' is supported.")
 
     parser.add_argument("-container", action="append", dest="container_descriptions_list", default=[],
                         metavar="filename.{csv|json|ssp},[:step_size]", required=True,
@@ -52,6 +57,9 @@ def fmucontainer():
     parser.add_argument("-profile", action="store_true", dest="profiling", default=False,
                         help="Enable Profiling mode for the generated container.")
 
+    parser.add_argument("-sequential", action="store_true", dest="sequential", default=False,
+                        help="Use sequential mode to schedule embedded fmu's.")
+
     parser.add_argument("-dump-json",  action="store_true", dest="dump", default=False,
                         help="Dump a JSON file for each container.")
 
@@ -75,7 +83,7 @@ def fmucontainer():
         try:
             assembly = Assembly(filename, step_size=step_size, auto_link=config.auto_link,
                                 auto_input=config.auto_input, auto_output=config.auto_output,
-                                auto_local=config.auto_local, mt=config.mt,
+                                auto_local=config.auto_local, mt=config.mt, sequential=config.sequential,
                                 profiling=config.profiling, fmu_directory=fmu_directory, debug=config.debug,
                                 auto_parameter=config.auto_parameter)
         except FileNotFoundError as e:
@@ -86,7 +94,7 @@ def fmucontainer():
             continue
 
         try:
-            assembly.make_fmu(dump_json=config.dump)
+            assembly.make_fmu(dump_json=config.dump, fmi_version=int(config.fmi_version))
         except FMUContainerError as e:
             logger.fatal(f"{filename}: {e}")
             continue

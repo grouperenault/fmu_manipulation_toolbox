@@ -1,5 +1,6 @@
 import csv
 import html
+import logging
 import os
 import re
 import shutil
@@ -8,23 +9,32 @@ import xml.parsers.expat
 import zipfile
 import hashlib
 from pathlib import Path
+from typing import *
 
+logger = logging.getLogger("fmu_manipulation_toolbox")
 
 class FMU:
     """Unpack and Repack facilities for FMU package. Once unpacked, we can process Operation on
     modelDescription.xml file."""
+
+    FMI2_TYPES = ('Real', 'Integer', 'String', 'Boolean', 'Enumeration')
+    FMI3_TYPES = ('Float64', 'Float32',
+                  'Int8', 'UInt8', 'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64',
+                  'String', 'Boolean', 'Enumeration')
+
     def __init__(self, fmu_filename):
         self.fmu_filename = fmu_filename
         self.tmp_directory = tempfile.mkdtemp()
+        self.fmi_version = None
 
         try:
             with zipfile.ZipFile(self.fmu_filename) as zin:
                 zin.extractall(self.tmp_directory)
         except FileNotFoundError:
-            raise FMUException(f"'{fmu_filename}' does not exist")
+            raise FMUError(f"'{fmu_filename}' does not exist")
         self.descriptor_filename = os.path.join(self.tmp_directory, "modelDescription.xml")
         if not os.path.isfile(self.descriptor_filename):
-            raise FMUException(f"'{fmu_filename}' is not valid: {self.descriptor_filename} not found")
+            raise FMUError(f"'{fmu_filename}' is not valid: {self.descriptor_filename} not found")
 
     def __del__(self):
         shutil.rmtree(self.tmp_directory)
@@ -45,7 +55,55 @@ class FMU:
         manipulation.manipulate(self.descriptor_filename, apply_on)
 
 
-class FMUException(Exception):
+class FMUPort:
+    def __init__(self):
+        self.fmi_type = None
+        self.attrs_list: List[Dict] = []
+        self.dimension = None
+
+    def dict_level(self, nb):
+        return " ".join([f'{key}="{value}"' for key, value in self.attrs_list[nb].items()])
+
+    def write_xml(self, fmi_version: int, file):
+        if fmi_version == 2:
+            print(f"    <ScalarVariable {self.dict_level(0)}>", file=file)
+            print(f"      <{self.fmi_type} {self.dict_level(1)}/>", file=file)
+            print(f"    </ScalarVariable>", file=file)
+        elif fmi_version == 3:
+            print(f"    <{self.fmi_type} {self.dict_level(0)}/>", file=file)
+        else:
+            raise FMUError(f"FMUPort writing: unsupported FMI version {fmi_version}")
+
+    def __contains__(self, item):
+        for attrs in self.attrs_list:
+            if item in attrs:
+                return True
+        return False
+
+    def __getitem__(self, item):
+        for attrs in self.attrs_list:
+            if item in attrs:
+                return attrs[item]
+        raise KeyError
+
+    def __setitem__(self, key, value):
+        for attrs in self.attrs_list:
+            if key in attrs:
+                attrs[key] = value
+                return
+        raise KeyError
+
+    def get(self, item, default_value):
+        try:
+            return self[item]
+        except KeyError:
+            return default_value
+
+    def push_attrs(self, attrs):
+        self.attrs_list.append(attrs)
+
+
+class FMUError(Exception):
     def __init__(self, reason):
         self.reason = reason
 
@@ -63,12 +121,16 @@ class Manipulation:
         self.parser.StartElementHandler = self.start_element
         self.parser.EndElementHandler = self.end_element
         self.parser.CharacterDataHandler = self.char_data
-        self.skip_until = None
+        self.skip_until: Optional[str] = None
         self.operation.set_fmu(fmu)
+        self.fmu = fmu
 
-        self.current_port = 0
-        self.port_translation = []
-        self.port_name = []
+        self.current_port: Optional[FMUPort] = None
+
+        self.current_port_number: int = 0
+        self.port_translation: List[Optional[int]] = []
+        self.port_names_list: List[str] = []
+        self.port_removed_vr: Set[str] = set()
         self.apply_on = None
 
     @staticmethod
@@ -78,39 +140,55 @@ class Manipulation:
         else:
             return value
 
+    def handle_port(self):
+        causality = self.current_port.get('causality', 'local')
+        port_name = self.current_port['name']
+        vr = self.current_port['valueReference']
+        if not self.apply_on or causality in self.apply_on:
+            if self.operation.port_attrs(self.current_port):
+                self.remove_port(port_name, vr)
+                # Exception is raised by remove port !
+            else:
+                self.keep_port(port_name)
+        else:  # Keep ScalarVariable as it is.
+            self.keep_port(port_name)
+
     def start_element(self, name, attrs):
         if self.skip_until:
             return
         try:
-            if name == 'ScalarVariable':
-                causality = OperationAbstract.scalar_get_causality(attrs)
-                if not self.apply_on or causality in self.apply_on:
-                    if self.operation.scalar_attrs(attrs):
-                        self.remove_port(attrs['name'])
-                    else:
-                        self.keep_port(attrs['name'])
-                else:  # Keep ScalarVariable as it is.
-                    self.keep_port(attrs['name'])
+            if name == 'ScalarVariable': # FMI 2.0 only
+                self.current_port = FMUPort()
+                self.current_port.push_attrs(attrs)
+            elif self.fmu.fmi_version == 2 and name in self.fmu.FMI2_TYPES:
+                self.current_port.fmi_type = name
+                self.current_port.push_attrs(attrs)
+            elif self.fmu.fmi_version == 3 and name in self.fmu.FMI3_TYPES:
+                self.current_port = FMUPort()
+                self.current_port.fmi_type = name
+                self.current_port.push_attrs(attrs)
             elif name == 'CoSimulation':
                 self.operation.cosimulation_attrs(attrs)
             elif name == 'DefaultExperiment':
                 self.operation.experiment_attrs(attrs)
             elif name == 'fmiModelDescription':
+                self.fmu.fmi_version = int(float(attrs["fmiVersion"]))
                 self.operation.fmi_attrs(attrs)
-            elif name == 'Unknown':
+            elif name == 'Unknown': # FMI-2.0 only
                 self.unknown_attrs(attrs)
-            elif name in ('Real', 'Integer', 'String', 'Boolean', 'Enumeration'):
-                self.operation.scalar_type(name, attrs)
+            elif name == 'Output' or name == "ContinuousStateDerivative" or "InitialUnknown":
+                self.handle_structure(attrs)
 
         except ManipulationSkipTag:
             self.skip_until = name
             return
 
-        if attrs:
-            attrs_list = [f'{key}="{self.escape(value)}"' for (key, value) in attrs.items()]
-            print(f"<{name}", " ".join(attrs_list), ">", end='', file=self.out)
-        else:
-            print(f"<{name}>", end='', file=self.out)
+        if self.current_port is None:
+            if attrs:
+                attrs_list = [f'{key}="{self.escape(value)}"' for (key, value) in attrs.items()]
+                print(f"<{name}", " ".join(attrs_list), ">", end='', file=self.out)
+            else:
+                print(f"<{name}>", end='', file=self.out)
 
     def end_element(self, name):
         if self.skip_until:
@@ -118,21 +196,31 @@ class Manipulation:
                 self.skip_until = None
             return
         else:
-            print(f"</{name}>", end='', file=self.out)
+            if name == "ScalarVariable" or (self.fmu.fmi_version == 3 and name in FMU.FMI3_TYPES):
+                try:
+                    self.handle_port()
+                    self.current_port.write_xml(self.fmu.fmi_version, self.out)
+                except ManipulationSkipTag:
+                    logger.info(f"Port '{self.current_port['name']}' is removed.")
+                self.current_port = None
+
+            elif self.current_port is None:
+                print(f"</{name}>", end='', file=self.out)
 
     def char_data(self, data):
         if not self.skip_until:
             print(data, end='', file=self.out)
 
-    def remove_port(self, name):
-        self.port_name.append(name)
+    def remove_port(self, name, vr):
+        self.port_names_list.append(name)
         self.port_translation.append(None)
+        self.port_removed_vr.add(vr)
         raise ManipulationSkipTag
 
     def keep_port(self, name):
-        self.port_name.append(name)
-        self.current_port += 1
-        self.port_translation.append(self.current_port)
+        self.port_names_list.append(name)
+        self.current_port_number += 1
+        self.port_translation.append(self.current_port_number)
 
     def unknown_attrs(self, attrs):
         index = int(attrs['index']) - 1
@@ -140,8 +228,28 @@ class Manipulation:
         if new_index:
             attrs['index'] = self.port_translation[int(attrs['index']) - 1]
         else:
-            print(f"WARNING: Removed port '{self.port_name[index]}' is involved in dependencies tree.")
+            logger.warning(f"Removed port '{self.port_names_list[index]}' is involved in dependencies tree.")
             raise ManipulationSkipTag
+
+    def handle_structure(self, attrs):
+        try:
+            vr = attrs['valueReference']
+            if vr in self.port_removed_vr:
+                raise ManipulationSkipTag
+        except KeyError:
+            return
+
+        try:
+            dependencies = attrs['dependencies']
+            new_dependencies = []
+            for dependency in dependencies.split(" "):
+                if dependency in self.port_removed_vr:
+                    logger.warning(f"Removed port 'vr={dependency}' was involved in dependencies tree.")
+                else:
+                    new_dependencies.append(dependency)
+            attrs['dependencies'] = " ".join(new_dependencies)
+        except KeyError:
+            return
 
     def manipulate(self, descriptor_filename, apply_on=None):
         self.apply_on = apply_on
@@ -165,30 +273,18 @@ class OperationAbstract:
     def fmi_attrs(self, attrs):
         pass
 
-    def scalar_attrs(self, attrs) -> int:
-        """ return 0 to keep port, otherwise remove it"""
-        return 0
-
     def cosimulation_attrs(self, attrs):
         pass
 
     def experiment_attrs(self, attrs):
         pass
 
-    def scalar_type(self, type_name, attrs):
-        pass
+    def port_attrs(self, fmu_port) -> int:
+        """ return 0 to keep port, otherwise remove it"""
+        return 0
 
     def closure(self):
         pass
-
-    @staticmethod
-    def scalar_get_causality(attrs) -> str:
-        try:
-            causality = attrs['causality']
-        except KeyError:
-            causality = 'local'  # Default value according to FMI Specifications.
-
-        return causality
 
 
 class OperationSaveNamesToCSV(OperationAbstract):
@@ -201,48 +297,29 @@ class OperationSaveNamesToCSV(OperationAbstract):
         self.writer = csv.writer(self.csvfile, delimiter=';', quotechar="'", quoting=csv.QUOTE_MINIMAL)
         self.writer.writerow(['name', 'newName', 'valueReference', 'causality', 'variability', 'scalarType',
                               'startValue'])
-        self.name = None
-        self.vr = None
-        self.variability = None
-        self.causality = None
-
-    def reset(self):
-        self.name = None
-        self.vr = None
-        self.variability = None
-        self.causality = None
 
     def closure(self):
         self.csvfile.close()
 
-    def scalar_attrs(self, attrs):
-        self.name = attrs['name']
-        self.vr = attrs['valueReference']
-        self.causality = self.scalar_get_causality(attrs)
-
-        try:
-            self.variability = attrs['variability']
-        except KeyError:
-            self.variability = 'continuous'   # Default value according to FMI Specifications.
+    def port_attrs(self, fmu_port: FMUPort) -> int:
+        self.writer.writerow([fmu_port["name"],
+                              fmu_port["name"],
+                              fmu_port["valueReference"],
+                              fmu_port.get("causality", "local"),
+                              fmu_port.get("variability", "continuous"),
+                              fmu_port.fmi_type,
+                              fmu_port.get("start", "")])
 
         return 0
-
-    def scalar_type(self, type_name, attrs):
-        if "start" in attrs:
-            start = attrs["start"]
-        else:
-            start = ""
-        self.writer.writerow([self.name, self.name, self.vr, self.causality, self.variability, type_name, start])
-        self.reset()
 
 
 class OperationStripTopLevel(OperationAbstract):
     def __repr__(self):
         return "Remove Top Level Bus"
 
-    def scalar_attrs(self, attrs):
-        new_name = attrs['name'].split('.', 1)[-1]
-        attrs['name'] = new_name
+    def port_attrs(self, fmu_port):
+        new_name = fmu_port['name'].split('.', 1)[-1]
+        fmu_port['name'] = new_name
         return 0
 
 
@@ -250,9 +327,9 @@ class OperationMergeTopLevel(OperationAbstract):
     def __repr__(self):
         return "Merge Top Level Bus with signal names"
 
-    def scalar_attrs(self, attrs):
-        old = attrs['name']
-        attrs['name'] = old.replace('.', '_', 1)
+    def port_attrs(self, fmu_port):
+        old = fmu_port['name']
+        fmu_port['name'] = old.replace('.', '_', 1)
         return 0
 
 
@@ -263,27 +340,26 @@ class OperationRenameFromCSV(OperationAbstract):
     def __init__(self, csv_filename):
         self.csv_filename = csv_filename
         self.translations = {}
-        self.current_port = 0
-        self.port_translation = []
+
         try:
             with open(csv_filename, newline='') as csvfile:
                 reader = csv.reader(csvfile, delimiter=';', quotechar="'")
                 for row in reader:
                     self.translations[row[0]] = row[1]
         except FileNotFoundError:
-            raise OperationException(f"file '{csv_filename}' is not found")
+            raise OperationError(f"file '{csv_filename}' is not found")
         except KeyError:
-            raise OperationException(f"file '{csv_filename}' should contain two columns")
+            raise OperationError(f"file '{csv_filename}' should contain two columns")
 
-    def scalar_attrs(self, attrs):
-        name = attrs['name']
+    def port_attrs(self, fmu_port):
+        name = fmu_port['name']
         try:
-            new_name = self.translations[attrs['name']]
+            new_name = self.translations[fmu_port['name']]
         except KeyError:
             new_name = name  # if port is not in CSV file, keep old name
 
         if new_name:
-            attrs['name'] = new_name
+            fmu_port['name'] = new_name
             return 0
         else:
             # we want to delete this name!
@@ -297,6 +373,10 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
     def __repr__(self):
         return f"Add '{self.bitness_to}' remoting on '{self.bitness_from}' FMU"
 
+    def fmi_attrs(self, attrs):
+        if not attrs["fmiVersion"] == "2.0":
+            raise OperationError(f"Adding remoting is only available for FMI-2.0")
+
     def cosimulation_attrs(self, attrs):
         fmu_bin = {
             "win32":  os.path.join(self.fmu.tmp_directory, "binaries", f"win32"),
@@ -304,10 +384,10 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         }
 
         if not os.path.isdir(fmu_bin[self.bitness_from]):
-            raise OperationException(f"{self.bitness_from} interface does not exist")
+            raise OperationError(f"{self.bitness_from} interface does not exist")
 
         if os.path.isdir(fmu_bin[self.bitness_to]):
-            print(f"INFO: {self.bitness_to} already exists. Add front-end.")
+            logger.info(f"{self.bitness_to} already exists. Add front-end.")
             shutil.move(os.path.join(fmu_bin[self.bitness_to], attrs['modelIdentifier'] + ".dll"),
                         os.path.join(fmu_bin[self.bitness_to], attrs['modelIdentifier'] + "-remoted.dll"))
         else:
@@ -352,11 +432,11 @@ class OperationRemoveRegexp(OperationAbstract):
     def __init__(self, regex_string):
         self.regex_string = regex_string
         self.regex = re.compile(regex_string)
-        self.current_port = 0
+        self.current_port_number = 0
         self.port_translation = []
 
-    def scalar_attrs(self, attrs):
-        name = attrs['name']
+    def port_attrs(self, fmu_port):
+        name = fmu_port['name']
         if self.regex.match(name):
             return 1  # Remove port
         else:
@@ -371,8 +451,8 @@ class OperationKeepOnlyRegexp(OperationAbstract):
         self.regex_string = regex_string
         self.regex = re.compile(regex_string)
 
-    def scalar_attrs(self, attrs):
-        name = attrs['name']
+    def port_attrs(self, fmu_port):
+        name = fmu_port['name']
         if self.regex.match(name):
             return 0
         else:
@@ -387,34 +467,34 @@ class OperationSummary(OperationAbstract):
         return f"FMU Summary"
 
     def fmi_attrs(self, attrs):
-        print(f"| fmu filename = {self.fmu.fmu_filename}")
-        print(f"| temporary directory = {self.fmu.tmp_directory}")
+        logger.info(f"| fmu filename = {self.fmu.fmu_filename}")
+        logger.info(f"| temporary directory = {self.fmu.tmp_directory}")
         hash_md5 = hashlib.md5()
         with open(self.fmu.fmu_filename, "rb") as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_md5.update(chunk)
         digest = hash_md5.hexdigest()
-        print(f"| MD5Sum = {digest}")
+        logger.info(f"| MD5Sum = {digest}")
 
-        print(f"|\n| FMI properties: ")
+        logger.info(f"|\n| FMI properties: ")
         for (k, v) in attrs.items():
-            print(f"|  - {k} = {v}")
-        print(f"|")
+            logger.info(f"|  - {k} = {v}")
+        logger.info(f"|")
 
     def cosimulation_attrs(self, attrs):
-        print("| Co-Simulation capabilities: ")
+        logger.info("| Co-Simulation capabilities: ")
         for (k, v) in attrs.items():
-            print(f"|  - {k} = {v}")
-        print(f"|")
+            logger.info(f"|  - {k} = {v}")
+        logger.info(f"|")
 
     def experiment_attrs(self, attrs):
-        print("| Default Experiment values: ")
+        logger.info("| Default Experiment values: ")
         for (k, v) in attrs.items():
-            print(f"|  - {k} = {v}")
-        print(f"|")
+            logger.info(f"|  - {k} = {v}")
+        logger.info(f"|")
 
-    def scalar_attrs(self, attrs) -> int:
-        causality = self.scalar_get_causality(attrs)
+    def port_attrs(self, fmu_port) -> int:
+        causality = fmu_port.get("causality", "local")
 
         try:
             self.nb_port_per_causality[causality] += 1
@@ -424,33 +504,33 @@ class OperationSummary(OperationAbstract):
         return 0
 
     def closure(self):
-        print("| Supported platforms: ")
+        logger.info("| Supported platforms: ")
         try:
             for platform in os.listdir(os.path.join(self.fmu.tmp_directory, "binaries")):
-                print(f"|  - {platform}")
+                logger.info(f"|  - {platform}")
         except FileNotFoundError:
             pass  # no binaries
 
         if os.path.isdir(os.path.join(self.fmu.tmp_directory, "sources")):
-            print(f"|  - RT (sources available)")
+            logger.info(f"|  - RT (sources available)")
 
         resource_dir = os.path.join(self.fmu.tmp_directory, "resources")
         if os.path.isdir(resource_dir):
-            print("|\n| Embedded resources:")
+            logger.info("|\n| Embedded resources:")
             for resource in os.listdir(resource_dir):
-                print(f"|  - {resource}")
+                logger.info(f"|  - {resource}")
 
         extra_dir = os.path.join(self.fmu.tmp_directory, "extra")
         if os.path.isdir(extra_dir):
-            print("|\n| Additional (meta-)data:")
+            logger.info("|\n| Additional (meta-)data:")
             for extra in os.listdir(extra_dir):
-                print(f"|  - {extra}")
+                logger.info(f"|  - {extra}")
 
-        print("|\n| Number of signals")
+        logger.info("|\n| Number of ports")
         for causality, nb_ports in self.nb_port_per_causality.items():
-            print(f"|  {causality} : {nb_ports}")
+            logger.info(f"|  {causality} : {nb_ports}")
 
-        print("|\n| [End of report]")
+        logger.info("|\n| [End of report]")
 
 
 class OperationRemoveSources(OperationAbstract):
@@ -461,7 +541,7 @@ class OperationRemoveSources(OperationAbstract):
         try:
             shutil.rmtree(os.path.join(self.fmu.tmp_directory, "sources"))
         except FileNotFoundError:
-            print("This FMU does not embed sources.")
+            logger.info("This FMU does not embed sources.")
 
 
 class OperationTrimUntil(OperationAbstract):
@@ -471,17 +551,17 @@ class OperationTrimUntil(OperationAbstract):
     def __repr__(self):
         return f"Trim names until (and including) '{self.separator}'"
 
-    def scalar_attrs(self, attrs) -> int:
-        name = attrs['name']
+    def port_attrs(self, fmu_port) -> int:
+        name = fmu_port['name']
         try:
-            attrs['name'] = name[name.index(self.separator)+len(self.separator):-1]
+            fmu_port['name'] = name[name.index(self.separator)+len(self.separator):-1]
         except KeyError:
             pass  # no separator
 
         return 0
 
 
-class OperationException(Exception):
+class OperationError(Exception):
     def __init__(self, reason):
         self.reason = reason
 

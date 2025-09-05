@@ -1,14 +1,14 @@
 # FMU Containers ?
 
-A FMU Container is classical FMU which embeds other's FMU's:
+A FMU Container is classical FMU which embeds other FMU's:
 
 ![FMU Container](../doc/FMUContainer.png "FMU Container")
-FMU Manipulation Toolbox ships `fmucontainer` command which makes easy to embed FMU's into FMU.
+FMU Manipulation Toolbox is shipped with `fmucontainer` command which makes easy to embed FMU's into FMU.
 
 
 # How to create an FMU Container ?
 
-The `fmucontainer` command creates container from a description file. This file contains multiple parameters:
+The `fmucontainer` command creates a FMU, named Container, from a description file. This file contains multiple parameters:
 
 - *time_step*: a FMU Container acts as a fixed step time "solver" for its embedded FMU's.
 - optional features
@@ -16,11 +16,11 @@ The `fmucontainer` command creates container from a description file. This file 
   - *profiling*: performance indicators can be calculated by the container to help to identify the bottlenecks among 
     the embedded FMU's.
 - routing table
-  - Input ports: the list of container's inputs. Each input is linked to one input of one of the embedded FMU's.
-  - Output ports: the list of container's outputs. Each output is linked to one output of one of the embedded FMU's.
+  - Input ports: the list of the Container's inputs. Each input is linked to one input (or more) of one of the embedded FMU's.
+  - Output ports: the list of the container's outputs. Each output is linked to one output of one of the embedded FMU's.
   - Connexions between embedded FMU's
   - Explicitly ignored ports (only port with `causality = "output"` can be ignored)
-- Automatic routing table
+- Automation of routing table
   - *auto_input* exposes automatically the (unconnected) ports of embedded FMU's with `causality = "input"`
   - *auto_output* expose automatically the (unconnected) ports of embedded FMU's with `causality = "output"`
   - *auto_local* expose automatically the ports of embedded FMU's with `causality = "local"`
@@ -31,7 +31,7 @@ The `fmucontainer` command creates container from a description file. This file 
 Some of these parameters can be defined by Command Line Interface or by the input files.
 
 Several formats are supported as description files:
-- a `CSV` format: define only the routing table. Other options are defined as command line options.
+- a `CSV` format: define only the routing table. Other options should be defined as command line options.
 - a `JSON` file: all parameters can be defined in the file. Command line can define default values if the parameter 
   is not present in `JSON` file.
 - a `SSP` file. See [ssp-standard.org](https://ssp-standard.org). define only the routing table. Other options are defined with command line.
@@ -39,6 +39,7 @@ Several formats are supported as description files:
 ![Routing](routing.png "Routing table")
 
 ## CSV Input file
+This is the historic input file format. It has been superseded by the Json input file format.
 
 Example: 
   * Two FMU's to be assembled: `bb_position.fmu` and `bb_velocity.fmu`
@@ -63,11 +64,11 @@ Asserting the FMU's and the CSV files are located in current working directory,
 the following command will build the container:
 
 ```
-fmucontainer -container container.csv
+fmucontainer -container container.csv:0.1
 ```
 
 Then `container.fmu` should be available.
-
+Note: the optional `:0.1` suffix means the timestep should be `0.1` second.  
 
 ## Json Input file
 
@@ -83,11 +84,43 @@ This feature is still alpha.
 
 The following command 
 ```
-fmucontainer -container my_file.ssp
+fmucontainer -container my_file.ssp:0.1
 ```
 
 will 
 1. extact FMU's from the SSP file
 2. build a container accordingly to the SSP
 
+Note: the optional `:0.1` suffix means the timestep should be `0.1` second.  
+
+# FMI Support
+
+FMI-3.0 current support is limited.
+Feel free to [create a ticket](https://github.com/grouperenault/fmu_manipulation_toolbox/issues/new) to
+let us know your needs.
+
+
+## FMI-2.0 Containers
+Without any additional option, `fmucontainer` will produce FMI-2.0 containers. These containers may embed
+- *FMU 2.0* in cosimulation mode without any particular limitation.
+- *FMU 3.0* in cosimulation mode with limitations:
+  - Variables with FMI-3.0 specific types can be used for routing but cannot be exposed (as input, output, parameter or local).
+    Note: `boolean` is redefined in FMI-3.0. So cannot be exposed from an FMU-3.0.
+  - Early Return feature is not supported
+  - Event handling for FMU-3.0 is not supported
+  - Binary and Clocks cannot be routed between FMU-3.0
+  - Arrays are not supported
+
+## FMI-3.0 Containers
+To produce FMI-3.0 compliant containers, use option `-fmi 3` in `fmucontainer` command line.
+Those containers may embed
+
+- *FMU 2.0* in cosimulation mode with limitations:
+  - `boolean` variables can be used for routing but cannot be exposed (as input, output, parameter or local).
+   
+- *FMU 3.0* in cosimulation mode with limitations:
+  - Early Return feature is not supported
+  - Event handling for FMU-3.0 is not supported
+  - Binary and Clocks cannot be routed between FMU-3.0
+  - Arrays are not supported
 

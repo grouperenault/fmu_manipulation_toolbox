@@ -242,3 +242,11 @@ else:
         margin-left: 0;
     }
     """
+
+log_color = {
+    "DEBUG": "#6E6B6B",
+    "INFO": "#b5bab9",
+    "WARNING": "#F7C61B",
+    "ERROR": "#F54927",
+    "CRITICAL": "#FF00FF",
+}

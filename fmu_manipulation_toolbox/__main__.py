@@ -10,7 +10,7 @@ def gui():
 
 
 def cli():
-    from .cli import fmutool
+    from .cli.fmutool import fmutool
     fmutool()
 
 

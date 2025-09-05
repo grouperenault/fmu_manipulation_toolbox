@@ -204,8 +204,37 @@ jobs:
           name: container-linux64
           path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64
           retention-days: 1
+  container-darwin64:
+    runs-on: macos-13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set reusable strings
+        # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
+        id: strings
+        shell: bash
+        run: |
+          echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+
+      - name: Configure CMake
+        # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+        # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+        run: >
+          cmake -B ${{ steps.strings.outputs.build-output-dir }}
+          -S ${{ github.workspace }}/container
+
+      - name: Build
+        # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
+        run: cmake --build ${{ steps.strings.outputs.build-output-dir }}
+      - name: Archive Artifacts
+        uses: actions/upload-artifact@master
+        with:
+          name: container-darwin64
+          path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64
+          retention-days: 1
+
   package:
-    needs: [remoting-windows32, remoting-windows64, remoting-linux32, remoting-linux64, container-windows64, container-linux64]
+    needs: [remoting-windows32, remoting-windows64, remoting-linux32, remoting-linux64, container-windows64, container-linux64, container-darwin64]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -233,6 +262,10 @@ jobs:
       with:
         name: container-linux64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
+    - uses: actions/download-artifact@master
+      with:
+        name: container-darwin64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
