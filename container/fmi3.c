@@ -291,11 +291,11 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi2ValueReference vr[], s
 
                 status = fmuSetString(fmu, &fmu_vr, 1, &value[i]);
                 if (status != FMU_STATUS_OK)
-                    return fmi2Error;
+                    return fmi3Error;
             }
         }
     }
-    return fmi2OK;
+    return fmi3OK;
 }
 
 #undef FMI_SETTER
