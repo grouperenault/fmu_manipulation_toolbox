@@ -39,7 +39,7 @@ fmu_status_t fmu_set_inputs(fmu_t* fmu) {
         SET_INPUT(uintegers64, UInteger64);
         SET_INPUT(booleans, Boolean);
         SET_INPUT(booleans1, Boolean1);
-        SET_INPUT(strings, String);
+        //SET_INPUT(strings, String); TODO: fix strings
 #undef SET_INPUT
     }
     else
@@ -75,7 +75,7 @@ GET_OUTPUT(integers64, Integer64);
 GET_OUTPUT(uintegers64, UInteger64);
 GET_OUTPUT(booleans, Boolean);
 GET_OUTPUT(booleans1, Boolean1);
-GET_OUTPUT(strings, String);
+// GET_OUTPUT(strings, String);
 
 #undef GET_OUTPUT
 
@@ -582,8 +582,25 @@ fmu_status_t fmuDoStep(const fmu_t *fmu,
             status = FMU_STATUS_ERROR;
         }
         if (eventHandlingNeeded) {
-            logger(LOGGER_ERROR, "FMU '%s' requested event handling which is not supported.", fmu->name);
-            status = FMU_STATUS_ERROR;
+            fmi3Boolean discreteStatesNeedUpdate;
+            fmi3Boolean terminateSimulation;
+            fmi3Boolean nominalsOfContinuousStatesChanged;
+            fmi3Boolean valuesOfContinuousStatesChanged;
+            fmi3Boolean nextEventTimeDefined;
+            fmi3Float64 nextEventTime;
+            fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component);
+            fmi3Status status = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(fmu->component,
+                &discreteStatesNeedUpdate,
+                &terminateSimulation,
+                &nominalsOfContinuousStatesChanged,
+                &valuesOfContinuousStatesChanged,
+                &nextEventTimeDefined,
+                &nextEventTime);
+            logger(LOGGER_ERROR, "%s %d %d %d %d %d %d %e", fmu->name, status, discreteStatesNeedUpdate, terminateSimulation, nominalsOfContinuousStatesChanged, valuesOfContinuousStatesChanged, nextEventTimeDefined, nextEventTime);
+            fmu->fmi_functions.version_3.fmi3EnterStepMode(fmu->component);
+
+            //logger(LOGGER_ERROR, "FMU '%s' requested event handling which is not supported.", fmu->name);
+            //status = FMU_STATUS_ERROR;
         }
         if ((status3 == fmi3OK) || (status3 == fmi3Warning))
             status = FMU_STATUS_OK;

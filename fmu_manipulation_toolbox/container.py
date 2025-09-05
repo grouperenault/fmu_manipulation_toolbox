@@ -323,7 +323,7 @@ class Link:
             self.cport_to_list.append(cport_to)
             self.vr_converted[cport_to.port.type_name] = None
         else:
-                raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
+            raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
 
     def get_conversion(self, cport_to: ContainerPort) -> Optional[str]:
         try:
@@ -363,7 +363,7 @@ class ValueReferenceTable:
     def set_link_vr(self, link: Link):
         link.vr = self.add_vr(link.cport_from, local=True)
         for type_name in link.vr_converted.keys():
-            link.vr_converted[type_name] = self.add_vr(link.cport_from, local=True)
+            link.vr_converted[type_name] = self.add_vr(type_name, local=True)
 
     def nb_local(self, type_name: str) -> int:
         return self.nb_local_variable[type_name]
@@ -478,7 +478,7 @@ class FMUContainer:
         # Rules
         self.inputs: Dict[str, ContainerInput] = {}
         self.outputs: Dict[str, ContainerPort] = {}
-        self.locals: Dict[ContainerPort, Link] = {}
+        self.links: Dict[ContainerPort, Link] = {}
 
         self.rules: Dict[ContainerPort, str] = {}
         self.start_values: Dict[ContainerPort, str] = {}
@@ -556,7 +556,7 @@ class FMUContainer:
     def add_link(self, from_fmu_filename: str, from_port_name: str, to_fmu_filename: str, to_port_name: str):
         cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
         try:
-            local = self.locals[cport_from]
+            local = self.links[cport_from]
         except KeyError:
             local = Link(cport_from)
 
@@ -566,7 +566,7 @@ class FMUContainer:
         logger.debug(f"LINK: {cport_from} -> {cport_to}")
         self.mark_ruled(cport_from, 'LINK')
         self.mark_ruled(cport_to, 'LINK')
-        self.locals[cport_from] = local
+        self.links[cport_from] = local
 
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
         cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
@@ -759,7 +759,7 @@ class FMUContainer:
         index_offset = 2    # index of output ports. Start at 2 to skip "time" port
 
         # Local variable should be first to ensure to attribute them the lowest VR.
-        for link in self.locals.values():
+        for link in self.links.values():
             self.vr_table.set_link_vr(link)
             port_local_def = link.cport_from.port.xml(link.vr, name=link.name, causality='local',
                                                       fmi_version=self.fmi_version)
@@ -849,12 +849,13 @@ class FMUContainer:
         inputs_fmu_per_type: Dict[str, Dict[str, Dict[ContainerPort, int]]] = {}      # [type][fmu]
         start_values_fmu_per_type = {}
         outputs_fmu_per_type = {}
-        locals_per_type: Dict[str, List[Link]] = {}
+        local_per_type: Dict[str, List[int]] = {}
+        links_per_fmu: Dict[str, List[Link]] = {}
 
         for type_name in EmbeddedFMUPort.ALL_TYPES:
             inputs_per_type[type_name] = []
             outputs_per_type[type_name] = []
-            locals_per_type[type_name] = []
+            local_per_type[type_name] = []
 
             inputs_fmu_per_type[type_name] = {}
             start_values_fmu_per_type[type_name] = {}
@@ -874,17 +875,17 @@ class FMUContainer:
         # Outputs
         for output_port_name, output_port in self.outputs.items():
             outputs_per_type[output_port.port.type_name].append(output_port)
-        # Locals
-        for local in self.locals.values():
-            locals_per_type[local.cport_from.port.type_name].append(local)
-            outputs_fmu_per_type[local.cport_from.port.type_name][local.cport_from.fmu.name][local.cport_from] = local.vr
-            for cport_to in local.cport_to_list:
-                if cport_to.port.type_name == local.cport_from.port.type_name:
-                    inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = local.vr
+        # Links
+        for link in self.links.values():
+            local_per_type[link.cport_from.port.type_name].append(link.vr)
+            outputs_fmu_per_type[link.cport_from.port.type_name][link.cport_from.fmu.name][link.cport_from] = link.vr
+            for cport_to in link.cport_to_list:
+                if cport_to.port.type_name == link.cport_from.port.type_name:
+                    inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = link.vr
                 else:
-                    conversion =  local.get_conversion(cport_to)
-                    inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = local.vr_converted[cport_to.port.type_name]
-                    logger.critical(f"{local.cport_from} {local.vr} {cport_to} {conversion} {local.vr_converted[cport_to.port.type_name]}")
+                    local_per_type[cport_to.port.type_name].append(link.vr_converted[cport_to.port.type_name])
+                    links_per_fmu.setdefault(link.cport_from.fmu.name, []).append(link)
+                    inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = link.vr_converted[cport_to.port.type_name]
 
 
         print(f"# NB local variables:", ", ".join(EmbeddedFMUPort.ALL_TYPES), file=txt_file)
@@ -894,7 +895,7 @@ class FMUContainer:
 
         print("# CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]", file=txt_file)
         for type_name in EmbeddedFMUPort.ALL_TYPES:
-            print(f"# {type_name}", file=txt_file)
+            print(f"# {type_name}" , file=txt_file)
             nb_local = (len(inputs_per_type[type_name]) +
                         len(outputs_per_type[type_name]) +
                         self.vr_table.nb_local(type_name))
@@ -913,8 +914,8 @@ class FMUContainer:
                 print(f"{input_port.vr} {len(input_port.cport_list)}", " ".join(cport_string), file=txt_file)
             for output_port in outputs_per_type[type_name]:
                 print(f"{output_port.vr} 1 {fmu_rank[output_port.fmu.name]} {output_port.port.vr}", file=txt_file)
-            for local in locals_per_type[type_name]:
-                print(f"{local.vr} 1 -1 {local.vr & 0xFFFFFF}", file=txt_file)
+            for local_vr in local_per_type[type_name]:
+                print(f"{local_vr} 1 -1 {local_vr & 0xFFFFFF}", file=txt_file)
 
         # LINKS
         for fmu in self.involved_fmu.values():
@@ -938,7 +939,19 @@ class FMUContainer:
                     print(f"{vr} {output_port.port.vr}", file=txt_file)
 
             print(f"# Conversion table of {fmu.name}: <VR_FROM> <VR_TO> <CONVERSION>", file=txt_file)
-            print("0", file=txt_file)
+            try:
+                nb = 0
+                for link in links_per_fmu[fmu.name]:
+                    nb += len(link.vr_converted)
+                print(f"{nb}", file=txt_file)
+                for link in links_per_fmu[fmu.name]:
+                    for cport_to in link.cport_to_list:
+                        conversion =  link.get_conversion(cport_to)
+                        if conversion:
+                            print(f"{link.vr} {link.vr_converted[cport_to.port.type_name]} {conversion}",
+                                  file=txt_file)
+            except KeyError:
+                print("0", file=txt_file)
 
     @staticmethod
     def long_path(path: Union[str, Path]) -> str:

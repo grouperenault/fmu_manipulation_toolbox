@@ -58,8 +58,10 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
         fmu_t* fmu = &container->fmu[i];
 
         status = fmu_set_inputs(fmu);
-        if (status != FMU_STATUS_OK)
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU#%d failed set inputs.", i);
             return status;
+        }
     
         /* COMPUTATION */
         status = fmuDoStep(fmu, time, container->time_step);
@@ -67,8 +69,10 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
             return status;
 
         status = fmu_get_outputs(fmu);
-        if (status != FMU_STATUS_OK)
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU#%d failed getting outputs.", i);
             return status;
+        }
         
     }
 
@@ -95,7 +99,7 @@ static fmu_status_t container_do_step_parallel_mt(container_t* container) {
     for (size_t i = 0; i < container->nb_fmu; i += 1) {
         status = fmu_get_outputs(&container->fmu[i]);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU#%d failed doStep.", i);
+            logger(LOGGER_ERROR, "Container: FMU#%d failed getting outputs.", i);
             return FMU_STATUS_ERROR;
         }
     }
@@ -110,8 +114,10 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
 
     for (size_t i = 0; i < container->nb_fmu; i += 1) {          
         status = fmu_set_inputs(&container->fmu[i]);
-        if (status != FMU_STATUS_OK) 
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU#%d failed set inputs.", i);
             return status;
+        }
     }
 
     double time = container->time_step * container->nb_steps + container->start_time;
@@ -127,8 +133,10 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
 
     for (size_t i = 0; i < container->nb_fmu; i += 1) {
         status = fmu_get_outputs(&container->fmu[i]);
-        if (status != FMU_STATUS_OK)
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU#%d failed get outputs.", i);
             return status;
+        }
     }
 
     return status;
@@ -717,19 +725,25 @@ static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
 
     for(unsigned long i = 0; i < nb; i += 1) {
         int offset;
+        fmu_vr_t from;
+        fmu_vr_t to;
+
         if (get_line(file)) {
             logger(LOGGER_ERROR, "Cannot read conversion table entries.");
             return -4;
         }
         
-        if (sscanf(file->line, "%u %u %n", &fmu->conversions->entries[i].from, &fmu->conversions->entries[i].to, &offset) < 3) {
-            logger(LOGGER_ERROR, "Cannot read conversion table entry %lu.", i);
+
+        if (sscanf(file->line, "%u %u %n", &from, &to, &offset) < 2) {
+            logger(LOGGER_ERROR, "Cannot read conversion table entry %lu from '%s'", i, file->line);
             return -5;
         }
+        fmu->conversions->entries[i].from = from & 0xFFFFFF;
+        fmu->conversions->entries[i].to = to & 0xFFFFFF;
 
         fmu->conversions->entries[i].function = convert_function_get(file->line+offset);
         if (!fmu->conversions->entries[i].function) {
-            logger(LOGGER_ERROR, "Cannot configure conversion entry %lu from %s", i, file->line+offset);
+            logger(LOGGER_ERROR, "Cannot configure conversion entry %lu from '%s'", i, file->line+offset);
             return -6;
         }
     }
