@@ -367,8 +367,11 @@ static int read_conf_local(container_t* container, config_file_t* file) {
     ALLOC(booleans, 0);
     ALLOC(booleans1, false);
     ALLOC(strings, NULL);
-
 #undef ALLOC
+
+    /* Strings cannot be NULL */
+    for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
+        container->strings[i] = strdup("");
 
     return 0;
 }
@@ -983,6 +986,8 @@ void container_free(container_t *container) {
     FREE(uintegers64);
     FREE(booleans);
     FREE(booleans1);
+    for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
+        free(container->strings[i]);
     FREE(strings);
 #undef FREE
 

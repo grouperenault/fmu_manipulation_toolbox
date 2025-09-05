@@ -39,7 +39,7 @@ fmu_status_t fmu_set_inputs(fmu_t* fmu) {
         SET_INPUT(uintegers64, UInteger64);
         SET_INPUT(booleans, Boolean);
         SET_INPUT(booleans1, Boolean1);
-        //SET_INPUT(strings, String); TODO: fix strings
+        SET_INPUT(strings, String);
 #undef SET_INPUT
     }
     else

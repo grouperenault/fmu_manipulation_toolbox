@@ -248,7 +248,32 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 FMI_SETTER(reals64, Real, Real64);
 FMI_SETTER(integers32, Integer, Integer32);
 FMI_SETTER(booleans, Boolean, Boolean);
-FMI_SETTER(strings, String, String);
+
+fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[]) {
+    container_t* container = (container_t*)c;
+    fmu_status_t status;
+ 
+    for(size_t i = 0; i < nvr; i += 1) {
+        const uint32_t local_vr = vr[i] & 0xFFFFFF;
+        const container_port_t* port = &container->port_strings[local_vr];
+        for(int j = 0; j < port->nb; j += 1) {
+            const int fmu_id = port->links[j].fmu_id;
+
+            if (fmu_id < 0) {
+                free(container->strings[local_vr]);
+                container->strings[local_vr] = strdup(value[i]);
+            } else {
+                const fmu_t* fmu = &container->fmu[fmu_id];
+                const fmi2ValueReference fmu_vr = port->links[j].fmu_vr;
+                
+                status = fmuSetString(fmu, &fmu_vr, 1, &value[i]);
+                if (status != FMU_STATUS_OK)
+                    return fmi2Error;
+            }
+        }
+    }
+    return fmi2OK;
+}
 
 #undef FMI_SETTER
 

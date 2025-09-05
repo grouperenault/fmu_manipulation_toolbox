@@ -58,7 +58,7 @@ typedef struct container_s {
 	DECLARE_LOCAL(uintegers64, uint64_t);
 	DECLARE_LOCAL(booleans, int);
 	DECLARE_LOCAL(booleans1, bool);
-	DECLARE_LOCAL(strings, const char *);
+	DECLARE_LOCAL(strings, char *);
 #undef DECLARE_LOCAL
 
 	/* container ports definition */
