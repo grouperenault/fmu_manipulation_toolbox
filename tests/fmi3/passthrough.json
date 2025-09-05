@@ -7,5 +7,6 @@
   ],
   "link": [
     ["passthrough.fmu", "Out_boolean", "not2.fmu", "in_bool"]
-  ]
+  ],
+  "step_size": 1
 }
