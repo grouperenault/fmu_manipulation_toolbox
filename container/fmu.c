@@ -14,9 +14,8 @@
 fmu_status_t fmu_set_inputs(fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
 
-    if (fmu->set_input) {
-        const container_t* container = fmu->container;
-        const fmu_io_t* fmu_io = &fmu->fmu_io;
+    const container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
 
 #define SET_INPUT(variable, fmi_type) \
     for (int i = 0; i < fmu_io-> variable .in.nb; i += 1) { \
@@ -27,23 +26,20 @@ fmu_status_t fmu_set_inputs(fmu_t* fmu) {
             return status; \
     }
 
-        SET_INPUT(reals64, Real64);
-        SET_INPUT(reals32, Real32);
-        SET_INPUT(integers8, Integer8);
-        SET_INPUT(uintegers8, UInteger8);
-        SET_INPUT(integers16, Integer16);
-        SET_INPUT(uintegers16, UInteger16);
-        SET_INPUT(integers32, Integer32);
-        SET_INPUT(uintegers32, UInteger32);
-        SET_INPUT(integers64, Integer64);
-        SET_INPUT(uintegers64, UInteger64);
-        SET_INPUT(booleans, Boolean);
-        SET_INPUT(booleans1, Boolean1);
-        SET_INPUT(strings, String);
+    SET_INPUT(reals64, Real64);
+    SET_INPUT(reals32, Real32);
+    SET_INPUT(integers8, Integer8);
+    SET_INPUT(uintegers8, UInteger8);
+    SET_INPUT(integers16, Integer16);
+    SET_INPUT(uintegers16, UInteger16);
+    SET_INPUT(integers32, Integer32);
+    SET_INPUT(uintegers32, UInteger32);
+    SET_INPUT(integers64, Integer64);
+    SET_INPUT(uintegers64, UInteger64);
+    SET_INPUT(booleans, Boolean);
+    SET_INPUT(booleans1, Boolean1);
+    SET_INPUT(strings, String);
 #undef SET_INPUT
-    }
-    else
-        fmu->set_input = 1; /* Skip only the first doStep() */
 
     return status;
 }
@@ -75,8 +71,16 @@ GET_OUTPUT(integers64, Integer64);
 GET_OUTPUT(uintegers64, UInteger64);
 GET_OUTPUT(booleans, Boolean);
 GET_OUTPUT(booleans1, Boolean1);
-// GET_OUTPUT(strings, String);
 
+for (size_t i = 0; i < fmu_io->strings.out.nb; i += 1) {
+        const fmu_vr_t fmu_vr = fmu_io->strings.out.translations[i].fmu_vr;
+        const fmu_vr_t local_vr = fmu_io->strings.out.translations[i].vr;
+        const char* str;
+        status = fmuGetString(fmu, &fmu_vr, 1, &str);
+        container->strings[local_vr] = strdup(str);
+        if (status != FMU_STATUS_OK) \
+            return status; \
+}
 #undef GET_OUTPUT
 
     /* cast conversion between local variables */
@@ -323,7 +327,6 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     }
 
     fmu->cancel = 0;
-    fmu->set_input = 0;
     if (container->profiling)
         fmu->profile = profile_new();
     else

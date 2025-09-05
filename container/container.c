@@ -50,6 +50,15 @@ void container_set_start_values(container_t* container, int early_set) {
 }
 
 
+void container_init_values(container_t* container) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_get_outputs(&container->fmu[i]);
+    }
+
+    return;
+}
+
+
 static fmu_status_t container_do_step_sequential(container_t *container) {
     fmu_status_t status = FMU_STATUS_OK;
     double time = container->time_step * container->nb_steps + container->start_time;

@@ -109,6 +109,7 @@ extern int container_configure(container_t* container, const char* dirname);
 extern void container_free(container_t *container);
 
 extern void container_set_start_values(container_t* container, int early_set);
+extern void container_init_values(container_t* container);
 
 #	ifdef __cplusplus
 }

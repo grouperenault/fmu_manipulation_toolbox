@@ -132,7 +132,7 @@ fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
         if (status != FMU_STATUS_OK)
             return fmi3Error;
     }
- 
+    container_init_values(container);
     return fmi3OK;
 }
 

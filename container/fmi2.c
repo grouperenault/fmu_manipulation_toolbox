@@ -151,7 +151,7 @@ fmi2Status fmi2ExitInitializationMode(fmi2Component c) {
         if (status != FMU_STATUS_OK)
             return fmi2Error;
     }
- 
+    container_init_values(container);
     return fmi2OK;
 }
 

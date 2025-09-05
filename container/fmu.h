@@ -257,7 +257,6 @@ typedef struct {
 	
 	fmu_status_t				status;
 	int							cancel;
-    int                         set_input;
 	
     profile_t                   *profile;
 
