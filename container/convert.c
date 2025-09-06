@@ -4,7 +4,10 @@
 #include "container.h"
 #include "logger.h"
 
-
+/*
+ * Simple conversion routines between C types.
+ * Only conversions without losses are available.
+ */
 convert_table_t *convert_new(unsigned long nb) {
     convert_table_t *table = NULL;
 

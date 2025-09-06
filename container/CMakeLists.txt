@@ -1,10 +1,3 @@
-#
-# Nicolas.LAURENT@Renault.com
-#
-# To build for 64bits, use `cmake -A x64` and `cmake --config Release`
-# To build for 32bits, use `cmake -A x86` and `cmake --config Release`
-#
-
 cmake_minimum_required(VERSION 3.20)
 project(container C)
 set (CMAKE_C_STANDARD 99)
@@ -64,9 +57,7 @@ configure_file(
     ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
-####################
-# Create CONTAINER #
-####################
+# Create CONTAINER  Shared library
 add_library(container SHARED
 		container.c	container.h
         convert.c convert.h

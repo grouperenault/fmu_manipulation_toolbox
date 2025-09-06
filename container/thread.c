@@ -1,5 +1,8 @@
 #include "thread.h"
 
+/*
+ * portable (Windows/Linux/MacOS) thread / mutex routines
+ */
 
 thread_t thread_new(thread_function_t function, void *data) {
 #ifdef WIN32

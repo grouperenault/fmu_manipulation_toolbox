@@ -6,7 +6,11 @@
 #include "container.h"
 #include "logger.h"
 
-static struct {
+/*
+ * logger facilities conforming to FMI-2.0 and 3.0 specifications.
+ */
+
+ static struct {
     fmu_version_t       version;
     logger_function_t   callback;
     void                *environment;

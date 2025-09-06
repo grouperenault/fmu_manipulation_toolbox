@@ -16,6 +16,9 @@
 #include "library.h"
 #include "logger.h"
 
+/*
+ * Shared library loading/unloading and diagnosing.
+ */
 
 #ifdef WIN32
 typedef enum {

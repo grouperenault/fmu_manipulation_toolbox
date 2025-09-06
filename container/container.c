@@ -12,6 +12,10 @@
 #pragma warning(disable : 4100)     /* no complain abourt unref formal param */
 #pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
 
+/*
+ * Implementation of the fmu2Component and the fmu3Instance depending.
+ * see fmi2.c and fmi3.c
+ */
 
 /*----------------------------------------------------------------------------
                        D O   S T E P

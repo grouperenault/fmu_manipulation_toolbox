@@ -7,7 +7,9 @@
 #define HASH_DEFAULT_SIZE 201    /* prime number far from power of 2 numbers */
 #define HASH_COLLISION_MAX 100
 
-
+/*
+ * hash table utilities. Used by library.c.
+ */
 static unsigned long hash_function(const char *key, unsigned long hash_size) {
 	register unsigned long int	val=0;
 

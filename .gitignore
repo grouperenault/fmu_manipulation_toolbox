@@ -52,3 +52,4 @@ tests/fmi3/bouncing_ball/bouncing.fmu
 tests/fmi3/passthrough/container-passthrough.fmu
 tests/fmi3/container-passthrough
 tests/fmi3/passthrough/container-passthrough
+tests/fmi3/container-passthrough.fmu

@@ -8,6 +8,9 @@
 
 #include "profile.h"
 
+/*
+ * profiling routines.
+ */
 
 profile_t *profile_new(void) {
     profile_t *profile = malloc(sizeof(*profile));

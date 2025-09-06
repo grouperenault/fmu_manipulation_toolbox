@@ -10,6 +10,9 @@
 #pragma warning(disable : 4100)     /* no complain abourt unref formal param */
 #pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
 
+/*
+ * FMI-importer supporting FMI-2.0 and FMI-3.0. FMUs are handled through fmu_t pointers.
+ */
 
 fmu_status_t fmu_set_inputs(fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
