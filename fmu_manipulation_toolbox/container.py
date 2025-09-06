@@ -1,5 +1,6 @@
 import logging
 import getpass
+import math
 import os
 import shutil
 import uuid
@@ -162,7 +163,8 @@ class EmbeddedFMUPort:
 
 class EmbeddedFMU(OperationAbstract):
     capability_list = ("needsExecutionTool",
-                       "canBeInstantiatedOnlyOncePerProcess")
+                       "canBeInstantiatedOnlyOncePerProcess",
+                       "canHandleVariableCommunicationStepSize")
 
     def __init__(self, filename):
         self.fmu = FMU(filename)
@@ -211,7 +213,7 @@ class EmbeddedFMU(OperationAbstract):
         self.ports[port.name] = port
 
     def __repr__(self):
-        return f"FMU '{self.name}' ({len(self.ports)} variables)"
+        return f"FMU '{self.name}' ({len(self.ports)} variables, ts={self.step_size}s)"
 
 
 class FMUContainerError(Exception):
@@ -491,8 +493,8 @@ class FMUContainer:
 
         try:
             fmu = EmbeddedFMU(self.fmu_directory / fmu_filename)
-            if fmu.fmi_version > self.fmi_version:
-                logger.warning(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}")
+            if not fmu.fmi_version == self.fmi_version:
+                logger.warning(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}.")
             self.involved_fmu[fmu.name] = fmu
 
             logger.debug(f"Adding FMU #{len(self.involved_fmu)}: {fmu}")
@@ -642,16 +644,16 @@ class FMUContainer:
 
         return auto_wired
 
-    def minimum_step_size(self) -> float:
-        step_size = None
+    def default_step_size(self) -> float:
+        freq_set = set()
         for fmu in self.involved_fmu.values():
-            if step_size:
-                if fmu.step_size and fmu.step_size < step_size:
-                    step_size = fmu.step_size
-            else:
-                step_size = fmu.step_size
+            if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
+                freq_set.add(int(1.0/fmu.step_size))
 
-        if not step_size:
+        common_freq = math.gcd(*freq_set)
+        try:
+            step_size = 1.0 / float(common_freq)
+        except ZeroDivisionError:
             step_size = 0.1
             logger.warning(f"Defaulting to step_size={step_size}")
 
@@ -659,15 +661,15 @@ class FMUContainer:
 
     def sanity_check(self, step_size: Optional[float]):
         for fmu in self.involved_fmu.values():
-            if not fmu.step_size:
-                continue
-            ts_ratio = step_size / fmu.step_size
-            if ts_ratio < 1.0:
-                logger.warning(f"Container step_size={step_size}s is lower than FMU '{fmu.name}' "
-                               f"step_size={fmu.step_size}s.")
-            if ts_ratio != int(ts_ratio):
-                logger.warning(f"Container step_size={step_size}s should divisible by FMU '{fmu.name}' "
-                               f"step_size={fmu.step_size}s.")
+            if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
+                ts_ratio = step_size / fmu.step_size
+                logger.debug(f"container step_size: {step_size} = {fmu.step_size} x {ts_ratio} for {fmu.name}")
+                if ts_ratio < 1.0:
+                    logger.warning(f"Container step_size={step_size}s is lower than FMU '{fmu.name}' "
+                                   f"step_size={fmu.step_size}s.")
+                if ts_ratio != int(ts_ratio):
+                    logger.warning(f"Container step_size={step_size}s should divisible by FMU '{fmu.name}' "
+                                   f"step_size={fmu.step_size}s.")
             for port_name in fmu.ports:
                 cport = ContainerPort(fmu, port_name)
                 if cport not in self.rules:
@@ -683,7 +685,7 @@ class FMUContainer:
 
         if step_size is None:
             logger.info(f"step_size  will be deduced from the embedded FMU's")
-            step_size = self.minimum_step_size()
+            step_size = self.default_step_size()
         self.sanity_check(step_size)
 
         logger.info(f"Building FMU '{fmu_filename}', step_size={step_size}")
