@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from fmu_manipulation_toolbox.operations import *
+from fmu_manipulation_toolbox.remoting import *
 from fmu_manipulation_toolbox.container import *
 from fmu_manipulation_toolbox.assembly import *
 
