@@ -32,6 +32,7 @@
 #endif
 
 #include "communication.h"
+#include "remote.h"
 
 
 static char* concat(const char* prefix, const char* name) {
@@ -190,7 +191,7 @@ void communication_free(communication_t* communication) {
 }
 
 
-static int communication_new_client(communication_t *communication) {
+static int communication_new_client(communication_t *communication, size_t memory_size) {
     communication->client_ready = communication_sem_create(communication->sem_name_client);
     if (communication->client_ready == SEM_INVALID) {
         SHM_LOG("Client: Cannot Create Semaphore(%s): %s\n", communication->sem_name_client, strerror(errno));
@@ -204,13 +205,31 @@ static int communication_new_client(communication_t *communication) {
     }
 
     /* 1st. CLIENT should create memory and notify the client */
+    SHM_LOG("Client: Create SHM...\n");
     communication->map_file = communication_shm_create(communication->shm_name, communication->data_size);
+    SHM_LOG("Client: communication->map_file = %p\n", communication->map_file);
+    if (communication->map_file == SHM_INVALID) {
+        SHM_LOG("ERROR: Cannot open or create map file.\n");
+        return -1;
+    }
+    SHM_LOG("Client: Map SHM...\n");
+    communication->data = communication_shm_map(communication->map_file, memory_size);
+    SHM_LOG("Client: communication->data = %p\n", communication->data);
+    if (!communication->data) {
+        SHM_LOG("ERROR: Cannot map SHM.\n");
+        return -1;
+    }
+
+    memset(communication->data, 0, communication->data_size);
+
     communication_client_ready(communication);
+
+
     return 0;
 }
 
 
-static int communication_new_server(communication_t *communication) {
+static int communication_new_server(communication_t *communication, size_t memory_size) {
     communication->client_ready = communication_sem_join(communication->sem_name_client);
     if (communication->client_ready == SEM_INVALID) {
         SHM_LOG("Server: Cannot Join Semaphore(%s): %s\n", communication->sem_name_client, strerror(errno));
@@ -228,6 +247,12 @@ static int communication_new_server(communication_t *communication) {
     communication_waitfor_client(communication);
     SHM_LOG("Client ready. Joining SHM\n");
     communication->map_file = communication_shm_join(communication->shm_name);
+    communication->data = communication_shm_map(communication->map_file, memory_size);
+    if (!communication->data) {
+        SHM_LOG("ERROR: Cannot map SHM.\n");
+        return -1;
+    }
+
     communication_server_ready(communication);
 
     return 0;
@@ -260,32 +285,14 @@ communication_t *communication_new(const char *prefix, size_t memory_size, commu
     SHM_LOG("Initialize SHM size=%ld\n", memory_size);
     int status;
     if (endpoint == COMMUNICATION_CLIENT)
-        status = communication_new_client(communication);
+        status = communication_new_client(communication, memory_size);
     else
-        status = communication_new_server(communication);
+        status = communication_new_server(communication, memory_size);
     
     if (status) {
         communication_free(communication);
         return NULL;
     }
-
-    if (communication->map_file == SHM_INVALID) {
-        communication_free(communication);
-        SHM_LOG("ERROR: Cannot open or create map file.\n");
-        return NULL;
-    }
-
-    communication->data = communication_shm_map(communication->map_file, memory_size);
-    if (!communication->data) {
-        communication_free(communication);
-        SHM_LOG("ERROR: Cannot map SHM.\n");
-        return NULL;
-    }
-
-
-    /* Paranoia: initialize shared memory */
-    if (endpoint == COMMUNICATION_CLIENT)
-        memset(communication->data, 0, communication->data_size);
 
 #if !defined WIN32 && !defined HAVE_SEMTIMEDOP
     /* Make SIG_ALARM interrupt system call without other side effect */

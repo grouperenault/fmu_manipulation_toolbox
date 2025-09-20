@@ -17,6 +17,8 @@
 #	include <sys/mman.h>
 #endif
 
+#include "remote.h"
+
 /*-----------------------------------------------------------------------------
              C O M M U N I C A T I O N _ E N D P O I N T _ T
 -----------------------------------------------------------------------------*/
@@ -50,6 +52,26 @@ typedef int sem_handle_t;
 #	define SEM_INVALID	-1
 #endif
 
+typedef struct {
+    fmi2Status          status;
+    remote_function_t   function;
+
+    size_t              nb_reals;
+    size_t              nb_integers;
+    size_t              nb_booleans;
+    double              values[4];
+    char                instance_name[128];
+    char                fmuGUID[128];
+    char                fmuResourceLocation[4096];
+
+    fmi2Integer         *integers;
+    fmi2Real            *reals;
+    fmi2Boolean         *booleans;
+    fmi2ValueReference  *vr_reals;
+    fmi2ValueReference  *vr_integers;
+    fmi2ValueReference  *vr_booleans;
+
+} communication_data_t;
 
 /*-----------------------------------------------------------------------------
                          C O M M U N I C A T I O N _ T
@@ -65,7 +87,8 @@ typedef struct {
 	sem_handle_t				client_ready;
 	sem_handle_t				server_ready;
 	size_t						data_size;
-	void						*data;
+    void                        *raw_data;
+    communication_data_t        *data;
 } communication_t;
 
 

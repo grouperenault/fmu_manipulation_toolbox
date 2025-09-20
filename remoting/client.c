@@ -26,7 +26,6 @@
 #include "communication.h"
 #include "process.h"
 
-
 //#define CLIENT_DEBUG
 #ifdef CLIENT_DEBUG
 #   include <stdio.h>
@@ -44,6 +43,7 @@
 #define LOG_DEBUG(client, ...)      _LOG(client, fmi2OK, ##__VA_ARGS__)
 #define LOG_WARNING(client, ...)    _LOG(client, fmi2Warning, ##__VA_ARGS__)
 #define LOG_ERROR(client, ...)      _LOG(client, fmi2Error, ##__VA_ARGS__)
+#define __NOT_IMPLEMENTED__     LOG_ERROR(client, "Function is not implemented"); return fmi2Error;
 
 static char *next_cr(char *message) {
     char *cr = message;
@@ -98,6 +98,7 @@ static fmi2Status make_rpc(client_t* client, remote_function_t function) {
 
     fmi2Status status = (fmi2Status)-1;
     
+    remote_data->server_ready = 0; // RESET STATUS
     /* Flush message log */
     remote_data->message[0] = '\0';
 
@@ -309,13 +310,15 @@ static client_t* client_new(const char *instanceName, const fmi2CallbackFunction
         return NULL;
     }
 
+    client->communication->data->server_ready = 0;
     if (spawn_server(client) < 0)
         return NULL;
-
     CLIENT_LOG("Waiting for server to be ready...\n");
     if (communication_timedwaitfor_server(client->communication, 15000))
         return NULL; /* Cannot launch server */
     
+    printf("******** %d\n", client->communication->data->server_ready);
+
     return client;
 }
 
@@ -334,32 +337,22 @@ static void client_free(client_t *client) {
                        F M I 2   F O R W A R D I N G
 ----------------------------------------------------------------------------*/
 
-#define CLIENT_CLEAR_ARGS(_nb)              REMOTE_CLEAR_ARGS(((remote_data_t *)client->communication->data)->data, _nb)
-#define CLIENT_DATA                         ((remote_data_t *)client->communication->data)->data
-#define CLIENT_ENCODE_VAR(_n, _var)         REMOTE_ENCODE_VAR(CLIENT_DATA, _n, _var)
-#define CLIENT_ENCODE_STR(_n, _ptr)         REMOTE_ENCODE_STR(CLIENT_DATA, _n, _ptr)
-#define CLIENT_ENCODE_PTR(_n, _ptr, _size)  REMOTE_ENCODE_PTR(CLIENT_DATA, _n, _ptr, _size)
-#define CLIENT_ARG_PTR(_n)                  REMOTE_ARG_PTR(CLIENT_DATA, _n)
-#define NOT_IMPLEMENTED                     LOG_ERROR(client, "Function not implemented"); return fmi2Error;
-
 
 fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2String fmuGUID,
                               fmi2String fmuResourceLocation, const fmi2CallbackFunctions* functions,
                               fmi2Boolean visible, fmi2Boolean loggingOn) {
-#ifndef WIN32
-    setlinebuf(stdout);
-    setlinebuf(stderr);
-#endif
     client_t *client = client_new(instanceName, functions, loggingOn);
     if (!client)
         return NULL;
 
-    CLIENT_ENCODE_STR(0, client->instance_name);
-    CLIENT_ENCODE_VAR(1, fmuType);
-    CLIENT_ENCODE_STR(2, fmuGUID);
-    CLIENT_ENCODE_STR(3, fmuResourceLocation);
-    CLIENT_ENCODE_VAR(4, visible);
-    CLIENT_ENCODE_VAR(5, loggingOn);
+    strncpy(client->communication->data->instance_name, instanceName,
+        sizeof(client->communication->data->instance_name));
+
+    strncpy(client->communication->data->fmuGUID, fmuGUID,
+        sizeof(client->communication->data->fmuGUID));
+
+    strncpy(client->communication->data->fmuResourceLocation, fmuResourceLocation,
+        sizeof(client->communication->data->fmuResourceLocation));
     
     fmi2Status status = make_rpc(client, REMOTE_fmi2Instantiate);
 
@@ -396,15 +389,13 @@ const char* fmi2GetVersion() {
 fmi2Status fmi2SetupExperiment(fmi2Component c, fmi2Boolean toleranceDefined, fmi2Real tolerance, fmi2Real startTime, fmi2Boolean stopTimeDefined, fmi2Real stopTime) {
     client_t* client = (client_t*)c;
 
-    CLIENT_ENCODE_VAR(0, toleranceDefined);
-    CLIENT_ENCODE_VAR(1, tolerance);
-    CLIENT_ENCODE_VAR(2, startTime);
-    CLIENT_ENCODE_VAR(3, stopTimeDefined);
-    CLIENT_ENCODE_VAR(4, stopTime);
+    client->communication->data->values[0] = toleranceDefined;
+    client->communication->data->values[1] = tolerance;
+    client->communication->data->values[2] = startTime;
+    client->communication->data->values[3] = stopTimeDefined;
+    client->communication->data->values[4] = stopTime;
 
-    fmi2Status status = make_rpc(client, REMOTE_fmi2SetupExperiment);
-
-    return status;
+    return make_rpc(client, REMOTE_fmi2SetupExperiment);
 }
 
 
@@ -436,154 +427,144 @@ fmi2Status fmi2Reset(fmi2Component c) {
 }
 
 
+static size_t get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table, size_t offset, size_t nb) {
+    if (vr == vr_table[offset])
+        return offset;
+
+    if (vr == vr_table[offset + nb])
+        return offset + nb;
+
+    size_t middle = nb / 2;
+    if (middle > 0) {
+        if (vr > vr_table[offset + middle]) {
+            return get_pos(vr, vr_table, offset + middle, nb - middle);
+        }
+        else if (vr < vr_table[offset + middle]) {
+            return get_pos(vr, vr_table, offset, middle);
+        }
+        else {
+            return middle;
+        }
+    }
+    else {
+        /* not found */
+        return -1;
+    }
+}
+
+
 /* Getting and setting variable values */
 fmi2Status fmi2GetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Real value[]) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nvr = (portable_size_t)nvr;
 
-    if (nvr * sizeof(fmi2Real) > REMOTE_ARG_SIZE) {
-        LOG_ERROR(client, "fmi2GetReal message is to big.");
-        return fmi2Error;
-    }
-
-    CLIENT_ENCODE_PTR(0, vr, nvr);
-    CLIENT_ENCODE_VAR(1, portable_nvr);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetReal);
-
-    memcpy(value, CLIENT_ARG_PTR(2), sizeof(fmi2Real) * nvr);
-
-#ifdef CLIENT_DEBUG
-    LOG_DEBUG(client, "fmi2GetReal: (status = %d), getting %d values:", status, nvr);
+    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
-        LOG_DEBUG(client, "fmi2GetReal: #r%d# = %e", vr[i], value[i]);
+        size_t index = get_pos(vr[i]);
+        if (index >= 0) {
+            value[i] = client->communication->data->reals[index];
+        }
+        else
+            return fmi2Error;
     }
-#endif
-    return status;
+    return fmi2OK;
 }
 
 
 fmi2Status fmi2GetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Integer value[]) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nvr = (portable_size_t)nvr;
 
-    if (nvr * sizeof(fmi2Integer) >= REMOTE_ARG_SIZE) {
-        LOG_ERROR(client, "fmi2GetInteger message is to big.");
-        return fmi2Error;
+    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
+    for (size_t i = 0; i < nvr; i += 1) {
+        size_t index = get_pos(vr[i]);
+        if (index >= 0) {
+            value[i] = client->communication->data->integers[index];
+        }
+        else
+            return fmi2Error;
     }
-
-    CLIENT_ENCODE_PTR(0, vr, nvr);
-    CLIENT_ENCODE_VAR(1, portable_nvr);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetInteger);
-
-    memcpy(value, CLIENT_ARG_PTR(2), sizeof(fmi2Integer) * nvr);
-
-    return status;
+    return fmi2OK;
 }
 
 
 fmi2Status fmi2GetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Boolean value[]) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nvr = (portable_size_t)nvr;
 
-    if (nvr * sizeof(fmi2Boolean) >= REMOTE_ARG_SIZE) {
-        LOG_ERROR(client, "fmi2GetBoolean message is to big.");
-        return fmi2Error;
+    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
+    for (size_t i = 0; i < nvr; i += 1) {
+        size_t index = get_pos(vr[i]);
+        if (index >= 0) {
+            value[i] = client->communication->data->booleans[index];
+        }
+        else
+            return fmi2Error;
     }
-
-    CLIENT_ENCODE_PTR(0, vr, nvr);
-    CLIENT_ENCODE_VAR(1, portable_nvr);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetBoolean);
-
-    memcpy(value, CLIENT_ARG_PTR(2), sizeof(fmi2Boolean) * nvr);
-
-    return status;
+    return fmi2OK;
 }
 
 
 fmi2Status fmi2GetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2String  value[]) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nvr = (portable_size_t)nvr;
 
-    CLIENT_ENCODE_PTR(0, vr, nvr);
-    CLIENT_ENCODE_VAR(1, portable_nvr);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetString);
-
-    remote_decode_strings(CLIENT_ARG_PTR(2), value, nvr);
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2SetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Real value[]) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nvr = (portable_size_t)nvr;
 
-    if (nvr * sizeof(fmi2Real) >= REMOTE_ARG_SIZE) {
-        LOG_ERROR(client, "fmi2SetReal message is to big.");
-        return fmi2Error;
-    }
-
-#ifdef CLIENT_DEBUG
     LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
-        LOG_DEBUG(client, "fmi2SetReal: #r%d# = %e", vr[i], value[i]);
+        size_t index = get_pos(vr[i]);
+        if (index >= 0) {
+            client->communication->data->reals[index] = value[i];
+        }
+        else
+            return fmi2Error;
     }
-#endif
-    CLIENT_ENCODE_PTR(0, vr, nvr);
-    CLIENT_ENCODE_VAR(1, portable_nvr);
-    CLIENT_ENCODE_PTR(2, value, nvr);
-
-    return make_rpc(client, REMOTE_fmi2SetReal);
+    return fmi2OK;
 }
 
 
 fmi2Status fmi2SetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Integer value[]) {
+    return fmi2OK;
     client_t* client = (client_t*)c;
-    portable_size_t portable_nvr = (portable_size_t)nvr;
 
-    if (nvr * sizeof(fmi2Integer) >= REMOTE_ARG_SIZE) {
-        LOG_ERROR(client, "fmi2SetInteger message is to big.");
-        return fmi2Error;
+    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
+    for (size_t i = 0; i < nvr; i += 1) {
+        size_t index = get_pos(vr[i]);
+        if (index >= 0) {
+            client->communication->data->integers[index] = value[i];
+        }
+        else
+            return fmi2Error;
     }
-
-    CLIENT_ENCODE_PTR(0, vr, nvr);
-    CLIENT_ENCODE_VAR(1, portable_nvr);
-    CLIENT_ENCODE_PTR(2, value, nvr);
-
-    return make_rpc(client, REMOTE_fmi2SetInteger);
+    return fmi2OK;
 }
 
 
 fmi2Status fmi2SetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Boolean value[]) {
+    return fmi2OK;
     client_t* client = (client_t*)c;
-    portable_size_t portable_nvr = (portable_size_t)nvr;
 
-    if (nvr * sizeof(fmi2Boolean) >= REMOTE_ARG_SIZE) {
-        LOG_ERROR(client, "fmi2SetBoolean message is to big.");
-        return fmi2Error;
+
+    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
+    for (size_t i = 0; i < nvr; i += 1) {
+        size_t index = get_pos(vr[i]);
+        if (index >= 0) {
+            client->communication->data->booleans[index] = value[i];
+        }
+        else
+            return fmi2Error;
     }
-
-    CLIENT_ENCODE_PTR(0, vr, nvr);
-    CLIENT_ENCODE_VAR(1, portable_nvr);
-    CLIENT_ENCODE_PTR(2, value, nvr);
-
-    return make_rpc(client, REMOTE_fmi2SetBoolean);
+    return fmi2OK;
 }
 
 
 fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String  value[]) {
+    return fmi2OK;
     client_t* client = (client_t*)c;
-    portable_size_t portable_nvr = (portable_size_t)nvr;
 
-    CLIENT_ENCODE_PTR(0, vr, nvr);
-    CLIENT_ENCODE_VAR(1, portable_nvr);
-    remote_encode_strings(value, CLIENT_ARG_PTR(2), nvr);
-
-    return make_rpc(client, REMOTE_fmi2SetString);
+    __NOT_IMPLEMENTED__
 }
 
 
@@ -591,35 +572,35 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
 fmi2Status fmi2GetFMUstate(fmi2Component c, fmi2FMUstate* FMUstate) {
     client_t* client = (client_t*)c;
 
-    NOT_IMPLEMENTED
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2SetFMUstate(fmi2Component c, fmi2FMUstate  FMUstate) {
     client_t* client = (client_t*)c;
 
-    NOT_IMPLEMENTED
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2FreeFMUstate(fmi2Component c, fmi2FMUstate* FMUstate) {
     client_t* client = (client_t*)c;
 
-    NOT_IMPLEMENTED
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2SerializedFMUstateSize(fmi2Component c, fmi2FMUstate  FMUstate, size_t* size) {
     client_t* client = (client_t*)c;
 
-    NOT_IMPLEMENTED
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2SerializeFMUstate(fmi2Component c, fmi2FMUstate  FMUstate, fmi2Byte none[], size_t size) {
     client_t* client = (client_t*)c;
 
-    NOT_IMPLEMENTED
+    __NOT_IMPLEMENTED__
 }
 
 
@@ -627,6 +608,7 @@ fmi2Status  fmi2SetDebugLogging(fmi2Component c,
     fmi2Boolean loggingOn,
     size_t nCategories,
     const fmi2String categories[]) {
+
     return fmi2OK;
 }
 
@@ -634,27 +616,15 @@ fmi2Status  fmi2SetDebugLogging(fmi2Component c,
 fmi2Status fmi2DeSerializeFMUstate(fmi2Component c, const fmi2Byte serializedState[], size_t size, fmi2FMUstate* FMUstate) {
     client_t* client = (client_t*)c;
 
-    NOT_IMPLEMENTED
+    __NOT_IMPLEMENTED__
 }
 
 
 /* Getting partial derivatives */
 fmi2Status fmi2GetDirectionalDerivative(fmi2Component c, const fmi2ValueReference vUnknown_ref[], size_t nUnknown, const fmi2ValueReference vKnown_ref[], size_t nKnown, const fmi2Real dvKnown[], fmi2Real dvUnknown[]) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nUnknown = (portable_size_t)nUnknown;
-    portable_size_t portable_nKnown = (portable_size_t)nKnown;
 
-    CLIENT_ENCODE_PTR(0, vUnknown_ref, nUnknown);
-    CLIENT_ENCODE_VAR(1, portable_nUnknown);
-    CLIENT_ENCODE_PTR(2, vKnown_ref, nKnown);
-    CLIENT_ENCODE_VAR(3, portable_nKnown);
-    CLIENT_ENCODE_PTR(4, dvKnown, nKnown);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetDirectionalDerivative);
-
-    memcpy(dvUnknown, CLIENT_ARG_PTR(5), sizeof(fmi2Real) * nKnown);
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
@@ -666,25 +636,21 @@ fmi2Status fmi2GetDirectionalDerivative(fmi2Component c, const fmi2ValueReferenc
 fmi2Status fmi2EnterEventMode(fmi2Component c) {
     client_t* client = (client_t*)c;
 
-    return make_rpc(client, REMOTE_fmi2EnterEventMode);
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2NewDiscreteStates(fmi2Component c, fmi2EventInfo* eventInfo) {
     client_t* client = (client_t*)c;
 
-    fmi2Status status = make_rpc(client, REMOTE_fmi2NewDiscreteStates);
-
-    memcpy(eventInfo, CLIENT_ARG_PTR(0), sizeof(fmi2EventInfo));
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2EnterContinuousTimeMode(fmi2Component c) {
     client_t* client = (client_t*)c;
 
-    return make_rpc(client, REMOTE_fmi2EnterContinuousTimeMode);
+    __NOT_IMPLEMENTED__
 }
 
 
@@ -693,14 +659,7 @@ fmi2Status fmi2CompletedIntegratorStep(fmi2Component c,
     fmi2Boolean* terminateSimulation) {
     client_t* client = (client_t*)c;
 
-    CLIENT_ENCODE_VAR(0, noSetFMUStatePriorToCurrentPoint);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2CompletedIntegratorStep);
-
-    memcpy(enterEventMode, CLIENT_ARG_PTR(1), sizeof(fmi2Boolean));
-    memcpy(terminateSimulation, CLIENT_ARG_PTR(2), sizeof(fmi2Boolean));
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
@@ -708,77 +667,43 @@ fmi2Status fmi2CompletedIntegratorStep(fmi2Component c,
 fmi2Status fmi2SetTime(fmi2Component c, fmi2Real time) {
     client_t* client = (client_t*)c;
 
-    CLIENT_ENCODE_VAR(0, time);
-
-    return make_rpc(client, REMOTE_fmi2EnterEventMode);
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2SetContinuousStates(fmi2Component c, const fmi2Real x[], size_t nx) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nx = (portable_size_t)nx;
 
-    CLIENT_ENCODE_PTR(0, x, nx);
-    CLIENT_ENCODE_VAR(1, portable_nx);
-
-    return make_rpc(client, REMOTE_fmi2SetContinuousStates);
+    __NOT_IMPLEMENTED__
 }
 
 
 /* Evaluation of the model equations */
 fmi2Status fmi2GetDerivatives(fmi2Component c, fmi2Real derivatives[], size_t nx) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nx = (portable_size_t)nx;
 
-    CLIENT_ENCODE_VAR(1, portable_nx);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetDerivatives);
-
-    memcpy(derivatives, CLIENT_ARG_PTR(0), sizeof(fmi2Real) * nx);
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2GetEventIndicators(fmi2Component c, fmi2Real eventIndicators[], size_t ni) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_ni = (portable_size_t)ni;
 
-    CLIENT_ENCODE_VAR(1, portable_ni);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetEventIndicators);
-
-    memcpy(eventIndicators, CLIENT_ARG_PTR(0), sizeof(fmi2Real) * ni);
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2GetContinuousStates(fmi2Component c, fmi2Real x[], size_t nx) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nx = (portable_size_t)nx;
 
-    CLIENT_ENCODE_VAR(1, portable_nx);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetContinuousStates);
-
-    memcpy(x, CLIENT_ARG_PTR(0), sizeof(fmi2Real) * nx);
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2GetNominalsOfContinuousStates(fmi2Component c, fmi2Real x_nominal[], size_t nx) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nx = (portable_size_t)nx;
 
-    CLIENT_ENCODE_VAR(1, portable_nx);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetNominalsOfContinuousStates);
-
-    memcpy(x_nominal, CLIENT_ARG_PTR(0), sizeof(fmi2Real) * nx);
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
@@ -789,41 +714,24 @@ fmi2Status fmi2GetNominalsOfContinuousStates(fmi2Component c, fmi2Real x_nominal
 /* Simulating the slave */
 fmi2Status fmi2SetRealInputDerivatives(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Integer order[], const fmi2Real value[]) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nvr = (portable_size_t)nvr;
 
-    CLIENT_ENCODE_PTR(0, vr, nvr);
-    CLIENT_ENCODE_VAR(1, portable_nvr);
-    CLIENT_ENCODE_PTR(2, order, nvr);
-    CLIENT_ENCODE_PTR(3, value, nvr);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2SetRealInputDerivatives);
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2GetRealOutputDerivatives(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Integer order[], fmi2Real value[]) {
     client_t* client = (client_t*)c;
-    portable_size_t portable_nvr = (portable_size_t)nvr;
 
-    CLIENT_ENCODE_PTR(0, vr, nvr);
-    CLIENT_ENCODE_VAR(1, portable_nvr);
-    CLIENT_ENCODE_PTR(2, order, nvr);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetRealOutputDerivatives);
-
-    memcpy(value, CLIENT_ARG_PTR(3), sizeof(fmi2Real) * nvr);
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2DoStep(fmi2Component c, fmi2Real currentCommunicationPoint, fmi2Real communicationStepSize, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     client_t* client = (client_t*)c;
 
-    CLIENT_ENCODE_VAR(0, currentCommunicationPoint);
-    CLIENT_ENCODE_VAR(1, communicationStepSize);
-    CLIENT_ENCODE_VAR(2, noSetFMUStatePriorToCurrentPoint);
+    client->communication->data->values[0] = currentCommunicationPoint;
+    client->communication->data->values[1] = communicationStepSize;
+    client->communication->data->values[2] = noSetFMUStatePriorToCurrentPoint;
 
     return make_rpc(client, REMOTE_fmi2DoStep);
 }
@@ -832,7 +740,7 @@ fmi2Status fmi2DoStep(fmi2Component c, fmi2Real currentCommunicationPoint, fmi2R
 fmi2Status fmi2CancelStep(fmi2Component c) {
     client_t* client = (client_t*)c;
 
-    return make_rpc(client, REMOTE_fmi2CancelStep);
+    __NOT_IMPLEMENTED__
 }
 
 
@@ -840,58 +748,34 @@ fmi2Status fmi2CancelStep(fmi2Component c) {
 fmi2Status fmi2GetStatus(fmi2Component c, const fmi2StatusKind s, fmi2Status* value) {
     client_t* client = (client_t*)c;
 
-    CLIENT_ENCODE_VAR(0, s);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetStatus);
-
-    memcpy(value, CLIENT_ARG_PTR(1), sizeof(fmi2Status));
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2GetRealStatus(fmi2Component c, const fmi2StatusKind s, fmi2Real* value) {
     client_t* client = (client_t*)c;
 
-    CLIENT_ENCODE_VAR(0, s);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetRealStatus);
-
-    memcpy(value, CLIENT_ARG_PTR(1), sizeof(fmi2Real));
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2GetIntegerStatus(fmi2Component c, const fmi2StatusKind s, fmi2Integer* value) {
     client_t* client = (client_t*)c;
 
-    CLIENT_ENCODE_VAR(0, s);;
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetIntegerStatus);
-
-    memcpy(value, CLIENT_ARG_PTR(1), sizeof(fmi2Integer));
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2GetBooleanStatus(fmi2Component c, const fmi2StatusKind s, fmi2Boolean* value) {
     client_t* client = (client_t*)c;
 
-    CLIENT_ENCODE_VAR(0, s);
-
-    fmi2Status status = make_rpc(client, REMOTE_fmi2GetBooleanStatus);
-
-    memcpy(value, CLIENT_ARG_PTR(1), sizeof(fmi2Boolean));
-
-    return status;
+    __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2GetStringStatus(fmi2Component c, const fmi2StatusKind s, fmi2String* value) {
     client_t* client = (client_t*)c;
 
-    NOT_IMPLEMENTED
+    __NOT_IMPLEMENTED__
 
 }

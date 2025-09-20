@@ -72,27 +72,15 @@ typedef enum {
 #define REMOTE_DATA_SIZE        sizeof(remote_data_t)
 
 typedef struct {
+    int                 server_ready;
     fmi2Status          status;
     remote_function_t   function;
     char                data[REMOTE_MAX_ARG * REMOTE_ARG_SIZE];
     char				message[REMOTE_MESSAGE_SIZE];
 } remote_data_t;
 
-typedef unsigned long portable_size_t;
 
-/*---------------------------------------------------------------------------------
-                       M A R S H A L L I N G   M A C R O S
----------------------------------------------------------------------------------*/
 
-#define REMOTE_ARG_PTR(_data, _n)                   (_data + _n*REMOTE_ARG_SIZE)
-#define REMOTE_CLEAR_ARGS(_data, _n)                memset(_data, 0, _n * REMOTE_ARG_SIZE)
-#define REMOTE_ENCODE_VAR(_data, _n, _var)          memcpy(_data + _n*REMOTE_ARG_SIZE, &_var, sizeof(_var))
-#define REMOTE_ENCODE_PTR(_data, _n, _ptr, _len)    memcpy(_data + _n*REMOTE_ARG_SIZE, _ptr, sizeof(*_ptr)*_len)
-#define REMOTE_ENCODE_STR(_data, _n, _ptr)          strncpy(_data + _n*REMOTE_ARG_SIZE, _ptr, REMOTE_ARG_SIZE)
-
-#define REMOTE_DECODE_VAR(_data, _n, _type)         (*((_type *)(_data + _n*REMOTE_ARG_SIZE)))    
-#define REMOTE_DECODE_PTR(_data, _n, _type)         ((_type)(_data + _n*REMOTE_ARG_SIZE))
-#define REMOTE_DECODE_STR(_data, _n)                REMOTE_DECODE_PTR(_data, _n, fmi2String)
 
 
 /*-----------------------------------------------------------------------------

@@ -21,7 +21,7 @@
 #include "remote.h"
 #include "server.h"
 
-//#define SERVER_DEBUG
+//#define SERVER_DEBUG 1
 #ifdef SERVER_DEBUG
 #   include <stdio.h>
 #   define SERVER_LOG(message, ...) do { printf("[SERVER] " message, ##__VA_ARGS__); fflush(stdout); } while(0)
@@ -239,6 +239,7 @@ int main(int argc, char* argv[]) {
     setlinebuf(stdout);
     setlinebuf(stderr);
 #endif
+    printf("\n\n\n**************************************************************************************\n\n\n");
     SERVER_LOG("STARING...\n");
     if (argc != 4) {
         fprintf(stderr, "Usage: server <parent_process_id> <secret> <library_path>\n");
@@ -258,6 +259,10 @@ int main(int argc, char* argv[]) {
 #define SERVER_DECODE_PTR(_n, _type)    REMOTE_DECODE_PTR(remote_data->data, _n, _type)
 #define SERVER_DECODE_STR(_n)           REMOTE_DECODE_STR(remote_data->data, _n)
 #define STATUS                          remote_data->status
+
+
+    communication_server_ready(server->communication);
+    SERVER_LOG("server_ready = %d\n", server->communication->data->server_ready);
 
     int wait_for_function = 1;
     while (wait_for_function) {
