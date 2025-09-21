@@ -503,15 +503,14 @@ static size_t get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table,
     if (middle > 0) {
         if (vr > vr_table[offset + middle]) {
             return get_pos(vr, vr_table, offset + middle, nb - middle);
-        }
-        else if (vr < vr_table[offset + middle]) {
+        } else if (vr < vr_table[offset + middle]) {
             return get_pos(vr, vr_table, offset, middle);
-        }
-        else {
-            return middle;
+        } else {
+            return offset + middle;
         }
     } else {
         /* not found */
+        printf("**************** GET_POS FAILED ****************\n");
         return -1;
     }
 }
