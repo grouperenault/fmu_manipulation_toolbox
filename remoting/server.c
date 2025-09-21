@@ -188,6 +188,12 @@ static void server_free(server_t* server) {
     CloseHandle(server->parent_handle);
 #endif
     free(server->instance_name);
+    free(server->update.reals.value);
+    free(server->update.reals.vr);
+    free(server->update.integers.value);
+    free(server->update.integers.vr);
+    free(server->update.booleans.value);
+    free(server->update.booleans.vr);
     free(server);
 
     return;
@@ -202,6 +208,13 @@ static server_t* server_new(const char *library_filename, unsigned long ppid, co
         return NULL;
     server->instance_name = NULL;
     server->is_debug = 0;
+    server->update.reals.value = malloc(nb_reals * sizeof(*server->update.reals.value));
+    server->update.reals.vr = malloc(nb_reals * sizeof(*server->update.reals.vr));
+    server->update.integers.value = malloc(nb_reals * sizeof(*server->update.integers.value));
+    server->update.integers.vr = malloc(nb_reals * sizeof(*server->update.integers.vr));
+    server->update.booleans.value = malloc(nb_reals * sizeof(*server->update.booleans.value));
+    server->update.booleans.vr = malloc(nb_reals * sizeof(*server->update.booleans.vr));
+
 #ifdef WIN32
     server->parent_handle = OpenProcess(SYNCHRONIZE, FALSE, ppid);
 #else
@@ -221,7 +234,6 @@ static server_t* server_new(const char *library_filename, unsigned long ppid, co
     communication_data_initialize(&server->data, server->communication);
 
     /* At this point Client and Server are Synchronized */
-
 
     return server;
 }
