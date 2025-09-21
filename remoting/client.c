@@ -229,6 +229,9 @@ static int get_server_argv(client_t *client, char *argv[]) {
     argv[1] = malloc(16);
     argv[2] = malloc(COMMUNICATION_KEY_LEN);
     argv[3] = malloc(MAX_PATH*2);
+    argv[4] = malloc(16);
+    argv[5] = malloc(16);
+    argv[6] = malloc(16);
 
     bitness = get_client_bitness();
     snprintf(argv[3], MAX_PATH * 2, "%s" CONFIG_DIR_SEP CONFIG_FMI_BIN "%d" CONFIG_DIR_SEP "%s-remoted.%s",
@@ -246,20 +249,24 @@ static int get_server_argv(client_t *client, char *argv[]) {
     snprintf(argv[1], 16, "%lu", process_current_id());
     strcpy(argv[2], client->shared_key);
 
+    snprintf(argv[4], 16, "%lu", client->communication->nb_reals);
+    snprintf(argv[5], 16, "%lu", client->communication->nb_integers);
+    snprintf(argv[6], 16, "%lu", client->communication->nb_booleans);
+
     return 0;
 }
 
 
 static int spawn_server(client_t *client) {
-    char *argv[5];
+    char *argv[8];
 
     if (get_server_argv(client, argv))
         return -1;
-    argv[4] = NULL;
+    argv[7] = NULL;
 
 
-    CLIENT_LOG("Starting remoting server. (Command: %s %s %s %s)\n", argv[0], argv[1], argv[2], argv[3]);
-    LOG_DEBUG(client, "Starting remoting server. (Command: %s %s %s %s)", argv[0], argv[1], argv[2], argv[3]);
+    CLIENT_LOG("Starting remoting server. (Command: %s %s %s %s %s %s %s)\n", argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+    LOG_DEBUG(client, "Starting remoting server. (Command: %s %s %s %s %s %s %s)", argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
 
     client->server_handle = process_spawn(argv);
 
@@ -267,6 +274,9 @@ static int spawn_server(client_t *client) {
     free(argv[1]);
     free(argv[2]);
     free(argv[3]);
+    free(argv[4]);
+    free(argv[5]);
+    free(argv[6]);
 
     if (! client->server_handle) {
         LOG_ERROR(client, "Failed to start server.");
@@ -292,7 +302,7 @@ static void client_new_key(client_t *client) {
 }
 
 
-static client_t* client_new(const char *instanceName, const fmi2CallbackFunctions* functions,
+static client_t* client_new(FILE *fp, const char *instanceName, const fmi2CallbackFunctions* functions,
     int loggingOn) {
     client_t* client = malloc(sizeof(*client));
     unsigned long nb_reals, nb_integers, nb_booleans;
@@ -303,17 +313,24 @@ static client_t* client_new(const char *instanceName, const fmi2CallbackFunction
     LOG_DEBUG(client, "FMU Remoting Interface version %s", REMOTING_VERSION);
     client_new_key(client);
 
-
-    client->communication = communication_new(client->shared_key, 0, 0, 0, COMMUNICATION_CLIENT);
+    fscanf(fp, "%lu %lu %lu ", &nb_reals, &nb_integers, &nb_booleans);
+    client->communication = communication_new(client->shared_key, nb_reals, nb_integers, nb_booleans, COMMUNICATION_CLIENT);
     if (!client->communication) {
         LOG_ERROR(client, "Unable to create SHM");
         return NULL;
     }
         
     communication_data_initialize(&client->data, client->communication);
+    for(unsigned long i=0; i<nb_reals; i += 1)
+        fscanf(fp, "%u ", &client->data.reals.vr[i]);
+    for(unsigned long i=0; i<nb_integers; i += 1)
+        fscanf(fp, "%u ", &client->data.integers.vr[i]);
+    for(unsigned long i=0; i<nb_booleans; i += 1)
+        fscanf(fp, "%u ", &client->data.booleans.vr[i]);
 
     if (spawn_server(client) < 0)
         return NULL;
+
     CLIENT_LOG("Waiting for server to be ready...\n");
     if (communication_timedwaitfor_server(client->communication, 15000))
         return NULL; /* Cannot launch server */
@@ -341,7 +358,22 @@ static void client_free(client_t *client) {
 fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2String fmuGUID,
                               fmi2String fmuResourceLocation, const fmi2CallbackFunctions* functions,
                               fmi2Boolean visible, fmi2Boolean loggingOn) {
-    client_t *client = client_new(instanceName, functions, loggingOn);
+    char filename[MAX_PATH];
+    if (strncmp(fmuResourceLocation, "file://", 7) == 0)
+        fmuResourceLocation += 7;
+    if (fmuResourceLocation[0] == '/')
+        fmuResourceLocation += 1;                  
+    strncpy(filename, fmuResourceLocation, sizeof(filename));
+    strncat(filename, "/remoting_table.txt", sizeof(filename)-strlen(filename)-1);
+    filename[sizeof(filename)-1] = '\0';
+    FILE *fp;
+    fp = fopen(filename, "rt");
+    if (!fp)
+        return NULL;
+
+    client_t *client = client_new(fp, instanceName, functions, loggingOn);
+    fclose(fp);
+
     if (!client)
         return NULL;
 

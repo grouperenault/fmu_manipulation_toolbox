@@ -73,6 +73,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         with open(target_dir/ "remoting_table.txt", "wt") as file:
             for fmi_type in ('Real', 'Integer', 'Boolean'):
                 print(len(self.vr[fmi_type]), file=file)
+            for fmi_type in ('Real', 'Integer', 'Boolean'):
                 for vr in sorted(self.vr[fmi_type]):
                     print(vr, file=file)
 

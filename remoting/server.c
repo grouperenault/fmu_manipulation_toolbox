@@ -194,7 +194,8 @@ static void server_free(server_t* server) {
 }
     
 
-static server_t* server_new(const char *library_filename, unsigned long ppid, const char *secret) {
+static server_t* server_new(const char *library_filename, unsigned long ppid, const char *secret,
+    unsigned long nb_reals, unsigned long nb_integers, unsigned long nb_booleans) {
     server_t* server;
     server = malloc(sizeof(*server));
     if (!server)
@@ -216,7 +217,7 @@ static server_t* server_new(const char *library_filename, unsigned long ppid, co
     strncpy(server->shared_key, secret, sizeof(server->shared_key));
     SERVER_LOG("Server UUID for IPC: '%s'\n", server->shared_key);
 
-    server->communication = communication_new(server->shared_key, 0, 0, 0, COMMUNICATION_SERVER);
+    server->communication = communication_new(server->shared_key, nb_reals, nb_integers, nb_booleans, COMMUNICATION_SERVER);
     communication_data_initialize(&server->data, server->communication);
 
     /* At this point Client and Server are Synchronized */
@@ -287,13 +288,16 @@ static fmi2Status do_step(const server_t *server) {
 
 int main(int argc, char* argv[]) {
     SERVER_LOG("STARING...\n");
-    if (argc != 4) {
-        fprintf(stderr, "Usage: server <parent_process_id> <secret> <library_path>\n");
+    if (argc != 7) {
+        fprintf(stderr, "Usage: server <parent_process_id> <secret> <library_path> <nb_reals> <nb_integer> <nb_booleans>\n");
         return 1;
     }
 
     SERVER_LOG("Initializing...\n");
-    server_t* server = server_new(argv[3], strtoul(argv[1], NULL, 10), argv[2]);
+    server_t* server = server_new(argv[3], strtoul(argv[1], NULL, 10), argv[2], 
+        strtoul(argv[4], NULL, 10),
+        strtoul(argv[5], NULL, 10),
+        strtoul(argv[6], NULL, 10));
     if (!server) {
         SERVER_LOG("Initialize server. Exit.\n");
         return -1;
