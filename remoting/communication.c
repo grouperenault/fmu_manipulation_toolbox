@@ -199,33 +199,33 @@ static size_t communication_shm_size(unsigned long nb_reals, unsigned long nb_in
 } 
 
 void communication_data_initialize(communication_data_t *data, communication_t *communication) {
-    void *ptr = communication->shm + sizeof(*data);
+    char *ptr = (char *)communication->shm + sizeof(*data);
 
-    data->reals.value = ptr;
+    data->reals.value = (void *)ptr;
     ptr += sizeof(fmi2Real) * communication->nb_reals;
     
-    data->integers.value = ptr;
+    data->integers.value = (void *)ptr;
     ptr += sizeof(fmi2Integer) * communication->nb_integers;
 
-    data->booleans.value = ptr;
+    data->booleans.value = (void *)ptr;
     ptr += sizeof(fmi2Boolean) * communication->nb_booleans;
 
-    data->reals.vr = ptr;
+    data->reals.vr = (void *)ptr;
     ptr += sizeof(fmi2ValueReference) * communication->nb_reals;
 
-    data->integers.vr = ptr;
+    data->integers.vr = (void *)ptr;
     ptr += sizeof(fmi2ValueReference) * communication->nb_integers;
 
-    data->booleans.vr = ptr;
+    data->booleans.vr = (void *)ptr;
     ptr += sizeof(fmi2ValueReference) * communication->nb_booleans;
 
-    data->reals.changed = ptr;
+    data->reals.changed = (void *)ptr;
     ptr += sizeof(bool) * communication->nb_reals;
 
-    data->integers.changed = ptr;
+    data->integers.changed = (void *)ptr;
     ptr += sizeof(bool) * communication->nb_integers;
 
-    data->booleans.changed = ptr;
+    data->booleans.changed = (void *)ptr;
     ptr += sizeof(bool) * communication->nb_booleans; /* not needed */
 
     return;
