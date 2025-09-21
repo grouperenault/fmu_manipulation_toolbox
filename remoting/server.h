@@ -101,6 +101,7 @@ typedef struct {
     int                     is_debug;
     process_handle_t        parent_handle;
     char				    shared_key[COMMUNICATION_KEY_LEN];
+    communication_data_t	data;
 } server_t;
 
 

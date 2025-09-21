@@ -177,7 +177,7 @@ static void communication_shm_unmap(void *addr, size_t len) {
 
 void communication_free(communication_t* communication) {
 
-    communication_shm_unmap(communication->data, communication->data_size);
+    communication_shm_unmap(communication->shm, communication->data_size);
     communication_shm_free(communication->map_file, communication->shm_name);
 
     communication_sem_free(communication->server_ready, communication->sem_name_server);
@@ -190,8 +190,49 @@ void communication_free(communication_t* communication) {
     free(communication);
 }
 
+static size_t communication_shm_size(unsigned long nb_reals, unsigned long nb_integers, unsigned long nb_booleans) {
+    size_t size = sizeof(communication_data_t);
+    size +=  nb_reals * (sizeof(fmi2Real) + sizeof(fmi2ValueReference) + sizeof(bool));
+    size +=  nb_integers * (sizeof(fmi2Integer) + sizeof(fmi2ValueReference) + sizeof(bool));
+    size += nb_booleans * (sizeof(fmi2Boolean) + sizeof(fmi2ValueReference) + sizeof(bool));
 
-static int communication_new_client(communication_t *communication, size_t memory_size) {
+    return size;
+} 
+
+void communication_data_initialize(communication_data_t *data, communication_t *communication) {
+    void *ptr = communication->shm + sizeof(*data);
+
+    data->reals = ptr;
+    ptr += sizeof(fmi2Real) * communication->nb_reals;
+    
+    data->integers = ptr;
+    ptr += sizeof(fmi2Integer) * communication->nb_integers;
+
+    data->booleans = ptr;
+    ptr += sizeof(fmi2Boolean) * communication->nb_booleans;
+
+    data->vr_reals = ptr;
+    ptr += sizeof(fmi2ValueReference) * communication->nb_reals;
+
+    data->vr_integers = ptr;
+    ptr += sizeof(fmi2ValueReference) * communication->nb_integers;
+
+    data->vr_booleans = ptr;
+    ptr += sizeof(fmi2ValueReference) * communication->nb_booleans;
+
+    data->changed_reals = ptr;
+    ptr += sizeof(bool) * communication->nb_reals;
+
+    data->changed_integers = ptr;
+    ptr += sizeof(bool) * communication->nb_integers;
+
+    data->changed_booleans = ptr;
+    ptr += sizeof(bool) * communication->nb_booleans; /* not needed */
+
+    return;
+}
+
+static int communication_new_client(communication_t *communication) {
     communication->client_ready = communication_sem_create(communication->sem_name_client);
     if (communication->client_ready == SEM_INVALID) {
         SHM_LOG("Client: Cannot Create Semaphore(%s): %s\n", communication->sem_name_client, strerror(errno));
@@ -213,14 +254,12 @@ static int communication_new_client(communication_t *communication, size_t memor
         return -1;
     }
     SHM_LOG("Client: Map SHM...\n");
-    communication->data = communication_shm_map(communication->map_file, memory_size);
+    communication->shm = communication_shm_map(communication->map_file, communication->data_size);
     SHM_LOG("Client: communication->data = %p\n", communication->data);
-    if (!communication->data) {
+    if (!communication->shm) {
         SHM_LOG("ERROR: Cannot map SHM.\n");
         return -1;
     }
-
-    memset(communication->data, 0, communication->data_size);
 
     communication_client_ready(communication);
 
@@ -229,7 +268,7 @@ static int communication_new_client(communication_t *communication, size_t memor
 }
 
 
-static int communication_new_server(communication_t *communication, size_t memory_size) {
+static int communication_new_server(communication_t *communication) {
     communication->client_ready = communication_sem_join(communication->sem_name_client);
     if (communication->client_ready == SEM_INVALID) {
         SHM_LOG("Server: Cannot Join Semaphore(%s): %s\n", communication->sem_name_client, strerror(errno));
@@ -247,8 +286,8 @@ static int communication_new_server(communication_t *communication, size_t memor
     communication_waitfor_client(communication);
     SHM_LOG("Client ready. Joining SHM\n");
     communication->map_file = communication_shm_join(communication->shm_name);
-    communication->data = communication_shm_map(communication->map_file, memory_size);
-    if (!communication->data) {
+    communication->shm = communication_shm_map(communication->map_file, communication->data_size);
+    if (!communication->shm) {
         SHM_LOG("ERROR: Cannot map SHM.\n");
         return -1;
     }
@@ -259,12 +298,16 @@ static int communication_new_server(communication_t *communication, size_t memor
 }
 
 
-communication_t *communication_new(const char *prefix, size_t memory_size, communication_endpoint_t endpoint) {
+communication_t *communication_new(const char *prefix, unsigned long nb_reals,
+	unsigned long nb_integers, unsigned long nb_booleans, communication_endpoint_t endpoint) {
     communication_t* communication = malloc(sizeof(*communication));
     if (!communication)
         return NULL;
 
     communication->endpoint = endpoint;
+    communication->nb_reals = nb_reals;
+    communication->nb_integers = nb_integers;
+    communication->nb_booleans = nb_booleans;
 #ifdef WIN32
     communication->sem_name_client = concat(prefix, "_client");
     communication->sem_name_server = concat(prefix, "_server");
@@ -278,16 +321,17 @@ communication_t *communication_new(const char *prefix, size_t memory_size, commu
 #endif
 
     communication->shm_name = concat(prefix, "_memory");
-    communication->data = NULL;
+    communication->shm = NULL;
     communication->map_file = SHM_INVALID;
-    communication->data_size = memory_size;
+    communication->data_size = communication_shm_size(nb_reals, nb_integers, nb_booleans);
 
     SHM_LOG("Initialize SHM size=%ld\n", memory_size);
     int status;
-    if (endpoint == COMMUNICATION_CLIENT)
-        status = communication_new_client(communication, memory_size);
-    else
-        status = communication_new_server(communication, memory_size);
+    if (endpoint == COMMUNICATION_CLIENT) {
+        status = communication_new_client(communication);
+    } else {
+        status = communication_new_server(communication);
+    }
     
     if (status) {
         communication_free(communication);
