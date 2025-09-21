@@ -12,7 +12,6 @@
 
 #include "communication.h"
 #include "process.h"
-#include "remote.h"
 
 /*-----------------------------------------------------------------------------
                                C L I E N T _ T

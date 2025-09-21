@@ -234,6 +234,56 @@ static int is_parent_still_alive(const server_t *server) {
     return process_is_alive(server->parent_handle);
 }
 
+static fmi2Status do_step(const server_t *server) {
+    fmi2Real currentCommunicationPoint = server->communication->shm->values[0];
+    fmi2Real communicationStepSize = server->communication->shm->values[1];
+    fmi2Boolean noSetFMUStatePriorToCurrentPoint = server->communication->shm->values[2];
+    fmi2Status status;
+
+    unsigned long nb_reals = 0;
+    for(unsigned long i = 0; i < server->communication->nb_reals; i += 1) {
+        if (server->data.changed_reals[i]) {
+            server->update.reals.vr[nb_reals] = server->data.vr_reals[i];
+            server->update.reals.value[nb_reals] = server->data.reals[i];
+            nb_reals += 1;
+        } 
+    }
+
+    unsigned long nb_integers = 0;
+    for(unsigned long i = 0; i < server->communication->nb_integers; i += 1) {
+        if (server->data.changed_integers[i]) {
+            server->update.integers.vr[nb_integers] = server->data.vr_integers[i];
+            server->update.integers.value[nb_integers] = server->data.integers[i];
+            nb_integers += 1;
+        } 
+    }
+
+    unsigned long nb_booleans = 0;
+        for(unsigned long i = 0; i < server->communication->nb_booleans; i += 1) {
+        if (server->data.changed_booleans[i]) {
+            server->update.booleans.vr[nb_booleans] = server->data.vr_booleans[i];
+            server->update.booleans.value[nb_booleans] = server->data.booleans[i];
+            nb_booleans += 1;
+        } 
+    }
+    
+    server->entries.fmi2SetReal(server->component, server->update.reals.vr, nb_reals, server->update.reals.value);
+    server->entries.fmi2SetInteger(server->component, server->update.integers.vr, nb_integers, server->update.integers.value);
+    server->entries.fmi2SetBoolean(server->component, server->update.booleans.vr, nb_booleans, server->update.booleans.value);
+
+    status = server->entries.fmi2DoStep(
+        server->component,
+        currentCommunicationPoint,
+        communicationStepSize,
+        noSetFMUStatePriorToCurrentPoint);
+
+    server->entries.fmi2GetReal(server->component, server->data.vr_reals, server->communication->nb_reals, server->data.reals);
+    server->entries.fmi2SetInteger(server->component, server->data.vr_integers, server->communication->nb_integers, server->data.integers);
+    server->entries.fmi2SetBoolean(server->component, server->data.vr_booleans, server->communication->nb_booleans, server->data.booleans);
+    
+    return status;
+}
+
 
 int main(int argc, char* argv[]) {
     SERVER_LOG("STARING...\n");
@@ -363,16 +413,7 @@ int main(int argc, char* argv[]) {
             break;
 
         case RPC_fmi2DoStep:
-            if (server->entries.fmi2DoStep) {
-                fmi2Real currentCommunicationPoint = server->communication->shm->values[0];
-                fmi2Real communicationStepSize = server->communication->shm->values[1];
-                fmi2Real noSetFMUStatePriorToCurrentPoint = server->communication->shm->values[2];
-                fmu->status = server->entries.fmi2DoStep(
-                    server->component,
-                    currentCommunicationPoint,
-                    communicationStepSize,
-                    noSetFMUStatePriorToCurrentPoint);
-            }
+            fmu->status = do_step(server);
             break;
         }
 

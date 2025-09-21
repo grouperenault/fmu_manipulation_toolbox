@@ -32,7 +32,6 @@
 #endif
 
 #include "communication.h"
-#include "remote.h"
 
 
 static char* concat(const char* prefix, const char* name) {

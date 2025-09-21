@@ -14,7 +14,6 @@
 
 #include "communication.h"
 #include "process.h"
-#include "remote.h"
 
 /*----------------------------------------------------------------------------
                             F M U _ L I B R A R Y T
@@ -89,6 +88,27 @@ typedef struct {
 /*-----------------------------------------------------------------------------
                                 S E R V E R _ T
 -----------------------------------------------------------------------------*/
+typedef struct {
+    fmi2Real                *value;
+    fmi2ValueReference      *vr;
+} fmi2_reals_t;
+
+typedef struct {
+    fmi2Integer             *value;
+    fmi2ValueReference      *vr;
+} fmi2_integers_t;
+
+typedef struct {
+    fmi2Boolean             *value;
+    fmi2ValueReference      *vr;
+} fmi2_booleans_t;
+
+typedef struct {
+    fmi2_reals_t            reals;
+    fmi2_integers_t         integers;
+    fmi2_booleans_t         booleans;
+} server_data_t;
+
 
 typedef struct {
 	communication_t         *communication;
@@ -102,6 +122,7 @@ typedef struct {
     process_handle_t        parent_handle;
     char				    shared_key[COMMUNICATION_KEY_LEN];
     communication_data_t	data;
+    server_data_t           update;
 } server_t;
 
 
