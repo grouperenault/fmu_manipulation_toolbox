@@ -120,9 +120,10 @@ static void library_unload(library_t library) {
 }
 
 
-static void map_entries(fmu_entries_t* entries, library_t library) {
+static int map_entries(fmu_entries_t* entries, library_t library) {
 #	define MAP(x) entries->x = (x ## TYPE*)library_symbol(library, #x); \
-	SERVER_LOG("function %-30s: %s\n", "`" #x "'", (entries->x)?"found":"not implemented")
+	SERVER_LOG("function %-30s: %s\n", "`" #x "'", (entries->x)?"found":"not implemented"); \
+    if (! entries->x) return -1;
 
     MAP(fmi2Instantiate);
     MAP(fmi2FreeInstance);
@@ -139,7 +140,7 @@ static void map_entries(fmu_entries_t* entries, library_t library) {
     MAP(fmi2SetBoolean);
     MAP(fmi2DoStep);
 #undef MAP
-    return;
+    return 0;
 }
 
 
@@ -175,13 +176,30 @@ static server_t* server_new(const char *library_filename, unsigned long ppid, co
     if (!server)
         return NULL;
     server->instance_name = NULL;
+    server->component = NULL;
     server->is_debug = 0;
-    server->update.reals.value = malloc(nb_reals * sizeof(*server->update.reals.value));
-    server->update.reals.vr = malloc(nb_reals * sizeof(*server->update.reals.vr));
-    server->update.integers.value = malloc(nb_reals * sizeof(*server->update.integers.value));
-    server->update.integers.vr = malloc(nb_reals * sizeof(*server->update.integers.vr));
-    server->update.booleans.value = malloc(nb_reals * sizeof(*server->update.booleans.value));
-    server->update.booleans.vr = malloc(nb_reals * sizeof(*server->update.booleans.vr));
+    server->update.reals.value = NULL;
+    server->update.reals.vr = NULL;
+    server->update.integers.value = NULL;
+    server->update.integers.vr = NULL;
+    server->update.booleans.value = NULL;
+    server->update.booleans.vr = NULL;
+    server->communication = NULL;
+    server->library = NULL;
+
+#define ALLOC(_data) \
+    server->update. _data = malloc(nb_reals * sizeof(*server->update. _data)); \
+    if (!server->update. _data) { \
+        server_free(server); \
+        return NULL; \
+    }
+
+    ALLOC(reals.value);
+    ALLOC(reals.vr);
+    ALLOC(integers.value);
+    ALLOC(integers.vr);
+    ALLOC(booleans.value);
+    ALLOC(booleans.vr);
 
 #ifdef WIN32
     server->parent_handle = OpenProcess(SYNCHRONIZE, FALSE, ppid);
@@ -222,7 +240,6 @@ static fmi2Status setup_experiment(const server_t* server) {
     fmi2Boolean stopTimeDefined = server->communication->shm->values[3];
     fmi2Real stopTime = server->communication->shm->values[4];
 
-    printf("setup_experiment(%p, %d, %e, %e, %d, %e)", server->component, toleranceDefined, tolerance, startTime, stopTimeDefined, stopTime);
     return server->entries.fmi2SetupExperiment(
         server->component,
         toleranceDefined,
@@ -242,8 +259,8 @@ static fmi2Status instanciate(server_t* server) {
         LOG_ERROR(server, "Cannot open DLL object '%s'. ", server->library_filename);
         return fmi2Error;
     }
-    map_entries(&server->entries, server->library);
-    server->component = NULL;
+    if (map_entries(&server->entries, server->library) < 0)
+        return fmi2Error;
 
     server->component = server->entries.fmi2Instantiate(
         server->communication->shm->instance_name,
@@ -258,6 +275,12 @@ static fmi2Status instanciate(server_t* server) {
         LOG_ERROR(server, "Cannot instanciate FMU.");
         return fmi2Error;
     }
+
+    LOG_WARNING(server, "Initialize data");
+
+    server->entries.fmi2GetReal(server->component, server->data.reals.vr, server->communication->nb_reals, server->data.reals.value);
+    server->entries.fmi2SetInteger(server->component, server->data.integers.vr, server->communication->nb_integers, server->data.integers.value);
+    server->entries.fmi2SetBoolean(server->component, server->data.booleans.vr, server->communication->nb_booleans, server->data.booleans.value);
 
     return fmi2OK;
 }
