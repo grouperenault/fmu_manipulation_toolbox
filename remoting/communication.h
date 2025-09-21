@@ -118,9 +118,9 @@ typedef struct {
 	sem_handle_t				client_ready;
 	sem_handle_t				server_ready;
 	size_t						data_size;
-	size_t  	        	    nb_reals;
-    size_t      		        nb_integers;
-    size_t              		nb_booleans;
+	unsigned long  				nb_reals;
+	unsigned long      	        nb_integers;
+	unsigned long          		nb_booleans;
     communication_shm_t         *shm;
 } communication_t;
 

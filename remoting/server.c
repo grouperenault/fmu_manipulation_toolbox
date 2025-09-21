@@ -124,9 +124,6 @@ static void map_entries(fmu_entries_t* entries, library_t library) {
 #	define MAP(x) entries->x = (x ## TYPE*)library_symbol(library, #x); \
 	SERVER_LOG("function %-30s: %s\n", "`" #x "'", (entries->x)?"found":"not implemented")
 
-    MAP(fmi2GetTypesPlatform);  /* 0 */
-    MAP(fmi2GetVersion);
-    MAP(fmi2SetDebugLogging);
     MAP(fmi2Instantiate);
     MAP(fmi2FreeInstance);
     MAP(fmi2SetupExperiment);
@@ -134,42 +131,13 @@ static void map_entries(fmu_entries_t* entries, library_t library) {
     MAP(fmi2ExitInitializationMode);
     MAP(fmi2Terminate);
     MAP(fmi2Reset);
-    MAP(fmi2GetReal); /* 10 */
+    MAP(fmi2GetReal);
     MAP(fmi2GetInteger);
     MAP(fmi2GetBoolean);
-    MAP(fmi2GetString);
     MAP(fmi2SetReal);
     MAP(fmi2SetInteger);
     MAP(fmi2SetBoolean);
-    MAP(fmi2SetString);
-    MAP(fmi2GetFMUstate);
-    MAP(fmi2SetFMUstate);
-    MAP(fmi2FreeFMUstate); /* 20 */
-    MAP(fmi2SerializedFMUstateSize);
-    MAP(fmi2SerializeFMUstate);
-    MAP(fmi2DeSerializeFMUstate);
-    MAP(fmi2GetDirectionalDerivative);
-
-    MAP(fmi2EnterEventMode);
-    MAP(fmi2NewDiscreteStates);
-    MAP(fmi2EnterContinuousTimeMode);
-    MAP(fmi2CompletedIntegratorStep);
-    MAP(fmi2SetTime);
-    MAP(fmi2SetContinuousStates); /* 30 */
-    MAP(fmi2GetDerivatives);
-    MAP(fmi2GetEventIndicators);
-    MAP(fmi2GetContinuousStates);
-    MAP(fmi2GetNominalsOfContinuousStates);
-
-    MAP(fmi2SetRealInputDerivatives);
-    MAP(fmi2GetRealOutputDerivatives);
     MAP(fmi2DoStep);
-    MAP(fmi2CancelStep);
-    MAP(fmi2GetStatus);
-    MAP(fmi2GetRealStatus); /* 40 */
-    MAP(fmi2GetIntegerStatus);
-    MAP(fmi2GetBooleanStatus);
-    MAP(fmi2GetStringStatus);
 #undef MAP
     return;
 }
@@ -247,6 +215,63 @@ static int is_parent_still_alive(const server_t *server) {
     return process_is_alive(server->parent_handle);
 }
 
+static fmi2Status setup_experiment(const server_t* server) {
+    fmi2Boolean toleranceDefined = server->communication->shm->values[0];
+    fmi2Real tolerance = server->communication->shm->values[1];
+    fmi2Real startTime = server->communication->shm->values[2];
+    fmi2Boolean stopTimeDefined = server->communication->shm->values[3];
+    fmi2Real stopTime = server->communication->shm->values[4];
+
+    printf("setup_experiment(%p, %d, %e, %e, %d, %e)", server->component, toleranceDefined, tolerance, startTime, stopTimeDefined, stopTime);
+    return server->entries.fmi2SetupExperiment(
+        server->component,
+        toleranceDefined,
+        tolerance,
+        startTime,
+        stopTimeDefined,
+        stopTime);
+
+}
+
+
+static fmi2Status instanciate(server_t* server) {
+    server->instance_name = strdup(server->communication->shm->instance_name);
+    server->is_debug = fmi2False;
+    server->library = library_load(server->library_filename);
+    if (!server->library) {
+        LOG_ERROR(server, "Cannot open DLL object '%s'. ", server->library_filename);
+        return fmi2Error;
+    }
+    map_entries(&server->entries, server->library);
+    server->component = NULL;
+
+    server->component = server->entries.fmi2Instantiate(
+        server->communication->shm->instance_name,
+        fmi2CoSimulation,
+        server->communication->shm->token,
+        server->communication->shm->resource_directory,
+        &server->functions,
+        fmi2False,
+        fmi2False);
+
+    if (!server->component) {
+        LOG_ERROR(server, "Cannot instanciate FMU.");
+        return fmi2Error;
+    }
+
+    return fmi2OK;
+}
+
+
+static fmi2Status free_instance(server_t *server) {
+    server->entries.fmi2FreeInstance(server->component);
+    server->component = NULL;
+    library_unload(server->library);
+    server->library = NULL;
+
+    return fmi2OK;
+}
+
 static fmi2Status do_step(const server_t *server) {
     fmi2Real currentCommunicationPoint = server->communication->shm->values[0];
     fmi2Real communicationStepSize = server->communication->shm->values[1];
@@ -317,9 +342,7 @@ int main(int argc, char* argv[]) {
 
 
     communication_shm_t *fmu = server->communication->shm;
-
     communication_server_ready(server->communication);
-    SERVER_LOG("server_ready = %d\n", server->communication->data->server_ready);
 
     int wait_for_function = 1;
     while (wait_for_function) {
@@ -344,88 +367,39 @@ int main(int argc, char* argv[]) {
 
 
         rpc_function_t function = fmu->function;
-        SERVER_LOG("RPC: %s | execute\n", remote_function_name(function));
+        SERVER_LOG("RPC: %d | execute\n", function);
         fmu->status = -1; /* means that real function is not (yet?) called */
 
      
         switch (function) {
         case RPC_fmi2Instantiate:
-            server->instance_name = strdup(fmu->instance_name);
-            server->is_debug = fmi2False;
-            server->library = library_load(server->library_filename);
-            if (!server->library)
-                LOG_ERROR(server, "Cannot open DLL object '%s'. ", server->library_filename);
-            map_entries(&server->entries, server->library);
-            server->component = NULL;
-
-            if (server->entries.fmi2Instantiate)
-                server->component = server->entries.fmi2Instantiate(
-                    server->communication->shm->instance_name,
-                    fmi2CoSimulation,
-                    server->communication->shm->token,
-                    server->communication->shm->resource_directory,
-                    &server->functions,
-                    fmi2False,
-                    fmi2False);
-            
-            if (!server->component) {
-                LOG_ERROR(server, "Cannot instanciate FMU.");
-                fmu->status = fmi2Error;
-            } else
-                fmu->status = fmi2OK;
+            fmu->status = instanciate(server);
             break;
 
         case RPC_fmi2FreeInstance:
-            if (server->entries.fmi2FreeInstance) {
-                server->entries.fmi2FreeInstance(server->component);
-                fmu->status = fmi2OK;
-            } else {
-                LOG_ERROR(server, "Function 'fmi2FreeInstance' not reachable.");
-                fmu->status = fmi2Error;
-            }
-            server->component = NULL;
-            library_unload(server->library);
-            server->library = NULL;
-
+            free_instance(server);
             wait_for_function = 0;
             break;
 
         case RPC_fmi2SetupExperiment:
-            if (server->entries.fmi2SetupExperiment) {
-                fmi2Boolean toleranceDefined = server->communication->shm->values[0];
-                fmi2Real tolerance = server->communication->shm->values[1];
-                fmi2Real startTime = server->communication->shm->values[2];
-                fmi2Boolean stopTimeDefined = server->communication->shm->values[3];
-                fmi2Real stopTime = server->communication->shm->values[4];
-
-                fmu->status = server->entries.fmi2SetupExperiment(
-                    server->component,
-                    toleranceDefined,
-                    tolerance,
-                    startTime,
-                    stopTimeDefined,
-                    stopTime);
-            }
+            fmu->status = setup_experiment(server);
             break;
 
+
         case RPC_fmi2EnterInitializationMode:
-            if (server->entries.fmi2EnterInitializationMode)
-               fmu->status = server->entries.fmi2EnterInitializationMode(server->component);
+            fmu->status = server->entries.fmi2EnterInitializationMode(server->component);
             break;
 
         case RPC_fmi2ExitInitializationMode:
-            if (server->entries.fmi2ExitInitializationMode)
-                fmu->status = server->entries.fmi2ExitInitializationMode(server->component);
+            fmu->status = server->entries.fmi2ExitInitializationMode(server->component);
             break;
 
         case RPC_fmi2Terminate:
-            if (server->entries.fmi2Terminate)
-                fmu->status = server->entries.fmi2Terminate(server->component);
+            fmu->status = server->entries.fmi2Terminate(server->component);
             break;
 
         case RPC_fmi2Reset:
-            if (server->entries.fmi2Reset)
-                fmu->status = server->entries.fmi2Reset(server->component);
+            fmu->status = server->entries.fmi2Reset(server->component);
             break;
 
         case RPC_fmi2DoStep:

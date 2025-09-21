@@ -101,7 +101,7 @@ static fmi2Status make_rpc(client_t* client, rpc_function_t function) {
     /* Flush message log */
     remote_data->message[0] = '\0';
 
-    CLIENT_LOG("RPC: %s\n", remote_function_name(function));
+    CLIENT_LOG("RPC: %d\n", function);
     remote_data->function = function;
 
     /* Wait for answer */
@@ -115,7 +115,7 @@ static fmi2Status make_rpc(client_t* client, rpc_function_t function) {
     }
 
     status = remote_data->status; 
-    CLIENT_LOG("RPC: %s | reply = %d\n", remote_function_name(function), status);
+    CLIENT_LOG("RPC: %d | reply = %d\n", function, status);
 
     if (remote_data->message[0]) {
         client_logger(client, status, "%s", remote_data->message);
@@ -302,9 +302,20 @@ static void client_new_key(client_t *client) {
 }
 
 
-static client_t* client_new(FILE *fp, const char *instanceName, const fmi2CallbackFunctions* functions,
+static void client_free(client_t* client) {
+    process_close_handle(client->server_handle);
+    free(client->instance_name);
+    communication_free(client->communication);
+    free(client);
+
+    return;
+}
+
+
+static client_t* client_new(const char *filename, const char *instanceName, const fmi2CallbackFunctions* functions,
     int loggingOn) {
     client_t* client = malloc(sizeof(*client));
+    FILE* fp;
     unsigned long nb_reals, nb_integers, nb_booleans;
     client->functions = functions;
     client->instance_name = strdup(instanceName);
@@ -313,7 +324,19 @@ static client_t* client_new(FILE *fp, const char *instanceName, const fmi2Callba
     LOG_DEBUG(client, "FMU Remoting Interface version %s", REMOTING_VERSION);
     client_new_key(client);
 
-    fscanf(fp, "%lu %lu %lu ", &nb_reals, &nb_integers, &nb_booleans);
+    fp = fopen(filename, "rt");
+    if (!fp) {
+        LOG_ERROR(client, "Unable to open '%s'.", filename);
+        free(client);
+        return NULL;
+    }
+
+    if (fscanf(fp, "%lu %lu %lu ", &nb_reals, &nb_integers, &nb_booleans) < 3) {
+        LOG_ERROR(client, "Unable read header.");
+        fclose(fp);
+        free(client);
+        return NULL;
+    }
     client->communication = communication_new(client->shared_key, nb_reals, nb_integers, nb_booleans, COMMUNICATION_CLIENT);
     if (!client->communication) {
         LOG_ERROR(client, "Unable to create SHM");
@@ -321,32 +344,43 @@ static client_t* client_new(FILE *fp, const char *instanceName, const fmi2Callba
     }
         
     communication_data_initialize(&client->data, client->communication);
-    for(unsigned long i=0; i<nb_reals; i += 1)
-        fscanf(fp, "%u ", &client->data.reals.vr[i]);
-    for(unsigned long i=0; i<nb_integers; i += 1)
-        fscanf(fp, "%u ", &client->data.integers.vr[i]);
-    for(unsigned long i=0; i<nb_booleans; i += 1)
-        fscanf(fp, "%u ", &client->data.booleans.vr[i]);
+    for (unsigned long i = 0; i < nb_reals; i += 1) {
+        if (fscanf(fp, "%u ", &client->data.reals.vr[i]) < 1) {
+            LOG_ERROR(client, "Unable to read REALS VR's.");
+            fclose(fp);
+            client_free(client);
+            return NULL;
+        }
+    }
+    for (unsigned long i = 0; i < nb_integers; i += 1) {
+        if (fscanf(fp, "%u ", &client->data.integers.vr[i]) < 1) {
+            LOG_ERROR(client, "Unable to read INTEGERS VR's.");
+            fclose(fp);
+            client_free(client);
+            return NULL;
+        }
+    }
+    for (unsigned long i = 0; i < nb_booleans; i += 1) {
+        if (fscanf(fp, "%u ", &client->data.booleans.vr[i]) < 1) {
+            LOG_ERROR(client, "Unable to read BOOLEANS VR's.");
+            fclose(fp);
+            client_free(client);
+            return NULL;
+        }
+    }
+    fclose(fp);
 
     if (spawn_server(client) < 0)
         return NULL;
 
     CLIENT_LOG("Waiting for server to be ready...\n");
-    if (communication_timedwaitfor_server(client->communication, 15000))
+    if (communication_timedwaitfor_server(client->communication, 15000)) {
+        LOG_ERROR(client, "Server did not respond.");
+        client_free(client);
         return NULL; /* Cannot launch server */
+    }
     
-
     return client;
-}
-
-
-static void client_free(client_t *client) {
-    process_close_handle(client->server_handle);
-    free(client->instance_name);
-    communication_free(client->communication);
-    free(client);
-
-    return;
 }
 
 
@@ -366,13 +400,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2Str
     strncpy(filename, fmuResourceLocation, sizeof(filename));
     strncat(filename, "/remoting_table.txt", sizeof(filename)-strlen(filename)-1);
     filename[sizeof(filename)-1] = '\0';
-    FILE *fp;
-    fp = fopen(filename, "rt");
-    if (!fp)
-        return NULL;
-
-    client_t *client = client_new(fp, instanceName, functions, loggingOn);
-    fclose(fp);
+    client_t *client = client_new(filename, instanceName, functions, loggingOn);
 
     if (!client)
         return NULL;
