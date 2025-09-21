@@ -194,12 +194,11 @@ static size_t communication_shm_size(unsigned long nb_reals, unsigned long nb_in
     size +=  nb_reals * (sizeof(fmi2Real) + sizeof(fmi2ValueReference) + sizeof(bool));
     size +=  nb_integers * (sizeof(fmi2Integer) + sizeof(fmi2ValueReference) + sizeof(bool));
     size += nb_booleans * (sizeof(fmi2Boolean) + sizeof(fmi2ValueReference) + sizeof(bool));
-
     return size;
 } 
 
 void communication_data_initialize(communication_data_t *data, communication_t *communication) {
-    char *ptr = (char *)communication->shm + sizeof(*data);
+    char *ptr = (char *)communication->shm + sizeof(communication_shm_t);
 
     data->reals.value = (void *)ptr;
     ptr += sizeof(fmi2Real) * communication->nb_reals;

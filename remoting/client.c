@@ -116,9 +116,8 @@ static fmi2Status make_rpc(client_t* client, rpc_function_t function) {
 
     status = remote_data->status; 
     CLIENT_LOG("RPC: %d | reply = %d\n", function, status);
-
     if (remote_data->message[0]) {
-        client_logger(client, status, "%s", remote_data->message);
+        client_logger(client, fmi2Warning, "%s", remote_data->message);
         remote_data->message[0] = '\0'; /* Flush message log */
     }
 
@@ -351,6 +350,8 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
             client_free(client);
             return NULL;
         }
+        client->data.reals.changed[i] = false;
+        client->data.reals.value[i] = 0.0;
     }
     for (unsigned long i = 0; i < nb_integers; i += 1) {
         if (fscanf(fp, "%u ", &client->data.integers.vr[i]) < 1) {
@@ -359,6 +360,8 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
             client_free(client);
             return NULL;
         }
+        client->data.integers.changed[i] = false;
+        client->data.integers.value[i] = 0;
     }
     for (unsigned long i = 0; i < nb_booleans; i += 1) {
         if (fscanf(fp, "%u ", &client->data.booleans.vr[i]) < 1) {
@@ -367,6 +370,8 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
             client_free(client);
             return NULL;
         }
+        client->data.booleans.changed[i] = false;
+        client->data.booleans.value[i] = 0;
     }
     fclose(fp);
 
@@ -379,7 +384,7 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
         client_free(client);
         return NULL; /* Cannot launch server */
     }
-    
+
     return client;
 }
 
@@ -491,8 +496,8 @@ static size_t get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table,
     if (vr == vr_table[offset])
         return offset;
 
-    if (vr == vr_table[offset + nb])
-        return offset + nb;
+    if (vr == vr_table[offset + nb - 1])
+        return offset + nb - 1;
 
     size_t middle = nb / 2;
     if (middle > 0) {
@@ -505,8 +510,7 @@ static size_t get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table,
         else {
             return middle;
         }
-    }
-    else {
+    } else {
         /* not found */
         return -1;
     }
@@ -517,12 +521,11 @@ static size_t get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table,
 fmi2Status fmi2GetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Real value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
+    LOG_DEBUG(client, "fmi2GetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.reals.vr, 0, client->communication->nb_reals);
-        if (index >= 0) {
+        if (index >= 0)
             value[i] = client->data.reals.value[index];
-        }
         else
             return fmi2Error;
     }
@@ -533,12 +536,11 @@ fmi2Status fmi2GetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nv
 fmi2Status fmi2GetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Integer value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
+    LOG_DEBUG(client, "fmi2GetInteger: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.integers.vr, 0, client->communication->nb_integers);
-        if (index >= 0) {
+        if (index >= 0)
             value[i] = client->data.integers.value[index];
-        }
         else
             return fmi2Error;
     }
@@ -549,12 +551,11 @@ fmi2Status fmi2GetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t
 fmi2Status fmi2GetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Boolean value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
+    LOG_DEBUG(client, "fmi2GetBoolean: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.booleans.vr, 0, client->communication->nb_booleans);
-        if (index >= 0) {
+        if (index >= 0)
             value[i] = client->data.booleans.value[index];
-        }
         else
             return fmi2Error;
     }
@@ -577,8 +578,8 @@ fmi2Status fmi2SetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nv
         size_t index = get_pos(vr[i], client->data.reals.vr, 0, client->communication->nb_reals);
         if (index >= 0) {
             client->data.reals.value[index] = value[i];
-        }
-        else
+            client->data.reals.changed[index] = true;
+        } else
             return fmi2Error;
     }
     return fmi2OK;
@@ -589,13 +590,13 @@ fmi2Status fmi2SetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t
     return fmi2OK;
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
+    LOG_DEBUG(client, "fmi2SetInteger: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.integers.vr, 0, client->communication->nb_integers);
         if (index >= 0) {
             client->data.integers.value[index] = value[i];
-        }
-        else
+            client->data.integers.changed[index] = true;
+        } else
             return fmi2Error;
     }
     return fmi2OK;
@@ -607,13 +608,13 @@ fmi2Status fmi2SetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t
     client_t* client = (client_t*)c;
 
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
+    LOG_DEBUG(client, "fmi2SetBoolean: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.booleans.vr, 0, client->communication->nb_booleans);
         if (index >= 0) {
             client->data.booleans.value[index] = value[i];
-        }
-        else
+            client->data.booleans.changed[index] = true;
+        } else
             return fmi2Error;
     }
     return fmi2OK;
