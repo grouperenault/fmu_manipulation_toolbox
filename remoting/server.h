@@ -91,22 +91,22 @@ typedef struct {
 typedef struct {
     fmi2Real                *value;
     fmi2ValueReference      *vr;
-} fmi2_reals_t;
+} server_data_reals_t;
 
 typedef struct {
     fmi2Integer             *value;
     fmi2ValueReference      *vr;
-} fmi2_integers_t;
+} server_data_integers_t;
 
 typedef struct {
     fmi2Boolean             *value;
     fmi2ValueReference      *vr;
-} fmi2_booleans_t;
+} server_data_booleans_t;
 
 typedef struct {
-    fmi2_reals_t            reals;
-    fmi2_integers_t         integers;
-    fmi2_booleans_t         booleans;
+    server_data_reals_t            reals;
+    server_data_integers_t         integers;
+    server_data_booleans_t         booleans;
 } server_data_t;
 
 

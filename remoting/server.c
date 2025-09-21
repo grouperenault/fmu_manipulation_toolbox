@@ -242,27 +242,27 @@ static fmi2Status do_step(const server_t *server) {
 
     unsigned long nb_reals = 0;
     for(unsigned long i = 0; i < server->communication->nb_reals; i += 1) {
-        if (server->data.changed_reals[i]) {
-            server->update.reals.vr[nb_reals] = server->data.vr_reals[i];
-            server->update.reals.value[nb_reals] = server->data.reals[i];
+        if (server->data.reals.changed[i]) {
+            server->update.reals.vr[nb_reals] = server->data.reals.vr[i];
+            server->update.reals.value[nb_reals] = server->data.reals.value[i];
             nb_reals += 1;
         } 
     }
 
     unsigned long nb_integers = 0;
     for(unsigned long i = 0; i < server->communication->nb_integers; i += 1) {
-        if (server->data.changed_integers[i]) {
-            server->update.integers.vr[nb_integers] = server->data.vr_integers[i];
-            server->update.integers.value[nb_integers] = server->data.integers[i];
+        if (server->data.integers.changed[i]) {
+            server->update.integers.vr[nb_integers] = server->data.integers.vr[i];
+            server->update.integers.value[nb_integers] = server->data.integers.value[i];
             nb_integers += 1;
         } 
     }
 
     unsigned long nb_booleans = 0;
         for(unsigned long i = 0; i < server->communication->nb_booleans; i += 1) {
-        if (server->data.changed_booleans[i]) {
-            server->update.booleans.vr[nb_booleans] = server->data.vr_booleans[i];
-            server->update.booleans.value[nb_booleans] = server->data.booleans[i];
+        if (server->data.booleans.changed[i]) {
+            server->update.booleans.vr[nb_booleans] = server->data.booleans.vr[i];
+            server->update.booleans.value[nb_booleans] = server->data.booleans.value[i];
             nb_booleans += 1;
         } 
     }
@@ -277,9 +277,9 @@ static fmi2Status do_step(const server_t *server) {
         communicationStepSize,
         noSetFMUStatePriorToCurrentPoint);
 
-    server->entries.fmi2GetReal(server->component, server->data.vr_reals, server->communication->nb_reals, server->data.reals);
-    server->entries.fmi2SetInteger(server->component, server->data.vr_integers, server->communication->nb_integers, server->data.integers);
-    server->entries.fmi2SetBoolean(server->component, server->data.vr_booleans, server->communication->nb_booleans, server->data.booleans);
+    server->entries.fmi2GetReal(server->component, server->data.reals.vr, server->communication->nb_reals, server->data.reals.value);
+    server->entries.fmi2SetInteger(server->component, server->data.integers.vr, server->communication->nb_integers, server->data.integers.value);
+    server->entries.fmi2SetBoolean(server->component, server->data.booleans.vr, server->communication->nb_booleans, server->data.booleans.value);
     
     return status;
 }

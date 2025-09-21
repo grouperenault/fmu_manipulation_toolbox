@@ -67,17 +67,28 @@ typedef enum {
 	RPC_fmi2DoStep=8,
 } rpc_function_t;
 
+typedef struct {
+    fmi2Real                *value;
+    fmi2ValueReference      *vr;
+	bool					*changed;
+} communication_data_reals_t;
 
 typedef struct {
-	fmi2Integer         *integers;
-    fmi2Real            *reals;
-    fmi2Boolean         *booleans;
-    fmi2ValueReference  *vr_reals;
-    fmi2ValueReference  *vr_integers;
-    fmi2ValueReference  *vr_booleans;
-	bool				*changed_reals;
-	bool				*changed_integers;
-	bool 				*changed_booleans;
+    fmi2Integer             *value;
+    fmi2ValueReference      *vr;
+	bool					*changed;
+} communication_data_integers_t;
+
+typedef struct {
+    fmi2Boolean             *value;
+    fmi2ValueReference      *vr;
+	bool					*changed;
+} communication_data_booleans_t;
+
+typedef struct {
+	communication_data_reals_t		reals;
+	communication_data_integers_t	integers;
+	communication_data_booleans_t	booleans;
 } communication_data_t;
 
 /*

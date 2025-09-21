@@ -201,31 +201,31 @@ static size_t communication_shm_size(unsigned long nb_reals, unsigned long nb_in
 void communication_data_initialize(communication_data_t *data, communication_t *communication) {
     void *ptr = communication->shm + sizeof(*data);
 
-    data->reals = ptr;
+    data->reals.value = ptr;
     ptr += sizeof(fmi2Real) * communication->nb_reals;
     
-    data->integers = ptr;
+    data->integers.value = ptr;
     ptr += sizeof(fmi2Integer) * communication->nb_integers;
 
-    data->booleans = ptr;
+    data->booleans.value = ptr;
     ptr += sizeof(fmi2Boolean) * communication->nb_booleans;
 
-    data->vr_reals = ptr;
+    data->reals.vr = ptr;
     ptr += sizeof(fmi2ValueReference) * communication->nb_reals;
 
-    data->vr_integers = ptr;
+    data->integers.vr = ptr;
     ptr += sizeof(fmi2ValueReference) * communication->nb_integers;
 
-    data->vr_booleans = ptr;
+    data->booleans.vr = ptr;
     ptr += sizeof(fmi2ValueReference) * communication->nb_booleans;
 
-    data->changed_reals = ptr;
+    data->reals.changed = ptr;
     ptr += sizeof(bool) * communication->nb_reals;
 
-    data->changed_integers = ptr;
+    data->integers.changed = ptr;
     ptr += sizeof(bool) * communication->nb_integers;
 
-    data->changed_booleans = ptr;
+    data->booleans.changed = ptr;
     ptr += sizeof(bool) * communication->nb_booleans; /* not needed */
 
     return;
