@@ -2,7 +2,7 @@
 This package was formerly known as `fmutool`.
 
 # Version 1.9
-* CHANGE: `remoting` code rewrite to improve performance
+* CHANGE: `remoting` code rewrite to (drastically) improve performance
 * ADDED: `fmusplit` command to split container into FMU's and provide a json file
 * ADDED: `fmucontainer` support of `-sequential` mode
 * ADDED: FMI-3.0 early support. Use `-fmi 3` option for `fmucontainer`
