@@ -19,6 +19,8 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
             "Integer": [],
             "Boolean": []
         }
+        self.nb_input = 0;
+        self.nb_output = 0;
 
     def fmi_attrs(self, attrs):
         if not attrs["fmiVersion"] == "2.0":
@@ -60,6 +62,10 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
     def port_attrs(self, fmu_port) -> int:
         try:
             self.vr[fmu_port.fmi_type].append(fmu_port["valueReference"])
+            if fmu_port["causality"] in ("input", "parameter"):
+                self.nb_input += 1
+            else:
+                self.nb_output += 1
         except KeyError:
             logger.error(f"Type '{fmu_port.fmi_type}' is not supported by remoting.")
 
@@ -70,6 +76,8 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         if not target_dir.is_dir():
             target_dir.mkdir()
 
+        logger.info(f"Remoting nb input port: {self.nb_input}")
+        logger.info(f"Remoting nb output port: {self.nb_output}")
         with open(target_dir/ "remoting_table.txt", "wt") as file:
             for fmi_type in ('Real', 'Integer', 'Boolean'):
                 print(len(self.vr[fmi_type]), file=file)

@@ -249,7 +249,6 @@ static fmi2Status setup_experiment(const server_t* server) {
         startTime,
         stopTimeDefined,
         stopTime);
-
 }
 
 
@@ -329,6 +328,14 @@ static fmi2Status do_step(server_t *server) {
             server->data.reals.changed[i] = false;
         } 
     }
+    if (nb_reals) {
+        status = server->entries.fmi2SetReal(server->component, server->update.reals.vr,
+            nb_reals, server->update.reals.value);
+        if (status != fmi2OK) {
+            LOG_ERROR(server, "Cannot apply REALS buffer.");
+            return status;
+        }
+    }
 
     unsigned long nb_integers = 0;
     for(unsigned long i = 0; i < server->communication->nb_integers; i += 1) {
@@ -338,6 +345,14 @@ static fmi2Status do_step(server_t *server) {
             nb_integers += 1;
             server->data.integers.changed[i] = false;
         } 
+    }
+    if (nb_integers) {
+        status = server->entries.fmi2SetInteger(server->component, server->update.integers.vr,
+            nb_integers, server->update.integers.value);
+        if (status != fmi2OK) {
+            LOG_ERROR(server, "Cannot apply INTEGERS buffer.");
+            return status;
+        }
     }
 
     unsigned long nb_booleans = 0;
@@ -349,25 +364,6 @@ static fmi2Status do_step(server_t *server) {
             server->data.booleans.changed[i] = false;
         } 
     }
-    
-    if (nb_reals) {
-        status = server->entries.fmi2SetReal(server->component, server->update.reals.vr,
-            nb_reals, server->update.reals.value);
-        if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot apply REALS buffer.");
-            return status;
-        }
-    }
-
-    if (nb_integers) {
-        status = server->entries.fmi2SetInteger(server->component, server->update.integers.vr,
-            nb_integers, server->update.integers.value);
-        if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot apply INTEGERS buffer.");
-            return status;
-        }
-    }
-
     if (nb_booleans) {
         status = server->entries.fmi2SetBoolean(server->component, server->update.booleans.vr,
             nb_booleans, server->update.booleans.value);
@@ -376,7 +372,7 @@ static fmi2Status do_step(server_t *server) {
             return status;
         }
     }
-
+    
     status = server->entries.fmi2DoStep(
         server->component,
         currentCommunicationPoint,

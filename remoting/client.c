@@ -508,11 +508,8 @@ static size_t get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table,
         } else {
             return offset + middle;
         }
-    } else {
-        /* not found */
-        printf("**************** GET_POS FAILED ****************\n");
+    } else
         return -1;
-    }
 }
 
 
@@ -520,13 +517,14 @@ static size_t get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table,
 fmi2Status fmi2GetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Real value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2GetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.reals.vr, 0, client->communication->nb_reals);
         if (index >= 0)
             value[i] = client->data.reals.value[index];
-        else
+        else {
+            LOG_ERROR(client, "Cannot GetReal vr=%lu", vr[i]);
             return fmi2Error;
+        }
     }
     return fmi2OK;
 }
@@ -535,13 +533,14 @@ fmi2Status fmi2GetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nv
 fmi2Status fmi2GetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Integer value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2GetInteger: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.integers.vr, 0, client->communication->nb_integers);
         if (index >= 0)
             value[i] = client->data.integers.value[index];
-        else
+        else {
+            LOG_ERROR(client, "Cannot GetInteger vr=%lu", vr[i]);
             return fmi2Error;
+        }
     }
     return fmi2OK;
 }
@@ -550,13 +549,14 @@ fmi2Status fmi2GetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t
 fmi2Status fmi2GetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Boolean value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2GetBoolean: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.booleans.vr, 0, client->communication->nb_booleans);
         if (index >= 0)
             value[i] = client->data.booleans.value[index];
-        else
+        else {
+            LOG_ERROR(client, "Cannot GetBoolean vr=%lu", vr[i]);
             return fmi2Error;
+        }
     }
     return fmi2OK;
 }
@@ -572,56 +572,57 @@ fmi2Status fmi2GetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
 fmi2Status fmi2SetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Real value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.reals.vr, 0, client->communication->nb_reals);
+        
         if (index >= 0) {
             client->data.reals.value[index] = value[i];
             client->data.reals.changed[index] = true;
-        } else
+        } else {
+            LOG_ERROR(client, "Cannot SetReal vr=%lu", vr[i]);
             return fmi2Error;
+        }
+ 
     }
     return fmi2OK;
 }
 
 
 fmi2Status fmi2SetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Integer value[]) {
-    return fmi2OK;
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetInteger: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.integers.vr, 0, client->communication->nb_integers);
         if (index >= 0) {
             client->data.integers.value[index] = value[i];
             client->data.integers.changed[index] = true;
-        } else
+        } else {
+            LOG_ERROR(client, "Cannot SetInteger vr=%lu", vr[i]);
             return fmi2Error;
+        }
     }
     return fmi2OK;
 }
 
 
 fmi2Status fmi2SetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Boolean value[]) {
-    return fmi2OK;
     client_t* client = (client_t*)c;
 
-
-    LOG_DEBUG(client, "fmi2SetBoolean: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
         size_t index = get_pos(vr[i], client->data.booleans.vr, 0, client->communication->nb_booleans);
         if (index >= 0) {
             client->data.booleans.value[index] = value[i];
             client->data.booleans.changed[index] = true;
-        } else
+        } else {
+            LOG_ERROR(client, "Cannot SetBoolean vr=%lu", vr[i]);
             return fmi2Error;
+        }
     }
     return fmi2OK;
 }
 
 
 fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String  value[]) {
-    return fmi2OK;
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
