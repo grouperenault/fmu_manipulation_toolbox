@@ -13,6 +13,8 @@ from functools import partial
 
 from .gui_style import gui_style, log_color
 from .operations import *
+from .remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
+                       OperationAddFrontendWin64)
 from .assembly import Assembly, AssemblyNode
 from .checker import checker_list
 from .help import Help

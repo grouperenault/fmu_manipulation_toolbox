@@ -4,9 +4,9 @@ import sys
 from .utils import setup_logger, make_wide
 from ..operations import (OperationSummary, OperationError, OperationRemoveRegexp,
                           OperationRemoveSources, OperationTrimUntil, OperationKeepOnlyRegexp, OperationMergeTopLevel,
-                          OperationStripTopLevel, OperationRenameFromCSV, OperationSaveNamesToCSV,
-                          OperationAddFrontendWin32, OperationAddFrontendWin64, OperationAddRemotingWin32,
-                          OperationAddRemotingWin64, FMU, FMUError)
+                          OperationStripTopLevel, OperationRenameFromCSV, OperationSaveNamesToCSV, FMU, FMUError)
+from ..remoting import  (OperationAddFrontendWin32, OperationAddFrontendWin64, OperationAddRemotingWin32,
+                         OperationAddRemotingWin64)
 from ..checker import checker_list
 from ..version import __version__ as version
 from ..help import Help

@@ -1,13 +1,5 @@
-#    ___                                               __   __              
-#  .'  _|.--------.--.--.  .----.-----.--------.-----.|  |_|__|.-----.-----.
-#  |   _||        |  |  |  |   _|  -__|        |  _  ||   _|  ||     |  _  |
-#  |__|  |__|__|__|_____|  |__| |_____|__|__|__|_____||____|__||__|__|___  |
-#  Copyright 2023 Renault SAS                                        |_____|
-#  The remoting code is written by Nicolas.LAURENT@Renault.com. 
-#  This code is released under the 2-Clause BSD license.
-#
-
 cmake_minimum_required(VERSION 3.18)
+set (CMAKE_C_STANDARD 99)
 project (remoting)
 set(VERSION "1.0")
 
@@ -57,7 +49,6 @@ endif ()
 add_executable(server_sm
     communication.c communication.h
     process.c process.h 
-    remote.c remote.h
     server.c server.h
     ${CMAKE_CURRENT_BINARY_DIR}/config.h
 )
@@ -86,7 +77,6 @@ add_library(client_sm SHARED
 	client.c client.h
     communication.c communication.h
     process.c process.h 
-    remote.c remote.h
     ${CMAKE_CURRENT_BINARY_DIR}/config.h
 )
 
@@ -110,7 +100,6 @@ set_target_properties(client_sm PROPERTIES
 if (BUILD_TESTER)
     add_executable(test_sizeof
         ${CMAKE_CURRENT_SOURCE_DIR}/test_sizeof.c
-        remote.h
     )
 
     add_custom_command(OUTPUT test_sizeof.c

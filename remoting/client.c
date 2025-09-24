@@ -60,12 +60,12 @@ static char *next_cr(char *message) {
 
 static void client_logger(const client_t* client, fmi2Status level, const char* message, ...) {
     if (client->functions->logger) {
-        char full_message[REMOTE_MESSAGE_SIZE];
+        char full_message[COMMUNICATION_MESSAGE_SIZE];
         va_list ap;
 
         va_start(ap, message);
-        vsnprintf(full_message, REMOTE_MESSAGE_SIZE, message, ap);
-        full_message[REMOTE_MESSAGE_SIZE - 1] = '\0';
+        vsnprintf(full_message, COMMUNICATION_MESSAGE_SIZE, message, ap);
+        full_message[COMMUNICATION_MESSAGE_SIZE - 1] = '\0';
         va_end(ap);
 
         if ((level != fmi2OK) || (client->is_debug)) {
@@ -93,16 +93,15 @@ static int is_server_still_alive(const client_t *client) {
 }
 
 
-static fmi2Status make_rpc(client_t* client, remote_function_t function) {
-    remote_data_t *remote_data = client->communication->data;
+static fmi2Status make_rpc(client_t* client, rpc_function_t function) {
+    communication_shm_t *remote_data = client->communication->shm;
 
     fmi2Status status = (fmi2Status)-1;
     
-    remote_data->server_ready = 0; // RESET STATUS
     /* Flush message log */
     remote_data->message[0] = '\0';
 
-    CLIENT_LOG("RPC: %s\n", remote_function_name(function));
+    CLIENT_LOG("RPC: %d\n", function);
     remote_data->function = function;
 
     /* Wait for answer */
@@ -116,10 +115,9 @@ static fmi2Status make_rpc(client_t* client, remote_function_t function) {
     }
 
     status = remote_data->status; 
-    CLIENT_LOG("RPC: %s | reply = %d\n", remote_function_name(function), status);
-
+    CLIENT_LOG("RPC: %d | reply = %d\n", function, status);
     if (remote_data->message[0]) {
-        client_logger(client, status, "%s", remote_data->message);
+        client_logger(client, fmi2Warning, "%s", remote_data->message);
         remote_data->message[0] = '\0'; /* Flush message log */
     }
 
@@ -230,6 +228,9 @@ static int get_server_argv(client_t *client, char *argv[]) {
     argv[1] = malloc(16);
     argv[2] = malloc(COMMUNICATION_KEY_LEN);
     argv[3] = malloc(MAX_PATH*2);
+    argv[4] = malloc(16);
+    argv[5] = malloc(16);
+    argv[6] = malloc(16);
 
     bitness = get_client_bitness();
     snprintf(argv[3], MAX_PATH * 2, "%s" CONFIG_DIR_SEP CONFIG_FMI_BIN "%d" CONFIG_DIR_SEP "%s-remoted.%s",
@@ -247,20 +248,24 @@ static int get_server_argv(client_t *client, char *argv[]) {
     snprintf(argv[1], 16, "%lu", process_current_id());
     strcpy(argv[2], client->shared_key);
 
+    snprintf(argv[4], 16, "%lu", client->communication->nb_reals);
+    snprintf(argv[5], 16, "%lu", client->communication->nb_integers);
+    snprintf(argv[6], 16, "%lu", client->communication->nb_booleans);
+
     return 0;
 }
 
 
 static int spawn_server(client_t *client) {
-    char *argv[5];
+    char *argv[8];
 
     if (get_server_argv(client, argv))
         return -1;
-    argv[4] = NULL;
+    argv[7] = NULL;
 
 
-    CLIENT_LOG("Starting remoting server. (Command: %s %s %s %s)\n", argv[0], argv[1], argv[2], argv[3]);
-    LOG_DEBUG(client, "Starting remoting server. (Command: %s %s %s %s)", argv[0], argv[1], argv[2], argv[3]);
+    CLIENT_LOG("Starting remoting server. (Command: %s %s %s %s %s %s %s)\n", argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
+    LOG_DEBUG(client, "Starting remoting server. (Command: %s %s %s %s %s %s %s)", argv[0], argv[1], argv[2], argv[3], argv[4], argv[5], argv[6]);
 
     client->server_handle = process_spawn(argv);
 
@@ -268,6 +273,9 @@ static int spawn_server(client_t *client) {
     free(argv[1]);
     free(argv[2]);
     free(argv[3]);
+    free(argv[4]);
+    free(argv[5]);
+    free(argv[6]);
 
     if (! client->server_handle) {
         LOG_ERROR(client, "Failed to start server.");
@@ -293,9 +301,21 @@ static void client_new_key(client_t *client) {
 }
 
 
-static client_t* client_new(const char *instanceName, const fmi2CallbackFunctions* functions,
+static void client_free(client_t* client) {
+    process_close_handle(client->server_handle);
+    free(client->instance_name);
+    communication_free(client->communication);
+    free(client);
+
+    return;
+}
+
+
+static client_t* client_new(const char *filename, const char *instanceName, const fmi2CallbackFunctions* functions,
     int loggingOn) {
     client_t* client = malloc(sizeof(*client));
+    FILE* fp;
+    unsigned long nb_reals, nb_integers, nb_booleans;
     client->functions = functions;
     client->instance_name = strdup(instanceName);
     client->is_debug = loggingOn;
@@ -303,33 +323,69 @@ static client_t* client_new(const char *instanceName, const fmi2CallbackFunction
     LOG_DEBUG(client, "FMU Remoting Interface version %s", REMOTING_VERSION);
     client_new_key(client);
 
+    fp = fopen(filename, "rt");
+    if (!fp) {
+        LOG_ERROR(client, "Unable to open '%s'.", filename);
+        free(client);
+        return NULL;
+    }
 
-    client->communication = communication_new(client->shared_key, REMOTE_DATA_SIZE, COMMUNICATION_CLIENT);
+    if (fscanf(fp, "%lu %lu %lu ", &nb_reals, &nb_integers, &nb_booleans) < 3) {
+        LOG_ERROR(client, "Unable read header.");
+        fclose(fp);
+        free(client);
+        return NULL;
+    }
+    client->communication = communication_new(client->shared_key, nb_reals, nb_integers, nb_booleans, COMMUNICATION_CLIENT);
     if (!client->communication) {
         LOG_ERROR(client, "Unable to create SHM");
         return NULL;
     }
+        
+    communication_data_initialize(&client->data, client->communication);
+    for (unsigned long i = 0; i < nb_reals; i += 1) {
+        if (fscanf(fp, "%u ", &client->data.reals.vr[i]) < 1) {
+            LOG_ERROR(client, "Unable to read REALS VR's.");
+            fclose(fp);
+            client_free(client);
+            return NULL;
+        }
+        client->data.reals.changed[i] = false;
+        client->data.reals.value[i] = 0.0;
+    }
+    for (unsigned long i = 0; i < nb_integers; i += 1) {
+        if (fscanf(fp, "%u ", &client->data.integers.vr[i]) < 1) {
+            LOG_ERROR(client, "Unable to read INTEGERS VR's.");
+            fclose(fp);
+            client_free(client);
+            return NULL;
+        }
+        client->data.integers.changed[i] = false;
+        client->data.integers.value[i] = 0;
+    }
+    for (unsigned long i = 0; i < nb_booleans; i += 1) {
+        if (fscanf(fp, "%u ", &client->data.booleans.vr[i]) < 1) {
+            LOG_ERROR(client, "Unable to read BOOLEANS VR's.");
+            fclose(fp);
+            client_free(client);
+            return NULL;
+        }
+        client->data.booleans.changed[i] = false;
+        client->data.booleans.value[i] = 0;
+    }
+    fclose(fp);
 
-    client->communication->data->server_ready = 0;
     if (spawn_server(client) < 0)
         return NULL;
+
     CLIENT_LOG("Waiting for server to be ready...\n");
-    if (communication_timedwaitfor_server(client->communication, 15000))
+    if (communication_timedwaitfor_server(client->communication, 15000)) {
+        LOG_ERROR(client, "Server did not respond.");
+        client_free(client);
         return NULL; /* Cannot launch server */
-    
-    printf("******** %d\n", client->communication->data->server_ready);
+    }
 
     return client;
-}
-
-
-static void client_free(client_t *client) {
-    process_close_handle(client->server_handle);
-    free(client->instance_name);
-    communication_free(client->communication);
-    free(client);
-
-    return;
 }
 
 
@@ -341,20 +397,29 @@ static void client_free(client_t *client) {
 fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2String fmuGUID,
                               fmi2String fmuResourceLocation, const fmi2CallbackFunctions* functions,
                               fmi2Boolean visible, fmi2Boolean loggingOn) {
-    client_t *client = client_new(instanceName, functions, loggingOn);
+    char filename[MAX_PATH];
+    if (strncmp(fmuResourceLocation, "file://", 7) == 0)
+        fmuResourceLocation += 7;
+    if (fmuResourceLocation[0] == '/')
+        fmuResourceLocation += 1;                  
+    strncpy(filename, fmuResourceLocation, sizeof(filename));
+    strncat(filename, "/remoting_table.txt", sizeof(filename)-strlen(filename)-1);
+    filename[sizeof(filename)-1] = '\0';
+    client_t *client = client_new(filename, instanceName, functions, loggingOn);
+
     if (!client)
         return NULL;
 
-    strncpy(client->communication->data->instance_name, instanceName,
-        sizeof(client->communication->data->instance_name));
+    strncpy(client->communication->shm->instance_name, instanceName,
+        sizeof(client->communication->shm->instance_name));
 
-    strncpy(client->communication->data->fmuGUID, fmuGUID,
-        sizeof(client->communication->data->fmuGUID));
+    strncpy(client->communication->shm->token, fmuGUID,
+        sizeof(client->communication->shm->token));
 
-    strncpy(client->communication->data->fmuResourceLocation, fmuResourceLocation,
-        sizeof(client->communication->data->fmuResourceLocation));
+    strncpy(client->communication->shm->resource_directory, fmuResourceLocation,
+        sizeof(client->communication->shm->resource_directory));
     
-    fmi2Status status = make_rpc(client, REMOTE_fmi2Instantiate);
+    fmi2Status status = make_rpc(client, RPC_fmi2Instantiate);
 
     if ((status != fmi2Warning) && (status != fmi2OK)) {
         client_free(client);
@@ -368,7 +433,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2Str
 void fmi2FreeInstance(fmi2Component c) {
     client_t* client = (client_t*)c;
 
-    make_rpc(client, REMOTE_fmi2FreeInstance);
+    make_rpc(client, RPC_fmi2FreeInstance);
     process_waitfor(client->server_handle);
     client_free(client);
     
@@ -389,41 +454,41 @@ const char* fmi2GetVersion() {
 fmi2Status fmi2SetupExperiment(fmi2Component c, fmi2Boolean toleranceDefined, fmi2Real tolerance, fmi2Real startTime, fmi2Boolean stopTimeDefined, fmi2Real stopTime) {
     client_t* client = (client_t*)c;
 
-    client->communication->data->values[0] = toleranceDefined;
-    client->communication->data->values[1] = tolerance;
-    client->communication->data->values[2] = startTime;
-    client->communication->data->values[3] = stopTimeDefined;
-    client->communication->data->values[4] = stopTime;
+    client->communication->shm->values[0] = toleranceDefined;
+    client->communication->shm->values[1] = tolerance;
+    client->communication->shm->values[2] = startTime;
+    client->communication->shm->values[3] = stopTimeDefined;
+    client->communication->shm->values[4] = stopTime;
 
-    return make_rpc(client, REMOTE_fmi2SetupExperiment);
+    return make_rpc(client, RPC_fmi2SetupExperiment);
 }
 
 
 fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
     client_t* client = (client_t*)c;
 
-    return make_rpc(client, REMOTE_fmi2EnterInitializationMode);
+    return make_rpc(client, RPC_fmi2EnterInitializationMode);
 }
 
 
 fmi2Status fmi2ExitInitializationMode(fmi2Component c) {
     client_t* client = (client_t*)c;
 
-    return make_rpc(client, REMOTE_fmi2ExitInitializationMode);
+    return make_rpc(client, RPC_fmi2ExitInitializationMode);
 }
 
 
 fmi2Status fmi2Terminate(fmi2Component c) {
     client_t* client = (client_t*)c;
 
-    return make_rpc(client, REMOTE_fmi2Terminate);
+    return make_rpc(client, RPC_fmi2Terminate);
 }
 
 
 fmi2Status fmi2Reset(fmi2Component c) {
     client_t* client = (client_t*)c;
 
-    return make_rpc(client, REMOTE_fmi2Reset);
+    return make_rpc(client, RPC_fmi2Reset);
 }
 
 
@@ -431,25 +496,20 @@ static size_t get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table,
     if (vr == vr_table[offset])
         return offset;
 
-    if (vr == vr_table[offset + nb])
-        return offset + nb;
+    if (vr == vr_table[offset + nb - 1])
+        return offset + nb - 1;
 
     size_t middle = nb / 2;
     if (middle > 0) {
         if (vr > vr_table[offset + middle]) {
             return get_pos(vr, vr_table, offset + middle, nb - middle);
-        }
-        else if (vr < vr_table[offset + middle]) {
+        } else if (vr < vr_table[offset + middle]) {
             return get_pos(vr, vr_table, offset, middle);
+        } else {
+            return offset + middle;
         }
-        else {
-            return middle;
-        }
-    }
-    else {
-        /* not found */
+    } else
         return -1;
-    }
 }
 
 
@@ -457,14 +517,14 @@ static size_t get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table,
 fmi2Status fmi2GetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Real value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i]);
-        if (index >= 0) {
-            value[i] = client->communication->data->reals[index];
-        }
-        else
+        size_t index = get_pos(vr[i], client->data.reals.vr, 0, client->communication->nb_reals);
+        if (index >= 0)
+            value[i] = client->data.reals.value[index];
+        else {
+            LOG_ERROR(client, "Cannot GetReal vr=%lu", vr[i]);
             return fmi2Error;
+        }
     }
     return fmi2OK;
 }
@@ -473,14 +533,14 @@ fmi2Status fmi2GetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nv
 fmi2Status fmi2GetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Integer value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i]);
-        if (index >= 0) {
-            value[i] = client->communication->data->integers[index];
-        }
-        else
+        size_t index = get_pos(vr[i], client->data.integers.vr, 0, client->communication->nb_integers);
+        if (index >= 0)
+            value[i] = client->data.integers.value[index];
+        else {
+            LOG_ERROR(client, "Cannot GetInteger vr=%lu", vr[i]);
             return fmi2Error;
+        }
     }
     return fmi2OK;
 }
@@ -489,14 +549,14 @@ fmi2Status fmi2GetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t
 fmi2Status fmi2GetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2Boolean value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i]);
-        if (index >= 0) {
-            value[i] = client->communication->data->booleans[index];
-        }
-        else
+        size_t index = get_pos(vr[i], client->data.booleans.vr, 0, client->communication->nb_booleans);
+        if (index >= 0)
+            value[i] = client->data.booleans.value[index];
+        else {
+            LOG_ERROR(client, "Cannot GetBoolean vr=%lu", vr[i]);
             return fmi2Error;
+        }
     }
     return fmi2OK;
 }
@@ -512,56 +572,57 @@ fmi2Status fmi2GetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
 fmi2Status fmi2SetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Real value[]) {
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i]);
+        size_t index = get_pos(vr[i], client->data.reals.vr, 0, client->communication->nb_reals);
+        
         if (index >= 0) {
-            client->communication->data->reals[index] = value[i];
-        }
-        else
+            client->data.reals.value[index] = value[i];
+            client->data.reals.changed[index] = true;
+        } else {
+            LOG_ERROR(client, "Cannot SetReal vr=%lu", vr[i]);
             return fmi2Error;
+        }
+ 
     }
     return fmi2OK;
 }
 
 
 fmi2Status fmi2SetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Integer value[]) {
-    return fmi2OK;
     client_t* client = (client_t*)c;
 
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i]);
+        size_t index = get_pos(vr[i], client->data.integers.vr, 0, client->communication->nb_integers);
         if (index >= 0) {
-            client->communication->data->integers[index] = value[i];
-        }
-        else
+            client->data.integers.value[index] = value[i];
+            client->data.integers.changed[index] = true;
+        } else {
+            LOG_ERROR(client, "Cannot SetInteger vr=%lu", vr[i]);
             return fmi2Error;
+        }
     }
     return fmi2OK;
 }
 
 
 fmi2Status fmi2SetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Boolean value[]) {
-    return fmi2OK;
     client_t* client = (client_t*)c;
 
-
-    LOG_DEBUG(client, "fmi2SetReal: setting %d values:", nvr);
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i]);
+        size_t index = get_pos(vr[i], client->data.booleans.vr, 0, client->communication->nb_booleans);
         if (index >= 0) {
-            client->communication->data->booleans[index] = value[i];
-        }
-        else
+            client->data.booleans.value[index] = value[i];
+            client->data.booleans.changed[index] = true;
+        } else {
+            LOG_ERROR(client, "Cannot SetBoolean vr=%lu", vr[i]);
             return fmi2Error;
+        }
     }
     return fmi2OK;
 }
 
 
 fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String  value[]) {
-    return fmi2OK;
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -729,11 +790,11 @@ fmi2Status fmi2GetRealOutputDerivatives(fmi2Component c, const fmi2ValueReferenc
 fmi2Status fmi2DoStep(fmi2Component c, fmi2Real currentCommunicationPoint, fmi2Real communicationStepSize, fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     client_t* client = (client_t*)c;
 
-    client->communication->data->values[0] = currentCommunicationPoint;
-    client->communication->data->values[1] = communicationStepSize;
-    client->communication->data->values[2] = noSetFMUStatePriorToCurrentPoint;
+    client->communication->shm->values[0] = currentCommunicationPoint;
+    client->communication->shm->values[1] = communicationStepSize;
+    client->communication->shm->values[2] = noSetFMUStatePriorToCurrentPoint;
 
-    return make_rpc(client, REMOTE_fmi2DoStep);
+    return make_rpc(client, RPC_fmi2DoStep);
 }
 
 

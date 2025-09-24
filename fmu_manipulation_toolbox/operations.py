@@ -8,7 +8,6 @@ import tempfile
 import xml.parsers.expat
 import zipfile
 import hashlib
-from pathlib import Path
 from typing import *
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -279,7 +278,7 @@ class OperationAbstract:
     def experiment_attrs(self, attrs):
         pass
 
-    def port_attrs(self, fmu_port) -> int:
+    def port_attrs(self, fmu_port: FMUPort) -> int:
         """ return 0 to keep port, otherwise remove it"""
         return 0
 
@@ -364,65 +363,6 @@ class OperationRenameFromCSV(OperationAbstract):
         else:
             # we want to delete this name!
             return 1
-
-
-class OperationAddRemotingWinAbstract(OperationAbstract):
-    bitness_from = None
-    bitness_to = None
-
-    def __repr__(self):
-        return f"Add '{self.bitness_to}' remoting on '{self.bitness_from}' FMU"
-
-    def fmi_attrs(self, attrs):
-        if not attrs["fmiVersion"] == "2.0":
-            raise OperationError(f"Adding remoting is only available for FMI-2.0")
-
-    def cosimulation_attrs(self, attrs):
-        fmu_bin = {
-            "win32":  os.path.join(self.fmu.tmp_directory, "binaries", f"win32"),
-            "win64": os.path.join(self.fmu.tmp_directory, "binaries", f"win64"),
-        }
-
-        if not os.path.isdir(fmu_bin[self.bitness_from]):
-            raise OperationError(f"{self.bitness_from} interface does not exist")
-
-        if os.path.isdir(fmu_bin[self.bitness_to]):
-            logger.info(f"{self.bitness_to} already exists. Add front-end.")
-            shutil.move(os.path.join(fmu_bin[self.bitness_to], attrs['modelIdentifier'] + ".dll"),
-                        os.path.join(fmu_bin[self.bitness_to], attrs['modelIdentifier'] + "-remoted.dll"))
-        else:
-            os.mkdir(fmu_bin[self.bitness_to])
-
-        to_path = Path(__file__).parent / "resources" / self.bitness_to
-        shutil.copyfile(to_path / "client_sm.dll",
-                        Path(fmu_bin[self.bitness_to]) / Path(attrs['modelIdentifier']).with_suffix(".dll"))
-
-        from_path = Path(__file__).parent / "resources" / self.bitness_from
-        shutil.copyfile(from_path / "server_sm.exe",
-                        Path(fmu_bin[self.bitness_from]) / "server_sm.exe")
-
-        shutil.copyfile(Path(__file__).parent / "resources" / "license.txt",
-                        Path(fmu_bin[self.bitness_to]) / "license.txt")
-
-
-class OperationAddRemotingWin64(OperationAddRemotingWinAbstract):
-    bitness_from = "win32"
-    bitness_to = "win64"
-
-
-class OperationAddFrontendWin32(OperationAddRemotingWinAbstract):
-    bitness_from = "win32"
-    bitness_to = "win32"
-
-
-class OperationAddFrontendWin64(OperationAddRemotingWinAbstract):
-    bitness_from = "win64"
-    bitness_to = "win64"
-
-
-class OperationAddRemotingWin32(OperationAddRemotingWinAbstract):
-    bitness_from = "win64"
-    bitness_to = "win32"
 
 
 class OperationRemoveRegexp(OperationAbstract):
