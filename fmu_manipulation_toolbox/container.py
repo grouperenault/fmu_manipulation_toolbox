@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import *
 
-from .operations import FMU, OperationAbstract, FMUError
+from .operations import FMU, OperationAbstract, FMUError, FMUPort
 from .version import __version__ as tool_version
 
 
@@ -71,9 +71,7 @@ class EmbeddedFMUPort:
         "string"
     )
 
-
-
-    def __init__(self, fmi_type, attrs: Dict[str, str], fmi_version=0):
+    def __init__(self, fmi_type, attrs: Union[FMUPort, Dict[str, str]], fmi_version=0):
         self.causality = attrs.get("causality", "local")
         self.variability = attrs.get("variability", "continuous")
         self.name = attrs["name"]
@@ -87,8 +85,6 @@ class EmbeddedFMUPort:
 
         self.start_value = attrs.get("start", None)
         self.initial = attrs.get("initial", None)
-
-
 
     def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> str:
         if name is None:
@@ -191,7 +187,7 @@ class EmbeddedFMU(OperationAbstract):
         if fmi_version == "2.0":
             self.guid = attrs['guid']
             self.fmi_version = 2
-        if fmi_version == "3.0":
+        if fmi_version == "3.0": # TODO: handle 3.x cases
             self.guid = attrs['instantiationToken']
             self.fmi_version = 3
 
