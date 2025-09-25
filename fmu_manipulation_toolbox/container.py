@@ -204,7 +204,13 @@ class EmbeddedFMU(OperationAbstract):
         self.start_time = float(attrs.get("startTime", 0.0))
         self.stop_time = float(attrs.get("stopTime", self.start_time + 1.0))
 
-    def port_attrs(self, fmu_port):
+    def port_attrs(self, fmu_port: FMUPort):
+        # Container will manage Enumeration as Integer
+        if fmu_port.fmi_type == "Enumeration":
+            if self.fmi_version == 2:
+                fmu_port.fmi_type = "Integer"
+            else:
+                fmu_port.fmi_type = "Int32"
         port = EmbeddedFMUPort(fmu_port.fmi_type, fmu_port, fmi_version=self.fmi_version)
         self.ports[port.name] = port
 
