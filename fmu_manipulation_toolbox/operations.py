@@ -160,8 +160,9 @@ class Manipulation:
                 self.current_port = FMUPort()
                 self.current_port.push_attrs(attrs)
             elif self.fmu.fmi_version == 2 and name in self.fmu.FMI2_TYPES:
-                self.current_port.fmi_type = name
-                self.current_port.push_attrs(attrs)
+                if self.current_port: # <Enumeration> can be found before port defition. Ignored.
+                    self.current_port.fmi_type = name
+                    self.current_port.push_attrs(attrs)
             elif self.fmu.fmi_version == 3 and name in self.fmu.FMI3_TYPES:
                 self.current_port = FMUPort()
                 self.current_port.fmi_type = name
