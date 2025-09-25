@@ -189,19 +189,25 @@ static server_t* server_new(const char *library_filename, unsigned long ppid, co
     server->communication = NULL;
     server->library = NULL;
 
-#define ALLOC(_data) \
-    server->update. _data = malloc(nb_reals * sizeof(*server->update. _data)); \
-    if (!server->update. _data) { \
-        server_free(server); \
-        return NULL; \
+#define ALLOC(nb, ptr) \
+    if (nb) { \
+        ptr = malloc(sizeof(*ptr)*nb); \
+        if (!ptr) { \
+            server_free(server); \
+            return NULL; \
+        } \
+    } else { \
+        ptr = NULL; \
     }
 
-    ALLOC(reals.value);
-    ALLOC(reals.vr);
-    ALLOC(integers.value);
-    ALLOC(integers.vr);
-    ALLOC(booleans.value);
-    ALLOC(booleans.vr);
+    ALLOC(nb_reals, server->update.reals.value);
+    ALLOC(nb_reals, server->update.reals.vr);
+    ALLOC(nb_integers, server->update.integers.value);
+    ALLOC(nb_integers, server->update.integers.vr);
+    ALLOC(nb_booleans, server->update.booleans.value);
+    ALLOC(nb_booleans, server->update.booleans.vr);
+
+#undef ALLOC
 
 #ifdef WIN32
     server->parent_handle = OpenProcess(SYNCHRONIZE, FALSE, ppid);
@@ -320,7 +326,7 @@ static fmi2Status do_step(server_t *server) {
     fmi2Status status;
 
     unsigned long nb_reals = 0;
-    for(unsigned long i = 0; i < server->communication->nb_reals; i += 1) {
+    for (unsigned long i = 0; i < server->communication->nb_reals; i += 1) {
         if (server->data.reals.changed[i]) {
             server->update.reals.vr[nb_reals] = server->data.reals.vr[i];
             server->update.reals.value[nb_reals] = server->data.reals.value[i];
@@ -383,26 +389,32 @@ static fmi2Status do_step(server_t *server) {
         return status;
     }
 
-    status = server->entries.fmi2GetReal(server->component, server->data.reals.vr,
-        server->communication->nb_reals, server->data.reals.value);
-    if (status != fmi2OK) {
-        LOG_ERROR(server, "Cannot update REALS buffer.");
-        return status;
+
+    if (server->communication->nb_reals) {
+        status = server->entries.fmi2GetReal(server->component, server->data.reals.vr,
+            server->communication->nb_reals, server->data.reals.value);
+        if (status != fmi2OK) {
+            LOG_ERROR(server, "Cannot update REALS buffer.");
+            return status;
+        }
     }
 
-    status = server->entries.fmi2GetInteger(server->component, server->data.integers.vr,
-        server->communication->nb_integers, server->data.integers.value);
-    if (status != fmi2OK) {
-        LOG_ERROR(server, "Cannot update INTEGERS buffer.");
-        return status;
+    if (server->communication->nb_integers) {
+        status = server->entries.fmi2GetInteger(server->component, server->data.integers.vr,
+            server->communication->nb_integers, server->data.integers.value);
+        if (status != fmi2OK) {
+            LOG_ERROR(server, "Cannot update INTEGERS buffer.");
+            return status;
+        }
     }
 
-
-    status = server->entries.fmi2GetBoolean(server->component, server->data.booleans.vr,
-        server->communication->nb_booleans, server->data.booleans.value);
-    if (status != fmi2OK) {
-        LOG_ERROR(server, "Cannot update BOOLEANS buffer.");
-        return status;
+    if (server->communication->nb_booleans) {
+        status = server->entries.fmi2GetBoolean(server->component, server->data.booleans.vr,
+            server->communication->nb_booleans, server->data.booleans.value);
+        if (status != fmi2OK) {
+            LOG_ERROR(server, "Cannot update BOOLEANS buffer.");
+            return status;
+        }
     }
 
     return fmi2OK;;

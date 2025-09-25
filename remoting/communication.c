@@ -200,32 +200,36 @@ static size_t communication_shm_size(unsigned long nb_reals, unsigned long nb_in
 void communication_data_initialize(communication_data_t *data, communication_t *communication) {
     char *ptr = (char *)communication->shm + sizeof(communication_shm_t);
 
+    /* REALS */
     data->reals.value = (void *)ptr;
-    ptr += sizeof(fmi2Real) * communication->nb_reals;
+    ptr += sizeof(*data->reals.value) * communication->nb_reals;
+
+    data->reals.vr = (void*)ptr;
+    ptr += sizeof(*data->reals.vr) * communication->nb_reals;
+
+    data->reals.changed = (void*)ptr;
+    ptr += sizeof(*data->reals.changed) * communication->nb_reals;
     
+    /* INTEGERS */
     data->integers.value = (void *)ptr;
-    ptr += sizeof(fmi2Integer) * communication->nb_integers;
+    ptr += sizeof(*data->integers.value) * communication->nb_integers;
 
+    data->integers.vr = (void*)ptr;
+    ptr += sizeof(*data->integers.vr) * communication->nb_integers;
+
+    data->integers.changed = (void*)ptr;
+    ptr += sizeof(*data->integers.changed) * communication->nb_integers;
+
+
+    /* BOOLEANS */
     data->booleans.value = (void *)ptr;
-    ptr += sizeof(fmi2Boolean) * communication->nb_booleans;
-
-    data->reals.vr = (void *)ptr;
-    ptr += sizeof(fmi2ValueReference) * communication->nb_reals;
-
-    data->integers.vr = (void *)ptr;
-    ptr += sizeof(fmi2ValueReference) * communication->nb_integers;
+    ptr += sizeof(*data->booleans.value) * communication->nb_booleans;
 
     data->booleans.vr = (void *)ptr;
-    ptr += sizeof(fmi2ValueReference) * communication->nb_booleans;
-
-    data->reals.changed = (void *)ptr;
-    ptr += sizeof(bool) * communication->nb_reals;
-
-    data->integers.changed = (void *)ptr;
-    ptr += sizeof(bool) * communication->nb_integers;
+    ptr += sizeof(*data->booleans.vr) * communication->nb_booleans;
 
     data->booleans.changed = (void *)ptr;
-    ptr += sizeof(bool) * communication->nb_booleans; /* not needed */
+    ptr += sizeof(*data->booleans.changed) * communication->nb_booleans; /* not needed */
 
     return;
 }
