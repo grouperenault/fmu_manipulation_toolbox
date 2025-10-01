@@ -193,7 +193,7 @@ static size_t communication_shm_size(unsigned long nb_reals, unsigned long nb_in
     size_t size = sizeof(communication_shm_t);
     size +=  nb_reals * (sizeof(fmi2Real) + sizeof(fmi2ValueReference) + sizeof(bool));
     size +=  nb_integers * (sizeof(fmi2Integer) + sizeof(fmi2ValueReference) + sizeof(bool));
-    size += nb_booleans * (sizeof(fmi2Boolean) + sizeof(fmi2ValueReference) + sizeof(bool));
+    size +=  nb_booleans * (sizeof(fmi2Boolean) + sizeof(fmi2ValueReference) + sizeof(bool));
     return size;
 } 
 

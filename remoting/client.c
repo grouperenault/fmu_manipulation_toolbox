@@ -492,7 +492,7 @@ fmi2Status fmi2Reset(fmi2Component c) {
 }
 
 
-static size_t get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table, size_t offset, size_t nb) {
+static long int get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table, size_t offset, size_t nb) {
     if (vr == vr_table[offset])
         return offset;
 
@@ -518,7 +518,7 @@ fmi2Status fmi2GetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nv
     client_t* client = (client_t*)c;
 
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i], client->data.reals.vr, 0, client->communication->nb_reals);
+        long int index = get_pos(vr[i], client->data.reals.vr, 0, client->communication->nb_reals);
         if (index >= 0)
             value[i] = client->data.reals.value[index];
         else {
@@ -534,7 +534,7 @@ fmi2Status fmi2GetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t
     client_t* client = (client_t*)c;
 
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i], client->data.integers.vr, 0, client->communication->nb_integers);
+        long int index = get_pos(vr[i], client->data.integers.vr, 0, client->communication->nb_integers);
         if (index >= 0)
             value[i] = client->data.integers.value[index];
         else {
@@ -550,7 +550,7 @@ fmi2Status fmi2GetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t
     client_t* client = (client_t*)c;
 
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i], client->data.booleans.vr, 0, client->communication->nb_booleans);
+        long int index = get_pos(vr[i], client->data.booleans.vr, 0, client->communication->nb_booleans);
         if (index >= 0)
             value[i] = client->data.booleans.value[index];
         else {
@@ -573,7 +573,7 @@ fmi2Status fmi2SetReal(fmi2Component c, const fmi2ValueReference vr[], size_t nv
     client_t* client = (client_t*)c;
 
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i], client->data.reals.vr, 0, client->communication->nb_reals);
+        long int index = get_pos(vr[i], client->data.reals.vr, 0, client->communication->nb_reals);
         
         if (index >= 0) {
             client->data.reals.value[index] = value[i];
@@ -592,7 +592,7 @@ fmi2Status fmi2SetInteger(fmi2Component c, const fmi2ValueReference vr[], size_t
     client_t* client = (client_t*)c;
 
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i], client->data.integers.vr, 0, client->communication->nb_integers);
+        long int index = get_pos(vr[i], client->data.integers.vr, 0, client->communication->nb_integers);
         if (index >= 0) {
             client->data.integers.value[index] = value[i];
             client->data.integers.changed[index] = true;
@@ -609,7 +609,7 @@ fmi2Status fmi2SetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t
     client_t* client = (client_t*)c;
 
     for (size_t i = 0; i < nvr; i += 1) {
-        size_t index = get_pos(vr[i], client->data.booleans.vr, 0, client->communication->nb_booleans);
+        long int index = get_pos(vr[i], client->data.booleans.vr, 0, client->communication->nb_booleans);
         if (index >= 0) {
             client->data.booleans.value[index] = value[i];
             client->data.booleans.changed[index] = true;

@@ -19,8 +19,8 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
             "Integer": [],
             "Boolean": []
         }
-        self.nb_input = 0;
-        self.nb_output = 0;
+        self.nb_input = 0
+        self.nb_output = 0
 
     def fmi_attrs(self, attrs):
         if not attrs["fmiVersion"] == "2.0":
@@ -61,7 +61,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
 
     def port_attrs(self, fmu_port) -> int:
         try:
-            self.vr[fmu_port.fmi_type].append(fmu_port["valueReference"])
+            self.vr[fmu_port.fmi_type].append(int(fmu_port["valueReference"]))
             if fmu_port["causality"] in ("input", "parameter"):
                 self.nb_input += 1
             else:

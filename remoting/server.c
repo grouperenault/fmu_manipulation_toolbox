@@ -191,7 +191,7 @@ static server_t* server_new(const char *library_filename, unsigned long ppid, co
 
 #define ALLOC(nb, ptr) \
     if (nb) { \
-        ptr = malloc(sizeof(*ptr)*nb); \
+        ptr = malloc(sizeof(*ptr) * nb); \
         if (!ptr) { \
             server_free(server); \
             return NULL; \
