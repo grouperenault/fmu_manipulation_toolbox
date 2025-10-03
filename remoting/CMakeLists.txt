@@ -39,6 +39,28 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
 
 message("FMI_PLATFORM: ${FMI_PLATFORM}")
 
+# Version.h creation
+find_package(Git QUIET)
+if(NOT Git_FOUND)
+    message(WARNING "Git not found")
+    set(GIT_TAG, "LOCAL Version")
+else()
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} describe --tags --always
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_TAG
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE GIT_RESULT
+    )
+endif()
+message("--- Version: ${GIT_TAG}")
+configure_file(
+    ${CMAKE_SOURCE_DIR}/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/version.h
+)
+
+
+
 if (MSVC)
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif ()

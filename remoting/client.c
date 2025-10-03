@@ -25,6 +25,7 @@
 #include "client.h"
 #include "communication.h"
 #include "process.h"
+#include "version.h"
 
 //#define CLIENT_DEBUG
 #ifdef CLIENT_DEBUG
@@ -320,7 +321,7 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
     client->instance_name = strdup(instanceName);
     client->is_debug = loggingOn;
 
-    LOG_DEBUG(client, "FMU Remoting Interface version %s", REMOTING_VERSION);
+    LOG_DEBUG(client, "FMU Remoting Interface version %s", VERSION_TAG);
     client_new_key(client);
 
     fp = fopen(filename, "rt");
