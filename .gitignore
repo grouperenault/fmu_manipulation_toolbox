@@ -57,3 +57,4 @@ tests/fmi3/container-passthrough.fmu
 /tests/containers/VanDerPol/results-VanDerPol.csv
 /tests/containers/VanDerPol/results-VanDerPol-Container.csv
 tests/operations/boucing_ball_remoting.fmu
+container/.vscode
