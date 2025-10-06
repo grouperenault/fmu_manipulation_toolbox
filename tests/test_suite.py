@@ -67,10 +67,12 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
 
     @unittest.skipUnless(sys.platform.startswith("win"), "Supported only on Windows")
     def test_add_remoting_win32(self):
-        fmu = FMU(self.fmu_filename)
-        operation = OperationAddRemotingWin32()
+        fmu = FMU("remoting/bouncing_ball-win32.fmu")
+        operation = OperationAddRemotingWin64()
         fmu.apply_operation(operation)
-        fmu.repack("operations/bouncing_ball-win32.fmu")
+        fmu.repack("remoting/bouncing_ball-win64.fmu")
+        self.assert_simulation("remoting/bouncing_ball-win32.fmu")
+        self.assert_simulation("remoting/bouncing_ball-win64.fmu")
 
     def test_remove_regexp(self):
         self.assert_operation_match_ref("operations/bouncing_ball-removed.fmu",

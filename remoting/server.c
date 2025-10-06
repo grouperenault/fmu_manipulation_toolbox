@@ -258,6 +258,95 @@ static fmi2Status setup_experiment(const server_t* server) {
 }
 
 
+static fmi2Status update_values_from_client(server_t* server) {
+    fmi2Status status = fmi2OK;
+
+    unsigned long nb_reals = 0;
+    for (unsigned long i = 0; i < server->communication->nb_reals; i += 1) {
+        if (server->data.reals.changed[i]) {
+            server->update.reals.vr[nb_reals] = server->data.reals.vr[i];
+            server->update.reals.value[nb_reals] = server->data.reals.value[i];
+            nb_reals += 1;
+            server->data.reals.changed[i] = false;
+        }
+    }
+    if (nb_reals) {
+        status = server->entries.fmi2SetReal(server->component, server->update.reals.vr,
+            nb_reals, server->update.reals.value);
+        if (status != fmi2OK) {
+            LOG_ERROR(server, "Cannot apply REALS buffer.");
+            return status;
+        }
+    }
+
+    unsigned long nb_integers = 0;
+    for (unsigned long i = 0; i < server->communication->nb_integers; i += 1) {
+        if (server->data.integers.changed[i]) {
+            server->update.integers.vr[nb_integers] = server->data.integers.vr[i];
+            server->update.integers.value[nb_integers] = server->data.integers.value[i];
+            nb_integers += 1;
+            server->data.integers.changed[i] = false;
+        }
+    }
+    if (nb_integers) {
+        status = server->entries.fmi2SetInteger(server->component, server->update.integers.vr,
+            nb_integers, server->update.integers.value);
+        if (status != fmi2OK) {
+            LOG_ERROR(server, "Cannot apply INTEGERS buffer.");
+            return status;
+        }
+    }
+
+    unsigned long nb_booleans = 0;
+    for (unsigned long i = 0; i < server->communication->nb_booleans; i += 1) {
+        if (server->data.booleans.changed[i]) {
+            server->update.booleans.vr[nb_booleans] = server->data.booleans.vr[i];
+            server->update.booleans.value[nb_booleans] = server->data.booleans.value[i];
+            nb_booleans += 1;
+            server->data.booleans.changed[i] = false;
+        }
+    }
+    if (nb_booleans) {
+        status = server->entries.fmi2SetBoolean(server->component, server->update.booleans.vr,
+            nb_booleans, server->update.booleans.value);
+        if (status != fmi2OK) {
+            LOG_ERROR(server, "Cannot apply BOOLEANS buffer.");
+            return status;
+        }
+    }
+
+    return status;
+}
+
+
+static fmi2Status update_buffer_from_values(server_t* server) {
+    fmi2Status status = fmi2OK;
+
+    status = server->entries.fmi2GetReal(server->component, server->data.reals.vr,
+        server->communication->nb_reals, server->data.reals.value);
+    if (status != fmi2OK) {
+        LOG_ERROR(server, "Cannot initialize REALS buffer.");
+        return status;
+    }
+
+    status = server->entries.fmi2GetInteger(server->component, server->data.integers.vr,
+        server->communication->nb_integers, server->data.integers.value);
+    if (status != fmi2OK) {
+        LOG_ERROR(server, "Cannot initialize INTEGERS buffers.");
+        return status;
+    }
+
+    status = server->entries.fmi2GetBoolean(server->component, server->data.booleans.vr,
+        server->communication->nb_booleans, server->data.booleans.value);
+    if (status != fmi2OK) {
+        LOG_ERROR(server, "Cannot initialize BOOLEANS buffers");
+        return status;
+    }
+
+    return status;
+}
+
+
 static fmi2Status instanciate(server_t* server) {
     fmi2Status status;
     server->instance_name = strdup(server->communication->shm->instance_name);
@@ -284,27 +373,6 @@ static fmi2Status instanciate(server_t* server) {
         return fmi2Error;
     }
 
-    status = server->entries.fmi2GetReal(server->component, server->data.reals.vr,
-        server->communication->nb_reals, server->data.reals.value);
-    if (status != fmi2OK) {
-        LOG_ERROR(server, "Cannot initialize REALS buffer.");
-        return status;
-    }
-
-    status = server->entries.fmi2GetInteger(server->component, server->data.integers.vr,
-        server->communication->nb_integers, server->data.integers.value);
-    if (status != fmi2OK) {
-        LOG_ERROR(server, "Cannot initialize INTEGERS buffers.");
-        return status;
-    }
-
-    status = server->entries.fmi2GetBoolean(server->component, server->data.booleans.vr,
-        server->communication->nb_booleans, server->data.booleans.value);
-    if (status != fmi2OK) {
-        LOG_ERROR(server, "Cannot initialize BOOLEANS buffers");
-        return status;
-    }
-
     return fmi2OK;
 }
 
@@ -324,61 +392,12 @@ static fmi2Status do_step(server_t *server) {
     fmi2Real communicationStepSize = server->communication->shm->values[1];
     fmi2Boolean noSetFMUStatePriorToCurrentPoint = server->communication->shm->values[2];
     fmi2Status status;
-
-    unsigned long nb_reals = 0;
-    for (unsigned long i = 0; i < server->communication->nb_reals; i += 1) {
-        if (server->data.reals.changed[i]) {
-            server->update.reals.vr[nb_reals] = server->data.reals.vr[i];
-            server->update.reals.value[nb_reals] = server->data.reals.value[i];
-            nb_reals += 1;
-            server->data.reals.changed[i] = false;
-        } 
-    }
-    if (nb_reals) {
-        status = server->entries.fmi2SetReal(server->component, server->update.reals.vr,
-            nb_reals, server->update.reals.value);
-        if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot apply REALS buffer.");
-            return status;
-        }
-    }
-
-    unsigned long nb_integers = 0;
-    for(unsigned long i = 0; i < server->communication->nb_integers; i += 1) {
-        if (server->data.integers.changed[i]) {
-            server->update.integers.vr[nb_integers] = server->data.integers.vr[i];
-            server->update.integers.value[nb_integers] = server->data.integers.value[i];
-            nb_integers += 1;
-            server->data.integers.changed[i] = false;
-        } 
-    }
-    if (nb_integers) {
-        status = server->entries.fmi2SetInteger(server->component, server->update.integers.vr,
-            nb_integers, server->update.integers.value);
-        if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot apply INTEGERS buffer.");
-            return status;
-        }
-    }
-
-    unsigned long nb_booleans = 0;
-    for(unsigned long i = 0; i < server->communication->nb_booleans; i += 1) {
-        if (server->data.booleans.changed[i]) {
-            server->update.booleans.vr[nb_booleans] = server->data.booleans.vr[i];
-            server->update.booleans.value[nb_booleans] = server->data.booleans.value[i];
-            nb_booleans += 1;
-            server->data.booleans.changed[i] = false;
-        } 
-    }
-    if (nb_booleans) {
-        status = server->entries.fmi2SetBoolean(server->component, server->update.booleans.vr,
-            nb_booleans, server->update.booleans.value);
-        if (status != fmi2OK) {
-            LOG_ERROR(server, "Cannot apply BOOLEANS buffer.");
-            return status;
-        }
-    }
     
+    status = update_values_from_client(server);
+    if (status != fmi2OK) {
+        return status;
+    }
+
     status = server->entries.fmi2DoStep(
         server->component,
         currentCommunicationPoint,
@@ -418,6 +437,27 @@ static fmi2Status do_step(server_t *server) {
     }
 
     return fmi2OK;;
+}
+
+static fmi2Status initialize(server_t* server) {
+    fmi2Status status = fmi2OK;
+
+    status = server->entries.fmi2EnterInitializationMode(server->component);
+    if (status != fmi2OK) {
+        return status;
+    }
+
+    status = update_values_from_client(server);
+    if (status != fmi2OK) {
+        return status;
+    }
+    
+    status = update_buffer_from_values(server);
+    if (status != fmi2OK) {
+        return status;
+    }
+
+    return status;
 }
 
 
@@ -481,7 +521,7 @@ int main(int argc, char* argv[]) {
             break;
 
         case RPC_fmi2EnterInitializationMode:
-            fmu->status = server->entries.fmi2EnterInitializationMode(server->component);
+            fmu->status = initialize(server);
             break;
 
         case RPC_fmi2ExitInitializationMode:
