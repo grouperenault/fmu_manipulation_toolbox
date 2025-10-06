@@ -233,8 +233,8 @@ jobs:
           path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64
           retention-days: 1
 
-  tests:
-    needs: [remoting-windows32, remoting-windows64]
+  tests-win64:
+    needs: [remoting-windows32, remoting-windows64, container-windows64]
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v4
@@ -246,6 +246,10 @@ jobs:
       with:
         name: remoting-win32
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
+    - uses: actions/download-artifact@master
+      with:
+        name: container-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
     - name: Set up Python 3.10
       uses: actions/setup-python@v3
       with:
@@ -300,6 +304,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install build
+        pip install -r requirements.txt
+    - name: Test with pytest
+      run: |
+        cd tests
+        python -munittest -v test_suite.py
     - name: Package
       run: |
         python -m build
@@ -312,7 +321,7 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/V')
-    needs: [package, tests]
+    needs: [package, tests-win64]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
