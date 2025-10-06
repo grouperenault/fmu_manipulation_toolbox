@@ -60,9 +60,11 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
                         fmu_bin[self.bitness_to] / "license.txt")
 
     def port_attrs(self, fmu_port) -> int:
+        vr = int(fmu_port["valueReference"])
+        causality = fmu_port.get("causality", "local")
         try:
-            self.vr[fmu_port.fmi_type].append(int(fmu_port["valueReference"]))
-            if fmu_port["causality"] in ("input", "parameter"):
+            self.vr[fmu_port.fmi_type].append(vr)
+            if causality in ("input", "parameter"):
                 self.nb_input += 1
             else:
                 self.nb_output += 1
