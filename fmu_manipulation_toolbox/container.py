@@ -796,23 +796,26 @@ class FMUContainer:
     def make_fmu_xml_epilog_2(self, xml_file, index_offset):
         xml_file.write("  </ModelVariables>\n"
                        "\n"
-                       "  <ModelStructure>\n"
-                       "    <Outputs>\n")
+                       "  <ModelStructure>\n")
 
-        index = index_offset
-        for output in self.outputs.values():
-            if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[2]:
-                print(f'      <Unknown index="{index}"/>', file=xml_file)
-                index += 1
-        xml_file.write("    </Outputs>\n"
-                       "    <InitialUnknowns>\n")
-        index = index_offset
-        for output in self.outputs.values():
-            if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[2]:
-                print(f'      <Unknown index="{index}"/>', file=xml_file)
-                index += 1
-        xml_file.write("    </InitialUnknowns>\n"
-                       "  </ModelStructure>\n"
+
+        if self.outputs:
+            xml_file.write("    <Outputs>\n")
+            index = index_offset
+            for output in self.outputs.values():
+                if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[2]:
+                    print(f'      <Unknown index="{index}"/>', file=xml_file)
+                    index += 1
+            xml_file.write("    </Outputs>\n"
+                           "    <InitialUnknowns>\n")
+            index = index_offset
+            for output in self.outputs.values():
+                if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[2]:
+                    print(f'      <Unknown index="{index}"/>', file=xml_file)
+                    index += 1
+            xml_file.write("    </InitialUnknowns>\n")
+
+        xml_file.write("  </ModelStructure>\n"
                        "\n"
                        "</fmiModelDescription>")
 
