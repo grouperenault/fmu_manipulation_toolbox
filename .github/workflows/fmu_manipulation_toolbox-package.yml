@@ -255,9 +255,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     - name: Test with pytest
-    run: |
-      cd tests
-      python -munittest -v test_suite.py
+      run: |
+        cd tests
+        python -munittest -v test_suite.py
 
   package:
     needs: [remoting-windows32, remoting-windows64, remoting-linux32, remoting-linux64, container-windows64, container-linux64, container-darwin64]
