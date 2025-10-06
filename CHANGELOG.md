@@ -10,7 +10,7 @@ This package was formerly known as `fmutool`.
 * CHANGE: (API) `fmu_operations` and `fmu_container` packages are renamed `operations` and `container`
 * CHANGE: (API) Introduction of `FMUPort` and `port_attrs` method to replace `scalar_attrs` and `scalar_type`
 * CHANGE: (API) `FMUException` and `OperationException`  classes are renamed `FMUError` and `OperationError`
-
+* CHANGE: (CI/CT) Add some simulation steps
 
 # Version 1.8.4.2
 * FIXED: `fmucontainer` re-set start values for causality=input after fmi2EnterInitialization as workaround for some FMUs.

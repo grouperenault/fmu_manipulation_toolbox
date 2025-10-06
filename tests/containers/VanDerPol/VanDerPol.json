@@ -1,0 +1,11 @@
+{
+    "name": "VanDerPol-Container.fmu",
+    "fmu": [
+        "VanDerPol.fmu"
+    ],
+    "profiling": true,
+    "mt": true,
+    "auto_parameter": true,
+    "auto_local": true
+}
+
