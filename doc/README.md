@@ -13,7 +13,7 @@ flowchart LR
 Test suite is implemented in [tests directory](../tests).
 
 ### FMU Import Compatibility information
-FMU Manipulation Toolbox import supports FMI-2.0 and Co-Simulation interface.
+FMU Manipulation Toolbox import supports FMI-2.0 & FMI-3.0 for Co-Simulation interface.
 
 #### Tested Exporting Tool
 - Amesim 
@@ -24,7 +24,7 @@ Automated testsuite use [bouncing_ball.fmu](../tests/operations/bouncing_ball.fm
 
 
 ### FMU Export Compatibility information
-FMU Manipulation Toolbox export supports FMI-2.0 and implements Co-Simulation interface.
+FMU Manipulation Toolbox export supports FMI-2.0 & 3.0 and implements Co-Simulation interface.
 
 #### Validation Tools
 - fmpy
