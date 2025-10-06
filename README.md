@@ -1,4 +1,4 @@
-![Title](fmu_manipulation_toolbox/resources/fmu_manipulation_toolbox.png)
+![](fmu_manipulation_toolbox/resources/fmu_manipulation_toolbox.png)
 
 FMU Manipulation Toolbox is a python package which help to analyse, modify or combine
 [Functional Mock-up Units (FMUs)](http://fmi-standard.org/) without recompilation. It is highly customizable as it comes with
