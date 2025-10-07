@@ -89,7 +89,16 @@ def fmutool():
         for causality in cli_options.apply_on:
             logger.info(f"     - causality = {causality}")
 
-    for operation in cli_options.operations_list:
+    # Checker operations are added as a list into operations_list
+    def operation_iterator():
+        for op in cli_options.operations_list:
+            if isinstance(op, list):
+                for sub_op in op:
+                    yield sub_op
+            else:
+                yield op
+
+    for operation in operation_iterator():
         logger.info(f"     => {operation}")
         try:
             fmu.apply_operation(operation, cli_options.apply_on)
