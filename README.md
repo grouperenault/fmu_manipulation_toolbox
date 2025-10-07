@@ -1,12 +1,23 @@
-![Title](fmu_manipulation_toolbox/resources/fmu_manipulation_toolbox.png)
+![](fmu_manipulation_toolbox/resources/fmu_manipulation_toolbox.png)
 
-FMU Manipulation Toolbox is a python package which help to analyse and modify a [Functional Mock-up Units (FMUs)](http://fmi-standard.org/)
-without recompilation. It is highly customizable. It can even modify the `modelDescription.xml` file.
+FMU Manipulation Toolbox is a python package which help to analyse, modify or combine
+[Functional Mock-up Units (FMUs)](http://fmi-standard.org/) without recompilation. It is highly customizable as it comes with
+a Python API.
 
-Manipulating the `modelDescription.xml` can be a dangerous thing! Communicating with the FMU-developer and adapting
-the way the FMU is generated, is preferable when possible.
+FMU Manipulation Toolbox can be used in different ways :
+- Using a Graphical User Interface: suitable for end user
+- Using a Command Line Interface: useful in 
+- Using a python API: the most efficient for automation (CI/CD, transformation scripts, ...)
 
-FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers. (see [doc/container.md](doc/container.md))
+Major features:
+- Analyse FMU content: list ports and their attributes, check compliance of `ModelDescription.xml` with XSD, ...
+- Alter FMU by modifying its `modelDescription.xml` file. NOTE: manipulating this file can be a dangerous
+  thing! Communicating with the FMU-developer and adapting the way the FMU is generated is preferable when
+  possible.
+- Add binary interface. Typical use case is porting a 32bits FMUs to 64bits (or vice et versa). 
+- Nest FMUs in a [FMU Container](doc/container.md)
+
+FMI versions 2.0 and 3.0 are supported.
 
 ## Installation
 
@@ -17,29 +28,39 @@ Two options available to install FMU Manipulation Toolbox:
 - Compile and install from [github repository](https://github.com/grouperenault/fmu_manipulation_toolbox). You will need 
   - Python required packages. See [`requirements.txt`](requirements.txt).
   - C compiler (C99 or later)
-  - CMake (>= 3.16)
+  - CMake (>= 3.20)
+
 
 ### Supported platforms
-FMU Manipulation Toolbox is tested on:
-- Windows 10/11
-- Linux (Ubuntu 22.04)
 
-Compilation is reported to work on:
-- MacOS (Apple Silicon and Intel)
+FMU Manipulation Toolbox is packaged for:
+- Windows 10/11 (primary platform)
+- Linux (Ubuntu 22.04)
+- Darwin
+
 
 ## Graphical User Interface
 
-FMU Manipulation Toolbox is released with a GUI. You can launch it with the following command `fmutool`
-(without any option)
+FMU Manipulation Toolbox is released with a GUI. You can launch it with the following command `fmutool-gui`
 
 ![GUI](doc/gui.png "GUI")
+
+Button colors descriptions:
+- red: remove information from the `modelDescription.xml`
+- orange: alter `modelDescription.xml`
+- green: add component into the FMU or check it
+- violet: extract and save
+- blue: filter actions scope or exit
+
+**Original FMU is never modified**. Use `Save` button to get modified copy of the original FMU.
 
 
 ## Command Line Interface
 
 FMU Manipulation Toolbox comes with 2 commands:
 - `fmutool`: a versatile analysis and manipulation tool for FMU.
-- `fmucontainer`: group FMU's inside FMU Containers. (see [container/README.md](container/README.md))
+- `fmucontainer`: group FMUs inside FMU Containers. (see [container/README.md](container/README.md))
+- `fmusplit: to extract FMUs from a FMU Container.
 
 
 ### Analysis and Manipulation tool:
@@ -163,14 +184,13 @@ You can write your own FMU Manipulation scripts. Once you downloaded fmutool mod
 adding the `import` statement lets you access the API :
 
 ```python
-from fmu_manipulation_toolbox.operations import FMU, OperationExtractNames, OperationStripTopLevel,
-
-OperationRenameFromCSV
+from fmu_manipulation_toolbox.operations import ...
 ```
+
 
 ### remove toplevel bus (if any)
 
-Give a FMU with the following I/O structure
+Given a FMU with the following I/O structure
 ```
 ├── Parameters
 │   ├── Foo
@@ -194,6 +214,8 @@ The following transformation will lead into:
 
 The following code will do this transformation: 
 ```python
+from fmu_manipulation_toolbox.operations import FMU, OperationStripTopLevel
+
 fmu = FMU(r"bouncing_ball.fmu")
 operation = OperationStripTopLevel()
 fmu.apply_operation(operation)
@@ -205,8 +227,10 @@ fmu.repack(r"bouncing_ball-modified.fmu")
 The following code will dump all FMU's Scalars names into a CSV:
 
 ```python
+from fmu_manipulation_toolbox.operations import FMU, OperationSaveNamesToCSV
+
 fmu = FMU(r"bouncing_ball.fmu")
-operation = OperationExtractNames()
+operation = OperationSaveNamesToCSV()
 fmu.apply_operation(operation)
 operation.write_csv(r"bouncing_ball.csv")
 ```
@@ -224,15 +248,20 @@ g;g;4;parameter;fixed
 e;e;5;parameter;tunable
 ```
 
+
 ### Read CSV and rename FMU ports
 
-CSV file should contain- 2 columns:
+CSV file should contain 2 columns:
 1. the current name
 2. the new name
 
 ```python
+from fmu_manipulation_toolbox.operations import FMU, OperationRenameFromCSV
+
 fmu = FMU(r"bouncing_ball.fmu")
 operation = OperationRenameFromCSV(r"bouncing_ball-modified.csv")
 fmu.apply_operation(operation)
 fmu.repack(r"bouncing_ball-renamed.fmu")
 ```
+
+More operations exist in [`Operation.py`](fmu_manipulation_toolbox/operations.py)
