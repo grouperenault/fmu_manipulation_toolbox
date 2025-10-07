@@ -416,8 +416,8 @@ class OperationSummary(OperationAbstract):
                 hash_md5.update(chunk)
         digest = hash_md5.hexdigest()
         logger.info(f"| MD5Sum = {digest}")
-
-        logger.info(f"|\n| FMI properties: ")
+        logger.info(f"|")
+        logger.info(f"| FMI properties: ")
         for (k, v) in attrs.items():
             logger.info(f"|  - {k} = {v}")
         logger.info(f"|")
@@ -457,21 +457,25 @@ class OperationSummary(OperationAbstract):
 
         resource_dir = os.path.join(self.fmu.tmp_directory, "resources")
         if os.path.isdir(resource_dir):
-            logger.info("|\n| Embedded resources:")
+            logger.info("|")
+            logger.info("| Embedded resources:")
             for resource in os.listdir(resource_dir):
                 logger.info(f"|  - {resource}")
 
         extra_dir = os.path.join(self.fmu.tmp_directory, "extra")
         if os.path.isdir(extra_dir):
-            logger.info("|\n| Additional (meta-)data:")
+            logger.info("|")
+            logger.info("| Additional (meta-)data:")
             for extra in os.listdir(extra_dir):
                 logger.info(f"|  - {extra}")
 
-        logger.info("|\n| Number of ports")
+        logger.info("|")
+        logger.info("| Number of ports")
         for causality, nb_ports in self.nb_port_per_causality.items():
             logger.info(f"|  {causality} : {nb_ports}")
 
-        logger.info("|\n| [End of report]")
+        logger.info("|")
+        logger.info("| [End of report]")
 
 
 class OperationRemoveSources(OperationAbstract):
