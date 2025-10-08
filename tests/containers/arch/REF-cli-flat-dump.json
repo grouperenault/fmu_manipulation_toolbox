@@ -1,0 +1,38 @@
+{
+  "name": "cli-flat.fmu",
+  "mt": false,
+  "profiling": false,
+  "sequential": false,
+  "auto_link": true,
+  "auto_input": true,
+  "auto_output": true,
+  "auto_parameter": false,
+  "auto_local": false,
+  "step_size": 0.5,
+  "fmu": [
+    "gain.fmu",
+    "integrate.fmu",
+    "sine.fmu"
+  ],
+  "output": [
+    [
+      "gain.fmu",
+      "final",
+      "final"
+    ]
+  ],
+  "link": [
+    [
+      "sine.fmu",
+      "sine",
+      "integrate.fmu",
+      "sine"
+    ],
+    [
+      "integrate.fmu",
+      "integrate",
+      "gain.fmu",
+      "integrate"
+    ]
+  ]
+}

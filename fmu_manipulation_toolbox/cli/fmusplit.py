@@ -1,12 +1,15 @@
 import argparse
 import logging
+import sys
+
+from typing import *
 
 from .utils import setup_logger, make_wide
 from ..split import FMUSplitter, FMUSplitterError
 from ..version import __version__ as version
 
 
-def fmusplit():
+def fmusplit(command_options: Sequence[str]):
     logger = setup_logger()
 
     logger.info(f"FMUSplit version {version}")
@@ -24,7 +27,7 @@ def fmusplit():
                         metavar="filename.fmu", required=True,
                         help="Description of the FMU container to split.")
 
-    config = parser.parse_args()
+    config = parser.parse_args(command_options)
 
     if config.debug:
         logger.setLevel(logging.DEBUG)
@@ -35,11 +38,11 @@ def fmusplit():
             splitter.split_fmu()
         except FMUSplitterError as e:
             logger.fatal(f"{fmu_filename}: {e}")
-            continue
+            sys.exit(-1)
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")
-            continue
+            sys.exit(-2)
 
 
 if __name__ == "__main__":
-    fmusplit()
+    fmusplit(sys.argv[1:])

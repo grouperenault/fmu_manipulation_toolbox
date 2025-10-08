@@ -1,6 +1,8 @@
 import argparse
 import sys
 
+from typing import *
+
 from .utils import setup_logger, make_wide
 from ..operations import (OperationSummary, OperationError, OperationRemoveRegexp,
                           OperationRemoveSources, OperationTrimUntil, OperationKeepOnlyRegexp, OperationMergeTopLevel,
@@ -12,7 +14,7 @@ from ..version import __version__ as version
 from ..help import Help
 
 
-def fmutool():
+def fmutool(command_options: Sequence[str]):
     logger = setup_logger()
 
     logger.info(f"FMU Manipulation Toolbox version {version}")
@@ -68,7 +70,7 @@ def fmutool():
     add_option('-summary', action='append_const', dest='operations_list', const=OperationSummary())
     add_option('-check', action='append_const', dest='operations_list', const=[checker() for checker in checker_list])
 
-    cli_options = parser.parse_args()
+    cli_options = parser.parse_args(command_options)
     # handle the "no operation" use case
     if not cli_options.operations_list:
         cli_options.operations_list = []
@@ -121,4 +123,4 @@ def fmutool():
         logger.info(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
 
 if __name__ == "__main__":
-    fmutool()
+    fmutool(sys.argv[1:])

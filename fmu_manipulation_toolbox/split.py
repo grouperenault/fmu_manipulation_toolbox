@@ -6,6 +6,8 @@ import xml.parsers.expat
 from typing import *
 from pathlib import Path
 
+from .container import EmbeddedFMUPort
+
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
@@ -66,7 +68,7 @@ class FMUSplitter:
     def split_fmu(self):
         logger.info(f"Splitting...")
         config = self._split_fmu(fmu_filename=str(self.fmu_filename), relative_path="")
-        config_filename = self.directory / self.fmu_filename.with_suffix(".json")
+        config_filename = self.directory / self.fmu_filename.with_suffix(".json").name
         with open(config_filename, "w") as file:
             json.dump(config, file, indent=2)
         logger.info(f"Container definition saved to '{config_filename}'")
@@ -77,7 +79,7 @@ class FMUSplitter:
         if txt_filename in self.filenames_list:
             description = FMUSplitterDescription(self.zip)
             config = description.parse_txt_file(txt_filename)
-            config["name"] = fmu_filename
+            config["name"] = Path(fmu_filename).name
             for i, fmu_filename in enumerate(config["candidate_fmu"]):
                 directory = f"{relative_path}resources/{i:02x}/"
                 if directory not in self.dir_set:
@@ -134,6 +136,7 @@ class FMUSplitterDescription:
         self.current_vr = None
         self.current_name = None
         self.current_causality = None
+        self.supported_fmi_types: Tuple[str] = ()
 
     @staticmethod
     def get_line(file):
@@ -182,10 +185,12 @@ class FMUSplitterDescription:
     def parse_txt_file_header(self, file, txt_filename):
         flags = self.get_line(file).split(" ")
         if len(flags) == 1:
+            self.supported_fmi_types = ("Real", "Integer", "Boolean", "String")
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = self.get_line(file) == "1"
             self.config["sequential"] = False
         elif len(flags) == 3:
+            self.supported_fmi_types = EmbeddedFMUPort.ALL_TYPES
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = flags[1] == "1"
             self.config["sequential"] = flags[2] == "1"
@@ -242,7 +247,7 @@ class FMUSplitterDescription:
             logger.debug(f"Adding container port {causality}: {definition}")
 
     def parse_txt_file_ports(self, file):
-        for fmi_type in ("Real", "Integer", "Boolean", "String"):
+        for fmi_type in self.supported_fmi_types:
             nb_port_variables = self.get_line(file).split(" ")[0]
             for i in range(int(nb_port_variables)):
                 tokens = self.get_line(file).split(" ")

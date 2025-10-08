@@ -9,7 +9,9 @@ from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import *
 from fmu_manipulation_toolbox.container import *
 from fmu_manipulation_toolbox.assembly import *
-
+from fmu_manipulation_toolbox.cli.fmutool import fmutool
+from fmu_manipulation_toolbox.cli.fmusplit import fmusplit
+from fmu_manipulation_toolbox.cli.fmucontainer import fmucontainer
 
 class FMUManipulationToolboxTestSuite(unittest.TestCase):
     def __init__(self, *args, **kwargs):
@@ -213,6 +215,28 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         print("RESULTS:")
         for link in links_fmu0a:
             print(f"{link}")
+
+    def test_fmutool(self):
+        fmutool(['-input', 'operations/bouncing_ball.fmu', '-summary', '-check', '-dump-csv',
+                 'operations/cli-bouncing_ball.csv'])
+        self.assert_identical_files("operations/cli-bouncing_ball.csv", "operations/REF-bouncing_ball.csv")
+
+    def test_fmucontainer_csv(self):
+        fmucontainer(['-container', 'cli-bouncing.csv', '-fmu-directory', 'containers/bouncing_ball', '-mt', '-debug'])
+        self.assert_identical_files("containers/bouncing_ball/REF-container.txt",
+                                    "containers/bouncing_ball/cli-bouncing/resources/container.txt")
+
+    def test_fmucontainer_json(self):
+        fmucontainer(['-fmu-directory', 'containers/arch', '-container', 'cli-flat.json', '-dump'])
+        self.assert_identical_files("containers/arch/REF-cli-flat-dump.json",
+                                    "containers/arch/cli-flat-dump.json")
+
+    def test_fmusplit(self):
+        fmusplit(["-fmu", "containers/ssp/bouncing.fmu"])
+        self.assertTrue(Path("containers/ssp/bouncing.dir/bb_position.fmu").exists())
+        self.assertTrue(Path("containers/ssp/bouncing.dir/bb_velocity.fmu").exists())
+        self.assert_identical_files("containers/ssp/REF-split-bouncing.json",
+                                    "containers/ssp/bouncing.dir/bouncing.json")
 
 
 if __name__ == '__main__':

@@ -72,3 +72,10 @@ tests/fmi3/passthrough/results-container-passthrough.csv
 tests/remoting/bouncing_ball-win64.fmu
 tests/remoting/results-bouncing_ball-win32.csv
 tests/remoting/results-bouncing_ball-win64.csv
+/tests/containers/bouncing_ball/cli-bouncing/
+/tests/containers/ssp/bouncing.dir/
+tests/cli-bouncing_ball.csv
+tests/containers/bouncing_ball/cli-bouncing.fmu
+tests/containers/arch/cli-flat-dump.json
+tests/containers/arch/cli-flat.fmu
+

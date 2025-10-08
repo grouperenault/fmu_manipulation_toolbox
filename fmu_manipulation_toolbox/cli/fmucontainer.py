@@ -1,6 +1,8 @@
 import argparse
 import logging
+import sys
 
+from typing import *
 from pathlib import Path
 
 from .utils import setup_logger, make_wide
@@ -9,7 +11,7 @@ from ..container import FMUContainerError
 from ..version import __version__ as version
 
 
-def fmucontainer():
+def fmucontainer(command_options: Sequence[str]):
     logger = setup_logger()
 
     logger.info(f"FMUContainer version {version}")
@@ -63,7 +65,7 @@ def fmucontainer():
     parser.add_argument("-dump-json",  action="store_true", dest="dump", default=False,
                         help="Dump a JSON file for each container.")
 
-    config = parser.parse_args()
+    config = parser.parse_args(command_options)
 
     if config.debug:
         logger.setLevel(logging.DEBUG)
@@ -88,16 +90,16 @@ def fmucontainer():
                                 auto_parameter=config.auto_parameter)
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")
-            continue
+            sys.exit(-1)
         except (FMUContainerError, AssemblyError) as e:
             logger.fatal(f"{filename}: {e}")
-            continue
+            sys.exit(-2)
 
         try:
             assembly.make_fmu(dump_json=config.dump, fmi_version=int(config.fmi_version))
         except FMUContainerError as e:
             logger.fatal(f"{filename}: {e}")
-            continue
+            sys.exit(-3)
 
 if __name__ == "__main__":
-    fmucontainer()
+    fmucontainer(sys.argv[1:])

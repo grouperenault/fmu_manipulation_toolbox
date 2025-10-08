@@ -1,0 +1,7 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+h;h;0;local;continuous;Real;1
+der(h);der(h);1;local;continuous;Real;
+v;v;2;local;continuous;Real;0
+der(v);der(v);3;local;continuous;Real;
+g;g;4;parameter;fixed;Real;9.81
+e;e;5;parameter;tunable;Real;0.7
