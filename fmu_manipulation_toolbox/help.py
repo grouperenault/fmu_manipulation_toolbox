@@ -73,6 +73,9 @@ class Help:
         '-only-outputs': "apply operation only on ports with  causality = 'output'. This "
                          "option is available from version 1.3.",
 
+        '-only-locals': "apply operation only on ports with  causality = 'local'. This "
+                         "option is available from version 1.9.",
+
         '-summary': "display useful information regarding the FMU.",
 
         '-check': "performs some check of FMU and display Errors or Warnings. This is useful to avoid later "

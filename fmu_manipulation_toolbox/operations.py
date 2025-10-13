@@ -112,6 +112,8 @@ class FMUError(Exception):
 
 class Manipulation:
     """Parse modelDescription.xml file and create a modified version"""
+    TAGS_MODEL_STRUCTURE = ("InitialUnknowns", "Derivatives", "Outputs")
+
     def __init__(self, operation, fmu):
         self.output_filename = tempfile.mktemp()
         self.out = None
@@ -120,7 +122,14 @@ class Manipulation:
         self.parser.StartElementHandler = self.start_element
         self.parser.EndElementHandler = self.end_element
         self.parser.CharacterDataHandler = self.char_data
+
+        # used for filter
         self.skip_until: Optional[str] = None
+
+        # used to remove empty sections
+        self.delayed_tag = None
+        self.delayed_tag_open = False
+
         self.operation.set_fmu(fmu)
         self.fmu = fmu
 
@@ -155,6 +164,7 @@ class Manipulation:
     def start_element(self, name, attrs):
         if self.skip_until:
             return
+
         try:
             if name == 'ScalarVariable': # FMI 2.0 only
                 self.current_port = FMUPort()
@@ -176,7 +186,7 @@ class Manipulation:
                 self.operation.fmi_attrs(attrs)
             elif name == 'Unknown': # FMI-2.0 only
                 self.unknown_attrs(attrs)
-            elif name == 'Output' or name == "ContinuousStateDerivative" or "InitialUnknown":
+            elif name == 'Output' or name == "ContinuousStateDerivative" or "InitialUnknown": #  FMI-3.0 only
                 self.handle_structure(attrs)
 
         except ManipulationSkipTag:
@@ -184,11 +194,19 @@ class Manipulation:
             return
 
         if self.current_port is None:
+            if self.delayed_tag and not self.delayed_tag_open:
+                print(f"<{self.delayed_tag}>", end='', file=self.out)
+                self.delayed_tag_open = True
+
             if attrs:
                 attrs_list = [f'{key}="{self.escape(value)}"' for (key, value) in attrs.items()]
                 print(f"<{name}", " ".join(attrs_list), ">", end='', file=self.out)
             else:
-                print(f"<{name}>", end='', file=self.out)
+                if name in self.TAGS_MODEL_STRUCTURE:
+                    self.delayed_tag = name
+                    self.delayed_tag_open = False
+                else:
+                    print(f"<{name}>", end='', file=self.out)
 
     def end_element(self, name):
         if self.skip_until:
@@ -205,7 +223,14 @@ class Manipulation:
                 self.current_port = None
 
             elif self.current_port is None:
-                print(f"</{name}>", end='', file=self.out)
+                if self.delayed_tag and name == self.delayed_tag:
+                    if self.delayed_tag_open:
+                        print(f"</{self.delayed_tag}>", end='', file=self.out)
+                    else:
+                        logger.debug(f"Remove tag <{self.delayed_tag}> from modelDescription.xml")
+                    self.delayed_tag = None
+                else:
+                    print(f"</{name}>", end='', file=self.out)
 
     def char_data(self, data):
         if not self.skip_until:
@@ -223,12 +248,37 @@ class Manipulation:
         self.port_translation.append(self.current_port_number)
 
     def unknown_attrs(self, attrs):
-        index = int(attrs['index']) - 1
-        new_index = self.port_translation[index]
-        if new_index:
-            attrs['index'] = self.port_translation[int(attrs['index']) - 1]
+        index = int(attrs['index'])
+        new_index = self.port_translation[index-1]
+        if new_index is not None:
+            attrs['index'] = str(new_index)
+            if attrs.get('dependencies', ""):
+                if 'dependenciesKind' in attrs:
+                    new_dependencies = []
+                    new_kinds = []
+                    for dependency, kind in zip(attrs['dependencies'].split(' '), attrs['dependenciesKind'].split(' ')):
+                        new_dependency = self.port_translation[int(dependency)-1]
+                        if new_dependency is not None:
+                            new_dependencies.append(str(new_dependency))
+                            new_kinds.append(kind)
+                    if new_dependencies:
+                        attrs['dependencies'] = " ".join(new_dependencies)
+                        attrs['dependenciesKind'] = " ".join(new_kinds)
+                    else:
+                        attrs.pop('dependencies')
+                        attrs.pop('dependenciesKind')
+                else:
+                    new_dependencies = []
+                    for dependency in attrs['dependencies'].split(' '):
+                        new_dependency = self.port_translation[int(dependency)-1]
+                        if new_dependency is not None:
+                            new_dependencies.append(str(new_dependency))
+                    if new_dependencies:
+                        attrs['dependencies'] = " ".join(new_dependencies)
+                    else:
+                        attrs.pop('dependencies')
         else:
-            logger.warning(f"Removed port '{self.port_names_list[index]}' is involved in dependencies tree.")
+            logger.warning(f"Removed port '{self.port_names_list[index-1]}' is involved in dependencies tree.")
             raise ManipulationSkipTag
 
     def handle_structure(self, attrs):

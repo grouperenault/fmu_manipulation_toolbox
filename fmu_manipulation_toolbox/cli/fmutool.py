@@ -66,6 +66,7 @@ def fmutool(command_options: Sequence[str]):
     add_option('-only-parameters', action='append_const', dest='apply_on', const='parameter')
     add_option('-only-inputs', action='append_const', dest='apply_on', const='input')
     add_option('-only-outputs', action='append_const', dest='apply_on', const='output')
+    add_option('-only-locals', action='append_const', dest='apply_on', const='local')
     # Checker
     add_option('-summary', action='append_const', dest='operations_list', const=OperationSummary())
     add_option('-check', action='append_const', dest='operations_list', const=[checker() for checker in checker_list])
