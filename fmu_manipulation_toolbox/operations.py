@@ -285,21 +285,34 @@ class Manipulation:
         try:
             vr = attrs['valueReference']
             if vr in self.port_removed_vr:
+                logger.warning(f"Removed port vr={vr} is involved in dependencies tree.")
                 raise ManipulationSkipTag
         except KeyError:
             return
 
-        try:
-            dependencies = attrs['dependencies']
-            new_dependencies = []
-            for dependency in dependencies.split(" "):
-                if dependency in self.port_removed_vr:
-                    logger.warning(f"Removed port 'vr={dependency}' was involved in dependencies tree.")
+        if attrs.get('dependencies', ""):
+            if 'dependenciesKind' in attrs:
+                new_dependencies = []
+                new_kinds = []
+                for dependency, kind in zip(attrs['dependencies'].split(' '), attrs['dependenciesKind'].split(' ')):
+                    if dependency not in self.port_removed_vr:
+                        new_dependencies.append(dependency)
+                        new_kinds.append(kind)
+                if new_dependencies:
+                    attrs['dependencies'] = " ".join(new_dependencies)
+                    attrs['dependenciesKind'] = " ".join(new_kinds)
                 else:
-                    new_dependencies.append(dependency)
-            attrs['dependencies'] = " ".join(new_dependencies)
-        except KeyError:
-            return
+                    attrs.pop('dependencies')
+                    attrs.pop('dependenciesKind')
+            else:
+                new_dependencies = []
+                for dependency in attrs['dependencies'].split(' '):
+                    if dependency not in self.port_removed_vr:
+                        new_dependencies.append(dependency)
+                if new_dependencies:
+                    attrs['dependencies'] = " ".join(new_dependencies)
+                else:
+                    attrs.pop('dependencies')
 
     def manipulate(self, descriptor_filename, apply_on=None):
         self.apply_on = apply_on

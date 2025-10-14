@@ -8,6 +8,7 @@ This package was formerly known as `fmutool`.
 * ADDED: FMI-3.0 early support. Use `-fmi 3` option for `fmucontainer`
 * FIXED: `fmucontainer` MT mode on Linux and Darwin
 * FIXED: `fmutool` command line for various operations
+* FIXED: `fmutool` handle correctly <ModelStructure>: remove empty tags
 * CHANGE: (API) `fmu_operations` and `fmu_container` packages are renamed `operations` and `container`
 * CHANGE: (API) Introduction of `FMUPort` and `port_attrs` method to replace `scalar_attrs` and `scalar_type`
 * CHANGE: (API) `FMUException` and `OperationException`  classes are renamed `FMUError` and `OperationError`
