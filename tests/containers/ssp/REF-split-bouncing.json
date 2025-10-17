@@ -8,6 +8,20 @@
   "profiling": false,
   "sequential": false,
   "step_size": 0.001,
+  "link": [
+    [
+      "bb_velocity.fmu",
+      "velocity",
+      "bb_position.fmu",
+      "velocity"
+    ],
+    [
+      "bb_position.fmu",
+      "is_ground",
+      "bb_velocity.fmu",
+      "reset"
+    ]
+  ],
   "name": "bouncing.fmu",
   "fmu": [
     "bb_velocity.fmu",

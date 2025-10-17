@@ -111,16 +111,10 @@ class FMUSplitter:
                     fmu_file.writestr(file[len(directory):], data)
         logger.info(f"FMU Extraction of '{filename}'")
 
-
 class FMUSplitterDescription:
     def __init__(self, zip):
         self.zip = zip
-        self.links: Dict[str, Dict[int, FMUSplitterLink]] = {
-            "Real": {},
-            "Integer": {},
-            "Boolean": {},
-            "String": {}
-        }
+        self.links: Dict[str, Dict[int, FMUSplitterLink]] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
         self.vr_to_name: Dict[str, Dict[str, Dict[int, Dict[str, str]]]] = {} # name, fmi_type, vr <-> {name, causality}
         self.config: Dict[str, Any] = {
             "auto_input": False,
@@ -133,10 +127,11 @@ class FMUSplitterDescription:
 
         # used for modelDescription.xml parsing
         self.current_fmu_filename = None
+        self.current_fmi_version = None
         self.current_vr = None
         self.current_name = None
         self.current_causality = None
-        self.supported_fmi_types: Tuple[str] = ()
+        self.supported_fmi_types: Tuple[str] = tuple()
 
     @staticmethod
     def get_line(file):
@@ -146,14 +141,23 @@ class FMUSplitterDescription:
                 return line
         raise StopIteration
 
-    def start_element(self, name, attrs):
-        if name == "ScalarVariable":
+    def start_element(self, tag, attrs):
+        if tag == "fmiModelDescription":
+            self.current_fmi_version = attrs["fmiVersion"]
+        elif tag == "ScalarVariable":
             self.current_name = attrs["name"]
             self.current_vr = int(attrs["valueReference"])
             self.current_causality = attrs["causality"]
-        elif name in self.vr_to_name[self.current_fmu_filename]:
-            self.vr_to_name[self.current_fmu_filename][name][self.current_vr] = {"name": self.current_name,
-                                                                                 "causality": self.current_causality}
+        elif self.current_fmi_version == "2.0" and tag in EmbeddedFMUPort.FMI_TO_CONTAINER[2]:
+            fmi_type = EmbeddedFMUPort.FMI_TO_CONTAINER[2][tag]
+            self.vr_to_name[self.current_fmu_filename][fmi_type][self.current_vr] = {
+                "name": self.current_name,
+                "causality": self.current_causality}
+        elif self.current_fmi_version == "3.0" and tag in EmbeddedFMUPort.FMI_TO_CONTAINER[3]:
+            fmi_type = EmbeddedFMUPort.FMI_TO_CONTAINER[3][tag]
+            self.vr_to_name[self.current_fmu_filename][fmi_type][int(attrs["valueReference"])] = {
+                "name": attrs["name"],
+                "causality": attrs["causality"]}
         else:
             self.current_vr = None
             self.current_name = None
@@ -166,14 +170,10 @@ class FMUSplitterDescription:
         else:
             filename = f"{directory}/modelDescription.xml"
 
-        self.vr_to_name[fmu_filename] = {
-            "Real": {},
-            "Integer": {},
-            "Boolean": {},
-            "String": {}
-        }
+        self.vr_to_name[fmu_filename] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
         parser = xml.parsers.expat.ParserCreate()
         self.current_fmu_filename = fmu_filename
+        self.current_fmi_version = None
         self.current_vr = None
         self.current_name = None
         self.current_causality = None
@@ -266,14 +266,14 @@ class FMUSplitterDescription:
     def parse_txt_file(self, txt_filename: str):
         self.parse_model_description(str(Path(txt_filename).parent.parent), ".")
         logger.debug(f"Parsing container file '{txt_filename}'")
-
         with (self.zip.open(txt_filename) as file):
             self.parse_txt_file_header(file, txt_filename)
             self.parse_txt_file_ports(file)
 
             for fmu_filename in self.config["candidate_fmu"]:
                 # Inputs per FMUs
-                for fmi_type in ("Real", "Integer", "Boolean", "String"):
+
+                for fmi_type in self.supported_fmi_types:
                     nb_input = int(self.get_line(file))
                     for i in range(nb_input):
                         local, vr = self.get_line(file).split(" ")
@@ -285,7 +285,7 @@ class FMUSplitterDescription:
                         link.to_port.append(FMUSplitterPort(fmu_filename,
                                                             self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]))
 
-                for fmi_type in ("Real", "Integer", "Boolean", "String"):
+                for fmi_type in self.supported_fmi_types:
                     nb_start = int(self.get_line(file))
                     for i in range(nb_start):
                         tokens = self.get_line(file).split(" ")
@@ -299,7 +299,7 @@ class FMUSplitterDescription:
                             self.config["start"] = [start_definition]
 
                 # Output per FMUs
-                for fmi_type in ("Real", "Integer", "Boolean", "String"):
+                for fmi_type in self.supported_fmi_types:
                     nb_output = int(self.get_line(file))
 
                     for i in range(nb_output):
@@ -311,6 +311,10 @@ class FMUSplitterDescription:
                             self.links[fmi_type][local] = link
                         link.from_port = FMUSplitterPort(fmu_filename,
                                                          self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"])
+                #conversion
+                nb_conversion = int(self.get_line(file))
+                for i in range(nb_conversion):
+                    self.get_line(file)
 
             logger.debug("End of parsing.")
 
