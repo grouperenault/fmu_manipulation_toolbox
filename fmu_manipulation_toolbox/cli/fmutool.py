@@ -9,7 +9,7 @@ from ..operations import (OperationSummary, OperationError, OperationRemoveRegex
                           OperationStripTopLevel, OperationRenameFromCSV, OperationSaveNamesToCSV, FMU, FMUError)
 from ..remoting import  (OperationAddFrontendWin32, OperationAddFrontendWin64, OperationAddRemotingWin32,
                          OperationAddRemotingWin64)
-from ..checker import checker_list
+from ..checker import get_checkers
 from ..version import __version__ as version
 from ..help import Help
 
@@ -69,7 +69,7 @@ def fmutool(command_options: Sequence[str]):
     add_option('-only-locals', action='append_const', dest='apply_on', const='local')
     # Checker
     add_option('-summary', action='append_const', dest='operations_list', const=OperationSummary())
-    add_option('-check', action='append_const', dest='operations_list', const=[checker() for checker in checker_list])
+    add_option('-check', action='append_const', dest='operations_list', const=[checker() for checker in get_checkers()])
 
     cli_options = parser.parse_args(command_options)
     # handle the "no operation" use case

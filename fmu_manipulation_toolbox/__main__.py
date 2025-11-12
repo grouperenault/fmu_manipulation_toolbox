@@ -11,7 +11,7 @@ def gui():
 
 def cli():
     from .cli.fmutool import fmutool
-    fmutool()
+    fmutool(sys.argv[1:])
 
 
 def main():

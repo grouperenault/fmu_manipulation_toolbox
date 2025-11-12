@@ -2,8 +2,11 @@ import importlib.util
 import inspect
 import logging
 import os
+import sys
 import xmlschema
+from typing import *
 from xmlschema.validators.exceptions import XMLSchemaValidationError
+
 from .operations import OperationAbstract
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -40,8 +43,24 @@ class OperationGenericCheck(OperationAbstract):
         else:
             logger.error(f"This FMU does not validate with FMI standard.")
 
+_checkers_list: List[type[OperationAbstract]] = [OperationGenericCheck]
 
-checker_list = [OperationGenericCheck]
+def get_checkers() -> List[type[OperationAbstract]]:
+    if sys.version_info < (3, 10):
+        from importlib_metadata import entry_points
+    else:
+        from importlib.metadata import entry_points
+    checkers: List[type[OperationAbstract]] = _checkers_list
+    discovered_checkers = entry_points(group='fmu_manipulation_toolbox.checkers')
+
+    for checker in discovered_checkers:
+        entry = checker.load()
+        checker_class = entry()
+        if issubclass(checker_class, OperationAbstract):
+            logger.debug(f"Addon checker: {checker.name}")
+            checkers.append(checker_class)
+
+    return checkers
 
 
 def add_from_file(checker_filename: str):
@@ -59,7 +78,7 @@ def add_from_file(checker_filename: str):
 
         for checker_name, checker_class in inspect.getmembers(checker_module, inspect.isclass):
             if OperationAbstract in checker_class.__bases__:
-                checker_list.append(checker_class)
+                _checkers_list.append(checker_class)
                 logger.info(f"Adding checker: {checker_filename}|{checker_name}")
 
     except AttributeError:

@@ -16,7 +16,7 @@ from .operations import *
 from .remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                        OperationAddFrontendWin64)
 from .assembly import Assembly, AssemblyNode
-from .checker import checker_list
+from .checker import get_checkers
 from .help import Help
 from .version import __version__ as version
 
@@ -414,7 +414,7 @@ class MainWindow(WindowWithLayout):
             ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64),
             ("Add Win32 frontend",    '-add-frontend-win32', 'info',    OperationAddFrontendWin32),
             ("Add Win64 frontend",    '-add-frontend-win64', 'info',    OperationAddFrontendWin64),
-            ("Check",                 '-check',              'info',    checker_list),
+            ("Check",                 '-check',              'info',    get_checkers()),
         ]
 
         width = 5
