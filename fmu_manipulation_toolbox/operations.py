@@ -19,7 +19,7 @@ class FMU:
     FMI2_TYPES = ('Real', 'Integer', 'String', 'Boolean', 'Enumeration')
     FMI3_TYPES = ('Float64', 'Float32',
                   'Int8', 'UInt8', 'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64',
-                  'String', 'Boolean', 'Enumeration')
+                  'String', 'Boolean', 'Enumeration', 'Clock', 'Binary')
 
     def __init__(self, fmu_filename):
         self.fmu_filename = fmu_filename

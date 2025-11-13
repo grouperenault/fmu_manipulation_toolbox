@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import *
 
 from .operations import FMU, OperationAbstract, FMUError, FMUPort
+from .terminals import Terminals
 from .version import __version__ as tool_version
 
 
@@ -37,7 +38,9 @@ class EmbeddedFMUPort:
             'Int64': 'integer64',
             'UInt64': 'uinteger64',
             'String': 'string',
-            'Boolean': 'boolean1'
+            'Boolean': 'boolean1',
+            'Binary': 'binary',
+            'Clock': 'clock'
         }
     }
 
@@ -60,7 +63,9 @@ class EmbeddedFMUPort:
             'integer64': 'Int64' ,
             'uinteger64': 'UInt64' ,
             'string': 'String' ,
-            'boolean1': 'Boolean'
+            'boolean1': 'Boolean',
+            'binary': 'Binary',
+            'clock': 'Clock'
         }
     }
 
@@ -68,7 +73,8 @@ class EmbeddedFMUPort:
         "real64", "real32",
         "integer8", "uinteger8", "integer16", "uinteger16", "integer32", "uinteger32", "integer64", "uinteger64",
         "boolean", "boolean1",
-        "string"
+        "string",
+        "binary", "clock"
     )
 
     def __init__(self, fmi_type, attrs: Union[FMUPort, Dict[str, str]], fmi_version=0):
@@ -166,6 +172,7 @@ class EmbeddedFMU(OperationAbstract):
         self.fmu = FMU(filename)
         self.name = Path(filename).name
         self.id = Path(filename).stem.lower()
+        self.terminals = Terminals(self.fmu.tmp_directory)
 
         self.step_size = None
         self.start_time = None
@@ -215,7 +222,7 @@ class EmbeddedFMU(OperationAbstract):
         self.ports[port.name] = port
 
     def __repr__(self):
-        return f"FMU '{self.name}' ({len(self.ports)} variables, ts={self.step_size}s)"
+        return f"FMU '{self.name}' ({len(self.ports)} variables, ts={self.step_size}s, {len(self.terminals)} terminals)"
 
 
 class FMUContainerError(Exception):
