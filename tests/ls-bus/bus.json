@@ -1,0 +1,4 @@
+{
+  "name": "bus.fmu",
+  "fmu": [ "DemoCanBusSimulation.fmu" ]
+}
