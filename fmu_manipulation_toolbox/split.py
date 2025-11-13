@@ -48,7 +48,7 @@ class FMUSplitter:
         self.dir_set = self.get_dir_set()
 
         if "resources/container.txt" not in self.filenames_list:
-                raise FMUSplitterError(f"FMU file {self.fmu_filename} is not an FMU Container.")
+            raise FMUSplitterError(f"FMU file {self.fmu_filename} is not an FMU Container.")
 
         self.directory.mkdir(exist_ok=True)
         logger.info(f"Preparing to split '{self.fmu_filename}' into '{self.directory}'")
@@ -123,6 +123,7 @@ class FMUSplitterDescription:
             "auto_local": False,
             "auto_link": False,
         }
+        self.format = 0
         self.fmu_filename_list = []
 
         # used for modelDescription.xml parsing

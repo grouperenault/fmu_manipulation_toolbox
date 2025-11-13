@@ -16,16 +16,22 @@ class Terminal:
         self.members[member_name] = variable_name
 
     def __repr__(self):
-        return f"{self.name} ({self.members})"
+        return f"{self.name} ({len(self.members)} signals)"
 
     def __eq__(self, other):
         return Counter(self.members.keys()) == Counter(other.members.keys())
+
+    def __iter__(self):
+        return self.members.__iter__()
+
+    def __getitem__(self, item):
+        return self.members[item]
 
 
 class Terminals:
     FILENAME = "terminalsAndIcons.xml"
     def __init__(self, directory: Union[Path, str]):
-        self.terminals: Dict[str, Terminal] = {}
+        self.terminals: OrderedDict[str, Terminal] = OrderedDict()
 
         if isinstance(directory, str):
             directory = Path(directory)
@@ -45,6 +51,12 @@ class Terminals:
 
     def __len__(self):
         return len(self.terminals)
+
+    def __contains__(self, item):
+        return item in self.terminals
+
+    def __getitem__(self, item):
+        return self.terminals[item]
 
     def add_terminal(self, element) -> Terminal:
         name = element.get("name")

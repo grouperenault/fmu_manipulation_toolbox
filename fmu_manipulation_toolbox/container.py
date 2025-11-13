@@ -79,7 +79,8 @@ class EmbeddedFMUPort:
 
     def __init__(self, fmi_type, attrs: Union[FMUPort, Dict[str, str]], fmi_version=0):
         self.causality = attrs.get("causality", "local")
-        self.variability = attrs.get("variability", "continuous")
+        self.variability = attrs.get("variability", None)
+        self.interval_variability = attrs.get("intervalVariability", None)
         self.name = attrs["name"]
         self.vr = int(attrs["valueReference"])
         self.description = attrs.get("description", None)
@@ -99,6 +100,8 @@ class EmbeddedFMUPort:
             causality = self.causality
         if start is None:
             start = self.start_value
+            if start is None and self.type_name == "binary" and self.initial == "exact":
+                start = ""
         if self.variability is None:
             self.variability = "continuous" if "real" in self.type_name else "discrete"
 
@@ -130,9 +133,10 @@ class EmbeddedFMUPort:
             filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
             scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
             return f'<ScalarVariable {scalar_attrs_str}>{child_str}</ScalarVariable>'
-        else:
+
+        elif fmi_version == 3:
             if fmi_type in ('String', 'Binary'):
-                if start:
+                if start is not None:
                     child_str = f'<Start value="{start}"/>'
                 else:
                     child_str = ''
@@ -155,13 +159,16 @@ class EmbeddedFMUPort:
                     "variability": self.variability,
                     "initial": self.initial,
                     "description": self.description,
-                    "start": start
+                    "start": start,
+                    "intervalVariability": self.interval_variability
                 }
                 filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
                 scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
 
                 return f'<{fmi_type} {scalar_attrs_str}/>'
-
+        else:
+            logger.critical(f"Unknown version {fmi_version}. BUG?")
+            return ''
 
 class EmbeddedFMU(OperationAbstract):
     capability_list = ("needsExecutionTool",
@@ -172,6 +179,8 @@ class EmbeddedFMU(OperationAbstract):
         self.fmu = FMU(filename)
         self.name = Path(filename).name
         self.id = Path(filename).stem.lower()
+
+        logger.debug(f"Analysing {self.name}")
         self.terminals = Terminals(self.fmu.tmp_directory)
 
         self.step_size = None
@@ -571,19 +580,45 @@ class FMUContainer:
         self.mark_ruled(cport_from, 'DROP')
 
     def add_link(self, from_fmu_filename: str, from_port_name: str, to_fmu_filename: str, to_port_name: str):
-        cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
-        try:
-            local = self.links[cport_from]
-        except KeyError:
-            local = Link(cport_from)
+        fmu_from = self.get_fmu(from_fmu_filename)
+        fmu_to = self.get_fmu(to_fmu_filename)
 
-        cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
-        local.add_target(cport_to)  # Causality is check in the add() function
+        if from_port_name in fmu_from.terminals and to_port_name in fmu_to.terminals:
+            # TERMONAL Connection
+            terminal1 = fmu_from.terminals[from_port_name]
+            terminal2 = fmu_to.terminals[to_port_name]
+            if terminal1 == terminal2:
+                logger.debug(f"Plugging terminals: {terminal1} <-> {terminal2}")
 
-        logger.debug(f"LINK: {cport_from} -> {cport_to}")
-        self.mark_ruled(cport_from, 'LINK')
-        self.mark_ruled(cport_to, 'LINK')
-        self.links[cport_from] = local
+                for data_kind in ("Data", "Clock"):
+                    for i1, i2 in zip(("Rx", "Tx"), ("Tx", "Rx")):
+                        terminal1_port = terminal1[f"{i1}_{data_kind}"]
+                        terminal2_port = terminal2[f"{i2}_{data_kind}"]
+                        self.add_link(from_fmu_filename, terminal1_port, to_fmu_filename, terminal2_port)
+            else:
+                logger.error(f"Cannot plug incompatible terminals: {terminal1} <-> {terminal2}")
+        else:
+            # REGULAR port connection
+            cport_from = ContainerPort(fmu_from, from_port_name)
+            cport_to = ContainerPort(fmu_to, to_port_name)
+
+            if cport_to.port.causality == "output" and cport_from.port.causality == "input":
+                logger.debug("Invert link orientation")
+                tmp = cport_to
+                cport_to = cport_from
+                cport_from = tmp
+
+            try:
+                local = self.links[cport_from]
+            except KeyError:
+                local = Link(cport_from)
+
+            local.add_target(cport_to)  # Causality is check in the add() function
+
+            logger.debug(f"LINK: {cport_from} -> {cport_to}")
+            self.mark_ruled(cport_from, 'LINK')
+            self.mark_ruled(cport_to, 'LINK')
+            self.links[cport_from] = local
 
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
         cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
@@ -865,6 +900,7 @@ class FMUContainer:
                        "</fmiModelDescription>")
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
+        print("# Version 3", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
         flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)
