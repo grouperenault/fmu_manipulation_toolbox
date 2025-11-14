@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import *
 
+from .ls import LayeredStandard
 from .operations import FMU, OperationAbstract, FMUError, FMUPort
 from .terminals import Terminals
 from .version import __version__ as tool_version
@@ -182,6 +183,7 @@ class EmbeddedFMU(OperationAbstract):
 
         logger.debug(f"Analysing {self.name}")
         self.terminals = Terminals(self.fmu.tmp_directory)
+        self.ls = LayeredStandard(self.fmu.tmp_directory)
 
         self.step_size = None
         self.start_time = None
@@ -231,8 +233,12 @@ class EmbeddedFMU(OperationAbstract):
         self.ports[port.name] = port
 
     def __repr__(self):
-        return f"FMU '{self.name}' ({len(self.ports)} variables, ts={self.step_size}s, {len(self.terminals)} terminals)"
-
+        properties = f"{len(self.ports)} variables, ts={self.step_size}s"
+        if len(self.terminals) > 0:
+            properties += f", {len(self.terminals)} terminals"
+        if len(self.ls) > 0:
+            properties += f", {self.ls}"
+        return f"'{self.name}' ({properties})"
 
 class FMUContainerError(Exception):
     def __init__(self, reason: str):
