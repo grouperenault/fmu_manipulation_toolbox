@@ -521,7 +521,7 @@ class FMUContainer:
                 logger.warning(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}.")
             self.involved_fmu[fmu.name] = fmu
 
-            logger.debug(f"Adding FMU #{len(self.involved_fmu)}: {fmu}")
+            logger.info(f"Involved FMU #{len(self.involved_fmu)}: {fmu}")
         except (FMUContainerError, FMUError) as e:
             raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}")
 
@@ -584,21 +584,20 @@ class FMUContainer:
         fmu_to = self.get_fmu(to_fmu_filename)
 
         if from_port_name in fmu_from.terminals and to_port_name in fmu_to.terminals:
-            # TERMONAL Connection
+            # TERMINAL Connection
             terminal1 = fmu_from.terminals[from_port_name]
             terminal2 = fmu_to.terminals[to_port_name]
             if terminal1 == terminal2:
                 logger.debug(f"Plugging terminals: {terminal1} <-> {terminal2}")
-
-                for data_kind in ("Data", "Clock"):
-                    for i1, i2 in zip(("Rx", "Tx"), ("Tx", "Rx")):
-                        terminal1_port = terminal1[f"{i1}_{data_kind}"]
-                        terminal2_port = terminal2[f"{i2}_{data_kind}"]
-                        self.add_link(from_fmu_filename, terminal1_port, to_fmu_filename, terminal2_port)
+                for terminal1_port_name, terminal2_port_name in terminal1.connect(terminal2):
+                    self.add_link_regular(fmu_from, terminal1_port_name, fmu_to, terminal2_port_name)
             else:
                 logger.error(f"Cannot plug incompatible terminals: {terminal1} <-> {terminal2}")
         else:
             # REGULAR port connection
+            self.add_link_regular(fmu_from, from_port_name, fmu_to, to_port_name)
+
+    def add_link_regular(self, fmu_from: EmbeddedFMU, from_port_name: str, fmu_to: EmbeddedFMU, to_port_name: str):
             cport_from = ContainerPort(fmu_from, from_port_name)
             cport_to = ContainerPort(fmu_to, to_port_name)
 
