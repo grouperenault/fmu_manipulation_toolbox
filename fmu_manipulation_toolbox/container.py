@@ -337,13 +337,19 @@ class Link:
         self.vr_converted: Dict[str, Optional[int]] = {}
 
         if not cport_from.port.causality == "output":
-            raise FMUContainerError(f"{cport_from} is  {cport_from.port.causality} instead of OUTPUT")
+            if cport_from.port.type_name == "clock":
+                # LS-BUS allows to connected to input clocks.
+                self.cport_from = None
+                self.add_target(cport_from)
+            else:
+                raise FMUContainerError(f"{cport_from} is {cport_from.port.causality} instead of OUTPUT")
 
     def add_target(self, cport_to: ContainerPort):
         if not cport_to.port.causality == "input":
             raise FMUContainerError(f"{cport_to} is {cport_to.port.causality} instead of INPUT")
 
-        if cport_to.port.type_name == self.cport_from.port.type_name:
+        if (cport_to.port.type_name == "clock" and self.cport_from is None or
+                cport_to.port.type_name == self.cport_from.port.type_name):
             self.cport_to_list.append(cport_to)
         elif self.get_conversion(cport_to):
             self.cport_to_list.append(cport_to)
@@ -387,7 +393,11 @@ class ValueReferenceTable:
         return vr | self.masks[type_name]
 
     def set_link_vr(self, link: Link):
-        link.vr = self.add_vr(link.cport_from, local=True)
+        if link.cport_from is None:
+            link.vr = self.add_vr("clock", local=True)
+        else:
+            link.vr = self.add_vr(link.cport_from, local=True)
+
         for type_name in link.vr_converted.keys():
             link.vr_converted[type_name] = self.add_vr(type_name, local=True)
 
@@ -836,8 +846,12 @@ class FMUContainer:
         # Local variable should be first to ensure to attribute them the lowest VR.
         for link in self.links.values():
             self.vr_table.set_link_vr(link)
-            port_local_def = link.cport_from.port.xml(link.vr, name=link.name, causality='local',
-                                                      fmi_version=self.fmi_version)
+            if link.cport_from:
+                port_local_def = link.cport_from.port.xml(link.vr, name=link.name, causality='local',
+                                                          fmi_version=self.fmi_version)
+            else:
+                port = EmbeddedFMUPort("Clock", {"name": "", "valueReference": -1}, fmi_version=3)
+                port_local_def = port.xml(link.vr, name="container.clock", causality='local', fmi_version=self.fmi_version)
             if port_local_def:
                 print(f"    {port_local_def}", file=xml_file)
                 index_offset += 1
@@ -956,10 +970,15 @@ class FMUContainer:
             outputs_per_type[output_port.port.type_name].append(output_port)
         # Links
         for link in self.links.values():
-            local_per_type[link.cport_from.port.type_name].append(link.vr)
-            outputs_fmu_per_type[link.cport_from.port.type_name][link.cport_from.fmu.name][link.cport_from] = link.vr
+            if link.cport_from:
+                local_per_type[link.cport_from.port.type_name].append(link.vr)
+                outputs_fmu_per_type[link.cport_from.port.type_name][link.cport_from.fmu.name][
+                    link.cport_from] = link.vr
+            else:
+                logger.critical(f"FIXME: Keep track of CLOCKS?")
+
             for cport_to in link.cport_to_list:
-                if cport_to.port.type_name == link.cport_from.port.type_name:
+                if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
                     inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = link.vr
                 else:
                     local_per_type[cport_to.port.type_name].append(link.vr_converted[cport_to.port.type_name])
