@@ -47,6 +47,7 @@ void container_set_start_values(container_t* container, int early_set) {
         SET_START(Boolean, booleans);
         SET_START(Boolean1, booleans1);
         SET_START(String, strings);
+        /* binaries and clocks don't support start values here */
 #undef SET_START
     }
     logger(LOGGER_DEBUG, "Start values are set.");
@@ -272,7 +273,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         return 0;
     }
 
-    container->fmu = malloc(nb_fmu * sizeof(*container->fmu));
+    container->fmu = calloc(nb_fmu, sizeof(*container->fmu));
     if (!container->fmu) {
         logger(LOGGER_ERROR, "Memory exhausted.");
         return -1;
@@ -337,7 +338,7 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         return -1;
     }
 
-    if (sscanf(file->line, "%lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
+    if (sscanf(file->line, "%lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
         &container->nb_local_reals64,
         &container->nb_local_reals32,
         &container->nb_local_integers8,
@@ -350,7 +351,9 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         &container->nb_local_uintegers64,
         &container->nb_local_booleans,
         &container->nb_local_booleans1,
-        &container->nb_local_strings) < 13) {
+        &container->nb_local_strings,
+        &container->nb_local_binaries,
+        &container->nb_local_clocks) < 15) {
         logger(LOGGER_ERROR, "Cannort read container I/O '%s'.", file->line);
         return -1;
     }
@@ -380,6 +383,22 @@ static int read_conf_local(container_t* container, config_file_t* file) {
     ALLOC(booleans, 0);
     ALLOC(booleans1, false);
     ALLOC(strings, NULL);
+
+    if (container->nb_local_binaries) {
+        container->binaries = malloc(container->nb_local_binaries * sizeof(*container->binaries));
+        if (!container->binaries) {
+            logger(LOGGER_ERROR, "Read container local: Memory exhauseted."); \
+            return -2;
+        }
+        for(unsigned long i=0; i < container->nb_local_binaries; i += 1) {
+            container->binaries[i].max_size = 0;
+            container->binaries[i].max_size = 0;
+            container->binaries[i].data = NULL;
+        }
+    } else
+        container->binaries = NULL;
+
+    ALLOC(clocks, false);
 #undef ALLOC
 
     /* Strings cannot be NULL */
@@ -420,7 +439,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
         container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ## type)); \
         container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->port_ ##type)); \
         if ((!container->vr_ ## type) || (!container->port_ ## type)) { \
-            logger(LOGGER_ERROR, "Memory exhauseted."); \
+            logger(LOGGER_ERROR, "Memory exhausted."); \
             return -1; \
         } \
         int vr_counter = 0; \
@@ -485,6 +504,8 @@ static int read_conf_io(container_t* container, config_file_t* file) {
     READ_CONF_IO(booleans);
     READ_CONF_IO(booleans1);
     READ_CONF_IO(strings);
+    READ_CONF_IO(binaries);
+    READ_CONF_IO(clocks);
 
     return 0;
 #undef READ_CONF_IO
@@ -551,6 +572,8 @@ static int read_conf_fmu_io_in(fmu_io_t* fmu_io, config_file_t* file) {
     READER_FMU_IO(booleans,    in);
     READER_FMU_IO(booleans1,   in);
     READER_FMU_IO(strings,     in);
+    READER_FMU_IO(binaries,    in);
+    READER_FMU_IO(clocks,      in);
 
     return 0;
 }
@@ -570,6 +593,8 @@ static int read_conf_fmu_io_out(fmu_io_t* fmu_io, config_file_t* file) {
     READER_FMU_IO(booleans,    out);
     READER_FMU_IO(booleans1,   out);
     READER_FMU_IO(strings,     out);
+    READER_FMU_IO(binaries,    out);
+    READER_FMU_IO(clocks,      out);
 
     return 0;
 }
@@ -845,6 +870,8 @@ int container_configure(container_t* container, const char* dirname) {
     LOG_IO(booleans);
     LOG_IO(booleans1);
     LOG_IO(strings);
+    LOG_IO(binaries);
+    LOG_IO(clocks);
 #undef LOG_IO
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -873,6 +900,8 @@ int container_configure(container_t* container, const char* dirname) {
     LOG_IO(in, booleans);
     LOG_IO(in, booleans1);
     LOG_IO(in, strings);
+    LOG_IO(in, binaries);
+    LOG_IO(in, clocks);
 
     LOG_START(reals64);
     LOG_START(reals32);
@@ -901,6 +930,8 @@ int container_configure(container_t* container, const char* dirname) {
     LOG_IO(out, booleans);
     LOG_IO(out, booleans1);
     LOG_IO(out, strings);
+    LOG_IO(out, binaries);
+    LOG_IO(out, clocks);
 
 #undef LOG_IO
 #undef LOG_START
@@ -913,7 +944,6 @@ int container_configure(container_t* container, const char* dirname) {
         fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i], container->instance_name);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
-            container_free(container);
             return -8;
         }
     }
@@ -960,6 +990,8 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         INIT(booleans);
         INIT(booleans1);
         INIT(strings);
+        INIT(binaries);
+        INIT(clocks);
 #undef INIT
 
         container->time_step = 0.001;
@@ -971,15 +1003,14 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
 
 
 void container_free(container_t *container) {
+    logger(LOGGER_ERROR, "container_free");
     if (container->fmu) {
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmuFreeInstance(&container->fmu[i]);
             fmu_unload(&container->fmu[i]);
         }
-
         free(container->fmu);
     }
-
     
     free(container->instance_name);
     free(container->uuid);
@@ -1004,6 +1035,10 @@ void container_free(container_t *container) {
     for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
         free(container->strings[i]);
     FREE(strings);
+    for (unsigned long i = 0; i < container->nb_local_binaries; i += 1)
+        free(container->binaries[i].data);
+    FREE(binaries);
+    FREE(clocks);
 #undef FREE
 
     free(container);
