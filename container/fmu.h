@@ -94,6 +94,8 @@ typedef struct {
 	fmu_translation_port_t		booleans;
 	fmu_translation_port_t		booleans1;
 	fmu_translation_port_t		strings;
+    fmu_translation_port_t		binaries;
+    fmu_translation_port_t		clocks;
 
     fmu_start_reals64_t         start_reals64;
     fmu_start_reals32_t         start_reals32;
@@ -110,6 +112,14 @@ typedef struct {
     fmu_start_strings_t         start_strings;
 } fmu_io_t;
 
+/*----------------------------------------------------------------------------
+                        F M U _ B I N A R Y _ T
+----------------------------------------------------------------------------*/
+typedef struct {
+    uint8_t     *data;
+    size_t      size;
+    size_t      max_size;
+} fmu_binary_t; 
 
 /*----------------------------------------------------------------------------
                         F M U _ I N T E R F A C E _ T
@@ -335,6 +345,11 @@ extern fmu_status_t fmuGetBoolean1(const fmu_t *fmu, const fmu_vr_t vr[],
                                   size_t nvr, bool value[]);
 extern fmu_status_t fmuGetString(const fmu_t* fmu, const fmu_vr_t vr[],
                                  size_t nvr, const char *value[]);
+extern fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[],
+                                 size_t nvr, size_t size[], const uint8_t *value[]);
+extern fmu_status_t fmuGetClock(const fmu_t* fmu, const fmu_vr_t vr[],
+                                 size_t nvr, bool value[]);
+
 extern fmu_status_t fmuSetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
                                  size_t nvr, const double value[]);
 extern fmu_status_t fmuSetReal32(const fmu_t *fmu, const fmu_vr_t vr[],
@@ -361,6 +376,11 @@ extern fmu_status_t fmuSetBoolean1(const fmu_t *fmu, const fmu_vr_t vr[],
                                   size_t nvr, const bool value[]);
 extern fmu_status_t fmuSetString(const fmu_t* fmu, const fmu_vr_t vr[],
                                  size_t nvr, const char * const value[]);
+extern fmu_status_t fmuSetBinary(const fmu_t* fmu, const fmu_vr_t vr[],
+                                 size_t nvr, const size_t size[], const uint8_t * const value[]);
+extern fmu_status_t fmuSetClock(const fmu_t* fmu, const fmu_vr_t vr[],
+                                size_t nvr, const bool value[]);
+
 extern fmu_status_t fmuDoStep(const fmu_t *fmu, 
                               fmi2Real currentCommunicationPoint, 
                               fmi2Real communicationStepSize);

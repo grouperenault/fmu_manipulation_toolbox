@@ -42,7 +42,7 @@ fmu_status_t fmu_set_inputs(fmu_t* fmu) {
     SET_INPUT(booleans, Boolean);
     SET_INPUT(booleans1, Boolean1);
 
-    /* Need to add a (cast) to avod a warning */
+    /* strings: Need to add a (cast) to avod a warning */
     for (int i = 0; i < fmu_io->strings.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->strings.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->strings.in.translations[i].vr;
@@ -50,6 +50,19 @@ fmu_status_t fmu_set_inputs(fmu_t* fmu) {
         if (status != FMU_STATUS_OK) \
             return status; \
     }
+
+    /* binaries: Need to add size parameter */
+        for (int i = 0; i < fmu_io->binaries.in.nb; i += 1) {
+        const unsigned int fmu_vr = fmu_io->binaries.in.translations[i].fmu_vr;
+        const unsigned int local_vr = fmu_io->binaries.in.translations[i].vr;
+        status = fmuSetBinary(fmu, &fmu_vr, 1, &container->binaries[local_vr].size,
+                              (const uint8_t *const*)&container->binaries[local_vr].data);
+        if (status != FMU_STATUS_OK) \
+            return status; \
+    }
+
+    SET_INPUT(clocks, Clock);
+
 #undef SET_INPUT
 
     return status;
@@ -70,28 +83,51 @@ fmu_status_t fmu_get_outputs(fmu_t* fmu) {
             return status; \
     }
 
-GET_OUTPUT(reals64, Real64);
-GET_OUTPUT(reals32, Real32);
-GET_OUTPUT(integers8, Integer8);
-GET_OUTPUT(uintegers8, UInteger8);
-GET_OUTPUT(integers16, Integer16);
-GET_OUTPUT(uintegers16, UInteger16);
-GET_OUTPUT(integers32, Integer32);
-GET_OUTPUT(uintegers32, UInteger32);
-GET_OUTPUT(integers64, Integer64);
-GET_OUTPUT(uintegers64, UInteger64);
-GET_OUTPUT(booleans, Boolean);
-GET_OUTPUT(booleans1, Boolean1);
+    GET_OUTPUT(reals64, Real64);
+    GET_OUTPUT(reals32, Real32);
+    GET_OUTPUT(integers8, Integer8);
+    GET_OUTPUT(uintegers8, UInteger8);
+    GET_OUTPUT(integers16, Integer16);
+    GET_OUTPUT(uintegers16, UInteger16);
+    GET_OUTPUT(integers32, Integer32);
+    GET_OUTPUT(uintegers32, UInteger32);
+    GET_OUTPUT(integers64, Integer64);
+    GET_OUTPUT(uintegers64, UInteger64);
+    GET_OUTPUT(booleans, Boolean);
+    GET_OUTPUT(booleans1, Boolean1);
 
-for (size_t i = 0; i < fmu_io->strings.out.nb; i += 1) {
-        const fmu_vr_t fmu_vr = fmu_io->strings.out.translations[i].fmu_vr;
-        const fmu_vr_t local_vr = fmu_io->strings.out.translations[i].vr;
-        const char* str;
-        status = fmuGetString(fmu, &fmu_vr, 1, &str);
-        container->strings[local_vr] = strdup(str);
-        if (status != FMU_STATUS_OK) \
-            return status; \
-}
+    /* strings */
+    for (size_t i = 0; i < fmu_io->strings.out.nb; i += 1) {
+            const fmu_vr_t fmu_vr = fmu_io->strings.out.translations[i].fmu_vr;
+            const fmu_vr_t local_vr = fmu_io->strings.out.translations[i].vr;
+            const char* str;
+            status = fmuGetString(fmu, &fmu_vr, 1, &str);
+            if (status != FMU_STATUS_OK)
+                return status;
+            container->strings[local_vr] = strdup(str);
+    }
+
+    /* binaries */
+    for (size_t i = 0; i < fmu_io->binaries.out.nb; i += 1) {
+            const fmu_vr_t fmu_vr = fmu_io->binaries.out.translations[i].fmu_vr;
+            const fmu_vr_t local_vr = fmu_io->binaries.out.translations[i].vr;
+            const uint8_t *data;
+            size_t size;
+            status = fmuGetBinary(fmu, &fmu_vr, 1, &size, &data);
+            if (status != FMU_STATUS_OK)
+                return status;
+            if (container->binaries[local_vr].max_size < size) {
+                container->binaries[local_vr].data = realloc(container->binaries[local_vr].data, size);
+                if (! container->binaries[local_vr].data) {
+                    logger(LOGGER_ERROR, "Cannot allocate memory for get output.");
+                    return FMU_STATUS_ERROR;
+                }
+            }
+            container->binaries[local_vr].size = size;
+            memcpy(container->binaries[local_vr].data, data, size);
+    }
+
+    GET_OUTPUT(clocks, Clock);
 #undef GET_OUTPUT
 
     /* cast conversion between local variables */
@@ -352,7 +388,6 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
 
 
 void fmu_unload(fmu_t *fmu) {
-
     logger(LOGGER_DEBUG, "Unload FMU %s", fmu->name);
 
     /* Stop the thread */
@@ -394,6 +429,13 @@ void fmu_unload(fmu_t *fmu) {
     for (int i = 0; i < fmu->fmu_io.start_strings.nb; i += 1)
         free((char*)fmu->fmu_io.start_strings.start_values[i].value);
     FREE_FMU_DATA(strings);
+
+    free(fmu->fmu_io.binaries.in.translations);
+    free(fmu->fmu_io.binaries.out.translations);
+
+    free(fmu->fmu_io.clocks.in.translations);
+    free(fmu->fmu_io.clocks.out.translations);
+
 #undef FREE_FMU_DATA
 
     return;
@@ -472,12 +514,44 @@ GETTER_3   (uint32_t,      UInteger32,                  fmi3GetUInt32);
 GETTER_3   (int64_t,       Integer64,                   fmi3GetInt64);
 GETTER_3   (uint64_t,      UInteger64,                  fmi3GetUInt64);
 GETTER_2   (int,           Boolean,    fmi2GetBoolean)
-GETTER_3   (bool,          Boolean1,                    fmi3GetBoolean)
+GETTER_3   (bool,          Boolean1,                    fmi3GetBoolean);
 GETTER_BOTH(const char *,  String,     fmi2GetString,   fmi3GetString);
 
 #undef GETTER_BOTH
 #undef GETTER_3
 #undef GETTER_2
+
+fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, size_t size[], const uint8_t *value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == FMU_2) {
+        logger(LOGGER_ERROR, "%s: fmuGetBinary not supported.", fmu->name);
+        status = FMU_STATUS_ERROR;
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetBinary(fmu->component, vr, nvr, size, value, nvr);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "%s: fmuGetBinary status=%d", fmu->name, status3);
+            status = FMU_STATUS_ERROR;
+        }
+    }
+    return status;\
+}
+
+fmu_status_t fmuGetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, bool value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == FMU_2) {
+        logger(LOGGER_ERROR, "%s: fmuGetClock not supported.", fmu->name);
+        status = FMU_STATUS_ERROR;
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetClock(fmu->component, vr, nvr, value);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "%s: fmuGetClock status=%d", fmu->name, status3);
+            status = FMU_STATUS_ERROR;
+        }
+    }
+    return status;\
+}
 
 
 #define SETTER_BOTH(type, fmi_type, fmi2_function, fmi3_function) \
@@ -557,6 +631,39 @@ SETTER_BOTH(char * const,  String,     fmi2SetString,   fmi3SetString);
 #undef SETTER_BOTH
 #undef SETTER_3
 #undef SETTER_2
+
+
+fmu_status_t fmuSetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const size_t size[], const uint8_t *const value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == FMU_2) {
+        logger(LOGGER_ERROR, "%s: fmuSetBinary not supported.", fmu->name);
+        status = FMU_STATUS_ERROR;
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetBinary(fmu->component, vr, nvr, size, value, nvr);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "%s: fmuSetBinary status=%d", fmu->name, status3);
+            status = FMU_STATUS_ERROR;
+        }
+    }
+    return status;\
+}
+
+fmu_status_t fmuSetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const bool value[]) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    if (fmu->fmi_version == FMU_2) {
+        logger(LOGGER_ERROR, "%s: fmuSetClock not supported.", fmu->name);
+        status = FMU_STATUS_ERROR;
+    } else {
+        fmi3Status status3 = fmu->fmi_functions.version_3.fmi3SetClock(fmu->component, vr, nvr, value);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "%s: fmuSetClock status=%d", fmu->name, status3);
+            status = FMU_STATUS_ERROR;
+        }
+    }
+    return status;\
+}
 
 
 fmu_status_t fmuDoStep(const fmu_t *fmu, 
