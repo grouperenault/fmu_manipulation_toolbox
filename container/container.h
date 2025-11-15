@@ -59,6 +59,8 @@ typedef struct container_s {
 	DECLARE_LOCAL(booleans, int);
 	DECLARE_LOCAL(booleans1, bool);
 	DECLARE_LOCAL(strings, char *);
+	DECLARE_LOCAL(binaries, fmu_binary_t);
+	DECLARE_LOCAL(clocks, bool);
 #undef DECLARE_LOCAL
 
 	/* container ports definition */
@@ -80,6 +82,8 @@ typedef struct container_s {
     DECLARE_PORT(booleans);
     DECLARE_PORT(booleans1);
     DECLARE_PORT(strings);
+	DECLARE_PORT(binaries);
+	DECLARE_PORT(clocks);
 #undef DECLARE_PORT
 
 	convert_table_t				conversions;
