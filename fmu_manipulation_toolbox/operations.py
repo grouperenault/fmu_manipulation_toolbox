@@ -69,7 +69,13 @@ class FMUPort:
             print(f"      <{self.fmi_type} {self.dict_level(1)}/>", file=file)
             print(f"    </ScalarVariable>", file=file)
         elif fmi_version == 3:
-            print(f"    <{self.fmi_type} {self.dict_level(0)}/>", file=file)
+            start_value = self.get("start", "")
+            if self.fmi_type in ("String", "Binary") and start_value:
+                print(f"    <{self.fmi_type} {self.dict_level(0)}>", file=file)
+                print(f'      <Start value="{start_value}"/>', file=file)
+                print(f"    </{self.fmi_type}>", file=file)
+            else:
+                print(f"    <{self.fmi_type} {self.dict_level(0)}/>", file=file)
         else:
             raise FMUError(f"FMUPort writing: unsupported FMI version {fmi_version}")
 
@@ -177,6 +183,8 @@ class Manipulation:
                 self.current_port = FMUPort()
                 self.current_port.fmi_type = name
                 self.current_port.push_attrs(attrs)
+            elif self.fmu.fmi_version == 3 and name == "Start":
+                self.current_port.push_attrs({"start": attrs.get("value", "")})
             elif name == 'CoSimulation':
                 self.operation.cosimulation_attrs(attrs)
             elif name == 'DefaultExperiment':
