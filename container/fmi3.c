@@ -113,6 +113,7 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
 
     container_set_start_values(container, 1);
     logger(LOGGER_DEBUG, "fmuSetupExperiment -- OK");
+    container_init_values(container);
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_status_t status = fmuEnterInitializationMode(&container->fmu[i]);
@@ -136,6 +137,7 @@ fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
             return fmi3Error;
     }
     container_init_values(container);
+
     return fmi3OK;
 }
 
@@ -628,7 +630,7 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
                                     fmi3Float64* nextEventTime) {
     container_t* container = (container_t*)instance;
 
-    __NOT_IMPLEMENTED__
+    return fmi3OK;
 }
 
 /*----------------------------------------------------------------------------
@@ -638,7 +640,7 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
 fmi3Status fmi3EnterStepMode(fmi3Instance instance)  {
     container_t* container = (container_t*)instance;
 
-    __NOT_IMPLEMENTED__
+    return fmi3OK;
 }
 
 
