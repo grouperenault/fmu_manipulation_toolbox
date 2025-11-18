@@ -22,6 +22,7 @@ typedef unsigned int fmu_vr_t;
 /*----------------------------------------------------------------------------
                    F M U _ T R A N S L A T I O N _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
 	fmu_vr_t                    vr;
 	fmu_vr_t                    fmu_vr;
@@ -31,6 +32,7 @@ typedef struct {
 /*----------------------------------------------------------------------------
               F M U _ T R A N S L A T I O N _ L I S T _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
 	unsigned long               nb;
 	fmu_translation_t			*translations;
@@ -40,10 +42,28 @@ typedef struct {
 /*----------------------------------------------------------------------------
               F M U _ T R A N S L A T I O N _ P O R T _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
 	fmu_translation_list_t		in;
 	fmu_translation_list_t		out;
 } fmu_translation_port_t;
+
+
+/*----------------------------------------------------------------------------
+
+----------------------------------------------------------------------------*/
+
+typedef struct {
+    fmu_vr_t                    clock_fmu_vr;   /* local */
+    fmu_translation_list_t      translations_list;
+} fmu_clocked_port_t;
+
+typedef struct {
+    unsigned long               nb_in;
+    fmu_clocked_port_t          *in;
+    unsigned long               nb_out;
+    fmu_clocked_port_t          *out;
+} fmu_clocked_port_list_t;
 
 
 /*----------------------------------------------------------------------------
@@ -96,6 +116,21 @@ typedef struct {
 	fmu_translation_port_t		strings;
     fmu_translation_port_t		binaries;
     fmu_translation_port_t		clocks;
+
+    fmu_clocked_port_list_t     clocked_reals64;
+    fmu_clocked_port_list_t		clocked_reals32;
+    fmu_clocked_port_list_t		clocked_integers8;
+	fmu_clocked_port_list_t		clocked_uintegers8;
+    fmu_clocked_port_list_t		clocked_integers16;
+	fmu_clocked_port_list_t		clocked_uintegers16;
+    fmu_clocked_port_list_t		clocked_integers32;
+	fmu_clocked_port_list_t		clocked_uintegers32;
+    fmu_clocked_port_list_t		clocked_integers64;
+	fmu_clocked_port_list_t		clocked_uintegers64;
+	fmu_clocked_port_list_t		clocked_booleans;
+	fmu_clocked_port_list_t		clocked_booleans1;
+	fmu_clocked_port_list_t		clocked_strings;
+    fmu_clocked_port_list_t		clocked_binaries;
 
     fmu_start_reals64_t         start_reals64;
     fmu_start_reals32_t         start_reals32;
@@ -311,8 +346,8 @@ typedef struct {
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
-extern fmu_status_t fmu_set_inputs(fmu_t *fmu);
-extern fmu_status_t fmu_get_outputs(fmu_t* fmu);
+extern fmu_status_t fmu_set_inputs(const fmu_t *fmu);
+extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,

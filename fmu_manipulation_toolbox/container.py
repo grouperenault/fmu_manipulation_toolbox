@@ -6,6 +6,7 @@ import shutil
 import uuid
 import platform
 import zipfile
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import *
@@ -93,6 +94,8 @@ class EmbeddedFMUPort:
 
         self.start_value = attrs.get("start", None)
         self.initial = attrs.get("initial", None)
+        self.clock = attrs.get("clocks", None)
+
 
     def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> str:
         if name is None:
@@ -171,6 +174,7 @@ class EmbeddedFMUPort:
             logger.critical(f"Unknown version {fmi_version}. BUG?")
             return ''
 
+
 class EmbeddedFMU(OperationAbstract):
     capability_list = ("needsExecutionTool",
                        "canBeInstantiatedOnlyOncePerProcess",
@@ -205,7 +209,7 @@ class EmbeddedFMU(OperationAbstract):
         if fmi_version == "2.0":
             self.guid = attrs['guid']
             self.fmi_version = 2
-        if fmi_version == "3.0": # TODO: handle 3.x cases
+        if fmi_version.startswith("3."):
             self.guid = attrs['instantiationToken']
             self.fmi_version = 3
 
@@ -239,6 +243,7 @@ class EmbeddedFMU(OperationAbstract):
         if len(self.ls) > 0:
             properties += f", {self.ls}"
         return f"'{self.name}' ({properties})"
+
 
 class FMUContainerError(Exception):
     def __init__(self, reason: str):
@@ -404,6 +409,7 @@ class ValueReferenceTable:
     def nb_local(self, type_name: str) -> int:
         return self.nb_local_variable[type_name]
 
+
 class AutoWired:
     def __init__(self):
         self.rule_input = []
@@ -427,6 +433,75 @@ class AutoWired:
 
     def add_link(self, from_fmu, from_port, to_fmu, to_port):
         self.rule_link.append([from_fmu, from_port, to_fmu, to_port])
+
+
+class FMUIOList:
+    def __init__(self):
+        self.inputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, vr])
+        self.nb_clocked_inputs = defaultdict(lambda: defaultdict(lambda: 0))
+        self.outputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, vr])
+        self.nb_clocked_outputs = defaultdict(lambda: defaultdict(lambda: 0))
+        self.start_values = defaultdict(lambda: defaultdict(list)) # [type][fmu][(cport, value)]
+
+    def add_input(self, cport: ContainerPort, local_vr: int):
+        if cport.port.clock is None:
+            clock = None
+        else:
+            clock = int(cport.port.clock)
+            self.nb_clocked_inputs[cport.port.type_name][cport.fmu.name] += 1
+            logger.critical(
+                f"Clocked input: {cport.fmu.name} {cport.port.type_name} clock={clock} {local_vr} {cport.port.vr}")
+        self.inputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, local_vr))
+
+    def add_output(self, cport: ContainerPort, local_vr: int):
+        if cport.port.clock is None:
+            clock = None
+        else:
+            clock = int(cport.port.clock)
+            self.nb_clocked_outputs[cport.port.type_name][cport.fmu.name] += 1
+            logger.critical(
+                f"Clocked output: {cport.fmu.name} {cport.port.type_name} clock={clock} {local_vr} {cport.port.vr}")
+        self.outputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, local_vr))
+
+    def add_start_value(self, cport: ContainerPort, value: str):
+        reset = 1 if cport.port.causality == "input" else 0
+        self.start_values[cport.port.type_name][cport.fmu.name].append((cport, reset, value))
+
+    def write_txt(self, fmu_name, txt_file):
+        for type_name in EmbeddedFMUPort.ALL_TYPES:
+            print(f"# Inputs of {fmu_name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
+            print(len(self.inputs[type_name][fmu_name][None]), file=txt_file)
+            for fmu_vr, vr in self.inputs[type_name][fmu_name][None]:
+                print(f"{vr} {fmu_vr}", file=txt_file)
+            if not type_name == "clock":
+                print(f"# Clocked Inputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>", file=txt_file)
+                print(f"{len(self.inputs[type_name][fmu_name])-1} {self.nb_clocked_inputs[type_name][fmu_name]}",
+                      file=txt_file)
+                for clock, table in self.inputs[type_name][fmu_name].items():
+                    if not clock is None:
+                        s = " ".join([f"{vr} {fmu_vr}" for fmu_vr, vr in table])
+                        print(f"{clock} {len(table)} {s}", file=txt_file)
+
+        for type_name in EmbeddedFMUPort.ALL_TYPES[:-2]:  # No start values for binary or clock
+            print(f"# Start values of {fmu_name} - {type_name}: <FMU_VR> <RESET> <VALUE>", file=txt_file)
+            print(len(self.start_values[type_name][fmu_name]), file=txt_file)
+            for vr, reset, value in self.start_values[type_name][fmu_name]:
+                print(f"{vr} {reset} {value}", file=txt_file)
+
+        for type_name in EmbeddedFMUPort.ALL_TYPES:
+            print(f"# Outputs of {fmu_name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
+            print(len(self.outputs[type_name][fmu_name][None]), file=txt_file)
+            for fmu_vr, vr in self.outputs[type_name][fmu_name][None]:
+                print(f"{vr} {fmu_vr}", file=txt_file)
+
+            if not type_name == "clock":
+                print(f"# Clocked Outputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>", file=txt_file)
+                print(f"{len(self.outputs[type_name][fmu_name])-1} {self.nb_clocked_outputs[type_name][fmu_name]}",
+                      file=txt_file)
+                for clock, translation in self.outputs[type_name][fmu_name].items():
+                    if not clock is None:
+                        s = " ".join([f"{vr} {fmu_vr}" for fmu_vr, vr in translation])
+                        print(f"{clock} {len(translation)} {s}", file=txt_file)
 
 
 class FMUContainer:
@@ -627,13 +702,14 @@ class FMUContainer:
                 local = self.links[cport_from]
             except KeyError:
                 local = Link(cport_from)
+                self.links[cport_from] = local
 
             local.add_target(cport_to)  # Causality is check in the add() function
 
             logger.debug(f"LINK: {cport_from} -> {cport_to}")
             self.mark_ruled(cport_from, 'LINK')
             self.mark_ruled(cport_to, 'LINK')
-            self.links[cport_from] = local
+
 
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
         cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
@@ -717,6 +793,14 @@ class FMUContainer:
         for fmu in self.involved_fmu.values():
             if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
                 freq_set.add(int(1.0/fmu.step_size))
+
+        if not freq_set:
+            # all involved FMUs can Handle Variable Communication StepSize
+            step_size_max = 0
+            for fmu in self.involved_fmu.values():
+                if fmu.step_size > step_size_max:
+                    step_size_max = fmu.step_size
+            return step_size_max
 
         common_freq = math.gcd(*freq_set)
         try:
@@ -847,6 +931,7 @@ class FMUContainer:
         index_offset = 2    # index of output ports. Start at 2 to skip "time" port
 
         # Local variable should be first to ensure to attribute them the lowest VR.
+        nb_clocks = 0
         for link in self.links.values():
             self.vr_table.set_link_vr(link)
             if link.cport_from:
@@ -854,11 +939,14 @@ class FMUContainer:
                                                           fmi_version=self.fmi_version)
             else:
                 # LS-BUS allow Clock generated by fmi-importer
-                logger.critical(f"{link.cport_to_list[1].port.interval_variability}")
+                for cport_to in link.cport_to_list:
+                    logger.critical(f"{cport_to.fmu.name}/{cport_to.port.name}: {cport_to.port.interval_variability} {cport_to.fmu.ls.is_bus}")
+
                 port = EmbeddedFMUPort("Clock",
-                                       {"name": "", "valueReference": -1, "intervalVariability": "countdown"},
+                                       {"name": "", "valueReference": -1, "intervalVariability": "triggered"},
                                        fmi_version=3)
-                port_local_def = port.xml(link.vr, name="container.clock", causality='local', fmi_version=self.fmi_version)
+                port_local_def = port.xml(link.vr, name=f"container.clock{nb_clocks}", causality='local', fmi_version=self.fmi_version)
+                nb_clocks += 1
             if port_local_def:
                 print(f"    {port_local_def}", file=xml_file)
                 index_offset += 1
@@ -943,56 +1031,47 @@ class FMUContainer:
             fmu_rank[fmu.name] = i
 
         # Prepare data structure
-        inputs_per_type: Dict[str, List[ContainerInput]] = {}       # Container's INPUT
-        outputs_per_type: Dict[str, List[ContainerPort]] = {}       # Container's OUTPUT
+        inputs_per_type: Dict[str, List[ContainerInput]] = defaultdict(list) # Container's INPUT
+        outputs_per_type: Dict[str, List[ContainerPort]] = defaultdict(list) # Container's OUTPUT
 
-        inputs_fmu_per_type: Dict[str, Dict[str, Dict[ContainerPort, int]]] = {}      # [type][fmu]
-        start_values_fmu_per_type = {}
-        outputs_fmu_per_type = {}
-        local_per_type: Dict[str, List[int]] = {}
-        links_per_fmu: Dict[str, List[Link]] = {}
+        fmu_io_list = FMUIOList()
 
-        for type_name in EmbeddedFMUPort.ALL_TYPES:
-            inputs_per_type[type_name] = []
-            outputs_per_type[type_name] = []
-            local_per_type[type_name] = []
-
-            inputs_fmu_per_type[type_name] = {}
-            start_values_fmu_per_type[type_name] = {}
-            outputs_fmu_per_type[type_name] = {}
-
-            for fmu in self.involved_fmu.values():
-                inputs_fmu_per_type[type_name][fmu.name] = {}
-                start_values_fmu_per_type[type_name][fmu.name] = {}
-                outputs_fmu_per_type[type_name][fmu.name] = {}
+        local_per_type: Dict[str, List[int]] = defaultdict(list)
+        links_per_fmu: Dict[str, List[Link]] = defaultdict(list)
 
         # Fill data structure
         # Inputs
         for input_port_name, input_port in self.inputs.items():
             inputs_per_type[input_port.type_name].append(input_port)
+
+        # Start values
         for input_port, value in self.start_values.items():
-            start_values_fmu_per_type[input_port.port.type_name][input_port.fmu.name][input_port] = value
+            fmu_io_list.add_start_value(input_port, value)
+
         # Outputs
         for output_port_name, output_port in self.outputs.items():
             outputs_per_type[output_port.port.type_name].append(output_port)
+
         # Links
         for link in self.links.values():
+            # FMU Outputs
             if link.cport_from:
                 local_per_type[link.cport_from.port.type_name].append(link.vr)
-                outputs_fmu_per_type[link.cport_from.port.type_name][link.cport_from.fmu.name][
-                    link.cport_from] = link.vr
+                fmu_io_list.add_output(link.cport_from, link.vr)
             else:
                 local_per_type["clock"].append(link.vr)
                 logger.critical(f"FIXME: Keep track of CLOCKS?")
 
+            # FMU Inputs
             for cport_to in link.cport_to_list:
                 if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
-                    inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = link.vr
+                    local_vr = link.vr
                 else:
                     local_per_type[cport_to.port.type_name].append(link.vr_converted[cport_to.port.type_name])
-                    links_per_fmu.setdefault(link.cport_from.fmu.name, []).append(link)
-                    inputs_fmu_per_type[cport_to.port.type_name][cport_to.fmu.name][cport_to] = link.vr_converted[cport_to.port.type_name]
+                    links_per_fmu[link.cport_from.fmu.name].append(link)
+                    local_vr = link.vr_converted[cport_to.port.type_name]
 
+                fmu_io_list.add_input(cport_to, local_vr)
 
         print(f"# NB local variables:", ", ".join(EmbeddedFMUPort.ALL_TYPES), file=txt_file)
         nb_local = [f"{self.vr_table.nb_local(type_name)}" for type_name in EmbeddedFMUPort.ALL_TYPES]
@@ -1027,24 +1106,7 @@ class FMUContainer:
 
         # LINKS
         for fmu in self.involved_fmu.values():
-            for type_name in EmbeddedFMUPort.ALL_TYPES:
-                print(f"# Inputs of {fmu.name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
-                print(len(inputs_fmu_per_type[type_name][fmu.name]), file=txt_file)
-                for input_port, vr in inputs_fmu_per_type[type_name][fmu.name].items():
-                    print(f"{vr} {input_port.port.vr}", file=txt_file)
-
-            for type_name in EmbeddedFMUPort.ALL_TYPES[:-2]: # No start values for binary or clock
-                print(f"# Start values of {fmu.name} - {type_name}: <FMU_VR> <RESET> <VALUE>", file=txt_file)
-                print(len(start_values_fmu_per_type[type_name][fmu.name]), file=txt_file)
-                for input_port, value in start_values_fmu_per_type[type_name][fmu.name].items():
-                    reset = 1 if input_port.port.causality == "input" else 0
-                    print(f"{input_port.port.vr} {reset} {value}", file=txt_file)
-
-            for type_name in EmbeddedFMUPort.ALL_TYPES:
-                print(f"# Outputs of {fmu.name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
-                print(len(outputs_fmu_per_type[type_name][fmu.name]), file=txt_file)
-                for output_port, vr in outputs_fmu_per_type[type_name][fmu.name].items():
-                    print(f"{vr} {output_port.port.vr}", file=txt_file)
+            fmu_io_list.write_txt(fmu.name, txt_file)
 
             print(f"# Conversion table of {fmu.name}: <VR_FROM> <VR_TO> <CONVERSION>", file=txt_file)
             try:
