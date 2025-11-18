@@ -598,7 +598,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             if (get_line(file)) { \
                 logger(LOGGER_ERROR, "Cannot get FMU I/O for 'clocked " #type "' (" #causality ")"); \
                 return -4; \
-        } \
+            } \
 \
             int offset = 0; \
             if (sscanf(file->line, "%u %ld%n", \
@@ -613,7 +613,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                 logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted."); \
                 return -5; \
             } \
-            for(unsigned long j = 0; i < fmu_io->clocked_ ## type . causality [i].translations_list.nb; j += 1) { \
+            for(unsigned long j = 0; j < fmu_io->clocked_ ## type . causality [i].translations_list.nb; j += 1) { \
                 if (sscanf(file->line+offset, "%u %u%n", \
                     &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr, \
                     &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].fmu_vr, \
@@ -679,6 +679,8 @@ static int read_conf_fmu_io_out(fmu_io_t* fmu_io, config_file_t* file) {
     READER_FMU_OUT(strings);
     READER_FMU_OUT(binaries);
     READER_FMU_IO(clocks, out); /* clock variables cannot be clocked ! */
+
+#undef READER_FMU_OUT
 
     return 0;
 }
