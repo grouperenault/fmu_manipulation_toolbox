@@ -13,12 +13,13 @@
 #pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
 
 /*
- * Implementation of the fmu2Component and the fmu3Instance depending.
- * see fmi2.c and fmi3.c
+ * Implementation of the fmu2Component/fmu3Instance depending on FMUContainer
+ * configuration.
  */
 
+
 /*----------------------------------------------------------------------------
-                       D O   S T E P
+                                D O   S T E P
 ----------------------------------------------------------------------------*/
 
 void container_set_start_values(container_t* container, int early_set) {
