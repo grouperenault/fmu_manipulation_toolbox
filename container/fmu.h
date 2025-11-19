@@ -40,7 +40,7 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
-              F M U _ T R A N S L A T I O N _ P O R T _ T
+                F M U _ T R A N S L A T I O N _ P O R T _ T
 ----------------------------------------------------------------------------*/
 
 typedef struct {
@@ -50,13 +50,18 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
-
+                      F M U _ C L O C K E D _ P O R T _ T
 ----------------------------------------------------------------------------*/
 
 typedef struct {
     fmu_vr_t                    clock_fmu_vr;   /* local */
     fmu_translation_list_t      translations_list;
 } fmu_clocked_port_t;
+
+
+/*----------------------------------------------------------------------------
+                 F M U _ C L O C K E D _ P O R T _ L I S T _ T
+----------------------------------------------------------------------------*/
 
 typedef struct {
     unsigned long               nb_in;
@@ -67,7 +72,7 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
-              F M U _ S T A R T _ xxx _ T
+                          F M U _ S T A R T _ xxx _ T
 ----------------------------------------------------------------------------*/
 
 #define DECLARE_START_TYPE(name, type) \
@@ -100,6 +105,7 @@ DECLARE_START_TYPE(strings, const char *);
 /*----------------------------------------------------------------------------
                               F M U _ I O _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
 	fmu_translation_port_t		reals64;
     fmu_translation_port_t		reals32;
@@ -147,17 +153,20 @@ typedef struct {
     fmu_start_strings_t         start_strings;
 } fmu_io_t;
 
+
 /*----------------------------------------------------------------------------
-                        F M U _ B I N A R Y _ T
+                            F M U _ B I N A R Y _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
     uint8_t     *data;
     size_t      size;
     size_t      max_size;
 } fmu_binary_t; 
 
+
 /*----------------------------------------------------------------------------
-                        F M U _ I N T E R F A C E _ T
+                         F M U _ I N T E R F A C E _ T
 ----------------------------------------------------------------------------*/
 typedef union {
 #	define DECLARE_FMI_FUNCTION(x) x ## TYPE *x
@@ -268,21 +277,53 @@ typedef union {
 /*----------------------------------------------------------------------------
                            F M U _ S T A T U S _ T
 ----------------------------------------------------------------------------*/
+
 typedef enum {
     FMU_STATUS_OK = 0,
     FMU_STATUS_ERROR = 2
 } fmu_status_t;
+
+
+/*----------------------------------------------------------------------------
+                           F M U _ V E R S I O N _ T
+----------------------------------------------------------------------------*/
 
 typedef enum {
         FMU_2 = 2,
         FMU_3 = 3
 } fmu_version_t;
 
+
 /*----------------------------------------------------------------------------
                                 F M U _ T
 ----------------------------------------------------------------------------*/
+
 #   define FMU_PATH_MAX_LEN 4096
- 
+#ifdef __linux__
+#   define FMU2_BINDIR      "linux64"
+#   define FMU3_BINDIR      "x86_64-linux"
+#   define FMU_BIN_SUFFIXE  ".so"
+#endif
+#ifdef __APPLE__
+#   define FMU2_BINDIR      "darwin64"
+#   ifdef __aarch64__
+#       define FMU3_BINDIR      "aarch64-darwin"
+#   else
+#       define FMU3_BINDIR      "x86_64-darwin"
+#   endif
+#   define FMU_BIN_SUFFIXE  ".dylib"
+#endif
+#ifdef WIN32
+#   if defined(_WIN64) || defined(__amd64__)
+#       define FMU2_BINDIR  "win64"
+#       define FMU3_BINDIR  "x86_64-windows"
+#   else
+#       define FMU2_BINDIR  "win32"
+#       define FMU3_BINDIR  "x86-windows"
+#   endif
+#   define FMU_BIN_SUFFIXE  ".dll"
+#endif
+
 typedef struct {
     char                        *name; /* based on directory */
     int                         index; /* index of this FMU in container */
@@ -314,32 +355,6 @@ typedef struct {
      */
     fmi2CallbackFunctions       fmi2_callback_functions;
 } fmu_t;
-
-#ifdef __linux__
-#   define FMU2_BINDIR      "linux64"
-#   define FMU3_BINDIR      "x86_64-linux"
-#   define FMU_BIN_SUFFIXE  ".so"
-#endif
-#ifdef __APPLE__
-#   define FMU2_BINDIR      "darwin64"
-#   ifdef __aarch64__
-#       define FMU3_BINDIR      "aarch64-darwin"
-#   else
-#       define FMU3_BINDIR      "x86_64-darwin"
-#   endif
-#   define FMU_BIN_SUFFIXE  ".dylib"
-#endif
-#ifdef WIN32
-#   if defined(_WIN64) || defined(__amd64__)
-#       define FMU2_BINDIR  "win64"
-#       define FMU3_BINDIR  "x86_64-windows"
-#   else
-#       define FMU2_BINDIR  "win32"
-#       define FMU3_BINDIR  "x86-windows"
-#   endif
-#   define FMU_BIN_SUFFIXE  ".dll"
-#endif
-
 
 
 /*----------------------------------------------------------------------------
