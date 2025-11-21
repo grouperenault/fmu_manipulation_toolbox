@@ -1,6 +1,11 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.9.1 (Dev)
+* ADDED: `fmucontainer` support of Terminals
+* ADDED: support of Clock and Binary types
+* ADDED: `fmucontainer` support of LS-BUS
+
 # Version 1.9
 * CHANGE: `remoting` code rewrite to (drastically) improve performance
 * ADDED: `fmusplit` command to split container into FMU's and provide a json file

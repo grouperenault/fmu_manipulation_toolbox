@@ -13,6 +13,7 @@ extern "C" {
 /*----------------------------------------------------------------------------
                       C O N T A I N E R _ V R _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
 	fmu_vr_t			fmu_vr;
 	long				fmu_id;
@@ -22,17 +23,23 @@ typedef struct {
 /*----------------------------------------------------------------------------
                       C O N T A I N E R _ P O R T _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
     unsigned long               nb;	 /* number of connected FMU from a container port */
     container_vr_t              *links;
 } container_port_t;
 
 
+/*----------------------------------------------------------------------------
+            C O N T A I N E R _ D O _ S T E P _ F U N C T I O N _ T
+----------------------------------------------------------------------------*/
 typedef fmu_status_t (*container_do_step_function_t)(struct container_s *container);
+
 
 /*----------------------------------------------------------------------------
                             C O N T A I N E R _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct container_s {
 	/* configuration */
 	int							profiling;
@@ -59,6 +66,8 @@ typedef struct container_s {
 	DECLARE_LOCAL(booleans, int);
 	DECLARE_LOCAL(booleans1, bool);
 	DECLARE_LOCAL(strings, char *);
+	DECLARE_LOCAL(binaries, fmu_binary_t);
+	DECLARE_LOCAL(clocks, bool);
 #undef DECLARE_LOCAL
 
 	/* container ports definition */
@@ -80,6 +89,8 @@ typedef struct container_s {
     DECLARE_PORT(booleans);
     DECLARE_PORT(booleans1);
     DECLARE_PORT(strings);
+	DECLARE_PORT(binaries);
+	DECLARE_PORT(clocks);
 #undef DECLARE_PORT
 
 	convert_table_t				conversions;
@@ -97,7 +108,6 @@ typedef struct container_s {
 	fmi2CallbackAllocateMemory	allocate_memory;		/* used to embed FMU-2.0 */
 	fmi2CallbackFreeMemory      free_memory;			/* used to embed FMU-2.0 */
 } container_t;
-
 
 
 /*----------------------------------------------------------------------------

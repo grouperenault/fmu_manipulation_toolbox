@@ -12,13 +12,16 @@ extern "C" {
 #define LOGGER_WARNING      1   /* fmi2Warning or fmi3Warning */
 #define LOGGER_ERROR        3   /* fmi2Error or fmi3Error */
 
+
 /*---------------------------------------------------------------------------
              L O G G E R _ F U N C T I O N _ T Y P E _ T
 ---------------------------------------------------------------------------*/
+
 typedef union {
     fmi2CallbackLogger          logger_fmi2;
     fmi3LogMessageCallback      logger_fmi3;
 } logger_function_t;
+
 
 /*----------------------------------------------------------------------------
                             P R O T O T Y P E S
