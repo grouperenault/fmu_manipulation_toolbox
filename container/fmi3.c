@@ -137,6 +137,13 @@ fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
             return fmi3Error;
     }
 
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_status_t status = fmuUpdateDiscreteStates(&container->fmu[i]);
+
+        if (status != FMU_STATUS_OK)
+            return fmi3Error;
+    }
+
     return fmi3OK;
 }
 
