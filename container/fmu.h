@@ -54,7 +54,7 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 typedef struct {
-    fmu_vr_t                    clock_fmu_vr;   /* local */
+    fmu_vr_t                    clock_vr;   /* local */
     fmu_translation_list_t      translations_list;
 } fmu_clocked_port_t;
 
@@ -362,7 +362,10 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 extern fmu_status_t fmu_set_inputs(const fmu_t *fmu);
+extern fmu_status_t fmu_set_clocked_inputs(const fmu_t *fmu);
 extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
+extern fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu);
+extern fmu_status_t fmu_get_clocked_outputs(const fmu_t *fmu);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,
