@@ -343,6 +343,8 @@ typedef struct {
 	
 	fmu_status_t				status;
 	int							cancel;
+    int                         support_event;
+    int                         need_event_udpate;
 	
     profile_t                   *profile;
 
@@ -362,14 +364,12 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 extern fmu_status_t fmu_set_inputs(const fmu_t *fmu);
-extern fmu_status_t fmu_set_clocked_inputs(const fmu_t *fmu);
 extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
 extern fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu);
-extern fmu_status_t fmu_get_clocked_outputs(const fmu_t *fmu);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,
-                                   fmu_version_t fmi_version);
+                                   fmu_version_t fmi_version, int support_event);
 extern void fmu_unload(fmu_t *fmu);
 
 extern fmu_status_t fmuGetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
@@ -434,7 +434,7 @@ extern fmu_status_t fmuSetBinary(const fmu_t* fmu, const fmu_vr_t vr[],
 extern fmu_status_t fmuSetClock(const fmu_t* fmu, const fmu_vr_t vr[],
                                 size_t nvr, const bool value[]);
 
-extern fmu_status_t fmuDoStep(const fmu_t *fmu, 
+extern fmu_status_t fmuDoStep(fmu_t *fmu, 
                               fmi2Real currentCommunicationPoint, 
                               fmi2Real communicationStepSize);
 extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu);

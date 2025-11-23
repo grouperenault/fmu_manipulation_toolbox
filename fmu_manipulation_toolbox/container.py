@@ -10,6 +10,7 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import *
+from xmlrpc.client import Boolean
 
 from .ls import LayeredStandard
 from .operations import FMU, OperationAbstract, FMUError, FMUPort
@@ -197,6 +198,7 @@ class EmbeddedFMU(OperationAbstract):
         self.fmi_version = None
         self.ports: Dict[str, EmbeddedFMUPort] = {}
 
+        self.has_event_mode:int = 0
         self.capabilities: Dict[str, str] = {}
         self.current_port = None  # used during apply_operation()
 
@@ -215,6 +217,8 @@ class EmbeddedFMU(OperationAbstract):
 
     def cosimulation_attrs(self, attrs: Dict[str, str]):
         self.model_identifier = attrs['modelIdentifier']
+        if attrs.get("hasEventMode", "false") == "true":
+            self.has_event_mode = 1
         for capability in self.capability_list:
             self.capabilities[capability] = attrs.get(capability, "false")
 
@@ -460,10 +464,7 @@ class FMUIOList:
         else:
             clock = self.vr_table.get_local_clock(cport)
             self.nb_clocked_inputs[cport.port.type_name][cport.fmu.name] += 1
-            logger.critical(
-                f"Clocked input: {cport.fmu.name} {cport.port.type_name} clock={clock} ({cport.port.clock}) {local_vr} {cport.port.vr}")
-        # TODO
-        self.inputs[cport.port.type_name][cport.fmu.name][None].append((cport.port.vr, local_vr))
+        self.inputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, local_vr))
 
     def add_output(self, cport: ContainerPort, local_vr: int):
         if cport.port.clock is None:
@@ -471,8 +472,6 @@ class FMUIOList:
         else:
             clock = self.vr_table.get_local_clock(cport)
             self.nb_clocked_outputs[cport.port.type_name][cport.fmu.name] += 1
-            logger.critical(
-                f"Clocked output: {cport.fmu.name} {cport.port.type_name} clock={clock} ({cport.port.clock}) {local_vr} {cport.port.vr}")
         self.outputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, local_vr))
 
     def add_start_value(self, cport: ContainerPort, value: str):
@@ -1035,7 +1034,7 @@ class FMUContainer:
         print(f"{len(self.involved_fmu)}", file=txt_file)
         fmu_rank: Dict[str, int] = {}
         for i, fmu in enumerate(self.involved_fmu.values()):
-            print(f"{fmu.name} {fmu.fmi_version}", file=txt_file)
+            print(f"{fmu.name} {fmu.fmi_version} {fmu.has_event_mode}", file=txt_file)
             print(f"{fmu.model_identifier}", file=txt_file)
             print(f"{fmu.guid}", file=txt_file)
             fmu_rank[fmu.name] = i
@@ -1070,7 +1069,9 @@ class FMUContainer:
                 fmu_io_list.add_output(link.cport_from, link.vr)
             else:
                 local_per_type["clock"].append(link.vr)
-                logger.critical(f"FIXME: Keep track of CLOCKS?")
+                for cport_to in link.cport_to_list:
+                    if cport_to.fmu.ls.is_bus:
+                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr})")
 
             # FMU Inputs
             for cport_to in link.cport_to_list:
