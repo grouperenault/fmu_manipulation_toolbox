@@ -58,26 +58,34 @@ void container_set_start_values(container_t* container, int early_set) {
 
 void container_init_values(container_t* container) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
+        logger(LOGGER_ERROR, "Get init values of %s", container->fmu[i].name);
         fmu_get_outputs(&container->fmu[i]);
+        fmu_get_clocked_outputs(&container->fmu[i]);
     }
 
     return;
 }
+
 
 static void container_get_next_clock_time(container_t *container) {
-    double t;
-    unsigned int vr[1];
-    fmi3IntervalQualifier qualifier;
+    double t[2];
+    unsigned int vr[2];
+    fmi3IntervalQualifier qualifier[2];
+    t[0] = 0;
+    t[1] = 0;
+    vr[0] = 3;
+    vr[1] = 7;
 
-    for (int i=0; i<3; i+=1) {
-        t = 0;
-        vr[0] = 3;
-        qualifier = fmi3IntervalNotYetKnown;
-        container->fmu[i].fmi_functions.version_3.fmi3GetIntervalDecimal(container->fmu[i].component, vr, 1,&t, &qualifier);
-        logger(LOGGER_ERROR, "FMU#%d: next_time=%e qualifier=%d", i, t, qualifier);
-    }
+    qualifier[0] = fmi3IntervalNotYetKnown;
+    qualifier[1] = fmi3IntervalNotYetKnown;
+
+    container->fmu[0].fmi_functions.version_3.fmi3GetIntervalDecimal(container->fmu[0].component, vr, 2, t, qualifier);
+    logger(LOGGER_ERROR, "**** NEXT: %s: clock=%d next_time=%e qualifier=%d", container->fmu[0].name, vr[0], t[0], qualifier[0]);
+    logger(LOGGER_ERROR, "**** NEXT: %s: clock=%d next_time=%e qualifier=%d", container->fmu[0].name, vr[1], t[1], qualifier[1]);
+
     return;
 }
+
 
 static fmu_status_t container_do_step_sequential(container_t *container) {
     fmu_status_t status = FMU_STATUS_OK;
@@ -92,6 +100,11 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
             logger(LOGGER_ERROR, "Container: FMU#%d failed set inputs.", i);
             return status;
         }
+        status = fmu_set_clocked_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU#%d failed set clocked inputs.", i);
+            return status;
+        }
     
         /* COMPUTATION */
         status = fmuDoStep(fmu, time, container->time_step);
@@ -103,11 +116,29 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
             logger(LOGGER_ERROR, "Container: FMU#%d failed getting outputs.", i);
             return status;
         }
-        
+        status = fmu_get_clocked_outputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU#%d failed getting outputs.", i);
+            return status;
+        }
     }
 
-    container->nb_steps += 1;
+#if 1
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_t* fmu = &container->fmu[i];
+
+        logger(LOGGER_ERROR, "fmu=%s: eventHandling is TRUE)...", fmu->name);
+        fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component);
+        logger(LOGGER_ERROR, "fmu=%s: re-set inputs...", fmu->name);
+        fmu_set_inputs(fmu);
+        fmu_set_clocked_inputs(fmu);
+        fmuUpdateDiscreteStates(fmu);
+        fmu_get_outputs(fmu);
+        fmu_get_clocked_outputs(fmu);
+    }
     container_get_next_clock_time(container);
+#endif
+    container->nb_steps += 1;
     logger(LOGGER_ERROR, "container_do_step_sequential()- DONE");
     return status;
 }
@@ -603,11 +634,12 @@ static int read_conf_io(container_t* container, config_file_t* file) {
 \
             int offset = 0; \
             if (sscanf(file->line, "%u %ld%n", \
-                &fmu_io->clocked_ ## type . causality [i].clock_fmu_vr, \
+                &fmu_io->clocked_ ## type . causality [i].clock_vr, \
                 &fmu_io->clocked_ ## type . causality [i].translations_list.nb, &offset) < 2) { \
                 logger(LOGGER_ERROR, "Cannot interpret FMU I/O for 'clocked " #type "' (" #causality ")"); \
                 return -5; \
             } \
+            fmu_io->clocked_ ## type . causality [i].clock_vr &= 0xFFFFFF; \
             fmu_io->clocked_ ## type . causality [i].translations_list.translations = malloc( \
                 fmu_io->clocked_ ## type . causality [i].translations_list.nb * sizeof(*fmu_io->clocked_ ## type . causality [i].translations_list.translations)); \
             if (!fmu_io->clocked_ ## type . causality [i].translations_list.translations) { \
