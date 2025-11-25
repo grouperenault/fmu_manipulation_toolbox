@@ -3,6 +3,7 @@ import getpass
 import math
 import os
 import shutil
+import sys
 import uuid
 import platform
 import zipfile
@@ -198,7 +199,7 @@ class EmbeddedFMU(OperationAbstract):
         self.fmi_version = None
         self.ports: Dict[str, EmbeddedFMUPort] = {}
 
-        self.has_event_mode:int = 0
+        self.has_event_mode = False
         self.capabilities: Dict[str, str] = {}
         self.current_port = None  # used during apply_operation()
 
@@ -218,7 +219,7 @@ class EmbeddedFMU(OperationAbstract):
     def cosimulation_attrs(self, attrs: Dict[str, str]):
         self.model_identifier = attrs['modelIdentifier']
         if attrs.get("hasEventMode", "false") == "true":
-            self.has_event_mode = 1
+            self.has_event_mode = True
         for capability in self.capability_list:
             self.capabilities[capability] = attrs.get(capability, "false")
 
@@ -513,6 +514,24 @@ class FMUIOList:
                     if not clock is None:
                         s = " ".join([f"{vr} {fmu_vr}" for fmu_vr, vr in translation])
                         print(f"{clock} {len(translation)} {s}", file=txt_file)
+
+
+class ClockList:
+    def __init__(self, involved_fmu: OrderedDict[str, EmbeddedFMU]):
+        self.clocks_per_fmu: DefaultDict[int, List[Tuple[int, int]]] = defaultdict(list)
+        self.fmu_index: Dict[str, int] = {}
+        for i, fmu_name in enumerate(involved_fmu):
+            self.fmu_index[fmu_name] = i
+
+    def append(self, cport: ContainerPort, vr: int):
+        self.clocks_per_fmu[self.fmu_index[cport.fmu.name]].append((cport.port.vr, vr))
+
+    def write_txt(self, txt_file):
+        print(f"# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]", file=txt_file)
+        print(f"{len(self.clocks_per_fmu)}", file=txt_file)
+        for index, clocks in self.clocks_per_fmu.items():
+            clocks_str = " ".join([f"{clock[0]} {clock[1]}" for clock in clocks])
+            print(f"{index} {len(clocks)} {clocks_str}", file=txt_file)
 
 
 class FMUContainer:
@@ -1034,7 +1053,7 @@ class FMUContainer:
         print(f"{len(self.involved_fmu)}", file=txt_file)
         fmu_rank: Dict[str, int] = {}
         for i, fmu in enumerate(self.involved_fmu.values()):
-            print(f"{fmu.name} {fmu.fmi_version} {fmu.has_event_mode}", file=txt_file)
+            print(f"{fmu.name} {fmu.fmi_version} {int(fmu.has_event_mode)}", file=txt_file)
             print(f"{fmu.model_identifier}", file=txt_file)
             print(f"{fmu.guid}", file=txt_file)
             fmu_rank[fmu.name] = i
@@ -1044,6 +1063,7 @@ class FMUContainer:
         outputs_per_type: Dict[str, List[ContainerPort]] = defaultdict(list) # Container's OUTPUT
 
         fmu_io_list = FMUIOList(self.vr_table)
+        clock_list = ClockList(self.involved_fmu)
 
         local_per_type: Dict[str, List[int]] = defaultdict(list)
         links_per_fmu: Dict[str, List[Link]] = defaultdict(list)
@@ -1071,7 +1091,9 @@ class FMUContainer:
                 local_per_type["clock"].append(link.vr)
                 for cport_to in link.cport_to_list:
                     if cport_to.fmu.ls.is_bus:
-                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr})")
+                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, {link.vr})")
+                        clock_list.append(cport_to, link.vr)
+                        break
 
             # FMU Inputs
             for cport_to in link.cport_to_list:
@@ -1133,6 +1155,9 @@ class FMUContainer:
                                   file=txt_file)
             except KeyError:
                 print("0", file=txt_file)
+
+        # CLOCKS
+        clock_list.write_txt(txt_file)
 
     @staticmethod
     def long_path(path: Union[str, Path]) -> str:
