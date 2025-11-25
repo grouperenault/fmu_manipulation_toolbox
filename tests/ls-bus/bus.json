@@ -1,15 +1,15 @@
 {
   "name": "bus.fmu",
   "fmu": [
-        "DemoCanBusSimulation.fmu",
-    "DemoCanNodeTriggeredOutput.fmu",
-    "DemoCanNodeTriggeredOutput2.fmu"
+        "DemoCanNodeTriggeredOutput2.fmu",
 
+        "DemoCanNodeTriggeredOutput.fmu",
+            "DemoCanBusSimulation.fmu"
   ],
   "link": [
     [ "DemoCanNodeTriggeredOutput.fmu", "CanChannel", "DemoCanBusSimulation.fmu", "Node1"],
     [ "DemoCanNodeTriggeredOutput2.fmu", "CanChannel", "DemoCanBusSimulation.fmu", "Node2"]
   ],
   "sequential": true,
-  "step_size": 0.4
+  "step_size": 0.1
 }
