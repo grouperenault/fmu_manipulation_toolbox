@@ -934,6 +934,72 @@ static int read_conf_fmu_io(fmu_t* fmu, config_file_t* file) {
 }
 
 
+static int read_conf_clocks(container_t *container, config_file_t *file) {
+    container->local_clocks.nb_fmu = 0;
+    container->local_clocks.nb_clocks = 0;
+    container->local_clocks.clocks = NULL;
+    container->local_clocks.nb_active_clocks = 0;
+    container->local_clocks.next_active_clocks = NULL;
+    container->local_clocks.next_event_time = 0.0;
+
+    if (get_line(file)) {
+        logger(LOGGER_ERROR, "Cannot clocks definitions.");
+        return -1;
+    }
+
+    if (sscanf(file->line, "%lu", &container->local_clocks.nb_fmu) < 1) {
+        logger(LOGGER_ERROR, "Cannot get size of clocks defintions table.");
+        return -2;
+    }
+
+    container->local_clocks.clocks = malloc(container->local_clocks.nb_fmu *  sizeof(*container->local_clocks.clocks));
+    if (container->local_clocks.nb_fmu && !container->local_clocks.clocks) {
+        logger(LOGGER_ERROR, "Cannot allocate clocks defintions table for %lu entries.", container->local_clocks.nb_fmu);
+        return -3;
+    }
+    for(unsigned long i = 0; i < container->local_clocks.nb_fmu; i += 1) {
+        int offset;
+
+        container->local_clocks.clocks[i].fmu_vr = NULL;
+        container->local_clocks.clocks[i].local_clock_vr = NULL;
+
+        if (get_line(file)) {
+            logger(LOGGER_ERROR, "Cannot read clock table entries.");
+            return -4;
+        }
+        if (sscanf(file->line, "%lu %lu%n",
+            &container->local_clocks.clocks[i].fmu_id,
+            &container->local_clocks.clocks[i].nb,
+            &offset) < 2) {
+            logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
+            return -5;
+        }
+        container->local_clocks.clocks[i].local_clock_vr = malloc(container->local_clocks.clocks[i].nb * sizeof(*container->local_clocks.clocks[i].local_clock_vr));
+        container->local_clocks.clocks[i].fmu_vr = malloc(container->local_clocks.clocks[i].nb * sizeof(*container->local_clocks.clocks[i].fmu_vr));
+
+        if ((! container->local_clocks.clocks[i].local_clock_vr) || (!container->local_clocks.clocks[i].fmu_vr)) {
+            logger(LOGGER_ERROR, "Cannot allocate clocks details.");
+            return -6;
+        }
+
+        for(unsigned long j=0; j < container->local_clocks.clocks[i].nb; j += 1) {
+            unsigned long local_clock_vr;
+            if (sscanf(file->line+offset, "%u %lu%n",
+                &container->local_clocks.clocks[i].fmu_vr[j],
+                &local_clock_vr,
+                &offset) < 2){
+                logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
+                return -7;
+            }
+            container->local_clocks.clocks[i].local_clock_vr[j] = local_clock_vr & 0xFFFFFF;
+            container->local_clocks.nb_clocks += 1;
+        }
+    }
+
+
+    return 0;
+}
+
 int container_configure(container_t* container, const char* dirname) {
     config_file_t file;
     char filename[CONFIG_FILE_SZ];
@@ -1065,6 +1131,11 @@ int container_configure(container_t* container, const char* dirname) {
 #undef LOG_IO_CLASSIC
 #undef LOG_START
     }
+
+    read_conf_clocks(container, &file);
+    if (container->local_clocks.nb_clocks)
+        logger(LOGGER_DEBUG, "Container will tick for %lu clocks from %lu FMUs", container->local_clocks.nb_clocks, container->local_clocks.nb_fmu);
+
     fclose(file.fp);
 
     logger(LOGGER_DEBUG, "Instanciate embedded FMUs...");
