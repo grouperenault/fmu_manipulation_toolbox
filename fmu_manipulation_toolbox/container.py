@@ -426,7 +426,7 @@ class FMUContainer:
     <Category name="fmucontainer"/>
   </LogCategories>
 
-  <DefaultExperiment stepSize="{step_size}" startTime="{start_time}" stopTime="{stop_time}"/>
+  <DefaultExperiment stepSize="{step_size}"{default_experiment_times}/>
 
   <ModelVariables>
     <ScalarVariable valueReference="0" name="time" causality="independent"><Real /></ScalarVariable>
@@ -460,7 +460,7 @@ class FMUContainer:
     <Category name="fmucontainer"/>
   </LogCategories>
 
-  <DefaultExperiment stepSize="{step_size}" startTime="{start_time}" stopTime="{stop_time}"/>
+  <DefaultExperiment stepSize="{step_size}"{default_experiment_times}/>
 
   <ModelVariables>
     <Float64 valueReference="0" name="time" causality="independent"/>
@@ -732,13 +732,19 @@ class FMUContainer:
         else:
             logger.info(f"stop_time={self.stop_time}")
 
+        default_experiment_times = ""
+        if self.start_time is not None:
+            default_experiment_times += f' startTime="{self.start_time}"'
+        if self.stop_time is not None:
+            default_experiment_times += f' stopTime="{self.stop_time}"'
+
         if self.fmi_version == 2:
             xml_file.write(self.HEADER_XML_2.format(identifier=self.identifier, tool_version=tool_version,
                                                     timestamp=timestamp, guid=guid, embedded_fmu=embedded_fmu,
                                                     author=author,
                                                     only_once=capabilities['canBeInstantiatedOnlyOncePerProcess'],
                                                     execution_tool=capabilities['needsExecutionTool'],
-                                                    start_time=self.start_time, stop_time=self.stop_time,
+                                                    default_experiment_times=default_experiment_times,
                                                     step_size=step_size))
         elif self.fmi_version == 3:
             xml_file.write(self.HEADER_XML_3.format(identifier=self.identifier, tool_version=tool_version,
@@ -746,7 +752,7 @@ class FMUContainer:
                                                     author=author,
                                                     only_once=capabilities['canBeInstantiatedOnlyOncePerProcess'],
                                                     execution_tool=capabilities['needsExecutionTool'],
-                                                    start_time=self.start_time, stop_time=self.stop_time,
+                                                    default_experiment_times=default_experiment_times,
                                                     step_size=step_size))
 
         vr_time = self.vr_table.add_vr("real64", local=True)
