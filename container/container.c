@@ -498,7 +498,6 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             container_port_t port; \
             fmu_vr_t vr; \
             int offset; \
-            int fmu_id; \
             fmu_vr_t fmu_vr; \
 \
             if (get_line(file)) { \
@@ -978,7 +977,8 @@ int container_configure(container_t* container, const char* dirname) {
     }
 
 #define LOG_IO(type) \
-    logger(LOGGER_DEBUG, "%-15s: %d local variables and %d ports", #type, container->nb_local_ ## type, container->nb_ports_ ## type)
+    if ((container->nb_local_ ## type > 0) || (container->nb_ports_ ## type > 0)) \
+        logger(LOGGER_DEBUG, "%-10s: %d local variables and %d ports", #type, container->nb_local_ ## type, container->nb_ports_ ## type)
 
     LOG_IO(reals64);
     LOG_IO(reals32);
@@ -1005,11 +1005,16 @@ int container_configure(container_t* container, const char* dirname) {
         }
 
 #define LOG_IO(orientation, type) \
-    if (container->fmu[i].fmu_io. type . orientation .nb > 0) \
-        logger(LOGGER_DEBUG, "FMU#%d: [" #orientation "] %d " #type, i, container->fmu[i].fmu_io. type . orientation .nb);
+    if ((container->fmu[i].fmu_io. type . orientation .nb > 0) || (container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation > 0)) \
+        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [" #orientation "] %d ports and %d clocked", i, #type, container->fmu[i].fmu_io. type . orientation .nb, container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation);
+
+#define LOG_IO_CLASSIC(orientation, type) \
+    if (container->fmu[i].fmu_io. type . orientation .nb > 0)\
+        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [" #orientation "] %d ports", i, #type, container->fmu[i].fmu_io. type . orientation .nb);
+        
 #define LOG_START(type) \
     if (container->fmu[i].fmu_io.start_ ## type .nb > 0) \
-        logger(LOGGER_DEBUG, "FMU#%d: [start] %d " #type, i, container->fmu[i].fmu_io.start_ ## type .nb);
+        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [start] %d ", i, #type, container->fmu[i].fmu_io.start_ ## type .nb);
     LOG_IO(in, reals64);
     LOG_IO(in, reals32);
     LOG_IO(in, integers8);
@@ -1024,7 +1029,7 @@ int container_configure(container_t* container, const char* dirname) {
     LOG_IO(in, booleans1);
     LOG_IO(in, strings);
     LOG_IO(in, binaries);
-    LOG_IO(in, clocks);
+    LOG_IO_CLASSIC(in, clocks);
 
     LOG_START(reals64);
     LOG_START(reals32);
@@ -1054,9 +1059,10 @@ int container_configure(container_t* container, const char* dirname) {
     LOG_IO(out, booleans1);
     LOG_IO(out, strings);
     LOG_IO(out, binaries);
-    LOG_IO(out, clocks);
+    LOG_IO_CLASSIC(out, clocks);
 
 #undef LOG_IO
+#undef LOG_IO_CLASSIC
 #undef LOG_START
     }
     fclose(file.fp);
