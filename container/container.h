@@ -15,8 +15,8 @@ extern "C" {
 ----------------------------------------------------------------------------*/
 
 typedef struct {
-	fmu_vr_t			fmu_vr;
-	long				fmu_id;
+	fmu_vr_t					fmu_vr;
+	unsigned long				fmu_id;
 } container_vr_t;
 
 
@@ -31,8 +31,35 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
+                       C O N T A I N E R _ C L O C K _ T
+----------------------------------------------------------------------------*/
+
+typedef struct {
+	unsigned long				fmu_id;
+	unsigned long				nb;
+	fmu_vr_t					*fmu_vr;
+	unsigned long				*local_clock_vr;
+} container_clock_t;
+
+
+/*----------------------------------------------------------------------------
+                C O N T A I N E R _ C L O C K _ L I S T _ T
+----------------------------------------------------------------------------*/
+
+typedef struct {
+	unsigned long				nb_fmu;
+	unsigned long				nb_clocks;
+	container_clock_t			*clocks;
+	double						next_event_time;
+	int							nb_active_clocks;
+	unsigned long				*next_active_clocks;
+} container_clock_list_t;
+
+
+/*----------------------------------------------------------------------------
             C O N T A I N E R _ D O _ S T E P _ F U N C T I O N _ T
 ----------------------------------------------------------------------------*/
+
 typedef fmu_status_t (*container_do_step_function_t)(struct container_s *container);
 
 
@@ -104,6 +131,7 @@ typedef struct container_s {
 	double						stop_time;
 	int							tolerance_defined;
 	int							stop_time_defined;
+	container_clock_list_t		local_clocks;
 
 	fmi2CallbackAllocateMemory	allocate_memory;		/* used to embed FMU-2.0 */
 	fmi2CallbackFreeMemory      free_memory;			/* used to embed FMU-2.0 */
