@@ -79,3 +79,4 @@ tests/containers/bouncing_ball/cli-bouncing.fmu
 tests/containers/arch/cli-flat-dump.json
 tests/containers/arch/cli-flat.fmu
 
+tests/operations/cli-bouncing_ball.csv

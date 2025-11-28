@@ -3,6 +3,7 @@ This package was formerly known as `fmutool`.
 
 # Version 1.9.1
 * FIXED: `fmucontainer` handle correctly start/stop in <DefaultExperiment>
+* ADDED: `fmucontainer` able to dynamically change time_step
 
 # Version 1.9
 * CHANGE: `remoting` code rewrite to (drastically) improve performance
