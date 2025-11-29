@@ -2,7 +2,7 @@
 
 A FMU Container is classical FMU which embeds other FMU's:
 
-![FMU Container](../doc/FMUContainer.png "FMU Container")
+![FMU Container](FMUContainer.png "FMU Container")
 FMU Manipulation Toolbox is shipped with `fmucontainer` command which makes easy to embed FMU's into FMU.
 
 
