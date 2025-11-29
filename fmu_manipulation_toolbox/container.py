@@ -762,7 +762,7 @@ class FMUContainer:
         if ts_multiplier:
             logger.debug(f"TS Multiplier vr = {vr_ts_multiplier}")
             port = EmbeddedFMUPort("integer32", {"valueReference": vr_ts_multiplier,
-                                                 "name": f"container.ts_multipler",
+                                                 "name": f"container.ts_multiplier",
                                                  "causality": "input",
                                                  "description": f"Timestep multiplier",
                                                  "variability": "discrete",

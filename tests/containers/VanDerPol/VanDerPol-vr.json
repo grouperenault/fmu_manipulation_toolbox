@@ -1,0 +1,19 @@
+{
+    "name": "VanDerPol-vr2.fmu",
+    "fmu": [
+        "sched2.fmu"
+    ],
+    "container": [
+        {
+            "name": "nested.fmu",
+            "fmu": [
+                "VanDerPol.fmu"
+            ],
+            "ts_multiplier":true
+        }
+    ],
+    "link": [
+        [ "sched2.fmu", "multiplier", "nested.fmu", "container.ts_multiplier"]
+    ]
+}
+
