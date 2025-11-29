@@ -13,12 +13,13 @@
 #pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
 
 /*
- * Implementation of the fmu2Component and the fmu3Instance depending.
- * see fmi2.c and fmi3.c
+ * Implementation of the fmu2Component/fmu3Instance depending on FMUContainer
+ * configuration.
  */
 
+
 /*----------------------------------------------------------------------------
-                       D O   S T E P
+                                D O   S T E P
 ----------------------------------------------------------------------------*/
 
 void container_set_start_values(container_t* container, int early_set) {
@@ -47,6 +48,7 @@ void container_set_start_values(container_t* container, int early_set) {
         SET_START(Boolean, booleans);
         SET_START(Boolean1, booleans1);
         SET_START(String, strings);
+        /* binaries and clocks don't support start values here */
 #undef SET_START
     }
     logger(LOGGER_DEBUG, "Start values are set.");
@@ -56,8 +58,29 @@ void container_set_start_values(container_t* container, int early_set) {
 
 void container_init_values(container_t* container) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
+        logger(LOGGER_ERROR, "Get init values of %s", container->fmu[i].name);
         fmu_get_outputs(&container->fmu[i]);
     }
+
+    return;
+}
+
+
+static void container_get_next_clock_time(container_t *container) {
+    double t[2];
+    unsigned int vr[2];
+    fmi3IntervalQualifier qualifier[2];
+    t[0] = 0;
+    t[1] = 0;
+    vr[0] = 3;
+    vr[1] = 7;
+
+    qualifier[0] = fmi3IntervalNotYetKnown;
+    qualifier[1] = fmi3IntervalNotYetKnown;
+
+    container->fmu[2].fmi_functions.version_3.fmi3GetIntervalDecimal(container->fmu[2].component, vr, 2, t, qualifier);
+    logger(LOGGER_ERROR, "**** NEXT: %s: clock=%d next_time=%e qualifier=%d", container->fmu[2].name, vr[0], t[0], qualifier[0]);
+    logger(LOGGER_ERROR, "**** NEXT: %s: clock=%d next_time=%e qualifier=%d", container->fmu[2].name, vr[1], t[1], qualifier[1]);
 
     return;
 }
@@ -67,9 +90,12 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
     fmu_status_t status = FMU_STATUS_OK;
     double time = container->time_step * container->nb_steps + container->start_time;
 
+    logger(LOGGER_ERROR, "container_do_step_sequential(time=%e -> %e)", time, time+container->time_step);
+    container_get_next_clock_time(container);
+
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
-
+        
         status = fmu_set_inputs(fmu);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU#%d failed set inputs.", i);
@@ -86,11 +112,34 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
             logger(LOGGER_ERROR, "Container: FMU#%d failed getting outputs.", i);
             return status;
         }
-        
+    }
+
+    int need_event_update = 0;
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_t* fmu = &container->fmu[i];
+        if (fmu->need_event_udpate) {
+            need_event_update = 1;
+            break;
+        }
+    }
+
+    if (need_event_update) {
+        for (int i = 0; i < container->nb_fmu; i += 1) {
+            fmu_t* fmu = &container->fmu[i];
+            if (fmu->support_event) {
+                fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component);
+                if (status != fmi3OK) {
+                    logger(LOGGER_ERROR, "Cannot enter in Event mode for fmu %s", fmu->name);
+                    return FMU_STATUS_ERROR;
+                }
+                fmuUpdateDiscreteStates(fmu);
+            }
+        }
     }
 
     container->nb_steps += 1;
 
+    logger(LOGGER_ERROR, "container_do_step_sequential()- DONE");
     return status;
 }
 
@@ -136,7 +185,7 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
 
     double time = container->time_step * container->nb_steps + container->start_time;
     for (size_t i = 0; i < container->nb_fmu; i += 1) {
-        const fmu_t* fmu = &container->fmu[i];
+        fmu_t* fmu = &container->fmu[i];
         /* COMPUTATION */
         status = fmuDoStep(fmu, time, container->time_step);
         if (status != FMU_STATUS_OK) {
@@ -272,7 +321,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         return 0;
     }
 
-    container->fmu = malloc(nb_fmu * sizeof(*container->fmu));
+    container->fmu = calloc(nb_fmu, sizeof(*container->fmu));
     if (!container->fmu) {
         logger(LOGGER_ERROR, "Memory exhausted.");
         return -1;
@@ -289,10 +338,14 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
 
         char* name = strdup(file->line);
         int fmi_version = 2;
+        int support_event = 0;
         for(int i=0; i < strlen(name); i += 1) {
             if (name[i] == ' ') {
                 name[i] = '\0';
-                fmi_version = atoi(name+i+1);  
+                if (sscanf(name+i+1, "%d %d", &fmi_version, &support_event) < 2) {
+                    logger(LOGGER_ERROR, "Cannot read FMU flags from %s", name+i+1);
+                    return -2;
+                }
                 break;
             } 
         }
@@ -309,7 +362,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         }
         const char *guid = file->line;
 
-        int status = fmu_load_from_directory(container, i, directory, name, identifier, guid, fmi_version);
+        int status = fmu_load_from_directory(container, i, directory, name, identifier, guid, fmi_version, support_event);
         free(identifier);
         free(name);
         if (status) {
@@ -337,7 +390,7 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         return -1;
     }
 
-    if (sscanf(file->line, "%lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
+    if (sscanf(file->line, "%lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
         &container->nb_local_reals64,
         &container->nb_local_reals32,
         &container->nb_local_integers8,
@@ -350,7 +403,9 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         &container->nb_local_uintegers64,
         &container->nb_local_booleans,
         &container->nb_local_booleans1,
-        &container->nb_local_strings) < 13) {
+        &container->nb_local_strings,
+        &container->nb_local_binaries,
+        &container->nb_local_clocks) < 15) {
         logger(LOGGER_ERROR, "Cannort read container I/O '%s'.", file->line);
         return -1;
     }
@@ -380,11 +435,26 @@ static int read_conf_local(container_t* container, config_file_t* file) {
     ALLOC(booleans, 0);
     ALLOC(booleans1, false);
     ALLOC(strings, NULL);
-#undef ALLOC
-
     /* Strings cannot be NULL */
     for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
         container->strings[i] = strdup("");
+    
+    if (container->nb_local_binaries) {
+        container->binaries = malloc(container->nb_local_binaries * sizeof(*container->binaries));
+        if (!container->binaries) {
+            logger(LOGGER_ERROR, "Read container local: Memory exhauseted."); \
+            return -2;
+        }
+        for(unsigned long i=0; i < container->nb_local_binaries; i += 1) {
+            container->binaries[i].max_size = 0;
+            container->binaries[i].max_size = 0;
+            container->binaries[i].data = NULL;
+        }
+    } else
+        container->binaries = NULL;
+
+    ALLOC(clocks, false);
+#undef ALLOC
 
     return 0;
 }
@@ -420,7 +490,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
         container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ## type)); \
         container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->port_ ##type)); \
         if ((!container->vr_ ## type) || (!container->port_ ## type)) { \
-            logger(LOGGER_ERROR, "Memory exhauseted."); \
+            logger(LOGGER_ERROR, "Memory exhausted."); \
             return -1; \
         } \
         int vr_counter = 0; \
@@ -428,7 +498,6 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             container_port_t port; \
             fmu_vr_t vr; \
             int offset; \
-            int fmu_id; \
             fmu_vr_t fmu_vr; \
 \
             if (get_line(file)) { \
@@ -485,6 +554,8 @@ static int read_conf_io(container_t* container, config_file_t* file) {
     READ_CONF_IO(booleans);
     READ_CONF_IO(booleans1);
     READ_CONF_IO(strings);
+    READ_CONF_IO(binaries);
+    READ_CONF_IO(clocks);
 
     return 0;
 #undef READ_CONF_IO
@@ -537,39 +608,115 @@ static int read_conf_io(container_t* container, config_file_t* file) {
         } \
     }
 
+#define READER_FMU_CLOCKED_IO(type, causality) \
+    if (get_line(file)) { \
+        logger(LOGGER_ERROR, "Cannot get FMU description for 'clocked " #type "' (" #causality ")"); \
+        return -1; \
+    } \
+    fmu_io->clocked_ ## type . causality = NULL; \
+\
+    if (sscanf(file->line, "%lu %lu", \
+               &fmu_io->clocked_ ## type .nb_ ## causality, \
+               &nb_clocked) < 2) { \
+        logger(LOGGER_ERROR, "Cannot interpret FMU description for 'clocked " #type "' (" #causality ")"); \
+        return -2; \
+    }\
+\
+    if (fmu_io->clocked_ ## type .nb_ ## causality > 0) { \
+        fmu_io->clocked_ ## type . causality  = malloc(fmu_io->clocked_ ## type .nb_ ## causality * sizeof(*fmu_io->clocked_ ## type . causality)); \
+        if (! fmu_io->clocked_ ## type . causality) { \
+            logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted."); \
+            return -3; \
+        } \
+\
+        for(unsigned long i = 0; i < fmu_io->clocked_ ## type .nb_ ## causality; i += 1) { \
+            if (get_line(file)) { \
+                logger(LOGGER_ERROR, "Cannot get FMU I/O for 'clocked " #type "' (" #causality ")"); \
+                return -4; \
+            } \
+\
+            int offset = 0; \
+            if (sscanf(file->line, "%u %ld%n", \
+                &fmu_io->clocked_ ## type . causality [i].clock_vr, \
+                &fmu_io->clocked_ ## type . causality [i].translations_list.nb, &offset) < 2) { \
+                logger(LOGGER_ERROR, "Cannot interpret FMU I/O for 'clocked " #type "' (" #causality ")"); \
+                return -5; \
+            } \
+            fmu_io->clocked_ ## type . causality [i].clock_vr &= 0xFFFFFF; \
+            fmu_io->clocked_ ## type . causality [i].translations_list.translations = malloc( \
+                fmu_io->clocked_ ## type . causality [i].translations_list.nb * sizeof(*fmu_io->clocked_ ## type . causality [i].translations_list.translations)); \
+            if (!fmu_io->clocked_ ## type . causality [i].translations_list.translations) { \
+                logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted."); \
+                return -5; \
+            } \
+            for(unsigned long j = 0; j < fmu_io->clocked_ ## type . causality [i].translations_list.nb; j += 1) { \
+                if (sscanf(file->line+offset, "%u %u%n", \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr, \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].fmu_vr, \
+                    &offset) < 2) { \
+                    logger(LOGGER_ERROR, "Cannot interpret details of FMU I/O for 'clocked " #type "' (" #causality ")"); \
+                } \
+                fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr &= 0xFFFFFF; \
+            }\
+        } \
+    }
+
+
+
 static int read_conf_fmu_io_in(fmu_io_t* fmu_io, config_file_t* file) {
-    READER_FMU_IO(reals64,     in);
-    READER_FMU_IO(reals32,     in);
-    READER_FMU_IO(integers8,   in);
-    READER_FMU_IO(uintegers8,  in);
-    READER_FMU_IO(integers16,  in);
-    READER_FMU_IO(uintegers16, in);
-    READER_FMU_IO(integers32,  in);
-    READER_FMU_IO(uintegers32, in);    
-    READER_FMU_IO(integers64,  in);
-    READER_FMU_IO(uintegers64, in);
-    READER_FMU_IO(booleans,    in);
-    READER_FMU_IO(booleans1,   in);
-    READER_FMU_IO(strings,     in);
+    unsigned long nb_clocked;
+
+#define READER_FMU_IN(type) \
+    READER_FMU_IO(type, in); \
+    READER_FMU_CLOCKED_IO(type, in)
+
+    READER_FMU_IN(reals64);
+    READER_FMU_IN(reals32);
+    READER_FMU_IN(integers8);
+    READER_FMU_IN(uintegers8);
+    READER_FMU_IN(integers16);
+    READER_FMU_IN(uintegers16);
+    READER_FMU_IN(integers32);
+    READER_FMU_IN(uintegers32);    
+    READER_FMU_IN(integers64);
+    READER_FMU_IN(uintegers64);
+    READER_FMU_IN(booleans);
+    READER_FMU_IN(booleans1);
+    READER_FMU_IN(strings);
+    READER_FMU_IN(binaries);
+    READER_FMU_IO(clocks, in); /* clock variables cannot be clocked ! */
+
+#undef READER_FMU_IN
 
     return 0;
 }
 
 
 static int read_conf_fmu_io_out(fmu_io_t* fmu_io, config_file_t* file) {
-    READER_FMU_IO(reals64,     out);
-    READER_FMU_IO(reals32,     out);
-    READER_FMU_IO(integers8,   out);
-    READER_FMU_IO(uintegers8,  out);
-    READER_FMU_IO(integers16,  out);
-    READER_FMU_IO(uintegers16, out);
-    READER_FMU_IO(integers32,  out);
-    READER_FMU_IO(uintegers32, out);    
-    READER_FMU_IO(integers64,  out);
-    READER_FMU_IO(uintegers64, out);
-    READER_FMU_IO(booleans,    out);
-    READER_FMU_IO(booleans1,   out);
-    READER_FMU_IO(strings,     out);
+    unsigned long nb_clocked;
+
+#define READER_FMU_OUT(type) \
+    READER_FMU_IO(type, out); \
+    READER_FMU_CLOCKED_IO(type, out)
+
+
+    READER_FMU_OUT(reals64);
+    READER_FMU_OUT(reals32);
+    READER_FMU_OUT(integers8);
+    READER_FMU_OUT(uintegers8);
+    READER_FMU_OUT(integers16);
+    READER_FMU_OUT(uintegers16);
+    READER_FMU_OUT(integers32);
+    READER_FMU_OUT(uintegers32);    
+    READER_FMU_OUT(integers64);
+    READER_FMU_OUT(uintegers64);
+    READER_FMU_OUT(booleans);
+    READER_FMU_OUT(booleans1);
+    READER_FMU_OUT(strings);
+    READER_FMU_OUT(binaries);
+    READER_FMU_IO(clocks, out); /* clock variables cannot be clocked ! */
+
+#undef READER_FMU_OUT
 
     return 0;
 }
@@ -787,6 +934,72 @@ static int read_conf_fmu_io(fmu_t* fmu, config_file_t* file) {
 }
 
 
+static int read_conf_clocks(container_t *container, config_file_t *file) {
+    container->local_clocks.nb_fmu = 0;
+    container->local_clocks.nb_clocks = 0;
+    container->local_clocks.clocks = NULL;
+    container->local_clocks.nb_active_clocks = 0;
+    container->local_clocks.next_active_clocks = NULL;
+    container->local_clocks.next_event_time = 0.0;
+
+    if (get_line(file)) {
+        logger(LOGGER_ERROR, "Cannot clocks definitions.");
+        return -1;
+    }
+
+    if (sscanf(file->line, "%lu", &container->local_clocks.nb_fmu) < 1) {
+        logger(LOGGER_ERROR, "Cannot get size of clocks defintions table.");
+        return -2;
+    }
+
+    container->local_clocks.clocks = malloc(container->local_clocks.nb_fmu *  sizeof(*container->local_clocks.clocks));
+    if (container->local_clocks.nb_fmu && !container->local_clocks.clocks) {
+        logger(LOGGER_ERROR, "Cannot allocate clocks defintions table for %lu entries.", container->local_clocks.nb_fmu);
+        return -3;
+    }
+    for(unsigned long i = 0; i < container->local_clocks.nb_fmu; i += 1) {
+        int offset;
+
+        container->local_clocks.clocks[i].fmu_vr = NULL;
+        container->local_clocks.clocks[i].local_clock_vr = NULL;
+
+        if (get_line(file)) {
+            logger(LOGGER_ERROR, "Cannot read clock table entries.");
+            return -4;
+        }
+        if (sscanf(file->line, "%lu %lu%n",
+            &container->local_clocks.clocks[i].fmu_id,
+            &container->local_clocks.clocks[i].nb,
+            &offset) < 2) {
+            logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
+            return -5;
+        }
+        container->local_clocks.clocks[i].local_clock_vr = malloc(container->local_clocks.clocks[i].nb * sizeof(*container->local_clocks.clocks[i].local_clock_vr));
+        container->local_clocks.clocks[i].fmu_vr = malloc(container->local_clocks.clocks[i].nb * sizeof(*container->local_clocks.clocks[i].fmu_vr));
+
+        if ((! container->local_clocks.clocks[i].local_clock_vr) || (!container->local_clocks.clocks[i].fmu_vr)) {
+            logger(LOGGER_ERROR, "Cannot allocate clocks details.");
+            return -6;
+        }
+
+        for(unsigned long j=0; j < container->local_clocks.clocks[i].nb; j += 1) {
+            unsigned long local_clock_vr;
+            if (sscanf(file->line+offset, "%u %lu%n",
+                &container->local_clocks.clocks[i].fmu_vr[j],
+                &local_clock_vr,
+                &offset) < 2){
+                logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
+                return -7;
+            }
+            container->local_clocks.clocks[i].local_clock_vr[j] = local_clock_vr & 0xFFFFFF;
+            container->local_clocks.nb_clocks += 1;
+        }
+    }
+
+
+    return 0;
+}
+
 int container_configure(container_t* container, const char* dirname) {
     config_file_t file;
     char filename[CONFIG_FILE_SZ];
@@ -830,7 +1043,8 @@ int container_configure(container_t* container, const char* dirname) {
     }
 
 #define LOG_IO(type) \
-    logger(LOGGER_DEBUG, "%-15s: %d local variables and %d ports", #type, container->nb_local_ ## type, container->nb_ports_ ## type)
+    if ((container->nb_local_ ## type > 0) || (container->nb_ports_ ## type > 0)) \
+        logger(LOGGER_DEBUG, "%-10s: %d local variables and %d ports", #type, container->nb_local_ ## type, container->nb_ports_ ## type)
 
     LOG_IO(reals64);
     LOG_IO(reals32);
@@ -845,6 +1059,8 @@ int container_configure(container_t* container, const char* dirname) {
     LOG_IO(booleans);
     LOG_IO(booleans1);
     LOG_IO(strings);
+    LOG_IO(binaries);
+    LOG_IO(clocks);
 #undef LOG_IO
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -855,11 +1071,16 @@ int container_configure(container_t* container, const char* dirname) {
         }
 
 #define LOG_IO(orientation, type) \
-    if (container->fmu[i].fmu_io. type . orientation .nb > 0) \
-        logger(LOGGER_DEBUG, "FMU#%d: [" #orientation "] %d " #type, i, container->fmu[i].fmu_io. type . orientation .nb);
+    if ((container->fmu[i].fmu_io. type . orientation .nb > 0) || (container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation > 0)) \
+        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [" #orientation "] %d ports and %d clocked", i, #type, container->fmu[i].fmu_io. type . orientation .nb, container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation);
+
+#define LOG_IO_CLASSIC(orientation, type) \
+    if (container->fmu[i].fmu_io. type . orientation .nb > 0)\
+        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [" #orientation "] %d ports", i, #type, container->fmu[i].fmu_io. type . orientation .nb);
+        
 #define LOG_START(type) \
     if (container->fmu[i].fmu_io.start_ ## type .nb > 0) \
-        logger(LOGGER_DEBUG, "FMU#%d: [start] %d " #type, i, container->fmu[i].fmu_io.start_ ## type .nb);
+        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [start] %d ", i, #type, container->fmu[i].fmu_io.start_ ## type .nb);
     LOG_IO(in, reals64);
     LOG_IO(in, reals32);
     LOG_IO(in, integers8);
@@ -873,6 +1094,8 @@ int container_configure(container_t* container, const char* dirname) {
     LOG_IO(in, booleans);
     LOG_IO(in, booleans1);
     LOG_IO(in, strings);
+    LOG_IO(in, binaries);
+    LOG_IO_CLASSIC(in, clocks);
 
     LOG_START(reals64);
     LOG_START(reals32);
@@ -901,10 +1124,18 @@ int container_configure(container_t* container, const char* dirname) {
     LOG_IO(out, booleans);
     LOG_IO(out, booleans1);
     LOG_IO(out, strings);
+    LOG_IO(out, binaries);
+    LOG_IO_CLASSIC(out, clocks);
 
 #undef LOG_IO
+#undef LOG_IO_CLASSIC
 #undef LOG_START
     }
+
+    read_conf_clocks(container, &file);
+    if (container->local_clocks.nb_clocks)
+        logger(LOGGER_DEBUG, "Container will tick for %lu clocks from %lu FMUs", container->local_clocks.nb_clocks, container->local_clocks.nb_fmu);
+
     fclose(file.fp);
 
     logger(LOGGER_DEBUG, "Instanciate embedded FMUs...");
@@ -913,7 +1144,6 @@ int container_configure(container_t* container, const char* dirname) {
         fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i], container->instance_name);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
-            container_free(container);
             return -8;
         }
     }
@@ -960,6 +1190,8 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         INIT(booleans);
         INIT(booleans1);
         INIT(strings);
+        INIT(binaries);
+        INIT(clocks);
 #undef INIT
 
         container->time_step = 0.001;
@@ -976,10 +1208,8 @@ void container_free(container_t *container) {
             fmuFreeInstance(&container->fmu[i]);
             fmu_unload(&container->fmu[i]);
         }
-
         free(container->fmu);
     }
-
     
     free(container->instance_name);
     free(container->uuid);
@@ -1004,6 +1234,10 @@ void container_free(container_t *container) {
     for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
         free(container->strings[i]);
     FREE(strings);
+    for (unsigned long i = 0; i < container->nb_local_binaries; i += 1)
+        free(container->binaries[i].data);
+    FREE(binaries);
+    FREE(clocks);
 #undef FREE
 
     free(container);

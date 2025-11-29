@@ -1,6 +1,11 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.9.1 (Dev)
+* ADDED: `fmucontainer` support of Terminals
+* ADDED: support of Clock and Binary types
+* ADDED: `fmucontainer` support of LS-BUS
+
 # Version 1.9.1
 * FIXED: `fmucontainer` handle correctly start/stop in <DefaultExperiment>
 * ADDED: `fmucontainer` ability to dynamically change time_step. See [container-vr.md](doc/container-vr.md)
