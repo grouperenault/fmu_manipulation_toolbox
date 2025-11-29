@@ -581,7 +581,11 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
     const double end_time = currentCommunicationPoint + communicationStepSize;
     fmu_status_t status = FMU_STATUS_OK;
     const double curent_time = container->start_time + container->time_step * container->nb_steps;
-    const int ts_multiplier = container->integers32[0];
+    int ts_multiplier = container->integers32[0];
+
+    if (ts_multiplier < 1)
+        ts_multiplier = 1;
+
     const double ts = container->time_step * ts_multiplier;
     const int local_steps = ((int)((end_time - curent_time + container->tolerance) / ts)) * ts_multiplier;
     
