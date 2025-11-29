@@ -14,7 +14,7 @@ not2.fmu 2
 not_bool
 {68d2a3e5-ae1e-988b-9397-2db08e979e07}
 # NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string
-2 1 1 1 1 1 1 1 1 1 1 2 1
+2 1 1 1 1 1 2 1 1 1 1 2 1
 # CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
 # real64
 5 5
@@ -44,9 +44,10 @@ not_bool
 83886081 1 1 14
 83886080 1 -1 0
 # integer32
-2 2
-100663297 1 1 16
-100663296 1 -1 0
+3 3
+0 1 -1 0
+100663298 1 1 16
+100663297 1 -1 1
 # uinteger32
 2 2
 117440513 1 1 18
@@ -143,7 +144,7 @@ not_bool
 83886080 6
 # Outputs of constant.fmu - integer32: <VR> <FMU_VR>
 1
-100663296 7
+100663297 7
 # Outputs of constant.fmu - uinteger32: <VR> <FMU_VR>
 1
 117440512 8
@@ -183,7 +184,7 @@ not_bool
 83886080 13
 # Inputs of passthrough.fmu - integer32: <VR> <FMU_VR>
 1
-100663296 15
+100663297 15
 # Inputs of passthrough.fmu - uinteger32: <VR> <FMU_VR>
 1
 117440512 17

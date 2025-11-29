@@ -350,32 +350,37 @@ fmi2Status fmi2DoStep(fmi2Component c,
     const fmi2Real end_time = currentCommunicationPoint + communicationStepSize;
     fmu_status_t status = FMU_STATUS_OK;
     const fmi2Real curent_time = container->start_time + container->time_step * container->nb_steps;
+    int ts_multiplier = container->integers32[0];
 
+    if (ts_multiplier < 1)
+        ts_multiplier = 1;
 
-    const int local_steps = (int)((end_time - curent_time + container->tolerance) / container->time_step);
+    const double ts = container->time_step * ts_multiplier;
+    const int local_steps = ((int)((end_time - curent_time + container->tolerance) / ts)) * ts_multiplier;
     
     /*
      * Early return if requested end_time is lower than next container time step.
      */
-    if (local_steps == 0)
-        return fmi2OK;
+    if (local_steps > 0) {
+        for(int i = 0; i < local_steps; i += 1) {
+            container->do_step(container);
 
-    for(int i = 0; i < local_steps; i += 1) {
-        container->do_step(container);
+            if (status != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "Container cannot DoStep.");
+                return fmi2Error;
+            }
+        }
 
-        if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container cannot DoStep.");
-            return fmi2Error;
+        const double new_time = container->start_time + container->time_step * container->nb_steps;
+        if (fabs(end_time - new_time) > container->tolerance) {
+            logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, local_steps=%d, nb_steps=%lld)", 
+                container->time_step, currentCommunicationPoint, new_time, end_time, container->tolerance, local_steps, container->nb_steps);
+            return fmi2Warning;
         }
     }
 
-    const double new_time = container->start_time + container->time_step * container->nb_steps;
-    if (fabs(end_time - new_time) > container->tolerance) {
-        logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, local_steps=%d, nb_steps=%lld)", 
-            container->time_step, currentCommunicationPoint, new_time, end_time, container->tolerance, local_steps, container->nb_steps);
-        return fmi2Warning;
-    }
-
+    container->reals64[0] = end_time;
+    
     return fmi2OK;
 }
 

@@ -11,7 +11,7 @@ bb_velocity.fmu 2
 bb_velocity
 {abf5f61d-b459-3641-3a2c-1e594b990280}
 # NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string
-4 0 0 0 0 0 0 0 0 0 1 0 0
+4 0 0 0 0 0 1 0 0 0 1 0 0
 # CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
 # real64
 6 6
@@ -32,7 +32,8 @@ bb_velocity
 # uinteger16
 0 0
 # integer32
-0 0
+1 1
+0 1 -1 0
 # uinteger32
 0 0
 # integer64

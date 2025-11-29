@@ -65,6 +65,9 @@ def fmucontainer(command_options: Sequence[str]):
     parser.add_argument("-dump-json",  action="store_true", dest="dump", default=False,
                         help="Dump a JSON file for each container.")
 
+    parser.add_argument("-vr", action="store_true", dest="ts_multiplier", default=False,
+                        help="Add TS_MULTIPLIER input port to control step_size")
+
     config = parser.parse_args(command_options)
 
     if config.debug:
@@ -87,7 +90,7 @@ def fmucontainer(command_options: Sequence[str]):
                                 auto_input=config.auto_input, auto_output=config.auto_output,
                                 auto_local=config.auto_local, mt=config.mt, sequential=config.sequential,
                                 profiling=config.profiling, fmu_directory=fmu_directory, debug=config.debug,
-                                auto_parameter=config.auto_parameter)
+                                auto_parameter=config.auto_parameter, ts_multiplier=config.ts_multiplier)
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")
             sys.exit(-1)

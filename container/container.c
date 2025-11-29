@@ -918,6 +918,8 @@ int container_configure(container_t* container, const char* dirname) {
         }
     }
 
+    container->integers32[0] = 1; /* TS multiplier */
+    
     logger(LOGGER_DEBUG, "Container is configured.");
     return 0;
 }

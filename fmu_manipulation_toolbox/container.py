@@ -681,7 +681,7 @@ class FMUContainer:
                         logger.warning(f"{cport} is not connected")
 
     def make_fmu(self, fmu_filename: Union[str, Path], step_size: Optional[float] = None, debug=False, mt=False,
-                 profiling=False, sequential=False):
+                 profiling=False, sequential=False, ts_multiplier=False):
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)
 
@@ -695,7 +695,7 @@ class FMUContainer:
         base_directory = self.fmu_directory / fmu_filename.with_suffix('')
         resources_directory = self.make_fmu_skeleton(base_directory)
         with open(base_directory / "modelDescription.xml", "wt") as xml_file:
-            self.make_fmu_xml(xml_file, step_size, profiling)
+            self.make_fmu_xml(xml_file, step_size, profiling, ts_multiplier)
         with open(resources_directory / "container.txt", "wt") as txt_file:
             self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential)
 
@@ -703,7 +703,7 @@ class FMUContainer:
         if not debug:
             self.make_fmu_cleanup(base_directory)
 
-    def make_fmu_xml(self, xml_file, step_size: float, profiling: bool):
+    def make_fmu_xml(self, xml_file, step_size: float, profiling: bool, ts_multiplier: bool):
         timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
         guid = str(uuid.uuid4())
         embedded_fmu = ", ".join([fmu_name for fmu_name in self.involved_fmu])
@@ -757,6 +757,18 @@ class FMUContainer:
 
         vr_time = self.vr_table.add_vr("real64", local=True)
         logger.debug(f"Time vr = {vr_time}")
+
+        vr_ts_multiplier = self.vr_table.add_vr("integer32", local=True)
+        if ts_multiplier:
+            logger.debug(f"TS Multiplier vr = {vr_ts_multiplier}")
+            port = EmbeddedFMUPort("integer32", {"valueReference": vr_ts_multiplier,
+                                                 "name": f"container.ts_multiplier",
+                                                 "causality": "input",
+                                                 "description": f"Timestep multiplier",
+                                                 "variability": "discrete",
+                                                 "start": 1,
+                                                 "initial": "exact"})
+            print(f"    {port.xml(vr_ts_multiplier, fmi_version=self.fmi_version)}", file=xml_file)
 
         if profiling:
             for fmu in self.involved_fmu.values():
@@ -921,6 +933,8 @@ class FMUContainer:
                 if profiling:
                     for profiling_port, _ in enumerate(self.involved_fmu.values()):
                         print(f"{profiling_port + 1} 1 -2 {profiling_port + 1}", file=txt_file)
+            elif type_name == "integer32":
+                print(f"0 1 -1 0", file=txt_file)  # TS Multiplier
 
             for input_port in inputs_per_type[type_name]:
                 cport_string = [f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list]
