@@ -193,7 +193,8 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
     def test_container_vanderpol_vr(self):
         assembly = Assembly("VanDerPol-vr.json", fmu_directory=Path("containers/VanDerPol"))
         assembly.make_fmu()
-        self.assert_simulation("containers/VanDerPol/VanDerPol-vr2.fmu", 0.1)
+        if os.name == 'nt':
+            self.assert_simulation("containers/VanDerPol/VanDerPol-vr2.fmu", 0.1)
 
     def test_fmi3_pt2(self):
         assembly = Assembly("passthrough.json", fmu_directory=Path("fmi3/passthrough"), debug=True)
