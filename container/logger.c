@@ -39,27 +39,38 @@ int logger_get_debug(void) {
     return logger_config.debug;
 }
 
+
+static void logger_log(int status, const char *message) {
+    switch(logger_config.version) {
+    case FMU_2:
+        logger_config.callback.logger_fmi2(logger_config.environment,
+                                    logger_config.instance_name,
+                                    status, NULL, "%s", message);
+        break;
+
+    case FMU_3:
+        logger_config.callback.logger_fmi3(logger_config.environment,
+                                status, NULL, message);
+        break;
+
+    default: /* Normally never reached. */
+        printf("%s\n", message);
+
+    }
+
+    return;
+}
+
+
 void logger(int status, const char *message, ...) {
-    va_list ap;
-    va_start(ap, message);
-    if (logger_config.version) {
+    if ((status != LOGGER_DEBUG) || (logger_config.debug)) {
+        va_list ap;
+        va_start(ap, message);
         char buffer[4096];
 
         vsnprintf(buffer, sizeof(buffer), message, ap);
         va_end(ap);
-
-        if ((status != LOGGER_DEBUG) || (logger_config.debug)) {
-            if (logger_config.version == 2)
-                logger_config.callback.logger_fmi2(logger_config.environment,
-                                                   logger_config.instance_name,
-                                                   status, NULL, "%s", buffer);
-            else
-                logger_config.callback.logger_fmi3(logger_config.environment,
-                                                   status, NULL, buffer);
-                    
-        }
-    } else {
-        vprintf(message, ap);
+        logger_log(status, buffer);                
     }
 
     return;
@@ -73,14 +84,13 @@ void logger_embedded_fmu2(fmu_t *fmu,
         char buffer[4096];
         va_list ap;
         va_start(ap, message);
-        vsnprintf(buffer, sizeof(buffer), message, ap);
+        snprintf(buffer, sizeof(buffer), "%s: ", fmu->name);
+        vsnprintf(buffer+strlen(buffer), sizeof(buffer)-strlen(buffer), message, ap);
         va_end(ap);
 
-        logger_config.callback.logger_fmi2(logger_config.environment, logger_config.instance_name, status, NULL, "%s: %s",
-            fmu->name, buffer);
+        logger_log(status, buffer);
     }
     return;
-
 }
 
 
@@ -89,7 +99,7 @@ void logger_embedded_fmu3(fmu_t* fmu, int status, const char* category, const ch
         char buffer[4096];
         snprintf(buffer, sizeof(buffer), "%s: %s", fmu->name, message);
 
-        logger_config.callback.logger_fmi3(logger_config.environment, status, NULL, buffer);
+        logger_log(status, buffer);
     }
     return;
 }

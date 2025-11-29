@@ -6,6 +6,7 @@ This package was formerly known as `fmutool`.
 * ADDED: support of Clock and Binary types
 * ADDED: `fmucontainer` support of Event-Mode
 * ADDED: `fmucontainer` support of LS-BUS
+* FIXED: `fmucontainer` log correctly for FMU3 embedded inside FMU2 container
 
 # Version 1.9.1.1
 * FIXED: command line interface for `fmucontainer`, `fmutool and `fmusplit`
