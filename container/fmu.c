@@ -1001,7 +1001,7 @@ fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
             (fmi3LogMessageCallback)logger_embedded_fmu3,
             NULL /* intermediateUpdateCallback */
         );
-    } 
+    }
     if (!fmu->component)
         return FMU_STATUS_ERROR;
 
