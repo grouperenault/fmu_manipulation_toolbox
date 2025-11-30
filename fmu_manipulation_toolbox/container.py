@@ -421,6 +421,7 @@ class ValueReferenceTable:
     def get_local_clock(self, cport: ContainerPort) -> int:
         return self.local_clock[(cport.fmu, int(cport.port.clock))]
 
+
     def nb_local(self, type_name: str) -> int:
         return self.nb_local_variable[type_name]
 
@@ -463,7 +464,11 @@ class FMUIOList:
         if cport.port.clock is None:
             clock = None
         else:
-            clock = self.vr_table.get_local_clock(cport)
+            try:
+                clock = self.vr_table.get_local_clock(cport)
+            except KeyError:
+                logger.error(f"Cannot expose clocked input: {cport}")
+                return
             self.nb_clocked_inputs[cport.port.type_name][cport.fmu.name] += 1
         self.inputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, local_vr))
 
@@ -471,7 +476,11 @@ class FMUIOList:
         if cport.port.clock is None:
             clock = None
         else:
-            clock = self.vr_table.get_local_clock(cport)
+            try:
+                clock = self.vr_table.get_local_clock(cport)
+            except KeyError:
+                logger.error(f"Cannot expose clocked output: {cport}")
+                return
             self.nb_clocked_outputs[cport.port.type_name][cport.fmu.name] += 1
         self.outputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, local_vr))
 
