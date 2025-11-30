@@ -114,7 +114,7 @@ class EmbeddedFMUPort:
         try:
             fmi_type = self.CONTAINER_TO_FMI[fmi_version][self.type_name]
         except KeyError:
-            logger.error(f"Cannot expose '{name}' because type '{self.type_name}' is not compatible "
+            logger.error(f"Cannot expose ({causality}) '{name}' because type '{self.type_name}' is not compatible "
                          f"with FMI-{fmi_version}.0")
             return ""
 
