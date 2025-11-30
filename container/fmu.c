@@ -266,12 +266,6 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
 
 #undef GET_CLOCKED_OUTPUT
 
-    /* No need to convert: clocked variable are FMI-3 specific ! */
-    
-    return status;
-
-
-
     /* cast conversion between local variables */
     convert_proceed(fmu->container, fmu->conversions);
 
