@@ -249,6 +249,10 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files("containers/ssp/REF-split-bouncing.json",
                                     "containers/ssp/bouncing.dir/bouncing.json")
 
+    def test_ls_bus(self):
+        assembly = Assembly("bus+nodes.json", fmu_directory=Path("ls-bus"))
+        assembly.make_fmu(fmi_version=3)
+        self.assert_simulation("ls-bus/bus+nodes.fmu", 0.1)
 
 if __name__ == '__main__':
     unittest.main()
