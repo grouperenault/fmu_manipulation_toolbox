@@ -3,7 +3,6 @@ import getpass
 import math
 import os
 import shutil
-import sys
 import uuid
 import platform
 import zipfile
@@ -11,7 +10,6 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import *
-from xmlrpc.client import Boolean
 
 from .ls import LayeredStandard
 from .operations import FMU, OperationAbstract, FMUError, FMUPort
