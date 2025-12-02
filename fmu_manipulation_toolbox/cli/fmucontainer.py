@@ -2,7 +2,6 @@ import argparse
 import logging
 import sys
 
-from typing import *
 from pathlib import Path
 
 from .utils import setup_logger, make_wide
@@ -11,7 +10,7 @@ from ..container import FMUContainerError
 from ..version import __version__ as version
 
 
-def fmucontainer(command_options: Sequence[str]):
+def fmucontainer():
     logger = setup_logger()
 
     logger.info(f"FMUContainer version {version}")
@@ -68,7 +67,7 @@ def fmucontainer(command_options: Sequence[str]):
     parser.add_argument("-vr", action="store_true", dest="ts_multiplier", default=False,
                         help="Add TS_MULTIPLIER input port to control step_size")
 
-    config = parser.parse_args(command_options)
+    config = parser.parse_args(sys.argv[1:])
 
     if config.debug:
         logger.setLevel(logging.DEBUG)
@@ -105,4 +104,4 @@ def fmucontainer(command_options: Sequence[str]):
             sys.exit(-3)
 
 if __name__ == "__main__":
-    fmucontainer(sys.argv[1:])
+    fmucontainer()

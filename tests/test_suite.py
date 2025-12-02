@@ -223,22 +223,27 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
             print(f"{link}")
 
     def test_fmutool(self):
-        fmutool(['-input', 'operations/bouncing_ball.fmu', '-summary', '-check', '-dump-csv',
-                 'operations/cli-bouncing_ball.csv'])
+        sys.argv = ['fmutool', '-input', 'operations/bouncing_ball.fmu', '-summary', '-check', '-dump-csv',
+                 'operations/cli-bouncing_ball.csv']
+        fmutool()
         self.assert_identical_files("operations/cli-bouncing_ball.csv", "operations/REF-bouncing_ball.csv")
 
     def test_fmucontainer_csv(self):
-        fmucontainer(['-container', 'cli-bouncing.csv', '-fmu-directory', 'containers/bouncing_ball', '-mt', '-debug'])
+        sys.argv = ['fmucontainer', '-container', 'cli-bouncing.csv', '-fmu-directory', 'containers/bouncing_ball',
+                    '-mt', '-debug']
+        fmucontainer()
         self.assert_identical_files("containers/bouncing_ball/REF-container.txt",
                                     "containers/bouncing_ball/cli-bouncing/resources/container.txt")
 
     def test_fmucontainer_json(self):
-        fmucontainer(['-fmu-directory', 'containers/arch', '-container', 'cli-flat.json', '-dump'])
+        sys.argv = ['fmucontainer', '-fmu-directory', 'containers/arch', '-container', 'cli-flat.json', '-dump']
+        fmucontainer()
         self.assert_identical_files("containers/arch/REF-cli-flat-dump.json",
                                     "containers/arch/cli-flat-dump.json")
 
     def test_fmusplit(self):
-        fmusplit(["-fmu", "containers/ssp/bouncing.fmu"])
+        sys.argv = ["fmusplit", "-fmu", "containers/ssp/bouncing.fmu"]
+        fmusplit()
         self.assertTrue(Path("containers/ssp/bouncing.dir/bb_position.fmu").exists())
         self.assertTrue(Path("containers/ssp/bouncing.dir/bb_velocity.fmu").exists())
         self.assert_identical_files("containers/ssp/REF-split-bouncing.json",

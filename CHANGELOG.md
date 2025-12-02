@@ -1,6 +1,9 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.9.1.1
+* FIXED: command line interface for `fmucontainer`, `fmutool and `fmusplit`
+
 # Version 1.9.1
 * FIXED: `fmucontainer` handle correctly start/stop in <DefaultExperiment>
 * ADDED: `fmucontainer` ability to dynamically change time_step. See [container-vr.md](doc/container-vr.md)
