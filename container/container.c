@@ -71,8 +71,6 @@ static int is_close (const container_t *container, double r1, double r2) {
 
 
 static double container_get_next_clock_time(container_t *container, double timestep) {
-    logger(LOGGER_ERROR, "*** container_get_next_clock_time(): check %d FMUs ", container->local_clocks.nb_fmu);
-
     fmi3Float64 *event_time = container->local_clocks.buffer_time;
     fmi3IntervalQualifier *event_qualifier = container->local_clocks.buffer_qualifier;
     fmu_vr_t *fmu_vr = container->local_clocks.fmu_vr;
@@ -121,7 +119,7 @@ static double container_get_next_clock_time(container_t *container, double times
 
     container->local_clocks.nb_next_clocks = nb_events;
     if (container->local_clocks.nb_next_clocks > 0)
-        logger(LOGGER_ERROR, "***$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ container_get_next_clock_time() nb_event: %lu --OK", container->local_clocks.nb_next_clocks);
+        logger(LOGGER_ERROR, "**** %d EVENTS SCHEDULED: %e", container->local_clocks.nb_next_clocks, interval);
 
     return interval;
 }
@@ -130,22 +128,21 @@ static double container_get_next_clock_time(container_t *container, double times
 static fmu_status_t proceed_event(container_t *container) {
     int event_occured = 0;
 
-    logger(LOGGER_ERROR, "proceed_event()...");
-
     /* Reset all (local) clocks */
     for(unsigned long i = 0; i < container->local_clocks.nb_local_clocks; i += 1) {
-        logger(LOGGER_ERROR, "Deactivate clocks %lu", container->local_clocks.local_clock_index[i]);
+        logger(LOGGER_ERROR, "* Deactivate clocks %lu", container->local_clocks.local_clock_index[i]);
         container->clocks[container->local_clocks.local_clock_index[i]] = fmi3ClockInactive;
     }
 
     /* Activate clocks of next event */
     for(unsigned long i = 0; i < container->local_clocks.nb_next_clocks; i += 1) {
-        logger(LOGGER_ERROR, "Activate clocks %lu", container->local_clocks.next_clocks[i]);
+        logger(LOGGER_ERROR, "* Activate clocks %lu", container->local_clocks.next_clocks[i]);
         container->clocks[container->local_clocks.next_clocks[i]] = fmi3ClockActive;
     }
     container->local_clocks.nb_next_clocks = 0;
 
     /* Progate data due to clocks */
+    /*
     if (event_occured) {
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t* fmu = &container->fmu[i];
@@ -157,7 +154,7 @@ static fmu_status_t proceed_event(container_t *container) {
             }
         }
     }
-
+    */
     return FMU_STATUS_OK;
 }
 
@@ -167,22 +164,29 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
     double time = container->time_step * container->nb_steps + container->start_time;
     double target_time = time + container->time_step;
 
-    logger(LOGGER_ERROR, "**** container_do_step_sequential(time=%e -> %e)", time, target_time);
+    logger(LOGGER_ERROR, "****");
+    logger(LOGGER_ERROR, "**** TIME = %e", time);
+    logger(LOGGER_ERROR, "****");
 
     while(! is_close(container, time, target_time)) {
         double time_step = target_time - time;
-        time_step = container_get_next_clock_time(container, time_step);
-        logger(LOGGER_ERROR, "**** time=%e timestep=%e", time, time_step);
+        double event_interval = container_get_next_clock_time(container, time_step);
+        if (event_interval < time_step)
+            time_step = event_interval;
+
+        logger(LOGGER_ERROR, "* doStep(time=%e -> timestep=%e)", time, time+time_step);
 
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t* fmu = &container->fmu[i];
             
-            status = fmu_set_inputs(fmu);
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container: FMU#%d failed set inputs.", i);
-                return status;
+            if (! container->inputs_set) {
+                status = fmu_set_inputs(fmu);
+                if (status != FMU_STATUS_OK) {
+                    logger(LOGGER_ERROR, "Container: FMU#%d failed set inputs.", i);
+                    return status;
+                }
             }
-        
+                
             /* COMPUTATION */
             status = fmuDoStep(fmu, time, time_step);
             if (status != FMU_STATUS_OK)
@@ -194,7 +198,8 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
                 return status;
             }
         }
-
+        logger(LOGGER_ERROR, "** doStep ok.");
+ 
         int need_event_update = 0;
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t* fmu = &container->fmu[i];
@@ -204,10 +209,9 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
             }
         }
 
-        logger(LOGGER_ERROR, "*** doStep ok.");
         proceed_event(container);
         if (need_event_update) {
-            logger(LOGGER_ERROR, "*** Event mode");
+            logger(LOGGER_ERROR, "** Event mode...");
             for(int i = 0; i < container->nb_fmu; i += 1) {
                 fmu_t* fmu = &container->fmu[i];
 
@@ -220,11 +224,16 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
                     fmuUpdateDiscreteStates(fmu);
                 }
             }
-        }
+            container->inputs_set = 1;
+        } else
+            container->inputs_set = 0;
+            
+        logger(LOGGER_ERROR, "** Event mode ok.");
 
         time += time_step;
     }
 
+ 
     container->nb_steps += 1;
 
     logger(LOGGER_ERROR, "container_do_step_sequential()- DONE");
@@ -1297,6 +1306,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->time_step = 0.001;
         container->nb_steps = 0;
         container->tolerance = 1.0e-8;
+        container->inputs_set = 0;
     }
     return container;
 }

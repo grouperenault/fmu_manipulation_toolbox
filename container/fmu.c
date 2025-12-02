@@ -21,6 +21,8 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
+    logger(LOGGER_ERROR, "### SET INPUTS %s", fmu->name);
+
 #define SET_INPUT(variable, fmi_type) \
     for (int i = 0; i < fmu_io-> variable .in.nb; i += 1) { \
         const unsigned int fmu_vr = fmu_io-> variable .in.translations[i].fmu_vr; \
@@ -840,11 +842,6 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu) {
         if (status != fmi3OK) {
             logger(LOGGER_ERROR, "Cannot enter step mode for %s", fmu->name);
                 return FMU_STATUS_ERROR;
-        }
-
-        if (fmu_set_inputs(fmu) != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Cannot set inputs for discrte states update for %s", fmu->name);
-            return FMU_STATUS_ERROR;
         }
     }
 

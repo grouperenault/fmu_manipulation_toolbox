@@ -6,7 +6,6 @@ extern "C" {
 #	endif
 
 #include "convert.h"
-#include "event.h"
 #include "fmu.h"
 #include "library.h"
 #include "logger.h"
@@ -130,6 +129,7 @@ typedef struct container_s {
 
 	/* Simulation */
 	container_do_step_function_t do_step;
+	int							inputs_set;
 	double						time_step;
 	long long					nb_steps;
 	double						tolerance;
