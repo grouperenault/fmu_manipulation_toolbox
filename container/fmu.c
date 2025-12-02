@@ -44,6 +44,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
         } \
     }
 
+    SET_INPUT(clocks, Clock);
     SET_INPUT(reals64, Real64);
     SET_INPUT(reals32, Real32);
     SET_INPUT(integers8, Integer8);
@@ -76,7 +77,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
             return status; \
     }
 
-    SET_INPUT(clocks, Clock);
+
 
     /*
      * CLOCKED INPUTs
@@ -928,7 +929,6 @@ fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu) {
 
 
 fmu_status_t fmuExitInitializationMode(const fmu_t *fmu) {
-    logger(LOGGER_ERROR, "fmuExitInitializationMode()");
     if (fmu->fmi_version == 2) {
         fmi2Status status2 = fmu->fmi_functions.version_2.fmi2ExitInitializationMode(fmu->component);
         if (status2 == fmi2OK)
@@ -987,7 +987,7 @@ fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
             fmu->resource_dir,
             fmi3False,  /* visible */
             logger_get_debug(),
-            fmi3True, /* eventModeUsed */
+            (fmu->support_event)?fmi3True:fmi3False, /* eventModeUsed */
             fmi3False, /* earlyReturnAllowed */
             NULL, /* requiredIntermediateVariables[] */
             0, /*  nRequiredIntermediateVariables */

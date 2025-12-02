@@ -78,10 +78,8 @@ tests/cli-bouncing_ball.csv
 tests/containers/bouncing_ball/cli-bouncing.fmu
 tests/containers/arch/cli-flat-dump.json
 tests/containers/arch/cli-flat.fmu
-
-tests/ls-bus/bus
-tests/ls-bus/bus.fmu
 tests/operations/cli-bouncing_ball.csv
 tests/operations/cli-bouncing_ball.csv
 tests/containers/VanDerPol/VanDerPol-vr2.fmu
 tests/containers/VanDerPol/results-VanDerPol-vr2.csv
+tests/ls-bus/bus+nodes.fmu
