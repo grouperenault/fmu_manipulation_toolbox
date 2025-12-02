@@ -1,6 +1,13 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.9.2 (Dev)
+* ADDED: `fmucontainer` support of Terminals
+* ADDED: support of Clock and Binary types
+* ADDED: `fmucontainer` support of Event-Mode
+* ADDED: `fmucontainer` support of LS-BUS
+* FIXED: `fmucontainer` log correctly for FMU3 embedded inside FMU2 container
+
 # Version 1.9.1.1
 * FIXED: command line interface for `fmucontainer`, `fmutool and `fmusplit`
 

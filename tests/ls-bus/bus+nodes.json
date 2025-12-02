@@ -1,10 +1,9 @@
 {
-  "name": "bus+node.fmu",
+  "name": "bus+nodes.fmu",
   "fmu": [
-        "DemoCanNodeTriggeredOutput2.fmu",
-
-        "DemoCanNodeTriggeredOutput.fmu",
-            "DemoCanBusSimulation.fmu"
+    "DemoCanBusSimulation.fmu",
+    "DemoCanNodeTriggeredOutput2.fmu",
+    "DemoCanNodeTriggeredOutput.fmu"
   ],
   "link": [
     [ "DemoCanNodeTriggeredOutput.fmu", "CanChannel", "DemoCanBusSimulation.fmu", "Node1"],
