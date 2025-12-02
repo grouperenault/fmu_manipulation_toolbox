@@ -14,7 +14,7 @@ from ..version import __version__ as version
 from ..help import Help
 
 
-def fmutool(command_options: Sequence[str]):
+def fmutool():
     logger = setup_logger()
 
     logger.info(f"FMU Manipulation Toolbox version {version}")
@@ -71,7 +71,7 @@ def fmutool(command_options: Sequence[str]):
     add_option('-summary', action='append_const', dest='operations_list', const=OperationSummary())
     add_option('-check', action='append_const', dest='operations_list', const=[checker() for checker in get_checkers()])
 
-    cli_options = parser.parse_args(command_options)
+    cli_options = parser.parse_args(sys.argv[1:])
     # handle the "no operation" use case
     if not cli_options.operations_list:
         cli_options.operations_list = []
@@ -124,4 +124,4 @@ def fmutool(command_options: Sequence[str]):
         logger.info(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
 
 if __name__ == "__main__":
-    fmutool(sys.argv[1:])
+    fmutool()
