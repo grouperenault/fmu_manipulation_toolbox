@@ -83,3 +83,4 @@ tests/operations/cli-bouncing_ball.csv
 tests/containers/VanDerPol/VanDerPol-vr2.fmu
 tests/containers/VanDerPol/results-VanDerPol-vr2.csv
 tests/ls-bus/bus+nodes.fmu
+tests/ls-bus/bus+nodes
