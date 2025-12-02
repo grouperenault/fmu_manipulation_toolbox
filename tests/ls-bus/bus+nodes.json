@@ -1,5 +1,5 @@
 {
-  "name": "bus+node.fmu",
+  "name": "bus+nodes.fmu",
   "fmu": [
         "DemoCanNodeTriggeredOutput2.fmu",
 
