@@ -6,6 +6,7 @@ extern "C" {
 #	endif
 
 #include "convert.h"
+#include "event.h"
 #include "fmu.h"
 #include "library.h"
 #include "logger.h"
@@ -37,9 +38,8 @@ typedef struct {
 typedef struct {
 	unsigned long				fmu_id;
 	unsigned long				nb;
-	fmu_vr_t					*fmu_vr;
-	unsigned long				*local_clock_vr;
-} container_clock_t;
+
+} container_clock_counter_t;
 
 
 /*----------------------------------------------------------------------------
@@ -48,12 +48,18 @@ typedef struct {
 
 typedef struct {
 	unsigned long				nb_fmu;
-	unsigned long				nb_clocks;
-	container_clock_t			*clocks;
-	double						next_event_time;
-	int							nb_active_clocks;
-	unsigned long				*next_active_clocks;
-} container_clock_list_t;
+	container_clock_counter_t	*counter;
+
+	double						*buffer_time;		/* for getIntervalDecimal */
+	fmi3IntervalQualifier		*buffer_qualifier; /* for getIntervalDecimal */
+
+	unsigned long				nb_local_clocks;
+	fmu_vr_t					*fmu_vr;
+	unsigned long				*local_clock_index;
+
+	unsigned long				nb_next_clocks;
+	unsigned long				*next_clocks;
+} container_clock_t;
 
 
 /*----------------------------------------------------------------------------
@@ -131,7 +137,7 @@ typedef struct container_s {
 	double						stop_time;
 	int							tolerance_defined;
 	int							stop_time_defined;
-	container_clock_list_t		local_clocks;
+	container_clock_t			local_clocks;
 
 	fmi2CallbackAllocateMemory	allocate_memory;		/* used to embed FMU-2.0 */
 	fmi2CallbackFreeMemory      free_memory;			/* used to embed FMU-2.0 */
