@@ -423,7 +423,10 @@ class FMUContainer:
   </CoSimulation>
 
   <LogCategories>
-    <Category name="fmucontainer"/>
+    <Category name="Info"
+              description="Info log messages." />
+    <Category name="Error"
+              description="Error log messages." />
   </LogCategories>
 
   <DefaultExperiment stepSize="{step_size}"{default_experiment_times}/>
@@ -457,7 +460,10 @@ class FMUContainer:
   </CoSimulation>
 
   <LogCategories>
-    <Category name="fmucontainer"/>
+    <Category name="Info"
+              description="Info log messages." />
+    <Category name="Error"
+              description="Error log messages." />
   </LogCategories>
 
   <DefaultExperiment stepSize="{step_size}"{default_experiment_times}/>

@@ -43,19 +43,23 @@ void logger(int status, const char *message, ...) {
     va_list ap;
     va_start(ap, message);
     if (logger_config.version) {
+        const char* category = "Error";
         char buffer[4096];
 
         vsnprintf(buffer, sizeof(buffer), message, ap);
         va_end(ap);
 
+        if (status == LOGGER_DEBUG)
+            category = "Info";
+
         if ((status != LOGGER_DEBUG) || (logger_config.debug)) {
             if (logger_config.version == 2)
                 logger_config.callback.logger_fmi2(logger_config.environment,
                                                    logger_config.instance_name,
-                                                   status, NULL, "%s", buffer);
+                                                   status, "container", "%s", buffer);
             else
                 logger_config.callback.logger_fmi3(logger_config.environment,
-                                                   status, NULL, buffer);
+                                                   status, "container", buffer);
                     
         }
     } else {
@@ -71,12 +75,15 @@ void logger_embedded_fmu2(fmu_t *fmu,
                          const char *category, const char *message, ...) {
     if ((status != 0) || (logger_config.debug)) {
         char buffer[4096];
+        const char* category = "Error";
         va_list ap;
         va_start(ap, message);
         vsnprintf(buffer, sizeof(buffer), message, ap);
         va_end(ap);
 
-        logger_config.callback.logger_fmi2(logger_config.environment, logger_config.instance_name, status, NULL, "%s: %s",
+        if (status == LOGGER_DEBUG)
+            category = "Info";
+        logger_config.callback.logger_fmi2(logger_config.environment, logger_config.instance_name, status, "container", "%s: %s",
             fmu->name, buffer);
     }
     return;
@@ -87,9 +94,12 @@ void logger_embedded_fmu2(fmu_t *fmu,
 void logger_embedded_fmu3(fmu_t* fmu, int status, const char* category, const char* message) {
     if ((status != 0) || (logger_config.debug)) {
         char buffer[4096];
+        const char* category = "Error";
         snprintf(buffer, sizeof(buffer), "%s: %s", fmu->name, message);
 
-        logger_config.callback.logger_fmi3(logger_config.environment, status, NULL, buffer);
+        if (status == LOGGER_DEBUG)
+            category = "Info";
+        logger_config.callback.logger_fmi3(logger_config.environment, status, "container", buffer);
     }
     return;
 }
