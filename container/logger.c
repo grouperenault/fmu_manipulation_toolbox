@@ -56,10 +56,10 @@ void logger(int status, const char *message, ...) {
             if (logger_config.version == 2)
                 logger_config.callback.logger_fmi2(logger_config.environment,
                                                    logger_config.instance_name,
-                                                   status, "container", "%s", buffer);
+                                                   status, category, "%s", buffer);
             else
                 logger_config.callback.logger_fmi3(logger_config.environment,
-                                                   status, "container", buffer);
+                                                   status, category, buffer);
                     
         }
     } else {
@@ -83,7 +83,7 @@ void logger_embedded_fmu2(fmu_t *fmu,
 
         if (status == LOGGER_DEBUG)
             category = "Info";
-        logger_config.callback.logger_fmi2(logger_config.environment, logger_config.instance_name, status, "container", "%s: %s",
+        logger_config.callback.logger_fmi2(logger_config.environment, logger_config.instance_name, status, category, "%s: %s",
             fmu->name, buffer);
     }
     return;
@@ -99,7 +99,7 @@ void logger_embedded_fmu3(fmu_t* fmu, int status, const char* category, const ch
 
         if (status == LOGGER_DEBUG)
             category = "Info";
-        logger_config.callback.logger_fmi3(logger_config.environment, status, "container", buffer);
+        logger_config.callback.logger_fmi3(logger_config.environment, status, category, buffer);
     }
     return;
 }
