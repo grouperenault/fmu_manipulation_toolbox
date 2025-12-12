@@ -205,7 +205,7 @@ jobs:
           path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64
           retention-days: 1
   container-darwin64:
-    runs-on: macos-13
+    runs-on: mmacos-latest
     steps:
       - uses: actions/checkout@v4
 
