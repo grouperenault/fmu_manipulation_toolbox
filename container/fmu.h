@@ -343,6 +343,7 @@ typedef struct {
 	
 	fmu_status_t				status;
 	int							cancel;
+    int                         need_input;
     int                         support_event;
     int                         need_event_udpate;
 	
@@ -446,7 +447,8 @@ extern fmu_status_t fmuTerminate(const fmu_t *fmu);
 extern fmu_status_t fmuReset(const fmu_t *fmu);
 extern fmu_status_t fmuGetBooleanStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Boolean* value);
 extern fmu_status_t fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real* value);
-
+extern fmu_status_t fmuEnterEventMode(const fmu_t *fmu);
+extern fmu_status_t fmuEnterStepMode(const fmu_t *fmu);
 #	ifdef __cplusplus
 }
 #	endif

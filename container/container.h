@@ -131,6 +131,7 @@ typedef struct container_s {
 	container_do_step_function_t do_step;
 	int							inputs_set;
 	double						time_step;
+	double						next_step;	/* in case of event */
 	long long					nb_steps;
 	double						tolerance;
 	double						start_time;

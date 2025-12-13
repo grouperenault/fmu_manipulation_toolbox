@@ -113,7 +113,7 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
 
     container_set_start_values(container, 1);
     logger(LOGGER_DEBUG, "fmuSetupExperiment -- OK");
-    container_init_values(container);
+    
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_status_t status = fmuEnterInitializationMode(&container->fmu[i]);
@@ -136,10 +136,16 @@ fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
         if (status != FMU_STATUS_OK)
             return fmi3Error;
     }
-
+    
+    container_init_values(container);
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_status_t status = fmuUpdateDiscreteStates(&container->fmu[i]);
 
+        fmi3Status status3 = container->fmu[i].fmi_functions.version_3.fmi3EnterStepMode(container->fmu[i].component);
+        if (status3 != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot enter step mode for %s", container->fmu[i].name);
+                return status3;
+        }
         if (status != FMU_STATUS_OK)
             return fmi3Error;
     }

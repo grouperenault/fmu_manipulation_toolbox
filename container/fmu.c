@@ -46,7 +46,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
         } \
     }
 
-    SET_INPUT(clocks, Clock);
+
     SET_INPUT(reals64, Real64);
     SET_INPUT(reals32, Real32);
     SET_INPUT(integers8, Integer8);
@@ -59,7 +59,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     SET_INPUT(uintegers64, UInteger64);
     SET_INPUT(booleans, Boolean);
     SET_INPUT(booleans1, Boolean1);
-
+ 
     /* strings: Need to add a (cast) to avod a warning */
     for (int i = 0; i < fmu_io->strings.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->strings.in.translations[i].fmu_vr;
@@ -73,13 +73,25 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     for (int i = 0; i < fmu_io->binaries.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->binaries.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->binaries.in.translations[i].vr;
+        logger(LOGGER_ERROR, "SetBinary(vr=%d)", fmu_vr);
         status = fmuSetBinary(fmu, &fmu_vr, 1, &container->binaries[local_vr].size,
                               (const uint8_t *const*)&container->binaries[local_vr].data);
         if (status != FMU_STATUS_OK) \
             return status; \
     }
 
-
+    //SET_INPUT(clocks, Clock);
+    /* CLOCK DEBUG */
+    for (int i = 0; i < fmu_io->clocks.in.nb; i += 1) {
+        const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
+        const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
+        if (container->clocks[local_vr] && (! (fmu == &container->fmu[2] && ((fmu_vr == 3) || (fmu_vr == 7))))) {
+            status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks[local_vr]);
+            if (status != FMU_STATUS_OK) \
+                return status; \
+        }
+    }
+#undef SET_INPUT
 
     /*
      * CLOCKED INPUTs
@@ -118,6 +130,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
+                logger(LOGGER_ERROR, "SetBinary(clock=%d vr=%d)", clocked_port->clock_vr, fmu_vr);
                 status = fmuSetBinary(fmu, &fmu_vr, 1, &container->binaries[local_vr].size,
                         (const uint8_t *const*)&container->binaries[local_vr].data);
                 if (status != FMU_STATUS_OK)
@@ -127,16 +140,18 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     }
 
 #undef SET_CLOCKED_INPUT
-#undef SET_INPUT
+
 
     return status;
 }
+
 
 fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
     container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
     fmu_status_t status = FMU_STATUS_OK;
 
+    logger(LOGGER_ERROR, "### GET OUTPUTS %s", fmu->name);
 #define GET_OUTPUT(variable, fmi_type) \
     for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) { \
         const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr; \
@@ -204,9 +219,9 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             container->binaries[local_vr].size = size;
             memcpy(container->binaries[local_vr].data, data, size);
     }
-
     GET_OUTPUT(clocks, Clock);
-#undef GET_OUTPUT
+    #undef GET_OUTPUT
+    
 
     /*
      * CLOCKED OUTPUTs
@@ -266,6 +281,8 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             }
         }
     }
+
+
 
 #undef GET_CLOCKED_OUTPUT
 
@@ -405,7 +422,7 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version){
         OPT_MAP(fmi3GetAdjointDerivative);
         REQ_MAP(fmi3EnterConfigurationMode);
         REQ_MAP(fmi3ExitConfigurationMode);
-        OPT_MAP(fmi3GetIntervalDecimal);
+        REQ_MAP(fmi3GetIntervalDecimal);
         OPT_MAP(fmi3GetIntervalFraction);
         OPT_MAP(fmi3GetShiftDecimal);
         OPT_MAP(fmi3GetShiftFraction);
@@ -413,8 +430,8 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version){
         OPT_MAP(fmi3SetIntervalFraction);
         OPT_MAP(fmi3SetShiftDecimal);
         OPT_MAP(fmi3SetShiftFraction);
-        REQ_MAP(fmi3EvaluateDiscreteStates);
-        OPT_MAP(fmi3UpdateDiscreteStates);
+        OPT_MAP(fmi3EvaluateDiscreteStates);
+        REQ_MAP(fmi3UpdateDiscreteStates);
         REQ_MAP(fmi3EnterStepMode);
         OPT_MAP(fmi3GetOutputDerivatives);
         REQ_MAP(fmi3DoStep);
@@ -516,6 +533,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->cancel = 0;
     fmu->support_event = support_event;
     fmu->need_event_udpate = 0;
+    fmu->need_input = 1;
 
     if (container->profiling)
         fmu->profile = profile_new();
@@ -820,7 +838,7 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu) {
         fmi3Status status;
 
         if (fmu_set_inputs(fmu) != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Cannot set inputs for discrte states update for %s", fmu->name);
+            logger(LOGGER_ERROR, "Cannot set inputs for discrete states update for %s", fmu->name);
             return FMU_STATUS_ERROR;
         }
 
@@ -835,14 +853,20 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu) {
             if (status != fmi3OK) {
                 logger(LOGGER_ERROR, "Cannot update discrete states for %s", fmu->name);
                 return FMU_STATUS_ERROR;
-            } 
+            }
+
+            if (discreteStatesNeedUpdate) {
+                logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ MORE EVENT");
+            }
+            if (nextEventTimeDefined) {
+                logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ EVENT TIME");
+            }
+            if (valuesOfContinuousStatesChanged) {
+                logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ STATE CHANGED");
+            }
         } while(discreteStatesNeedUpdate);
 
-        status = fmu->fmi_functions.version_3.fmi3EnterStepMode(fmu->component);
-        if (status != fmi3OK) {
-            logger(LOGGER_ERROR, "Cannot enter step mode for %s", fmu->name);
-                return FMU_STATUS_ERROR;
-        }
+
     }
 
     return FMU_STATUS_OK;
@@ -1064,4 +1088,26 @@ fmu_status_t fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real
     }
     
     return status;
+}
+
+
+fmu_status_t fmuEnterEventMode(const fmu_t *fmu) {
+    fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component);
+    if (status != fmi3OK) {
+        logger(LOGGER_ERROR, "Cannot enter in Event mode for fmu %s", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+
+    return FMU_STATUS_OK;
+}
+
+
+fmu_status_t fmuEnterStepMode(const fmu_t *fmu) {
+    fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterStepMode(fmu->component);
+    if (status != fmi3OK) {
+        logger(LOGGER_ERROR, "Cannot enter step mode for %s", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+    
+    return FMU_STATUS_OK;
 }
