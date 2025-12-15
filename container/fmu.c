@@ -859,18 +859,14 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, int *more_event) {
             return FMU_STATUS_ERROR;
         }
 
-        if (discreteStatesNeedUpdate) {
+        if (discreteStatesNeedUpdate)
             *more_event = 1;
-            logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ MORE EVENT");
-        } else 
+        else 
             *more_event = 0;
 
-        if (nextEventTimeDefined) {
-            logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ EVENT TIME");
-        }
-        
-        if (valuesOfContinuousStatesChanged) {
-            logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ STATE CHANGED");
+        if (nextEventTimeDefined) { 
+            logger(LOGGER_ERROR, "%s: UpdateDiscreteStates defined next event which is not supported.", fmu->name);
+            return FMU_STATUS_ERROR;
         }
     }
 

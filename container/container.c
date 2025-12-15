@@ -57,12 +57,9 @@ void container_set_start_values(container_t* container, int early_set) {
 
 
 void container_init_values(container_t* container) {
-    logger(LOGGER_ERROR, "** container_init_values()...");
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_get_outputs(&container->fmu[i]);
     }
-    logger(LOGGER_ERROR, "** container_init_values(). DONE.");
-
     return;
 }
 
