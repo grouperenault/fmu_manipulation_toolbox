@@ -31,6 +31,28 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
 
         self.assert_identical_files(result_filename, ref_filename)
 
+    def assert_simulation_log(self, filename: Union[Path, str], step_size: Optional[float] = None):
+        if isinstance(filename, str):
+            filename = Path(filename)
+
+        log_filename = filename.with_name("log-" + filename.with_suffix(".txt").name)
+        with open(log_filename, "wt") as log_file:
+            def fmu_log(*args):
+                print(f"{args[-1].decode('utf-8')}", file=log_file)
+
+            simulate_fmu(filename, step_size=step_size, stop_time=10, relative_tolerance=1e-9,
+                         output_interval=step_size, validate=True, logger=fmu_log, debug_logging=True)
+
+
+        ref_filename = log_filename.with_stem("REF-" + log_filename.stem)
+
+        with open(log_filename, mode="rt", newline=None) as a, open(ref_filename, mode="rt", newline=None) as b:
+            for i, (lineA, lineB) in enumerate(zip(a, b)):
+                if i > 10:
+                    self.assertTrue(lineA == lineB)
+
+
+
     def assert_identical_files(self, filename1, filename2):
         with open(filename1, mode="rt", newline=None) as a, open(filename2, mode="rt", newline=None) as b:
             self.assertTrue(all(lineA == lineB for lineA, lineB in zip(a, b)))
@@ -252,7 +274,7 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
     def test_ls_bus(self):
         assembly = Assembly("bus+nodes.json", fmu_directory=Path("ls-bus"))
         assembly.make_fmu(fmi_version=3)
-        self.assert_simulation("ls-bus/bus+nodes.fmu", 0.1)
+        self.assert_simulation_log("ls-bus/bus+nodes.fmu", 0.1)
 
 if __name__ == '__main__':
     unittest.main()
