@@ -60,7 +60,7 @@ typedef struct {
 
 	unsigned long				nb_local_clocks;
 	fmu_vr_t					*fmu_vr;            /* ordered clock VR */
-	unsigned long				*local_clock_index;
+	unsigned long				*clock_index;
 	unsigned long				*fmu_id;		
 
 	unsigned long				nb_next_clocks;
@@ -145,7 +145,7 @@ typedef struct container_s {
 	double						stop_time;
 	int							tolerance_defined;
 	int							stop_time_defined;
-	container_clock_list_t		local_clocks_list;
+	container_clock_list_t		clocks_list;
 
 	fmi2CallbackAllocateMemory	allocate_memory;		/* used to embed FMU-2.0 */
 	fmi2CallbackFreeMemory      free_memory;			/* used to embed FMU-2.0 */

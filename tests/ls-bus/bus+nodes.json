@@ -1,10 +1,9 @@
 {
   "name": "bus+nodes.fmu",
   "fmu": [
-           "bus.fmu",
-        "node1.fmu",
-        "node2.fmu"
-
+    "bus.fmu",
+    "node1.fmu",
+    "node2.fmu"
   ],
   "link": [
     [ "node1.fmu", "CanChannel", "bus.fmu", "Node1"],

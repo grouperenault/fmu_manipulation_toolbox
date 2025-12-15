@@ -21,8 +21,6 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
-    logger(LOGGER_ERROR, "### SET INPUTS %s", fmu->name);
-
 #define SET_INPUT(variable, fmi_type) \
     for (int i = 0; i < fmu_io-> variable .in.nb; i += 1) { \
         const unsigned int fmu_vr = fmu_io-> variable .in.translations[i].fmu_vr; \
@@ -59,7 +57,6 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     for (int i = 0; i < fmu_io->binaries.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->binaries.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->binaries.in.translations[i].vr;
-        logger(LOGGER_ERROR, "SetBinary(vr=%d)", fmu_vr);
         status = fmuSetBinary(fmu, &fmu_vr, 1, &container->binaries[local_vr].size,
                               (const uint8_t *const*)&container->binaries[local_vr].data);
         if (status != FMU_STATUS_OK) \
@@ -138,7 +135,6 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
-                logger(LOGGER_ERROR, "SetBinary(clock=%d vr=%d)", clocked_port->clock_vr, fmu_vr);
                 status = fmuSetBinary(fmu, &fmu_vr, 1, &container->binaries[local_vr].size,
                         (const uint8_t *const*)&container->binaries[local_vr].data);
                 if (status != FMU_STATUS_OK)
@@ -159,7 +155,6 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
     const fmu_io_t* fmu_io = &fmu->fmu_io;
     fmu_status_t status = FMU_STATUS_OK;
 
-    logger(LOGGER_ERROR, "### GET OUTPUTS %s", fmu->name);
 #define GET_OUTPUT(variable, fmi_type) \
     for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) { \
         const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr; \
@@ -548,7 +543,6 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->cancel = 0;
     fmu->support_event = support_event;
     fmu->need_event_udpate = 0;
-    fmu->need_input = 1;
 
     if (container->profiling)
         fmu->profile = profile_new();
@@ -934,7 +928,6 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
     if (fmu->profile) {
         fmu->container->reals64[fmu->index+1] = profile_toc(fmu->profile, currentCommunicationPoint+communicationStepSize);
     }
-    logger(LOGGER_DEBUG, "%s fmuDoStep() --OK", fmu->name);
 
     return status;
 }

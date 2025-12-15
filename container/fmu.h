@@ -343,7 +343,6 @@ typedef struct {
 	
 	fmu_status_t				status;
 	int							cancel;
-    int                         need_input;
     int                         support_event;
     int                         need_event_udpate;
 	

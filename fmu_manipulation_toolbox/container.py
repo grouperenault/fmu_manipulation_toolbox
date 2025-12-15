@@ -1110,7 +1110,7 @@ class FMUContainer:
             for cport_to in link.cport_to_list:
                 if link.cport_from is not None or not cport_to.fmu.ls.is_bus:
                     # LS-BUS allows, importer to feed clock signal. In this case, cport_from is None
-                    # FMU will be fed directly by impoter, no need to add inpunt link!
+                    # FMU will be fed directly by importer, no need to add inpunt link!
                     if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
                         local_vr = link.vr
                     else:
