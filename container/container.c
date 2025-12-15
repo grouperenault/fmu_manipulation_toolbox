@@ -151,6 +151,7 @@ static void container_clocks_desactivate(container_t *container) {
         logger(LOGGER_ERROR, "* Deactivate clocks %lu", container->local_clocks.local_clock_index[i]);
         container->clocks[container->local_clocks.local_clock_index[i]] = fmi3ClockInactive;
     }
+
     return;
 }
 
@@ -171,37 +172,23 @@ static fmu_status_t container_proceed_event(container_t *container) {
             container->clocks[container->local_clocks.next_clocks[i]] = fmi3ClockActive;
         }
 
-#if 1
-    if ( container->local_clocks.nb_next_clocks) {
-        fmu_t *fmu = &container->fmu[1];
+
+        /* Notify FMU */
+        fmu_t *fmu = &container->fmu[0];
         bool value = true;
-        fmu_vr_t vr = 2;
-        fmuSetClock(fmu, &vr, 1, &value);
-
-        fmu = &container->fmu[2];
-        value = true;
-        vr = 2;
-        fmuSetClock(fmu, &vr, 1, &value);
-
-        fmu = &container->fmu[0];
-        value = true;
-        vr = 3;
+        fmu_vr_t vr = 3;
         fmuSetClock(fmu, &vr, 1, &value);
         value = true;
         vr = 7;
         fmuSetClock(fmu, &vr, 1, &value);
-    }
+
        
         /* Update container variable */
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t *fmu = &container->fmu[i];
-            fmu->fmi_functions.version_3.fmi3EvaluateDiscreteStates(fmu->component);
             if (fmu_get_clocked_outputs(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
         }
-#endif 
-
-
     }
 
     
@@ -234,6 +221,8 @@ fmu_status_t container_update_discrete_state(container_t *container) {
             }
         }
 
+        container_clocks_desactivate(container);
+
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t *fmu = &container->fmu[i];
                 if (fmu_get_outputs(fmu) != FMU_STATUS_OK)
@@ -243,6 +232,7 @@ fmu_status_t container_update_discrete_state(container_t *container) {
 
     return FMU_STATUS_OK;
 }
+
 
 static fmu_status_t container_do_step_sequential(container_t *container) {
     fmu_status_t status = FMU_STATUS_OK;
@@ -308,38 +298,8 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
                     fmu->need_input = 1;
             }
 
-            logger(LOGGER_ERROR," * Proceed Event...");
             container_proceed_event(container);
-            logger(LOGGER_ERROR," * Proceed Event. DONE.");
-
-#if 1
-            for (int i = 0; i < container->nb_fmu; i += 1) {
-                fmu_t *fmu = &container->fmu[i];
-                if (fmu->support_event) {
-                    fmu_set_inputs(fmu);
-                }
-            }
-
-            for (int i = 0; i < container->nb_fmu; i += 1) {
-                fmu_t *fmu = &container->fmu[i];
-                if (fmu->support_event) {
-                    int fmu_more_event;
-                    if (fmuUpdateDiscreteStates(fmu, &fmu_more_event) != FMU_STATUS_OK)
-                        return FMU_STATUS_ERROR;
-                }
-            }
-            container_clocks_desactivate(container);
-            for (int i = 0; i < container->nb_fmu; i += 1) {
-                fmu_t *fmu = &container->fmu[i];
-                if (fmu->support_event) {
-                    fmu_get_outputs(fmu);
-                }
-            } 
-#else
             container_update_discrete_state(container);
-
-#endif
-
             container->next_step = container_get_next_clock_time(container);
             
             for (int i = 0; i < container->nb_fmu; i += 1) {

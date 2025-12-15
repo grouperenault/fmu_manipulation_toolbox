@@ -1108,14 +1108,17 @@ class FMUContainer:
 
             # FMU Inputs
             for cport_to in link.cport_to_list:
-                if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
-                    local_vr = link.vr
-                else:
-                    local_per_type[cport_to.port.type_name].append(link.vr_converted[cport_to.port.type_name])
-                    links_per_fmu[link.cport_from.fmu.name].append(link)
-                    local_vr = link.vr_converted[cport_to.port.type_name]
+                if link.cport_from is not None or not cport_to.fmu.ls.is_bus:
+                    # LS-BUS allows, importer to feed clock signal. In this case, cport_from is None
+                    # FMU will be fed directly by impoter, no need to add inpunt link!
+                    if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
+                        local_vr = link.vr
+                    else:
+                        local_per_type[cport_to.port.type_name].append(link.vr_converted[cport_to.port.type_name])
+                        links_per_fmu[link.cport_from.fmu.name].append(link)
+                        local_vr = link.vr_converted[cport_to.port.type_name]
 
-                fmu_io_list.add_input(cport_to, local_vr)
+                    fmu_io_list.add_input(cport_to, local_vr)
 
         print(f"# NB local variables:", ", ".join(EmbeddedFMUPort.ALL_TYPES), file=txt_file)
         nb_local = [f"{self.vr_table.nb_local(type_name)}" for type_name in EmbeddedFMUPort.ALL_TYPES]

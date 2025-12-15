@@ -66,21 +66,16 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
             return status; \
     }
 
-    #if 0
-    SET_INPUT(clocks, Clock);
-    /* CLOCK DEBUG */
-    #else
+    /* clocks: set active clocks only */
     for (int i = 0; i < fmu_io->clocks.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
-        //if (container->clocks[local_vr] && (! (fmu == &container->fmu[0] && ((fmu_vr == 3) || (fmu_vr == 7))))) {
-        if (container->clocks[local_vr] && (local_vr != 1 ) && (local_vr != 3)) { \
+        if (container->clocks[local_vr]) { \
             status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks[local_vr]);
             if (status != FMU_STATUS_OK) \
                 return status; \
         }
     }
-    #endif
 #undef SET_INPUT
 
     return fmu_set_clocked_inputs(fmu);
