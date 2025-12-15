@@ -345,4 +345,4 @@ bb_velocity
 # Conversion table of bb_velocity.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
 # importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
-0
+0 0
