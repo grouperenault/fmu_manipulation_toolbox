@@ -40,6 +40,12 @@ typedef struct {
 
 } container_clock_counter_t;
 
+typedef struct {
+	unsigned long				fmu_id;
+	fmu_vr_t					fmu_vr;
+	unsigned long				local_vr;
+} container_clock_t;
+
 
 /*----------------------------------------------------------------------------
                 C O N T A I N E R _ C L O C K _ L I S T _ T
@@ -50,15 +56,16 @@ typedef struct {
 	container_clock_counter_t	*counter;
 
 	double						*buffer_time;		/* for getIntervalDecimal */
-	fmi3IntervalQualifier		*buffer_qualifier; /* for getIntervalDecimal */
+	fmi3IntervalQualifier		*buffer_qualifier;  /* for getIntervalDecimal */
 
 	unsigned long				nb_local_clocks;
-	fmu_vr_t					*fmu_vr;
+	fmu_vr_t					*fmu_vr;            /* ordered clock VR */
 	unsigned long				*local_clock_index;
+	unsigned long				*fmu_id;		
 
 	unsigned long				nb_next_clocks;
-	unsigned long				*next_clocks;
-} container_clock_t;
+	container_clock_t			*next_clocks;
+} container_clock_list_t;
 
 
 /*----------------------------------------------------------------------------
@@ -138,7 +145,7 @@ typedef struct container_s {
 	double						stop_time;
 	int							tolerance_defined;
 	int							stop_time_defined;
-	container_clock_t			local_clocks;
+	container_clock_list_t		local_clocks_list;
 
 	fmi2CallbackAllocateMemory	allocate_memory;		/* used to embed FMU-2.0 */
 	fmi2CallbackFreeMemory      free_memory;			/* used to embed FMU-2.0 */

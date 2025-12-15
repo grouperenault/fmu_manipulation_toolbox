@@ -85,17 +85,16 @@ static int is_close (const container_t *container, double r1, double r2) {
 
 
 static double container_get_next_clock_time(container_t *container) {
-    fmi3Float64 *event_time = container->local_clocks.buffer_time;
-    fmi3IntervalQualifier *event_qualifier = container->local_clocks.buffer_qualifier;
-    fmu_vr_t *fmu_vr = container->local_clocks.fmu_vr;
-
-    const unsigned long *local_clock_index = container->local_clocks.local_clock_index;
+    fmi3Float64 *event_time = container->local_clocks_list.buffer_time;
+    fmi3IntervalQualifier *event_qualifier = container->local_clocks_list.buffer_qualifier;
+    fmu_vr_t *fmu_vr = container->local_clocks_list.fmu_vr;
+    const unsigned long *local_clock_index = container->local_clocks_list.local_clock_index;
     unsigned long nb_events = 0;
     double interval = container->time_step;
 
     /* Get all clocks intervals */
-    for(unsigned long i = 0; i < container->local_clocks.nb_fmu; i += 1) {
-        container_clock_counter_t *counter = &container->local_clocks.counter[i]; 
+    for(unsigned long i = 0; i < container->local_clocks_list.nb_fmu; i += 1) {
+        container_clock_counter_t *counter = &container->local_clocks_list.counter[i]; 
         const fmu_t *fmu = &container->fmu[counter->fmu_id];
 
         fmi3Status status = fmu->fmi_functions.version_3.fmi3GetIntervalDecimal(fmu->component, fmu_vr, counter->nb,
@@ -111,45 +110,53 @@ static double container_get_next_clock_time(container_t *container) {
     }
 
     /* get next defined events (may be several) */
-    event_time = container->local_clocks.buffer_time;
-    event_qualifier = container->local_clocks.buffer_qualifier;
+    event_time = container->local_clocks_list.buffer_time;
+    event_qualifier = container->local_clocks_list.buffer_qualifier;
 
-    for(unsigned long i = 0; i < container->local_clocks.nb_local_clocks; i += 1) {
+    for(unsigned long i = 0; i < container->local_clocks_list.nb_local_clocks; i += 1) {
         if (event_qualifier[i] != fmi3IntervalNotYetKnown) {
             logger(LOGGER_ERROR, "******************* CLOCK %d QUALIFIER=%d", local_clock_index[i], event_qualifier[i]);
             if (nb_events) {
                 if (is_close(container, event_time[i], interval)) {
                     /* found a event on the same time */
-                    container->local_clocks.next_clocks[nb_events++] = local_clock_index[i];
+                    container->local_clocks_list.next_clocks[nb_events].local_vr = local_clock_index[i];
+                    container->local_clocks_list.next_clocks[nb_events].fmu_id = 0;
+                    container->local_clocks_list.next_clocks[nb_events].fmu_vr = container->local_clocks_list.fmu_vr[i];
+                    nb_events += 1;
                 } else if (event_time[i] < interval) {
                     /* found a event earlier */
-                    nb_events = 0;
-                    container->local_clocks.next_clocks[nb_events++] = local_clock_index[i];
+                    container->local_clocks_list.next_clocks[0].local_vr = local_clock_index[i];
+                    container->local_clocks_list.next_clocks[0].fmu_id = 0;
+                    container->local_clocks_list.next_clocks[0].fmu_vr = container->local_clocks_list.fmu_vr[i];
+                    nb_events = 1;
                     interval = event_time[i];
                 }
             } else {
                 /* first event found */
                 if (event_time[i] < container->time_step || is_close(container, event_time[i], container->time_step)) {
-                    container->local_clocks.next_clocks[nb_events++] = local_clock_index[i];
+                    container->local_clocks_list.next_clocks[nb_events].local_vr = local_clock_index[i];
+                    container->local_clocks_list.next_clocks[nb_events].fmu_id = 0;
+                    container->local_clocks_list.next_clocks[nb_events].fmu_vr = container->local_clocks_list.fmu_vr[i];
+                    nb_events += 1;
                     interval = event_time[i];
                 }
             }
         }
     }
 
-    container->local_clocks.nb_next_clocks = nb_events;
-    if (container->local_clocks.nb_next_clocks > 0)
+    container->local_clocks_list.nb_next_clocks = nb_events;
+    if (container->local_clocks_list.nb_next_clocks > 0)
         logger(LOGGER_ERROR, "**** %d EVENTS SCHEDULED: %e *************************************************************",
-             container->local_clocks.nb_next_clocks, interval);
+             container->local_clocks_list.nb_next_clocks, interval);
 
     return interval;
 }
 
 static void container_clocks_desactivate(container_t *container) {
     /* Reset all (local) clocks */
-    for(unsigned long i = 0; i < container->local_clocks.nb_local_clocks; i += 1) {
-        logger(LOGGER_ERROR, "* Deactivate clocks %lu", container->local_clocks.local_clock_index[i]);
-        container->clocks[container->local_clocks.local_clock_index[i]] = fmi3ClockInactive;
+    for(unsigned long i = 0; i < container->local_clocks_list.nb_local_clocks; i += 1) {
+        logger(LOGGER_ERROR, "* Deactivate clocks %lu", container->local_clocks_list.local_clock_index[i]);
+        container->clocks[container->local_clocks_list.local_clock_index[i]] = fmi3ClockInactive;
     }
 
     return;
@@ -159,20 +166,25 @@ static void container_clocks_desactivate(container_t *container) {
 static fmu_status_t container_proceed_event(container_t *container) {
     int event_occured = 0;
 
-    if (container->local_clocks.nb_next_clocks) {
+    if (container->local_clocks_list.nb_next_clocks) {
         /* Reset all (local) clocks */
-        for(unsigned long i = 0; i < container->local_clocks.nb_local_clocks; i += 1) {
-            logger(LOGGER_ERROR, "* Deactivate clocks %lu", container->local_clocks.local_clock_index[i]);
-            container->clocks[container->local_clocks.local_clock_index[i]] = fmi3ClockInactive;
+        for(unsigned long i = 0; i < container->local_clocks_list.nb_local_clocks; i += 1) {
+            logger(LOGGER_ERROR, "* Deactivate clocks %lu", container->local_clocks_list.local_clock_index[i]);
+            container->clocks[container->local_clocks_list.local_clock_index[i]] = fmi3ClockInactive;
         }
 
-        /* Activate clocks of next event */
-        for(unsigned long i = 0; i < container->local_clocks.nb_next_clocks; i += 1) {
-            logger(LOGGER_ERROR, "* Activate clocks %lu", container->local_clocks.next_clocks[i]);
-            container->clocks[container->local_clocks.next_clocks[i]] = fmi3ClockActive;
+        /* Activate clocks of next event and notify FMU */
+        for(unsigned long i = 0; i < container->local_clocks_list.nb_next_clocks; i += 1) {
+            container_clock_t *container_clock = &container->local_clocks_list.next_clocks[i];
+            const bool value = true;
+            logger(LOGGER_ERROR, "* Activate clocks local_vr=%lu fmi_id=%lu fmu_vr=%lu", 
+                container_clock->local_vr, container_clock->fmu_id, container_clock->fmu_vr);
+            container->clocks[container_clock->local_vr] = fmi3ClockActive;
+            fmuSetClock(&container->fmu[container_clock->fmu_id], &container_clock->fmu_vr, 1, &value);
         }
 
 
+#if 0
         /* Notify FMU */
         fmu_t *fmu = &container->fmu[0];
         bool value = true;
@@ -181,7 +193,7 @@ static fmu_status_t container_proceed_event(container_t *container) {
         value = true;
         vr = 7;
         fmuSetClock(fmu, &vr, 1, &value);
-
+#endif
        
         /* Update container variable */
         for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -192,7 +204,7 @@ static fmu_status_t container_proceed_event(container_t *container) {
     }
 
     
-    container->local_clocks.nb_next_clocks = 0;
+    container->local_clocks_list.nb_next_clocks = 0;
 
     return FMU_STATUS_OK;
 }
@@ -275,7 +287,7 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
         logger(LOGGER_ERROR, "* doStep(). DONE");
 
         /* Do we need event loop ? */
-        int need_event_update = container->local_clocks.nb_next_clocks > 0;
+        int need_event_update = container->local_clocks_list.nb_next_clocks > 0;
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t* fmu = &container->fmu[i];
             if (fmu->need_event_udpate) {
@@ -1115,47 +1127,47 @@ static int read_conf_fmu_io(fmu_t* fmu, config_file_t* file) {
 
 
 static int read_conf_clocks(container_t *container, config_file_t *file) {
-    container->local_clocks.nb_fmu = 0;
-    container->local_clocks.nb_local_clocks = 0;
-    container->local_clocks.nb_next_clocks = 0;
+    container->local_clocks_list.nb_fmu = 0;
+    container->local_clocks_list.nb_local_clocks = 0;
+    container->local_clocks_list.nb_next_clocks = 0;
 
-    container->local_clocks.counter = NULL;             /* nb_fmu */
-    container->local_clocks.fmu_vr = NULL;              /* nb_local_clocks */
-    container->local_clocks.buffer_qualifier = NULL;    /* nb_local_clocks */
-    container->local_clocks.buffer_time = NULL;         /* nb_local_clocks */
-    container->local_clocks.next_clocks = NULL;         /* nb_local_clocks */
-    container->local_clocks.local_clock_index = NULL;   /* nb_local_clocks */
+    container->local_clocks_list.counter = NULL;             /* nb_fmu */
+    container->local_clocks_list.fmu_vr = NULL;              /* nb_local_clocks */
+    container->local_clocks_list.buffer_qualifier = NULL;    /* nb_local_clocks */
+    container->local_clocks_list.buffer_time = NULL;         /* nb_local_clocks */
+    container->local_clocks_list.next_clocks = NULL;         /* nb_local_clocks */
+    container->local_clocks_list.local_clock_index = NULL;   /* nb_local_clocks */
 
     if (get_line(file)) {
         logger(LOGGER_ERROR, "Cannot clocks definitions.");
         return -1;
     }
 
-    if (sscanf(file->line, "%lu %lu", &container->local_clocks.nb_fmu, &container->local_clocks.nb_local_clocks) < 1) {
+    if (sscanf(file->line, "%lu %lu", &container->local_clocks_list.nb_fmu, &container->local_clocks_list.nb_local_clocks) < 1) {
         logger(LOGGER_ERROR, "Cannot get size of clocks defintions table.");
         return -2;
     }
 
-    container->local_clocks.counter =           malloc(container->local_clocks.nb_fmu          *  sizeof(*container->local_clocks.counter));
+    container->local_clocks_list.counter =           malloc(container->local_clocks_list.nb_fmu          *  sizeof(*container->local_clocks_list.counter));
     
-    container->local_clocks.buffer_qualifier =  malloc(container->local_clocks.nb_local_clocks * sizeof(*container->local_clocks.buffer_qualifier));
-    container->local_clocks.buffer_time =       malloc(container->local_clocks.nb_local_clocks * sizeof(*container->local_clocks.buffer_time));
-    container->local_clocks.fmu_vr =            malloc(container->local_clocks.nb_local_clocks * sizeof(*container->local_clocks.fmu_vr));
-    container->local_clocks.next_clocks =       malloc(container->local_clocks.nb_local_clocks * sizeof(*container->local_clocks.next_clocks));
-    container->local_clocks.local_clock_index = malloc(container->local_clocks.nb_local_clocks * sizeof(*container->local_clocks.local_clock_index));
+    container->local_clocks_list.buffer_qualifier =  malloc(container->local_clocks_list.nb_local_clocks * sizeof(*container->local_clocks_list.buffer_qualifier));
+    container->local_clocks_list.buffer_time =       malloc(container->local_clocks_list.nb_local_clocks * sizeof(*container->local_clocks_list.buffer_time));
+    container->local_clocks_list.fmu_vr =            malloc(container->local_clocks_list.nb_local_clocks * sizeof(*container->local_clocks_list.fmu_vr));
+    container->local_clocks_list.next_clocks =       malloc(container->local_clocks_list.nb_local_clocks * sizeof(*container->local_clocks_list.next_clocks));
+    container->local_clocks_list.local_clock_index = malloc(container->local_clocks_list.nb_local_clocks * sizeof(*container->local_clocks_list.local_clock_index));
 
-    if (!container->local_clocks.counter || 
-        !container->local_clocks.buffer_qualifier ||
-        !container->local_clocks.buffer_time ||
-        !container->local_clocks.fmu_vr ||
-        !container->local_clocks.next_clocks ||
-        !container->local_clocks.local_clock_index) {
+    if (!container->local_clocks_list.counter || 
+        !container->local_clocks_list.buffer_qualifier ||
+        !container->local_clocks_list.buffer_time ||
+        !container->local_clocks_list.fmu_vr ||
+        !container->local_clocks_list.next_clocks ||
+        !container->local_clocks_list.local_clock_index) {
         logger(LOGGER_ERROR, "Cannot allocat clock buffers.");
         return -3;
     }
 
     unsigned long pos = 0;
-    for(unsigned long i = 0; i < container->local_clocks.nb_fmu; i += 1) {
+    for(unsigned long i = 0; i < container->local_clocks_list.nb_fmu; i += 1) {
         int offset;
 
         if (get_line(file)) {
@@ -1163,25 +1175,25 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
             return -4;
         }
         if (sscanf(file->line, "%lu %lu %n",
-            &container->local_clocks.counter[i].fmu_id,
-            &container->local_clocks.counter[i].nb,
+            &container->local_clocks_list.counter[i].fmu_id,
+            &container->local_clocks_list.counter[i].nb,
             &offset) < 2) {
             logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
             return -5;
         }
 
-        for(unsigned long j=0; j < container->local_clocks.counter[i].nb; j += 1) {
+        for(unsigned long j=0; j < container->local_clocks_list.counter[i].nb; j += 1) {
             unsigned long local_clock_index;
             int read;
             if (sscanf(file->line+offset, "%u %lu %n",
-                &container->local_clocks.fmu_vr[pos],
+                &container->local_clocks_list.fmu_vr[pos],
                 &local_clock_index,
                 &read) < 2){
                 logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
                 return -7;
             }
             offset += read;
-            container->local_clocks.local_clock_index[pos] = local_clock_index & 0xFFFFFF;
+            container->local_clocks_list.local_clock_index[pos] = local_clock_index & 0xFFFFFF;
             pos += 1;
         }
     }
@@ -1323,8 +1335,8 @@ int container_configure(container_t* container, const char* dirname) {
     }
 
     read_conf_clocks(container, &file);
-    if (container->local_clocks.nb_fmu)
-        logger(LOGGER_DEBUG, "Container will tick for clocks from %lu FMUs", container->local_clocks.nb_fmu);
+    if (container->local_clocks_list.nb_fmu)
+        logger(LOGGER_DEBUG, "Container will tick for clocks from %lu FMUs", container->local_clocks_list.nb_fmu);
 
     fclose(file.fp);
 
@@ -1433,12 +1445,12 @@ void container_free(container_t *container) {
     FREE(clocks);
 #undef FREE
 
-    free(container->local_clocks.counter);
-    free(container->local_clocks.buffer_qualifier);
-    free(container->local_clocks.buffer_time);
-    free(container->local_clocks.fmu_vr);
-    free(container->local_clocks.next_clocks);
-    free(container->local_clocks.local_clock_index);
+    free(container->local_clocks_list.counter);
+    free(container->local_clocks_list.buffer_qualifier);
+    free(container->local_clocks_list.buffer_time);
+    free(container->local_clocks_list.fmu_vr);
+    free(container->local_clocks_list.next_clocks);
+    free(container->local_clocks_list.local_clock_index);
 
     free(container);
 
