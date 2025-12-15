@@ -8,6 +8,10 @@ This package was formerly known as `fmutool`.
 * ADDED: `fmucontainer` support of LS-BUS
 * FIXED: `fmucontainer` log correctly for FMU3 embedded inside FMU2 container
 
+# Version 1.9.1.2
+* FIXED: Avoid usage of NULL pointer for category in logs. Despite this is legal, 
+         some FMI importers don't support it.
+
 # Version 1.9.1.1
 * FIXED: command line interface for `fmucontainer`, `fmutool and `fmusplit`
 
