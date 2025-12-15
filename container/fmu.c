@@ -32,20 +32,6 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
             return status; \
     }
 
-#define SET_CLOCKED_INPUT(variable, fmi_type) \
-    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) { \
-        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .in[i]; \
-        if (container->clocks[clocked_port->clock_vr]) { \
-            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) { \
-                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr; \
-                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr; \
-                status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr]); \
-                if (status != FMU_STATUS_OK) \
-                    return status; \
-            } \
-        } \
-    }
-
 
     SET_INPUT(reals64, Real64);
     SET_INPUT(reals32, Real32);
@@ -80,19 +66,46 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
             return status; \
     }
 
-    //SET_INPUT(clocks, Clock);
+    #if 0
+    SET_INPUT(clocks, Clock);
     /* CLOCK DEBUG */
+    #else
     for (int i = 0; i < fmu_io->clocks.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
-        if (container->clocks[local_vr] && (! (fmu == &container->fmu[2] && ((fmu_vr == 3) || (fmu_vr == 7))))) {
+        //if (container->clocks[local_vr] && (! (fmu == &container->fmu[0] && ((fmu_vr == 3) || (fmu_vr == 7))))) {
+        if (container->clocks[local_vr] && (local_vr != 1 ) && (local_vr != 3)) { \
             status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks[local_vr]);
             if (status != FMU_STATUS_OK) \
                 return status; \
         }
     }
+    #endif
 #undef SET_INPUT
 
+    return fmu_set_clocked_inputs(fmu);
+}
+
+
+fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    const container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+
+#define SET_CLOCKED_INPUT(variable, fmi_type) \
+    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) { \
+        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .in[i]; \
+        if (container->clocks[clocked_port->clock_vr]) { \
+            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) { \
+                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr; \
+                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr; \
+                status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr]); \
+                if (status != FMU_STATUS_OK) \
+                    return status; \
+            } \
+        } \
+    }
     /*
      * CLOCKED INPUTs
      */
@@ -161,20 +174,6 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             return status; \
     }
 
-#define GET_CLOCKED_OUTPUT(variable, fmi_type) \
-    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_out; i += 1) { \
-        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .out[i]; \
-        if (container->clocks[clocked_port->clock_vr]) { \
-            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) { \
-                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr; \
-                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr; \
-                status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr]); \
-                if (status != FMU_STATUS_OK) \
-                    return status; \
-            } \
-        } \
-    }
-
     GET_OUTPUT(reals64, Real64);
     GET_OUTPUT(reals32, Real32);
     GET_OUTPUT(integers8, Integer8);
@@ -220,12 +219,35 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             memcpy(container->binaries[local_vr].data, data, size);
     }
     GET_OUTPUT(clocks, Clock);
-    #undef GET_OUTPUT
     
+    #undef GET_OUTPUT
+
+    return fmu_get_clocked_outputs(fmu);
+}
+
+    
+fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
+    container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+    fmu_status_t status = FMU_STATUS_OK;
 
     /*
      * CLOCKED OUTPUTs
      */
+
+#define GET_CLOCKED_OUTPUT(variable, fmi_type) \
+    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_out; i += 1) { \
+        fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .out[i]; \
+        if (container->clocks[clocked_port->clock_vr]) { \
+            for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) { \
+                const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr; \
+                const unsigned int local_vr = clocked_port->translations_list.translations[j].vr; \
+                status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr]); \
+                if (status != FMU_STATUS_OK) \
+                    return status; \
+            } \
+        } \
+    }
 
     GET_CLOCKED_OUTPUT(reals64, Real64);
     GET_CLOCKED_OUTPUT(reals32, Real32);
@@ -281,8 +303,6 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             }
         }
     }
-
-
 
 #undef GET_CLOCKED_OUTPUT
 
@@ -827,7 +847,7 @@ fmu_status_t fmuSetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, cons
 }
 
 
-fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu) {
+fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, int *more_event) {
     if (fmu->support_event) {
         fmi3Boolean discreteStatesNeedUpdate;
         fmi3Boolean terminateSimulation;
@@ -836,37 +856,33 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu) {
         fmi3Boolean nextEventTimeDefined;
         fmi3Float64 nextEventTime;
         fmi3Status status;
-
-        if (fmu_set_inputs(fmu) != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Cannot set inputs for discrete states update for %s", fmu->name);
-            return FMU_STATUS_ERROR;
-        }
-
-        do {
-            status = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(fmu->component,
+        
+        status = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(fmu->component,
                 &discreteStatesNeedUpdate,
                 &terminateSimulation,
                 &nominalsOfContinuousStatesChanged,
                 &valuesOfContinuousStatesChanged,
                 &nextEventTimeDefined,
                 &nextEventTime);
-            if (status != fmi3OK) {
-                logger(LOGGER_ERROR, "Cannot update discrete states for %s", fmu->name);
-                return FMU_STATUS_ERROR;
-            }
 
-            if (discreteStatesNeedUpdate) {
-                logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ MORE EVENT");
-            }
-            if (nextEventTimeDefined) {
-                logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ EVENT TIME");
-            }
-            if (valuesOfContinuousStatesChanged) {
-                logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ STATE CHANGED");
-            }
-        } while(discreteStatesNeedUpdate);
+        if (status != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot update discrete states for %s", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
 
+        if (discreteStatesNeedUpdate) {
+            *more_event = 1;
+            logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ MORE EVENT");
+        } else 
+            *more_event = 0;
 
+        if (nextEventTimeDefined) {
+            logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ EVENT TIME");
+        }
+        
+        if (valuesOfContinuousStatesChanged) {
+            logger(LOGGER_ERROR, "**** $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ STATE CHANGED");
+        }
     }
 
     return FMU_STATUS_OK;
