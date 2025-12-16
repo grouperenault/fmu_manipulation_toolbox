@@ -66,6 +66,8 @@ void container_init_values(container_t* container) {
 static fmu_status_t container_do_step_sequential(container_t *container) {
     fmu_status_t status = FMU_STATUS_OK;
     double time = container->time_step * container->nb_steps + container->start_time;
+    const int ts_multiplier = container->integers32[0];
+    double ts = container->time_step * ts_multiplier;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
@@ -77,7 +79,7 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
         }
     
         /* COMPUTATION */
-        status = fmuDoStep(fmu, time, container->time_step);
+        status = fmuDoStep(fmu, time, ts);
         if (status != FMU_STATUS_OK)
             return status;
 
@@ -89,7 +91,7 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
         
     }
 
-    container->nb_steps += 1;
+    container->nb_steps += ts_multiplier;
 
     return status;
 }
@@ -118,13 +120,17 @@ static fmu_status_t container_do_step_parallel_mt(container_t* container) {
             return FMU_STATUS_ERROR;
         }
     }
-    container->nb_steps += 1;
+    const int ts_multiplier = container->integers32[0];
+    container->nb_steps += ts_multiplier;
+
     return status;
 }
 
 
 static fmu_status_t container_do_step_parallel(container_t* container) {
     fmu_status_t status = FMU_STATUS_OK;
+    const int ts_multiplier = container->integers32[0];
+    double ts = container->time_step * ts_multiplier;
 
     for (size_t i = 0; i < container->nb_fmu; i += 1) {          
         status = fmu_set_inputs(&container->fmu[i]);
@@ -138,7 +144,7 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
     for (size_t i = 0; i < container->nb_fmu; i += 1) {
         const fmu_t* fmu = &container->fmu[i];
         /* COMPUTATION */
-        status = fmuDoStep(fmu, time, container->time_step);
+        status = fmuDoStep(fmu, time, ts);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU#%d failed doStep.", i);
             return status;
@@ -152,7 +158,7 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
             return status;
         }
     }
-    container->nb_steps += 1;
+    container->nb_steps += ts_multiplier;
     return status;
 }
 

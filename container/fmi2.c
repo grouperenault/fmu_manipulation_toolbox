@@ -356,7 +356,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
         ts_multiplier = 1;
 
     const double ts = container->time_step * ts_multiplier;
-    const int local_steps = ((int)((end_time - curent_time + container->tolerance) / ts)) * ts_multiplier;
+    const int local_steps = ((int)((end_time - curent_time + container->tolerance) / ts));
     
     /*
      * Early return if requested end_time is lower than next container time step.
