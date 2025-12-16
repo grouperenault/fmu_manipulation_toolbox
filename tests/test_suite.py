@@ -248,7 +248,7 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         argv = [sys.executable, '-mfmu_manipulation_toolbox.cli.fmutool',
                 '-input', 'operations/bouncing_ball.fmu', '-summary', '-check', '-dump-csv',
                  'operations/cli-bouncing_ball.csv']
-        subprocess.run(argv)
+        subprocess.run(argv, env={'PYTHONPATH': str(Path(__file__).parent.parent)})
 
         self.assert_identical_files("operations/cli-bouncing_ball.csv", "operations/REF-bouncing_ball.csv")
 
@@ -256,21 +256,21 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         argv = [sys.executable, '-mfmu_manipulation_toolbox.cli.fmucontainer',
                 '-container', 'cli-bouncing.csv', '-fmu-directory', 'containers/bouncing_ball',
                 '-mt', '-debug']
-        subprocess.run(argv)
+        subprocess.run(argv, env={'PYTHONPATH': str(Path(__file__).parent.parent)})
         self.assert_identical_files("containers/bouncing_ball/REF-container.txt",
                                     "containers/bouncing_ball/cli-bouncing/resources/container.txt")
 
     def test_fmucontainer_json(self):
         argv = [sys.executable, '-mfmu_manipulation_toolbox.cli.fmucontainer',
                 '-fmu-directory', 'containers/arch', '-container', 'cli-flat.json', '-dump']
-        subprocess.run(argv)
+        subprocess.run(argv, env={'PYTHONPATH': str(Path(__file__).parent.parent)})
         self.assert_identical_files("containers/arch/REF-cli-flat-dump.json",
                                     "containers/arch/cli-flat-dump.json")
 
     def test_fmusplit(self):
         argv = [sys.executable, '-mfmu_manipulation_toolbox.cli.fmusplit',
                 "-fmu", "containers/ssp/bouncing.fmu"]
-        subprocess.run(argv)
+        subprocess.run(argv, env={'PYTHONPATH': str(Path(__file__).parent.parent)})
         self.assertTrue(Path("containers/ssp/bouncing.dir/bb_position.fmu").exists())
         self.assertTrue(Path("containers/ssp/bouncing.dir/bb_velocity.fmu").exists())
         self.assert_identical_files("containers/ssp/REF-split-bouncing.json",
