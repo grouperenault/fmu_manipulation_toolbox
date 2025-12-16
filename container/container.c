@@ -246,7 +246,8 @@ fmu_status_t container_update_discrete_state(container_t *container) {
 static fmu_status_t container_do_step_sequential(container_t *container) {
     fmu_status_t status = FMU_STATUS_OK;
     double time = container->time_step * container->nb_steps + container->start_time;
-    double target_time = time + container->time_step;
+	const int ts_multiplier = container->integers32[0];
+    const double target_time = time + container->time_step * ts_multiplier;
 
     while(! is_close(container, time, target_time)) {
         
@@ -299,7 +300,7 @@ static fmu_status_t container_do_step_sequential(container_t *container) {
         time += time_step;
 
     }
-    container->nb_steps += 1;
+    container->nb_steps += ts_multiplier;
 
     return status;
 }
@@ -328,13 +329,17 @@ static fmu_status_t container_do_step_parallel_mt(container_t* container) {
             return FMU_STATUS_ERROR;
         }
     }
-    container->nb_steps += 1;
+    const int ts_multiplier = container->integers32[0];
+    container->nb_steps += ts_multiplier;
+
     return status;
 }
 
 
 static fmu_status_t container_do_step_parallel(container_t* container) {
     fmu_status_t status = FMU_STATUS_OK;
+    const int ts_multiplier = container->integers32[0];
+    double ts = container->time_step * ts_multiplier;
 
     for (size_t i = 0; i < container->nb_fmu; i += 1) {          
         status = fmu_set_inputs(&container->fmu[i]);
@@ -348,7 +353,7 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
     for (size_t i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
         /* COMPUTATION */
-        status = fmuDoStep(fmu, time, container->time_step);
+        status = fmuDoStep(fmu, time, ts);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU#%d failed doStep.", i);
             return status;
@@ -362,7 +367,7 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
             return status;
         }
     }
-    container->nb_steps += 1;
+    container->nb_steps += ts_multiplier;
     return status;
 }
 
