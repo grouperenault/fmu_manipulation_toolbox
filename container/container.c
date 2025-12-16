@@ -1,5 +1,4 @@
 #include <errno.h>
-#include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -951,7 +950,7 @@ static char* string_token(char* buffer) {
             if (get_line(file)) \
                 return -4; \
 \
-           if (sscanf(file->line, SCNd64 " %d " format, \
+           if (sscanf(file->line, "%u %d " format, \
              &fmu_io->start_ ## type .start_values[i].vr, \
              &fmu_io->start_ ## type .start_values[i].reset, \
              &fmu_io->start_ ## type .start_values[i].value) < 3) \
