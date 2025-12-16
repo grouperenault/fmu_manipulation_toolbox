@@ -7,8 +7,10 @@
 #include "logger.h"
 #include "profile.h"
 
-#pragma warning(disable : 4100)     /* no complain abourt unref formal param */
-#pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
+#ifdef WIN32
+#	pragma warning(disable : 4100)     /* no complain abourt unref formal param */
+#	pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
+#endif
 
 /*
  * FMI-importer supporting FMI-2.0 and FMI-3.0. FMUs are handled through fmu_t pointers.

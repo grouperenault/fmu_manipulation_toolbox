@@ -86,7 +86,6 @@ void logger_embedded_fmu2(fmu_t *fmu,
                          const char *category, const char *message, ...) {
     if ((status != 0) || (logger_config.debug)) {
         char buffer[4096];
-        const char* category = "Error";
         va_list ap;
         va_start(ap, message);
         snprintf(buffer, sizeof(buffer), "%s: ", fmu->name);
@@ -102,7 +101,6 @@ void logger_embedded_fmu2(fmu_t *fmu,
 void logger_embedded_fmu3(fmu_t* fmu, int status, const char* category, const char* message) {
     if ((status != 0) || (logger_config.debug)) {
         char buffer[4096];
-        const char* category = "Error";
         snprintf(buffer, sizeof(buffer), "%s: %s", fmu->name, message);
 
         logger_log(status, buffer);

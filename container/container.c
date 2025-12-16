@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,8 +10,10 @@
 #include "fmu.h"
 #include "version.h"
 
-#pragma warning(disable : 4100)     /* no complain abourt unref formal param */
-#pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
+#ifdef WIN32
+#	pragma warning(disable : 4100)     /* no complain abourt unref formal param */
+#	pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
+#endif
 
 /*
  * Implementation of the fmu2Component/fmu3Instance depending on FMUContainer
@@ -171,8 +174,6 @@ static void container_clocks_desactivate(container_t *container) {
 
 
 static fmu_status_t container_proceed_event(container_t *container) {
-    int event_occured = 0;
-
     if (container->clocks_list.nb_next_clocks) {
 #if 0 /* PARANOIA */
         /* Reset all (local) clocks */
@@ -659,7 +660,6 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             container_port_t port; \
             fmu_vr_t vr; \
             int offset; \
-            fmu_vr_t fmu_vr; \
 \
             if (get_line(file)) { \
                 logger(LOGGER_ERROR, "Cannot read I/O " #type " details."); \
@@ -951,7 +951,7 @@ static char* string_token(char* buffer) {
             if (get_line(file)) \
                 return -4; \
 \
-           if (sscanf(file->line, "%u %d " format, \
+           if (sscanf(file->line, SCNd64 " %d " format, \
              &fmu_io->start_ ## type .start_values[i].vr, \
              &fmu_io->start_ ## type .start_values[i].reset, \
              &fmu_io->start_ ## type .start_values[i].value) < 3) \
@@ -982,9 +982,6 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
         fmu_io->start_strings.start_values[i].value = NULL; /* in case on ealry fmuFreeInstance() */
 
     for (unsigned long i = 0; i < fmu_io->start_strings.nb; i += 1) {
-        char buffer[CONFIG_FILE_SZ];
-        buffer[0] = '\0';
-
         if (get_line(file))
             return -4;
     
@@ -1098,18 +1095,6 @@ static int read_conf_fmu_io(fmu_t* fmu, config_file_t* file) {
 
 
 static int read_conf_clocks(container_t *container, config_file_t *file) {
-    container->clocks_list.nb_fmu = 0;
-    container->clocks_list.nb_local_clocks = 0;
-    container->clocks_list.nb_next_clocks = 0;
-
-    container->clocks_list.counter = NULL;             /* nb_fmu */
-    container->clocks_list.fmu_vr = NULL;              /* nb_local_clocks */
-    container->clocks_list.fmu_id = NULL;
-    container->clocks_list.buffer_qualifier = NULL;    /* nb_local_clocks */
-    container->clocks_list.buffer_time = NULL;         /* nb_local_clocks */
-    container->clocks_list.next_clocks = NULL;         /* nb_local_clocks */
-    container->clocks_list.clock_index = NULL;         /* nb_local_clocks */
-
     if (get_line(file)) {
         logger(LOGGER_ERROR, "Cannot clocks definitions.");
         return -1;
@@ -1377,6 +1362,18 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->nb_steps = 0;
         container->tolerance = 1.0e-8;
         container->inputs_set = 0;
+
+        container->clocks_list.nb_fmu = 0;
+        container->clocks_list.nb_local_clocks = 0;
+        container->clocks_list.nb_next_clocks = 0;
+
+        container->clocks_list.counter = NULL;             /* nb_fmu */
+        container->clocks_list.fmu_vr = NULL;              /* nb_local_clocks */
+        container->clocks_list.fmu_id = NULL;
+        container->clocks_list.buffer_qualifier = NULL;    /* nb_local_clocks */
+        container->clocks_list.buffer_time = NULL;         /* nb_local_clocks */
+        container->clocks_list.next_clocks = NULL;         /* nb_local_clocks */
+        container->clocks_list.clock_index = NULL;         /* nb_local_clocks */
     }
     return container;
 }
