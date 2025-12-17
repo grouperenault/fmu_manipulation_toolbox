@@ -38,7 +38,6 @@ fmi2Status  fmi2SetDebugLogging(fmi2Component c,
     fmi2Boolean loggingOn,
     size_t nCategories,
     const fmi2String categories[]) {
-    container_t* container = (container_t*)c;
 
     logger_set_debug(loggingOn);
 

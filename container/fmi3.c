@@ -33,7 +33,6 @@ fmi3Status fmi3SetDebugLogging(fmi3Instance instance,
                               fmi3Boolean loggingOn,
                               size_t nCategories,
                               const fmi3String categories[]) {
-    container_t* container = (container_t*)instance;
 
     logger_set_debug(loggingOn);
 
@@ -151,8 +150,6 @@ fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
 
 
 fmi3Status fmi3EnterEventMode(fmi3Instance instance) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -424,8 +421,6 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
 fmi3Status fmi3GetNumberOfVariableDependencies(fmi3Instance instance,
                                                fmi3ValueReference valueReference,
                                                size_t* nDependencies) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -437,28 +432,20 @@ fmi3Status fmi3GetVariableDependencies(fmi3Instance instance,
                                        size_t elementIndicesOfIndependents[],
                                        fmi3DependencyKind dependencyKinds[],
                                        size_t nDependencies) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3GetFMUState(fmi3Instance instance, fmi3FMUState* FMUState) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3SetFMUState(fmi3Instance instance, fmi3FMUState  FMUState) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 fmi3Status fmi3FreeFMUState(fmi3Instance instance, fmi3FMUState* FMUState) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -466,8 +453,6 @@ fmi3Status fmi3FreeFMUState(fmi3Instance instance, fmi3FMUState* FMUState) {
 fmi3Status fmi3SerializedFMUStateSize(fmi3Instance instance,
                                       fmi3FMUState FMUState,
                                       size_t* size) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -476,8 +461,6 @@ fmi3Status fmi3SerializeFMUState(fmi3Instance instance,
                                  fmi3FMUState FMUState,
                                  fmi3Byte serializedState[],
                                  size_t size) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -486,8 +469,6 @@ fmi3Status fmi3DeserializeFMUState(fmi3Instance instance,
                                    const fmi3Byte serializedState[],
                                    size_t size,
                                    fmi3FMUState* FMUState) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -501,8 +482,6 @@ fmi3Status fmi3GetDirectionalDerivative(fmi3Instance instance,
                                         size_t nSeed,
                                         fmi3Float64 sensitivity[],
                                         size_t nSensitivity) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -516,22 +495,16 @@ fmi3Status fmi3GetAdjointDerivative(fmi3Instance instance,
                                     size_t nSeed,
                                     fmi3Float64 sensitivity[],
                                     size_t nSensitivity) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3EnterConfigurationMode(fmi3Instance instance) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3ExitConfigurationMode(fmi3Instance instance) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -541,8 +514,6 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance,
                                   size_t nValueReferences,
                                   fmi3Float64 intervals[],
                                   fmi3IntervalQualifier qualifiers[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -553,8 +524,6 @@ fmi3Status fmi3GetIntervalFraction(fmi3Instance instance,
                                    fmi3UInt64 counters[],
                                    fmi3UInt64 resolutions[],
                                    fmi3IntervalQualifier qualifiers[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -563,8 +532,6 @@ fmi3Status fmi3GetShiftDecimal(fmi3Instance instance,
                                const fmi3ValueReference valueReferences[],
                                size_t nValueReferences,
                                fmi3Float64 shifts[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -574,8 +541,6 @@ fmi3Status fmi3GetShiftFraction(fmi3Instance instance,
                                 size_t nValueReferences,
                                 fmi3UInt64 counters[],
                                 fmi3UInt64 resolutions[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -584,8 +549,6 @@ fmi3Status fmi3SetIntervalDecimal(fmi3Instance instance,
                                   const fmi3ValueReference valueReferences[],
                                   size_t nValueReferences,
                                   const fmi3Float64 intervals[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -595,8 +558,6 @@ fmi3Status fmi3SetIntervalFraction(fmi3Instance instance,
                                    size_t nValueReferences,
                                    const fmi3UInt64 counters[],
                                    const fmi3UInt64 resolutions[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -605,8 +566,6 @@ fmi3Status fmi3SetShiftDecimal(fmi3Instance instance,
                                const fmi3ValueReference valueReferences[],
                                size_t nValueReferences,
                                const fmi3Float64 shifts[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -616,15 +575,11 @@ fmi3Status fmi3SetShiftFraction(fmi3Instance instance,
                                 size_t nValueReferences,
                                 const fmi3UInt64 counters[],
                                 const fmi3UInt64 resolutions[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3EvaluateDiscreteStates(fmi3Instance instance) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -636,7 +591,14 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
                                     fmi3Boolean* valuesOfContinuousStatesChanged,
                                     fmi3Boolean* nextEventTimeDefined,
                                     fmi3Float64* nextEventTime) {
-    container_t* container = (container_t*)instance;
+    
+    /* Container has no discrete mode */
+    *discreteStatesNeedUpdate = false;
+    *terminateSimulation = false;
+    *nominalsOfContinuousStatesChanged = false;
+    *valuesOfContinuousStatesChanged = false;
+    *nextEventTimeDefined = false;
+    *nextEventTime = 0.0;
 
     return fmi3OK;
 }
@@ -646,8 +608,6 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
 ----------------------------------------------------------------------------*/
  
 fmi3Status fmi3EnterStepMode(fmi3Instance instance)  {
-    container_t* container = (container_t*)instance;
-
     return fmi3OK;
 }
 
@@ -658,8 +618,6 @@ fmi3Status fmi3GetOutputDerivatives(fmi3Instance instance,
                                     const fmi3Int32 orders[],
                                     fmi3Float64 values[],
                                     size_t nValues)  {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -691,6 +649,7 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
 /*----------------------------------------------------------------------------
           F M I 3   F U N C T I O N S   ( M O D E L E X C H A N G E )
 ----------------------------------------------------------------------------*/
+
 fmi3Instance fmi3InstantiateModelExchange(
     fmi3String                 instanceName,
     fmi3String                 instantiationToken,
@@ -773,6 +732,7 @@ fmi3Status fmi3GetNumberOfContinuousStates(fmi3Instance instance,
 /*----------------------------------------------------------------------------
     F M I 3   F U N C T I O N S   ( S C H E D U L E D   E X E C U T I O N )
 ----------------------------------------------------------------------------*/
+
 fmi3Instance fmi3InstantiateScheduledExecution(
     fmi3String                     instanceName,
     fmi3String                     instantiationToken,
@@ -792,4 +752,3 @@ fmi3Status fmi3ActivateModelPartition(fmi3Instance instance,
                                       fmi3Float64 activationTime) {
     __NOT_IMPLEMENTED__
 }
-
