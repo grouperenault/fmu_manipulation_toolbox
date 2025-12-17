@@ -164,6 +164,7 @@ extern void container_set_start_values(container_t* container, int early_set);
 extern void container_init_values(container_t* container);
 extern fmu_status_t container_update_discrete_state(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
+extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);
 
 #	ifdef __cplusplus
 }

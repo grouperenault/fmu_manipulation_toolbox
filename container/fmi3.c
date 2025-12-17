@@ -673,39 +673,16 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
                       fmi3Boolean* earlyReturn,
                       fmi3Float64* lastSuccessfulTime) {
     container_t* container = (container_t*)instance;
-    const double end_time = currentCommunicationPoint + communicationStepSize;
-    fmu_status_t status = FMU_STATUS_OK;
-    const double curent_time = container->start_time + container->time_step * container->nb_steps;
-    int ts_multiplier = container->integers32[0];
 
-    if (ts_multiplier < 1)
-        ts_multiplier = 1;
 
-    const double ts = container->time_step * ts_multiplier;
-    const int local_steps = ((int)((end_time - curent_time + container->tolerance) / ts)) * ts_multiplier;
-    
-    /*
-     * Early return if requested end_time is lower than next container time step.
-     */
-    if (local_steps > 0) {
-        for(int i = 0; i < local_steps; i += 1) {
-            status = container->do_step(container);
+    *earlyReturn = false;
+    *eventHandlingNeeded = false;
+    *terminateSimulation = false;
 
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container cannot DoStep.");
-                return fmi3Error;
-            }
-        }       
+    if (container_do_step(container, currentCommunicationPoint, communicationStepSize) != FMU_STATUS_OK)
+        return fmi3Error;
 
-        const double new_time = container->start_time + container->time_step * container->nb_steps;
-        if (fabs(end_time - new_time) > container->tolerance) {
-            logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, local_steps=%d, nb_steps=%lld)", 
-                container->time_step, currentCommunicationPoint, new_time, end_time, container->tolerance, local_steps, container->nb_steps);
-            return fmi3Warning;
-        }
-    }
-
-    container->reals64[0] = end_time;
+    *lastSuccessfulTime = container->reals64[0];
 
     return fmi3OK;
 }
