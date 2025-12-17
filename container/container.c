@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1113,8 +1114,8 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
     READER_FMU_START_VALUES(uintegers16, "%hu");
     READER_FMU_START_VALUES(integers32,  "%d");
     READER_FMU_START_VALUES(uintegers32, "%d");
-    READER_FMU_START_VALUES(integers64,  "%lld");
-    READER_FMU_START_VALUES(uintegers64, "%llu");
+    READER_FMU_START_VALUES(integers64,  "%" SCNd64);
+    READER_FMU_START_VALUES(uintegers64, "%" SCNu64);
     READER_FMU_START_VALUES(booleans,    "%d");
 
     int status;

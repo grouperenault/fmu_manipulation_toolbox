@@ -898,7 +898,8 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
             status = FMU_STATUS_OK;
     } else {
         fmi3Status status3;
-        fmi3Boolean eventHandlingNeeded, terminateSimulation, earlyReturn;
+        fmi3Boolean terminateSimulation;
+        fmi3Boolean earlyReturn;
         fmi3Float64 lastSuccessfulTime;
         status3 = fmu->fmi_functions.version_3.fmi3DoStep(fmu->component,
                                                           currentCommunicationPoint,

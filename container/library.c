@@ -5,10 +5,10 @@
  */
 
 #ifdef WIN32
-#	include <windows.h>
-#	include <imagehlp.h>
+#   include <windows.h>
+#   include <imagehlp.h>
 #else
-#	include <dlfcn.h>
+#   include <dlfcn.h>
 #   include <unistd.h> 
 #endif
 
@@ -32,49 +32,49 @@ static libray_status_t* libray_analyse(hash_t* dll_db, const char* filename);
 
 void *library_symbol(library_t library, const char *symbol_name) {
 #ifdef WIN32
-	return (void *)GetProcAddress(library, symbol_name);
+    return (void *)GetProcAddress(library, symbol_name);
 #else
-	return dlsym(library, symbol_name);
+    return dlsym(library, symbol_name);
 #endif
 }
 
 
 static void library_load_error(const char* library_filename) {
 #ifdef WIN32
-	hash_t* dll_db = hash_new();
+    hash_t* dll_db = hash_new();
     libray_analyse(dll_db, library_filename);
-	hash_free(dll_db);
+    hash_free(dll_db);
 #else
-	logger(LOGGER_ERROR, "dlopen Error: %s", dlerror());
+    logger(LOGGER_ERROR, "dlopen Error: %s", dlerror());
 #endif
-	logger(LOGGER_ERROR, "Cannot load `%s'", library_filename);
+    logger(LOGGER_ERROR, "Cannot load `%s'", library_filename);
 
-	return; /* Never reached */
+    return; /* Never reached */
 }
 
 
 library_t library_load(const char* library_filename) {
-	library_t handle;
+    library_t handle;
 #ifdef WIN32
-	handle = LoadLibraryA(library_filename);
+    handle = LoadLibraryA(library_filename);
 #else
-	handle = dlopen(library_filename, RTLD_LAZY);	/* RTLD_LOCAL can lead to failure */
+    handle = dlopen(library_filename, RTLD_LAZY);	/* RTLD_LOCAL can lead to failure */
 #endif
     if (!handle)
         library_load_error(library_filename);
 
-	return handle;
+    return handle;
 }
 
 
 void library_unload(library_t library) {
-	if (library) {
+    if (library) {
 #ifdef WIN32
-		FreeLibrary(library);
+        FreeLibrary(library);
 #else
-		dlclose(library);
+        dlclose(library);
 #endif
-	}
+    }
 }
 
 /*----------------------------------------------------------------------------
