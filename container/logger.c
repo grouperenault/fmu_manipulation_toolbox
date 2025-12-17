@@ -16,7 +16,7 @@
     void                *environment;
     const char          *instance_name;
     int                 debug;
-} logger_config = { 0, NULL, NULL, NULL, 0};
+} logger_config = { 0, {NULL}, NULL, NULL, 0};
 
 void logger_init(fmu_version_t  version, logger_function_t callback, void *environment, const char *instance_name, int debug) {
     logger_config.version = version;
