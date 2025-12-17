@@ -283,6 +283,8 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
 
 
 static fmu_status_t container_handle_events(container_t *container) {
+    fmu_status_t status;
+
     /* Do we need event loop ? */
     int need_event_update = container->clocks_list.nb_next_clocks > 0;
     for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -295,15 +297,25 @@ static fmu_status_t container_handle_events(container_t *container) {
 
     /* Event loop */
     if (need_event_update) {
-        container_enter_event_mode(container);
-        container_proceed_event(container);
-        container_update_discrete_state(container);
+        status = container_enter_event_mode(container);
+        if (status != FMU_STATUS_OK)
+            return status;
+
+        status = container_proceed_event(container);
+        if (status != FMU_STATUS_OK)
+            return status;
+
+        status = container_update_discrete_state(container);
+        if (status != FMU_STATUS_OK)
+            return status;
+
         container->next_step = container_get_next_clock_time(container);
-        if (container_enter_step_mode(container) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-    } else {
+
+        status = container_enter_step_mode(container);
+        if (status != FMU_STATUS_OK)
+            return status;
+    } else
         container->next_step = container->time_step;
-    }
 
     return FMU_STATUS_OK;
 }
@@ -388,7 +400,7 @@ static fmu_status_t container_do_step_parallel_mt(container_t* container) {
                 return FMU_STATUS_ERROR;
             }
         }
-        
+
         /* EVENT MODE */
         status = container_handle_events(container);
         if (status != FMU_STATUS_OK) {
@@ -1452,7 +1464,6 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->time_step = 0.001;
         container->nb_steps = 0;
         container->tolerance = 1.0e-8;
-        container->inputs_set = 0;
 
         container->clocks_list.nb_fmu = 0;
         container->clocks_list.nb_local_clocks = 0;

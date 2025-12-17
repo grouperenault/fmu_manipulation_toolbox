@@ -136,15 +136,14 @@ typedef struct container_s {
 
 	/* Simulation */
 	container_do_step_function_t do_step;
-	int							inputs_set;
-	double						time_step;
-	double						next_step;	/* in case of event */
-	long long					nb_steps;
-	double						tolerance;
-	double						start_time;
-	double						stop_time;
+	double						time_step;				/* fundamental timestep */
+	double						next_step;				/* in case of event */
+	long long					nb_steps;				/* incremental counter */
+	double						start_time;				/* used for initialization */
+	int							stop_time_defined;	
+	double						stop_time;				/* used for initialization */
 	int							tolerance_defined;
-	int							stop_time_defined;
+	double						tolerance;				/* used for comparisons */
 	container_clock_list_t		clocks_list;
 
 	fmi2CallbackAllocateMemory	allocate_memory;		/* used to embed FMU-2.0 */

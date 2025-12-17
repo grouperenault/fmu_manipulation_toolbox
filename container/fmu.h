@@ -342,9 +342,9 @@ typedef struct {
 	fmu_io_t					fmu_io;
 	
 	fmu_status_t				status;
-	int							cancel;
-    int                         support_event;
-    int                         need_event_udpate;
+	bool						cancel;
+    bool                        support_event;
+    bool                        need_event_udpate;
 	
     profile_t                   *profile;
 

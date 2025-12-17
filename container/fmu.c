@@ -544,9 +544,9 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
         return -3;
     }
 
-    fmu->cancel = 0;
+    fmu->cancel = false;
     fmu->support_event = support_event;
-    fmu->need_event_udpate = 0;
+    fmu->need_event_udpate = false;
 
     if (container->profiling)
         fmu->profile = profile_new();
@@ -565,7 +565,7 @@ void fmu_unload(fmu_t *fmu) {
     logger(LOGGER_DEBUG, "Unload FMU %s", fmu->name);
 
     /* Stop the thread */
-    fmu->cancel = 1;
+    fmu->cancel = true;
     thread_mutex_unlock(&fmu->mutex_container);
     thread_mutex_lock(&fmu->mutex_fmu);
     
@@ -883,7 +883,7 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
                        double communicationStepSize) {
     fmu_status_t status = FMU_STATUS_ERROR;
 
-    fmu->need_event_udpate = 0;
+    fmu->need_event_udpate = false;
 
     if (fmu->profile)
         profile_tic(fmu->profile);
@@ -904,7 +904,7 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
                                                           currentCommunicationPoint,
                                                           communicationStepSize,
                                                           fmi3True, /* noSetFMUStatePriorToCurrentPoint */
-                                                          &eventHandlingNeeded, 
+                                                          &fmu->need_event_udpate, 
                                                           &terminateSimulation, 
                                                           &earlyReturn, 
                                                           &lastSuccessfulTime);
@@ -917,9 +917,6 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
             logger(LOGGER_ERROR, "FMU '%s' made an early return which is not supported.", fmu->name);
             status = FMU_STATUS_ERROR;
         }
-
-        if (eventHandlingNeeded)
-            fmu->need_event_udpate = 1;
             
         if ((status3 == fmi3OK) || (status3 == fmi3Warning))
             status = FMU_STATUS_OK;
@@ -942,9 +939,9 @@ fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu) {
             return FMU_STATUS_ERROR;
     } else {
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3EnterInitializationMode(fmu->component,
-                                                                                      fmu->container->tolerance_defined, fmu->container->tolerance,
+                                                                                      (fmi3Boolean)fmu->container->tolerance_defined, fmu->container->tolerance,
                                                                                       fmu->container->start_time,
-                                                                                      fmu->container->stop_time_defined, fmu->container->stop_time);
+                                                                                      (fmi3Boolean)fmu->container->stop_time_defined, fmu->container->stop_time);
         if (status3 == fmi3OK)
             return FMU_STATUS_OK;
         else
