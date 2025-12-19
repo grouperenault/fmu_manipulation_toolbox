@@ -119,7 +119,7 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
         fmu_status_t status = fmuSetupExperiment(&container->fmu[i]);    
         
         if (status != FMU_STATUS_OK)
-            return fmi2OK;
+            return fmi2Error;
     }
 
     container_set_start_values(container, 1);
@@ -133,8 +133,7 @@ fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
     container_t* container = (container_t*)c;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuEnterInitializationMode(&container->fmu[i]);
-        if (status != FMU_STATUS_OK)
+        if (fmuEnterInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
             return fmi2Error;
     }
 
@@ -148,12 +147,18 @@ fmi2Status fmi2ExitInitializationMode(fmi2Component c) {
     container_t* container = (container_t*)c;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuExitInitializationMode(&container->fmu[i]);
-
-        if (status != FMU_STATUS_OK)
+        if (fmuExitInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
             return fmi2Error;
     }
+    
     container_init_values(container);
+
+    if (container_update_discrete_state(container) != FMU_STATUS_OK)
+        return fmi2Error;
+
+    if (container_enter_step_mode(container) != FMU_STATUS_OK)
+        return fmi2Error;
+
     return fmi2OK;
 }
 

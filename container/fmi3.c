@@ -90,11 +90,11 @@ void fmi3FreeInstance(fmi3Instance instance) {
 }
 
 fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
-                                                   fmi3Boolean toleranceDefined,
-                                                   fmi3Float64 tolerance,
-                                                   fmi3Float64 startTime,
-                                                   fmi3Boolean stopTimeDefined,
-                                                   fmi3Float64 stopTime) {
+                                       fmi3Boolean toleranceDefined,
+                                       fmi3Float64 tolerance,
+                                       fmi3Float64 startTime,
+                                       fmi3Boolean stopTimeDefined,
+                                       fmi3Float64 stopTime) {
     container_t* container = (container_t*)instance;
 
     container->tolerance_defined = toleranceDefined;
@@ -103,11 +103,9 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
     container->stop_time_defined = 0; /* stopTime can cause rounding issues. Disbale it.*/
     container->stop_time = stopTime;
 
-    for(int i=0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuSetupExperiment(&container->fmu[i]);    
-        
-        if (status != FMU_STATUS_OK)
-            return fmi3OK;
+    for(int i=0; i < container->nb_fmu; i += 1) {        
+        if (fmuSetupExperiment(&container->fmu[i]) != FMU_STATUS_OK)
+            return fmi3Error;
     }
 
     container_set_start_values(container, 1);
@@ -115,8 +113,7 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
     
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuEnterInitializationMode(&container->fmu[i]);
-        if (status != FMU_STATUS_OK)
+        if (fmuEnterInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
             return fmi3Error;
     }
 
@@ -130,20 +127,17 @@ fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
     container_t* container = (container_t*)instance;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuExitInitializationMode(&container->fmu[i]);
-
-        if (status != FMU_STATUS_OK)
+        if (fmuExitInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
             return fmi3Error;
     }
     
     container_init_values(container);
+
     if (container_update_discrete_state(container) != FMU_STATUS_OK)
         return fmi3Error;
 
     if (container_enter_step_mode(container) != FMU_STATUS_OK)
         return fmi3Error;
-
-
 
     return fmi3OK;
 }
