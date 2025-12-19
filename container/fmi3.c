@@ -33,7 +33,6 @@ fmi3Status fmi3SetDebugLogging(fmi3Instance instance,
                               fmi3Boolean loggingOn,
                               size_t nCategories,
                               const fmi3String categories[]) {
-    container_t* container = (container_t*)instance;
 
     logger_set_debug(loggingOn);
 
@@ -91,11 +90,11 @@ void fmi3FreeInstance(fmi3Instance instance) {
 }
 
 fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
-                                                   fmi3Boolean toleranceDefined,
-                                                   fmi3Float64 tolerance,
-                                                   fmi3Float64 startTime,
-                                                   fmi3Boolean stopTimeDefined,
-                                                   fmi3Float64 stopTime) {
+                                       fmi3Boolean toleranceDefined,
+                                       fmi3Float64 tolerance,
+                                       fmi3Float64 startTime,
+                                       fmi3Boolean stopTimeDefined,
+                                       fmi3Float64 stopTime) {
     container_t* container = (container_t*)instance;
 
     container->tolerance_defined = toleranceDefined;
@@ -104,19 +103,17 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
     container->stop_time_defined = 0; /* stopTime can cause rounding issues. Disbale it.*/
     container->stop_time = stopTime;
 
-    for(int i=0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuSetupExperiment(&container->fmu[i]);    
-        
-        if (status != FMU_STATUS_OK)
-            return fmi3OK;
+    for(int i=0; i < container->nb_fmu; i += 1) {        
+        if (fmuSetupExperiment(&container->fmu[i]) != FMU_STATUS_OK)
+            return fmi3Error;
     }
 
     container_set_start_values(container, 1);
     logger(LOGGER_DEBUG, "fmuSetupExperiment -- OK");
+    
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuEnterInitializationMode(&container->fmu[i]);
-        if (status != FMU_STATUS_OK)
+        if (fmuEnterInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
             return fmi3Error;
     }
 
@@ -130,19 +127,23 @@ fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
     container_t* container = (container_t*)instance;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuExitInitializationMode(&container->fmu[i]);
-
-        if (status != FMU_STATUS_OK)
+        if (fmuExitInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
             return fmi3Error;
     }
+    
     container_init_values(container);
+
+    if (container_update_discrete_state(container) != FMU_STATUS_OK)
+        return fmi3Error;
+
+    if (container_enter_step_mode(container) != FMU_STATUS_OK)
+        return fmi3Error;
+
     return fmi3OK;
 }
 
 
 fmi3Status fmi3EnterEventMode(fmi3Instance instance) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -213,7 +214,6 @@ FMI_GETTER(integers64, Int64, Integer64);
 FMI_GETTER(uintegers64, UInt64, UInteger64);
 FMI_GETTER(booleans1, Boolean, Boolean1);
 FMI_GETTER(strings, String, String);
-#undef FMI_GETTER
 
 
 fmi3Status fmi3GetBinary(fmi3Instance instance,
@@ -223,8 +223,28 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
                          fmi3Binary values[],
                          size_t nValues) {
     container_t* container = (container_t*)instance;
+    fmu_status_t status;
 
-    __NOT_IMPLEMENTED__
+    for (size_t i = 0; i < nValueReferences; i += 1) {
+        const uint32_t vr = valueReferences[i] & 0xFFFFFF;
+        const container_port_t *port = &container->port_binaries[vr];
+        const int fmu_id = port->links[0].fmu_id;
+
+        if (fmu_id < 0) {
+            values[i] = container->binaries[vr].data;
+            valueSizes[i] = container->binaries[vr].size;
+        } else {
+            const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
+            const fmu_t *fmu = &container->fmu[fmu_id];
+            
+            status = fmuGetBinary(fmu, &fmu_vr, 1, &valueSizes[i], &values[i]);
+
+            if (status != FMU_STATUS_OK)
+                return fmi3Error;
+        }
+    }
+
+    return fmi3OK;
 }
 
 
@@ -233,9 +253,29 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
                         size_t nValueReferences,
                         fmi3Clock values[]) {
     container_t* container = (container_t*)instance;
+    fmu_status_t status;
 
-    __NOT_IMPLEMENTED__
+    for (size_t i = 0; i < nValueReferences; i += 1) {
+        const uint32_t vr = valueReferences[i] & 0xFFFFFF;
+        const container_port_t *port = &container->port_clocks[vr];
+        const int fmu_id = port->links[0].fmu_id;
+
+        if (fmu_id < 0) {
+            values[i] = container->clocks[vr];
+        } else {
+            const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
+            const fmu_t *fmu = &container->fmu[fmu_id];
+
+            status = fmuGetClock(fmu, &fmu_vr, 1, &values[i]);
+            if (status != FMU_STATUS_OK)
+                return fmi3Error;
+        }
+    }
+
+    return fmi3OK;
 }
+
+#undef FMI_GETTER
 
 
 #define FMI_SETTER(type, fmi_type, fmu_type) \
@@ -301,8 +341,6 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi2ValueReference vr[], s
     return fmi3OK;
 }
 
-#undef FMI_SETTER
-
 
 fmi3Status fmi3SetBinary(fmi3Instance instance,
                          const fmi3ValueReference valueReferences[],
@@ -311,8 +349,36 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
                          const fmi3Binary values[],
                          size_t nValues) {
     container_t* container = (container_t*)instance;
+    fmu_status_t status;
 
-    __NOT_IMPLEMENTED__
+    for (size_t i = 0; i < nValueReferences; i += 1) {
+        const uint32_t vr = valueReferences[i] & 0xFFFFFF;
+        const container_port_t *port = &container->port_binaries[vr];
+        const int fmu_id = port->links[0].fmu_id;
+
+        if (fmu_id < 0) {
+            if (container->binaries[vr].max_size < valueSizes[i]) {
+                container->binaries[vr].data = realloc(container->binaries[vr].data, valueSizes[i]);
+                if (! container->binaries[vr].data) {
+                    logger(LOGGER_ERROR, "Cannot allocate memory for SetBinary");
+                    return fmi3Error;
+                }
+                container->binaries[vr].max_size = valueSizes[i];
+            }
+
+            memcpy(container->binaries[vr].data, values[i], valueSizes[i]);
+        } else {
+            const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
+            const fmu_t *fmu = &container->fmu[fmu_id];
+            
+            status = fmuSetBinary(fmu, &fmu_vr, 1, &valueSizes[i], &values[i]);
+
+            if (status != FMU_STATUS_OK)
+                return fmi3Error;
+        }
+    }
+
+    return fmi3OK;
 }
 
 
@@ -321,16 +387,34 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
                         size_t nValueReferences,
                         const fmi3Clock values[]) {
     container_t* container = (container_t*)instance;
+    fmu_status_t status;
 
-    __NOT_IMPLEMENTED__
+    for (size_t i = 0; i < nValueReferences; i += 1) {
+        const uint32_t vr = valueReferences[i] & 0xFFFFFF;
+        const container_port_t *port = &container->port_clocks[vr];
+        const int fmu_id = port->links[0].fmu_id;
+
+        if (fmu_id < 0) {
+            container->clocks[vr] = values[i];
+        } else {
+            const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
+            const fmu_t *fmu = &container->fmu[fmu_id];
+
+            status = fmuSetClock(fmu, &fmu_vr, 1, &values[i]);
+            if (status != FMU_STATUS_OK)
+                return fmi3Error;
+        }
+    }
+
+    return fmi3OK;
 }
+
+#undef FMI_SETTER
 
 
 fmi3Status fmi3GetNumberOfVariableDependencies(fmi3Instance instance,
                                                fmi3ValueReference valueReference,
                                                size_t* nDependencies) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -342,28 +426,20 @@ fmi3Status fmi3GetVariableDependencies(fmi3Instance instance,
                                        size_t elementIndicesOfIndependents[],
                                        fmi3DependencyKind dependencyKinds[],
                                        size_t nDependencies) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3GetFMUState(fmi3Instance instance, fmi3FMUState* FMUState) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3SetFMUState(fmi3Instance instance, fmi3FMUState  FMUState) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 fmi3Status fmi3FreeFMUState(fmi3Instance instance, fmi3FMUState* FMUState) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -371,8 +447,6 @@ fmi3Status fmi3FreeFMUState(fmi3Instance instance, fmi3FMUState* FMUState) {
 fmi3Status fmi3SerializedFMUStateSize(fmi3Instance instance,
                                       fmi3FMUState FMUState,
                                       size_t* size) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -381,8 +455,6 @@ fmi3Status fmi3SerializeFMUState(fmi3Instance instance,
                                  fmi3FMUState FMUState,
                                  fmi3Byte serializedState[],
                                  size_t size) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -391,8 +463,6 @@ fmi3Status fmi3DeserializeFMUState(fmi3Instance instance,
                                    const fmi3Byte serializedState[],
                                    size_t size,
                                    fmi3FMUState* FMUState) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -406,8 +476,6 @@ fmi3Status fmi3GetDirectionalDerivative(fmi3Instance instance,
                                         size_t nSeed,
                                         fmi3Float64 sensitivity[],
                                         size_t nSensitivity) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -421,22 +489,16 @@ fmi3Status fmi3GetAdjointDerivative(fmi3Instance instance,
                                     size_t nSeed,
                                     fmi3Float64 sensitivity[],
                                     size_t nSensitivity) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3EnterConfigurationMode(fmi3Instance instance) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3ExitConfigurationMode(fmi3Instance instance) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -446,8 +508,6 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance,
                                   size_t nValueReferences,
                                   fmi3Float64 intervals[],
                                   fmi3IntervalQualifier qualifiers[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -458,8 +518,6 @@ fmi3Status fmi3GetIntervalFraction(fmi3Instance instance,
                                    fmi3UInt64 counters[],
                                    fmi3UInt64 resolutions[],
                                    fmi3IntervalQualifier qualifiers[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -468,8 +526,6 @@ fmi3Status fmi3GetShiftDecimal(fmi3Instance instance,
                                const fmi3ValueReference valueReferences[],
                                size_t nValueReferences,
                                fmi3Float64 shifts[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -479,8 +535,6 @@ fmi3Status fmi3GetShiftFraction(fmi3Instance instance,
                                 size_t nValueReferences,
                                 fmi3UInt64 counters[],
                                 fmi3UInt64 resolutions[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -489,8 +543,6 @@ fmi3Status fmi3SetIntervalDecimal(fmi3Instance instance,
                                   const fmi3ValueReference valueReferences[],
                                   size_t nValueReferences,
                                   const fmi3Float64 intervals[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -500,8 +552,6 @@ fmi3Status fmi3SetIntervalFraction(fmi3Instance instance,
                                    size_t nValueReferences,
                                    const fmi3UInt64 counters[],
                                    const fmi3UInt64 resolutions[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -510,8 +560,6 @@ fmi3Status fmi3SetShiftDecimal(fmi3Instance instance,
                                const fmi3ValueReference valueReferences[],
                                size_t nValueReferences,
                                const fmi3Float64 shifts[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -521,15 +569,11 @@ fmi3Status fmi3SetShiftFraction(fmi3Instance instance,
                                 size_t nValueReferences,
                                 const fmi3UInt64 counters[],
                                 const fmi3UInt64 resolutions[]) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3EvaluateDiscreteStates(fmi3Instance instance) {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -541,9 +585,16 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
                                     fmi3Boolean* valuesOfContinuousStatesChanged,
                                     fmi3Boolean* nextEventTimeDefined,
                                     fmi3Float64* nextEventTime) {
-    container_t* container = (container_t*)instance;
+    
+    /* Container has no discrete mode */
+    *discreteStatesNeedUpdate = false;
+    *terminateSimulation = false;
+    *nominalsOfContinuousStatesChanged = false;
+    *valuesOfContinuousStatesChanged = false;
+    *nextEventTimeDefined = false;
+    *nextEventTime = 0.0;
 
-    __NOT_IMPLEMENTED__
+    return fmi3OK;
 }
 
 /*----------------------------------------------------------------------------
@@ -551,9 +602,7 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
 ----------------------------------------------------------------------------*/
  
 fmi3Status fmi3EnterStepMode(fmi3Instance instance)  {
-    container_t* container = (container_t*)instance;
-
-    __NOT_IMPLEMENTED__
+    return fmi3OK;
 }
 
 
@@ -563,8 +612,6 @@ fmi3Status fmi3GetOutputDerivatives(fmi3Instance instance,
                                     const fmi3Int32 orders[],
                                     fmi3Float64 values[],
                                     size_t nValues)  {
-    container_t* container = (container_t*)instance;
-
     __NOT_IMPLEMENTED__
 }
 
@@ -578,39 +625,16 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
                       fmi3Boolean* earlyReturn,
                       fmi3Float64* lastSuccessfulTime) {
     container_t* container = (container_t*)instance;
-    const double end_time = currentCommunicationPoint + communicationStepSize;
-    fmu_status_t status = FMU_STATUS_OK;
-    const double curent_time = container->start_time + container->time_step * container->nb_steps;
-    int ts_multiplier = container->integers32[0];
 
-    if (ts_multiplier < 1)
-        ts_multiplier = 1;
 
-    const double ts = container->time_step * ts_multiplier;
-    const int local_steps = ((int)((end_time - curent_time + container->tolerance) / ts)) * ts_multiplier;
-    
-    /*
-     * Early return if requested end_time is lower than next container time step.
-     */
-    if (local_steps > 0) {
-        for(int i = 0; i < local_steps; i += 1) {
-            status = container->do_step(container);
+    *earlyReturn = false;
+    *eventHandlingNeeded = false;
+    *terminateSimulation = false;
 
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container cannot DoStep.");
-                return fmi3Error;
-            }
-        }       
+    if (container_do_step(container, currentCommunicationPoint, communicationStepSize) != FMU_STATUS_OK)
+        return fmi3Error;
 
-        const double new_time = container->start_time + container->time_step * container->nb_steps;
-        if (fabs(end_time - new_time) > container->tolerance) {
-            logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, local_steps=%d, nb_steps=%lld)", 
-                container->time_step, currentCommunicationPoint, new_time, end_time, container->tolerance, local_steps, container->nb_steps);
-            return fmi3Warning;
-        }
-    }
-
-    container->reals64[0] = end_time;
+    *lastSuccessfulTime = container->reals64[0];
 
     return fmi3OK;
 }
@@ -619,6 +643,7 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
 /*----------------------------------------------------------------------------
           F M I 3   F U N C T I O N S   ( M O D E L E X C H A N G E )
 ----------------------------------------------------------------------------*/
+
 fmi3Instance fmi3InstantiateModelExchange(
     fmi3String                 instanceName,
     fmi3String                 instantiationToken,
@@ -701,6 +726,7 @@ fmi3Status fmi3GetNumberOfContinuousStates(fmi3Instance instance,
 /*----------------------------------------------------------------------------
     F M I 3   F U N C T I O N S   ( S C H E D U L E D   E X E C U T I O N )
 ----------------------------------------------------------------------------*/
+
 fmi3Instance fmi3InstantiateScheduledExecution(
     fmi3String                     instanceName,
     fmi3String                     instantiationToken,
@@ -720,4 +746,3 @@ fmi3Status fmi3ActivateModelPartition(fmi3Instance instance,
                                       fmi3Float64 activationTime) {
     __NOT_IMPLEMENTED__
 }
-

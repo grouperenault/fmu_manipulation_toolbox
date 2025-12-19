@@ -34,7 +34,6 @@ void profile_tic(profile_t *profile) {
 	profile->current_tic = GetTickCount();
 #else
 	struct timespec ts;
-	unsigned theTick = 0U;
 	clock_gettime(CLOCK_REALTIME, &ts);
 	profile->current_tic = ts.tv_nsec / 1000000;
 	profile->current_tic += ts.tv_sec * 1000;
@@ -51,7 +50,6 @@ double profile_toc(profile_t *profile, double current_time) {
 	now = GetTickCount();
 #else
 	struct timespec ts;
-	unsigned theTick = 0U;
 	clock_gettime(CLOCK_REALTIME, &ts);
 	now = ts.tv_nsec / 1000000;
 	now += ts.tv_sec * 1000;

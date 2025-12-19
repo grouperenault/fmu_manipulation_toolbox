@@ -38,7 +38,6 @@ fmi2Status  fmi2SetDebugLogging(fmi2Component c,
     fmi2Boolean loggingOn,
     size_t nCategories,
     const fmi2String categories[]) {
-    container_t* container = (container_t*)c;
 
     logger_set_debug(loggingOn);
 
@@ -120,7 +119,7 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
         fmu_status_t status = fmuSetupExperiment(&container->fmu[i]);    
         
         if (status != FMU_STATUS_OK)
-            return fmi2OK;
+            return fmi2Error;
     }
 
     container_set_start_values(container, 1);
@@ -134,8 +133,7 @@ fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
     container_t* container = (container_t*)c;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuEnterInitializationMode(&container->fmu[i]);
-        if (status != FMU_STATUS_OK)
+        if (fmuEnterInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
             return fmi2Error;
     }
 
@@ -149,12 +147,18 @@ fmi2Status fmi2ExitInitializationMode(fmi2Component c) {
     container_t* container = (container_t*)c;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuExitInitializationMode(&container->fmu[i]);
-
-        if (status != FMU_STATUS_OK)
+        if (fmuExitInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
             return fmi2Error;
     }
+    
     container_init_values(container);
+
+    if (container_update_discrete_state(container) != FMU_STATUS_OK)
+        return fmi2Error;
+
+    if (container_enter_step_mode(container) != FMU_STATUS_OK)
+        return fmi2Error;
+
     return fmi2OK;
 }
 
@@ -347,40 +351,10 @@ fmi2Status fmi2DoStep(fmi2Component c,
     fmi2Real communicationStepSize,
     fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     container_t *container = (container_t*)c;
-    const fmi2Real end_time = currentCommunicationPoint + communicationStepSize;
-    fmu_status_t status = FMU_STATUS_OK;
-    const fmi2Real curent_time = container->start_time + container->time_step * container->nb_steps;
-    int ts_multiplier = container->integers32[0];
 
-    if (ts_multiplier < 1)
-        ts_multiplier = 1;
+    if (container_do_step(container, currentCommunicationPoint, communicationStepSize) != FMU_STATUS_OK)
+        return fmi2Error;
 
-    const double ts = container->time_step * ts_multiplier;
-    const int local_steps = ((int)((end_time - curent_time + container->tolerance) / ts)) * ts_multiplier;
-    
-    /*
-     * Early return if requested end_time is lower than next container time step.
-     */
-    if (local_steps > 0) {
-        for(int i = 0; i < local_steps; i += 1) {
-            container->do_step(container);
-
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container cannot DoStep.");
-                return fmi2Error;
-            }
-        }
-
-        const double new_time = container->start_time + container->time_step * container->nb_steps;
-        if (fabs(end_time - new_time) > container->tolerance) {
-            logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, local_steps=%d, nb_steps=%lld)", 
-                container->time_step, currentCommunicationPoint, new_time, end_time, container->tolerance, local_steps, container->nb_steps);
-            return fmi2Warning;
-        }
-    }
-
-    container->reals64[0] = end_time;
-    
     return fmi2OK;
 }
 

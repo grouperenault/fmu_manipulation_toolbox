@@ -1,0 +1,14 @@
+{
+  "name": "bus+nodes.fmu",
+  "fmu": [
+    "bus.fmu",
+    "node1.fmu",
+    "node2.fmu"
+  ],
+  "link": [
+    [ "node1.fmu", "CanChannel", "bus.fmu", "Node1"],
+    [ "node2.fmu", "CanChannel", "bus.fmu", "Node2"]
+  ],
+  "sequential": true,
+  "step_size": 0.1
+}

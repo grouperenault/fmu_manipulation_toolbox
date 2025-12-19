@@ -1,12 +1,12 @@
 {
   "name": "container-passthrough.fmu",
   "fmu": [
-    "constant.fmu",
-    "passthrough.fmu",
+    "constant3.fmu",
+    "passthrough3.fmu",
     "not2.fmu"
   ],
   "link": [
-    ["passthrough.fmu", "Out_boolean", "not2.fmu", "in_bool"]
+    ["passthrough3.fmu", "out_boolean", "not2.fmu", "in_bool"]
   ],
   "step_size": 1
 }

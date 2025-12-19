@@ -1,14 +1,15 @@
+# Version 3
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
 0.1
 # NB of embedded FMU's
 1
-slx.fmu 2
+slx.fmu 2 0
 G
 {6853134c-427d-44a3-ac7a-36eca9552797}
-# NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string
-1 0 0 0 0 0 1 0 0 0 0 0 0
+# NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
+1 0 0 0 0 0 1 0 0 0 0 0 0 0 0
 # CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
 # real64
 3 3
@@ -40,35 +41,70 @@ G
 0 0
 # string
 0 0
+# binary
+0 0
+# clock
+0 0
 # Inputs of slx.fmu - real64: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - real32: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - integer8: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - uinteger8: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - integer16: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - uinteger16: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - integer32: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - uinteger32: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - integer64: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - uinteger64: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - boolean: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - boolean1: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of slx.fmu - string: <VR> <FMU_VR>
 0
+# Clocked Inputs of slx.fmu - string: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of slx.fmu - binary: <VR> <FMU_VR>
+0
+# Clocked Inputs of slx.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of slx.fmu - clock: <VR> <FMU_VR>
+0
 # Start values of slx.fmu - real64: <FMU_VR> <RESET> <VALUE>
-1
-2 0 10.0
+0
 # Start values of slx.fmu - real32: <FMU_VR> <RESET> <VALUE>
 0
 # Start values of slx.fmu - integer8: <FMU_VR> <RESET> <VALUE>
@@ -95,29 +131,63 @@ G
 0
 # Outputs of slx.fmu - real64: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - real32: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - integer8: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - uinteger8: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - integer16: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - uinteger16: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - integer32: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - uinteger32: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - integer64: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - uinteger64: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - boolean: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - boolean1: <VR> <FMU_VR>
 0
+# Clocked Outputs of slx.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of slx.fmu - string: <VR> <FMU_VR>
+0
+# Clocked Outputs of slx.fmu - string: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of slx.fmu - binary: <VR> <FMU_VR>
+0
+# Clocked Outputs of slx.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of slx.fmu - clock: <VR> <FMU_VR>
 0
 # Conversion table of slx.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
+# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
+0 0

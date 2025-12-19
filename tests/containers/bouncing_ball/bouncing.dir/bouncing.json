@@ -1,0 +1,42 @@
+{
+  "auto_input": false,
+  "auto_output": false,
+  "auto_parameter": false,
+  "auto_local": false,
+  "auto_link": false,
+  "mt": true,
+  "profiling": false,
+  "sequential": false,
+  "step_size": 0.001,
+  "output": [
+    [
+      "bb_position.fmu",
+      "position1",
+      "position"
+    ],
+    [
+      "bb_velocity.fmu",
+      "velocity",
+      "velocity"
+    ]
+  ],
+  "link": [
+    [
+      "bb_velocity.fmu",
+      "velocity",
+      "bb_position.fmu",
+      "velocity"
+    ],
+    [
+      "bb_position.fmu",
+      "is_ground",
+      "bb_velocity.fmu",
+      "reset"
+    ]
+  ],
+  "name": "bouncing.fmu",
+  "fmu": [
+    "bb_position.fmu",
+    "bb_velocity.fmu"
+  ]
+}

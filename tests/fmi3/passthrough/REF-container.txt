@@ -1,64 +1,63 @@
+# Version 3
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
 1.0
 # NB of embedded FMU's
 3
-constant.fmu 3
-Contant_output_DataTypeFMI3_v3_W2534
-{3a44e7fa-352b-829c-dfe7-37025e37e0dd}
-passthrough.fmu 3
-all_DataTypeFMI3_v2_W2534
-{93c50f8f-8b3a-4e58-abad-92a64687c126}
-not2.fmu 2
+constant3.fmu 3 1
+untitled
+{cda0b5a1-6cc5-a199-80ce-b28697eb4819}
+passthrough3.fmu 3 1
+untitled1
+{f9e70b12-cdc8-2d4a-7111-3090b23594bf}
+not2.fmu 2 0
 not_bool
 {68d2a3e5-ae1e-988b-9397-2db08e979e07}
-# NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string
-2 1 1 1 1 1 2 1 1 1 1 2 1
+# NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
+2 1 1 1 1 1 2 1 1 1 1 2 1 0 0
 # CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
 # real64
-5 5
+3 3
 0 1 -1 0
 2 1 1 1
-3 1 1 2
-4 1 1 3
 1 1 -1 1
 # real32
 2 2
-16777217 1 1 6
+16777217 1 1 4
 16777216 1 -1 0
 # integer8
 2 2
-33554433 1 1 8
+33554433 1 1 6
 33554432 1 -1 0
 # uinteger8
 2 2
-50331649 1 1 10
+50331649 1 1 8
 50331648 1 -1 0
 # integer16
 2 2
-67108865 1 1 12
+67108865 1 1 10
 67108864 1 -1 0
 # uinteger16
 2 2
-83886081 1 1 14
+83886081 1 1 12
 83886080 1 -1 0
 # integer32
 3 3
 0 1 -1 0
-100663298 1 1 16
+100663298 1 1 14
 100663297 1 -1 1
 # uinteger32
 2 2
-117440513 1 1 18
+117440513 1 1 16
 117440512 1 -1 0
 # integer64
 2 2
-134217729 1 1 20
+134217729 1 1 18
 134217728 1 -1 0
 # uinteger64
 2 2
-150994945 1 1 22
+150994945 1 1 20
 150994944 1 -1 0
 # boolean
 2 2
@@ -70,220 +69,384 @@ not_bool
 184549377 1 -1 1
 # string
 2 2
-201326593 1 1 26
+201326593 1 1 24
 201326592 1 -1 0
-# Inputs of constant.fmu - real64: <VR> <FMU_VR>
+# binary
+0 0
+# clock
+0 0
+# Inputs of constant3.fmu - real64: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - real32: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - real32: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - integer8: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - integer8: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - uinteger8: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - uinteger8: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - integer16: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - integer16: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - uinteger16: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - uinteger16: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - integer32: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - integer32: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - uinteger32: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - uinteger32: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - integer64: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - integer64: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - uinteger64: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - uinteger64: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - boolean: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - boolean: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - boolean1: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - boolean1: <VR> <FMU_VR>
 0
-# Inputs of constant.fmu - string: <VR> <FMU_VR>
+# Clocked Inputs of constant3.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - string: <VR> <FMU_VR>
 0
-# Start values of constant.fmu - real64: <FMU_VR> <RESET> <VALUE>
+# Clocked Inputs of constant3.fmu - string: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - binary: <VR> <FMU_VR>
 0
-# Start values of constant.fmu - real32: <FMU_VR> <RESET> <VALUE>
+# Clocked Inputs of constant3.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of constant3.fmu - clock: <VR> <FMU_VR>
 0
-# Start values of constant.fmu - integer8: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - real64: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of constant.fmu - uinteger8: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - real32: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of constant.fmu - integer16: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - integer8: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of constant.fmu - uinteger16: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - uinteger8: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of constant.fmu - integer32: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - integer16: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of constant.fmu - uinteger32: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - uinteger16: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of constant.fmu - integer64: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - integer32: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of constant.fmu - uinteger64: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - uinteger32: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of constant.fmu - boolean: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - integer64: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of constant.fmu - boolean1: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - uinteger64: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of constant.fmu - string: <FMU_VR> <RESET> <VALUE>
+# Start values of constant3.fmu - boolean: <FMU_VR> <RESET> <VALUE>
 0
-# Outputs of constant.fmu - real64: <VR> <FMU_VR>
+# Start values of constant3.fmu - boolean1: <FMU_VR> <RESET> <VALUE>
+0
+# Start values of constant3.fmu - string: <FMU_VR> <RESET> <VALUE>
+0
+# Outputs of constant3.fmu - real64: <VR> <FMU_VR>
 1
 1 0
-# Outputs of constant.fmu - real32: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - real32: <VR> <FMU_VR>
 1
 16777216 2
-# Outputs of constant.fmu - integer8: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - integer8: <VR> <FMU_VR>
 1
 33554432 3
-# Outputs of constant.fmu - uinteger8: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - uinteger8: <VR> <FMU_VR>
 1
 50331648 4
-# Outputs of constant.fmu - integer16: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - integer16: <VR> <FMU_VR>
 1
 67108864 5
-# Outputs of constant.fmu - uinteger16: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - uinteger16: <VR> <FMU_VR>
 1
 83886080 6
-# Outputs of constant.fmu - integer32: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - integer32: <VR> <FMU_VR>
 1
 100663297 7
-# Outputs of constant.fmu - uinteger32: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - uinteger32: <VR> <FMU_VR>
 1
 117440512 8
-# Outputs of constant.fmu - integer64: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - integer64: <VR> <FMU_VR>
 1
 134217728 9
-# Outputs of constant.fmu - uinteger64: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - uinteger64: <VR> <FMU_VR>
 1
 150994944 10
-# Outputs of constant.fmu - boolean: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - boolean: <VR> <FMU_VR>
 0
-# Outputs of constant.fmu - boolean1: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - boolean1: <VR> <FMU_VR>
 1
 184549377 11
-# Outputs of constant.fmu - string: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - string: <VR> <FMU_VR>
 1
 201326592 12
-# Conversion table of constant.fmu: <VR_FROM> <VR_TO> <CONVERSION>
+# Clocked Outputs of constant3.fmu - string: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - binary: <VR> <FMU_VR>
 0
-# Inputs of passthrough.fmu - real64: <VR> <FMU_VR>
+# Clocked Outputs of constant3.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of constant3.fmu - clock: <VR> <FMU_VR>
+0
+# Conversion table of constant3.fmu: <VR_FROM> <VR_TO> <CONVERSION>
+0
+# Inputs of passthrough3.fmu - real64: <VR> <FMU_VR>
 1
 1 0
-# Inputs of passthrough.fmu - real32: <VR> <FMU_VR>
+# Clocked Inputs of passthrough3.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - real32: <VR> <FMU_VR>
 1
-16777216 5
-# Inputs of passthrough.fmu - integer8: <VR> <FMU_VR>
+16777216 3
+# Clocked Inputs of passthrough3.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - integer8: <VR> <FMU_VR>
 1
-33554432 7
-# Inputs of passthrough.fmu - uinteger8: <VR> <FMU_VR>
+33554432 5
+# Clocked Inputs of passthrough3.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - uinteger8: <VR> <FMU_VR>
 1
-50331648 9
-# Inputs of passthrough.fmu - integer16: <VR> <FMU_VR>
+50331648 7
+# Clocked Inputs of passthrough3.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - integer16: <VR> <FMU_VR>
 1
-67108864 11
-# Inputs of passthrough.fmu - uinteger16: <VR> <FMU_VR>
+67108864 9
+# Clocked Inputs of passthrough3.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - uinteger16: <VR> <FMU_VR>
 1
-83886080 13
-# Inputs of passthrough.fmu - integer32: <VR> <FMU_VR>
+83886080 11
+# Clocked Inputs of passthrough3.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - integer32: <VR> <FMU_VR>
 1
-100663297 15
-# Inputs of passthrough.fmu - uinteger32: <VR> <FMU_VR>
+100663297 13
+# Clocked Inputs of passthrough3.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - uinteger32: <VR> <FMU_VR>
 1
-117440512 17
-# Inputs of passthrough.fmu - integer64: <VR> <FMU_VR>
+117440512 15
+# Clocked Inputs of passthrough3.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - integer64: <VR> <FMU_VR>
 1
-134217728 19
-# Inputs of passthrough.fmu - uinteger64: <VR> <FMU_VR>
+134217728 17
+# Clocked Inputs of passthrough3.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - uinteger64: <VR> <FMU_VR>
 1
-150994944 21
-# Inputs of passthrough.fmu - boolean: <VR> <FMU_VR>
+150994944 19
+# Clocked Inputs of passthrough3.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - boolean: <VR> <FMU_VR>
 0
-# Inputs of passthrough.fmu - boolean1: <VR> <FMU_VR>
+# Clocked Inputs of passthrough3.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - boolean1: <VR> <FMU_VR>
 1
-184549377 23
-# Inputs of passthrough.fmu - string: <VR> <FMU_VR>
+184549377 21
+# Clocked Inputs of passthrough3.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - string: <VR> <FMU_VR>
 1
-201326592 25
-# Start values of passthrough.fmu - real64: <FMU_VR> <RESET> <VALUE>
+201326592 23
+# Clocked Inputs of passthrough3.fmu - string: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - binary: <VR> <FMU_VR>
 0
-# Start values of passthrough.fmu - real32: <FMU_VR> <RESET> <VALUE>
+# Clocked Inputs of passthrough3.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of passthrough3.fmu - clock: <VR> <FMU_VR>
 0
-# Start values of passthrough.fmu - integer8: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - real64: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of passthrough.fmu - uinteger8: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - real32: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of passthrough.fmu - integer16: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - integer8: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of passthrough.fmu - uinteger16: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - uinteger8: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of passthrough.fmu - integer32: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - integer16: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of passthrough.fmu - uinteger32: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - uinteger16: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of passthrough.fmu - integer64: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - integer32: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of passthrough.fmu - uinteger64: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - uinteger32: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of passthrough.fmu - boolean: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - integer64: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of passthrough.fmu - boolean1: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - uinteger64: <FMU_VR> <RESET> <VALUE>
 0
-# Start values of passthrough.fmu - string: <FMU_VR> <RESET> <VALUE>
+# Start values of passthrough3.fmu - boolean: <FMU_VR> <RESET> <VALUE>
 0
-# Outputs of passthrough.fmu - real64: <VR> <FMU_VR>
+# Start values of passthrough3.fmu - boolean1: <FMU_VR> <RESET> <VALUE>
 0
-# Outputs of passthrough.fmu - real32: <VR> <FMU_VR>
+# Start values of passthrough3.fmu - string: <FMU_VR> <RESET> <VALUE>
 0
-# Outputs of passthrough.fmu - integer8: <VR> <FMU_VR>
+# Outputs of passthrough3.fmu - real64: <VR> <FMU_VR>
 0
-# Outputs of passthrough.fmu - uinteger8: <VR> <FMU_VR>
+# Clocked Outputs of passthrough3.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - real32: <VR> <FMU_VR>
 0
-# Outputs of passthrough.fmu - integer16: <VR> <FMU_VR>
+# Clocked Outputs of passthrough3.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - integer8: <VR> <FMU_VR>
 0
-# Outputs of passthrough.fmu - uinteger16: <VR> <FMU_VR>
+# Clocked Outputs of passthrough3.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - uinteger8: <VR> <FMU_VR>
 0
-# Outputs of passthrough.fmu - integer32: <VR> <FMU_VR>
+# Clocked Outputs of passthrough3.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - integer16: <VR> <FMU_VR>
 0
-# Outputs of passthrough.fmu - uinteger32: <VR> <FMU_VR>
+# Clocked Outputs of passthrough3.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - uinteger16: <VR> <FMU_VR>
 0
-# Outputs of passthrough.fmu - integer64: <VR> <FMU_VR>
+# Clocked Outputs of passthrough3.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - integer32: <VR> <FMU_VR>
 0
-# Outputs of passthrough.fmu - uinteger64: <VR> <FMU_VR>
+# Clocked Outputs of passthrough3.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - uinteger32: <VR> <FMU_VR>
 0
-# Outputs of passthrough.fmu - boolean: <VR> <FMU_VR>
+# Clocked Outputs of passthrough3.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - integer64: <VR> <FMU_VR>
 0
-# Outputs of passthrough.fmu - boolean1: <VR> <FMU_VR>
+# Clocked Outputs of passthrough3.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - uinteger64: <VR> <FMU_VR>
+0
+# Clocked Outputs of passthrough3.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - boolean: <VR> <FMU_VR>
+0
+# Clocked Outputs of passthrough3.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - boolean1: <VR> <FMU_VR>
 1
-184549376 24
-# Outputs of passthrough.fmu - string: <VR> <FMU_VR>
+184549376 22
+# Clocked Outputs of passthrough3.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - string: <VR> <FMU_VR>
 0
-# Conversion table of passthrough.fmu: <VR_FROM> <VR_TO> <CONVERSION>
+# Clocked Outputs of passthrough3.fmu - string: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - binary: <VR> <FMU_VR>
+0
+# Clocked Outputs of passthrough3.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of passthrough3.fmu - clock: <VR> <FMU_VR>
+0
+# Conversion table of passthrough3.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 1
 184549376 167772160 B1_B
 # Inputs of not2.fmu - real64: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - real32: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - integer8: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - uinteger8: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - integer16: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - uinteger16: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - integer32: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - uinteger32: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - integer64: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - uinteger64: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - boolean: <VR> <FMU_VR>
 1
 167772160 0
+# Clocked Inputs of not2.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - boolean1: <VR> <FMU_VR>
 0
+# Clocked Inputs of not2.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Inputs of not2.fmu - string: <VR> <FMU_VR>
+0
+# Clocked Inputs of not2.fmu - string: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of not2.fmu - binary: <VR> <FMU_VR>
+0
+# Clocked Inputs of not2.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Inputs of not2.fmu - clock: <VR> <FMU_VR>
 0
 # Start values of not2.fmu - real64: <FMU_VR> <RESET> <VALUE>
 0
@@ -313,29 +476,63 @@ not_bool
 0
 # Outputs of not2.fmu - real64: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - real32: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - integer8: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - uinteger8: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - integer16: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - uinteger16: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - integer32: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - uinteger32: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - integer64: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - uinteger64: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - boolean: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - boolean1: <VR> <FMU_VR>
 0
+# Clocked Outputs of not2.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
 # Outputs of not2.fmu - string: <VR> <FMU_VR>
+0
+# Clocked Outputs of not2.fmu - string: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of not2.fmu - binary: <VR> <FMU_VR>
+0
+# Clocked Outputs of not2.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>
+0 0
+# Outputs of not2.fmu - clock: <VR> <FMU_VR>
 0
 # Conversion table of not2.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
+# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
+0 0

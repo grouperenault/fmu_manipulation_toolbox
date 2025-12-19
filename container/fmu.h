@@ -22,6 +22,7 @@ typedef unsigned int fmu_vr_t;
 /*----------------------------------------------------------------------------
                    F M U _ T R A N S L A T I O N _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
 	fmu_vr_t                    vr;
 	fmu_vr_t                    fmu_vr;
@@ -31,6 +32,7 @@ typedef struct {
 /*----------------------------------------------------------------------------
               F M U _ T R A N S L A T I O N _ L I S T _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
 	unsigned long               nb;
 	fmu_translation_t			*translations;
@@ -38,8 +40,9 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
-              F M U _ T R A N S L A T I O N _ P O R T _ T
+                F M U _ T R A N S L A T I O N _ P O R T _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
 	fmu_translation_list_t		in;
 	fmu_translation_list_t		out;
@@ -47,7 +50,29 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
-              F M U _ S T A R T _ xxx _ T
+                      F M U _ C L O C K E D _ P O R T _ T
+----------------------------------------------------------------------------*/
+
+typedef struct {
+    fmu_vr_t                    clock_vr;   /* local */
+    fmu_translation_list_t      translations_list;
+} fmu_clocked_port_t;
+
+
+/*----------------------------------------------------------------------------
+                 F M U _ C L O C K E D _ P O R T _ L I S T _ T
+----------------------------------------------------------------------------*/
+
+typedef struct {
+    unsigned long               nb_in;
+    fmu_clocked_port_t          *in;
+    unsigned long               nb_out;
+    fmu_clocked_port_t          *out;
+} fmu_clocked_port_list_t;
+
+
+/*----------------------------------------------------------------------------
+                          F M U _ S T A R T _ xxx _ T
 ----------------------------------------------------------------------------*/
 
 #define DECLARE_START_TYPE(name, type) \
@@ -80,6 +105,7 @@ DECLARE_START_TYPE(strings, const char *);
 /*----------------------------------------------------------------------------
                               F M U _ I O _ T
 ----------------------------------------------------------------------------*/
+
 typedef struct {
 	fmu_translation_port_t		reals64;
     fmu_translation_port_t		reals32;
@@ -94,6 +120,23 @@ typedef struct {
 	fmu_translation_port_t		booleans;
 	fmu_translation_port_t		booleans1;
 	fmu_translation_port_t		strings;
+    fmu_translation_port_t		binaries;
+    fmu_translation_port_t		clocks;
+
+    fmu_clocked_port_list_t     clocked_reals64;
+    fmu_clocked_port_list_t		clocked_reals32;
+    fmu_clocked_port_list_t		clocked_integers8;
+	fmu_clocked_port_list_t		clocked_uintegers8;
+    fmu_clocked_port_list_t		clocked_integers16;
+	fmu_clocked_port_list_t		clocked_uintegers16;
+    fmu_clocked_port_list_t		clocked_integers32;
+	fmu_clocked_port_list_t		clocked_uintegers32;
+    fmu_clocked_port_list_t		clocked_integers64;
+	fmu_clocked_port_list_t		clocked_uintegers64;
+	fmu_clocked_port_list_t		clocked_booleans;
+	fmu_clocked_port_list_t		clocked_booleans1;
+	fmu_clocked_port_list_t		clocked_strings;
+    fmu_clocked_port_list_t		clocked_binaries;
 
     fmu_start_reals64_t         start_reals64;
     fmu_start_reals32_t         start_reals32;
@@ -112,7 +155,18 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
-                        F M U _ I N T E R F A C E _ T
+                            F M U _ B I N A R Y _ T
+----------------------------------------------------------------------------*/
+
+typedef struct {
+    uint8_t     *data;
+    size_t      size;
+    size_t      max_size;
+} fmu_binary_t; 
+
+
+/*----------------------------------------------------------------------------
+                         F M U _ I N T E R F A C E _ T
 ----------------------------------------------------------------------------*/
 typedef union {
 #	define DECLARE_FMI_FUNCTION(x) x ## TYPE *x
@@ -223,53 +277,28 @@ typedef union {
 /*----------------------------------------------------------------------------
                            F M U _ S T A T U S _ T
 ----------------------------------------------------------------------------*/
+
 typedef enum {
     FMU_STATUS_OK = 0,
     FMU_STATUS_ERROR = 2
 } fmu_status_t;
+
+
+/*----------------------------------------------------------------------------
+                           F M U _ V E R S I O N _ T
+----------------------------------------------------------------------------*/
 
 typedef enum {
         FMU_2 = 2,
         FMU_3 = 3
 } fmu_version_t;
 
+
 /*----------------------------------------------------------------------------
                                 F M U _ T
 ----------------------------------------------------------------------------*/
+
 #   define FMU_PATH_MAX_LEN 4096
- 
-typedef struct {
-    char                        *name; /* based on directory */
-    int                         index; /* index of this FMU in container */
-	library_t                   library;
-	char						resource_dir[FMU_PATH_MAX_LEN];
-	char						*guid;
-    fmu_version_t               fmi_version;
-    void                        *component; /* fmi2Component or fmi3Instance */
-
-	fmu_interface_t				fmi_functions;
-
-	thread_t			    	thread;
-	mutex_t				    	mutex_fmu;
-	mutex_t				    	mutex_container;
-
-	fmu_io_t					fmu_io;
-	
-	fmu_status_t				status;
-	int							cancel;
-	
-    profile_t                   *profile;
-
-    struct convert_table_s      *conversions;
-
-	struct container_s			*container;
-
-    /* despite the FMI spec, simulink expects this fmi2CallbackFunctions to live 
-     * during all the simulation ! Keep track this structure here.
-     */
-    fmi2CallbackFunctions       fmi2_callback_functions;
-} fmu_t;
-
 #ifdef __linux__
 #   define FMU2_BINDIR      "linux64"
 #   define FMU3_BINDIR      "x86_64-linux"
@@ -295,18 +324,54 @@ typedef struct {
 #   define FMU_BIN_SUFFIXE  ".dll"
 #endif
 
+typedef struct {
+    char                        *name; /* based on directory */
+    int                         index; /* index of this FMU in container */
+	library_t                   library;
+	char						resource_dir[FMU_PATH_MAX_LEN];
+	char						*guid;
+    fmu_version_t               fmi_version;
+    void                        *component; /* fmi2Component or fmi3Instance */
+
+	fmu_interface_t				fmi_functions;
+
+	thread_t			    	thread;
+	mutex_t				    	mutex_fmu;
+	mutex_t				    	mutex_container;
+
+	fmu_io_t					fmu_io;
+	
+	fmu_status_t				status;
+	bool						cancel;
+    bool                        support_event;
+    bool                        need_event_udpate;
+	
+    profile_t                   *profile;
+
+    struct convert_table_s      *conversions;
+
+	struct container_s			*container;
+
+    /* despite the FMI spec, simulink expects this fmi2CallbackFunctions to live 
+     * during all the simulation ! Keep track this structure here.
+     */
+    fmi2CallbackFunctions       fmi2_callback_functions;
+} fmu_t;
 
 
 /*----------------------------------------------------------------------------
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
-extern fmu_status_t fmu_set_inputs(fmu_t *fmu);
-extern fmu_status_t fmu_get_outputs(fmu_t* fmu);
+extern fmu_status_t fmu_set_inputs(const fmu_t *fmu);
+extern fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu);
+extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
+extern fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu);
+extern fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, int *more_event);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,
-                                   fmu_version_t fmi_version);
+                                   fmu_version_t fmi_version, int support_event);
 extern void fmu_unload(fmu_t *fmu);
 
 extern fmu_status_t fmuGetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
@@ -335,6 +400,11 @@ extern fmu_status_t fmuGetBoolean1(const fmu_t *fmu, const fmu_vr_t vr[],
                                   size_t nvr, bool value[]);
 extern fmu_status_t fmuGetString(const fmu_t* fmu, const fmu_vr_t vr[],
                                  size_t nvr, const char *value[]);
+extern fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[],
+                                 size_t nvr, size_t size[], const uint8_t *value[]);
+extern fmu_status_t fmuGetClock(const fmu_t* fmu, const fmu_vr_t vr[],
+                                 size_t nvr, bool value[]);
+
 extern fmu_status_t fmuSetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
                                  size_t nvr, const double value[]);
 extern fmu_status_t fmuSetReal32(const fmu_t *fmu, const fmu_vr_t vr[],
@@ -361,7 +431,12 @@ extern fmu_status_t fmuSetBoolean1(const fmu_t *fmu, const fmu_vr_t vr[],
                                   size_t nvr, const bool value[]);
 extern fmu_status_t fmuSetString(const fmu_t* fmu, const fmu_vr_t vr[],
                                  size_t nvr, const char * const value[]);
-extern fmu_status_t fmuDoStep(const fmu_t *fmu, 
+extern fmu_status_t fmuSetBinary(const fmu_t* fmu, const fmu_vr_t vr[],
+                                 size_t nvr, const size_t size[], const uint8_t * const value[]);
+extern fmu_status_t fmuSetClock(const fmu_t* fmu, const fmu_vr_t vr[],
+                                size_t nvr, const bool value[]);
+
+extern fmu_status_t fmuDoStep(fmu_t *fmu, 
                               fmi2Real currentCommunicationPoint, 
                               fmi2Real communicationStepSize);
 extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu);
@@ -373,7 +448,8 @@ extern fmu_status_t fmuTerminate(const fmu_t *fmu);
 extern fmu_status_t fmuReset(const fmu_t *fmu);
 extern fmu_status_t fmuGetBooleanStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Boolean* value);
 extern fmu_status_t fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real* value);
-
+extern fmu_status_t fmuEnterEventMode(const fmu_t *fmu);
+extern fmu_status_t fmuEnterStepMode(const fmu_t *fmu);
 #	ifdef __cplusplus
 }
 #	endif
