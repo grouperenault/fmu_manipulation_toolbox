@@ -99,8 +99,8 @@ static int is_close (const container_t *container, double r1, double r2) {
 
 
 static double container_get_next_clock_time(container_t *container) {
-    double *event_time = container->clocks_list.buffer_time;
-    fmi3IntervalQualifier *event_qualifier = container->clocks_list.buffer_qualifier;
+    double *event_interval = container->clocks_list.buffer_interval;
+    int *event_qualifier = container->clocks_list.buffer_qualifier;
     fmu_vr_t *fmu_vr = container->clocks_list.fmu_vr;
     double interval = container->time_step;
 
@@ -109,49 +109,44 @@ static double container_get_next_clock_time(container_t *container) {
         container_clock_counter_t *counter = &container->clocks_list.counter[i]; 
         const fmu_t *fmu = &container->fmu[counter->fmu_id];
 
-        fmi3Status status = fmu->fmi_functions.version_3.fmi3GetIntervalDecimal(fmu->component, fmu_vr, counter->nb,
-            event_time,
-            event_qualifier);
-        if (status != fmi3OK) {
-            logger(LOGGER_ERROR, "Cannot GetIntervalDecimal for container clocks.");
+        if (fmuGetIntervalDecimal(fmu, fmu_vr, counter->nb, event_interval, event_qualifier) != FMU_STATUS_OK)
             return interval;
-        }
 
         fmu_vr += counter->nb;
-        event_time += counter->nb;
+        event_interval += counter->nb;
         event_qualifier += counter->nb;
     }
 
     /* get next defined events (may be several) */
-    event_time = container->clocks_list.buffer_time;
+    event_interval = container->clocks_list.buffer_interval;
     event_qualifier = container->clocks_list.buffer_qualifier;
 
     unsigned long nb_events = 0;
     for(unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1) {
         if (event_qualifier[i] != fmi3IntervalNotYetKnown) {
             if (nb_events) {
-                if (is_close(container, event_time[i], interval)) {
+                if (is_close(container, event_interval[i], interval)) {
                     /* found a event on the same time */
                     container->clocks_list.next_clocks[nb_events].local_vr = container->clocks_list.clock_index[i];
                     container->clocks_list.next_clocks[nb_events].fmu_id   = container->clocks_list.fmu_id[i];
                     container->clocks_list.next_clocks[nb_events].fmu_vr   = container->clocks_list.fmu_vr[i];
                     nb_events += 1;
-                } else if (event_time[i] < interval) {
+                } else if (event_interval[i] < interval) {
                     /* found a event earlier */
                     container->clocks_list.next_clocks[0].local_vr = container->clocks_list.clock_index[i];
                     container->clocks_list.next_clocks[0].fmu_id   = container->clocks_list.fmu_id[i];
                     container->clocks_list.next_clocks[0].fmu_vr   = container->clocks_list.fmu_vr[i];
                     nb_events = 1;
-                    interval = event_time[i];
+                    interval = event_interval[i];
                 }
             } else {
                 /* first event found */
-                if (event_time[i] < container->time_step || is_close(container, event_time[i], container->time_step)) {
+                if (event_interval[i] < container->time_step || is_close(container, event_interval[i], container->time_step)) {
                     container->clocks_list.next_clocks[0].local_vr = container->clocks_list.clock_index[i];
                     container->clocks_list.next_clocks[0].fmu_id   = container->clocks_list.fmu_id[i];
                     container->clocks_list.next_clocks[0].fmu_vr   = container->clocks_list.fmu_vr[i];
                     nb_events = 1;
-                    interval = event_time[i];
+                    interval = event_interval[i];
                 }
             }
         }
@@ -1213,7 +1208,7 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
     container->clocks_list.counter =           malloc(container->clocks_list.nb_fmu          *  sizeof(*container->clocks_list.counter));
     
     container->clocks_list.buffer_qualifier =  malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.buffer_qualifier));
-    container->clocks_list.buffer_time =       malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.buffer_time));
+    container->clocks_list.buffer_interval =   malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.buffer_interval));
     container->clocks_list.fmu_vr =            malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.fmu_vr));
     container->clocks_list.fmu_id =            malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.fmu_id));
     container->clocks_list.next_clocks =       malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.next_clocks));
@@ -1221,7 +1216,7 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
 
     if (!container->clocks_list.counter || 
         !container->clocks_list.buffer_qualifier ||
-        !container->clocks_list.buffer_time ||
+        !container->clocks_list.buffer_interval ||
         !container->clocks_list.fmu_vr ||
         !container->clocks_list.fmu_id ||
         !container->clocks_list.next_clocks ||
@@ -1474,7 +1469,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->clocks_list.fmu_vr = NULL;              /* nb_local_clocks */
         container->clocks_list.fmu_id = NULL;
         container->clocks_list.buffer_qualifier = NULL;    /* nb_local_clocks */
-        container->clocks_list.buffer_time = NULL;         /* nb_local_clocks */
+        container->clocks_list.buffer_interval = NULL;     /* nb_local_clocks */
         container->clocks_list.next_clocks = NULL;         /* nb_local_clocks */
         container->clocks_list.clock_index = NULL;         /* nb_local_clocks */
     }
@@ -1522,7 +1517,7 @@ void container_free(container_t *container) {
 
     free(container->clocks_list.counter);
     free(container->clocks_list.buffer_qualifier);
-    free(container->clocks_list.buffer_time);
+    free(container->clocks_list.buffer_interval);
     free(container->clocks_list.fmu_vr);
     free(container->clocks_list.clock_index);
     free(container->clocks_list.fmu_id);

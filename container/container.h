@@ -55,8 +55,8 @@ typedef struct {
 	unsigned long				nb_fmu;
 	container_clock_counter_t	*counter;
 
-	double						*buffer_time;		/* for getIntervalDecimal */
-	fmi3IntervalQualifier		*buffer_qualifier;  /* for getIntervalDecimal */
+	double						*buffer_interval;	/* for getIntervalDecimal */
+	int							*buffer_qualifier;  /* for getIntervalDecimal */
 
 	unsigned long				nb_local_clocks;
 	fmu_vr_t					*fmu_vr;            /* ordered clock VR */

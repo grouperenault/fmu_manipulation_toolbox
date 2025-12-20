@@ -449,6 +449,9 @@ extern fmu_status_t fmuGetBooleanStatus(const fmu_t *fmu, const fmi2StatusKind s
 extern fmu_status_t fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real* value);
 extern fmu_status_t fmuEnterEventMode(const fmu_t *fmu);
 extern fmu_status_t fmuEnterStepMode(const fmu_t *fmu);
+extern fmu_status_t fmuGetIntervalDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, 
+                                          double *interval, int *qualifier);
+
 #	ifdef __cplusplus
 }
 #	endif

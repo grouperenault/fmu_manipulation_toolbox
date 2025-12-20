@@ -1116,3 +1116,17 @@ fmu_status_t fmuEnterStepMode(const fmu_t *fmu) {
     
     return FMU_STATUS_OK;
 }
+
+
+fmu_status_t fmuGetIntervalDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, 
+                                   double *interval, int *qualifier) {
+    fmi3Status status = fmu->fmi_functions.version_3.fmi3GetIntervalDecimal(fmu->component,
+        vr, nvr, interval, (fmi3IntervalQualifier *)qualifier);
+
+    if (status != fmi3OK) {
+        logger(LOGGER_ERROR, "Cannot GetIntervalDecimal for FMU  '%s'", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+    
+    return FMU_STATUS_OK;
+}
