@@ -304,8 +304,6 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
     return status;
 }
 
-
-
 static int fmu_do_step_thread(fmu_t* fmu) {
     const container_t* container =fmu->container;
 
@@ -1097,10 +1095,12 @@ fmu_status_t fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real
 
 
 fmu_status_t fmuEnterEventMode(const fmu_t *fmu) {
-    fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component);
-    if (status != fmi3OK) {
-        logger(LOGGER_ERROR, "Cannot enter in Event mode for fmu %s", fmu->name);
-        return FMU_STATUS_ERROR;
+    if (fmu->support_event) {
+        fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component);
+        if (status != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot enter in Event mode for fmu %s", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
     }
 
     return FMU_STATUS_OK;
@@ -1108,12 +1108,14 @@ fmu_status_t fmuEnterEventMode(const fmu_t *fmu) {
 
 
 fmu_status_t fmuEnterStepMode(const fmu_t *fmu) {
-    fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterStepMode(fmu->component);
-    if (status != fmi3OK) {
-        logger(LOGGER_ERROR, "Cannot enter step mode for %s", fmu->name);
-        return FMU_STATUS_ERROR;
+    if (fmu->support_event) {
+        fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterStepMode(fmu->component);
+        if (status != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot enter step mode for %s", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
     }
-    
+
     return FMU_STATUS_OK;
 }
 

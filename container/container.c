@@ -71,10 +71,8 @@ fmu_status_t container_enter_event_mode(container_t *container) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t *fmu = &container->fmu[i];
 
-        if (fmu->support_event) {
-            if (fmuEnterEventMode(fmu) != FMU_STATUS_OK)
-                    return FMU_STATUS_ERROR;
-        }
+        if (fmuEnterEventMode(fmu) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
     }
     return FMU_STATUS_OK;
 }
@@ -84,10 +82,8 @@ fmu_status_t container_enter_step_mode(container_t *container) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t *fmu = &container->fmu[i];
 
-        if (fmu->support_event) {
-            if (fmuEnterStepMode(fmu) != FMU_STATUS_OK)
-                    return FMU_STATUS_ERROR;
-        }
+        if (fmuEnterStepMode(fmu) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
     }
     return FMU_STATUS_OK;
 }
