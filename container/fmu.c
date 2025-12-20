@@ -695,6 +695,7 @@ GETTER_BOTH(const char *,  String,     fmi2GetString,   fmi3GetString);
 #undef GETTER_3
 #undef GETTER_2
 
+
 fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, size_t size[], const uint8_t *value[]) {
     fmu_status_t status = FMU_STATUS_OK;
 
@@ -710,6 +711,7 @@ fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, siz
     }
     return status;\
 }
+
 
 fmu_status_t fmuGetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, bool value[]) {
     fmu_status_t status = FMU_STATUS_OK;
@@ -820,8 +822,9 @@ fmu_status_t fmuSetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, con
             status = FMU_STATUS_ERROR;
         }
     }
-    return status;\
+    return status;
 }
+
 
 fmu_status_t fmuSetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const bool value[]) {
     fmu_status_t status = FMU_STATUS_OK;
@@ -836,7 +839,7 @@ fmu_status_t fmuSetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, cons
             status = FMU_STATUS_ERROR;
         }
     }
-    return status;\
+    return status;
 }
 
 
