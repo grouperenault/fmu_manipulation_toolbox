@@ -435,7 +435,6 @@ extern fmu_status_t fmuSetBinary(const fmu_t* fmu, const fmu_vr_t vr[],
                                  size_t nvr, const size_t size[], const uint8_t * const value[]);
 extern fmu_status_t fmuSetClock(const fmu_t* fmu, const fmu_vr_t vr[],
                                 size_t nvr, const bool value[]);
-
 extern fmu_status_t fmuDoStep(fmu_t *fmu, 
                               fmi2Real currentCommunicationPoint, 
                               fmi2Real communicationStepSize);

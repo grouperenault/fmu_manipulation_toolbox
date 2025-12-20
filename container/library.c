@@ -1,7 +1,5 @@
 /*
- * 2022-2024 Nicolas.LAURENT@Renault.com
- *
- * DLL/SO loading functions.
+ * Basic DLL/SO loading functions.
  */
 
 #ifdef WIN32

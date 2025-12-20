@@ -1,9 +1,3 @@
-/*
- * 2022-2024 Nicolas.LAURENT@Renault.com
- * 
- * DLL/SO loading functions.
- */
-
 #ifndef LIBRARY_H
 #define LIBRARY_H
 

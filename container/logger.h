@@ -33,11 +33,11 @@ extern void logger_init(fmu_version_t version, logger_function_t callback,
 extern void logger_set_debug(int debug);
 extern int logger_get_debug(void);
 extern void logger(int status, const char *message, ...);
-extern void logger_embedded_fmu2(fmu_t *fmu,
-                                 const char *instanceName, int status,
-                                 const char *category, const char *message, ...);
-extern void logger_embedded_fmu3(fmu_t* fmu,
-                                 int status, const char* category, const char* message);
+extern void logger_embedded_fmu2(void *fmu, fmi2String instanceName,
+                                 fmi2Status status, fmi2String category, fmi2String message, ...);
+extern void logger_embedded_fmu3(void *fmu,
+                                 fmi3Status status, fmi3String category, fmi3String message);
+                                 
 #	ifdef __cplusplus
 }
 #	endif

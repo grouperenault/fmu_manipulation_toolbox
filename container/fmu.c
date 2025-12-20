@@ -991,7 +991,7 @@ fmu_status_t fmuSetupExperiment(const fmu_t *fmu) {
 fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
     if (fmu->fmi_version == 2) {
         fmu->fmi2_callback_functions.componentEnvironment = fmu;
-        fmu->fmi2_callback_functions.logger = (fmi2CallbackLogger)logger_embedded_fmu2;
+        fmu->fmi2_callback_functions.logger = logger_embedded_fmu2;
         fmu->fmi2_callback_functions.allocateMemory = fmu->container->allocate_memory;
         fmu->fmi2_callback_functions.freeMemory = fmu->container->free_memory;
         fmu->fmi2_callback_functions.stepFinished = NULL;
@@ -1015,7 +1015,7 @@ fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
             NULL, /* requiredIntermediateVariables[] */
             0, /*  nRequiredIntermediateVariables */
             fmu, /* fmi3InstanceEnvironment */
-            (fmi3LogMessageCallback)logger_embedded_fmu3,
+            logger_embedded_fmu3,
             NULL /* intermediateUpdateCallback */
         );
     }

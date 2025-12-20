@@ -1108,12 +1108,12 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
 static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
     READER_FMU_START_VALUES(reals64,     "%lf");
     READER_FMU_START_VALUES(reals32,     "%f");
-    READER_FMU_START_VALUES(integers8,   "%hhd");
-    READER_FMU_START_VALUES(uintegers8,  "%hhu");
-    READER_FMU_START_VALUES(integers16,  "%hd");
-    READER_FMU_START_VALUES(uintegers16, "%hu");
-    READER_FMU_START_VALUES(integers32,  "%d");
-    READER_FMU_START_VALUES(uintegers32, "%d");
+    READER_FMU_START_VALUES(integers8,   "%" SCNd8);
+    READER_FMU_START_VALUES(uintegers8,  "%" SCNu8);
+    READER_FMU_START_VALUES(integers16,  "%" SCNd16);
+    READER_FMU_START_VALUES(uintegers16, "%" SCNu16);
+    READER_FMU_START_VALUES(integers32,  "%" SCNd32);
+    READER_FMU_START_VALUES(uintegers32, "%" SCNu32);
     READER_FMU_START_VALUES(integers64,  "%" SCNd64);
     READER_FMU_START_VALUES(uintegers64, "%" SCNu64);
     READER_FMU_START_VALUES(booleans,    "%d");
