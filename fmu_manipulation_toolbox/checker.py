@@ -27,11 +27,11 @@ class OperationGenericCheck(OperationAbstract):
             return
 
         fmi_name = f"fmi{attrs['fmiVersion'][0]}"
-
         xsd_filename = os.path.join(os.path.dirname(__file__), "resources", "fmi-" + attrs['fmiVersion'],
                                     f"{fmi_name}ModelDescription.xsd")
+        xsd = xmlschema.XMLSchema(xsd_filename)
         try:
-            xmlschema.validate(self.fmu.descriptor_filename, schema=xsd_filename)
+            xsd.validate(self.fmu.descriptor_filename)
         except XMLSchemaValidationError as error:
             logger.error(error.reason, error.msg)
         else:
@@ -43,7 +43,9 @@ class OperationGenericCheck(OperationAbstract):
         else:
             logger.error(f"This FMU does not validate with FMI standard.")
 
+
 _checkers_list: List[type[OperationAbstract]] = [OperationGenericCheck]
+
 
 def get_checkers() -> List[type[OperationAbstract]]:
     if sys.version_info < (3, 10):

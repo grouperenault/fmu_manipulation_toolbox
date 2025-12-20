@@ -121,7 +121,8 @@ class Manipulation:
     TAGS_MODEL_STRUCTURE = ("InitialUnknowns", "Derivatives", "Outputs")
 
     def __init__(self, operation, fmu):
-        self.output_filename = tempfile.mktemp()
+        (fd, self.output_filename) = tempfile.mkstemp()
+        os.close(fd)  # File will be re-opened later
         self.out = None
         self.operation = operation
         self.parser = xml.parsers.expat.ParserCreate()

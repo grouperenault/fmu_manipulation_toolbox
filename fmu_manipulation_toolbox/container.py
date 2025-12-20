@@ -535,7 +535,7 @@ class ClockList:
 
     def write_txt(self, txt_file):
         print(f"# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]", file=txt_file)
-        nb_total_clocks = 0;
+        nb_total_clocks = 0
         for clocks in self.clocks_per_fmu.values():
             nb_total_clocks += len(clocks)
 

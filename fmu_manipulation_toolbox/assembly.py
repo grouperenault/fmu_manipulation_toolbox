@@ -7,7 +7,7 @@ import uuid
 import xml.parsers.expat
 import zipfile
 
-from .container import FMUContainer, AutoWired
+from .container import FMUContainer
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -284,7 +284,7 @@ class Assembly:
         elif filename.endswith(".json"):
             return self.write_json(filename)
         else:
-            logger.critical(f"Unable to write to '{filename}': format unsupported.")
+            raise AssemblyError(f"Unable to write to '{filename}': format unsupported.")
 
     def read_csv(self):
         name = str(self.filename.with_suffix(".fmu"))
