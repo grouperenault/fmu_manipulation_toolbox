@@ -262,8 +262,8 @@ jobs:
     - name: Test suite run
       run: |
         cd tests
-        python -munittest -v test_suite.py
-        coverage-badge -f -o /tmp/badge/coverage.svg
+        coverage run  -m unittest  test_suite.py
+        coverage-badge -f -o /tmp/coverage.svg
     - name: Switch to `badges` branch and copy badge
       if: github.ref == 'refs/heads/main'
       run: |
@@ -273,7 +273,7 @@ jobs:
         git fetch origin badges
         git checkout badges
 
-        cp /tmp/badge/coverage.svg .github/badges/coverage.svg
+        cp /tmp/coverage.svg .github/badges/coverage.svg
 
     - name: Commit badge to `badges` branch
       if: github.ref == 'refs/heads/main'

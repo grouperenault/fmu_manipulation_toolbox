@@ -1,4 +1,3 @@
-import coverage
 import unittest
 import numpy as np
 import subprocess
@@ -284,17 +283,4 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_simulation_log("ls-bus/bus+nodes.fmu", 0.1)
 
 if __name__ == '__main__':
-    cov = coverage.Coverage()
-    cov.start()
-
-    try:
-        unittest.main()
-    except:  # catch-all except clause
-        pass
-
-    cov.stop()
-    cov.save()
-
-    cov.html_report()
-
-    print("Done.")
+    unittest.main()
