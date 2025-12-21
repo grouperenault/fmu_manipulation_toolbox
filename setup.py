@@ -46,7 +46,7 @@ setup(
                                       "fmucontainer = fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer",
                                       "fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit"
                                       ],
-                    "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui:main"]
+                  "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.gui:main"]
                   },
     author=author,
     url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
@@ -67,7 +67,7 @@ FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers.
         "colorama >= 0.4.6",
     ],
     license="BSD-2-Clause",
-    python_requires=">=3.8",
+    python_requires=">=3.9",
 )
 
 os.remove("fmu_manipulation_toolbox/__version__.py")

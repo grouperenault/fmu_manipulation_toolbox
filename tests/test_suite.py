@@ -1,10 +1,11 @@
+import coverage
 import unittest
-import sys
-from pathlib import Path
-from fmpy.simulation import simulate_fmu
 import numpy as np
 import subprocess
-import os
+import sys
+
+from pathlib import Path
+from fmpy.simulation import simulate_fmu
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from fmu_manipulation_toolbox.operations import *
@@ -283,4 +284,17 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_simulation_log("ls-bus/bus+nodes.fmu", 0.1)
 
 if __name__ == '__main__':
-    unittest.main()
+    cov = coverage.Coverage()
+    cov.start()
+
+    try:
+        unittest.main()
+    except:  # catch-all except clause
+        pass
+
+    cov.stop()
+    cov.save()
+
+    cov.html_report()
+
+    print("Done.")
