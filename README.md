@@ -1,25 +1,30 @@
 ![](fmu_manipulation_toolbox/resources/fmu_manipulation_toolbox.png)
 
-FMU Manipulation Toolbox is a python package which help to analyse, modify or combine
-[Functional Mock-up Units (FMUs)](http://fmi-standard.org/) without recompilation. It is highly customizable as it comes with
+![](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/refs/heads/badges/.github/badges/python-version.svg)
+![](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/refs/heads/badges/.github/badges/fmi-version.svg)
+![](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/refs/heads/badges/.github/badges/coverage.svg)
+
+# 👀 Overview
+
+FMU Manipulation Toolbox is a python package which helps to analyze, modify or combine
+[Functional Mock-up Units (FMUs)](http://fmi-standard.org/) without recompilation. It is highly customizable and comes with
 a Python API.
 
-FMU Manipulation Toolbox can be used in different ways :
-- Using a Graphical User Interface: suitable for end user
-- Using a Command Line Interface: useful in 
-- Using a python API: the most efficient for automation (CI/CD, transformation scripts, ...)
+FMU Manipulation Toolbox can be used in different ways:
+- Using a Graphical User Interface: suitable for end users
+- Using a Command Line Interface: useful for scripting and automation
+- Using a Python API: the most efficient option for automation (CI/CD, transformation scripts, ...))
 
 Major features:
-- Analyse FMU content: list ports and their attributes, check compliance of `ModelDescription.xml` with XSD, ...
-- Alter FMU by modifying its `modelDescription.xml` file. NOTE: manipulating this file can be a dangerous
-  thing! Communicating with the FMU-developer and adapting the way the FMU is generated is preferable when
-  possible.
-- Add binary interface. Typical use case is porting a 32bits FMUs to 64bits (or vice et versa). 
-- Nest FMUs in a [FMU Container](doc/container.md)
+- Analyze FMU content: list ports and their attributes, check compliance of `ModelDescription.xml` with XSD, etc.
+- Alter FMU by modifying its `modelDescription.xml` file. NOTE: manipulating this file can be a risky.
+  When possible, it is preferable to communicate with the FMU developer and adapt the FMU generation process.
+- Add binary interfaces. Typical use case is porting a 32-bit FMUs to 64-bit systems (or vice et versa). 
+- Combine FMUs into [FMU Containers](doc/container.md) and allow your favourite FMI tool to orchestrate complex assembly of FMUs.
 
 FMI versions 2.0 and 3.0 are supported.
 
-## Installation
+# ⚙️ Installation
 
 Two options available to install FMU Manipulation Toolbox:
 
@@ -39,7 +44,7 @@ FMU Manipulation Toolbox is packaged for:
 - Darwin
 
 
-## Graphical User Interface
+# 🖥️ Graphical User Interface
 
 FMU Manipulation Toolbox is released with a GUI. You can launch it with the following command `fmutool-gui`
 
@@ -55,7 +60,7 @@ Button colors descriptions:
 **Original FMU is never modified**. Use `Save` button to get modified copy of the original FMU.
 
 
-## Command Line Interface
+# 🔧 Command Line Interface
 
 FMU Manipulation Toolbox comes with 2 commands:
 - `fmutool`: a versatile analysis and manipulation tool for FMU.
@@ -63,7 +68,7 @@ FMU Manipulation Toolbox comes with 2 commands:
 - `fmusplit: to extract FMUs from a FMU Container.
 
 
-### Analysis and Manipulation tool:
+## Analysis and Manipulation tool:
 
 You can use `fmutool -help` to get usage:
 
@@ -149,7 +154,7 @@ optional arguments:
                                     later issues when using the FMU. (default: None)
 ```
 
-### FMU Containers
+## FMU Containers
 
 ```
 usage: fmucontainer [-h] [-fmu-directory FMU_DIRECTORY] [-fmi FMI_VERSION]
@@ -178,7 +183,7 @@ options:
   -dump-json                        Dump a JSON file for each container. (default: False)
 ```
 
-## API
+# 🚀 API
 
 You can write your own FMU Manipulation scripts. Once you downloaded fmutool module, 
 adding the `import` statement lets you access the API :
@@ -188,7 +193,7 @@ from fmu_manipulation_toolbox.operations import ...
 ```
 
 
-### remove toplevel bus (if any)
+## remove toplevel bus (if any)
 
 Given a FMU with the following I/O structure
 ```
@@ -230,9 +235,8 @@ The following code will dump all FMU's Scalars names into a CSV:
 from fmu_manipulation_toolbox.operations import FMU, OperationSaveNamesToCSV
 
 fmu = FMU(r"bouncing_ball.fmu")
-operation = OperationSaveNamesToCSV()
+operation = OperationSaveNamesToCSV(r"bouncing_ball.csv")
 fmu.apply_operation(operation)
-operation.write_csv(r"bouncing_ball.csv")
 ```
 
 The produced CSV contains 2 columns in order to be reused in the next transformation.
@@ -249,7 +253,7 @@ e;e;5;parameter;tunable
 ```
 
 
-### Read CSV and rename FMU ports
+## Read CSV and rename FMU ports
 
 CSV file should contain 2 columns:
 1. the current name

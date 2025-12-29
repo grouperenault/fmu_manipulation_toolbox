@@ -50,15 +50,25 @@ setup(
                   },
     author=author,
     url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
-    description="FMU Manipulation Toolbox is a python application for modifying Functional Mock-up Units "
-                "(FMUs) without recompilation or bundling them into FMU Containers",
-    long_description="""FMU Manipulation Toolbox is a python application for modifying Functional Mock-up Units (FMUs) 
-without recompilation. It mainly modifies the `modelDescription.xml` file. It is highly customizable.
+    description="FMU Manipulation Toolbox is a python package which helps to analyze, modify or combine "
+                "Functional Mock-up Units (FMUs) without recompilation.",
+    long_description="""FMU Manipulation Toolbox is a python package which helps to analyze, modify or combine
+[Functional Mock-up Units (FMUs)](http://fmi-standard.org/) without recompilation. It is highly customizable and comes with
+a Python API.
 
-Manipulating the `modelDescription.xml` can be a dangerous thing! Communicating with the FMU-developer and adapting
-the way the FMU is generated, is the preferable when possible.
+FMU Manipulation Toolbox can be used in different ways:
+- Using a Graphical User Interface: suitable for end users
+- Using a Command Line Interface: useful for scripting and automation
+- Using a Python API: the most efficient option for automation (CI/CD, transformation scripts, ...))
 
-FMU Manipulation Toolbox also allows to group FMU's inside FMU Containers.
+Major features:
+- Analyze FMU content: list ports and their attributes, check compliance of `ModelDescription.xml` with XSD, etc.
+- Alter FMU by modifying its `modelDescription.xml` file. NOTE: manipulating this file can be a risky.
+  When possible, it is preferable to communicate with the FMU developer and adapt the FMU generation process.
+- Add binary interfaces. Typical use case is porting a 32-bit FMUs to 64-bit systems (or vice et versa). 
+- Combine FMUs into [FMU Containers](doc/container.md) and allow your favourite FMI tool to orchestrate complex assembly of FMUs.
+
+FMI versions 2.0 and 3.0 are supported.
     """,
     install_requires=[
         "PySide6 >= 6.8.0",
