@@ -11,14 +11,14 @@ from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopS
 from functools import partial
 
 
-from .gui_style import gui_style, log_color
-from .operations import *
-from .remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
-                       OperationAddFrontendWin64)
-from .assembly import Assembly, AssemblyNode
-from .checker import get_checkers
-from .help import Help
-from .version import __version__ as version
+from fmu_manipulation_toolbox.gui.gui_style import gui_style, log_color
+from fmu_manipulation_toolbox.operations import *
+from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
+                                               OperationAddFrontendWin64)
+from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode
+from fmu_manipulation_toolbox.checker import get_checkers
+from fmu_manipulation_toolbox.help import Help
+from fmu_manipulation_toolbox.version import __version__ as version
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -75,13 +75,13 @@ class DropZoneWidget(QLabel):
 
     def set_image(self, filename=None):
         if not filename:
-            filename = os.path.join(os.path.dirname(__file__), "resources", "drop_fmu.png")
+            filename = os.path.join(os.path.dirname(__file__), "../resources", "drop_fmu.png")
         elif not os.path.isfile(filename):
-            filename = os.path.join(os.path.dirname(__file__), "resources", "fmu.png")
+            filename = os.path.join(os.path.dirname(__file__), "../resources", "fmu.png")
 
         base_image = QImage(filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
                                              Qt.TransformationMode.SmoothTransformation)
-        mask_filename = os.path.join(os.path.dirname(__file__), "resources", "mask.png")
+        mask_filename = os.path.join(os.path.dirname(__file__), "../resources", "mask.png")
         mask_image = QImage(mask_filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
                                                   Qt.TransformationMode.SmoothTransformation)
         rounded_image = QImage(self.WIDTH, self.HEIGHT, QImage.Format.Format_ARGB32)
@@ -134,12 +134,12 @@ class LogWidget(QTextBrowser):
 
         self.setMinimumWidth(900)
         self.setMinimumHeight(500)
-        self.setSearchPaths([os.path.join(os.path.dirname(__file__), "resources")])
+        self.setSearchPaths([os.path.join(os.path.dirname(__file__), "../resources")])
         self.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
         self.log_handler = LogHandler(self, logging.DEBUG)
 
     def loadResource(self, _, name):
-        image_path = os.path.join(os.path.dirname(__file__), "resources", name.toString())
+        image_path = os.path.join(os.path.dirname(__file__), "../resources", name.toString())
         return QPixmap(image_path)
 
 
@@ -150,7 +150,7 @@ class HelpWidget(QLabel):
         super().__init__()
         self.setProperty("class", "help")
 
-        filename = os.path.join(os.path.dirname(__file__), "resources", "help.png")
+        filename = os.path.join(os.path.dirname(__file__), "../resources", "help.png")
         image = QPixmap(filename)
         self.setPixmap(image)
         self.setAlignment(Qt.AlignmentFlag.AlignRight)
@@ -210,8 +210,8 @@ class AssemblyTreeWidget(QTreeView):
             self.setHorizontalHeaderLabels(['col1'])
             self.dnd_target_node: Optional[AssemblyNode] = None
 
-            self.icon_container = QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'container.png'))
-            self.icon_fmu = QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon_fmu.png'))
+            self.icon_container = QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'container.png'))
+            self.icon_fmu = QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'icon_fmu.png'))
 
             if assembly:
                 self.add_node(assembly.root, self)
@@ -719,19 +719,19 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         super().__init__(*args, **kwargs)
 
 
-        QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "resources"))
+        QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "../resources"))
         self.setStyleSheet(gui_style)
 
         if os.name == 'nt':
             import ctypes
-            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon-round.png')))
+            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'icon-round.png')))
 
             # https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7/1552105#1552105
 
             application_id = 'FMU_Manipulation_Toolbox'  # arbitrary string
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(application_id)
         else:
-            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), 'resources', 'icon.png')))
+            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'icon.png')))
 
         self.window = MainWindow()
 
