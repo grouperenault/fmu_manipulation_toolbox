@@ -86,3 +86,5 @@ tests/ls-bus/bus+nodes.fmu
 tests/ls-bus/bus+nodes
 tests/ls-bus/log-bus+nodes.txt
 tests/.coverage
+tests/containers/bouncing_ball/bouncing-datalog.fmu
+tests/containers/bouncing_ball/bouncing-datalog3.fmu

@@ -7,6 +7,15 @@ from typing import *
 from pathlib import Path
 
 from .container import EmbeddedFMUPort
+import logging
+import zipfile
+import json
+import xml.parsers.expat
+
+from typing import *
+from pathlib import Path
+
+from .container import EmbeddedFMUPort
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -191,7 +200,7 @@ class FMUSplitterDescription:
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = self.get_line(file) == "1"
             self.config["sequential"] = False
-        elif len(flags) == 3:
+        elif len(flags) >= 3:
             self.supported_fmi_types = EmbeddedFMUPort.ALL_TYPES
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = flags[1] == "1"

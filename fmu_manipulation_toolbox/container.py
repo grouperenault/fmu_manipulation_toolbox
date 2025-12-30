@@ -620,8 +620,7 @@ class FMUContainer:
     <Float64 valueReference="0" name="time" causality="independent"/>
 """
 
-    def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2,
-                 datalog=False):
+    def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2):
         self.fmu_directory = Path(fmu_directory)
         self.identifier = identifier
         if not self.fmu_directory.is_dir():
@@ -630,7 +629,6 @@ class FMUContainer:
 
         self.description_pathname = description_pathname
         self.fmi_version = fmi_version
-        self.datalog = datalog
 
         self.start_time = None
         self.stop_time = None
@@ -874,7 +872,7 @@ class FMUContainer:
                         logger.warning(f"{cport} is not connected")
 
     def make_fmu(self, fmu_filename: Union[str, Path], step_size: Optional[float] = None, debug=False, mt=False,
-                 profiling=False, sequential=False, ts_multiplier=False):
+                 profiling=False, sequential=False, ts_multiplier=False, datalog=False):
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)
 
@@ -887,16 +885,23 @@ class FMUContainer:
 
         base_directory = self.fmu_directory / fmu_filename.with_suffix('')
         resources_directory = self.make_fmu_skeleton(base_directory)
+
+        if datalog:
+            datalog_filename = str(fmu_filename.with_suffix(".csv"))
+        else:
+            datalog_filename  = None
+
         with open(base_directory / "modelDescription.xml", "wt") as xml_file:
-            self.make_fmu_xml(xml_file, step_size, profiling, ts_multiplier)
+            self.make_fmu_xml(xml_file, step_size, profiling, ts_multiplier, datalog_filename)
         with open(resources_directory / "container.txt", "wt") as txt_file:
-            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential)
+            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential, datalog)
 
         self.make_fmu_package(base_directory, fmu_filename)
         if not debug:
             self.make_fmu_cleanup(base_directory)
 
-    def make_fmu_xml(self, xml_file, step_size: float, profiling: bool, ts_multiplier: bool):
+    def make_fmu_xml(self, xml_file, step_size: float, profiling: bool, ts_multiplier: bool,
+                     datalog_filename: Optional[str]):
         timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
         guid = str(uuid.uuid4())
         embedded_fmu = ", ".join([fmu_name for fmu_name in self.involved_fmu])
@@ -962,6 +967,18 @@ class FMUContainer:
                                                  "start": 1,
                                                  "initial": "exact"})
             print(f"    {port.xml(vr_ts_multiplier, fmi_version=self.fmi_version)}", file=xml_file)
+
+        if datalog_filename is not None:
+            logger.debug(f"Datalog is ENABLED")
+            vr_datalog = self.vr_table.add_vr("string", local=True)
+            port = EmbeddedFMUPort("string", {"valueReference": vr_datalog,
+                                              "name": f"container.datalog",
+                                              "causality": "parameter",
+                                              "description": f"Datalog filename",
+                                              "variability": "fixed",
+                                              "start": datalog_filename,
+                                              "initial": "exact"})
+            print(f"    {port.xml(vr_datalog, fmi_version=self.fmi_version)}", file=xml_file)
 
         if profiling:
             for fmu in self.involved_fmu.values():
@@ -1054,10 +1071,10 @@ class FMUContainer:
                        "\n"
                        "</fmiModelDescription>")
 
-    def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
+    def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool, datalog: bool):
         print("# Version 3", file=txt_file)
-        print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
-        flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
+        print("# Container flags <MT> <Profiling> <Sequential> <Datalog>", file=txt_file)
+        flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential, datalog)]
         print(" ".join(flags), file=txt_file)
 
         print(f"# Internal time step in seconds", file=txt_file)

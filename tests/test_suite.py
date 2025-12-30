@@ -285,5 +285,25 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         assembly.make_fmu(fmi_version=3)
         self.assert_simulation_log("ls-bus/bus+nodes.fmu", 0.1)
 
+    def test_datalog(self):
+        assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True)
+        assembly.make_fmu(filename="bouncing-datalog.fmu", datalog=True)
+        self.assert_identical_files("containers/bouncing_ball/REF-container.txt",
+                                    "containers/bouncing_ball/bouncing/resources/container.txt")
+        self.assert_identical_files("containers/bouncing_ball/REF-bouncing.json",
+                                    "containers/bouncing_ball/bouncing.json")
+        if os.name == 'nt':
+            self.assert_simulation("containers/bouncing_ball/bouncing.fmu")
+
+    def test_datalog3(self):
+        assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True)
+        assembly.make_fmu(filename="bouncing-datalog3.fmu", datalog=True, fmi_version=3)
+        self.assert_identical_files("containers/bouncing_ball/REF-container.txt",
+                                    "containers/bouncing_ball/bouncing/resources/container.txt")
+        self.assert_identical_files("containers/bouncing_ball/REF-bouncing.json",
+                                    "containers/bouncing_ball/bouncing.json")
+        if os.name == 'nt':
+            self.assert_simulation("containers/bouncing_ball/bouncing.fmu")
+
 if __name__ == '__main__':
     unittest.main()

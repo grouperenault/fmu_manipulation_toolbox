@@ -1,6 +1,6 @@
 # Version 3
-# Container flags <MT> <Profiling> <Sequential>
-0 0 0
+# Container flags <MT> <Profiling> <Sequential> <Datalog>
+0 0 0 0
 # Internal time step in seconds
 0.1
 # NB of embedded FMU's
