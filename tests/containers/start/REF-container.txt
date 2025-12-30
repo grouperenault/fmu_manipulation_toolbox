@@ -104,7 +104,8 @@ G
 # Inputs of slx.fmu - clock: <VR> <FMU_VR>
 0
 # Start values of slx.fmu - real64: <FMU_VR> <RESET> <VALUE>
-0
+1
+2 0 10.0
 # Start values of slx.fmu - real32: <FMU_VR> <RESET> <VALUE>
 0
 # Start values of slx.fmu - integer8: <FMU_VR> <RESET> <VALUE>
