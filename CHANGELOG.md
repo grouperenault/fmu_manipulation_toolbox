@@ -7,6 +7,7 @@ This package was formerly known as `fmutool`.
 * ADDED: `fmucontainer` support of Event-Mode
 * ADDED: `fmucontainer` support of LS-BUS
 * FIXED: `fmucontainer` log correctly for FMU3 embedded inside FMU2 container
+* FIXED: `fmucontainer` correctly set start values
 
 # Version 1.9.1.2
 * FIXED: Avoid usage of NULL pointer for category in logs. Despite this is legal, 

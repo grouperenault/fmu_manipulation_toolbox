@@ -484,7 +484,7 @@ class FMUIOList:
 
     def add_start_value(self, cport: ContainerPort, value: str):
         reset = 1 if cport.port.causality == "input" else 0
-        self.start_values[cport.port.type_name][cport.fmu.name].append((cport, reset, value))
+        self.start_values[cport.port.type_name][cport.fmu.name].append((cport.port.vr, reset, value))
 
     def write_txt(self, fmu_name, txt_file):
         for type_name in EmbeddedFMUPort.ALL_TYPES:
@@ -756,11 +756,11 @@ class FMUContainer:
         cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
 
         try:
-            if cport.port.type_name in ('Real', 'Float64', 'Float32'):
+            if cport.port.type_name.startswith('real'):
                 value = float(value)
-            elif cport.port.type_name in ('Integer', 'Int8', 'UInt8', 'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64'):
+            elif cport.port.type_name.startswith('integer') or  cport.port.type_name.startswith('uinteger'):
                 value = int(value)
-            elif cport.port.type_name == 'Boolean':
+            elif cport.port.type_name.startswith('boolean'):
                 value = int(bool(value))
             elif cport.port.type_name == 'String':
                 value = value
