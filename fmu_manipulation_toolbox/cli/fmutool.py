@@ -1,9 +1,7 @@
 import argparse
 import sys
 
-from typing import *
-
-from .utils import setup_logger, make_wide
+from .utils import setup_logger, close_logger, make_wide
 from ..operations import (OperationSummary, OperationError, OperationRemoveRegexp,
                           OperationRemoveSources, OperationTrimUntil, OperationKeepOnlyRegexp, OperationMergeTopLevel,
                           OperationStripTopLevel, OperationRenameFromCSV, OperationSaveNamesToCSV, FMU, FMUError)
@@ -78,6 +76,7 @@ def fmutool():
 
     if cli_options.fmu_input == cli_options.fmu_output:
         logger.fatal(f"'-input' and '-output' should point to different files.")
+        close_logger(logger)
         sys.exit(-3)
 
     logger.info(f"READING Input='{cli_options.fmu_input}'")
@@ -85,6 +84,7 @@ def fmutool():
         fmu = FMU(cli_options.fmu_input)
     except FMUError as reason:
         logger.fatal(f"{reason}")
+        close_logger(logger)
         sys.exit(-4)
 
     if cli_options.apply_on:
@@ -107,6 +107,7 @@ def fmutool():
             fmu.apply_operation(operation, cli_options.apply_on)
         except OperationError as reason:
             logger.fatal(f"{reason}")
+            close_logger(logger)
             sys.exit(-6)
 
     if cli_options.extract_description:
@@ -119,9 +120,13 @@ def fmutool():
             fmu.repack(cli_options.fmu_output)
         except FMUError as reason:
             logger.fatal(f"FATAL ERROR: {reason}")
+            close_logger(logger)
             sys.exit(-5)
     else:
         logger.info(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
+
+    close_logger(logger)
+
 
 if __name__ == "__main__":
     fmutool()

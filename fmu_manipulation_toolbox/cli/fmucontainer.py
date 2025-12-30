@@ -4,7 +4,7 @@ import sys
 
 from pathlib import Path
 
-from .utils import setup_logger, make_wide
+from .utils import setup_logger, close_logger, make_wide
 from ..assembly import Assembly, AssemblyError
 from ..container import FMUContainerError
 from ..version import __version__ as version
@@ -92,16 +92,21 @@ def fmucontainer():
                                 auto_parameter=config.auto_parameter, ts_multiplier=config.ts_multiplier)
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")
+            close_logger(logger)
             sys.exit(-1)
         except (FMUContainerError, AssemblyError) as e:
             logger.fatal(f"{filename}: {e}")
+            close_logger(logger)
             sys.exit(-2)
 
         try:
             assembly.make_fmu(dump_json=config.dump, fmi_version=int(config.fmi_version))
         except FMUContainerError as e:
             logger.fatal(f"{filename}: {e}")
+            close_logger(logger)
             sys.exit(-3)
+
+        close_logger(logger)
 
 if __name__ == "__main__":
     fmucontainer()

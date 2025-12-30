@@ -2,7 +2,8 @@ import logging
 import sys
 from colorama import Fore, Style, init
 
-def setup_logger():
+
+def setup_logger() -> logging.Logger:
     class CustomFormatter(logging.Formatter):
         def format(self, record):
             log_format = "%(levelname)-8s | %(message)s"
@@ -23,6 +24,15 @@ def setup_logger():
     logger.setLevel(logging.INFO)
 
     return logger
+
+
+def close_logger(logger: logging.Logger):
+    for handler in logger.handlers:
+        logger.removeHandler(handler)
+        handler.close()
+    logger.setLevel(logging.NOTSET)
+    logger.propagate = True
+
 
 def make_wide(formatter, w=120, h=36):
     """Return a wider HelpFormatter, if possible."""
