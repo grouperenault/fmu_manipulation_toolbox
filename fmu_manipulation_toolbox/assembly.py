@@ -103,13 +103,13 @@ class AssemblyNode:
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
         self.start_values[Port(fmu_filename, port_name)] = value
 
-    def make_fmu(self, fmu_directory: Path, debug=False, description_pathname=None, fmi_version=2):
+    def make_fmu(self, fmu_directory: Path, debug=False, description_pathname=None, fmi_version=2, datalog=False):
         for node in self.children.values():
             node.make_fmu(fmu_directory, debug=debug, fmi_version=fmi_version)
 
         identifier = str(Path(self.name).stem)
         container = FMUContainer(identifier, fmu_directory, description_pathname=description_pathname,
-                                 fmi_version=fmi_version)
+                                 fmi_version=fmi_version, datalog=datalog)
 
         for fmu_name in self.fmu_names_list:
             container.get_fmu(fmu_name)
@@ -525,9 +525,9 @@ class Assembly:
             self.root = sdd.parse(self.description_pathname)
             self.root.name = str(self.filename.with_suffix(".fmu"))
 
-    def make_fmu(self, dump_json=False, fmi_version=2):
+    def make_fmu(self, dump_json=False, fmi_version=2, datalog=False):
         self.root.make_fmu(self.fmu_directory, debug=self.debug, description_pathname=self.description_pathname,
-                           fmi_version=fmi_version)
+                           fmi_version=fmi_version, datalog=datalog)
         if dump_json:
             dump_file = Path(self.input_pathname.stem + "-dump").with_suffix(".json")
             logger.info(f"Dump Json '{dump_file}'")

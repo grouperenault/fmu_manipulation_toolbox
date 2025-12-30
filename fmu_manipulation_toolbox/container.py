@@ -620,7 +620,8 @@ class FMUContainer:
     <Float64 valueReference="0" name="time" causality="independent"/>
 """
 
-    def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2):
+    def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2,
+                 datalog=False):
         self.fmu_directory = Path(fmu_directory)
         self.identifier = identifier
         if not self.fmu_directory.is_dir():
@@ -629,6 +630,7 @@ class FMUContainer:
 
         self.description_pathname = description_pathname
         self.fmi_version = fmi_version
+        self.datalog = datalog
 
         self.start_time = None
         self.stop_time = None
