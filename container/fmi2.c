@@ -109,8 +109,9 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
     fmi2Real stopTime) {
     container_t* container = (container_t*)c;
 
+    if (toleranceDefined)
+        container->tolerance = tolerance;
     container->tolerance_defined = toleranceDefined;
-    container->tolerance = tolerance;
     container->start_time = startTime;
     container->stop_time_defined = 0; /* stopTime can cause rounding issues. Disbale it.*/
     container->stop_time = stopTime;
