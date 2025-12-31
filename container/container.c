@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "container.h"
+#include "datalog.h"
 #include "logger.h"
 #include "fmu.h"
 #include "version.h"
@@ -511,8 +512,7 @@ static int read_flags(container_t* container, config_file_t* file) {
     if (sequential) {
         logger(LOGGER_WARNING, "Container use SEQUENTIAL mode.");
         container->do_step = container_do_step_sequential;
-    }
-    else {
+    } else {
         if (mt) {
             logger(LOGGER_WARNING, "Container use PARALLEL mode with MULTI thread");
             container->do_step = container_do_step_parallel_mt;
@@ -1408,6 +1408,8 @@ int container_configure(container_t* container, const char* dirname) {
 
     container->integers32[0] = 1;                /* Default: TS multiplier */
     container->next_step = container->time_step; /* Default: no next event time */
+    
+    container->datalog = datalog_new(container, dirname);
 
     logger(LOGGER_DEBUG, "Container is configured.");
     return 0;
@@ -1518,8 +1520,10 @@ void container_free(container_t *container) {
     free(container->clocks_list.clock_index);
     free(container->clocks_list.fmu_id);
     free(container->clocks_list.next_clocks);
+    datalog_free(container->datalog);
 
     free(container);
+
 
     return;
 }

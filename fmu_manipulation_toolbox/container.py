@@ -886,22 +886,20 @@ class FMUContainer:
         base_directory = self.fmu_directory / fmu_filename.with_suffix('')
         resources_directory = self.make_fmu_skeleton(base_directory)
 
-        if datalog:
-            datalog_filename = str(fmu_filename.with_suffix(".csv"))
-        else:
-            datalog_filename  = None
-
         with open(base_directory / "modelDescription.xml", "wt") as xml_file:
-            self.make_fmu_xml(xml_file, step_size, profiling, ts_multiplier, datalog_filename)
+            self.make_fmu_xml(xml_file, step_size, profiling, ts_multiplier)
         with open(resources_directory / "container.txt", "wt") as txt_file:
-            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential, datalog)
+            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential)
+
+        if datalog:
+            with open(resources_directory / "datalog.txt", "wt") as datalog_file:
+                self.make_datalog(datalog_file)
 
         self.make_fmu_package(base_directory, fmu_filename)
         if not debug:
             self.make_fmu_cleanup(base_directory)
 
-    def make_fmu_xml(self, xml_file, step_size: float, profiling: bool, ts_multiplier: bool,
-                     datalog_filename: Optional[str]):
+    def make_fmu_xml(self, xml_file, step_size: float, profiling: bool, ts_multiplier: bool):
         timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
         guid = str(uuid.uuid4())
         embedded_fmu = ", ".join([fmu_name for fmu_name in self.involved_fmu])
@@ -967,18 +965,6 @@ class FMUContainer:
                                                  "start": 1,
                                                  "initial": "exact"})
             print(f"    {port.xml(vr_ts_multiplier, fmi_version=self.fmi_version)}", file=xml_file)
-
-        if datalog_filename is not None:
-            logger.debug(f"Datalog is ENABLED")
-            vr_datalog = self.vr_table.add_vr("string", local=True)
-            port = EmbeddedFMUPort("string", {"valueReference": vr_datalog,
-                                              "name": f"container.datalog",
-                                              "causality": "parameter",
-                                              "description": f"Datalog filename",
-                                              "variability": "fixed",
-                                              "start": datalog_filename,
-                                              "initial": "exact"})
-            print(f"    {port.xml(vr_datalog, fmi_version=self.fmi_version)}", file=xml_file)
 
         if profiling:
             for fmu in self.involved_fmu.values():
@@ -1071,10 +1057,10 @@ class FMUContainer:
                        "\n"
                        "</fmiModelDescription>")
 
-    def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool, datalog: bool):
+    def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
         print("# Version 3", file=txt_file)
-        print("# Container flags <MT> <Profiling> <Sequential> <Datalog>", file=txt_file)
-        flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential, datalog)]
+        print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
+        flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)
 
         print(f"# Internal time step in seconds", file=txt_file)
@@ -1191,6 +1177,22 @@ class FMUContainer:
 
         # CLOCKS
         clock_list.write_txt(txt_file)
+
+    def make_datalog(self, datalog_file):
+        print(f"{self.identifier}-datalog.csv", file=datalog_file)
+
+        ports = defaultdict(list)
+        for input_port_name, input_port in self.inputs.items():
+            ports[input_port.type_name].append((input_port.vr, input_port_name))
+        for output_port_name, output_port in self.outputs.items():
+            ports[output_port.port.type_name].append((output_port.vr, output_port_name))
+        for link in self.links.values():
+            ports[link.cport_from.port.type_name].append((link.vr, link.name))
+
+        for type_name in EmbeddedFMUPort.ALL_TYPES:
+            print(f"{len(ports[type_name])} # {type_name}", file=datalog_file)
+            for port in ports[type_name]:
+                print(f"{port[0]} {port[1]}", file=datalog_file)
 
     @staticmethod
     def long_path(path: Union[str, Path]) -> str:

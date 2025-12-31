@@ -61,6 +61,7 @@ configure_file(
 add_library(container SHARED
 		container.c	container.h
         convert.c   convert.h
+        datalog.c   datalog.h
         fmi2.c
         fmi3.c
 		fmu.c		fmu.h

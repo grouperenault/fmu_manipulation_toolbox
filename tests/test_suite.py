@@ -286,7 +286,7 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_simulation_log("ls-bus/bus+nodes.fmu", 0.1)
 
     def test_datalog(self):
-        assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True)
+        assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True, debug=True)
         assembly.make_fmu(filename="bouncing-datalog.fmu", datalog=True)
         self.assert_identical_files("containers/bouncing_ball/REF-container.txt",
                                     "containers/bouncing_ball/bouncing/resources/container.txt")
