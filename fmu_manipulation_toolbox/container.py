@@ -1179,6 +1179,7 @@ class FMUContainer:
         clock_list.write_txt(txt_file)
 
     def make_datalog(self, datalog_file):
+        print(f"# Datalog filename")
         print(f"{self.identifier}-datalog.csv", file=datalog_file)
 
         ports = defaultdict(list)
@@ -1190,7 +1191,8 @@ class FMUContainer:
             ports[link.cport_from.port.type_name].append((link.vr, link.name))
 
         for type_name in EmbeddedFMUPort.ALL_TYPES:
-            print(f"{len(ports[type_name])} # {type_name}", file=datalog_file)
+            print(f"# {type_name}: <VR> <NAME>" , file=datalog_file)
+            print(f"{len(ports[type_name])}", file=datalog_file)
             for port in ports[type_name]:
                 print(f"{port[0]} {port[1]}", file=datalog_file)
 

@@ -296,14 +296,9 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
             self.assert_simulation("containers/bouncing_ball/bouncing.fmu")
 
     def test_datalog3(self):
-        assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True)
-        assembly.make_fmu(filename="bouncing-datalog3.fmu", datalog=True, fmi_version=3)
-        self.assert_identical_files("containers/bouncing_ball/REF-container.txt",
-                                    "containers/bouncing_ball/bouncing/resources/container.txt")
-        self.assert_identical_files("containers/bouncing_ball/REF-bouncing.json",
-                                    "containers/bouncing_ball/bouncing.json")
-        if os.name == 'nt':
-            self.assert_simulation("containers/bouncing_ball/bouncing.fmu")
+        assembly = Assembly("VanDerPol.json", fmu_directory=Path("containers/VanderPol"), mt=True, debug=True)
+        assembly.make_fmu(filename="VanDerPol-datalog.fmu", datalog=True, fmi_version=3)
+        self.assert_simulation("containers/VanDerPol/VanDerPol-datalog.fmu", 0.1)
 
 if __name__ == '__main__':
     unittest.main()

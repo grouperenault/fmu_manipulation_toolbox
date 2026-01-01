@@ -1470,6 +1470,8 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->clocks_list.buffer_interval = NULL;     /* nb_local_clocks */
         container->clocks_list.next_clocks = NULL;         /* nb_local_clocks */
         container->clocks_list.clock_index = NULL;         /* nb_local_clocks */
+
+        container->datalog = NULL;
     }
     return container;
 }

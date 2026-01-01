@@ -29,8 +29,9 @@ typedef struct datalog_s {
 	DECLARE(uintegers64, uint64_t);
 	DECLARE(booleans, int);
 	DECLARE(booleans1, bool);
-	DECLARE(strings, char *);
-	DECLARE(binaries, fmu_binary_t);
+	DECLARE(strings, const char *);
+	DECLARE(binaries, const uint8_t *);
+    size_t                          *size_binaries;
 	DECLARE(clocks, bool);
 } datalog_t;
 
