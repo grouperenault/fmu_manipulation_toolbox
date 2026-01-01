@@ -5,7 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "config.h"
 #include "container.h"
+#include "datalog.h"
 #include "logger.h"
 #include "fmu.h"
 #include "version.h"
@@ -468,29 +470,6 @@ static fmu_status_t container_do_step_parallel(container_t* container) {
                  R E A D   C O N F I G U R A T I O N
 ----------------------------------------------------------------------------*/
 
-#define CONFIG_FILE_SZ			4096
-typedef struct {
-	FILE						*fp;
-	char						line[CONFIG_FILE_SZ];
-} config_file_t;
-
-
-static int get_line(config_file_t* file) {
-    do {
-        if (!fgets(file->line, CONFIG_FILE_SZ, file->fp)) {
-            file->line[0] = '\0';
-            return -1;
-        }
-    } while (file->line[0] == '#');
-
-    /* CHOMP() */
-    if (file->line[strlen(file->line) - 1] == '\n')
-        file->line[strlen(file->line) - 1] = '\0'; 
-    
-    return 0;
-}
-
-
 /*
  * # Container flags <MT> <Profiling> <Sequential>
  * 1 0 0 
@@ -511,8 +490,7 @@ static int read_flags(container_t* container, config_file_t* file) {
     if (sequential) {
         logger(LOGGER_WARNING, "Container use SEQUENTIAL mode.");
         container->do_step = container_do_step_sequential;
-    }
-    else {
+    } else {
         if (mt) {
             logger(LOGGER_WARNING, "Container use PARALLEL mode with MULTI thread");
             container->do_step = container_do_step_parallel_mt;
@@ -1263,39 +1241,34 @@ int container_configure(container_t* container, const char* dirname) {
     char filename[CONFIG_FILE_SZ];
 
     logger(LOGGER_WARNING, "FMUContainer '" VERSION_TAG "'");
-    strncpy(filename, dirname, sizeof(filename) - 1);
-    filename[sizeof(filename) - 1] = '\0';
-    strncat(filename, "/container.txt", sizeof(filename) - strlen(filename) - 1);
-
-    logger(LOGGER_DEBUG, "Reading '%s'...", filename);
-    file.fp = fopen(filename, "rt");
-    if (!file.fp) {
+    if (config_file_open(&file, dirname, "container.txt")) {
         logger(LOGGER_ERROR, "Cannot open '%s': %s.", filename, strerror(errno));
         return -1;
     }
+
     if (read_flags(container, &file)) {
-        fclose(file.fp);
+        config_file_close(&file);
         return -2;
     }
 
     if (read_conf_time_step(container, &file)) {
-        fclose(file.fp);
+        config_file_close(&file);
         return -3;
     }
 
     if (read_conf_fmu(container, dirname, &file)) {
-        fclose(file.fp);
+        config_file_close(&file);
         return -4;
     }
 
     if (read_conf_local(container, &file)) {
-        fclose(file.fp);
+        config_file_close(&file);
         logger(LOGGER_ERROR, "Cannot allocate local variables.");
         return -5;
     }
 
     if (read_conf_io(container, &file)) {
-        fclose(file.fp);
+        config_file_close(&file);
         logger(LOGGER_ERROR, "Cannot read translation table.");
         return -6;
     }
@@ -1323,7 +1296,7 @@ int container_configure(container_t* container, const char* dirname) {
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (read_conf_fmu_io(&container->fmu[i], &file)) {
-            fclose(file.fp);
+            config_file_close(&file);
             logger(LOGGER_ERROR, "Cannot read I/O table for FMU#%d", i);
             return -7;
         }
@@ -1394,7 +1367,7 @@ int container_configure(container_t* container, const char* dirname) {
     if (container->clocks_list.nb_fmu)
         logger(LOGGER_DEBUG, "Container will tick for clocks from %lu FMUs", container->clocks_list.nb_fmu);
 
-    fclose(file.fp);
+    config_file_close(&file);
 
     logger(LOGGER_DEBUG, "Instanciate embedded FMUs...");
     for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -1408,6 +1381,8 @@ int container_configure(container_t* container, const char* dirname) {
 
     container->integers32[0] = 1;                /* Default: TS multiplier */
     container->next_step = container->time_step; /* Default: no next event time */
+    
+    container->datalog = datalog_new(container, dirname);
 
     logger(LOGGER_DEBUG, "Container is configured.");
     return 0;
@@ -1468,6 +1443,8 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->clocks_list.buffer_interval = NULL;     /* nb_local_clocks */
         container->clocks_list.next_clocks = NULL;         /* nb_local_clocks */
         container->clocks_list.clock_index = NULL;         /* nb_local_clocks */
+
+        container->datalog = NULL;
     }
     return container;
 }
@@ -1518,8 +1495,10 @@ void container_free(container_t *container) {
     free(container->clocks_list.clock_index);
     free(container->clocks_list.fmu_id);
     free(container->clocks_list.next_clocks);
+    datalog_free(container->datalog);
 
     free(container);
+
 
     return;
 }

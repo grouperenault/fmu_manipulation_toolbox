@@ -3,10 +3,10 @@
   fmiVersion="2.0"
   modelName="container-slx"
   generationTool="FMUContainer-0.0.dev0"
-  generationDateAndTime="2025-07-03T12:10:28Z"
-  guid="1975798f-a43a-4a18-bed6-3d58a9368c64"
+  generationDateAndTime="2026-01-01T10:46:36Z"
+  guid="a815408d-53ac-4c74-a923-bc62af6d701b"
   description="FMUContainer with slx.fmu"
-  author="a067220"
+  author="nl"
   license="Proprietary"
   copyright="See Embedded FMU's copyrights."
   variableNamingConvention="structured">
@@ -23,22 +23,26 @@
   </CoSimulation>
 
   <LogCategories>
-    <Category name="fmucontainer"/>
+    <Category name="Info"
+              description="Info log messages." />
+    <Category name="Error"
+              description="Error log messages." />
   </LogCategories>
 
   <DefaultExperiment stepSize="0.1" startTime="0.0" stopTime="10.0"/>
 
   <ModelVariables>
-    <ScalarVariable name="slx.g_1" valueReference="0" causality="parameter" variability="tunable"  description="g"><Real start="10.0"/></ScalarVariable>
-    <ScalarVariable name="g" valueReference="1" causality="output" variability="continuous"  description="g"><Real /></ScalarVariable>
+    <ScalarVariable valueReference="0" name="time" causality="independent"><Real /></ScalarVariable>
+    <ScalarVariable name="slx.g_1" valueReference="1" causality="parameter" variability="tunable" initial="exact" description="g"><Real start="10.0"/></ScalarVariable>
+    <ScalarVariable name="g" valueReference="2" causality="output" variability="continuous" initial="calculated" description="g"><Real /></ScalarVariable>
   </ModelVariables>
 
   <ModelStructure>
     <Outputs>
-      <Unknown index="2"/>
+      <Unknown index="3"/>
     </Outputs>
     <InitialUnknowns>
-      <Unknown index="2"/>
+      <Unknown index="3"/>
     </InitialUnknowns>
   </ModelStructure>
 

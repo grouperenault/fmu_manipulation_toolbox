@@ -98,7 +98,8 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
     container_t* container = (container_t*)instance;
 
     container->tolerance_defined = toleranceDefined;
-    container->tolerance = tolerance;
+    if (toleranceDefined)
+        container->tolerance = tolerance;
     container->start_time = startTime;
     container->stop_time_defined = 0; /* stopTime can cause rounding issues. Disbale it.*/
     container->stop_time = stopTime;

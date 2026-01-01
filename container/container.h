@@ -146,6 +146,8 @@ typedef struct container_s {
 	double						tolerance;				/* used for comparisons */
 	container_clock_list_t		clocks_list;
 
+	struct datalog_s			*datalog;
+
 	fmi2CallbackAllocateMemory	allocate_memory;		/* used to embed FMU-2.0 */
 	fmi2CallbackFreeMemory      free_memory;			/* used to embed FMU-2.0 */
 } container_t;

@@ -484,7 +484,7 @@ class FMUIOList:
 
     def add_start_value(self, cport: ContainerPort, value: str):
         reset = 1 if cport.port.causality == "input" else 0
-        self.start_values[cport.port.type_name][cport.fmu.name].append((cport, reset, value))
+        self.start_values[cport.port.type_name][cport.fmu.name].append((cport.port.vr, reset, value))
 
     def write_txt(self, fmu_name, txt_file):
         for type_name in EmbeddedFMUPort.ALL_TYPES:
@@ -756,11 +756,11 @@ class FMUContainer:
         cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
 
         try:
-            if cport.port.type_name in ('Real', 'Float64', 'Float32'):
+            if cport.port.type_name.startswith('real'):
                 value = float(value)
-            elif cport.port.type_name in ('Integer', 'Int8', 'UInt8', 'Int16', 'UInt16', 'Int32', 'UInt32', 'Int64', 'UInt64'):
+            elif cport.port.type_name.startswith('integer') or  cport.port.type_name.startswith('uinteger'):
                 value = int(value)
-            elif cport.port.type_name == 'Boolean':
+            elif cport.port.type_name.startswith('boolean'):
                 value = int(bool(value))
             elif cport.port.type_name == 'String':
                 value = value
@@ -872,7 +872,7 @@ class FMUContainer:
                         logger.warning(f"{cport} is not connected")
 
     def make_fmu(self, fmu_filename: Union[str, Path], step_size: Optional[float] = None, debug=False, mt=False,
-                 profiling=False, sequential=False, ts_multiplier=False):
+                 profiling=False, sequential=False, ts_multiplier=False, datalog=False):
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)
 
@@ -885,10 +885,15 @@ class FMUContainer:
 
         base_directory = self.fmu_directory / fmu_filename.with_suffix('')
         resources_directory = self.make_fmu_skeleton(base_directory)
+
         with open(base_directory / "modelDescription.xml", "wt") as xml_file:
             self.make_fmu_xml(xml_file, step_size, profiling, ts_multiplier)
         with open(resources_directory / "container.txt", "wt") as txt_file:
             self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential)
+
+        if datalog:
+            with open(resources_directory / "datalog.txt", "wt") as datalog_file:
+                self.make_datalog(datalog_file)
 
         self.make_fmu_package(base_directory, fmu_filename)
         if not debug:
@@ -1172,6 +1177,24 @@ class FMUContainer:
 
         # CLOCKS
         clock_list.write_txt(txt_file)
+
+    def make_datalog(self, datalog_file):
+        print(f"# Datalog filename")
+        print(f"{self.identifier}-datalog.csv", file=datalog_file)
+
+        ports = defaultdict(list)
+        for input_port_name, input_port in self.inputs.items():
+            ports[input_port.type_name].append((input_port.vr, input_port_name))
+        for output_port_name, output_port in self.outputs.items():
+            ports[output_port.port.type_name].append((output_port.vr, output_port_name))
+        for link in self.links.values():
+            ports[link.cport_from.port.type_name].append((link.vr, link.name))
+
+        for type_name in EmbeddedFMUPort.ALL_TYPES:
+            print(f"# {type_name}: <VR> <NAME>" , file=datalog_file)
+            print(f"{len(ports[type_name])}", file=datalog_file)
+            for port in ports[type_name]:
+                print(f"{port[0]} {port[1]}", file=datalog_file)
 
     @staticmethod
     def long_path(path: Union[str, Path]) -> str:
