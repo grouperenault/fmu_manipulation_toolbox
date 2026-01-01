@@ -7,6 +7,7 @@ from fmpy.simulation import simulate_fmu
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from fmu_manipulation_toolbox.operations import *
+from fmu_manipulation_toolbox.checker import *
 from fmu_manipulation_toolbox.remoting import *
 from fmu_manipulation_toolbox.container import *
 from fmu_manipulation_toolbox.assembly import *
@@ -114,6 +115,10 @@ class TestSuite:
         self.assert_simulation("remoting/bouncing_ball-win32.fmu")
         self.assert_simulation("remoting/bouncing_ball-win64.fmu")
 
+    def test_checker(self):
+        fmu = FMU("operations/bouncing_ball.fmu")
+        fmu.apply_operation(OperationGenericCheck())
+
     def test_remove_regexp(self):
         self.assert_operation_match_ref("operations/bouncing_ball-removed.fmu",
                                         OperationRemoveRegexp("e"))
@@ -126,6 +131,7 @@ class TestSuite:
         assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True, debug=True)
         assembly.write_json("bouncing.json")
         assembly.make_fmu()
+        assembly.write_csv("bouncing2.csv")
         self.assert_identical_files("containers/bouncing_ball/REF-container.txt",
                                     "containers/bouncing_ball/bouncing/resources/container.txt")
         self.assert_identical_files("containers/bouncing_ball/REF-bouncing.json",
