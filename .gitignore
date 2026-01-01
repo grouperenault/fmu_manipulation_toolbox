@@ -92,3 +92,4 @@ tests/containers/bouncing_ball/bouncing-datalog
 tests/VanDerPol-Container-datalog.csv
 tests/containers/VanDerPol/VanDerPol-datalog
 tests/containers/VanDerPol/VanDerPol-datalog.fmu
+tests/containers/VanDerPol/results-VanDerPol-datalog.csv

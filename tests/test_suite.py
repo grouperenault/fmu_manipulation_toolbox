@@ -308,7 +308,7 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
             self.assert_file_exist("bouncing-datalog.csv")
 
     def test_datalog3(self):
-        assembly = Assembly("VanDerPol.json", fmu_directory=Path("containers/VanderPol"), mt=True, debug=True)
+        assembly = Assembly("VanDerPol.json", fmu_directory=Path("containers/VanDerPol"), mt=True, debug=True)
         assembly.make_fmu(filename="VanDerPol-datalog.fmu", datalog=True, fmi_version=3)
         self.assert_identical_files("containers/VanDerPol/VanDerPol-datalog/resources/datalog.txt",
                                     "containers/VanDerPol/REF-datalog.txt")

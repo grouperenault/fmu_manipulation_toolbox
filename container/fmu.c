@@ -462,18 +462,19 @@ static void fs_make_path(char* buffer, size_t len, ...) {
 	int i = 0;
 	while ((folder = va_arg(params, const char*))) {
 		size_t current_len = strlen(buffer);
-		if ((i > 0) && (current_len < len)) {
+		if ((i > 0) && (current_len < (len-1))) {
 #ifdef WIN32
-			buffer[current_len++] = '\\';
+			buffer[current_len] = '\\';
 #else
-            buffer[current_len++] = '/';
+            buffer[current_len] = '/';
 #endif
+            current_len += 1;
 			buffer[current_len] = '\0';
 		}
-		strncat(buffer, folder, len - current_len -1);
+		strncat(buffer, folder, len - current_len);
+        buffer[len-1] = '\0'; /* paranoia */
 		i += 1;
 	}
-
 	va_end(params);
 
 	return;
