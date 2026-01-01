@@ -59,6 +59,7 @@ configure_file(
 
 # Create CONTAINER  Shared library
 add_library(container SHARED
+        config.c    config.h
 		container.c	container.h
         convert.c   convert.h
         datalog.c   datalog.h

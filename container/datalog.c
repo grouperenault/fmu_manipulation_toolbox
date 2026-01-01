@@ -4,6 +4,8 @@
 #include <string.h>
 
 #include "fmi3Functions.h"
+
+#include "config.h"
 #include "datalog.h"
 #include "container.h"
 
@@ -65,30 +67,6 @@ static fmu_status_t datalog_do_step(container_t *container) {
 
     /* and process a step */
     return datalog->do_step(container);
-}
-
-
-#define CONFIG_FILE_SZ			4096
-typedef struct {
-	FILE						*fp;
-	char						line[CONFIG_FILE_SZ];
-} config_file_t;
-
-
-static int get_line(config_file_t* file) {
-    do {
-        if (!fgets(file->line, CONFIG_FILE_SZ, file->fp)) {
-            file->line[0] = '\0';
-            return -1;
-        }
-        logger(LOGGER_ERROR, "%s", file->line);
-    } while (file->line[0] == '#');
-
-    /* CHOMP() */
-    if (file->line[strlen(file->line) - 1] == '\n')
-        file->line[strlen(file->line) - 1] = '\0'; 
-    
-    return 0;
 }
 
 
@@ -201,22 +179,15 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
 
 
 datalog_t *datalog_new(container_t *container, const char *dirname) {
-    char filename[CONFIG_FILE_SZ];
     config_file_t config;
 
-    strncpy(filename, dirname, sizeof(filename) - 1);
-    filename[sizeof(filename) - 1] = '\0';
-    strncat(filename, "/datalog.txt", sizeof(filename) - strlen(filename) - 1);
-
-    config.fp = fopen(filename, "rt");
-
-    if (! config.fp)
+    if (config_file_open(&config, dirname, "datalog.txt"))
         return NULL;
 
     datalog_t *datalog = datalog_init();
     if (!datalog) {
         logger(LOGGER_ERROR, "Cannot allocate datalog memory.");
-        fclose(config.fp);
+        config_file_close(&config);
         return NULL;
     }
     if (datalog_configure(&config, datalog)) {
@@ -227,7 +198,7 @@ datalog_t *datalog_new(container_t *container, const char *dirname) {
         container->do_step = datalog_do_step; 
     }
 
-    fclose(config.fp);
+    config_file_close(&config);
       
     return datalog;
 
