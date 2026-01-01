@@ -343,7 +343,7 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/V')
-    needs: [package, tests-win64]
+    needs: [tests-linux, tests-win64]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
