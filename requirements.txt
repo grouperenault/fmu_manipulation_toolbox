@@ -5,3 +5,4 @@ colorama >= 0.4.6
 fmpy >= 0.3.20
 pytest >= 8.4.2
 pytest-cov >= 7.0.0
+coverage-badge >= 1.1.2
