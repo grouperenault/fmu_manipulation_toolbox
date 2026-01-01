@@ -3,6 +3,9 @@
 #include "config.h"
 #include "logger.h"
 
+/*
+ * Routine to "parse" config files
+ */
 
 int get_line(config_file_t* config_file) {
     do {

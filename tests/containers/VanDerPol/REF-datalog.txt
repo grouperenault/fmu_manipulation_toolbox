@@ -1,0 +1,36 @@
+VanDerPol-Container-datalog.csv
+# real64: <VR> <NAME>
+5
+2 vanderpol.mu
+3 x0
+4 vanderpol.der(x0)
+5 x1
+6 vanderpol.der(x1)
+# real32: <VR> <NAME>
+0
+# integer8: <VR> <NAME>
+0
+# uinteger8: <VR> <NAME>
+0
+# integer16: <VR> <NAME>
+0
+# uinteger16: <VR> <NAME>
+0
+# integer32: <VR> <NAME>
+0
+# uinteger32: <VR> <NAME>
+0
+# integer64: <VR> <NAME>
+0
+# uinteger64: <VR> <NAME>
+0
+# boolean: <VR> <NAME>
+0
+# boolean1: <VR> <NAME>
+0
+# string: <VR> <NAME>
+0
+# binary: <VR> <NAME>
+0
+# clock: <VR> <NAME>
+0
