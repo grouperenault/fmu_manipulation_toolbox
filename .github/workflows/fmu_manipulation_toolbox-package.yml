@@ -268,6 +268,7 @@ jobs:
       run: |
         cd tests
         coverage-badge -f -o /coverage.svg
+        cd ..
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
 
@@ -284,7 +285,7 @@ jobs:
         branch: badges
         file_pattern: .github/badges/coverage.svg
 
-  package:
+  tests-linux:
     needs: [remoting-windows32, remoting-windows64, remoting-linux32, remoting-linux64, container-windows64, container-linux64, container-darwin64]
     runs-on: ubuntu-latest
     steps:
