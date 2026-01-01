@@ -12,10 +12,6 @@
 #include "fmu.h"
 #include "version.h"
 
-#ifdef WIN32
-#	pragma warning(disable : 4100)     /* no complain abourt unref formal param */
-#	pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
-#endif
 
 /*
  * Implementation of the fmu2Component/fmu3Instance depending on FMUContainer

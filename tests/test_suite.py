@@ -1,5 +1,5 @@
-import unittest
 import numpy as np
+import pytest
 import sys
 
 from pathlib import Path
@@ -15,25 +15,22 @@ from fmu_manipulation_toolbox.cli.fmucontainer import fmucontainer
 from fmu_manipulation_toolbox.cli.fmutool import fmutool
 
 
-class FMUManipulationToolboxTestSuite(unittest.TestCase):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fmu_filename = "operations/bouncing_ball.fmu"
-
+class TestSuite:
     def assert_simulation(self, filename: Union[Path, str], step_size: Optional[float] = None):
         if isinstance(filename, str):
             filename = Path(filename)
         result_filename = filename.with_name("results-" + filename.with_suffix(".csv").name)
         ref_filename = result_filename.with_stem("REF-" + result_filename.stem)
 
-        result = simulate_fmu(filename, step_size=step_size, stop_time=10, relative_tolerance=1e-9,
+        result = simulate_fmu(filename, step_size=step_size, stop_time=10,
                               output_interval=step_size, validate=True)
 
         np.savetxt(result_filename, result, delimiter=',', fmt="%.5e")
 
         self.assert_identical_files(result_filename, ref_filename)
 
-    def assert_simulation_log(self, filename: Union[Path, str], step_size: Optional[float] = None):
+    @staticmethod
+    def assert_simulation_log(filename: Union[Path, str], step_size: Optional[float] = None):
         if isinstance(filename, str):
             filename = Path(filename)
 
@@ -51,18 +48,20 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         with open(log_filename, mode="rt", newline=None) as a, open(ref_filename, mode="rt", newline=None) as b:
             for i, (lineA, lineB) in enumerate(zip(a, b)):
                 if i > 10:
-                    self.assertTrue(lineA == lineB)
+                    assert(lineA == lineB)
 
-    def assert_identical_files(self, filename1, filename2):
+    @staticmethod
+    def assert_identical_files(filename1, filename2):
         with open(filename1, mode="rt", newline=None) as a, open(filename2, mode="rt", newline=None) as b:
             for lineA, lineB in zip(a, b):
-                self.assertTrue(lineA == lineB,
-                                f"file {filename1} and {filename2} missmatch (excl. GUID):\n"
-                                f"{lineA}\n"
-                                f"vs.\n\n"
-                                f"{lineB}")
+                assert(lineA == lineB,
+                       f"file {filename1} and {filename2} missmatch (excl. GUID):\n"
+                       f"{lineA}\n"
+                       f"vs.\n\n"
+                       f"{lineB}")
 
-    def assert_identical_files_but_guid(self, filename1, filename2):
+    @staticmethod
+    def assert_identical_files_but_guid(filename1, filename2):
         keywords = ("guid", "author", "generationDateAndTime", "instantiationToken")
         with open(filename1, mode="rt", newline=None) as a, open(filename2, mode="rt", newline=None) as b:
             for lineA, lineB in zip(a, b):
@@ -71,11 +70,11 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
                     if keyword in lineA:
                         skip = True
                         break
-                self.assertTrue(skip or lineA == lineB,
-                                f"file {filename1} and {filename2} missmatch (excl. GUID):\n"
-                                f"{lineA}\n"
-                                f"vs.\n\n"
-                                f"{lineB}")
+                assert(skip or lineA == lineB,
+                       f"file {filename1} and {filename2} missmatch:\n"
+                       f"{lineA}\n"
+                       f"vs.\n\n"
+                       f"{lineB}")
 
     def assert_names_match_ref(self, fmu_filename):
         fmu = FMU(fmu_filename)
@@ -86,25 +85,27 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files(ref_filename, csv_filename)
 
     def assert_operation_match_ref(self, fmu_filename, operation):
-        fmu = FMU(self.fmu_filename)
+        fmu = FMU("operations/bouncing_ball.fmu")
         fmu.apply_operation(operation)
         fmu.repack(fmu_filename)
         self.assert_names_match_ref(fmu_filename)
 
-    def assert_file_exist(self, path):
-        self.assertTrue(Path(path).exists())
+    @staticmethod
+    def assert_file_exist(path):
+        assert(Path(path).exists())
 
     def test_strip_top_level(self):
         self.assert_operation_match_ref("operations/bouncing_ball-no-tl.fmu", OperationStripTopLevel())
 
-    def test_save_names_to_CSV(self):
+    def test_save_names_to_csv(self):
         self.assert_names_match_ref("operations/bouncing_ball.fmu")
 
-    def test_rename_from_CSV(self):
+    def test_rename_from_csv(self):
         self.assert_operation_match_ref("operations/bouncing_ball-renamed.fmu",
                                         OperationRenameFromCSV("operations/bouncing_ball-modified.csv"))
 
-    @unittest.skipUnless(sys.platform.startswith("win"), "Supported only on Windows")
+    #@unittest.skipUnless(sys.platform.startswith("win"), "Supported only on Windows")
+    @pytest.mark.skipif(not sys.platform == "win32", reason="does run only on windows")
     def test_add_remoting_win32(self):
         fmu = FMU("remoting/bouncing_ball-win32.fmu")
         operation = OperationAddRemotingWin64()
@@ -219,7 +220,7 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files_but_guid("containers/start/REF-modelDescription.xml",
                                              "containers/start/container-slx/modelDescription.xml")
         if os.name == 'nt':
-            self.assert_simulation("containers/start/slx.fmu")
+            self.assert_simulation("containers/start/container-slx.fmu")
 
     def test_container_vanderpol(self):
         self.assert_simulation("containers/VanDerPol/VanDerPol.fmu", 0.1)
@@ -288,8 +289,8 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         sys.argv = ['fmusplit',
                     "-fmu", "containers/ssp/bouncing.fmu"]
         fmusplit()
-        self.assertTrue(Path("containers/ssp/bouncing.dir/bb_position.fmu").exists())
-        self.assertTrue(Path("containers/ssp/bouncing.dir/bb_velocity.fmu").exists())
+        assert(Path("containers/ssp/bouncing.dir/bb_position.fmu").exists())
+        assert(Path("containers/ssp/bouncing.dir/bb_velocity.fmu").exists())
         self.assert_identical_files("containers/ssp/REF-split-bouncing.json",
                                     "containers/ssp/bouncing.dir/bouncing.json")
 
@@ -304,7 +305,7 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_identical_files("containers/bouncing_ball/bouncing-datalog/resources/datalog.txt",
                                     "containers/bouncing_ball/REF-datalog.txt")
         if os.name == 'nt':
-            self.assert_simulation("containers/bouncing_ball/bouncing.fmu")
+            self.assert_simulation("containers/bouncing_ball/bouncing-datalog.fmu")
             self.assert_file_exist("bouncing-datalog.csv")
 
     def test_datalog3(self):
@@ -315,5 +316,3 @@ class FMUManipulationToolboxTestSuite(unittest.TestCase):
         self.assert_simulation("containers/VanDerPol/VanDerPol-datalog.fmu", 0.1)
         self.assert_file_exist("VanDerPol-Container-datalog.csv")
 
-if __name__ == '__main__':
-    unittest.main()

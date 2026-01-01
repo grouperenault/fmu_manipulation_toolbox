@@ -8,6 +8,14 @@ extern "C" {
 #include <stdio.h>
 
 
+#ifdef WIN32
+#   define STRLCPY(dst, src, len)   strcpy_s(dst, len, src)
+#   define STRLCAT(dst, src, len)   strcat_s(dst, len, src)
+#else
+#   define STRLCPY(dst, src, len)   strlcpy(dst, src, len)
+#   define STRLCAT(dst, src, len)   strlcat(dst, src, len)
+#endif
+
 /*----------------------------------------------------------------------------
                         C O N F I G _ F I L E _ T
 ----------------------------------------------------------------------------*/

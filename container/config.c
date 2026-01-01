@@ -26,13 +26,9 @@ int get_line(config_file_t* config_file) {
 int config_file_open(config_file_t* config_file, const char *dirname, const char *filename) {
     char full_path[CONFIG_FILE_SZ];
 
-    strncpy(full_path, dirname, sizeof(full_path) - 1);
-    full_path[sizeof(full_path) - 1] = '\0';
-    strncat(full_path, "/", sizeof(full_path) - strlen(full_path) - 1);
-    full_path[sizeof(full_path) - 1] = '\0';
-    strncat(full_path, filename, sizeof(full_path) - strlen(full_path) - 1);
-    full_path[sizeof(full_path) - 1] = '\0';
-
+    STRLCPY(full_path, dirname, sizeof(full_path));
+    STRLCAT(full_path, "/", sizeof(full_path));
+    STRLCAT(full_path, filename, sizeof(full_path));
     
     config_file->fp = fopen(full_path, "rt");
     if (! config_file->fp)

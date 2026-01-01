@@ -262,11 +262,12 @@ jobs:
     - name: Test suite run
       run: |
         cd tests
-        coverage run  -m unittest  test_suite.py
-        coverage-badge -f -o /coverage.svg
+        pytest --cov=fmu_manipulation_toolbox test_suite.py
     - name: Switch to `badges` branch and copy badge
       if: github.ref == 'refs/heads/main'
       run: |
+        cd tests
+        coverage-badge -f -o /coverage.svg
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
 

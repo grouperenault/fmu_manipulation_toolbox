@@ -3,7 +3,7 @@ import sys
 
 def gui():
     try:
-        from .gui import main
+        from .gui.gui import main
         main()
     except ModuleNotFoundError as e:
         print(f"FATAL ERROR: {e}. No GUI Available.")

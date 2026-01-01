@@ -1,16 +1,13 @@
 #include <stdarg.h>
 #include <string.h>
 
+#include "config.h" /* for STRLCAT/STRLCPY */
 #include "convert.h"
 #include "container.h"
 #include "fmu.h"
 #include "logger.h"
 #include "profile.h"
 
-#ifdef WIN32
-#	pragma warning(disable : 4100)     /* no complain abourt unref formal param */
-#	pragma warning(disable : 4996)     /* no complain about strncpy/strncat */
-#endif
 
 /*
  * FMI-importer supporting FMI-2.0 and FMI-3.0. FMUs are handled through fmu_t pointers.
@@ -461,18 +458,14 @@ static void fs_make_path(char* buffer, size_t len, ...) {
 	const char* folder;
 	int i = 0;
 	while ((folder = va_arg(params, const char*))) {
-		size_t current_len = strlen(buffer);
-		if ((i > 0) && (current_len < (len-1))) {
+		if (i > 0) {
 #ifdef WIN32
-			buffer[current_len] = '\\';
+            STRLCAT(buffer, "\\", len);
 #else
-            buffer[current_len] = '/';
+            STRLCAT(buffer, "/", len);
 #endif
-            current_len += 1;
-			buffer[current_len] = '\0';
 		}
-		strncat(buffer, folder, len - current_len);
-        buffer[len-1] = '\0'; /* paranoia */
+        STRLCAT(buffer, folder, len);
 		i += 1;
 	}
 	va_end(params);
@@ -520,7 +513,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     library_filename[0] = '\0';
     switch(fmi_version) {
         case 2:
-           strncpy(fmu->resource_dir, "file:///", FMU_PATH_MAX_LEN);
+           STRLCPY(fmu->resource_dir, "file:///", FMU_PATH_MAX_LEN);
            fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU2_BINDIR, identifier, NULL);
             break;
         case 3:
@@ -531,7 +524,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
             logger(LOGGER_ERROR, "Unsupported FMI-%d version.", fmi_version);
             return -1;
     }
-    strncat(library_filename, FMU_BIN_SUFFIXE, FMU_PATH_MAX_LEN - strlen(library_filename));
+    STRLCAT(library_filename, FMU_BIN_SUFFIXE, FMU_PATH_MAX_LEN);
  	fs_make_path(fmu->resource_dir, FMU_PATH_MAX_LEN, directory, "resources", NULL);
 
     fmu->library = library_load(library_filename);

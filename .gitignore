@@ -67,7 +67,6 @@ tests/containers/bouncing_ball/results-bouncing-3.csv
 tests/containers/bouncing_ball/results-bouncing-profiling.csv
 tests/containers/bouncing_ball/results-bouncing-seq.csv
 tests/containers/ssp/results-bouncing.csv
-tests/containers/start/results-slx.csv
 tests/fmi3/passthrough/results-container-passthrough.csv
 tests/remoting/bouncing_ball-win64.fmu
 tests/remoting/results-bouncing_ball-win32.csv
@@ -93,3 +92,6 @@ tests/VanDerPol-Container-datalog.csv
 tests/containers/VanDerPol/VanDerPol-datalog
 tests/containers/VanDerPol/VanDerPol-datalog.fmu
 tests/containers/VanDerPol/results-VanDerPol-datalog.csv
+tests/containers/bouncing_ball/results-bouncing-datalog.csv
+tests/bouncing-datalog.csv
+tests/containers/start/results-container-slx.csv
