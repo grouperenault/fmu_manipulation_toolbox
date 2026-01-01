@@ -245,7 +245,7 @@ class Assembly:
         self.transient_dirnames: Set[Path] = set()
 
         if not fmu_directory.is_dir():
-            raise AssemblyError(f"FMU directory is not valid: '{fmu_directory}'")
+            raise AssemblyError(f"FMU directory is not valid: '{fmu_directory.resolve()}'")
 
         self.input_pathname = fmu_directory / self.filename
         self.description_pathname = self.input_pathname   # For inclusion in FMU
