@@ -30,7 +30,7 @@ Two options available to install FMU Manipulation Toolbox:
 
 - (*Easiest option*) Install with from PyPI: `pip install fmu-manipulation-toolbox`. This will install the latest
   version of FMU Manipulation Toolbox and all its dependencies. See [PyPI page](https://pypi.org/project/fmu-manipulation-toolbox/).
-- Compile and install from [github repository](https://github.com/grouperenault/fmu_manipulation_toolbox). You will need 
+- Compile and install from [GitHub repository](https://github.com/grouperenault/fmu_manipulation_toolbox). You will need 
   - Python required packages. See [`requirements.txt`](requirements.txt).
   - C compiler (C99 or later)
   - CMake (>= 3.20)

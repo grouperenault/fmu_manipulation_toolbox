@@ -70,6 +70,7 @@ Major features:
 
 FMI versions 2.0 and 3.0 are supported.
     """,
+    long_description_content_type="text/markdown",
     install_requires=[
         "PySide6 >= 6.8.0",
         "xmlschema >= 3.3.1",
