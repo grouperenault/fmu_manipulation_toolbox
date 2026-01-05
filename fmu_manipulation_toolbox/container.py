@@ -1179,7 +1179,7 @@ class FMUContainer:
         clock_list.write_txt(txt_file)
 
     def make_datalog(self, datalog_file):
-        print(f"# Datalog filename")
+        print(f"# Datalog filename", file=datalog_file)
         print(f"{self.identifier}-datalog.csv", file=datalog_file)
 
         ports = defaultdict(list)
@@ -1188,7 +1188,11 @@ class FMUContainer:
         for output_port_name, output_port in self.outputs.items():
             ports[output_port.port.type_name].append((output_port.vr, output_port_name))
         for link in self.links.values():
-            ports[link.cport_from.port.type_name].append((link.vr, link.name))
+            if link.cport_from is None:
+                # LS-BUS allows to connected to input clocks.
+                ports[link.cport_to_list[0].port.type_name].append((link.vr, link.name))
+            else:
+                ports[link.cport_from.port.type_name].append((link.vr, link.name))
 
         for type_name in EmbeddedFMUPort.ALL_TYPES:
             print(f"# {type_name}: <VR> <NAME>" , file=datalog_file)
