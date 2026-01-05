@@ -411,11 +411,11 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                 container->time_step, currentCommunicationPoint, container->time, end_time, container->tolerance, local_steps, container->nb_steps);
             return FMU_STATUS_OK;
         }
-        container->reals64[0] = container->time;
-    } else
-        container->reals64[0] = end_time;
+    } 
 
-    return FMU_STATUS_OK;
+    container->reals64[0] = end_time;
+    
+    return status;
 }
 
 

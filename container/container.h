@@ -140,7 +140,7 @@ typedef struct container_s {
 	double						next_step;				/* in case of event */
 	long long					nb_steps;				/* incremental counter */
 	double						start_time;				/* used for initialization */
-	double						time;					/* used internally duing simulation */
+	double						time;					/* used internally during simulation */
 	int							stop_time_defined;	
 	double						stop_time;				/* used for initialization */
 	int							tolerance_defined;
