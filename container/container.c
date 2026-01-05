@@ -233,45 +233,6 @@ fmu_status_t container_update_discrete_state(container_t *container) {
 }
 
 
-fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
-    const double end_time = currentCommunicationPoint + communicationStepSize;
-    fmu_status_t status = FMU_STATUS_OK;
-    const double curent_time = container->start_time + container->time_step * container->nb_steps;
-    int ts_multiplier = container->integers32[0];
-
-    if (ts_multiplier < 1)
-        ts_multiplier = 1;
-
-    const double ts = container->time_step * ts_multiplier;
-    const int local_steps = ((int)((end_time - curent_time + container->tolerance) / ts));
-    
-    /*
-     * Early return if requested end_time is lower than next container time step.
-     */
-    if (local_steps > 0) {
-        for(int i = 0; i < local_steps; i += 1) {
-            status = container->do_step(container);
-
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container cannot DoStep.");
-                return FMU_STATUS_ERROR;
-            }
-        }       
-
-        const double new_time = container->start_time + container->time_step * container->nb_steps;
-        if (fabs(end_time - new_time) > container->tolerance) {
-            logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, local_steps=%d, nb_steps=%lld)", 
-                container->time_step, currentCommunicationPoint, new_time, end_time, container->tolerance, local_steps, container->nb_steps);
-            return FMU_STATUS_OK;
-        }
-    }
-
-    container->reals64[0] = end_time;
-
-    return FMU_STATUS_OK;
-}
-
-
 static fmu_status_t container_handle_events(container_t *container) {
     fmu_status_t status;
 
@@ -304,161 +265,157 @@ static fmu_status_t container_handle_events(container_t *container) {
         status = container_enter_step_mode(container);
         if (status != FMU_STATUS_OK)
             return status;
-    } else
-        container->next_step = container->time_step;
+    } else {
+        const int ts_multiplier = container->integers32[0];
+        container->next_step = container->time_step * ts_multiplier;
+    }
 
     return FMU_STATUS_OK;
 }
 
 
-static fmu_status_t container_do_step_sequential(container_t *container) {
+static fmu_status_t container_do_one_step_sequential(container_t *container) {
     fmu_status_t status = FMU_STATUS_OK;
-    double time = container->time_step * container->nb_steps + container->start_time;
-	const int ts_multiplier = container->integers32[0];
-    const double target_time = time + container->time_step * ts_multiplier;
 
-    while(! is_close(container, time, target_time)) {
-        double time_step = container->next_step;
-        if (time + time_step > target_time)
-            time_step = target_time - time;
-
-        /* STEP MODE */
-        for (int i = 0; i < container->nb_fmu; i += 1) {
-            fmu_t* fmu = &container->fmu[i];
-            
-            status = fmu_set_inputs(fmu);
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container: FMU#%d failed set inputs.", i);
-                return status;
-            }
-            
-            /* COMPUTATION */
-            status = fmuDoStep(fmu, time, time_step);
-            if (status != FMU_STATUS_OK)
-                return status;
-
-            status = fmu_get_outputs(fmu);
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container: FMU#%d failed getting outputs.", i);
-                return status;
-            }
-        }
-
-        /* EVENT MODE */
-        if (container_handle_events(container) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-
-        time += time_step;
-    }
-    container->nb_steps += ts_multiplier;
-
-    return status;
-}
-
-
-static fmu_status_t container_do_step_parallel_mt(container_t* container) {
-    fmu_status_t status = FMU_STATUS_OK;
-    double time = container->time_step * container->nb_steps + container->start_time;
-	const int ts_multiplier = container->integers32[0];
-    const double target_time = time + container->time_step * ts_multiplier;
-
-    while(! is_close(container, time, target_time)) {
-        double time_step = container->next_step;
-
-        if (time + time_step > target_time)
-            time_step = target_time - time;
-
-        /* STEP MODE */
-
-        /* Launch computation for all threads*/
-        for(size_t i = 0; i < container->nb_fmu; i += 1) {
-            container->fmu[i].status = FMU_STATUS_ERROR;
-            thread_mutex_unlock(&container->fmu[i].mutex_container);
-        }
-
-        /* Consolidate results */
-        for (size_t i = 0; i < container->nb_fmu; i += 1) {
-            thread_mutex_lock(&container->fmu[i].mutex_fmu);
-            if (container->fmu[i].status != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-        }
-
-        for (size_t i = 0; i < container->nb_fmu; i += 1) {
-            status = fmu_get_outputs(&container->fmu[i]);
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container: FMU#%d failed getting outputs.", i);
-                return FMU_STATUS_ERROR;
-            }
-        }
-
-        /* EVENT MODE */
-        status = container_handle_events(container);
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_t* fmu = &container->fmu[i];
+        
+        status = fmu_set_inputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: cannot proceed to EventMode.");
-            return FMU_STATUS_ERROR;
-        }
-
-        time += time_step;
-    }
-
-    container->nb_steps += ts_multiplier;
-
-    return status;
-}
-
-
-static fmu_status_t container_do_step_parallel(container_t* container) {
-    fmu_status_t status = FMU_STATUS_OK;
-    double time = container->time_step * container->nb_steps + container->start_time;
-	const int ts_multiplier = container->integers32[0];
-    const double target_time = time + container->time_step * ts_multiplier;
-
-    while(! is_close(container, time, target_time)) {
-        double time_step = container->next_step;
-
-        if (time + time_step > target_time)
-            time_step = target_time - time;
-
-        /* STEP MODE */
-        for (size_t i = 0; i < container->nb_fmu; i += 1) {          
-            status = fmu_set_inputs(&container->fmu[i]);
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", container->fmu[i].name);
-                return status;
-            }
-        }
-
-        for (size_t i = 0; i < container->nb_fmu; i += 1) {
-            fmu_t* fmu = &container->fmu[i];
-            /* COMPUTATION */
-            status = fmuDoStep(fmu, time, time_step);
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container: FMU '%d' failed doStep.", container->fmu[i].name);
-                return status;
-            }
-        }
-
-        for (size_t i = 0; i < container->nb_fmu; i += 1) {
-            status = fmu_get_outputs(&container->fmu[i]);
-            if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container: FMU# '%d' failed get outputs.", container->fmu[i].name);
-                return status;
-            }
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", container->fmu[i].name);
+            return status;
         }
         
-        /* EVENT MODE */
-        status = container_handle_events(container);
-        if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: cannot proceed to EventMode.");
-            return FMU_STATUS_ERROR;
-        }
+        /* COMPUTATION */
 
-        time += time_step;
+        status = fmuDoStep(fmu, container->time, container->next_step);
+        if (status != FMU_STATUS_OK)
+            return status;
+
+        status = fmu_get_outputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", container->fmu[i].name);
+            return status;
+        }
     }
 
-    container->nb_steps += ts_multiplier;
+    return status;
+}
+
+
+static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    for(size_t i = 0; i < container->nb_fmu; i += 1) {
+        container->fmu[i].status = FMU_STATUS_ERROR;
+        thread_mutex_unlock(&container->fmu[i].mutex_container);
+    }
+
+    /* Consolidate results */
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+        thread_mutex_lock(&container->fmu[i].mutex_fmu);
+        if (container->fmu[i].status != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+        status = fmu_get_outputs(&container->fmu[i]);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", container->fmu[i].name);
+            return FMU_STATUS_ERROR;
+        }
+    }
 
     return status;
+}
+
+
+static fmu_status_t container_do_one_step_parallel(container_t* container) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    /* STEP MODE */
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {          
+        status = fmu_set_inputs(&container->fmu[i]);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", container->fmu[i].name);
+            return status;
+        }
+    }
+
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+        fmu_t* fmu = &container->fmu[i];
+        /* COMPUTATION */
+        status = fmuDoStep(fmu, container->time, container->next_step);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed doStep.", container->fmu[i].name);
+            return status;
+        }
+    }
+
+    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+        status = fmu_get_outputs(&container->fmu[i]);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed get outputs.", container->fmu[i].name);
+            return status;
+        }
+    }
+
+    return status;
+}
+
+
+fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
+    fmu_status_t status = FMU_STATUS_OK;
+    const double end_time = currentCommunicationPoint + communicationStepSize;
+    int ts_multiplier = container->integers32[0];
+
+    if (ts_multiplier < 1)
+        ts_multiplier = 1;
+
+    const double ts = container->time_step * ts_multiplier;
+    container->time = container->start_time + container->time_step * container->nb_steps;
+    const int local_steps = ((int)((end_time - container->time + container->tolerance) / ts));
+
+    /*
+     * Early return if requested end_time is lower than next container time step.
+     */
+    if (local_steps > 0) {
+        for(int i = 0; i < local_steps; i += 1) {
+            container->time = container->start_time + container->time_step * container->nb_steps;
+            const double target_time = container->time + ts;
+
+            while(! is_close(container, container->time, target_time)) {
+                /* STEP MODE */
+                if (container->time + container->next_step > target_time) {
+                    container->next_step = target_time - container->time;
+                }
+                status = container->do_step(container);
+                if (status != FMU_STATUS_OK) {
+                    logger(LOGGER_ERROR, "Container cannot Do Step (time=%e)", container->time);
+                    return FMU_STATUS_ERROR;
+                }
+                container->time += container->next_step;
+
+                /* EVENT MODE */
+                if (container_handle_events(container) != FMU_STATUS_OK) {
+                    logger(LOGGER_ERROR, "Container cannot Handle Events (time=%e)", container->time);
+                    return FMU_STATUS_ERROR;
+                }
+            }
+            container->nb_steps += ts_multiplier;
+        }       
+
+        container->time = container->start_time + container->time_step * container->nb_steps;
+        if (fabs(end_time - container->time) > container->tolerance) {
+            logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, local_steps=%d, nb_steps=%lld)", 
+                container->time_step, currentCommunicationPoint, container->time, end_time, container->tolerance, local_steps, container->nb_steps);
+            return FMU_STATUS_OK;
+        }
+        container->reals64[0] = container->time;
+    } else
+        container->reals64[0] = end_time;
+
+    return FMU_STATUS_OK;
 }
 
 
@@ -485,14 +442,14 @@ static int read_flags(container_t* container, config_file_t* file) {
 
     if (sequential) {
         logger(LOGGER_WARNING, "Container use SEQUENTIAL mode.");
-        container->do_step = container_do_step_sequential;
+        container->do_step = container_do_one_step_sequential;
     } else {
         if (mt) {
             logger(LOGGER_WARNING, "Container use PARALLEL mode with MULTI thread");
-            container->do_step = container_do_step_parallel_mt;
+            container->do_step = container_do_one_step_parallel_mt;
         } else {
             logger(LOGGER_WARNING, "Container use PARALLEL mode with MONO thread.");
-            container->do_step = container_do_step_parallel;
+            container->do_step = container_do_one_step_parallel;
         }
     }
 
@@ -559,12 +516,12 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         return -1;
     }
 
-    for (unsigned long i = 0; i < nb_fmu; i += 1) {
+    for (int i = 0; i < nb_fmu; i += 1) {
         char directory[CONFIG_FILE_SZ];
-        snprintf(directory, CONFIG_FILE_SZ, "%s/%02lx", dirname, i);
+        snprintf(directory, CONFIG_FILE_SZ, "%s/%02x", dirname, i);
 
         if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read embedded FMU%lu's name.", i);
+            logger(LOGGER_ERROR, "Cannot read embedded FMU #%d's name.", i);
             return -1;
         }
 
@@ -583,13 +540,13 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         }
       
         if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read embedded FMU%lu's identifier.", i);
+            logger(LOGGER_ERROR, "Cannot read embedded FMU #%d's identifier.", i);
             return -1;
         }
         char *identifier = strdup(file->line);
 
         if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read embedded FMU%lu's uuid.", i);
+            logger(LOGGER_ERROR, "Cannot read embedded FMU #%d's uuid.", i);
             return -1;
         }
         const char *guid = file->line;
@@ -1293,7 +1250,7 @@ int container_configure(container_t* container, const char* dirname) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (read_conf_fmu_io(&container->fmu[i], &file)) {
             config_file_close(&file);
-            logger(LOGGER_ERROR, "Cannot read I/O table for FMU#%d", i);
+            logger(LOGGER_ERROR, "Cannot read I/O table for FMU#%lu", i);
             return -7;
         }
 
@@ -1370,13 +1327,14 @@ int container_configure(container_t* container, const char* dirname) {
         logger(LOGGER_DEBUG, "FMU#%d: Instanciate for CoSimulation", i);
         fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i], container->instance_name);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Cannot Instantiate FMU#%d", i);
+            logger(LOGGER_ERROR, "Cannot Instantiate FMU '%s'", container->fmu[i].name);
             return -8;
         }
     }
 
     container->integers32[0] = 1;                /* Default: TS multiplier */
     container->next_step = container->time_step; /* Default: no next event time */
+    container->time = container->start_time;
     
     container->datalog = datalog_new(container, dirname);
 

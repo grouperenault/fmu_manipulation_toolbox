@@ -314,12 +314,10 @@ static int fmu_do_step_thread(fmu_t* fmu) {
             thread_mutex_unlock(&fmu->mutex_fmu);
             continue;
         }
-        double time = container->time_step * container->nb_steps + container->start_time;
-        double ts = container->time_step * container->integers32[0];
 
         fmu->status = fmuDoStep(fmu, 
-                                time,
-                                ts);
+                                container->time,
+                                container->next_step);
 
         thread_mutex_unlock(&fmu->mutex_fmu);
     }

@@ -18,7 +18,7 @@
 static fmu_status_t datalog_do_step(container_t *container) {
     const datalog_t *datalog = container->datalog;
     /* write a row in datalog */
-    fprintf(datalog->file, "%e", container->start_time + container->nb_steps * container->time_step);
+    fprintf(datalog->file, "%e", container->time);
 
 #define LOG3(type, fmi_type, format) \
     if (datalog->nb_ ## type > 0) { \
