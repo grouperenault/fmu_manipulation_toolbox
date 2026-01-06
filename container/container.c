@@ -236,18 +236,8 @@ fmu_status_t container_update_discrete_state(container_t *container) {
 static fmu_status_t container_handle_events(container_t *container) {
     fmu_status_t status;
 
-    /* Do we need event loop ? */
-    int need_event_update = container->clocks_list.nb_next_clocks > 0;
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t* fmu = &container->fmu[i];
-        if (fmu->need_event_udpate) {
-            need_event_update = 1;
-            break;
-        }
-    }
-
     /* Event loop */
-    if (need_event_update) {
+    if (container->need_event_update || container->clocks_list.nb_next_clocks) {
         status = container_enter_event_mode(container);
         if (status != FMU_STATUS_OK)
             return status;
@@ -277,6 +267,7 @@ static fmu_status_t container_handle_events(container_t *container) {
 static fmu_status_t container_do_one_step_sequential(container_t *container) {
     fmu_status_t status = FMU_STATUS_OK;
 
+    container->need_event_update = false;
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
         
@@ -291,6 +282,7 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
         status = fmuDoStep(fmu, container->time, container->next_step);
         if (status != FMU_STATUS_OK)
             return status;
+        container->need_event_update |= fmu->need_event_udpate;
 
         status = fmu_get_outputs(fmu);
         if (status != FMU_STATUS_OK) {
@@ -306,16 +298,21 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
 static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
     fmu_status_t status = FMU_STATUS_OK;
 
+    container->need_event_update = false;
     for(size_t i = 0; i < container->nb_fmu; i += 1) {
-        container->fmu[i].status = FMU_STATUS_ERROR;
-        thread_mutex_unlock(&container->fmu[i].mutex_container);
+        fmu_t* fmu = &container->fmu[i];
+        fmu->status = FMU_STATUS_ERROR;
+        thread_mutex_unlock(&fmu->mutex_container);
     }
 
     /* Consolidate results */
     for (size_t i = 0; i < container->nb_fmu; i += 1) {
-        thread_mutex_lock(&container->fmu[i].mutex_fmu);
-        if (container->fmu[i].status != FMU_STATUS_OK)
+        fmu_t* fmu = &container->fmu[i];
+
+        thread_mutex_lock(&fmu->mutex_fmu);
+        if (fmu->status != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
+        container->need_event_update |= fmu->need_event_udpate;
     }
 
     for (size_t i = 0; i < container->nb_fmu; i += 1) {
@@ -334,6 +331,7 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
     fmu_status_t status = FMU_STATUS_OK;
 
     /* STEP MODE */
+    container->need_event_update = false;
     for (size_t i = 0; i < container->nb_fmu; i += 1) {          
         status = fmu_set_inputs(&container->fmu[i]);
         if (status != FMU_STATUS_OK) {
@@ -350,6 +348,7 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
             logger(LOGGER_ERROR, "Container: FMU '%s' failed doStep.", container->fmu[i].name);
             return status;
         }
+        container->need_event_update |= fmu->need_event_udpate;
     }
 
     for (size_t i = 0; i < container->nb_fmu; i += 1) {
@@ -392,14 +391,15 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                 status = container->do_step(container);
                 if (status != FMU_STATUS_OK) {
                     logger(LOGGER_ERROR, "Container cannot Do Step (time=%e)", container->time);
-                    return FMU_STATUS_ERROR;
+                    return status;
                 }
                 container->time += container->next_step;
 
                 /* EVENT MODE */
-                if (container_handle_events(container) != FMU_STATUS_OK) {
+                status = container_handle_events(container);
+                if ( status != FMU_STATUS_OK) {
                     logger(LOGGER_ERROR, "Container cannot Handle Events (time=%e)", container->time);
-                    return FMU_STATUS_ERROR;
+                    return status;
                 }
             }
             container->nb_steps += ts_multiplier;
@@ -409,7 +409,6 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
         if (fabs(end_time - container->time) > container->tolerance) {
             logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, local_steps=%d, nb_steps=%lld)", 
                 container->time_step, currentCommunicationPoint, container->time, end_time, container->tolerance, local_steps, container->nb_steps);
-            return FMU_STATUS_OK;
         }
     } 
 
@@ -1399,6 +1398,8 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->clocks_list.clock_index = NULL;         /* nb_local_clocks */
 
         container->datalog = NULL;
+
+        container->need_event_update = false;
     }
     return container;
 }

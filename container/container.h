@@ -146,6 +146,7 @@ typedef struct container_s {
 	int							tolerance_defined;
 	double						tolerance;				/* used for comparisons */
 	container_clock_list_t		clocks_list;
+	bool						need_event_update;
 
 	struct datalog_s			*datalog;
 
