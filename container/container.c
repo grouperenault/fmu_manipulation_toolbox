@@ -1126,64 +1126,65 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
         return -1;
     }
 
-    if (sscanf(file->line, "%lu %lu", &container->clocks_list.nb_fmu, &container->clocks_list.nb_local_clocks) < 1) {
+    if (sscanf(file->line, "%lu %lu", &container->clocks_list.nb_fmu, &container->clocks_list.nb_local_clocks) < 2) {
         logger(LOGGER_ERROR, "Cannot get size of clocks defintions table.");
         return -2;
     }
+    if (container->clocks_list.nb_fmu) {
+        container->clocks_list.counter =           malloc(container->clocks_list.nb_fmu          *  sizeof(*container->clocks_list.counter));
+        
+        container->clocks_list.buffer_qualifier =  malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.buffer_qualifier));
+        container->clocks_list.buffer_interval =   malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.buffer_interval));
+        container->clocks_list.fmu_vr =            malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.fmu_vr));
+        container->clocks_list.fmu_id =            malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.fmu_id));
+        container->clocks_list.next_clocks =       malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.next_clocks));
+        container->clocks_list.clock_index =       malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.clock_index));
 
-    container->clocks_list.counter =           malloc(container->clocks_list.nb_fmu          *  sizeof(*container->clocks_list.counter));
-    
-    container->clocks_list.buffer_qualifier =  malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.buffer_qualifier));
-    container->clocks_list.buffer_interval =   malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.buffer_interval));
-    container->clocks_list.fmu_vr =            malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.fmu_vr));
-    container->clocks_list.fmu_id =            malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.fmu_id));
-    container->clocks_list.next_clocks =       malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.next_clocks));
-    container->clocks_list.clock_index =       malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.clock_index));
-
-    if (!container->clocks_list.counter || 
-        !container->clocks_list.buffer_qualifier ||
-        !container->clocks_list.buffer_interval ||
-        !container->clocks_list.fmu_vr ||
-        !container->clocks_list.fmu_id ||
-        !container->clocks_list.next_clocks ||
-        !container->clocks_list.clock_index) {
-        logger(LOGGER_ERROR, "Cannot allocat clock buffers.");
-        return -3;
-    }
-
-    unsigned long pos = 0;
-    for(unsigned long i = 0; i < container->clocks_list.nb_fmu; i += 1) {
-        int offset;
-
-        if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read clock table entries.");
-            return -4;
-        }
-        if (sscanf(file->line, "%lu %lu %n",
-            &container->clocks_list.counter[i].fmu_id,
-            &container->clocks_list.counter[i].nb,
-            &offset) < 2) {
-            logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
-            return -5;
+        if (!container->clocks_list.counter || 
+            !container->clocks_list.buffer_qualifier ||
+            !container->clocks_list.buffer_interval ||
+            !container->clocks_list.fmu_vr ||
+            !container->clocks_list.fmu_id ||
+            !container->clocks_list.next_clocks ||
+            !container->clocks_list.clock_index) {
+            logger(LOGGER_ERROR, "Cannot allocat clock buffers.");
+            return -3;
         }
 
-        for(unsigned long j=0; j < container->clocks_list.counter[i].nb; j += 1) {
-            unsigned long local_clock_index;
-            int read;
-            if (sscanf(file->line+offset, "%u %lu %n",
-                &container->clocks_list.fmu_vr[pos],
-                &local_clock_index,
-                &read) < 2){
-                logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
-                return -7;
+        unsigned long pos = 0;
+        for(unsigned long i = 0; i < container->clocks_list.nb_fmu; i += 1) {
+            int offset;
+
+            if (get_line(file)) {
+                logger(LOGGER_ERROR, "Cannot read clock table entries.");
+                return -4;
             }
-            offset += read;
-            container->clocks_list.clock_index[pos] = local_clock_index & 0xFFFFFF;
-            container->clocks_list.fmu_id[pos] = container->clocks_list.counter[i].fmu_id;
-            pos += 1;
+            if (sscanf(file->line, "%lu %lu %n",
+                &container->clocks_list.counter[i].fmu_id,
+                &container->clocks_list.counter[i].nb,
+                &offset) < 2) {
+                logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
+                return -5;
+            }
+
+            for(unsigned long j=0; j < container->clocks_list.counter[i].nb; j += 1) {
+                unsigned long local_clock_index;
+                int read;
+                if (sscanf(file->line+offset, "%u %lu %n",
+                    &container->clocks_list.fmu_vr[pos],
+                    &local_clock_index,
+                    &read) < 2){
+                    logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
+                    return -7;
+                }
+                offset += read;
+                container->clocks_list.clock_index[pos] = local_clock_index & 0xFFFFFF;
+                container->clocks_list.fmu_id[pos] = container->clocks_list.counter[i].fmu_id;
+                pos += 1;
+            }
         }
     }
-
+    
     return 0;
 }
 
