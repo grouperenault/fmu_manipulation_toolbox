@@ -629,7 +629,7 @@ static int read_conf_local(container_t* container, config_file_t* file) {
             return -2;
         }
         for(unsigned long i=0; i < container->nb_local_binaries; i += 1) {
-            container->binaries[i].max_size = 0;
+            container->binaries[i].size = 0;
             container->binaries[i].max_size = 0;
             container->binaries[i].data = NULL;
         }
