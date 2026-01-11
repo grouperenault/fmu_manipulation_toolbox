@@ -203,6 +203,7 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
                     logger(LOGGER_ERROR, "Cannot allocate memory for get output.");
                     return FMU_STATUS_ERROR;
                 }
+                container->binaries[local_vr].max_size = size;
             }
             container->binaries[local_vr].size = size;
             memcpy(container->binaries[local_vr].data, data, size);
@@ -286,6 +287,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
                         logger(LOGGER_ERROR, "Cannot allocate memory for get output.");
                         return FMU_STATUS_ERROR;
                     }
+                    container->binaries[local_vr].max_size = size;
                 }
                 container->binaries[local_vr].size = size;
                 memcpy(container->binaries[local_vr].data, data, size);
