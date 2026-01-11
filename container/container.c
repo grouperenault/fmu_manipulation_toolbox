@@ -177,7 +177,7 @@ static fmu_status_t container_proceed_event(container_t *container) {
             container_clock_t *container_clock = &container->clocks_list.next_clocks[i];
             const bool value = true;
             
-            container->clocks[container_clock->local_vr] = fmi3ClockActive;
+            container->clocks[container_clock->local_vr] = true;
             fmuSetClock(&container->fmu[container_clock->fmu_id], &container_clock->fmu_vr, 1, &value);
         }
        
@@ -206,13 +206,8 @@ fmu_status_t container_update_discrete_state(container_t *container) {
             if (fmu->support_event) {
                 if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
                     return FMU_STATUS_ERROR;
-            }
-        }
 
-        for (int i = 0; i < container->nb_fmu; i += 1) {
-            fmu_t *fmu = &container->fmu[i];
-            if (fmu->support_event) {
-                int fmu_more_event;
+                int fmu_more_event = 0;
                 if (fmuUpdateDiscreteStates(fmu, &fmu_more_event) != FMU_STATUS_OK)
                     return FMU_STATUS_ERROR;
                 more_event |= fmu_more_event;
