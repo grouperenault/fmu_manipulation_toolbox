@@ -288,10 +288,9 @@ static int spawn_server(client_t *client) {
 
 
 static void client_new_key(client_t *client) {
-    snprintf(client->shared_key, sizeof(client->shared_key), "/FMU%lu", process_current_id());
-
     strcpy(client->shared_key, "/FMU");
-    srand((unsigned int) time(NULL)+process_current_id());
+    /* use pointer on function to ensure that multplie FMU can be initialize in less than 1 second */
+    srand((unsigned int) time(NULL)+process_current_id()+(unsigned long)client_new_key); 
     for(int i=strlen(client->shared_key); i<COMMUNICATION_KEY_LEN-1; i += 1) {
            client->shared_key[i] = 'a' + (rand() % 26);
     }
