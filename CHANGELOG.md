@@ -1,6 +1,13 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.9.1.3
+* FIXED: 'remoting' code should allow multiple FMUs to be instanciated (in less than 1 second).
+         There was a race condition in SHM name computation. 
+
+# Version 1.9.1.2
+* FIXED: Container should not use "NULL" category for logs
+
 # Version 1.9.1.1
 * FIXED: command line interface for `fmucontainer`, `fmutool and `fmusplit`
 
