@@ -286,16 +286,37 @@ static int spawn_server(client_t *client) {
     return 0;
 }
 
+/* This is the basic CRC-32 calculation with some optimization but no
+table lookup. The the byte reversal is avoided by shifting the crc reg
+right instead of left and by using a reversed 32-bit word to represent
+the polynomial.
+   When compiled to Cyclops with GCC, this function executes in 8 + 72n
+instructions, where n is the number of bytes in the input message. It
+should be doable in 4 + 61n instructions.
+   If the inner loop is strung out (approx. 5*8 = 40 instructions),
+it would take about 6 + 46n instructions. */
 
-static void client_new_key(client_t *client) {
-    snprintf(client->shared_key, sizeof(client->shared_key), "/FMU%lu", process_current_id());
+static unsigned int crc32b(const unsigned char* message) {
+    int i, j;
+    unsigned int byte, crc, mask;
 
-    strcpy(client->shared_key, "/FMU");
-    srand((unsigned int) time(NULL)+process_current_id());
-    for(int i=strlen(client->shared_key); i<COMMUNICATION_KEY_LEN-1; i += 1) {
-           client->shared_key[i] = 'a' + (rand() % 26);
+    i = 0;
+    crc = 0xFFFFFFFF;
+    while (message[i] != 0) {
+        byte = message[i];            // Get next byte.
+        crc = crc ^ byte;
+        for (j = 7; j >= 0; j--) {    // Do eight times.
+            mask = -(crc & 1);
+            crc = (crc >> 1) ^ (0xEDB88320 & mask);
+        }
+        i = i + 1;
     }
-    client->shared_key[COMMUNICATION_KEY_LEN-1] = '\0'; 
+    return ~crc;
+}
+
+
+static void client_new_key(client_t *client, const char * fmuResourceLocation) {
+    snprintf(client->shared_key, COMMUNICATION_KEY_LEN, "/FMU%x", crc32b(fmuResourceLocation));
     CLIENT_LOG("UUID for IPC: '%s'\n", client->shared_key);
 
     return;
@@ -313,7 +334,7 @@ static void client_free(client_t* client) {
 
 
 static client_t* client_new(const char *filename, const char *instanceName, const fmi2CallbackFunctions* functions,
-    int loggingOn) {
+    int loggingOn, const char * fmuResourceLocation) {
     client_t* client = malloc(sizeof(*client));
     FILE* fp;
     unsigned long nb_reals, nb_integers, nb_booleans;
@@ -322,7 +343,7 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
     client->is_debug = loggingOn;
 
     LOG_DEBUG(client, "FMU Remoting Interface version %s", VERSION_TAG);
-    client_new_key(client);
+    client_new_key(client, fmuResourceLocation);
 
     fp = fopen(filename, "rt");
     if (!fp) {
@@ -406,7 +427,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2Str
     strncpy(filename, fmuResourceLocation, sizeof(filename));
     strncat(filename, "/remoting_table.txt", sizeof(filename)-strlen(filename)-1);
     filename[sizeof(filename)-1] = '\0';
-    client_t *client = client_new(filename, instanceName, functions, loggingOn);
+    client_t *client = client_new(filename, instanceName, functions, loggingOn, fmuResourceLocation);
 
     if (!client)
         return NULL;
