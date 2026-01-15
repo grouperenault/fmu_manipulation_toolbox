@@ -61,7 +61,7 @@ class FMUPort:
         self.dimension = None
 
     def dict_level(self, nb):
-        return " ".join([f'{key}="{value}"' for key, value in self.attrs_list[nb].items()])
+        return " ".join([f'{key}="{Manipulation.escape(value)}"' for key, value in self.attrs_list[nb].items()])
 
     def write_xml(self, fmi_version: int, file):
         if fmi_version == 2:
@@ -177,7 +177,7 @@ class Manipulation:
                 self.current_port = FMUPort()
                 self.current_port.push_attrs(attrs)
             elif self.fmu.fmi_version == 2 and name in self.fmu.FMI2_TYPES:
-                if self.current_port: # <Enumeration> can be found before port defition. Ignored.
+                if self.current_port: # <Enumeration> can be found before port definition. Ignored.
                     self.current_port.fmi_type = name
                     self.current_port.push_attrs(attrs)
             elif self.fmu.fmi_version == 3 and name in self.fmu.FMI3_TYPES:
