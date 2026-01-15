@@ -1,0 +1,11 @@
+{
+  "name": "nodes-only.fmu",
+  "fmu": [
+    "node1.fmu",
+    "node2.fmu"
+  ],
+  "link": [
+    [ "node1.fmu", "CanChannel", "node2.fmu", "CanChannel"]
+  ],
+  "step_size": 0.1
+}

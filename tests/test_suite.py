@@ -300,10 +300,15 @@ class TestSuite:
         self.assert_identical_files("containers/ssp/REF-split-bouncing.json",
                                     "containers/ssp/bouncing.dir/bouncing.json")
 
-    def test_ls_bus(self):
+    def test_ls_bus_nodes_and_bus(self):
         assembly = Assembly("bus+nodes.json", fmu_directory=Path("ls-bus"))
         assembly.make_fmu(fmi_version=3)
         self.assert_simulation_log("ls-bus/bus+nodes.fmu", 0.1)
+
+    def test_ls_bus_nodes_only(self):
+        assembly = Assembly("nodes-only.json", fmu_directory=Path("ls-bus"))
+        assembly.make_fmu(fmi_version=3, datalog=True)
+        self.assert_simulation_log("ls-bus/nodes-only.fmu", 0.1)
 
     def test_datalog(self):
         assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True, debug=True)

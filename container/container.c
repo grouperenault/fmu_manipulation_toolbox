@@ -1319,7 +1319,7 @@ int container_configure(container_t* container, const char* dirname) {
 
     logger(LOGGER_DEBUG, "Instanciate embedded FMUs...");
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        logger(LOGGER_DEBUG, "FMU#%d: Instanciate for CoSimulation", i);
+        logger(LOGGER_DEBUG, "FMU#%d: Instanciate '%s' for CoSimulation", i, container->fmu[i].name);
         fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i], container->instance_name);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Cannot Instantiate FMU '%s'", container->fmu[i].name);

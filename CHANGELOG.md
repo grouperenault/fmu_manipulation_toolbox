@@ -11,6 +11,12 @@ This package was formerly known as `fmutool`.
 * FIXED: `fmucontainer` correctly set start values
 * FIXED: `fmucontainer` correctly handle tolerance. See [issue 35](https://github.com/grouperenault/fmu_manipulation_toolbox/issues/35)
 
+# Version 1.9.1.3
+* FIXED: 'remoting' code should allow multiple FMUs to be instanciated (in less than 1 second).
+         There was a race condition in SHM name computation.
+         See [issue 38](https://github.com/grouperenault/fmu_manipulation_toolbox/issues/38)
+* FIXED: `fmucontainer` dynamic change of time_step: fix number of doStep() calls
+
 # Version 1.9.1.2
 * FIXED: Avoid usage of NULL pointer for category in logs. Despite this is legal, 
          some FMI importers don't support it.
