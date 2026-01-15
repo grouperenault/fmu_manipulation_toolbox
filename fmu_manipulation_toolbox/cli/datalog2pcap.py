@@ -1,4 +1,7 @@
+import argparse
 import csv
+import logging
+import sys
 
 from pathlib import Path
 from typing import *
@@ -7,7 +10,6 @@ from .utils import setup_logger, close_logger, make_wide
 from ..version import __version__ as version
 
 logger = setup_logger()
-logger.info(f"Datalog converter version {version}")
 
 class DatalogConverter:
     def __init__(self, cvs_filename: Union[Path, str]):
@@ -15,6 +17,7 @@ class DatalogConverter:
         self.pcap_filename = self.csv_filename.with_suffix(".pcap")
 
     def open_pcap(self):
+        logger.info(f"Creating PCAP file '{self.pcap_filename}'...")
         file = open(self.pcap_filename, "wb")
         file.write(int(0xA1B2C3D4).to_bytes(4, byteorder="big"))  # Magic number
                                                                   # meaning the timestamp are in min seconds and microseconds
@@ -32,6 +35,7 @@ class DatalogConverter:
         return file
 
     def open_csv(self):
+        logger.debug(f"Loading '{self.csv_filename}'")
         file = open(self.csv_filename, "rt")
         return file
 
@@ -45,8 +49,8 @@ class DatalogConverter:
             data_length = int.from_bytes(hex_string[14:16], byteorder="little")
             raw_data = hex_string[16:]
 
-            print(
-                f"{time_s} {time_us} OP=0x{opcode:04X} len={length} {data_length} id={can_id} ide={ide} rtr={rtr} len={data_length} {raw_data}")
+            logger.debug(f"{time_s} {time_us} OP=0x{opcode:04X} len={length} {data_length} id={can_id}"
+                         f" ide={ide} rtr={rtr} len={data_length} {raw_data}")
 
             # TimeStamp
             self.pcapfile.write(time_s.to_bytes(4, byteorder="big"))
@@ -74,9 +78,6 @@ class DatalogConverter:
             # PAYLOAD
             self.pcapfile.write(raw_data)
 
-        else:
-            print(f"OP=0x{opcode:04X} len={length} id={can_id} ")
-
     def convert(self):
         with self.open_csv() as self.csvfile, self.open_pcap() as self.pcapfile:
             csv_reader = csv.DictReader(self.csvfile)
@@ -93,5 +94,34 @@ class DatalogConverter:
                         self.decode_hexstring(bytes.fromhex(datalog), time_s, time_us)
 
 
+def datalog2pcap():
+    logger.info(f"FMUContainer version {version}")
+    logger.warning(f"Datalog2PCAP is still experimental.")
+
+    parser = argparse.ArgumentParser(prog="datalog2pcap", description="Convert datalog from container to PCAP file.",
+                                     formatter_class=make_wide(argparse.ArgumentDefaultsHelpFormatter),
+                                     add_help=False,
+                                     epilog="see: https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/"
+                                            "doc/datalog.md")
+
+    parser.add_argument('-h', '-help', action="help")
+
+    parser.add_argument("-can", action="store", dest="can_filename", default=None,
+                        metavar="can-datalog.csv", required=True,
+                        help="Datalog with CAN data and clocks.")
+
+    parser.add_argument("-debug", action="store_true", dest="debug",
+                        help="Add lot of useful log during the process.")
+
+    config = parser.parse_args(sys.argv[1:])
+
+    if config.debug:
+        logger.setLevel(logging.DEBUG)
+
+    DatalogConverter(config.can_filename).convert()
+
+    close_logger(logger)
+
+
 if __name__ == "__main__":
-    DatalogConverter("bus+nodes-datalog.csv").convert()
+    datalog2pcap()

@@ -241,6 +241,7 @@ static fmu_status_t container_handle_events(container_t *container) {
         if (status != FMU_STATUS_OK)
             return status;
 
+        datalog_log(container);
         status = container_update_discrete_state(container);
         if (status != FMU_STATUS_OK)
             return status;
@@ -383,6 +384,7 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                 if (container->time + container->next_step > target_time) {
                     container->next_step = target_time - container->time;
                 }
+                datalog_log(container);
                 status = container->do_step(container);
                 if (status != FMU_STATUS_OK) {
                     logger(LOGGER_ERROR, "Container cannot Do Step (time=%e)", container->time);
@@ -1319,7 +1321,7 @@ int container_configure(container_t* container, const char* dirname) {
 
     logger(LOGGER_DEBUG, "Instanciate embedded FMUs...");
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        logger(LOGGER_DEBUG, "FMU#%d: Instanciate for CoSimulation", i);
+        logger(LOGGER_DEBUG, "FMU#%d: Instanciate '%s' for CoSimulation", i, container->fmu[i].name);
         fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i], container->instance_name);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Cannot Instantiate FMU '%s'", container->fmu[i].name);
@@ -1331,7 +1333,7 @@ int container_configure(container_t* container, const char* dirname) {
     container->next_step = container->time_step; /* Default: no next event time */
     container->time = container->start_time;
     
-    container->datalog = datalog_new(container, dirname);
+    container->datalog = datalog_new(dirname);
 
     logger(LOGGER_DEBUG, "Container is configured.");
     return 0;

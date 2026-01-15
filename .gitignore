@@ -95,3 +95,11 @@ tests/containers/VanDerPol/results-VanDerPol-datalog.csv
 tests/containers/bouncing_ball/results-bouncing-datalog.csv
 tests/bouncing-datalog.csv
 tests/containers/start/results-container-slx.csv
+tests/containers/start/results-slx.csv
+tests/containers/bouncing_ball/bouncing2.csv
+container/out
+tests/ls-bus/nodes-only.fmu
+tests/ls-bus/log-nodes-only.txt
+tests/ls-bus/bus+nodes.txt
+tests/ls-bus/bus+nodes-datalog.csv
+tests/nodes-only-datalog.csv
