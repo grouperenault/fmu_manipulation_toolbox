@@ -7,7 +7,7 @@ from .utils import setup_logger, close_logger, make_wide
 from ..version import __version__ as version
 
 logger = setup_logger()
-logger.info(f"Datalog converter version {version}")
+logger.info(f"Datalog2PCAP is still experimental.")
 
 class DatalogConverter:
     def __init__(self, cvs_filename: Union[Path, str]):
@@ -39,6 +39,7 @@ class DatalogConverter:
         opcode = int.from_bytes(hex_string[0:4], byteorder="little")
         length = int.from_bytes(hex_string[4:8], byteorder="little")
         can_id = int.from_bytes(hex_string[8:12], byteorder="little")
+        print(f"OP=0x{opcode:04X} len={length} id={can_id} ")
         if opcode == 0x10:  # TRANSMIT
             rtr = int.from_bytes(hex_string[13:14], byteorder="little")
             ide = int.from_bytes(hex_string[12:13], byteorder="little")
@@ -74,8 +75,6 @@ class DatalogConverter:
             # PAYLOAD
             self.pcapfile.write(raw_data)
 
-        else:
-            print(f"OP=0x{opcode:04X} len={length} id={can_id} ")
 
     def convert(self):
         with self.open_csv() as self.csvfile, self.open_pcap() as self.pcapfile:
@@ -94,4 +93,4 @@ class DatalogConverter:
 
 
 if __name__ == "__main__":
-    DatalogConverter("bus+nodes-datalog.csv").convert()
+    DatalogConverter(r"C:\Users\a067220\OneDrive - Alliance\10-GIT\GH\fmutool\tests\nodes-only-datalog.csv").convert()

@@ -16,9 +16,7 @@ extern "C" {
     c_type                          *values_ ## type
 
 typedef struct datalog_s {
-    container_do_step_function_t    do_step;
     FILE                            *file;
-
 	DECLARE(reals64, double);
 	DECLARE(reals32, float);
 	DECLARE(integers8, int8_t);
@@ -44,7 +42,8 @@ typedef struct datalog_s {
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
-extern datalog_t *datalog_new(container_t *container, const char *dirname);
+extern void datalog_log(container_t* container);
+extern datalog_t *datalog_new(const char *dirname);
 extern void datalog_free(datalog_t *datalog);
 
 #	ifdef __cplusplus
