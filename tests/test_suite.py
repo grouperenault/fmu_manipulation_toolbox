@@ -1,3 +1,4 @@
+import hashlib
 import numpy as np
 import pytest
 import sys
@@ -14,6 +15,7 @@ from fmu_manipulation_toolbox.assembly import *
 from fmu_manipulation_toolbox.cli.fmusplit import fmusplit
 from fmu_manipulation_toolbox.cli.fmucontainer import fmucontainer
 from fmu_manipulation_toolbox.cli.fmutool import fmutool
+from fmu_manipulation_toolbox.cli.datalog2pcap import datalog2pcap
 
 
 class TestSuite:
@@ -49,17 +51,23 @@ class TestSuite:
         with open(log_filename, mode="rt", newline=None) as a, open(ref_filename, mode="rt", newline=None) as b:
             for i, (lineA, lineB) in enumerate(zip(a, b)):
                 if i > 10:
-                    assert(lineA == lineB)
+                    assert lineA == lineB, \
+                       f"file {log_filename} and {ref_filename} missmatch (excl. GUID):\n" \
+                       f"{lineA}\n" \
+                       f"vs.\n\n" \
+                       f"{lineB}"
 
     @staticmethod
     def assert_identical_files(filename1, filename2):
+        assert Path(filename1).exists(), f"{filename1} does not exist"
+        assert Path(filename2).exists(), f"{filename2} does not exist"
         with open(filename1, mode="rt", newline=None) as a, open(filename2, mode="rt", newline=None) as b:
             for lineA, lineB in zip(a, b):
-                assert(lineA == lineB,
-                       f"file {filename1} and {filename2} missmatch (excl. GUID):\n"
-                       f"{lineA}\n"
-                       f"vs.\n\n"
-                       f"{lineB}")
+                assert lineA == lineB, \
+                       f"file {filename1} and {filename2} missmatch (excl. GUID):\n" \
+                       f"{lineA}\n" \
+                       f"vs.\n\n" \
+                       f"{lineB}"
 
     @staticmethod
     def assert_identical_files_but_guid(filename1, filename2):
@@ -92,8 +100,18 @@ class TestSuite:
         self.assert_names_match_ref(fmu_filename)
 
     @staticmethod
+    def assert_md5(filename, expected_md5):
+        hash_md5 = hashlib.md5()
+        with open(filename, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                hash_md5.update(chunk)
+        print(f"{filename}: {expected_md5} {hash_md5.hexdigest()}")
+        assert hash_md5.hexdigest() == expected_md5 ,\
+            f"Wrong md5 hash for {filename}. Expected {expected_md5} but got {hash_md5.hexdigest()}"
+
+    @staticmethod
     def assert_file_exist(path):
-        assert(Path(path).exists())
+        assert Path(path).exists()
 
     def test_strip_top_level(self):
         self.assert_operation_match_ref("operations/bouncing_ball-no-tl.fmu", OperationStripTopLevel())
@@ -295,8 +313,8 @@ class TestSuite:
         sys.argv = ['fmusplit',
                     "-fmu", "containers/ssp/bouncing.fmu"]
         fmusplit()
-        assert(Path("containers/ssp/bouncing.dir/bb_position.fmu").exists())
-        assert(Path("containers/ssp/bouncing.dir/bb_velocity.fmu").exists())
+        assert Path("containers/ssp/bouncing.dir/bb_position.fmu").exists()
+        assert Path("containers/ssp/bouncing.dir/bb_velocity.fmu").exists()
         self.assert_identical_files("containers/ssp/REF-split-bouncing.json",
                                     "containers/ssp/bouncing.dir/bouncing.json")
 
@@ -327,3 +345,9 @@ class TestSuite:
         self.assert_simulation("containers/VanDerPol/VanDerPol-datalog.fmu", 0.1)
         self.assert_file_exist("VanDerPol-Container-datalog.csv")
 
+    def test_datalog_pcap(self):
+        sys.argv = ['datalog2pcap',
+                    '-can', 'ls-bus/REF-nodes-only-datalog.csv']
+        datalog2pcap()
+
+        self.assert_md5("ls-bus/REF-nodes-only-datalog.pcap", "fdec08d12ab33f849d345208bd573975")

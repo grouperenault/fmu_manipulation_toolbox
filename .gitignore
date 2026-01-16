@@ -103,3 +103,6 @@ tests/ls-bus/log-nodes-only.txt
 tests/ls-bus/bus+nodes.txt
 tests/ls-bus/bus+nodes-datalog.csv
 tests/nodes-only-datalog.csv
+tests/ls-bus/bus+nodes-datalog.pcap
+tests/ls-bus/datalog.pcap
+tests/ls-bus/REF-nodes-only-datalog.pcap

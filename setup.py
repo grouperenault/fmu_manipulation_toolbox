@@ -44,7 +44,8 @@ setup(
     ]},
     entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.cli.fmutool:fmutool",
                                       "fmucontainer = fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer",
-                                      "fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit"
+                                      "fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit",
+                                      "datalog2pcap = fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap",
                                       ],
                   "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.gui:main"]
                   },
@@ -53,7 +54,7 @@ setup(
     description="FMU Manipulation Toolbox is a python package which helps to analyze, modify or combine "
                 "Functional Mock-up Units (FMUs) without recompilation.",
     long_description="""FMU Manipulation Toolbox is a python package which helps to analyze, modify or combine
-[Functional Mock-up Units (FMUs)](http://fmi-standard.org/) without recompilation. It is highly customizable and comes with
+[Functional Mock-up Units (FMUs)](https://fmi-standard.org/) without recompilation. It is highly customizable and comes with
 a Python API.
 
 FMU Manipulation Toolbox can be used in different ways:

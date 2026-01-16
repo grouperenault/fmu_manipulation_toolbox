@@ -7,9 +7,12 @@ This package was formerly known as `fmutool`.
 * ADDED: `fmucontainer` support of Event-Mode
 * ADDED: `fmucontainer` support of LS-BUS. See [ls-bus.md](doc/ls-bus.md)
 * ADDED: `fmucontainer` support of `-datalog` option to log values at each step. See [datalog.md](doc/datalog.md)
+* ADDED: `datalog2pcap` commmand to convert datalog (csv file) into PCAP (binary file) to enable network analysis tools.
+         This tool is experimental.
 * FIXED: `fmucontainer` log correctly for FMU3 embedded inside FMU2 container
 * FIXED: `fmucontainer` correctly set start values
 * FIXED: `fmucontainer` correctly handle tolerance. See [issue 35](https://github.com/grouperenault/fmu_manipulation_toolbox/issues/35)
+
 
 # Version 1.9.1.3
 * FIXED: 'remoting' code should allow multiple FMUs to be instanciated (in less than 1 second).
