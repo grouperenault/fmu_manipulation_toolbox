@@ -7,7 +7,7 @@ This package was formerly known as `fmutool`.
 * ADDED: `fmucontainer` support of Event-Mode
 * ADDED: `fmucontainer` support of LS-BUS. See [ls-bus.md](doc/ls-bus.md)
 * ADDED: `fmucontainer` support of `-datalog` option to log values at each step. See [datalog.md](doc/datalog.md)
-* ADDED: `datalog2pcap` commmand to convert datalog (csv file) into PCAP (binary file) to enable network analysis tools.
+* ADDED: `datalog2pcap` command to convert datalog (csv file) into PCAP (binary file) to enable network analysis tools.
          This tool is experimental.
 * FIXED: `fmucontainer` log correctly for FMU3 embedded inside FMU2 container
 * FIXED: `fmucontainer` correctly set start values

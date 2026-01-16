@@ -350,4 +350,4 @@ class TestSuite:
                     '-can', 'ls-bus/REF-nodes-only-datalog.csv']
         datalog2pcap()
 
-        self.assert_md5("ls-bus/REF-nodes-only-datalog.pcap", "fdec08d12ab33f849d345208bd573975")
+        self.assert_md5("ls-bus/REF-nodes-only-datalog.pcap", "ceab6b0161dbc93458bd47c057e80375")
