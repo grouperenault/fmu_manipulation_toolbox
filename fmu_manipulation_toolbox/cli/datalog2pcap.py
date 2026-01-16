@@ -49,7 +49,7 @@ class DatalogConverter:
             data_length = int.from_bytes(hex_string[14:16], byteorder="little")
             raw_data = hex_string[16:]
 
-            logger.debug(f"{time_s} {time_us} OP=0x{opcode:04X} len={length} {data_length} id={can_id}"
+            logger.debug(f"time={time_s}.{time_us:06d} OP=0x{opcode:04X} len={length} {data_length} id={can_id}"
                          f" ide={ide} rtr={rtr} len={data_length} {raw_data}")
 
             # TimeStamp
@@ -82,16 +82,32 @@ class DatalogConverter:
         with self.open_csv() as self.csvfile, self.open_pcap() as self.pcapfile:
             csv_reader = csv.DictReader(self.csvfile)
 
-            column_names = [ name for name in csv_reader.fieldnames if "_Data" in name ]
+            data_column_names = [ name for name in csv_reader.fieldnames if "_Data" in name ]
+            clock_column_names = {}
+
+            for column_name in data_column_names:
+                splitted_name = column_name.split(".")
+                splitted_name[-1] = splitted_name[-1].replace("_Data", "_Clock")
+                clock_column_name = ".".join(splitted_name)
+
+                if clock_column_name in csv_reader.fieldnames:
+                    logger.debug(f"{column_name} is clocked by {clock_column_name}")
+                    clock_column_names[column_name] = clock_column_name
+
             for row in csv_reader:
                 time_s, time_us = divmod(float(row["time"]), 1)
                 time_s = int(time_s)
                 time_us = int(time_us * 1000000)
 
-                for names in column_names:
-                    datalog = row[names]
-                    if datalog:
-                        self.decode_hexstring(bytes.fromhex(datalog), time_s, time_us)
+                for names in data_column_names:
+                    hex_data = row[names]
+                    if hex_data:
+                        try:
+                            clock = row[clock_column_names[names]] == "1"
+                        except KeyError:
+                            clock = True
+                        if clock:
+                            self.decode_hexstring(bytes.fromhex(hex_data), time_s, time_us)
 
 
 def datalog2pcap():
