@@ -95,6 +95,7 @@ class EmbeddedFMUPort:
         self.start_value = attrs.get("start", None)
         self.initial = attrs.get("initial", None)
         self.clock = attrs.get("clocks", None)
+        self.interval_variability = attrs.get("intervalVariability", None)
 
 
     def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> str:
@@ -1106,8 +1107,8 @@ class FMUContainer:
             else:
                 local_per_type["clock"].append(link.vr)
                 for cport_to in link.cport_to_list:
-                    if cport_to.fmu.ls.is_bus:
-                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, {link.vr})")
+                    if cport_to.port.interval_variability == "countdown":
+                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, vr={link.vr})")
                         clock_list.append(cport_to, link.vr)
                         break
 
