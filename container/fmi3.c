@@ -127,17 +127,7 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
 fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
     container_t* container = (container_t*)instance;
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        if (fmuExitInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
-            return fmi3Error;
-    }
-    
-    container_init_values(container);
-
-    if (container_update_discrete_state(container) != FMU_STATUS_OK)
-        return fmi3Error;
-
-    if (container_enter_step_mode(container) != FMU_STATUS_OK)
+    if (container_exit_initialization_mode(container) != FMU_STATUS_OK)
         return fmi3Error;
 
     return fmi3OK;
