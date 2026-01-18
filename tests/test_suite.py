@@ -52,7 +52,7 @@ class TestSuite:
             for i, (lineA, lineB) in enumerate(zip(a, b)):
                 if i > 10:
                     assert lineA == lineB, \
-                       f"file {log_filename} and {ref_filename} missmatch (excl. GUID):\n" \
+                       f"files {log_filename} and {ref_filename} missmatch (excl. GUID):\n" \
                        f"{lineA}\n" \
                        f"vs.\n\n" \
                        f"{lineB}"
