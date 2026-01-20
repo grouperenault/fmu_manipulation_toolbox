@@ -330,7 +330,7 @@ jobs:
     - name: Test with pytest
       run: |
         cd tests
-        python -munittest -v test_suite.py
+        pytest -v test_suite.py
     - name: Package
       run: |
         python -m build

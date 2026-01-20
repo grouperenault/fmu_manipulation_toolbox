@@ -198,15 +198,16 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             if (status != FMU_STATUS_OK)
                 return status;
             if (container->binaries[local_vr].max_size < size) {
-                container->binaries[local_vr].data = realloc(container->binaries[local_vr].data, size);
+                free(container->binaries[local_vr].data);
+                container->binaries[local_vr].data = malloc(size * sizeof(*container->binaries[local_vr].data));
                 if (! container->binaries[local_vr].data) {
                     logger(LOGGER_ERROR, "Cannot allocate memory for get output.");
                     return FMU_STATUS_ERROR;
                 }
                 container->binaries[local_vr].max_size = size;
             }
-            container->binaries[local_vr].size = size;
             memcpy(container->binaries[local_vr].data, data, size);
+            container->binaries[local_vr].size = size;
     }
     GET_OUTPUT(clocks, Clock);
     
@@ -282,15 +283,16 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
                 if (status != FMU_STATUS_OK)
                     return status;
                 if (container->binaries[local_vr].max_size < size) {
-                    container->binaries[local_vr].data = realloc(container->binaries[local_vr].data, size);
+                    free(container->binaries[local_vr].data);
+                    container->binaries[local_vr].data = malloc(size * sizeof(*container->binaries[local_vr].data));
                     if (! container->binaries[local_vr].data) {
                         logger(LOGGER_ERROR, "Cannot allocate memory for get output.");
                         return FMU_STATUS_ERROR;
                     }
                     container->binaries[local_vr].max_size = size;
                 }
-                container->binaries[local_vr].size = size;
                 memcpy(container->binaries[local_vr].data, data, size);
+                container->binaries[local_vr].size = size;
             }
         }
     }
@@ -701,7 +703,7 @@ fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, siz
             status = FMU_STATUS_ERROR;
         }
     }
-    return status;\
+    return status;
 }
 
 
@@ -718,7 +720,7 @@ fmu_status_t fmuGetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, bool
             status = FMU_STATUS_ERROR;
         }
     }
-    return status;\
+    return status;
 }
 
 

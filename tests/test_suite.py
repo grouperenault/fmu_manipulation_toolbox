@@ -52,7 +52,7 @@ class TestSuite:
             for i, (lineA, lineB) in enumerate(zip(a, b)):
                 if i > 10:
                     assert lineA == lineB, \
-                       f"file {log_filename} and {ref_filename} missmatch (excl. GUID):\n" \
+                       f"files {log_filename} and {ref_filename} missmatch (excl. GUID):\n" \
                        f"{lineA}\n" \
                        f"vs.\n\n" \
                        f"{lineB}"
@@ -79,11 +79,11 @@ class TestSuite:
                     if keyword in lineA:
                         skip = True
                         break
-                assert(skip or lineA == lineB,
-                       f"file {filename1} and {filename2} missmatch:\n"
-                       f"{lineA}\n"
-                       f"vs.\n\n"
-                       f"{lineB}")
+                assert skip or lineA == lineB, \
+                       f"file {filename1} and {filename2} missmatch:\n" \
+                       f"{lineA}\n" \
+                       f"vs.\n\n" \
+                       f"{lineB}"
 
     def assert_names_match_ref(self, fmu_filename):
         fmu = FMU(fmu_filename)

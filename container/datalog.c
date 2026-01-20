@@ -138,23 +138,25 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
         logger(LOGGER_ERROR, "Cannot get datalog definition of " #type); \
         return -4; \
     } \
-    datalog->vr_ ## type = malloc(datalog->nb_ ## type * sizeof(*datalog->vr_ ## type)); \
-    datalog->values_ ## type = malloc(datalog->nb_ ## type * sizeof(*datalog->values_ ## type)); \
-    if (!datalog->vr_ ## type || !datalog->values_## type) { \
-        logger(LOGGER_ERROR, "Cannot allocate memory for definition of " #type); \
-        return -5; \
-    } \
-    for(unsigned long i=0; i < datalog->nb_ ## type; i += 1) { \
-        int offset = 0; \
-        if (get_line(config)) { \
-            logger(LOGGER_ERROR, "Cannot get definition of " #type); \
-            return -6; \
+    if (datalog->nb_ ## type) { \
+        datalog->vr_ ## type = malloc(datalog->nb_ ## type * sizeof(*datalog->vr_ ## type)); \
+        datalog->values_ ## type = malloc(datalog->nb_ ## type * sizeof(*datalog->values_ ## type)); \
+        if (!datalog->vr_ ## type || !datalog->values_## type) { \
+            logger(LOGGER_ERROR, "Cannot allocate memory for definition of " #type); \
+            return -5; \
         } \
-        if (sscanf(config->line, "%d %n", &datalog->vr_ ## type [i], &offset) < 1) { \
-            logger(LOGGER_ERROR, "Cannot read definition of " #type); \
-            return -7; \
+        for(unsigned long i=0; i < datalog->nb_ ## type; i += 1) { \
+            int offset = 0; \
+            if (get_line(config)) { \
+                logger(LOGGER_ERROR, "Cannot get definition of " #type); \
+                return -6; \
+            } \
+            if (sscanf(config->line, "%d %n", &datalog->vr_ ## type [i], &offset) < 1) { \
+                logger(LOGGER_ERROR, "Cannot read definition of " #type); \
+                return -7; \
+            } \
+            fprintf(datalog->file, ",%s", config->line+offset); \
         } \
-        fprintf(datalog->file, ",%s", config->line+offset); \
     }
 
     READ(reals64);

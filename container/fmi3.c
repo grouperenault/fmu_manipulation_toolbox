@@ -127,17 +127,7 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
 fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
     container_t* container = (container_t*)instance;
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        if (fmuExitInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
-            return fmi3Error;
-    }
-    
-    container_init_values(container);
-
-    if (container_update_discrete_state(container) != FMU_STATUS_OK)
-        return fmi3Error;
-
-    if (container_enter_step_mode(container) != FMU_STATUS_OK)
+    if (container_exit_initialization_mode(container) != FMU_STATUS_OK)
         return fmi3Error;
 
     return fmi3OK;
@@ -367,6 +357,7 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
                 container->binaries[vr].max_size = valueSizes[i];
             }
 
+            container->binaries[vr].size = valueSizes[i];
             memcpy(container->binaries[vr].data, values[i], valueSizes[i]);
         } else {
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
