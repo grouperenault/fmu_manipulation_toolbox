@@ -115,31 +115,3 @@ endif()
 set_target_properties(client_sm PROPERTIES
 					  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}"
 					  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}")
-
-#
-# test_sizeof
-#
-if (BUILD_TESTER)
-    add_executable(test_sizeof
-        ${CMAKE_CURRENT_SOURCE_DIR}/test_sizeof.c
-    )
-
-    add_custom_command(OUTPUT test_sizeof.c
-        COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/gen_sizeof.py
-        DEPENDS gen_sizeof.py
-    )
-
-
-    add_executable(test_server
-        ${CMAKE_CURRENT_SOURCE_DIR}/test_server.c
-    )
-    #target_link_libraries(test_server client_sm)
-    target_include_directories(test_server PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../fmi
-    )
-
-    target_include_directories(test_sizeof PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../fmi
-    )
-
-endif ()
