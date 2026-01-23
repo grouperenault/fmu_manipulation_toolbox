@@ -16,9 +16,13 @@
     canHandleVariableCommunicationStepSize="true"
     canBeInstantiatedOnlyOncePerProcess="true"
     canNotUseMemoryManagementFunctions="true"
-    canGetAndSetFMUstate="false"
-    canSerializeFMUstate="false"
-    providesDirectionalDerivative="false"
+    canGetAndSetFMUState="false"
+    canSerializeFMUState="false"
+    providesDirectionalDerivatives="false"
+    providesAdjointDerivatives="false"
+    providesPerElementDependencies="false"
+    providesEvaluateDiscreteStates="false"
+    hasEventMode="true"
     needsExecutionTool="false">
   </CoSimulation>
 
