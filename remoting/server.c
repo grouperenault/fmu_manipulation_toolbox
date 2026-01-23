@@ -1,12 +1,3 @@
-/*    ___                                               __   __
- *  .'  _|.--------.--.--.  .----.-----.--------.-----.|  |_|__|.-----.-----.
- *  |   _||        |  |  |  |   _|  -__|        |  _  ||   _|  ||     |  _  |
- *  |__|  |__|__|__|_____|  |__| |_____|__|__|__|_____||____|__||__|__|___  |
- *  Copyright 2023 Renault SAS                                        |_____|
- *  The remoting code is written by Nicolas.LAURENT@Renault.com.
- *  This code is released under the 2-Clause BSD license.
- */
-
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -242,10 +233,10 @@ static int is_parent_still_alive(const server_t *server) {
 }
 
 static fmi2Status setup_experiment(const server_t* server) {
-    fmi2Boolean toleranceDefined = server->communication->shm->values[0];
+    fmi2Boolean toleranceDefined = (int)server->communication->shm->values[0];
     fmi2Real tolerance = server->communication->shm->values[1];
     fmi2Real startTime = server->communication->shm->values[2];
-    fmi2Boolean stopTimeDefined = server->communication->shm->values[3];
+    fmi2Boolean stopTimeDefined = (int)server->communication->shm->values[3];
     fmi2Real stopTime = server->communication->shm->values[4];
 
     return server->entries.fmi2SetupExperiment(
@@ -348,7 +339,6 @@ static fmi2Status update_buffer_from_values(server_t* server) {
 
 
 static fmi2Status instanciate(server_t* server) {
-    fmi2Status status;
     server->instance_name = strdup(server->communication->shm->instance_name);
     server->is_debug = fmi2False;
     server->library = library_load(server->library_filename);
@@ -390,7 +380,7 @@ static fmi2Status free_instance(server_t *server) {
 static fmi2Status do_step(server_t *server) {
     fmi2Real currentCommunicationPoint = server->communication->shm->values[0];
     fmi2Real communicationStepSize = server->communication->shm->values[1];
-    fmi2Boolean noSetFMUStatePriorToCurrentPoint = server->communication->shm->values[2];
+    fmi2Boolean noSetFMUStatePriorToCurrentPoint = (int)server->communication->shm->values[2];
     fmi2Status status;
     
     status = update_values_from_client(server);
