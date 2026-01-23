@@ -135,7 +135,17 @@ fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
 
 
 fmi3Status fmi3EnterEventMode(fmi3Instance instance) {
-    __NOT_IMPLEMENTED__
+    /*
+     * By now, container does not support fully Event Mode.
+	 * See container_do_step() in container.c for more details.
+     * 
+     * container_t* container = (container_t*)instance;
+     * 
+     * if (container_enter_event_mode(container) != FMU_STATUS_OK)
+     *    return fmi3Error;
+     */
+
+    return fmi3OK;
 }
 
 
@@ -500,7 +510,29 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance,
                                   size_t nValueReferences,
                                   fmi3Float64 intervals[],
                                   fmi3IntervalQualifier qualifiers[]) {
-    __NOT_IMPLEMENTED__
+    container_t* container = (container_t*)instance;
+    fmu_status_t status;
+
+    for (size_t i = 0; i < nValueReferences; i += 1) {
+        const uint32_t vr = valueReferences[i] & 0xFFFFFF;
+        const container_port_t* port = &container->port_clocks[vr];
+        const int fmu_id = port->links[0].fmu_id;
+
+        if (fmu_id < 0) {
+            logger(LOGGER_ERROR, "GetIntervalDecimal not available for vr=%lu", valueReferences[i]);
+            return fmi3Error;
+        }
+        else {
+            const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
+            const fmu_t* fmu = &container->fmu[fmu_id];
+
+            status = fmuGetIntervalDecimal(fmu, &fmu_vr, 1, &intervals[i], (int *)&qualifiers[i]);
+            if (status != FMU_STATUS_OK)
+                return fmi3Error;
+        }
+    }
+
+    return fmi3OK;
 }
 
 
@@ -594,6 +626,16 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
 ----------------------------------------------------------------------------*/
  
 fmi3Status fmi3EnterStepMode(fmi3Instance instance)  {
+    /*
+     * By now, container does not support fully Event Mode
+     * See container_do_step() in container.c for more details.
+     * 
+     * container_t* container = (container_t*)instance;
+     * 
+     * if (container_enter_step_mode(container) != FMU_STATUS_OK)
+     *    return fmi3Error;
+     */
+
     return fmi3OK;
 }
 
