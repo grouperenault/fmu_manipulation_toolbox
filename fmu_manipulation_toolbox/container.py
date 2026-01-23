@@ -602,9 +602,13 @@ class FMUContainer:
     canHandleVariableCommunicationStepSize="true"
     canBeInstantiatedOnlyOncePerProcess="{only_once}"
     canNotUseMemoryManagementFunctions="true"
-    canGetAndSetFMUstate="false"
-    canSerializeFMUstate="false"
-    providesDirectionalDerivative="false"
+    canGetAndSetFMUState="false"
+    canSerializeFMUState="false"
+    providesDirectionalDerivatives="false"
+    providesAdjointDerivatives="false"
+    providesPerElementDependencies="false"
+    providesEvaluateDiscreteStates="false"
+    hasEventMode="true"
     needsExecutionTool="{execution_tool}">
   </CoSimulation>
 
