@@ -15,6 +15,20 @@ class DatalogConverter:
     def __init__(self, cvs_filename: Union[Path, str]):
         self.csv_filename = Path(cvs_filename)
         self.pcap_filename = self.csv_filename.with_suffix(".pcap")
+        self.opcode_name = {
+            "CAN": {
+            0x0001: "FMI3_LS_BUS_OP_FORMAT_ERROR",
+            0x0010: "FMI3_LS_BUS_CAN_OP_CAN_TRANSMIT",
+            0x0011: "FMI3_LS_BUS_CAN_OP_CANFD_TRANSMIT",
+            0x0012: "FMI3_LS_BUS_CAN_OP_CANXL_TRANSMIT",
+            0x0020: "FMI3_LS_BUS_CAN_OP_CONFIRM",
+            0x0030: "FMI3_LS_BUS_CAN_OP_ARBITRATION_LOST",
+            0x0031: "FMI3_LS_BUS_CAN_OP_BUS_ERROR",
+            0x0040: "FMI3_LS_BUS_CAN_OP_CONFIGURATION",
+            0x0041: "FMI3_LS_BUS_CAN_OP_STATUS",
+            0x0042: "FMI3_LS_BUS_CAN_OP_WAKEUP"
+            }
+        }
 
     def open_pcap(self):
         logger.info(f"Creating PCAP file '{self.pcap_filename}'...")
@@ -31,7 +45,10 @@ class DatalogConverter:
                                                                   # captured from each packet.
 
         file.write(int(227).to_bytes(4, byteorder="big"))         # link type. his field is defined in the Section
-                                                                  # # 8.1 IANA registry.
+                                                                  # 8.1 IANA registry.
+                                                                  # 190: Reserved for Controller Area Network (CAN) v. 2.0B packets
+                                                                  # 210: Reserved for FlexRay automotive bus
+                                                                  # 227: CAN (Controller Area Network) frames, with a pseudo-header followed by the frame payload.
         return file
 
     def open_csv(self):
@@ -42,15 +59,21 @@ class DatalogConverter:
     def decode_hexstring(self, hex_string: bytes, time_s, time_us):
         opcode = int.from_bytes(hex_string[0:4], byteorder="little")
         length = int.from_bytes(hex_string[4:8], byteorder="little")
-        can_id = int.from_bytes(hex_string[8:12], byteorder="little")
+
         if opcode == 0x10:  # TRANSMIT
+            can_id = int.from_bytes(hex_string[8:12], byteorder="little")
             rtr = int.from_bytes(hex_string[13:14], byteorder="little")
             ide = int.from_bytes(hex_string[12:13], byteorder="little")
             data_length = int.from_bytes(hex_string[14:16], byteorder="little")
             raw_data = hex_string[16:]
 
+            raw_str = ""
+            for i, b in enumerate(raw_data):
+                raw_str += f"{i}:{b:d} "
+            logger.info(f"time={time_s}.{time_us:06d} data length {data_length} with data {raw_str}")
+
             logger.debug(f"time={time_s}.{time_us:06d} OP=0x{opcode:04X} len={length} {data_length} id={can_id}"
-                         f" ide={ide} rtr={rtr} len={data_length} {raw_data}")
+                         f" ide={ide} rtr={rtr} len={data_length} raw_len={len(raw_data)} {raw_str}")
 
             # TimeStamp
             self.pcapfile.write(time_s.to_bytes(4, byteorder="big"))
@@ -76,7 +99,14 @@ class DatalogConverter:
             self.pcapfile.write(dlc.to_bytes(1, byteorder="big"))
 
             # PAYLOAD
-            self.pcapfile.write(raw_data)
+            self.pcapfile.write(raw_data[0:data_length])
+
+        elif opcode == 0x40:
+            parameter = int.from_bytes(hex_string[8:9], byteorder="little")
+            logger.debug(f"Config parameter: {parameter}")
+            if (parameter == 1):
+                baudrate = int.from_bytes(hex_string[9:13], byteorder="little")
+                logger.debug(f"baudrate parameter: {baudrate}")
 
     def convert(self):
         with self.open_csv() as self.csvfile, self.open_pcap() as self.pcapfile:
