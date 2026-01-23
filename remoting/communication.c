@@ -107,7 +107,7 @@ static shm_handle_t communication_shm_create(const char *shm_name, size_t memory
         NULL,                           // default security
         PAGE_READWRITE,                 // read/write access
         0,                              // maximum object size (high-order DWORD)
-        memory_size,                    // maximum object size (low-order DWORD)
+        (DWORD)memory_size,             // maximum object size (low-order DWORD)
         shm_name);                      // name of mapping object
         
 #else

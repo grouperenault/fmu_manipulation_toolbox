@@ -2,6 +2,7 @@
 
 #ifdef WIN32
 #   include <io.h>
+#   define strdup _strdup
 #else
 #   define _GNU_SOURCE  /* to access to dladdr */
 #   include <dlfcn.h>
@@ -298,8 +299,11 @@ static unsigned int crc32b(const unsigned char* message) {
         byte = message[i];            // Get next byte.
         crc = crc ^ byte;
         for (j = 7; j >= 0; j--) {    // Do eight times.
-            mask = -(crc & 1);
-            crc = (crc >> 1) ^ (0xEDB88320 & mask);
+            if (crc & 1)
+                mask = 0xEDB88320;
+            else
+                mask = 0x00000000;
+            crc = (crc >> 1) ^ mask;
         }
         i = i + 1;
     }
@@ -506,14 +510,14 @@ fmi2Status fmi2Reset(fmi2Component c) {
 }
 
 
-static long int get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table, size_t offset, size_t nb) {
+static long int get_pos(fmi2ValueReference vr, const fmi2ValueReference* vr_table, long int offset, unsigned long nb) {
     if (vr == vr_table[offset])
         return offset;
 
     if (vr == vr_table[offset + nb - 1])
         return offset + nb - 1;
 
-    size_t middle = nb / 2;
+    long int middle = nb / 2;
     if (middle > 0) {
         if (vr > vr_table[offset + middle]) {
             return get_pos(vr, vr_table, offset + middle, nb - middle);
