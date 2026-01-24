@@ -107,8 +107,6 @@ Without any additional option, `fmucontainer` will produce FMI-2.0 containers. T
   - Variables with FMI-3.0 specific types can be used for routing but cannot be exposed (as input, output, parameter or local).
     Note: `boolean` is redefined in FMI-3.0. So cannot be exposed from an FMU-3.0.
   - Early Return feature is not supported
-  - Event handling for FMU-3.0 is not supported
-  - Binary and Clocks cannot be routed between FMU-3.0
   - Arrays are not supported
 
 ## FMI-3.0 Containers
@@ -119,8 +117,6 @@ Those containers may embed
   - `boolean` variables can be used for routing but cannot be exposed (as input, output, parameter or local).
    
 - *FMU 3.0* in cosimulation mode with limitations:
-  - Early Return feature is not supported
-  - Event handling for FMU-3.0 is not supported
-  - Binary and Clocks cannot be routed between FMU-3.0
+  - Early Return feature is _not_ supported
   - Arrays are not supported
 
