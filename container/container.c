@@ -24,7 +24,7 @@
                                 D O   S T E P
 ----------------------------------------------------------------------------*/
 
-void container_set_start_values(container_t* container, int early_set) {
+static void container_set_start_values(container_t* container, int early_set) {
     if (early_set)
         logger(LOGGER_DEBUG, "Setting start values...");
     else
@@ -294,6 +294,38 @@ static fmu_status_t container_handle_events(container_t *container) {
     status = container_enter_step_mode(container);
     if (status != FMU_STATUS_OK)
         return status;
+
+    return FMU_STATUS_OK;
+}
+
+
+fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
+                                        double startTime, bool stopTimeDefined, double stopTime) {
+    container->tolerance_defined = toleranceDefined;
+    if (toleranceDefined)
+        container->tolerance = tolerance;
+    container->start_time = startTime;
+    container->stop_time_defined = 0; /* stopTime can cause rounding issues. Disbale it.*/
+    container->stop_time = stopTime;
+
+    for(int i=0; i < container->nb_fmu; i += 1) {        
+        if (fmuSetupExperiment(&container->fmu[i]) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+
+    container_set_start_values(container, 1);
+    
+    return FMU_STATUS_OK;
+}
+
+
+fmu_status_t container_enter_initialization_mode(container_t* container) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        if (fmuEnterInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+
+    container_set_start_values(container, 0);
 
     return FMU_STATUS_OK;
 }
@@ -1524,7 +1556,6 @@ void container_free(container_t *container) {
     datalog_free(container->datalog);
 
     free(container);
-
 
     return;
 }

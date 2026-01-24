@@ -19,6 +19,12 @@
     logger(LOGGER_ERROR, "Function '%s' is not implemented", __func__); \
     return fmi3Error;
 
+#define ASSERT_CONTAINER_STATE(_container, _state) \
+    if (_container->state != _state) { \
+    	logger(LOGGER_ERROR, "Must be in state %s to call %s", #_state, __func__); \
+        return fmi3Error; \
+    }
+
 
 /*----------------------------------------------------------------------------
                F M I 3   F U N C T I O N S   ( G E N E R A L )
@@ -76,15 +82,18 @@ fmi3Instance fmi3InstantiateCoSimulation(
         }
         logger(LOGGER_DEBUG, "Container configuration read.");
     }
+
+    container->state = CONTAINER_STATE_INSTANTIATED;
+
     return container;
 }
 
 
 void fmi3FreeInstance(fmi3Instance instance) {
     container_t* container = (container_t*)instance;
-    
-    if (container)
-        container_free(container);
+
+    logger(LOGGER_DEBUG, "Container instance '%s' to be freed...", container->instance_name);
+    container_free(container);
 
     return;
 }
@@ -97,29 +106,16 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
                                        fmi3Float64 stopTime) {
     container_t* container = (container_t*)instance;
 
-    container->tolerance_defined = toleranceDefined;
-    if (toleranceDefined)
-        container->tolerance = tolerance;
-    container->start_time = startTime;
-    container->stop_time_defined = 0; /* stopTime can cause rounding issues. Disbale it.*/
-    container->stop_time = stopTime;
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_INSTANTIATED);
 
-    for(int i=0; i < container->nb_fmu; i += 1) {        
-        if (fmuSetupExperiment(&container->fmu[i]) != FMU_STATUS_OK)
-            return fmi3Error;
-    }
-
-    container_set_start_values(container, 1);
-    logger(LOGGER_DEBUG, "fmuSetupExperiment -- OK");
+    if (container_setup_experiment(container, toleranceDefined, tolerance,  startTime, stopTimeDefined, stopTime) != FMU_STATUS_OK)
+        return fmi3Error;
     
+    if (container_enter_initialization_mode(container) != FMU_STATUS_OK) 
+        return fmi3Error;
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        if (fmuEnterInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
-            return fmi3Error;
-    }
-
-    container_set_start_values(container, 0);
-
+    container->state = CONTAINER_STATE_INITIALIZATION_MODE;
+    
     return fmi3OK;
 }
 
@@ -127,23 +123,25 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance,
 fmi3Status fmi3ExitInitializationMode(fmi3Instance instance){
     container_t* container = (container_t*)instance;
 
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_INITIALIZATION_MODE);
     if (container_exit_initialization_mode(container) != FMU_STATUS_OK)
         return fmi3Error;
+
+    container->state = CONTAINER_STATE_STEP_MODE; /* event mode is already handled */
 
     return fmi3OK;
 }
 
 
 fmi3Status fmi3EnterEventMode(fmi3Instance instance) {
-    /*
-     * By now, container does not support fully Event Mode.
-	 * See container_do_step() in container.c for more details.
-     * 
-     * container_t* container = (container_t*)instance;
-     * 
-     * if (container_enter_event_mode(container) != FMU_STATUS_OK)
-     *    return fmi3Error;
-     */
+   container_t* container = (container_t*)instance;
+
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_STEP_MODE);
+
+    if (container_enter_event_mode(container) != FMU_STATUS_OK)
+        return fmi3Error;
+
+    container->state = CONTAINER_STATE_EVENT_MODE;
 
     return fmi3OK;
 }
@@ -158,7 +156,9 @@ fmi3Status fmi3Terminate(fmi3Instance instance) {
         if (status != FMU_STATUS_OK)
             return fmi3Error;
     }
- 
+    
+    container->state = CONTAINER_STATE_TERMINATED;
+
     return fmi3OK;
 }
 
@@ -496,12 +496,24 @@ fmi3Status fmi3GetAdjointDerivative(fmi3Instance instance,
 
 
 fmi3Status fmi3EnterConfigurationMode(fmi3Instance instance) {
-    __NOT_IMPLEMENTED__
+    container_t* container = (container_t*)instance;
+
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_INSTANTIATED);
+
+    container->state = CONTAINER_STATE_CONFIGURATION_MODE;
+
+    return fmi3OK;
 }
 
 
 fmi3Status fmi3ExitConfigurationMode(fmi3Instance instance) {
-    __NOT_IMPLEMENTED__
+    container_t* container = (container_t*)instance;
+
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_CONFIGURATION_MODE);
+
+    container->state = CONTAINER_STATE_INSTANTIATED;
+
+    return fmi3OK;
 }
 
 
@@ -626,15 +638,14 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
 ----------------------------------------------------------------------------*/
  
 fmi3Status fmi3EnterStepMode(fmi3Instance instance)  {
-    /*
-     * By now, container does not support fully Event Mode
-     * See container_do_step() in container.c for more details.
-     * 
-     * container_t* container = (container_t*)instance;
-     * 
-     * if (container_enter_step_mode(container) != FMU_STATUS_OK)
-     *    return fmi3Error;
-     */
+    container_t* container = (container_t*)instance;
+
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_EVENT_MODE);
+    
+    if (container_enter_step_mode(container) != FMU_STATUS_OK)
+       return fmi3Error;
+    
+    container->state = CONTAINER_STATE_STEP_MODE;
 
     return fmi3OK;
 }
