@@ -12,8 +12,8 @@ extern "C" {
 #   define STRLCPY(dst, src, len)   strcpy_s(dst, len, src)
 #   define STRLCAT(dst, src, len)   strcat_s(dst, len, src)
 #else
-#   define STRLCPY(dst, src, len)   strncpy(dst, src, len);             dst[len-1] = '\0'
-#   define STRLCAT(dst, src, len)   strncat(dst, src, len-strlen(dst)); dst[len-1] = '\0'
+#   define STRLCPY(dst, src, len)   strncpy(dst, src, len-1);             dst[len-1] = '\0'
+#   define STRLCAT(dst, src, len)   strncat(dst, src, len-strlen(dst)-1); dst[len-1] = '\0'
 #endif
 
 /*----------------------------------------------------------------------------
