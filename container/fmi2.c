@@ -19,6 +19,11 @@
     logger(LOGGER_ERROR, "Function '%s' is not implemented", __func__); \
     return fmi2Error;
 
+#define ASSERT_CONTAINER_STATE(_container, _state) \
+    if (_container->state != _state) { \
+    	logger(LOGGER_ERROR, "Must be in state %s to call %s", #_state, __func__); \
+        return fmi2Error; \
+    }
 
 /*----------------------------------------------------------------------------
                F M I 2   F U N C T I O N S   ( G E N E R A L )
@@ -94,8 +99,8 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 void fmi2FreeInstance(fmi2Component c) {
     container_t* container = (container_t*)c;
 
-    if (container)
-        container_free(container);
+    logger(LOGGER_DEBUG, "Container instance '%s' release", container->instance_name);
+    container_free(container);
 
     return;
 }
@@ -109,22 +114,10 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
     fmi2Real stopTime) {
     container_t* container = (container_t*)c;
 
-    if (toleranceDefined)
-        container->tolerance = tolerance;
-    container->tolerance_defined = toleranceDefined;
-    container->start_time = startTime;
-    container->stop_time_defined = 0; /* stopTime can cause rounding issues. Disbale it.*/
-    container->stop_time = stopTime;
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_INSTANTIATED);
 
-    for(int i=0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuSetupExperiment(&container->fmu[i]);    
-        
-        if (status != FMU_STATUS_OK)
-            return fmi2Error;
-    }
-
-    container_set_start_values(container, 1);
-    logger(LOGGER_DEBUG, "fmi2SetupExperiment -- OK");
+    if (container_setup_experiment(container, toleranceDefined, tolerance,  startTime, stopTimeDefined, stopTime) != FMU_STATUS_OK)
+        return fmi2Error;
 
     return fmi2OK;
 }
@@ -133,12 +126,12 @@ fmi2Status fmi2SetupExperiment(fmi2Component c,
 fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
     container_t* container = (container_t*)c;
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        if (fmuEnterInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
-            return fmi2Error;
-    }
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_INSTANTIATED);
 
-    container_set_start_values(container, 0);
+    if (container_enter_initialization_mode(container) != FMU_STATUS_OK) 
+        return fmi2Error;
+    
+    container->state = CONTAINER_STATE_INITIALIZATION_MODE;
 
     return fmi2OK;
 }
@@ -147,9 +140,12 @@ fmi2Status fmi2EnterInitializationMode(fmi2Component c) {
 fmi2Status fmi2ExitInitializationMode(fmi2Component c) {
     container_t* container = (container_t*)c;
 
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_INITIALIZATION_MODE);
+
     if (container_exit_initialization_mode(container) != FMU_STATUS_OK)
         return fmi2Error;
 
+    container->state = CONTAINER_STATE_STEP_MODE; /* event mode is already handled */
 
     return fmi2OK;
 }

@@ -76,6 +76,15 @@ typedef struct {
 typedef fmu_status_t (*container_do_step_function_t)(struct container_s *container);
 
 
+typedef enum {
+	CONTAINER_STATE_INSTANTIATED,
+    CONTAINER_STATE_INITIALIZATION_MODE,
+    CONTAINER_STATE_CONFIGURATION_MODE,
+    CONTAINER_STATE_STEP_MODE,
+    CONTAINER_STATE_EVENT_MODE,
+    CONTAINER_STATE_TERMINATED
+} container_state_t;
+
 /*----------------------------------------------------------------------------
                             C O N T A I N E R _ T
 ----------------------------------------------------------------------------*/
@@ -87,6 +96,7 @@ typedef struct container_s {
 	fmu_t						*fmu;		/* embedded FMUs */
 	char						*instance_name;
 	char						*uuid;
+	container_state_t			state;		/* managed in fmi2.c and fmi3.c */
 
 	/* storage of local variables (conveyed from one FMU to an other) */
 #define DECLARE_LOCAL(name, type) \
@@ -142,9 +152,9 @@ typedef struct container_s {
 	long long					nb_steps;				/* incremental counter */
 	double						start_time;				/* used for initialization */
 	double						time;					/* used internally during simulation */
-	int							stop_time_defined;	
+	bool						stop_time_defined;	
 	double						stop_time;				/* used for initialization */
-	int							tolerance_defined;
+	bool						tolerance_defined;
 	double						tolerance;				/* used for comparisons */
 	container_clock_list_t		clocks_list;
 	bool						need_event_update;
@@ -164,9 +174,12 @@ extern container_t *container_new(const char *instance_name, const char *fmu_uui
 extern int container_configure(container_t* container, const char* dirname);
 extern void container_free(container_t *container);
 
-extern void container_set_start_values(container_t* container, int early_set);
+fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
+                                        double startTime, bool stopTimeDefined, double stopTime);
+extern fmu_status_t container_enter_initialization_mode(container_t* container);
 extern fmu_status_t container_exit_initialization_mode(container_t* container);
 extern fmu_status_t container_update_discrete_state(container_t *container);
+extern fmu_status_t container_enter_event_mode(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);
 
