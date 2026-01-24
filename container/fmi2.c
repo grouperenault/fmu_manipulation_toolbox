@@ -92,6 +92,9 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
         }
         logger(LOGGER_DEBUG, "Container configuration read.");
     }
+
+    container->state = CONTAINER_STATE_INSTANTIATED;
+    
     return container;
 }
 
