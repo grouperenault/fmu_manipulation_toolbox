@@ -108,3 +108,5 @@ tests/ls-bus/datalog.pcap
 tests/ls-bus/REF-nodes-only-datalog.pcap
 tests/bus+nodes-datalog.csv
 tests/array/StateSpace-copy.fmu
+
+tests/array/modelDescription.xml
