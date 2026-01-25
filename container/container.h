@@ -178,7 +178,6 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
                                         double startTime, bool stopTimeDefined, double stopTime);
 extern fmu_status_t container_enter_initialization_mode(container_t* container);
 extern fmu_status_t container_exit_initialization_mode(container_t* container);
-extern fmu_status_t container_update_discrete_state(container_t *container);
 extern fmu_status_t container_enter_event_mode(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);

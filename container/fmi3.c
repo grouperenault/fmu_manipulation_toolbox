@@ -673,7 +673,7 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
 
 
     *earlyReturn = false;
-    *eventHandlingNeeded = false;
+    *eventHandlingNeeded = false;   /* Events cannot pass through container boundary */
     *terminateSimulation = false;
 
     if (container_do_step(container, currentCommunicationPoint, communicationStepSize) != FMU_STATUS_OK)
