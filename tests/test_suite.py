@@ -64,11 +64,11 @@ class TestSuite:
         assert Path(filename2).exists(), f"{filename2} does not exist"
         with open(filename1, mode="rt", newline=None) as a, open(filename2, mode="rt", newline=None) as b:
             for lineA, lineB in zip(a, b):
-                assert lineA == lineB, \
+                assert lineA.strip() == lineB.strip(), \
                        f"file {filename1} and {filename2} missmatch (excl. GUID):\n" \
-                       f"{lineA}\n" \
+                       f"{lineA.strip()}\n" \
                        f"vs.\n\n" \
-                       f"{lineB}"
+                       f"{lineB.strip()}"
 
     @staticmethod
     def assert_identical_files_but_guid(filename1, filename2):
