@@ -25,27 +25,31 @@
             
             <Float64 name="A" valueReference="4" description="Matrix coefficient A" causality="parameter" variability="tunable" start="1 0 0 0 1 0 0 0 1">
       <Dimension valueReference="2"/>
-    </Float64>
-
-        
-            
-            
-            <Float64 name="B" valueReference="5" description="Matrix coefficient B" causality="parameter" variability="tunable" start="1 0 0 0 1 0 0 0 1">
       <Dimension valueReference="2"/>
     </Float64>
 
-        
-            
-            
-            <Float64 name="C" valueReference="6" description="Matrix coefficient C" causality="parameter" variability="tunable" start="1 0 0 0 1 0 0 0 1">
-      <Dimension valueReference="3"/>
+
+
+
+            <Float64 name="B" valueReference="5" description="Matrix coefficient B" causality="parameter" variability="tunable" start="1 0 0 0 1 0 0 0 1">
+      <Dimension valueReference="2"/>
+      <Dimension valueReference="1"/>
     </Float64>
 
-        
-            
-            
+
+
+
+            <Float64 name="C" valueReference="6" description="Matrix coefficient C" causality="parameter" variability="tunable" start="1 0 0 0 1 0 0 0 1">
+      <Dimension valueReference="3"/>
+      <Dimension valueReference="2"/>
+    </Float64>
+
+
+
+
             <Float64 name="D" valueReference="7" description="Matrix coefficient D" causality="parameter" variability="tunable" start="1 0 0 0 1 0 0 0 1">
       <Dimension valueReference="3"/>
+      <Dimension valueReference="1"/>
     </Float64>
 
         
