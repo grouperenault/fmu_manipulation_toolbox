@@ -57,8 +57,9 @@ class FMU:
 class FMUPort:
     def __init__(self):
         self.fmi_type = None
+
         self.attrs_list: List[Dict] = []
-        self.dimension = None
+        self.dimensions_list: List[Tuple[str, int]] = []   # FMI-3 ("valueReference", 2) ("start", 3)
 
     def dict_level(self, nb):
         return " ".join([f'{key}="{Manipulation.escape(value)}"' for key, value in self.attrs_list[nb].items()])
@@ -70,9 +71,13 @@ class FMUPort:
             print(f"    </ScalarVariable>", file=file)
         elif fmi_version == 3:
             start_value = self.get("start", "")
-            if self.fmi_type in ("String", "Binary") and start_value:
+
+            if self.dimensions or (self.fmi_type in ("String", "Binary") and start_value):
                 print(f"    <{self.fmi_type} {self.dict_level(0)}>", file=file)
-                print(f'      <Start value="{start_value}"/>', file=file)
+                if self.fmi_type in ("String", "Binary") and start_value:
+                    print(f'      <Start value="{start_value}"/>', file=file)
+                for dimension in self.dimensions:
+                    print(f'      <Dimension {dimension[0]}="{dimension[1]}"/>', file=file)
                 print(f"    </{self.fmi_type}>", file=file)
             else:
                 print(f"    <{self.fmi_type} {self.dict_level(0)}/>", file=file)
@@ -107,6 +112,25 @@ class FMUPort:
     def push_attrs(self, attrs):
         self.attrs_list.append(attrs)
 
+    @property
+    def dimensions(self):
+        return self.dimensions_list
+
+    @dimensions.setter
+    def dimensions(self, attrs: Dict[str, str]):
+        logger.critical(attrs)
+        for key, value in attrs.items():
+            logger.critical(value)
+            self.dimensions_list.append((key, int(value)))
+
+    def size(self):
+        result = 1
+        for dimension in self.dimensions_list:
+            if dimension[0] == "start":
+                result *= dimension[1]
+            else:
+                raise FMUError(f"FMUPort size: unsupported dynamic dimension for port {self['name']}")
+        return result
 
 class FMUError(Exception):
     def __init__(self, reason):
@@ -186,6 +210,9 @@ class Manipulation:
                 self.current_port.push_attrs(attrs)
             elif self.fmu.fmi_version == 3 and name == "Start":
                 self.current_port.push_attrs({"start": attrs.get("value", "")})
+            elif self.fmu.fmi_version == 3 and name == "Dimension":
+                logger.critical(f"Push {self.current_port['name']} {attrs}")
+                self.current_port.dimensions = attrs
             elif name == 'CoSimulation':
                 self.operation.cosimulation_attrs(attrs)
             elif name == 'DefaultExperiment':
