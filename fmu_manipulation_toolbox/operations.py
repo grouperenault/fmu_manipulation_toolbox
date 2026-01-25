@@ -57,6 +57,7 @@ class FMU:
 class FMUPort:
     def __init__(self):
         self.fmi_type = None
+
         self.attrs_list: List[Dict] = []
         self.dimensions_list: List[Tuple[str, int]] = []   # FMI-3 ("valueReference", 2) ("start", 3)
 
@@ -76,7 +77,7 @@ class FMUPort:
                 if self.fmi_type in ("String", "Binary") and start_value:
                     print(f'      <Start value="{start_value}"/>', file=file)
                 for dimension in self.dimensions:
-                        print(f'      <Dimension {dimension[0]}="{dimension[1]}"/>', file=file)
+                    print(f'      <Dimension {dimension[0]}="{dimension[1]}"/>', file=file)
                 print(f"    </{self.fmi_type}>", file=file)
             else:
                 print(f"    <{self.fmi_type} {self.dict_level(0)}/>", file=file)
@@ -121,6 +122,15 @@ class FMUPort:
         for key, value in attrs.items():
             logger.critical(value)
             self.dimensions_list.append((key, int(value)))
+
+    def size(self):
+        result = 1
+        for dimension in self.dimensions_list:
+            if dimension[0] == "start":
+                result *= dimension[1]
+            else:
+                raise FMUError(f"FMUPort size: unsupported dynamic dimension for port {self['name']}")
+        return result
 
 class FMUError(Exception):
     def __init__(self, reason):
