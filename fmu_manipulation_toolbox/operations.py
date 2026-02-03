@@ -57,9 +57,42 @@ class FMU:
 class FMUPort:
     def __init__(self):
         self.fmi_type = None
+        self.name = None
+        self.valueReference = None
+        self.causality = None
+        self.variability = None
+        self.description = None
+        self.initial = None
+        self.quantity = None
+        self.unit = None
+        self.displayUnit = None
+        self.relativeQuantity = None
+        self.unbounded = None
+        self.min = None
+        self.max = None
+        self.nominal = None
+
+        self.mimeType = None
+        self.maxSize = None
+        self.clocks = None
+
+        self.canBeDeactivated = None
+        self.priority = None
+        self.intervalVariability = None
+        self.intervalDecimal = None
+        self.shiftDecimal = None
+        self.supportsFraction = None
+        self.resolution = None
+        self.intervalCounter = None
+        self.shiftCounter = None
+        self.derivative = None
+
+        self.start = None
+        self.reinit = None
+
+        self.dimensions_list: List[Tuple[str, int]] = []   # FMI-3 ("valueReference", 2) ("start", 3)
 
         self.attrs_list: List[Dict] = []
-        self.dimensions_list: List[Tuple[str, int]] = []   # FMI-3 ("valueReference", 2) ("start", 3)
 
     def dict_level(self, nb):
         return " ".join([f'{key}="{Manipulation.escape(value)}"' for key, value in self.attrs_list[nb].items()])
@@ -111,6 +144,13 @@ class FMUPort:
 
     def push_attrs(self, attrs):
         self.attrs_list.append(attrs)
+
+    def set_properties(self, attrs):
+        for key, values in attrs.items():
+            if hasattr(self, key):
+                self.__setattr__(key, values)
+            else:
+                raise FMUError(f"FMUPort properties: unsupported attribute {key}")
 
     @property
     def dimensions(self):
@@ -200,14 +240,17 @@ class Manipulation:
             if name == 'ScalarVariable': # FMI 2.0 only
                 self.current_port = FMUPort()
                 self.current_port.push_attrs(attrs)
+                self.current_port.set_properties(attrs)
             elif self.fmu.fmi_version == 2 and name in self.fmu.FMI2_TYPES:
                 if self.current_port: # <Enumeration> can be found before port definition. Ignored.
                     self.current_port.fmi_type = name
                     self.current_port.push_attrs(attrs)
+                    self.current_port.set_properties(attrs)
             elif self.fmu.fmi_version == 3 and name in self.fmu.FMI3_TYPES:
                 self.current_port = FMUPort()
                 self.current_port.fmi_type = name
                 self.current_port.push_attrs(attrs)
+                self.current_port.set_properties(attrs)
             elif self.fmu.fmi_version == 3 and name == "Start":
                 self.current_port.push_attrs({"start": attrs.get("value", "")})
             elif self.fmu.fmi_version == 3 and name == "Dimension":
