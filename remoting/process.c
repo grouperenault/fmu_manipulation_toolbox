@@ -31,7 +31,7 @@ int process_is_alive(process_handle_t handle) {
 process_handle_t process_spawn(char *const argv[])  {
     process_handle_t handle;
 #ifdef WIN32
-    char cmd[MAX_PATH];
+    char cmd[32768];
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
 
