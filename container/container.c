@@ -225,6 +225,14 @@ static fmu_status_t container_proceed_event(container_t *container) {
         }
     }
     
+    if (container->need_event_update || container->clocks_list.nb_next_clocks) {
+        for (int i = 0; i < container->nb_fmu; i += 1) {
+            fmu_t *fmu = &container->fmu[i];
+            if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
+        }
+    }
+    
     return FMU_STATUS_OK;
 }
 
@@ -251,7 +259,6 @@ fmu_status_t container_update_discrete_state(container_t *container) {
     if (container->need_event_update || container->clocks_list.nb_next_clocks) {
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t* fmu = &container->fmu[i];
-
             if (fmu_get_outputs(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
         }
@@ -264,19 +271,14 @@ fmu_status_t container_update_discrete_state(container_t *container) {
 static fmu_status_t container_handle_events(container_t *container) {
     fmu_status_t status;
 
+
+    /* Event loop */
+
+
     status = container_proceed_event(container);
     if (status != FMU_STATUS_OK)
         return status;
-
-    if (container->need_event_update || container->clocks_list.nb_next_clocks) {
-        for (int i = 0; i < container->nb_fmu; i += 1) {
-            fmu_t *fmu = &container->fmu[i];
-            if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-        }
-    }
-
-    /* Event loop */
+    
     status = container_enter_event_mode(container);
     if (status != FMU_STATUS_OK)
         return status;

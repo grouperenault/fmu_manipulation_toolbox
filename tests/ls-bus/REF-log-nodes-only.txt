@@ -1,11 +1,11 @@
 Container model loading...
-FMUContainer 'V1.9.2b2-12-gc16f976'
+FMUContainer 'V1.9.2rc1-9-gdd15ad7'
 Reading 'container.txt'...
 Container use PARALLEL mode with MONO thread.
 Container time_step = 1.000000e-01
 2 FMU's to be loaded
-FMU#0: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmp5qragwwx\resources\/00' (FMI-3)
-FMU#1: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmp5qragwwx\resources\/01' (FMI-3)
+FMU#0: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpswp4ivz3\resources\/00' (FMI-3)
+FMU#1: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpswp4ivz3\resources\/01' (FMI-3)
 reals64   : 1 local variables and 1 ports
 integers32: 1 local variables and 1 ports
 binaries  : 2 local variables and 2 ports

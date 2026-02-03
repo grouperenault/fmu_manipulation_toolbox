@@ -1,12 +1,12 @@
 Container model loading...
-FMUContainer 'V1.9.2b2-12-gc16f976'
+FMUContainer 'V1.9.2rc1-9-gdd15ad7'
 Reading 'container.txt'...
 Container use SEQUENTIAL mode.
 Container time_step = 1.000000e-01
 3 FMU's to be loaded
-FMU#0: loading 'DemoCanBusSimulation.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpto0dx2x3\resources\/00' (FMI-3)
-FMU#1: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpto0dx2x3\resources\/01' (FMI-3)
-FMU#2: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpto0dx2x3\resources\/02' (FMI-3)
+FMU#0: loading 'DemoCanBusSimulation.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpxnq09754\resources\/00' (FMI-3)
+FMU#1: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpxnq09754\resources\/01' (FMI-3)
+FMU#2: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpxnq09754\resources\/02' (FMI-3)
 reals64   : 1 local variables and 2 ports
 integers32: 1 local variables and 1 ports
 binaries  : 4 local variables and 4 ports

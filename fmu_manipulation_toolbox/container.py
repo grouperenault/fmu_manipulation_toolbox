@@ -196,6 +196,7 @@ class EmbeddedFMU(OperationAbstract):
         self.model_identifier = None
         self.guid = None
         self.fmi_version = None
+        self.platforms = set()
         self.ports: Dict[str, EmbeddedFMUPort] = {}
 
         self.has_event_mode = False
@@ -239,6 +240,22 @@ class EmbeddedFMU(OperationAbstract):
                 fmu_port.fmi_type = "Int32"
         port = EmbeddedFMUPort(fmu_port.fmi_type, fmu_port, fmi_version=self.fmi_version)
         self.ports[port.name] = port
+
+    def closure(self):
+        osname = {
+            "win64": "Windows",
+            "linux64": "Linux",
+            "darwin64": "Darwin",
+            "x86_64-windows": "Windows",
+            "x86_64-linux": "Linux",
+            "aarch64-darwin": "Darwin"
+        }
+        try:
+            for directory in (Path(self.fmu.tmp_directory) / "binaries").iterdir():
+                if directory.is_dir() and str(directory.stem) in osname:
+                    self.platforms.add(osname[str(directory.stem)])
+        except FileNotFoundError:
+            pass  # no binaries
 
     def __repr__(self):
         properties = f"{len(self.ports)} variables, ts={self.step_size}s"
@@ -1218,7 +1235,20 @@ class FMUContainer:
         logger.debug(f"Copying {origin} in {destination}")
         shutil.copy(origin, destination)
 
-    def get_bindir_and_suffixe(self) -> Tuple[str, str, str]:
+    def get_bindir_and_suffixe(self) -> Generator[Tuple[str, str, str], Any, None]:
+        fmu_iter = iter(self.involved_fmu.values())
+        try:
+            fmu = next(fmu_iter)
+        except StopIteration:
+            raise FMUContainerError("No fmu declared in this container.")
+
+        os_list = fmu.platforms
+        logger.debug(f"FMU '{fmu.name}' OS support: {', '.join(fmu.platforms)}.")
+
+        for fmu in fmu_iter:
+            logger.debug(f"FMU '{fmu.name}' OS support: {', '.join(fmu.platforms)}.")
+            os_list &= fmu.platforms
+
         suffixes = {
             "Windows": "dll",
             "Linux": "so",
@@ -1240,11 +1270,16 @@ class FMUContainer:
         else:
             target_bindirs = origin_bindirs
 
-        os_name = platform.system()
-        try:
-            return origin_bindirs[os_name], suffixes[os_name], target_bindirs[os_name]
-        except KeyError:
-            raise FMUContainerError(f"OS '{os_name}' is not supported.")
+        if os_list:
+            logger.info(f"Container will be built for {', '.join(os_list)}.")
+        else:
+            logger.critical("No common OS found for embedded FMU. Try to re-run with '-debug'. Container won't be runnable.")
+
+        for os_name in os_list:
+            try:
+                yield origin_bindirs[os_name], suffixes[os_name], target_bindirs[os_name]
+            except KeyError:
+                raise FMUContainerError(f"OS '{os_name}' is not supported.")
 
     def make_fmu_skeleton(self, base_directory: Path) -> Path:
         logger.debug(f"Initialize directory '{base_directory}'")
@@ -1264,14 +1299,14 @@ class FMUContainer:
 
         self.copyfile(origin / "model.png", base_directory)
 
-        origin_bindir, suffixe, target_bindir = self.get_bindir_and_suffixe()
-
-        library_filename = origin / origin_bindir / f"container.{suffixe}"
-        if not library_filename.is_file():
-            raise FMUContainerError(f"File {library_filename} not found")
-        binary_directory = binaries_directory / target_bindir
-        binary_directory.mkdir(exist_ok=True)
-        self.copyfile(library_filename, binary_directory / f"{self.identifier}.{suffixe}")
+        for origin_bindir, suffixe, target_bindir in self.get_bindir_and_suffixe():
+            library_filename = origin / origin_bindir / f"container.{suffixe}"
+            if library_filename.is_file():
+                binary_directory = binaries_directory / target_bindir
+                binary_directory.mkdir(exist_ok=True)
+                self.copyfile(library_filename, binary_directory / f"{self.identifier}.{suffixe}")
+            else:
+                logger.critical(f"File {library_filename} not found.")
 
         for i, fmu in enumerate(self.involved_fmu.values()):
             shutil.copytree(self.long_path(fmu.fmu.tmp_directory),

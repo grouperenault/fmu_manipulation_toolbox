@@ -48,8 +48,8 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
         const unsigned int fmu_vr = fmu_io->strings.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->strings.in.translations[i].vr;
         status = fmuSetString(fmu, &fmu_vr, 1, (const char *const*)&container->strings[local_vr]);
-        if (status != FMU_STATUS_OK) \
-            return status; \
+        if (status != FMU_STATUS_OK)
+            return status;
     }
 
     /* binaries: Need to add size parameter */
@@ -58,20 +58,21 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
         const unsigned int local_vr = fmu_io->binaries.in.translations[i].vr;
         status = fmuSetBinary(fmu, &fmu_vr, 1, &container->binaries[local_vr].size,
                               (const uint8_t *const*)&container->binaries[local_vr].data);
-        if (status != FMU_STATUS_OK) \
-            return status; \
+        if (status != FMU_STATUS_OK)
+            return status;
     }
 
     /* clocks: set active clocks only */
     for (int i = 0; i < fmu_io->clocks.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
-        if (container->clocks[local_vr]) { \
+        if (container->clocks[local_vr]) {
             status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks[local_vr]);
-            if (status != FMU_STATUS_OK) \
-                return status; \
+            if (status != FMU_STATUS_OK)
+                return status;
         }
     }
+
 #undef SET_INPUT
 
     return fmu_set_clocked_inputs(fmu);
@@ -83,6 +84,8 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
 
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
+
+
 
 #define SET_CLOCKED_INPUT(variable, fmi_type) \
     for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) { \
@@ -121,10 +124,10 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
                 status = fmuSetString(fmu, &fmu_vr, 1, (const char *const*)&container->strings[local_vr]);
-                if (status != FMU_STATUS_OK) \
-                    return status; \
-            } \
-        } \
+                if (status != FMU_STATUS_OK)
+                    return status;
+            }
+        }
     }
 
     /* binaries: Need to add size parameter */
