@@ -12,10 +12,11 @@ This package was formerly known as `fmutool`.
 * FIXED: `fmucontainer` log correctly for FMU3 embedded inside FMU2 container
 * FIXED: `fmucontainer` correctly set start values
 * FIXED: `fmucontainer` correctly handle tolerance. See [issue 35](https://github.com/grouperenault/fmu_manipulation_toolbox/issues/35)
+* FIXED: `remoting` fixe for very long path on windows 
 
 
 # Version 1.9.1.3
-* FIXED: 'remoting' code should allow multiple FMUs to be instanciated (in less than 1 second).
+* FIXED: `remoting` code should allow multiple FMUs to be instanciated (in less than 1 second).
          There was a race condition in SHM name computation.
          See [issue 38](https://github.com/grouperenault/fmu_manipulation_toolbox/issues/38)
 * FIXED: `fmucontainer` dynamic change of time_step: fix number of doStep() calls
