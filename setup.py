@@ -24,7 +24,7 @@ except Exception as e:
 setup(
     name="fmu_manipulation_toolbox",
     version=version,
-    packages=["fmu_manipulation_toolbox", "fmu_manipulation_toolbox.cli"],
+    packages=["fmu_manipulation_toolbox", "fmu_manipulation_toolbox.cli", "fmu_manipulation_toolbox.gui"],
     package_data={"fmu_manipulation_toolbox": [
         "resources/win32/client_sm.dll",
         "resources/win32/server_sm.exe",
