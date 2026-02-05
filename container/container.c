@@ -191,15 +191,7 @@ static fmu_status_t container_proceed_event(container_t *container) {
                 return FMU_STATUS_ERROR;
         }
     }
-    
-    if (container->need_event_update || container->clocks_list.nb_next_clocks) {
-        for (int i = 0; i < container->nb_fmu; i += 1) {
-            fmu_t *fmu = &container->fmu[i];
-            if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-        }
-    }
-    
+        
     return FMU_STATUS_OK;
 }
 
@@ -231,9 +223,6 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
         }
     }
     
-    /* Get next event time */
-    container->next_step = container_get_next_clock_time(container);
-
     return FMU_STATUS_OK;
 }
 
@@ -257,6 +246,9 @@ static fmu_status_t container_handle_events(container_t *container) {
     status = container_update_discrete_state(container);
     if (status != FMU_STATUS_OK)
         return status;
+
+    /* Get next event time */
+    container->next_step = container_get_next_clock_time(container);
 
     status = container_enter_step_mode(container);
     if (status != FMU_STATUS_OK)
@@ -511,10 +503,6 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                 container->time += container->next_step;
 
                 /* EVENT MODE */
-                status = container_proceed_event(container);
-                if (status != FMU_STATUS_OK)
-                    return status;
-
                 status = container_handle_events(container);
                 if ( status != FMU_STATUS_OK) {
                     logger(LOGGER_ERROR, "Container cannot Handle Events (time=%e)", container->time);
