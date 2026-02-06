@@ -16,7 +16,6 @@
 
 fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
-
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
@@ -62,6 +61,17 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
             return status;
     }
 
+#undef SET_INPUT
+
+    return status; //fmu_set_clocked_inputs(fmu);
+}
+
+
+fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
+    fmu_status_t status = FMU_STATUS_OK;
+    const container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+
     /* clocks: set active clocks only */
     for (int i = 0; i < fmu_io->clocks.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
@@ -72,20 +82,6 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
                 return status;
         }
     }
-
-#undef SET_INPUT
-
-    return fmu_set_clocked_inputs(fmu);
-}
-
-
-fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
-    fmu_status_t status = FMU_STATUS_OK;
-
-    const container_t* container = fmu->container;
-    const fmu_io_t* fmu_io = &fmu->fmu_io;
-
-
 
 #define SET_CLOCKED_INPUT(variable, fmi_type) \
     for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) { \
@@ -146,7 +142,6 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
     }
 
 #undef SET_CLOCKED_INPUT
-
 
     return status;
 }
@@ -212,11 +207,8 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             memcpy(container->binaries[local_vr].data, data, size);
             container->binaries[local_vr].size = size;
     }
-    GET_OUTPUT(clocks, Clock);
-    
-    #undef GET_OUTPUT
 
-    return fmu_get_clocked_outputs(fmu);
+    return status; //fmu_get_clocked_outputs(fmu);
 }
 
     
@@ -225,6 +217,8 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
     const fmu_io_t* fmu_io = &fmu->fmu_io;
     fmu_status_t status = FMU_STATUS_OK;
 
+    GET_OUTPUT(clocks, Clock);
+#undef GET_OUTPUT
     /*
      * CLOCKED OUTPUTs
      */
@@ -307,6 +301,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
 
     return status;
 }
+
 
 static int fmu_do_step_thread(fmu_t* fmu) {
     const container_t* container =fmu->container;
