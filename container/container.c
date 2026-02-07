@@ -12,7 +12,7 @@
 #include "fmu.h"
 #include "version.h"
 
- //#define DEBUG
+//#define DEBUG
 
 
 /*
@@ -25,6 +25,9 @@
 ----------------------------------------------------------------------------*/
 
 fmu_status_t container_enter_event_mode(container_t *container) {
+#ifdef DEBUG
+    logger(LOGGER_ERROR, "[DEBUG] time=%e: Container entering in EVENT mode", container->time);
+#endif
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t *fmu = &container->fmu[i];
 
@@ -36,6 +39,9 @@ fmu_status_t container_enter_event_mode(container_t *container) {
 
 
 fmu_status_t container_enter_step_mode(container_t *container) {
+#ifdef DEBUG
+    logger(LOGGER_ERROR, "[DEBUG] time=%e: Container entering in STEP mode", container->time);
+#endif
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t *fmu = &container->fmu[i];
 
@@ -59,7 +65,7 @@ static double container_get_next_clock_time(container_t *container) {
     double next_interval = container->time_step * ts_multiplier;
 
 #ifdef DEBUG
-    logger(LOGGER_ERROR, "Get next scheduled ticks: time=%e ...", container->time);
+    logger(LOGGER_ERROR, "[DEBUG] time=%e | Get next scheduled ticks...", container->time);
 #endif
     /* Get all clocks intervals */
     for(unsigned long i = 0; i < container->clocks_list.nb_fmu; i += 1) {
@@ -136,9 +142,10 @@ static double container_get_next_clock_time(container_t *container) {
 
 #ifdef DEBUG
     if (nb_events) {
-        logger(LOGGER_ERROR, "Next event t=%e (interval=%e): %u clock ticks", container->time + next_interval, next_interval, nb_events);
+        logger(LOGGER_ERROR, "[DEBUG] time=%e | Next event t=%e (interval=%e): %u clock ticks", container->time, 
+            container->time + next_interval, next_interval, nb_events);
         for (unsigned long i = 0; i < nb_events; i += 1) {
-            logger(LOGGER_ERROR, " - scheduled tick of clock '%s' vr = %lu",
+            logger(LOGGER_ERROR, "[DEBUG] > scheduled tick of clock '%s' vr = %lu",
                 container->fmu[container->clocks_list.next_clocks[i].fmu_id].name,
                                container->clocks_list.next_clocks[i].fmu_vr);
         }
@@ -167,7 +174,7 @@ static fmu_status_t container_proceed_event(container_t *container) {
             container_clock_t *container_clock = &container->clocks_list.next_clocks[i];
             const bool value = true;
 #ifdef DEBUG
-            logger(LOGGER_ERROR, "time = %e SetClock '%s' vr=%lu TRUE", 
+            logger(LOGGER_ERROR, "[DEBUG] time=%e | Activate Clock '%s' vr=%lu", 
                 container->time, container->fmu[container_clock->fmu_id].name, container_clock->fmu_vr);
 #endif
             container->clocks[container_clock->local_vr] = true;
@@ -187,10 +194,10 @@ static fmu_status_t container_proceed_event(container_t *container) {
 
 
 static fmu_status_t container_update_discrete_state(container_t *container) {
-    int more_event = container->need_event_update || container->clocks_list.nb_next_clocks;
+    bool more_event = container->need_event_update || container->clocks_list.nb_next_clocks;
     
     while(more_event) {
-        more_event = 0;
+        more_event = false;
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t *fmu = &container->fmu[i];
             if (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK)
@@ -217,8 +224,8 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
         }
     }
 
+    container->next_step = container_get_next_clock_time(container);
 
-    
     return FMU_STATUS_OK;
 }
 
@@ -226,6 +233,10 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
 static fmu_status_t container_handle_events(container_t *container) {
     fmu_status_t status;
 
+    
+    status = container_proceed_event(container);
+    if (status != FMU_STATUS_OK)
+        return status;
 
     /* Event loop */
     status = container_enter_event_mode(container);
@@ -233,17 +244,11 @@ static fmu_status_t container_handle_events(container_t *container) {
         return status;
 
 
-    status = container_proceed_event(container);
-    if (status != FMU_STATUS_OK)
-        return status;
     
     datalog_log(container);
     status = container_update_discrete_state(container);
     if (status != FMU_STATUS_OK)
         return status;
-
-    /* Get next event time */
-    container->next_step = container_get_next_clock_time(container);
 
     status = container_enter_step_mode(container);
     if (status != FMU_STATUS_OK)
@@ -348,14 +353,12 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
     if (status != FMU_STATUS_OK)
         return status;
 
-    container->next_step = container_get_next_clock_time(container);
-
     status = container_enter_step_mode(container);
     if (status != FMU_STATUS_OK)
         return status;
 
 #ifdef DEBUG
-    logger(LOGGER_ERROR, "FIRST container->next_step = %e", container->next_step);
+    logger(LOGGER_ERROR, "[DEBUG] time=%e | first container->next_step = %e", container->time, container->next_step);
 #endif
 
     return status;
@@ -477,6 +480,9 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
     container->time = container->start_time + container->time_step * container->nb_steps;
     const int local_steps = ((int)((end_time - container->time + container->tolerance) / ts));
 
+#ifdef DEBUG
+    logger(LOGGER_ERROR, "[DEBUG] time=%e | container do_step: end_time=%e, local_steps=%d", container->time, end_time, local_steps);
+#endif
     /*
      * Early return if requested end_time is lower than next container time step.
      */
@@ -491,6 +497,9 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                     container->next_step = target_time - container->time;
                 }
                 datalog_log(container);
+#ifdef DEBUG
+                logger(LOGGER_ERROR, "[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
+#endif
                 status = container->do_step(container);
                 if (status != FMU_STATUS_OK) {
                     logger(LOGGER_ERROR, "Container cannot Do Step (time=%e)", container->time);

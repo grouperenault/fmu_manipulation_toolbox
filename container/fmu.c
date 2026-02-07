@@ -853,6 +853,11 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, int *more_event) {
                 &nextEventTimeDefined,
                 &nextEventTime);
 
+#ifdef DEBUG
+        logger(LOGGER_ERROR, "[DEBUG] discrete '%s': discreteStatesNeedUpdate=%d, terminateSimulation=%d, nominalsOfContinuousStatesChanged=%d, valuesOfContinuousStatesChanged=%d nextEventTimeDefined=%d",
+            fmu->name, discreteStatesNeedUpdate, terminateSimulation, nominalsOfContinuousStatesChanged, valuesOfContinuousStatesChanged, nextEventTimeDefined);
+#endif
+
         if (status != fmi3OK) {
             logger(LOGGER_ERROR, "Cannot update discrete states for %s", fmu->name);
             return FMU_STATUS_ERROR;
