@@ -118,9 +118,7 @@ class FMUPort:
 
     @dimensions.setter
     def dimensions(self, attrs: Dict[str, str]):
-        logger.critical(attrs)
         for key, value in attrs.items():
-            logger.critical(value)
             self.dimensions_list.append((key, int(value)))
 
     def size(self):
@@ -211,7 +209,6 @@ class Manipulation:
             elif self.fmu.fmi_version == 3 and name == "Start":
                 self.current_port.push_attrs({"start": attrs.get("value", "")})
             elif self.fmu.fmi_version == 3 and name == "Dimension":
-                logger.critical(f"Push {self.current_port['name']} {attrs}")
                 self.current_port.dimensions = attrs
             elif name == 'CoSimulation':
                 self.operation.cosimulation_attrs(attrs)
