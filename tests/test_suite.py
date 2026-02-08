@@ -353,10 +353,15 @@ class TestSuite:
 
         self.assert_md5("ls-bus/REF-nodes-only-datalog.pcap", "ceab6b0161dbc93458bd47c057e80375")
 
-    def test_array(self):
+    def test_array_operation(self):
         fmu = FMU("array/StateSpace.fmu")
         fmu.apply_operation(OperationSummary())
         fmu.save_descriptor("array/modelDescription.xml")
         fmu.repack("array/StateSpace-copy.fmu")
         validate_fmu("array/StateSpace-copy.fmu")
         self.assert_identical_files("array/REF-modelDescription.xml", "array/modelDescription.xml")
+
+    def test_array_container(self):
+        assembly = Assembly("array.json", fmu_directory=Path("array"), debug=True)
+        assembly.make_fmu(fmi_version=3)
+        self.assert_simulation_log("array/array.fmu", 0.1)

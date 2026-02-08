@@ -86,6 +86,7 @@ class EmbeddedFMUPort:
         self.name = attrs["name"]
         self.vr = int(attrs["valueReference"])
         self.description = attrs.get("description", None)
+        self.dimensions =  attrs.get("dimensions", [("start", 1)])
 
         if fmi_version > 0:
             self.type_name = self.FMI_TO_CONTAINER[fmi_version][fmi_type]
@@ -97,6 +98,14 @@ class EmbeddedFMUPort:
         self.clock = attrs.get("clocks", None)
         self.interval_variability = attrs.get("intervalVariability", None)
 
+    def size(self):
+        size = 1
+        for dimension in self.dimensions:
+            if dimension[0] == "start":
+                size *= dimension[1]
+            else:
+                raise FMUError(f"Port '{self.name}' depends on structuralParameter '{dimension[1]}' "
+                               f"which is not supported")
 
     def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> str:
         if name is None:
@@ -374,9 +383,14 @@ class Link:
         if not cport_to.port.causality == "input":
             raise FMUContainerError(f"{cport_to} is {cport_to.port.causality} instead of INPUT")
 
-        if (cport_to.port.type_name == "clock" and self.cport_from is None or
-                cport_to.port.type_name == self.cport_from.port.type_name):
+
+        if cport_to.port.type_name == "clock" and self.cport_from is None:
             self.cport_to_list.append(cport_to)
+        elif cport_to.port.type_name == self.cport_from.port.type_name:
+            if cport_to.port.dimensions == self.cport_from.port.dimensions:
+                self.cport_to_list.append(cport_to)
+            else:
+                raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due dimensions mismatch.")
         elif self.get_conversion(cport_to):
             self.cport_to_list.append(cport_to)
             self.vr_converted[cport_to.port.type_name] = None
@@ -1137,7 +1151,7 @@ class FMUContainer:
             for cport_to in link.cport_to_list:
                 if link.cport_from is not None or not cport_to.fmu.ls.is_bus:
                     # LS-BUS allows, importer to feed clock signal. In this case, cport_from is None
-                    # FMU will be fed directly by importer, no need to add inpunt link!
+                    # FMU will be fed directly by importer, no need to add input link!
                     if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
                         local_vr = link.vr
                     else:
