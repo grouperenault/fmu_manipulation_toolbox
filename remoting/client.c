@@ -312,7 +312,10 @@ static unsigned int crc32b(const unsigned char* message) {
 
 
 static void client_new_key(client_t *client, const char * fmuResourceLocation) {
-    snprintf(client->shared_key, COMMUNICATION_KEY_LEN, "/FMU%x", crc32b((const unsigned char *)fmuResourceLocation));
+    char key[4096];
+    snprintf(key, sizeof(key), "%s%lu%lu", fmuResourceLocation, process_current_id(), 
+        (unsigned long)time(NULL));
+    snprintf(client->shared_key, COMMUNICATION_KEY_LEN, "/FMU%x", crc32b((const unsigned char *)key));
     CLIENT_LOG("UUID for IPC: '%s'\n", client->shared_key);
 
     return;
