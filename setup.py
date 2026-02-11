@@ -64,7 +64,7 @@ FMU Manipulation Toolbox can be used in different ways:
 
 Major features:
 - Analyze FMU content: list ports and their attributes, check compliance of `ModelDescription.xml` with XSD, etc.
-- Alter FMU by modifying its `modelDescription.xml` file. NOTE: manipulating this file can be a risky.
+- Alter FMU by modifying its `REF-modelDescription.xml` file. NOTE: manipulating this file can be a risky.
   When possible, it is preferable to communicate with the FMU developer and adapt the FMU generation process.
 - Add binary interfaces. Typical use case is porting a 32-bit FMUs to 64-bit systems (or vice et versa). 
 - Combine FMUs into [FMU Containers](doc/container.md) and allow your favourite FMI tool to orchestrate complex assembly of FMUs.

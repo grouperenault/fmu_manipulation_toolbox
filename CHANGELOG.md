@@ -1,6 +1,9 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.9.3 (dev)
+* ADDED: Support of array variables
+
 # Version 1.9.2
 * ADDED: `fmucontainer` support of Terminals
 * ADDED: support of Clock and Binary types
@@ -13,7 +16,6 @@ This package was formerly known as `fmutool`.
 * FIXED: `fmucontainer` correctly set start values
 * FIXED: `fmucontainer` correctly handle tolerance. See [issue 35](https://github.com/grouperenault/fmu_manipulation_toolbox/issues/35)
 * FIXED: `remoting` fixe for very long path on windows 
-
 
 # Version 1.9.1.3
 * FIXED: `remoting` code should allow multiple FMUs to be instanciated (in less than 1 second).

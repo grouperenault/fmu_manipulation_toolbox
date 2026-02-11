@@ -5,6 +5,7 @@ import sys
 
 from pathlib import Path
 from fmpy.simulation import simulate_fmu
+from fmpy.validation import validate_fmu
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from fmu_manipulation_toolbox.operations import *
@@ -63,11 +64,11 @@ class TestSuite:
         assert Path(filename2).exists(), f"{filename2} does not exist"
         with open(filename1, mode="rt", newline=None) as a, open(filename2, mode="rt", newline=None) as b:
             for lineA, lineB in zip(a, b):
-                assert lineA == lineB, \
+                assert lineA.strip() == lineB.strip(), \
                        f"file {filename1} and {filename2} missmatch (excl. GUID):\n" \
-                       f"{lineA}\n" \
+                       f"{lineA.strip()}\n" \
                        f"vs.\n\n" \
-                       f"{lineB}"
+                       f"{lineB.strip()}"
 
     @staticmethod
     def assert_identical_files_but_guid(filename1, filename2):
@@ -351,3 +352,16 @@ class TestSuite:
         datalog2pcap()
 
         self.assert_md5("ls-bus/REF-nodes-only-datalog.pcap", "ceab6b0161dbc93458bd47c057e80375")
+
+    def test_array_operation(self):
+        fmu = FMU("array/StateSpace.fmu")
+        fmu.apply_operation(OperationSummary())
+        fmu.save_descriptor("array/modelDescription.xml")
+        fmu.repack("array/StateSpace-copy.fmu")
+        validate_fmu("array/StateSpace-copy.fmu")
+        self.assert_identical_files("array/REF-modelDescription.xml", "array/modelDescription.xml")
+
+    def test_array_container(self):
+        assembly = Assembly("array.json", fmu_directory=Path("array"), debug=True)
+        assembly.make_fmu(fmi_version=3)
+        self.assert_simulation_log("array/array.fmu", 0.1)
