@@ -111,3 +111,5 @@ tests/array/StateSpace-copy.fmu
 
 tests/array/modelDescription.xml
 tests/array/array.fmu
+tests/array/array
+.idea
