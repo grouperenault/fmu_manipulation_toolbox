@@ -107,3 +107,4 @@ tests/ls-bus/bus+nodes-datalog.pcap
 tests/ls-bus/datalog.pcap
 tests/ls-bus/REF-nodes-only-datalog.pcap
 tests/bus+nodes-datalog.csv
+site
