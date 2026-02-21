@@ -1,0 +1,153 @@
+site_name: FMU Manipulation Toolbox
+site_description: >-
+  FMU Manipulation Toolbox is a python package which helps to analyze, modify or
+  combine Functional Mock-up Units (FMUs) without recompilation.
+site_url: https://grouperenault.github.io/fmu_manipulation_toolbox
+
+repo_name: grouperenault/fmu_manipulation_toolbox
+repo_url: https://github.com/grouperenault/fmu_manipulation_toolbox
+edit_uri: edit/main/docs/
+
+copyright: Copyright &copy; 2024-2026 Renault Group
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+  custom_dir: overrides
+
+  font:
+    text: Roboto
+    code: Roboto Mono
+  features:
+    - header.autohide
+    - content.code.annotate
+    - content.code.copy
+    - content.tooltips
+    - navigation.expand
+    - navigation.footer
+    - navigation.indexes
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.path
+    - navigation.sections
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.share
+    - search.suggest
+
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
+    logo: material/package-variant-closed
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/grouperenault/fmu_manipulation_toolbox
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/fmu-manipulation-toolbox/
+
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      title: On this page
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      normalize_issue_symbols: true
+      repo_url_shorthand: true
+      user: grouperenault
+      repo: fmu_manipulation_toolbox
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets:
+      auto_append:
+        - includes/abbreviations.md
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+nav:
+  - Getting Started:
+    - Overview: index.md
+    - Installation: installation.md
+    - Quick Start: tutorials/getting-started.md
+  - User Guide:
+    - guides: user-guide/index.md
+    - CLI: user-guide/fmutool/cli-usage.md
+    - Understand & Modify FMUs:
+      - GUI: user-guide/fmutool/gui-usage.md
+      - Python API: user-guide/fmutool/python-api.md
+      - Remoting: user-guide/fmutool/remoting.md
+      - Checker: user-guide/fmutool/checker.md
+    - FMU Containers:
+      - Concept: user-guide/fmucontainer/container.md
+      - Variable Step Size: user-guide/fmucontainer/container-vr.md
+      - Datalog: user-guide/fmucontainer/datalog.md
+      - LS-BUS support: user-guide/fmucontainer/ls-bus.md
+  - Examples: examples/examples.md
+  - Help:
+      - Troubleshooting: help/troubleshooting.md
+      - Contributing: help/contributing.md
+
+extra_css:
+  - stylesheets/extra.css
+

@@ -2,14 +2,15 @@
 This package was formerly known as `fmutool`.
 
 # Version 1.9.3
+* CHANGE: refactor the documentation
 * FIXED: `remoting` (rare) race condition when multiple instances share the same unzip directory
 
 # Version 1.9.2
 * ADDED: `fmucontainer` support of Terminals
 * ADDED: support of Clock and Binary types
 * ADDED: `fmucontainer` support of Event-Mode
-* ADDED: `fmucontainer` support of LS-BUS. See [ls-bus.md](doc/ls-bus.md)
-* ADDED: `fmucontainer` support of `-datalog` option to log values at each step. See [datalog.md](doc/datalog.md)
+* ADDED: `fmucontainer` support of LS-BUS. See [ls-bus.md](docs/user-guide/fmucontainer/ls-bus.md)
+* ADDED: `fmucontainer` support of `-datalog` option to log values at each step. See [datalog.md](docs/user-guide/fmucontainer/datalog.md)
 * ADDED: `datalog2pcap` command to convert datalog (csv file) into PCAP (binary file) to enable network analysis tools.
          This tool is experimental.
 * FIXED: `fmucontainer` log correctly for FMU3 embedded inside FMU2 container
@@ -33,7 +34,7 @@ This package was formerly known as `fmutool`.
 
 # Version 1.9.1
 * FIXED: `fmucontainer` handle correctly start/stop in <DefaultExperiment>
-* ADDED: `fmucontainer` ability to dynamically change time_step. See [container-vr.md](doc/container-vr.md)
+* ADDED: `fmucontainer` ability to dynamically change time_step. See [container-vr.md](docs/user-guide/fmucontainer/container-vr.md)
 
 # Version 1.9
 * CHANGE: `remoting` code rewrite to (drastically) improve performance

@@ -3,7 +3,12 @@
 A FMU Container is classical FMU which embeds other FMU's:
 
 ![FMU Container](FMUContainer.png "FMU Container")
-FMU Manipulation Toolbox is shipped with `fmucontainer` command which makes easy to embed FMU's into FMU.
+
+From API point of view, an FMUContainer can be seen as
+* an FMU which implement the FMI API (either version 2.0 or 3.0)
+* an fmi-importer which can load FMUs
+
+FMU Manipulation Toolbox is shipped with `fmucontainer` command which makes easy to nest FMU's into FMU.
 
 
 # How to create an FMU Container ?
@@ -120,3 +125,15 @@ Those containers may embed
   - Early Return feature is _not_ supported
   - Arrays are not supported
 
+
+# Muti-Threading
+If enabled through `MT` flag, each FMU will be run using its own thread which
+1. fetch its inputs from container buffer which is shared with all FMUs.
+2. process `DoStep()`
+
+Synchronization uses a mutex.
+
+# Profiling 
+If enabled through `profiling` flag, each call to `DoStep` of each FMU is monitored. The elapsed time
+is compared with `currentCommunicationPoint` and a RT ratio is computed. A ratio greater than `1.0` means
+this particular FMU is faster than RT.
