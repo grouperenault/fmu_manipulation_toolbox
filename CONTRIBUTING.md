@@ -17,7 +17,7 @@ If you encounter a bug or unexpected behavior, please follow these steps:
   - Details about your environment (e.g., operating system, Python version).
   - Any relevant error messages or logs.
 
-## suggestions for improvements
+## Suggestions for Improvements
 
 We’re always happy to hear new ideas for features or enhancements! If you’d like to suggest one:
 
@@ -30,5 +30,5 @@ We’re always happy to hear new ideas for features or enhancements! If you’d 
 
 ## Submitting Code
 
-For legal reasons, we are unable to accept pull requests. f you have ideas for improvements, 
+For legal reasons, we are unable to accept pull requests. If you have ideas for improvements, 
 please create an issue or get in touch with the development team.

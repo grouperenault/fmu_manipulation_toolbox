@@ -32,13 +32,13 @@ a Python API.
 FMU Manipulation Toolbox can be used in different ways:
 - Using a Graphical User Interface: suitable for end users
 - Using a Command Line Interface: useful for scripting and automation
-- Using a Python API: the most efficient option for automation (CI/CD, transformation scripts, ...))
+- Using a Python API: the most efficient option for automation (CI/CD, transformation scripts, ...)
 
 Major features:
 - Analyze FMU content: list ports and their attributes, check compliance of `ModelDescription.xml` with XSD, etc.
 - Alter FMU by modifying its `modelDescription.xml` file. NOTE: manipulating this file can be risky.
   When possible, it is preferable to communicate with the FMU developer and adapt the FMU generation process.
-- Add binary interfaces. Typical use case is porting a 32-bit FMUs to 64-bit systems (or vice et versa). 
+- Add binary interfaces. Typical use case is porting 32-bit FMUs to 64-bit systems (or vice versa). 
 - Combine FMUs into [FMU Containers](docs/user-guide/fmucontainer/container.md) and allow your favourite FMI tool to orchestrate complex assembly of FMUs.
 
 FMI versions 2.0 and 3.0 are supported.
@@ -47,7 +47,7 @@ FMI versions 2.0 and 3.0 are supported.
 
 Two options available to install FMU Manipulation Toolbox:
 
-- (*Easiest option*) Install with from PyPI: `pip install fmu-manipulation-toolbox`. This will install the latest
+- (*Easiest option*) Install from PyPI: `pip install fmu-manipulation-toolbox`. This will install the latest
   version of FMU Manipulation Toolbox and all its dependencies. See [PyPI page](https://pypi.org/project/fmu-manipulation-toolbox/).
 - Compile and install from [GitHub repository](https://github.com/grouperenault/fmu_manipulation_toolbox). You will need 
   - Python required packages. See [`requirements.txt`](requirements.txt).
@@ -69,7 +69,7 @@ FMU Manipulation Toolbox is released with a GUI. You can launch it with the foll
 
 ![GUI](docs/gui.png "GUI")
 
-Button colors descriptions:
+Button color descriptions:
 - red: remove information from the `modelDescription.xml`
 - orange: alter `modelDescription.xml`
 - green: add component into the FMU or check it
@@ -82,26 +82,26 @@ Button colors descriptions:
 # 🔧 Command Line Interface
 
 FMU Manipulation Toolbox comes with the following commands:
-- `fmutool`: a versatile analysis and manipulation tool for FMU. 
+- `fmutool`: a versatile analysis and manipulation tool for FMUs. 
 - `fmutool-gui`: a graphical interface for `fmutool`.
 - `fmucontainer`: to combine FMUs inside FMU Containers.
 - `fmusplit`: to extract FMUs from a FMU Container.
-- (experimental) `datalog2pcap`: to convert log from FMU container to PCAP file.
+- (experimental) `datalog2pcap`: to convert logs from FMU containers to PCAP files.
 
 
 # 🚀 API
 
-You can write your own FMU Manipulation scripts. Once you downloaded fmutool module, 
-adding the `import` statement lets you access the API :
+You can write your own FMU manipulation scripts. Once you have installed the fmutool module, 
+adding the `import` statement lets you access the API:
 
 ```python
 from fmu_manipulation_toolbox.operations import ...
 ```
 
 
-## remove toplevel bus (if any)
+## Remove Top-Level Bus (if any)
 
-Given a FMU with the following I/O structure
+Given an FMU with the following I/O structure
 ```
 ├── Parameters
 │   ├── Foo
@@ -112,7 +112,7 @@ Given a FMU with the following I/O structure
 │   ├── Output_B
 ```
 
-The following transformation will lead into:
+The following transformation will result in:
 ```
 ├── Foo
 │   ├── param_A
@@ -121,7 +121,7 @@ The following transformation will lead into:
 ├── Output_B
 ```
 
-**Note:** removing toplevel bus can lead to names collisions !
+**Note:** removing the top-level bus can lead to name collisions!
 
 The following code will do this transformation: 
 ```python
@@ -133,9 +133,9 @@ fmu.apply_operation(operation)
 fmu.repack(r"bouncing_ball-modified.fmu")
 ```
 
-### Extract names and write a CSV
+### Extract Names and Write a CSV
 
-The following code will dump all FMU's Scalars names into a CSV:
+The following code will dump all FMU scalar names into a CSV:
 
 ```python
 from fmu_manipulation_toolbox.operations import FMU, OperationSaveNamesToCSV
@@ -145,7 +145,7 @@ operation = OperationSaveNamesToCSV(r"bouncing_ball.csv")
 fmu.apply_operation(operation)
 ```
 
-The produced CSV contains 2 columns in order to be reused in the next transformation.
+The produced CSV contains 2 columns so it can be reused in the next transformation.
 The 2 columns are identical.
 
 ```csv
@@ -159,9 +159,9 @@ e;e;5;parameter;tunable
 ```
 
 
-## Read CSV and rename FMU ports
+## Read CSV and Rename FMU Ports
 
-CSV file should contain 2 columns:
+The CSV file should contain 2 columns:
 1. the current name
 2. the new name
 
