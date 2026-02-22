@@ -40,14 +40,14 @@ theme:
     - content.code.annotate
     - content.code.copy
     - content.tooltips
-    - navigation.expand
-    - navigation.footer
-    - navigation.indexes
-    - navigation.instant
-    - navigation.instant.prefetch
-    - navigation.instant.progress
-    - navigation.path
-    - navigation.sections
+    #- navigation.expand
+    #- navigation.footer
+    #- navigation.indexes
+    #- navigation.instant
+    #- navigation.instant.prefetch
+    #- navigation.instant.progress
+    #- navigation.path
+    #- navigation.sections
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.top
@@ -131,7 +131,7 @@ nav:
     - Installation: installation.md
     - Quick Start: tutorials/getting-started.md
   - User Guide:
-    - guides: user-guide/index.md
+    - Index: user-guide/index.md
     - CLI: user-guide/fmutool/cli-usage.md
     - Understand & Modify FMUs:
       - GUI: user-guide/fmutool/gui-usage.md

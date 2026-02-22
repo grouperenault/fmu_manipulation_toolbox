@@ -8,7 +8,7 @@ The graphical interface of **FMU Manipulation Toolbox** offers an intuitive and 
 fmutool-gui
 ```
 
-![Graphical Interface](https://github.com/grouperenault/fmu_manipulation_toolbox/raw/main/doc/gui.png)
+![Graphical Interface](../../gui.png)
 
 ## Interface Overview
 

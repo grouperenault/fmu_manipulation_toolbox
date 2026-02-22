@@ -6,11 +6,11 @@ The command line offers complete and precise control over FMU Manipulation Toolb
 
 FMU Manipulation Toolbox provides three main commands:
 
-| Command | Usage |
-|---------|-------|
-| `fmutool` | FMU analysis and manipulation |
-| `fmucontainer` | FMU container creation |
-| `fmusplit` | Extract FMUs from a container |
+| Command        | Usage                         |
+|----------------|-------------------------------|
+| `fmutool`      | FMU analysis and manipulation |
+| `fmucontainer` | FMU container creation        |
+| `fmusplit`     | Extract FMUs from a container |
 
 ## fmutool: Main Command
 
