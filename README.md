@@ -62,10 +62,12 @@ Button colors descriptions:
 
 # 🔧 Command Line Interface
 
-FMU Manipulation Toolbox comes with 2 commands:
-- `fmutool`: a versatile analysis and manipulation tool for FMU.
-- `fmucontainer`: group FMUs inside FMU Containers. (see [container/README.md](container/README.md))
-- `fmusplit: to extract FMUs from a FMU Container.
+FMU Manipulation Toolbox comes with the following commands:
+- `fmutool`: a versatile analysis and manipulation tool for FMU. 
+- `fmutool-gui`: a graphical interface for `fmutool`.
+- `fmucontainer`: to combine FMUs inside FMU Containers.
+- `fmusplit`: to extract FMUs from a FMU Container.
+- (experimental) `datalog2pcap`: to convert log from FMU container to PCAP file.
 
 
 # 🚀 API
