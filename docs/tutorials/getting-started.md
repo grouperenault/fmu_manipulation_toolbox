@@ -265,6 +265,127 @@ Here are the most frequently used operations:
 
 </div>
 
+## Your First FMU Container
+
+An FMU Container is a standard FMU that **embeds other FMUs** inside it. This is useful to combine
+multiple models into a single simulation unit, letting your FMI tool orchestrate a complex assembly as if it
+were a single FMU.
+
+### Concept
+
+Imagine you have two FMUs modeling a bouncing ball:
+
+- `bb_position.fmu` — computes the ball position
+- `bb_velocity.fmu` — computes the ball velocity
+
+These two FMUs need to exchange data: velocity feeds into position, and a ground-detection signal feeds back.
+Instead of wiring them manually in your simulation tool, you can **package them together** as a single FMU Container.
+
+### Step 1: Create a Description File
+
+The easiest way is to use a **CSV file** describing which FMUs to include and how to connect them.
+
+Create a file `container.csv`:
+
+```csv
+rule;from_fmu;from_port;to_fmu;to_port
+FMU;bb_position.fmu;;;
+FMU;bb_velocity.fmu;;;
+OUTPUT;bb_position.fmu;position1;;position
+LINK;bb_position.fmu;is_ground;bb_velocity.fmu;reset
+LINK;bb_velocity.fmu;velocity;bb_position.fmu;velocity
+OUTPUT;bb_velocity.fmu;velocity;;
+```
+
+Here's what each rule means:
+
+| Rule | Meaning |
+|------|---------|
+| `FMU` | Declare an embedded FMU |
+| `OUTPUT` | Expose a port from an embedded FMU as a container output |
+| `LINK` | Connect an output of one embedded FMU to an input of another |
+
+!!! tip "Auto-wiring"
+    
+    By default, `fmucontainer` will automatically connect ports with matching names (`auto_link`)
+    and expose unconnected inputs/outputs (`auto_input`, `auto_output`). You only need to declare
+    explicit connections for ports with different names.
+
+### Step 2: Build the Container
+
+=== "Command Line"
+
+    Place your FMUs and the CSV file in the same directory, then run:
+    
+    ```bash
+    fmucontainer -container container.csv:0.1
+    ```
+    
+    The `:0.1` suffix sets the container's internal time step to **0.1 seconds**.
+    
+    The resulting `container.fmu` is ready to use in any FMI-compatible tool.
+
+=== "With Options"
+
+    You can customize the container creation:
+    
+    ```bash
+    # FMUs are in a specific directory
+    fmucontainer -container container.csv:0.1 -fmu-directory ./my_fmus
+    
+    # Enable multi-threading for parallel execution
+    fmucontainer -container container.csv:0.1 -mt
+    
+    # Generate an FMI 3.0 container
+    fmucontainer -container container.csv:0.1 -fmi 3
+    ```
+
+=== "JSON Format"
+
+    For more control, use a **JSON description file** instead of CSV:
+    
+    ```json
+    {
+      "name": "bouncing.fmu",
+      "mt": true,
+      "profiling": false,
+      "auto_link": true,
+      "auto_input": true,
+      "auto_output": true,
+      "fmu": [
+        "bb_position.fmu",
+        "bb_velocity.fmu"
+      ],
+      "output": [
+        ["bb_position.fmu", "position1", "position"],
+        ["bb_velocity.fmu", "velocity", "velocity"]
+      ],
+      "link": [
+        ["bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset"],
+        ["bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"]
+      ]
+    }
+    ```
+    
+    Then build with:
+    
+    ```bash
+    fmucontainer -container bouncing.json
+    ```
+
+### Step 3: Verify the Result
+
+Use `fmutool` to inspect the generated container just like any other FMU:
+
+```bash
+fmutool -input container.fmu -summary
+```
+
+!!! info "Learn More"
+    
+    FMU Containers support advanced features like profiling, variable step sizes, and LS-BUS routing.
+    See the full [Container documentation](../user-guide/fmucontainer/container.md) for details.
+
 ## Essential Commands Reference
 
 | Command                       | Description                |
