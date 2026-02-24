@@ -41,6 +41,37 @@ Several formats are supported as description files:
   is not present in `JSON` file.
 - a `SSP` file. See [ssp-standard.org](https://ssp-standard.org). define only the routing table. Other options are defined with command line.
 
+## Command Line Options
+
+The `fmucontainer` command supports the following options:
+
+| Option                              | Default        | Description                                                                                                                                                                                                                          |
+|-------------------------------------|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `-container filename[:step_size]`   | *(required)*   | Description file for the container (`.csv`, `.json`, or `.ssp`). The optional `:step_size` suffix sets the internal time step (in seconds) when using `.json`or `.ssp`. Can be specified multiple times to build several containers. |
+| `-fmu-directory path`               | `.`            | Directory containing the source FMUs and used to generate the containers.                                                                                                                                                            |
+| `-fmi {2\|3}`                       | `2`            | FMI version for the container interface. Only `2` or `3` is supported.                                                                                                                                                               |
+| `-mt`                               | off            | Enable multi-threaded mode: each embedded FMU runs in its own thread.                                                                                                                                                                |
+| `-sequential`                       | off            | Use sequential mode to schedule embedded FMUs.                                                                                                                                                                                       |
+| `-profile`                          | off            | Enable profiling mode to monitor `doStep()` performance of each embedded FMU.                                                                                                                                                        |
+| `-vr`                               | off            | Add a `TS_MULTIPLIER` input port to the container, allowing dynamic control of the step size.                                                                                                                                        |
+| `-datalog`                          | off            | Log input, output, and local variables of the container into a CSV file.                                                                                                                                                             |
+| `-dump-json`                        | off            | Dump a JSON description file for each container.                                                                                                                                                                                     |
+| `-no-auto-input`                    | auto           | Disable automatic exposure of unconnected input ports from embedded FMUs.                                                                                                                                                            |
+| `-no-auto-output`                   | auto           | Disable automatic exposure of unconnected output ports from embedded FMUs.                                                                                                                                                           |
+| `-no-auto-link`                     | auto           | Disable automatic linking of ports with matching names and types.                                                                                                                                                                    |
+| `-auto-local`                       | off            | Expose local variables of the embedded FMUs.                                                                                                                                                                                         |
+| `-auto-parameter`                   | off            | Expose parameters of the embedded FMUs.                                                                                                                                                                                              |
+| `-debug`                            | off            | Enable verbose logging during the build process.                                                                                                                                                                                     |
+
+**Example:**
+
+```bash
+fmucontainer -container assembly.csv:0.001 -fmu-directory ./my_fmus -fmi 3 -mt -profile
+```
+
+This command builds an FMI-3.0 container from `assembly.csv` with a 1 ms time step, multi-threading enabled,
+and profiling active. The source FMUs are located in the `./my_fmus` directory.
+
 ![Routing](routing.png "Routing table")
 
 ## CSV Input file
