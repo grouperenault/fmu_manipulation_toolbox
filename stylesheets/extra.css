@@ -1,0 +1,29 @@
+:root {
+  --md-primary-fg-color: #3f51b5;
+  --md-primary-fg-color--light: #5c6bc0;
+  --md-primary-fg-color--dark: #303f9f;
+  --md-accent-fg-color: #ff4081;
+}
+
+.md-typeset .grid.cards > ul > li {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.md-typeset pre > code {
+  border-radius: 0.5rem;
+}
+
+.md-typeset table:not([class]) {
+  border-radius: 0.2rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.announcement {
+    text-align: center;
+    color: yellow
+}
