@@ -124,7 +124,6 @@ class TestSuite:
         self.assert_operation_match_ref("operations/bouncing_ball-renamed.fmu",
                                         OperationRenameFromCSV("operations/bouncing_ball-modified.csv"))
 
-    #@unittest.skipUnless(sys.platform.startswith("win"), "Supported only on Windows")
     @pytest.mark.skipif(not sys.platform == "win32", reason="does run only on windows")
     def test_add_remoting_win32(self):
         fmu = FMU("remoting/bouncing_ball-win32.fmu")
@@ -359,9 +358,11 @@ class TestSuite:
         fmu.save_descriptor("array/modelDescription.xml")
         fmu.repack("array/StateSpace-copy.fmu")
         validate_fmu("array/StateSpace-copy.fmu")
-        self.assert_identical_files("array/REF-modelDescription.xml", "array/modelDescription.xml")
 
     def test_array_container(self):
         assembly = Assembly("array.json", fmu_directory=Path("array"), debug=True)
         assembly.make_fmu(fmi_version=3)
-        self.assert_simulation_log("array/array.fmu", 0.1)
+        validate_fmu("array/array.fmu")
+        self.assert_identical_files("array/REF-modelDescription.xml", "array/modelDescription.xml")
+        if os.name == 'nt':
+            self.assert_simulation_log("array/array.fmu", 0.1)
