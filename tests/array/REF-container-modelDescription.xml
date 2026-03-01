@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<fmiModelDescription
+  fmiVersion="3.0"
+  modelName="array"
+  generationTool="FMUContainer-0.0.dev0"
+  generationDateAndTime="2026-03-01T20:46:32Z"
+  instantiationToken="7ad21811-ae98-420f-9c90-ad2019d4945e"
+  description="FMUContainer with scalar2array.fmu, array2scalar.fmu"
+  author="nl"
+  license="Proprietary"
+  copyright="See Embedded FMU's copyrights."
+  variableNamingConvention="structured">
+
+  <CoSimulation
+    modelIdentifier="array"
+    canHandleVariableCommunicationStepSize="true"
+    canBeInstantiatedOnlyOncePerProcess="true"
+    canNotUseMemoryManagementFunctions="true"
+    canGetAndSetFMUState="false"
+    canSerializeFMUState="false"
+    providesDirectionalDerivatives="false"
+    providesAdjointDerivatives="false"
+    providesPerElementDependencies="false"
+    providesEvaluateDiscreteStates="false"
+    hasEventMode="true"
+    needsExecutionTool="false">
+  </CoSimulation>
+
+  <LogCategories>
+    <Category name="Info"
+              description="Info log messages." />
+    <Category name="Error"
+              description="Error log messages." />
+  </LogCategories>
+
+  <DefaultExperiment stepSize="0.1" startTime="0.0" stopTime="10.0"/>
+
+  <ModelVariables>
+    <Float64 valueReference="0" name="time" causality="independent"/>
+    <Float64 name="scalar2array.Out1" valueReference="1" causality="local" variability="continuous" initial="calculated" description="Out1"><Dimension start="2"/></Float64>
+    <Float64 name="In1" valueReference="2" causality="input" variability="continuous" initial="exact" description="In1" start="0"/>
+    <Float64 name="Out1" valueReference="3" causality="output" variability="continuous" initial="calculated" description="Out1"/>
+  </ModelVariables>
+
+  <ModelStructure>
+      <Output valueReference="3"/>
+      <InitialUnknown valueReference="3"/>
+  </ModelStructure>
+
+</fmiModelDescription>

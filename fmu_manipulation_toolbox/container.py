@@ -153,11 +153,14 @@ class EmbeddedFMUPort:
             return f'<ScalarVariable {scalar_attrs_str}>{child_str}</ScalarVariable>'
 
         elif fmi_version == 3:
-            if fmi_type in ('String', 'Binary'):
+            child_str = ""
+            for dimension in self.dimensions:
+                child_str += f'<Dimension {dimension[0]}="{dimension[1]}"/>'
+
+            if child_str or fmi_type in ('String', 'Binary'):
                 if start is not None:
-                    child_str = f'<Start value="{start}"/>'
-                else:
-                    child_str = ''
+                    child_str += f'<Start value="{start}"/>'
+
                 scalar_attrs = {
                     "name": name,
                     "valueReference": vr,
