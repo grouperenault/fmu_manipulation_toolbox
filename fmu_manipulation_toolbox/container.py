@@ -86,7 +86,11 @@ class EmbeddedFMUPort:
         self.name = attrs["name"]
         self.vr = int(attrs["valueReference"])
         self.description = attrs.get("description", None)
-        self.dimensions =  attrs.get("dimensions", [("start", 1)])
+        if isinstance(attrs, FMUPort):
+            self.dimensions = attrs.dimensions
+            logger.critical(f"FMUPort '{self.name}' {self.dimensions}")
+        else:
+            self.dimensions = []
 
         if fmi_version > 0:
             self.type_name = self.FMI_TO_CONTAINER[fmi_version][fmi_type]

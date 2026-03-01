@@ -58,6 +58,7 @@ class FMUPort:
     def __init__(self):
         self.fmi_type = None
         self.attrs_list: List[Dict] = []
+        self.dimensions_list = []
 
     def dict_level(self, nb):
         return " ".join([f'{key}="{Manipulation.escape(value)}"' for key, value in self.attrs_list[nb].items()])
@@ -69,13 +70,12 @@ class FMUPort:
             print(f"    </ScalarVariable>", file=file)
         elif fmi_version == 3:
             start_value = self.get("start", "")
-            dimensions = self.get("dimensions", [])
 
-            if dimensions or (self.fmi_type in ("String", "Binary") and start_value):
+            if self.dimensions or (self.fmi_type in ("String", "Binary") and start_value):
                 print(f"    <{self.fmi_type} {self.dict_level(0)}>", file=file)
                 if self.fmi_type in ("String", "Binary") and start_value:
                     print(f'      <Start value="{start_value}"/>', file=file)
-                for dimension in dimensions:
+                for dimension in self.dimensions:
                     print(f'      <Dimension {dimension[0]}="{dimension[1]}"/>', file=file)
                 print(f"    </{self.fmi_type}>", file=file)
             else:
@@ -111,15 +111,18 @@ class FMUPort:
     def push_attrs(self, attrs):
         self.attrs_list.append(attrs)
 
-    def add_dimensions(self, attrs: Dict[str, str]):
-        dimensions = self.get("dimensions", [])
+    @property
+    def dimensions(self):
+        if self.dimensions_list == [("start", 1)]:
+            return []
+        else:
+            return self.dimensions_list
 
+    @dimensions.setter
+    def dimensions(self, attrs: Dict[str, str]):
         for key, value in attrs.items():
             # FMI-3 ("valueReference", 2) ("start", 3)
-            dimensions.append((key, value))
-
-        self.attrs_list[0]["dimensions"] = dimensions
-
+            self.dimensions_list.append((key, int(value)))
 
 class FMUError(Exception):
     def __init__(self, reason):
@@ -200,7 +203,7 @@ class Manipulation:
             elif self.fmu.fmi_version == 3 and name == "Start":
                 self.current_port.push_attrs({"start": attrs.get("value", "")})
             elif self.fmu.fmi_version == 3 and name == "Dimension":
-                self.current_port.add_dimensions(attrs)
+                self.current_port.dimensions = attrs
             elif name == 'CoSimulation':
                 self.operation.cosimulation_attrs(attrs)
             elif name == 'DefaultExperiment':
