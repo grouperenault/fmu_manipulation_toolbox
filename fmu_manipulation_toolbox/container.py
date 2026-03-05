@@ -4,7 +4,6 @@ import math
 import os
 import shutil
 import uuid
-import platform
 import zipfile
 from collections import defaultdict
 from datetime import datetime
@@ -1309,8 +1308,8 @@ class FMUContainer:
                 logger.critical(f"File {library_filename} not found.")
 
         for i, fmu in enumerate(self.involved_fmu.values()):
-            shutil.copytree(self.long_path(fmu.fmu.tmp_directory),
-                            self.long_path(resources_directory / f"{i:02x}"), dirs_exist_ok=True)
+            with zipfile.ZipFile(fmu.fmu.fmu_filename) as zin:
+                zin.extractall(self.long_path(resources_directory / f"{i:02x}"))
 
         return resources_directory
 
