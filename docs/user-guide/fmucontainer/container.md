@@ -161,69 +161,73 @@ assembly.write_csv("bouncing-export.csv")
 
 ## Building a Container Programmatically
 
-For full control without any description file, use the `AssemblyNode` class directly.
+For full control without any description file, use the `FMUContainer` class directly.
 The following example builds a bouncing ball container from scratch:
 
 ```python
 from pathlib import Path
-from fmu_manipulation_toolbox.assembly import AssemblyNode
+from fmu_manipulation_toolbox.container import FMUContainer
 
-# Create the container node
-node = AssemblyNode("bouncing_nl.fmu",
-                    step_size=0.1,
-                    mt=True,
-                    auto_link=True,
-                    auto_input=True,
-                    auto_output=True)
+fmu_directory = Path("containers/bouncing_ball")
 
-# Add the embedded FMUs
-node.add_fmu("bb_position.fmu")
-node.add_fmu("bb_velocity.fmu")
+# Create the container
+container = FMUContainer("bouncing", fmu_directory, fmi_version=2)
+
+# Load the embedded FMUs
+container.get_fmu("bb_position.fmu")
+container.get_fmu("bb_velocity.fmu")
 
 # Expose outputs: (from_fmu, from_port, exposed_name)
-node.add_output("bb_position.fmu", "position1", "position")
-node.add_output("bb_velocity.fmu", "velocity", "velocity")
+container.add_output("bb_position.fmu", "position1", "position")
+container.add_output("bb_velocity.fmu", "velocity", "velocity")
 
 # Create links between embedded FMUs
-node.add_link("bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset")
-node.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity")
+container.add_link("bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset")
+container.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity")
 
-# Build the FMU container in current directory
-fmu_directory = Path(".")
-node.make_fmu(fmu_directory, fmi_version=2)
+# Automatically expose remaining unconnected inputs/outputs
+container.add_implicit_rule(auto_input=True, auto_output=True, auto_link=True)
+
+# Build the FMU container
+container.make_fmu("bouncing.fmu", step_size=0.1, mt=True)
 ```
 
 The resulting `bouncing.fmu` is generated in the `fmu_directory`.
 
-## AssemblyNode Reference
+## FMUContainer Reference
 
-The `AssemblyNode` class supports the following methods for defining the container topology:
+The `FMUContainer` constructor takes the following parameters:
 
-| Method | Description                                          |
-|--------|------------------------------------------------------|
-| `add_fmu(fmu_name)` | Declare an embedded FMU                              |
-| `add_input(exposed_name, fmu_name, port_name)` | Expose a port as a container input                   |
-| `add_output(fmu_name, port_name, exposed_name)` | Expose a port as a container output                  |
-| `add_link(from_fmu, from_port, to_fmu, to_port)` | Connect an output to an input between embedded FMUs  |
-| `add_drop_port(fmu_name, port_name)` | Explicitly ignore an output port                     |
-| `add_start_value(fmu_name, port_name, value)` | Set a start value for a port                         |
-| `make_fmu(fmu_directory, fmi_version=2, ...)` | Build the container FMU                              |
+| Parameter | Default | Description                                           |
+|-----------|---------|-------------------------------------------------------|
+| `identifier` | *(required)* | used as `modelIdentifier` in `modelDescription.xml`   |
+| `fmu_directory` | *(required)* | Directory containing the source FMUs                  |
+| `fmi_version` | `2` | FMI version for the container interface (`2` or `3`)  |
 
-And the following constructor parameters for configuration:
+The following methods define the container topology:
 
-| Parameter | Default | Description                                     |
-|-----------|---------|-------------------------------------------------|
-| `name` | *(required)* | Output filename for the container               |
-| `step_size` | `None` | Internal time step (seconds)                    |
-| `mt` | `False` | Enable multi-threading                          |
-| `sequential` | `False` | Use sequential scheduling                       |
-| `profiling` | `False` | Enable profiling                                |
-| `auto_link` | `True` | Automatically link ports with matching names    |
-| `auto_input` | `True` | Automatically expose unconnected inputs         |
-| `auto_output` | `True` | Automatically expose unconnected outputs        |
-| `auto_local` | `False` | Expose local variables                          |
-| `auto_parameter` | `False` | Expose parameters                               |
-| `ts_multiplier` | `False` | Add `TS_MULTIPLIER` input for dynamic step size |
+| Method | Description |
+|--------|-------------|
+| `get_fmu(fmu_filename)` | Load an embedded FMU from `fmu_directory` |
+| `add_input(exposed_name, fmu_name, port_name)` | Expose a port of an embedded FMU as a container input |
+| `add_output(fmu_name, port_name, exposed_name)` | Expose a port of an embedded FMU as a container output |
+| `add_link(from_fmu, from_port, to_fmu, to_port)` | Connect an output to an input between embedded FMUs |
+| `drop_port(fmu_name, port_name)` | Explicitly ignore an output port |
+| `add_start_value(fmu_name, port_name, value)` | Set a start value for a port of an embedded FMU |
+| `add_implicit_rule(auto_input, auto_output, auto_link, auto_parameter, auto_local)` | Automatically wire unconnected ports |
+| `make_fmu(filename, step_size, mt, profiling, sequential, ts_multiplier, datalog)` | Build the container FMU |
+
+The `make_fmu` method accepts the following parameters:
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `fmu_filename` | *(required)* | Output filename for the container |
+| `step_size` | `None` | Internal time step in seconds (deduced from embedded FMUs if not set) |
+| `mt` | `False` | Enable multi-threading |
+| `sequential` | `False` | Use sequential scheduling |
+| `profiling` | `False` | Enable profiling |
+| `ts_multiplier` | `False` | Add `TS_MULTIPLIER` input for dynamic step size control |
+| `datalog` | `False` | Log variables into a CSV file |
 
 
 # FMI Support
