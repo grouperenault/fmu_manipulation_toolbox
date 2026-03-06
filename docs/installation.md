@@ -124,10 +124,12 @@ cd ..
     ```bash
     cd remoting
     mkdir build32
+    cd build32
     cmake .. -A Win32
     cmake --build .
     cd ..
     mkdir build64
+    cd build64
     cmake .. -A x64
     cmake --build .
     cd ..
@@ -138,10 +140,12 @@ cd ..
     ```bash
     cd remoting
     mkdir build32
+    cd build32
     cmake .. -DBUILD_32=ON
     cmake --build .
     cd ..
     mkdir build64
+    cd build64
     cmake ..
     cmake --build .
     cd ..
@@ -286,12 +290,14 @@ pip uninstall fmu-manipulation-toolbox lxml numpy
 
 ## Supported Python Versions
 
-| Python Version | Support                     |
-|----------------|-----------------------------|
-| 3.9            | ✅ Supported                 |
-| 3.10           | ✅ Supported (Recommended)   |
-| 3.11           | ✅ Supported                 |
-| 3.12           | ✅ Supported                 |
+| Python Version | Support                   |
+|----------------|---------------------------|
+| 3.9            | ✅ Supported               |
+| 3.10           | ✅ Supported               |
+| 3.11           | ✅ Supported               |
+| 3.12           | ✅ Supported               |
+| 3.13           | ✅ Supported (Recommended) |
+
 
 ## Next Steps
 
