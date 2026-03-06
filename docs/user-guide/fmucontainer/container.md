@@ -129,6 +129,103 @@ will
 
 Note: the optional `:0.1` suffix means the timestep should be `0.1` second.  
 
+# Python API
+
+FMU Containers can also be created programmatically using the Python API. This is the most flexible approach
+for automation and CI/CD pipelines.
+
+## Using a Description File
+
+The `Assembly` class can load an existing description file (CSV, JSON, or SSP) and build the container:
+
+```python
+from pathlib import Path
+from fmu_manipulation_toolbox.assembly import Assembly
+
+# Load a CSV description and build the container
+assembly = Assembly("bouncing.json",
+                    fmu_directory=Path("containers/bouncing_ball"),
+                    mt=True)
+assembly.make_fmu()
+```
+
+You can also export the assembly to a different format:
+
+```python
+# Export the assembly as JSON (useful for review or version control)
+assembly.write_json("bouncing.json")
+
+# Export back to CSV
+assembly.write_csv("bouncing-export.csv")
+```
+
+## Building a Container Programmatically
+
+For full control without any description file, use the `AssemblyNode` class directly.
+The following example builds a bouncing ball container from scratch:
+
+```python
+from pathlib import Path
+from fmu_manipulation_toolbox.assembly import AssemblyNode
+
+# Create the container node
+node = AssemblyNode("bouncing_nl.fmu",
+                    step_size=0.1,
+                    mt=True,
+                    auto_link=True,
+                    auto_input=True,
+                    auto_output=True)
+
+# Add the embedded FMUs
+node.add_fmu("bb_position.fmu")
+node.add_fmu("bb_velocity.fmu")
+
+# Expose outputs: (from_fmu, from_port, exposed_name)
+node.add_output("bb_position.fmu", "position1", "position")
+node.add_output("bb_velocity.fmu", "velocity", "velocity")
+
+# Create links between embedded FMUs
+node.add_link("bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset")
+node.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity")
+
+# Build the FMU container in current directory
+fmu_directory = Path(".")
+node.make_fmu(fmu_directory, fmi_version=2)
+```
+
+The resulting `bouncing.fmu` is generated in the `fmu_directory`.
+
+## AssemblyNode Reference
+
+The `AssemblyNode` class supports the following methods for defining the container topology:
+
+| Method | Description                                          |
+|--------|------------------------------------------------------|
+| `add_fmu(fmu_name)` | Declare an embedded FMU                              |
+| `add_input(exposed_name, fmu_name, port_name)` | Expose a port as a container input                   |
+| `add_output(fmu_name, port_name, exposed_name)` | Expose a port as a container output                  |
+| `add_link(from_fmu, from_port, to_fmu, to_port)` | Connect an output to an input between embedded FMUs  |
+| `add_drop_port(fmu_name, port_name)` | Explicitly ignore an output port                     |
+| `add_start_value(fmu_name, port_name, value)` | Set a start value for a port                         |
+| `make_fmu(fmu_directory, fmi_version=2, ...)` | Build the container FMU                              |
+
+And the following constructor parameters for configuration:
+
+| Parameter | Default | Description                                     |
+|-----------|---------|-------------------------------------------------|
+| `name` | *(required)* | Output filename for the container               |
+| `step_size` | `None` | Internal time step (seconds)                    |
+| `mt` | `False` | Enable multi-threading                          |
+| `sequential` | `False` | Use sequential scheduling                       |
+| `profiling` | `False` | Enable profiling                                |
+| `auto_link` | `True` | Automatically link ports with matching names    |
+| `auto_input` | `True` | Automatically expose unconnected inputs         |
+| `auto_output` | `True` | Automatically expose unconnected outputs        |
+| `auto_local` | `False` | Expose local variables                          |
+| `auto_parameter` | `False` | Expose parameters                               |
+| `ts_multiplier` | `False` | Add `TS_MULTIPLIER` input for dynamic step size |
+
+
 # FMI Support
 
 FMI-3.0 current support is limited.
