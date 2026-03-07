@@ -7,6 +7,31 @@ from .operations import OperationAbstract, OperationError
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 class OperationAddRemotingWinAbstract(OperationAbstract):
+    """Base class for adding Windows remoting or front-end support to an FMU.
+
+    Copies the remoting client and server binaries into the FMU so that
+    a 32-bit FMU can be called from a 64-bit host (or vice versa), or
+    a front-end proxy can be added for same-bitness isolation.
+
+    This operation is only supported for FMI 2.0 FMUs on Windows.
+
+    Subclasses must set `bitness_from` and `bitness_to` to define the
+    remoting direction.
+
+    Attributes:
+        bitness_from (str | None): Source platform directory
+            (`"win32"` or `"win64"`).
+        bitness_to (str | None): Target platform directory
+            (`"win32"` or `"win64"`).
+        vr (dict[str, list[int]]): Value references grouped by FMI type
+            (`"Real"`, `"Integer"`, `"Boolean"`).
+        nb_input (int): Number of input and parameter ports.
+        nb_output (int): Number of output, local, and other ports.
+
+    Raises:
+        OperationError: If the FMU is not FMI 2.0 or the source platform
+            binaries are missing.
+    """
     bitness_from = None
     bitness_to = None
 
@@ -88,20 +113,56 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
                     print(vr, file=file)
 
 class OperationAddRemotingWin64(OperationAddRemotingWinAbstract):
+    """Add 64-bit remoting proxy to a 32-bit Windows FMU.
+
+    Copies a 64-bit client DLL and a 32-bit server executable so that
+    a 64-bit simulation host can load and run the originally 32-bit FMU.
+
+    Attributes:
+        bitness_from (str): `"win32"` — the original FMU platform.
+        bitness_to (str): `"win64"` — the target platform to add.
+    """
     bitness_from = "win32"
     bitness_to = "win64"
 
 
 class OperationAddFrontendWin32(OperationAddRemotingWinAbstract):
+    """Add a 32-bit front-end proxy to a 32-bit Windows FMU.
+
+    Wraps the existing 32-bit DLL behind a remoting front-end for
+    process isolation, without changing the target platform.
+
+    Attributes:
+        bitness_from (str): `"win32"` — the original FMU platform.
+        bitness_to (str): `"win32"` — same platform (front-end only).
+    """
     bitness_from = "win32"
     bitness_to = "win32"
 
 
 class OperationAddFrontendWin64(OperationAddRemotingWinAbstract):
+    """Add a 64-bit front-end proxy to a 64-bit Windows FMU.
+
+    Wraps the existing 64-bit DLL behind a remoting front-end for
+    process isolation, without changing the target platform.
+
+    Attributes:
+        bitness_from (str): `"win64"` — the original FMU platform.
+        bitness_to (str): `"win64"` — same platform (front-end only).
+    """
     bitness_from = "win64"
     bitness_to = "win64"
 
 
 class OperationAddRemotingWin32(OperationAddRemotingWinAbstract):
+    """Add 32-bit remoting proxy to a 64-bit Windows FMU.
+
+    Copies a 32-bit client DLL and a 64-bit server executable so that
+    a 32-bit simulation host can load and run the originally 64-bit FMU.
+
+    Attributes:
+        bitness_from (str): `"win64"` — the original FMU platform.
+        bitness_to (str): `"win32"` — the target platform to add.
+    """
     bitness_from = "win64"
     bitness_to = "win32"

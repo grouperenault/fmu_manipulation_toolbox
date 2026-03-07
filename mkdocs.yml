@@ -74,6 +74,11 @@ plugins:
       separator: '[\s\-,:!=\[\]()"`/]+|\.(?!\d)|&[lg]t;|(?!\b)(?=[A-Z][a-z])'
   - minify:
       minify_html: true
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
 
 markdown_extensions:
   - abbr
@@ -124,6 +129,8 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
+  - pymdownx.snippets
+
 
 nav:
   - Getting Started:
@@ -143,6 +150,12 @@ nav:
       - Variable Step Size: user-guide/fmucontainer/container-vr.md
       - Datalog: user-guide/fmucontainer/datalog.md
       - LS-BUS support: user-guide/fmucontainer/ls-bus.md
+  - API documentation:
+      - API/assembly.md
+      - API/checker.md
+      - API/container.md
+      - API/operations.md
+      - API/remoting.md
   - Examples: examples/examples.md
   - Help:
       - Troubleshooting: help/troubleshooting.md

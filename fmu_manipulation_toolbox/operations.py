@@ -13,8 +13,24 @@ from typing import *
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 class FMU:
-    """Unpack and Repack facilities for FMU package. Once unpacked, we can process Operation on
-    modelDescription.xml file."""
+    """Unpack and repack facilities for FMU archives.
+
+    Extracts an FMU (`.fmu` zip archive) into a temporary directory so that
+    operations can be applied to its `modelDescription.xml` descriptor.
+    After manipulation, the FMU can be repacked into a new archive.
+
+    Attributes:
+        FMI2_TYPES (tuple[str, ...]): FMI 2.0 scalar variable type names.
+        FMI3_TYPES (tuple[str, ...]): FMI 3.0 variable type names.
+        fmu_filename (str): Path to the original `.fmu` file.
+        tmp_directory (str): Path to the temporary extraction directory.
+        fmi_version (int | None): Detected FMI version (`2` or `3`), set
+            during parsing.
+        descriptor_filename (str): Path to the extracted `modelDescription.xml`.
+
+    Raises:
+        FMUError: If the file does not exist or is not a valid FMU.
+    """
 
     FMI2_TYPES = ('Real', 'Integer', 'String', 'Boolean', 'Enumeration')
     FMI3_TYPES = ('Float64', 'Float32',
@@ -39,9 +55,19 @@ class FMU:
         shutil.rmtree(self.tmp_directory)
 
     def save_descriptor(self, filename):
+        """Save a copy of the current `modelDescription.xml` to a file.
+
+        Args:
+            filename (str): Destination path for the descriptor copy.
+        """
         shutil.copyfile(os.path.join(self.tmp_directory, "modelDescription.xml"), filename)
 
     def repack(self, filename):
+        """Repack the (possibly modified) FMU into a new `.fmu` archive.
+
+        Args:
+            filename (str): Output path for the repacked FMU.
+        """
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as zout:
             for root, dirs, files in os.walk(self.tmp_directory):
                 for file in files:
@@ -50,20 +76,63 @@ class FMU:
         # TODO: Add check on output file
 
     def apply_operation(self, operation, apply_on=None):
+        """Apply an operation to the FMU's `modelDescription.xml`.
+
+        Parses the descriptor, invokes the operation's callbacks for each
+        element, and writes back the modified descriptor.
+
+        Args:
+            operation (OperationAbstract): The operation to apply.
+            apply_on (list[str] | None): If set, only apply the operation
+                to ports with a causality in this list.
+        """
         manipulation = Manipulation(operation, self)
         manipulation.manipulate(self.descriptor_filename, apply_on)
 
 
 class FMUPort:
+    """Represents a port (variable) parsed from `modelDescription.xml`.
+
+    Stores the XML attributes from one or more levels of the port definition.
+    For FMI 2.0, this includes the `<ScalarVariable>` attributes and the
+    child type element (e.g. `<Real>`). For FMI 3.0, all attributes are
+    on the type element itself.
+
+    Supports dict-like access to attributes across all levels.
+
+    Attributes:
+        fmi_type (str | None): The FMI type name (e.g. `"Real"`, `"Float64"`).
+        attrs_list (list[dict[str, str]]): Stacked attribute dictionaries,
+            one per XML nesting level.
+        dimension (int | None): Array dimension, if applicable.
+    """
+
     def __init__(self):
         self.fmi_type = None
         self.attrs_list: List[Dict] = []
         self.dimension = None
 
     def dict_level(self, nb):
+        """Format one level of attributes as an XML attribute string.
+
+        Args:
+            nb (int): Index into `attrs_list`.
+
+        Returns:
+            str: Space-separated `key="value"` pairs with HTML-escaped values.
+        """
         return " ".join([f'{key}="{Manipulation.escape(value)}"' for key, value in self.attrs_list[nb].items()])
 
     def write_xml(self, fmi_version: int, file):
+        """Write the port definition as XML to a file.
+
+        Args:
+            fmi_version (int): FMI version (`2` or `3`).
+            file: Writable text file handle.
+
+        Raises:
+            FMUError: If the FMI version is not supported.
+        """
         if fmi_version == 2:
             print(f"    <ScalarVariable {self.dict_level(0)}>", file=file)
             print(f"      <{self.fmi_type} {self.dict_level(1)}/>", file=file)
@@ -105,10 +174,21 @@ class FMUPort:
             return default_value
 
     def push_attrs(self, attrs):
+        """Push a new attribute dictionary onto the stack.
+
+        Args:
+            attrs (dict[str, str]): XML attributes from a nested element.
+        """
         self.attrs_list.append(attrs)
 
 
 class FMUError(Exception):
+    """Exception raised for FMU-related errors.
+
+    Attributes:
+        reason (str): Human-readable description of the error.
+    """
+
     def __init__(self, reason):
         self.reason = reason
 
@@ -117,7 +197,25 @@ class FMUError(Exception):
 
 
 class Manipulation:
-    """Parse modelDescription.xml file and create a modified version"""
+    """SAX-based parser that applies an operation to `modelDescription.xml`.
+
+    Parses the XML descriptor using `xml.parsers.expat`, invokes the
+    operation's callbacks for each relevant element, and writes back
+    the modified XML. Handles port renumbering and dependency tree
+    updates when ports are removed.
+
+    Attributes:
+        output_filename (str): Path to the temporary output file.
+        operation (OperationAbstract): The operation being applied.
+        fmu (FMU): The FMU being manipulated.
+        current_port (FMUPort | None): The port currently being parsed.
+        current_port_number (int): Running count of kept ports (1-based).
+        port_translation (list[int | None]): Maps original port indices to
+            new indices, or `None` for removed ports.
+        port_names_list (list[str]): Names of all encountered ports.
+        port_removed_vr (set[str]): Value references of removed ports.
+    """
+
     TAGS_MODEL_STRUCTURE = ("InitialUnknowns", "Derivatives", "Outputs")
 
     def __init__(self, operation, fmu):
@@ -150,6 +248,14 @@ class Manipulation:
 
     @staticmethod
     def escape(value):
+        """HTML-escape a string value for safe XML output.
+
+        Args:
+            value (str): The value to escape.
+
+        Returns:
+            str: The escaped value. Non-string values are returned unchanged.
+        """
         if isinstance(value, str):
             return html.escape(html.unescape(value))
         else:
@@ -324,6 +430,14 @@ class Manipulation:
                     attrs.pop('dependencies')
 
     def manipulate(self, descriptor_filename, apply_on=None):
+        """Parse and rewrite the descriptor file.
+
+        Args:
+            descriptor_filename (str): Path to the `modelDescription.xml` file.
+                The file is modified in place.
+            apply_on (list[str] | None): If set, only process ports with a
+                causality in this list.
+        """
         self.apply_on = apply_on
         with open(self.output_filename, "w", encoding="utf-8") as self.out, open(descriptor_filename, "rb") as file:
             self.parser.ParseFile(file)
@@ -332,34 +446,96 @@ class Manipulation:
 
 
 class ManipulationSkipTag(Exception):
-    """Exception: We need to skip every thing until matching closing tag"""
+    """Internal exception used to skip XML content until a matching closing tag.
+
+    Raised during SAX parsing to signal that the current element and all
+    its children should be omitted from the output.
+    """
 
 
 class OperationAbstract:
-    """This class hold hooks called during parsing"""
+    """Base class for all FMU manipulation operations.
+
+    Subclass this to implement custom operations on FMU descriptors. The
+    methods act as callbacks invoked during SAX parsing of
+    `modelDescription.xml`.
+
+    Attributes:
+        fmu (FMU | None): The FMU being processed, set via `set_fmu`.
+    """
+
     fmu: FMU = None
 
     def set_fmu(self, fmu):
+        """Bind this operation to an FMU.
+
+        Called automatically before parsing begins.
+
+        Args:
+            fmu (FMU): The FMU to operate on.
+        """
         self.fmu = fmu
 
     def fmi_attrs(self, attrs):
+        """Called when the `<fmiModelDescription>` element is encountered.
+
+        Args:
+            attrs (dict[str, str]): XML attributes of the root element.
+        """
         pass
 
     def cosimulation_attrs(self, attrs):
+        """Called when the `<CoSimulation>` element is encountered.
+
+        Args:
+            attrs (dict[str, str]): XML attributes of the co-simulation element.
+        """
         pass
 
     def experiment_attrs(self, attrs):
+        """Called when the `<DefaultExperiment>` element is encountered.
+
+        Args:
+            attrs (dict[str, str]): XML attributes of the default experiment.
+        """
         pass
 
     def port_attrs(self, fmu_port: FMUPort) -> int:
-        """ return 0 to keep port, otherwise remove it"""
+        """Called for each port (variable) in the descriptor.
+
+        Override this to inspect or modify port attributes.
+
+        Args:
+            fmu_port (FMUPort): The port being processed. Attributes can be
+                modified in place.
+
+        Returns:
+            int: `0` to keep the port, non-zero to remove it.
+        """
         return 0
 
     def closure(self):
+        """Called after the descriptor has been fully parsed.
+
+        Override this for post-processing or cleanup.
+        """
         pass
 
 
 class OperationSaveNamesToCSV(OperationAbstract):
+    """Export all port names and metadata to a CSV file.
+
+    Generates a semicolon-delimited CSV with columns: `name`, `newName`,
+    `valueReference`, `causality`, `variability`, `scalarType`, `startValue`.
+
+    The resulting file can be edited and used with
+    [OperationRenameFromCSV][fmu_manipulation_toolbox.operations.OperationRenameFromCSV]
+    to rename or remove ports.
+
+    Attributes:
+        output_filename (str): Path to the output CSV file.
+    """
+
     def __repr__(self):
         return f"Dump names into '{self.output_filename}'"
 
@@ -386,6 +562,12 @@ class OperationSaveNamesToCSV(OperationAbstract):
 
 
 class OperationStripTopLevel(OperationAbstract):
+    """Remove the top-level bus prefix from all port names.
+
+    Strips everything before and including the first `"."` separator.
+    For example, `"Bus1.signal_name"` becomes `"signal_name"`.
+    """
+
     def __repr__(self):
         return "Remove Top Level Bus"
 
@@ -396,6 +578,12 @@ class OperationStripTopLevel(OperationAbstract):
 
 
 class OperationMergeTopLevel(OperationAbstract):
+    """Merge the top-level bus prefix into port names by replacing `"."` with `"_"`.
+
+    Only the first dot is replaced. For example, `"Bus1.signal_name"` becomes
+    `"Bus1_signal_name"`.
+    """
+
     def __repr__(self):
         return "Merge Top Level Bus with signal names"
 
@@ -406,6 +594,20 @@ class OperationMergeTopLevel(OperationAbstract):
 
 
 class OperationRenameFromCSV(OperationAbstract):
+    """Rename or remove ports according to a CSV mapping file.
+
+    Reads a semicolon-delimited CSV where column 0 is the original name
+    and column 1 is the new name. If the new name is empty, the port is
+    removed. Ports not listed in the CSV are kept unchanged.
+
+    Attributes:
+        csv_filename (str): Path to the CSV mapping file.
+        translations (dict[str, str]): Mapping from original to new names.
+
+    Raises:
+        OperationError: If the CSV file is not found or malformed.
+    """
+
     def __repr__(self):
         return f"Rename according to '{self.csv_filename}'"
 
@@ -439,6 +641,17 @@ class OperationRenameFromCSV(OperationAbstract):
 
 
 class OperationRemoveRegexp(OperationAbstract):
+    """Remove all ports whose names match a regular expression.
+
+    Args:
+        regex_string (str): Regular expression pattern. Ports with names
+            matching this pattern (from the start) are removed.
+
+    Attributes:
+        regex_string (str): The original regex pattern string.
+        regex (re.Pattern): Compiled regular expression.
+    """
+
     def __repr__(self):
         return f"Remove ports matching '{self.regex_string}'"
 
@@ -457,6 +670,17 @@ class OperationRemoveRegexp(OperationAbstract):
 
 
 class OperationKeepOnlyRegexp(OperationAbstract):
+    """Keep only ports whose names match a regular expression; remove all others.
+
+    Args:
+        regex_string (str): Regular expression pattern. Only ports with names
+            matching this pattern (from the start) are kept.
+
+    Attributes:
+        regex_string (str): The original regex pattern string.
+        regex (re.Pattern): Compiled regular expression.
+    """
+
     def __repr__(self):
         return f"Keep only ports matching '{self.regex_string}'"
 
@@ -473,6 +697,16 @@ class OperationKeepOnlyRegexp(OperationAbstract):
 
 
 class OperationSummary(OperationAbstract):
+    """Log a detailed summary of the FMU contents.
+
+    Reports FMI properties, co-simulation capabilities, default experiment
+    values, supported platforms, embedded resources, and port counts
+    grouped by causality.
+
+    Attributes:
+        nb_port_per_causality (dict[str, int]): Count of ports per causality.
+    """
+
     def __init__(self):
         self.nb_port_per_causality = {}
 
@@ -551,6 +785,12 @@ class OperationSummary(OperationAbstract):
 
 
 class OperationRemoveSources(OperationAbstract):
+    """Remove the `sources/` directory from the FMU.
+
+    Strips the embedded C/C++ source files that some FMUs include for
+    recompilation on the target platform.
+    """
+
     def __repr__(self):
         return f"Remove sources"
 
@@ -562,6 +802,18 @@ class OperationRemoveSources(OperationAbstract):
 
 
 class OperationTrimUntil(OperationAbstract):
+    """Trim port names up to and including a separator string.
+
+    For example, with separator `"__"`, the name `"prefix__signal"` becomes
+    `"signal"`.
+
+    Args:
+        separator (str): The separator string to search for in port names.
+
+    Attributes:
+        separator (str): The separator string.
+    """
+
     def __init__(self, separator):
         self.separator = separator
 
@@ -579,6 +831,12 @@ class OperationTrimUntil(OperationAbstract):
 
 
 class OperationError(Exception):
+    """Exception raised for operation-related errors.
+
+    Attributes:
+        reason (str): Human-readable description of the error.
+    """
+
     def __init__(self, reason):
         self.reason = reason
 

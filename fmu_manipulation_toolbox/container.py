@@ -20,6 +20,30 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
 class EmbeddedFMUPort:
+    """Represents a port of an FMU embedded inside a container.
+
+    Handles the mapping between FMI-standard type names (e.g. `Real`, `Float64`)
+    and internal container type names (e.g. `real64`), and generates the
+    corresponding XML fragments for `modelDescription.xml`.
+
+    Attributes:
+        FMI_TO_CONTAINER (dict[int, dict[str, str]]): Mapping from FMI type names
+            to container type names, keyed by FMI version.
+        CONTAINER_TO_FMI (dict[int, dict[str, str]]): Reverse mapping from container
+            type names to FMI type names, keyed by FMI version.
+        ALL_TYPES (tuple[str, ...]): All container type names.
+        causality (str): Port causality (`"input"`, `"output"`, `"local"`,
+            `"parameter"`).
+        variability (str | None): Port variability (`"continuous"`, `"discrete"`, etc.).
+        name (str): Port name.
+        vr (int): Value reference in the original FMU.
+        type_name (str): Container-internal type name (e.g. `"real64"`).
+        start_value (str | None): Start value, if defined.
+        initial (str | None): Initial value attribute.
+        clock (str | None): Clock reference for clocked ports.
+        description (str | None): Human-readable description of the port.
+    """
+
     FMI_TO_CONTAINER = {
         2: {
             'Real': 'real64',
@@ -98,6 +122,22 @@ class EmbeddedFMUPort:
 
 
     def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> str:
+        """Generate the XML element for this port in `modelDescription.xml`.
+
+        Produces a `<ScalarVariable>` element (FMI 2.0) or a typed element
+        like `<Float64>` (FMI 3.0).
+
+        Args:
+            vr (int): Value reference to use in the generated XML.
+            name (str | None): Override port name. Defaults to `self.name`.
+            causality (str | None): Override causality. Defaults to `self.causality`.
+            start (str | None): Override start value. Defaults to `self.start_value`.
+            fmi_version (int): FMI version (`2` or `3`).
+
+        Returns:
+            str: XML fragment string, or an empty string if the type is not
+                compatible with the requested FMI version.
+        """
         if name is None:
             name = self.name
         if causality is None:
@@ -176,6 +216,37 @@ class EmbeddedFMUPort:
 
 
 class EmbeddedFMU(OperationAbstract):
+    """Represents an FMU loaded and analysed for embedding inside a container.
+
+    Parses the `modelDescription.xml` of an FMU to extract its ports,
+    capabilities, step size, platform support, and co-simulation metadata.
+    Implements
+    [OperationAbstract][fmu_manipulation_toolbox.operations.OperationAbstract]
+    to process the FMU descriptor via the visitor pattern.
+
+    Attributes:
+        capability_list (tuple[str, ...]): FMI capability flags tracked by the container.
+        fmu (FMU): The underlying
+            [FMU][fmu_manipulation_toolbox.operations.FMU] object.
+        name (str): Filename of the FMU (e.g. `"model.fmu"`).
+        id (str): Lowercase stem of the filename, used as an identifier.
+        terminals (Terminals): FMI Terminals defined by this FMU.
+        ls (LayeredStandard): LS-BUS layered standard information.
+        step_size (float | None): Preferred step size in seconds, or `None`.
+        start_time (float | None): Default experiment start time.
+        stop_time (float | None): Default experiment stop time.
+        model_identifier (str | None): Co-simulation model identifier.
+        guid (str | None): GUID (FMI 2.0) or instantiation token (FMI 3.0).
+        fmi_version (int | None): FMI version (`2` or `3`).
+        platforms (set[str]): Supported operating systems (e.g. `{"Windows", "Linux"}`).
+        ports (dict[str, EmbeddedFMUPort]): Ports of the FMU, keyed by name.
+        has_event_mode (bool): Whether the FMU supports event mode (FMI 3.0).
+        capabilities (dict[str, str]): FMI capability flags and their values.
+
+    Raises:
+        FMUContainerError: If the FMU does not implement Co-Simulation mode.
+    """
+
     capability_list = ("needsExecutionTool",
                        "canBeInstantiatedOnlyOncePerProcess",
                        "canHandleVariableCommunicationStepSize")
@@ -266,6 +337,12 @@ class EmbeddedFMU(OperationAbstract):
 
 
 class FMUContainerError(Exception):
+    """Exception raised for errors during FMU Container operations.
+
+    Attributes:
+        reason (str): Human-readable description of the error.
+    """
+
     def __init__(self, reason: str):
         self.reason = reason
 
@@ -274,6 +351,23 @@ class FMUContainerError(Exception):
 
 
 class ContainerPort:
+    """References a specific port of an embedded FMU within a container.
+
+    Wraps an [EmbeddedFMUPort][fmu_manipulation_toolbox.container.EmbeddedFMUPort]
+    together with its parent
+    [EmbeddedFMU][fmu_manipulation_toolbox.container.EmbeddedFMU], and tracks
+    the value reference assigned by the container.
+
+    Attributes:
+        fmu (EmbeddedFMU): The embedded FMU owning this port.
+        port (EmbeddedFMUPort): The port descriptor.
+        vr (int | None): Value reference assigned by the container, or `None`
+            if not yet assigned.
+
+    Raises:
+        FMUContainerError: If the port name does not exist in the FMU.
+    """
+
     def __init__(self, fmu: EmbeddedFMU, port_name: str):
         self.fmu = fmu
         try:
@@ -293,6 +387,20 @@ class ContainerPort:
 
 
 class ContainerInput:
+    """Represents an input port exposed by the container.
+
+    A single container input can fan out to multiple embedded FMU input ports,
+    provided they share the same type and causality.
+
+    Attributes:
+        name (str): Exposed name of the container input.
+        type_name (str): Container-internal type name (e.g. `"real64"`).
+        causality (str): Port causality (`"input"` or `"parameter"`).
+        cport_list (list[ContainerPort]): List of embedded FMU ports connected
+            to this input.
+        vr (int | None): Value reference assigned by the container.
+    """
+
     def __init__(self, name: str, cport_to: ContainerPort):
         self.name = name
         self.type_name = cport_to.port.type_name
@@ -301,6 +409,15 @@ class ContainerInput:
         self.vr = None
 
     def add_cport(self, cport_to: ContainerPort):
+        """Connect an additional embedded FMU port to this container input.
+
+        Args:
+            cport_to (ContainerPort): The embedded FMU port to connect.
+
+        Raises:
+            FMUContainerError: If the port is already connected, or if types
+                or causalities do not match.
+        """
         if cport_to in self.cport_list: # Cannot be reached ! (Assembly prevent this to happen)
             raise FMUContainerError(f"Duplicate INPUT {cport_to} already connected to {self.name}")
 
@@ -316,6 +433,24 @@ class ContainerInput:
 
 
 class Link:
+    """Represents an internal connection between embedded FMUs inside a container.
+
+    A link routes one output port to one or more input ports. When the source
+    and target types differ, automatic type conversion is applied if a
+    conversion function exists.
+
+    Attributes:
+        CONVERSION_FUNCTION (dict[str, str]): Mapping from type pair strings
+            (e.g. `"real32/real64"`) to conversion function identifiers.
+        name (str): Human-readable name derived from the source FMU and port.
+        cport_from (ContainerPort | None): Source output port, or `None` for
+            importer-generated clocks.
+        cport_to_list (list[ContainerPort]): Destination input ports.
+        vr (int | None): Value reference for the local variable holding the link value.
+        vr_converted (dict[str, int | None]): Value references for type-converted
+            copies, keyed by target type name.
+    """
+
     CONVERSION_FUNCTION = {
         "real32/real64": "F32_F64",
 
@@ -370,6 +505,15 @@ class Link:
                 raise FMUContainerError(f"{cport_from} is {cport_from.port.causality} instead of OUTPUT")
 
     def add_target(self, cport_to: ContainerPort):
+        """Add a destination input port to this link.
+
+        Args:
+            cport_to (ContainerPort): The input port to connect.
+
+        Raises:
+            FMUContainerError: If the port is not an input, or if types are
+                incompatible and no conversion exists.
+        """
         if not cport_to.port.causality == "input":
             raise FMUContainerError(f"{cport_to} is {cport_to.port.causality} instead of INPUT")
 
@@ -383,6 +527,16 @@ class Link:
             raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
 
     def get_conversion(self, cport_to: ContainerPort) -> Optional[str]:
+        """Look up the conversion function for connecting to a different type.
+
+        Args:
+            cport_to (ContainerPort): The target port with a potentially
+                different type.
+
+        Returns:
+            str | None: Conversion function identifier, or `None` if no
+                conversion is available.
+        """
         try:
             conversion = f"{self.cport_from.port.type_name}/{cport_to.port.type_name}"
             return self.CONVERSION_FUNCTION[conversion]
@@ -390,10 +544,28 @@ class Link:
             return None
 
     def nb_local(self) -> int:
+        """Return the number of local variables needed for this link.
+
+        Returns:
+            int: `1` for the main value plus one per type-converted copy.
+        """
         return 1+len(self.vr_converted)
 
 
 class ValueReferenceTable:
+    """Allocates and tracks value references for the container's local variables.
+
+    Value references are encoded with a type mask in the upper bits,
+    allowing the container runtime to identify the type from the VR alone.
+
+    Attributes:
+        vr_table (dict[str, int]): Next available VR index per type.
+        masks (dict[str, int]): Bit mask per type, shifted to the upper byte.
+        nb_local_variable (dict[str, int]): Count of local variables per type.
+        local_clock (dict): Mapping from `(EmbeddedFMU, fmu_vr)` to local
+            clock VR.
+    """
+
     def __init__(self):
         self.vr_table:Dict[str, int] = {}
         self.masks: Dict[str, int] = {}
@@ -405,6 +577,16 @@ class ValueReferenceTable:
             self.nb_local_variable[type_name] = 0
 
     def add_vr(self, port_or_type_name: Union[ContainerPort, str], local: bool = False) -> int:
+        """Allocate a new value reference.
+
+        Args:
+            port_or_type_name (ContainerPort | str): A port (type is inferred)
+                or a type name string.
+            local (bool): Whether this VR is for a local variable.
+
+        Returns:
+            int: The allocated value reference with type mask applied.
+        """
         if isinstance(port_or_type_name, ContainerPort):
             type_name = port_or_type_name.port.type_name
         else:
@@ -419,6 +601,11 @@ class ValueReferenceTable:
         return vr | self.masks[type_name]
 
     def set_link_vr(self, link: Link):
+        """Allocate value references for a link and its type-converted copies.
+
+        Args:
+            link (Link): The link to assign VRs to.
+        """
         if link.cport_from is None:
             link.vr = self.add_vr("clock", local=True)
         else:
@@ -434,14 +621,47 @@ class ValueReferenceTable:
             link.vr_converted[type_name] = self.add_vr(type_name, local=True)
 
     def get_local_clock(self, cport: ContainerPort) -> int:
+        """Get the local VR for a clock associated with a clocked port.
+
+        Args:
+            cport (ContainerPort): The clocked port.
+
+        Returns:
+            int: The local value reference of the clock.
+        """
         return self.local_clock[(cport.fmu, int(cport.port.clock))]
 
 
     def nb_local(self, type_name: str) -> int:
+        """Return the number of local variables for a given type.
+
+        Args:
+            type_name (str): Container type name (e.g. `"real64"`).
+
+        Returns:
+            int: Number of local variables of this type.
+        """
         return self.nb_local_variable[type_name]
 
 
 class AutoWired:
+    """Collects the rules automatically generated by implicit wiring.
+
+    Used to report back to the
+    [AssemblyNode][fmu_manipulation_toolbox.assembly.AssemblyNode] which
+    inputs, outputs, and links were created by auto-wiring, so they
+    can be recorded in the assembly topology.
+
+    Attributes:
+        rule_input (list[list[str]]): Auto-generated input rules
+            `[exposed_name, fmu_name, port_name]`.
+        rule_output (list[list[str]]): Auto-generated output rules
+            `[fmu_name, port_name, exposed_name]`.
+        rule_link (list[list[str]]): Auto-generated link rules
+            `[from_fmu, from_port, to_fmu, to_port]`.
+        nb_param (int): Number of auto-exposed parameters (subset of inputs).
+    """
+
     def __init__(self):
         self.rule_input = []
         self.rule_output = []
@@ -467,15 +687,37 @@ class AutoWired:
 
 
 class FMUIOList:
+    """Tracks the I/O mapping between the container and its embedded FMUs.
+
+    Organizes inputs, outputs, and start values by type and FMU, supporting
+    both regular and clocked variables. Used to generate the `container.txt`
+    runtime configuration file.
+
+    Attributes:
+        vr_table (ValueReferenceTable): Reference table for VR lookups.
+        inputs: Nested mapping `[type][fmu_name][clock_vr]` → list of
+            `(fmu_vr, local_vr)` tuples.
+        outputs: Nested mapping `[type][fmu_name][clock_vr]` → list of
+            `(fmu_vr, local_vr)` tuples.
+        start_values: Mapping `[type][fmu_name]` → list of
+            `(fmu_vr, reset, value)` tuples.
+    """
+
     def __init__(self, vr_table: ValueReferenceTable):
         self.vr_table = vr_table
-        self.inputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, vr])
+        self.inputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, vr)]
         self.nb_clocked_inputs = defaultdict(lambda: defaultdict(lambda: 0))
-        self.outputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, vr])
+        self.outputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, vr)]
         self.nb_clocked_outputs = defaultdict(lambda: defaultdict(lambda: 0))
         self.start_values = defaultdict(lambda: defaultdict(list)) # [type][fmu][(cport, value)]
 
     def add_input(self, cport: ContainerPort, local_vr: int):
+        """Register an input mapping for an embedded FMU port.
+
+        Args:
+            cport (ContainerPort): The embedded FMU input port.
+            local_vr (int): The local value reference in the container.
+        """
         if cport.port.clock is None:
             clock = None
         else:
@@ -488,6 +730,12 @@ class FMUIOList:
         self.inputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, local_vr))
 
     def add_output(self, cport: ContainerPort, local_vr: int):
+        """Register an output mapping for an embedded FMU port.
+
+        Args:
+            cport (ContainerPort): The embedded FMU output port.
+            local_vr (int): The local value reference in the container.
+        """
         if cport.port.clock is None:
             clock = None
         else:
@@ -500,10 +748,22 @@ class FMUIOList:
         self.outputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, local_vr))
 
     def add_start_value(self, cport: ContainerPort, value: str):
+        """Register a start value for an embedded FMU port.
+
+        Args:
+            cport (ContainerPort): The embedded FMU port.
+            value (str): The start value.
+        """
         reset = 1 if cport.port.causality == "input" else 0
         self.start_values[cport.port.type_name][cport.fmu.name].append((cport.port.vr, reset, value))
 
     def write_txt(self, fmu_name, txt_file):
+        """Write the I/O mapping for one FMU to the `container.txt` file.
+
+        Args:
+            fmu_name (str): Name of the embedded FMU.
+            txt_file: Writable text file handle.
+        """
         for type_name in EmbeddedFMUPort.ALL_TYPES:
             print(f"# Inputs of {fmu_name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
             print(len(self.inputs[type_name][fmu_name][None]), file=txt_file)
@@ -541,6 +801,18 @@ class FMUIOList:
 
 
 class ClockList:
+    """Tracks clocks that need to be scheduled by the FMI importer.
+
+    Used for LS-BUS support where the container runtime needs to trigger
+    countdown clocks on embedded FMUs.
+
+    Attributes:
+        clocks_per_fmu (dict[int, list[tuple[int, int]]]): Clock entries
+            per FMU index: `(fmu_vr, local_vr)` pairs.
+        fmu_index (dict[str, int]): Mapping from FMU name to its index
+            in the container.
+    """
+
     def __init__(self, involved_fmu: OrderedDict[str, EmbeddedFMU]):
         self.clocks_per_fmu: DefaultDict[int, List[Tuple[int, int]]] = defaultdict(list)
         self.fmu_index: Dict[str, int] = {}
@@ -548,9 +820,20 @@ class ClockList:
             self.fmu_index[fmu_name] = i
 
     def append(self, cport: ContainerPort, vr: int):
+        """Register a clock for importer scheduling.
+
+        Args:
+            cport (ContainerPort): The clocked port on the embedded FMU.
+            vr (int): The local value reference of the clock.
+        """
         self.clocks_per_fmu[self.fmu_index[cport.fmu.name]].append((cport.port.vr, vr))
 
     def write_txt(self, txt_file):
+        """Write the clock scheduling table to the `container.txt` file.
+
+        Args:
+            txt_file: Writable text file handle.
+        """
         print(f"# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]", file=txt_file)
         nb_total_clocks = 0
         for clocks in self.clocks_per_fmu.values():
@@ -563,6 +846,45 @@ class ClockList:
 
 
 class FMUContainer:
+    """Builds an FMU Container that embeds multiple FMUs into a single FMU.
+
+    An `FMUContainer` acts as both an FMI co-simulation FMU and an FMI importer.
+    It loads embedded FMUs, wires their ports together, and generates the
+    `modelDescription.xml`, the runtime configuration (`container.txt`), and the
+    final `.fmu` archive.
+
+    Examples:
+        ```python
+        from pathlib import Path
+        from fmu_manipulation_toolbox.container import FMUContainer
+
+        container = FMUContainer("bouncing", Path("fmus"), fmi_version=2)
+        container.get_fmu("bb_position.fmu")
+        container.get_fmu("bb_velocity.fmu")
+        container.add_link("bb_position.fmu", "is_ground",
+                           "bb_velocity.fmu", "reset")
+        container.add_implicit_rule(auto_input=True, auto_output=True)
+        container.make_fmu("bouncing.fmu", step_size=0.1)
+        ```
+
+    Attributes:
+        fmu_directory (Path): Directory containing the source FMUs.
+        identifier (str): Model identifier for the container.
+        fmi_version (int): FMI version of the container interface (`2` or `3`).
+        involved_fmu (OrderedDict[str, EmbeddedFMU]): Embedded FMUs, keyed
+            by filename, in insertion order.
+        inputs (dict[str, ContainerInput]): Container input ports, keyed by
+            exposed name.
+        outputs (dict[str, ContainerPort]): Container output ports, keyed by
+            exposed name.
+        links (dict[ContainerPort, Link]): Internal links between embedded FMUs.
+        start_values (dict[ContainerPort, str]): Start values for embedded FMU ports.
+        vr_table (ValueReferenceTable): Value reference allocator.
+
+    Raises:
+        FMUContainerError: If the FMU directory is invalid.
+    """
+
     HEADER_XML_2 = """<?xml version="1.0" encoding="ISO-8859-1"?>
 <fmiModelDescription
   fmiVersion="2.0"
@@ -665,6 +987,19 @@ class FMUContainer:
         self.vr_table = ValueReferenceTable()
 
     def get_fmu(self, fmu_filename: str) -> EmbeddedFMU:
+        """Load an embedded FMU from the FMU directory.
+
+        If the FMU has already been loaded, returns the cached instance.
+
+        Args:
+            fmu_filename (str): Filename of the FMU (e.g. `"model.fmu"`).
+
+        Returns:
+            EmbeddedFMU: The loaded and analysed FMU.
+
+        Raises:
+            FMUContainerError: If the FMU cannot be loaded.
+        """
         if fmu_filename in self.involved_fmu:
             return self.involved_fmu[fmu_filename]
 
@@ -692,6 +1027,22 @@ class FMUContainer:
         return [ContainerPort(fmu, port_name) for fmu in self.involved_fmu.values() for port_name in fmu.ports]
 
     def add_input(self, container_port_name: str, to_fmu_filename: str, to_port_name: str):
+        """Expose a port of an embedded FMU as a container input.
+
+        Multiple embedded FMU ports can be connected to the same container
+        input (fan-out), provided they share the same type and causality.
+
+        Args:
+            container_port_name (str): Exposed name on the container. If empty,
+                defaults to `to_port_name`.
+            to_fmu_filename (str): Filename of the embedded FMU.
+            to_port_name (str): Name of the input port on the embedded FMU.
+
+        Raises:
+            FMUContainerError: If the port causality is not `"input"` or
+                `"parameter"`, or if types do not match an existing input
+                with the same name.
+        """
         if not container_port_name:
             container_port_name = to_port_name
         cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
@@ -709,6 +1060,18 @@ class FMUContainer:
         self.mark_ruled(cport_to, 'INPUT')
 
     def add_output(self, from_fmu_filename: str, from_port_name: str, container_port_name: str):
+        """Expose a port of an embedded FMU as a container output.
+
+        Args:
+            from_fmu_filename (str): Filename of the embedded FMU.
+            from_port_name (str): Name of the output port on the embedded FMU.
+            container_port_name (str): Exposed name on the container. If empty,
+                defaults to `from_port_name`.
+
+        Raises:
+            FMUContainerError: If the port causality is not `"output"` or
+                `"local"`, or if the exposed name is already used.
+        """
         if not container_port_name:  # empty is allowed
             container_port_name = from_port_name
 
@@ -725,6 +1088,17 @@ class FMUContainer:
         self.outputs[container_port_name] = cport_from
 
     def drop_port(self, from_fmu_filename: str, from_port_name: str):
+        """Explicitly ignore an output port of an embedded FMU.
+
+        Prevents the port from being auto-exposed or flagged as unconnected.
+
+        Args:
+            from_fmu_filename (str): Filename of the embedded FMU.
+            from_port_name (str): Name of the output port to drop.
+
+        Raises:
+            FMUContainerError: If the port causality is not `"output"`.
+        """
         cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
         if not cport_from.port.causality == "output":  # check causality
             raise FMUContainerError(f"{cport_from}: trying to DROP {cport_from.port.causality}")
@@ -733,6 +1107,22 @@ class FMUContainer:
         self.mark_ruled(cport_from, 'DROP')
 
     def add_link(self, from_fmu_filename: str, from_port_name: str, to_fmu_filename: str, to_port_name: str):
+        """Connect an output of one embedded FMU to an input of another.
+
+        If both port names match FMI Terminal definitions, a terminal-level
+        connection is made (connecting all member ports). Otherwise, a regular
+        port-to-port link is created.
+
+        Args:
+            from_fmu_filename (str): Filename of the source FMU.
+            from_port_name (str): Output port name (or terminal name).
+            to_fmu_filename (str): Filename of the destination FMU.
+            to_port_name (str): Input port name (or terminal name).
+
+        Raises:
+            FMUContainerError: If port causalities are invalid or types
+                are incompatible.
+        """
         fmu_from = self.get_fmu(from_fmu_filename)
         fmu_to = self.get_fmu(to_fmu_filename)
 
@@ -774,6 +1164,20 @@ class FMUContainer:
 
 
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
+        """Set a start value for a port of an embedded FMU.
+
+        The value is automatically converted to the appropriate type
+        (float, int, bool, or string).
+
+        Args:
+            fmu_filename (str): Filename of the embedded FMU.
+            port_name (str): Name of the port.
+            value (str): Start value as a string.
+
+        Raises:
+            FMUContainerError: If the value cannot be converted to the
+                port's type.
+        """
         cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
 
         try:
@@ -803,7 +1207,26 @@ class FMUContainer:
 
     def add_implicit_rule(self, auto_input=True, auto_output=True, auto_link=True, auto_parameter=False,
                           auto_local=False) -> AutoWired:
+        """Automatically wire unconnected ports of embedded FMUs.
 
+        Processes all ports in the following order:
+
+        1. **auto_link**: Connect outputs to inputs with matching names and types.
+        2. **auto_output**: Expose remaining unconnected outputs.
+        3. **auto_local**: Expose local variables.
+        4. **auto_input**: Expose remaining unconnected inputs.
+        5. **auto_parameter**: Expose parameters.
+
+        Args:
+            auto_input (bool): Expose unconnected input ports.
+            auto_output (bool): Expose unconnected output ports.
+            auto_link (bool): Link matching output/input ports automatically.
+            auto_parameter (bool): Expose parameter ports.
+            auto_local (bool): Expose local variables.
+
+        Returns:
+            AutoWired: Record of all automatically created rules.
+        """
         auto_wired = AutoWired()
         # Auto Link outputs
         for cport in self.get_all_cports():
@@ -851,6 +1274,15 @@ class FMUContainer:
         return auto_wired
 
     def default_step_size(self) -> float:
+        """Compute the default step size from embedded FMUs.
+
+        Uses the GCD of the frequencies of FMUs that cannot handle variable
+        step sizes. If all FMUs support variable steps, returns the largest
+        step size.
+
+        Returns:
+            float: Computed step size in seconds.
+        """
         freq_set = set()
         for fmu in self.involved_fmu.values():
             if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
@@ -874,6 +1306,13 @@ class FMUContainer:
         return step_size
 
     def sanity_check(self, step_size: Optional[float]):
+        """Validate the container configuration before building.
+
+        Warns about step size mismatches and unconnected ports.
+
+        Args:
+            step_size (float | None): The container's internal step size.
+        """
         for fmu in self.involved_fmu.values():
             if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
                 ts_ratio = step_size / fmu.step_size
@@ -894,6 +1333,22 @@ class FMUContainer:
 
     def make_fmu(self, fmu_filename: Union[str, Path], step_size: Optional[float] = None, debug=False, mt=False,
                  profiling=False, sequential=False, ts_multiplier=False, datalog=False):
+        """Build the FMU Container archive.
+
+        Generates the `modelDescription.xml`, the `container.txt` runtime
+        configuration, and packages everything into a `.fmu` zip archive.
+
+        Args:
+            fmu_filename (str | Path): Output filename for the container.
+            step_size (float | None): Internal time step in seconds. If `None`,
+                deduced from the embedded FMUs.
+            debug (bool): Keep intermediate build artifacts.
+            mt (bool): Enable multi-threaded mode.
+            profiling (bool): Enable profiling mode.
+            sequential (bool): Use sequential scheduling.
+            ts_multiplier (bool): Add a `TS_MULTIPLIER` input port.
+            datalog (bool): Generate a datalog configuration.
+        """
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)
 

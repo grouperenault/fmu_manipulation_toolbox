@@ -13,6 +13,13 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
 class Port:
+    """Represents a port of an embedded FMU, identified by its FMU name and port name.
+
+    Attributes:
+        fmu_name (str): Filename of the FMU containing this port.
+        port_name (str): Name of the port within the FMU.
+    """
+
     def __init__(self, fmu_name: str, port_name: str):
         self.fmu_name = fmu_name
         self.port_name = port_name
@@ -28,6 +35,13 @@ class Port:
 
 
 class Connection:
+    """Represents a directional connection between two ports.
+
+    Attributes:
+        from_port (Port): Source port of the connection.
+        to_port (Port): Destination port of the connection.
+    """
+
     def __init__(self, from_port: Port, to_port: Port):
         self.from_port = from_port
         self.to_port = to_port
@@ -37,6 +51,37 @@ class Connection:
 
 
 class AssemblyNode:
+    """Represents a node in the assembly tree, defining a container and its topology.
+
+    An `AssemblyNode` describes how to build a single FMU Container: which FMUs it
+    embeds, how their ports are connected (links), which ports are exposed as container
+    inputs/outputs, and which runtime options (multi-threading, profiling, etc.) are enabled.
+
+    Nodes can be nested via `add_sub_node` to create hierarchical containers.
+
+    Attributes:
+        name (str | None): Output filename for the container (e.g. `"container.fmu"`).
+        step_size (float | None): Internal fixed time step in seconds, or `None` to deduce
+            from embedded FMUs.
+        mt (bool): Whether multi-threaded mode is enabled.
+        profiling (bool): Whether profiling mode is enabled.
+        sequential (bool): Whether sequential scheduling is used.
+        auto_link (bool): Automatically link ports with matching names and types.
+        auto_input (bool): Automatically expose unconnected input ports.
+        auto_output (bool): Automatically expose unconnected output ports.
+        auto_parameter (bool): Automatically expose parameters of embedded FMUs.
+        auto_local (bool): Automatically expose local variables of embedded FMUs.
+        ts_multiplier (bool): Add a `TS_MULTIPLIER` input port to control step size dynamically.
+        parent (AssemblyNode | None): Parent node in a hierarchical assembly, or `None` for root.
+        children (dict[str, AssemblyNode]): Sub-container nodes, keyed by name.
+        fmu_names_list (list[str]): Ordered list of embedded FMU filenames.
+        input_ports (dict[Port, str]): Mapping from destination port to exposed input name.
+        output_ports (dict[Port, str]): Mapping from source port to exposed output name.
+        start_values (dict[Port, str]): Mapping from port to its start value.
+        drop_ports (list[Port]): List of output ports to explicitly ignore.
+        links (list[Connection]): List of connections between embedded FMUs.
+    """
+
     def __init__(self, name: Optional[str], step_size: float = None, mt=False, profiling=False, sequential=False,
                  auto_link=True, auto_input=True, auto_output=True, auto_parameter=False, auto_local=False,
                  ts_multiplier=False):
@@ -69,6 +114,16 @@ class AssemblyNode:
         self.links: List[Connection] = []
 
     def add_sub_node(self, sub_node):
+        """Add a child `AssemblyNode` to create a hierarchical (nested) container.
+
+        Args:
+            sub_node (AssemblyNode): The child node to add. Its name will be
+                auto-generated if `None`.
+
+        Raises:
+            AssemblyError: If the sub-node is already parented or already a child
+                of this node.
+        """
         if sub_node.name is None:
             sub_node.name = str(uuid.uuid4())+".fmu"
 
@@ -84,27 +139,85 @@ class AssemblyNode:
         self.children[sub_node.name] = sub_node
 
     def add_fmu(self, fmu_name: str):
+        """Declare an embedded FMU by filename.
+
+        Args:
+            fmu_name (str): Filename of the FMU to embed (e.g. `"model.fmu"`).
+        """
         if fmu_name not in self.fmu_names_list:
             self.fmu_names_list.append(fmu_name)
 
     def add_input(self, from_port_name: str, to_fmu_filename: str, to_port_name: str):
+        """Expose a port of an embedded FMU as a container input.
+
+        Args:
+            from_port_name (str): Name of the exposed input on the container.
+            to_fmu_filename (str): Filename of the embedded FMU.
+            to_port_name (str): Name of the input port on the embedded FMU.
+        """
         self.input_ports[Port(to_fmu_filename, to_port_name)] = from_port_name
 
     def add_output(self, from_fmu_filename: str, from_port_name: str, to_port_name: str):
+        """Expose a port of an embedded FMU as a container output.
+
+        Args:
+            from_fmu_filename (str): Filename of the embedded FMU.
+            from_port_name (str): Name of the output port on the embedded FMU.
+            to_port_name (str): Name of the exposed output on the container.
+        """
         self.output_ports[Port(from_fmu_filename, from_port_name)] = to_port_name
 
     def add_drop_port(self, fmu_filename: str, port_name: str):
+        """Mark an output port to be explicitly ignored.
+
+        Args:
+            fmu_filename (str): Filename of the embedded FMU.
+            port_name (str): Name of the output port to drop.
+        """
         self.drop_ports.append(Port(fmu_filename, port_name))
 
     def add_link(self, from_fmu_filename: str, from_port_name: str, to_fmu_filename: str, to_port_name: str):
+        """Connect an output port of one embedded FMU to an input port of another.
+
+        Args:
+            from_fmu_filename (str): Filename of the source FMU.
+            from_port_name (str): Name of the output port on the source FMU.
+            to_fmu_filename (str): Filename of the destination FMU.
+            to_port_name (str): Name of the input port on the destination FMU.
+        """
         self.links.append(Connection(Port(from_fmu_filename, from_port_name),
                           Port(to_fmu_filename, to_port_name)))
 
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
+        """Set a start value for a port of an embedded FMU.
+
+        Args:
+            fmu_filename (str): Filename of the embedded FMU.
+            port_name (str): Name of the port.
+            value (str): Start value as a string.
+        """
         self.start_values[Port(fmu_filename, port_name)] = value
 
     def make_fmu(self, fmu_directory: Path, debug=False, description_pathname=None, fmi_version=2, datalog=False,
                  filename=None):
+        """Build the FMU Container.
+
+        Recursively builds any child containers first, then creates the container FMU
+        by delegating to
+        [FMUContainer][fmu_manipulation_toolbox.container.FMUContainer].
+
+        Args:
+            fmu_directory (Path): Directory containing the source FMUs and where the
+                container will be generated.
+            debug (bool): If `True`, keep intermediate build artifacts and enable
+                verbose logging.
+            description_pathname (Path | None): Path to the original description file
+                to embed in the FMU.
+            fmi_version (int): FMI version for the container interface (`2` or `3`).
+            datalog (bool): If `True`, generate a datalog configuration file inside
+                the container.
+            filename (str | None): Override the output filename. Defaults to `name`.
+        """
         for node in self.children.values():
             node.make_fmu(fmu_directory, debug=debug, fmi_version=fmi_version)
 
@@ -154,6 +267,18 @@ class AssemblyNode:
             (fmu_directory / node.name).unlink()
 
     def get_final_from(self, port: Port) -> Port:
+        """Resolve the ultimate source port by traversing the assembly hierarchy upward.
+
+        Args:
+            port (Port): The port to trace back to its origin.
+
+        Returns:
+            Port: The resolved source port (either a top-level input or an
+                embedded FMU port).
+
+        Raises:
+            AssemblyError: If the port is not connected upstream.
+        """
         if port in self.input_ports:
             ancestor = Port(self.name, self.input_ports[port])
             if self.parent:
@@ -172,6 +297,18 @@ class AssemblyNode:
         raise AssemblyError(f"{self.name}: Port {port} is not connected upstream.")
 
     def get_final_to(self, port: Port) -> Port:
+        """Resolve the ultimate destination port by traversing the assembly hierarchy downward.
+
+        Args:
+            port (Port): The port to trace forward to its destination.
+
+        Returns:
+            Port: The resolved destination port (either a top-level output or an
+                embedded FMU port).
+
+        Raises:
+            AssemblyError: If the port is not connected downstream.
+        """
         if port in self.output_ports:
             successor = Port(self.name, self.output_ports[port])
             if self.parent:
@@ -190,6 +327,20 @@ class AssemblyNode:
         raise AssemblyError(f"Node {self.name}: Port {port} is not connected downstream.")
 
     def get_fmu_connections(self, fmu_name: str) -> List[Connection]:
+        """Get all resolved connections involving a specific embedded FMU.
+
+        Returns connections where the given FMU is either source or destination,
+        with ports resolved through the full assembly hierarchy.
+
+        Args:
+            fmu_name (str): Filename of the embedded FMU.
+
+        Returns:
+            list[Connection]: List of connections involving the specified FMU.
+
+        Raises:
+            AssemblyError: If the FMU is not embedded in this node.
+        """
         connections = []
         if fmu_name not in self.fmu_names_list:
             raise AssemblyError(f"Internal Error: FMU {fmu_name} is not embedded by {self.name}.")
@@ -217,6 +368,12 @@ class AssemblyNode:
 
 
 class AssemblyError(Exception):
+    """Exception raised for errors during assembly parsing or container building.
+
+    Attributes:
+        reason (str): Human-readable description of the error.
+    """
+
     def __init__(self, reason: str):
         self.reason = reason
 
@@ -225,6 +382,32 @@ class AssemblyError(Exception):
 
 
 class Assembly:
+    """High-level interface for loading, manipulating, and building FMU Container assemblies.
+
+    `Assembly` reads a description file (CSV, JSON, or SSP), constructs the corresponding
+    [AssemblyNode][fmu_manipulation_toolbox.assembly.AssemblyNode] tree, and provides methods
+    to build the container FMU or export the assembly to a different format.
+
+    This is the main entry point for both the `fmucontainer` CLI and the Python API.
+
+    Examples:
+        ```python
+        from pathlib import Path
+        from fmu_manipulation_toolbox.assembly import Assembly
+
+        assembly = Assembly("bouncing.csv",
+                            fmu_directory=Path("containers/bouncing_ball"),
+                            mt=True)
+        assembly.make_fmu()
+        ```
+
+    Attributes:
+        filename (Path): Path to the description file.
+        fmu_directory (Path): Directory containing the source FMUs.
+        debug (bool): Whether debug mode is enabled.
+        root (AssemblyNode | None): Root node of the assembly tree.
+    """
+
     def __init__(self, filename: str, step_size=None, auto_link=True,  auto_input=True, debug=False, sequential=False,
                  auto_output=True, mt=False, profiling=False, fmu_directory: Path = Path("."), auto_parameter=False,
                  auto_local=False, ts_multiplier=False):
@@ -272,6 +455,13 @@ class Assembly:
                     dirname = dirname.parent
 
     def read(self):
+        """Read and parse the description file.
+
+        The format is determined by the file extension: `.json`, `.ssp`, or `.csv`.
+
+        Raises:
+            AssemblyError: If the file format is not supported.
+        """
         logger.info(f"Reading '{self.filename}'")
         if self.filename.suffix == ".json":
             self.read_json()
@@ -283,6 +473,15 @@ class Assembly:
             raise AssemblyError(f"Not supported file format '{self.filename}")
 
     def write(self, filename: str):
+        """Export the assembly to a file.
+
+        Args:
+            filename (str): Output filename. The format is determined by the
+                extension (`.csv` or `.json`).
+
+        Raises:
+            AssemblyError: If the format is not supported.
+        """
         if filename.endswith(".csv"):
             return self.write_csv(filename)
         elif filename.endswith(".json"):
@@ -291,6 +490,7 @@ class Assembly:
             raise AssemblyError(f"Unable to write to '{filename}': format unsupported.")
 
     def read_csv(self):
+        """Parse a CSV description file and populate the assembly tree."""
         name = str(self.filename.with_suffix(".fmu"))
         self.root = AssemblyNode(name, step_size=self.default_step_size, auto_link=self.default_auto_link,
                                  mt=self.default_mt, profiling=self.default_profiling,
@@ -364,6 +564,15 @@ class Assembly:
             raise AssemblyError(f"unexpected rule '{rule}'. Line skipped.")
 
     def write_csv(self, filename: Union[str, Path]):
+        """Export the assembly as a CSV file.
+
+        Args:
+            filename (str | Path): Output filename, relative to `fmu_directory`.
+
+        Raises:
+            AssemblyError: If the assembly contains nested containers
+                (not representable in CSV).
+        """
         if self.root.children:
             raise AssemblyError("This assembly is not flat. Cannot export to CSV file.")
 
@@ -384,6 +593,11 @@ class Assembly:
                 outfile.write(f"DROP;{port.fmu_name};{port.port_name};;\n")
 
     def read_json(self):
+        """Parse a JSON description file and populate the assembly tree.
+
+        Raises:
+            AssemblyError: If the JSON is malformed or contains invalid keywords.
+        """
         with open(self.input_pathname) as file:
             try:
                 data = json.load(file)
@@ -461,6 +675,11 @@ class Assembly:
                 raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: {line}.")
 
     def write_json(self, filename: Union[str, Path]):
+        """Export the assembly as a JSON file.
+
+        Args:
+            filename (str | Path): Output filename, relative to `fmu_directory`.
+        """
         with open(self.fmu_directory / filename, "wt") as file:
             data = self._json_encode_node(self.root)
             json.dump(data, file, indent=2)
@@ -512,6 +731,14 @@ class Assembly:
         return json_node
 
     def read_ssp(self):
+        """Parse an SSP (System Structure and Parameterization) archive.
+
+        Extracts embedded FMUs and the `SystemStructure.ssd` file, then builds
+        the assembly tree from the SSD connections.
+
+        Warning:
+            This feature is in alpha stage.
+        """
         logger.warning("This feature is ALPHA stage.")
 
         with zipfile.ZipFile(self.fmu_directory / self.filename) as zin:
@@ -530,6 +757,14 @@ class Assembly:
             self.root.name = str(self.filename.with_suffix(".fmu"))
 
     def make_fmu(self, dump_json=False, fmi_version=2, datalog=False, filename=None):
+        """Build the FMU Container from the loaded assembly.
+
+        Args:
+            dump_json (bool): If `True`, also export a JSON dump of the assembly.
+            fmi_version (int): FMI version for the container interface (`2` or `3`).
+            datalog (bool): If `True`, enable data logging inside the container.
+            filename (str | None): Override the output filename.
+        """
         self.root.make_fmu(self.fmu_directory, debug=self.debug, description_pathname=self.description_pathname,
                            fmi_version=fmi_version, datalog=datalog, filename=filename)
         if dump_json:
@@ -539,6 +774,20 @@ class Assembly:
 
 
 class SSDParser:
+    """SAX-based parser for SSD (System Structure Description) files.
+
+    Parses the XML structure of an `.ssd` file and builds the corresponding
+    [AssemblyNode][fmu_manipulation_toolbox.assembly.AssemblyNode] tree, including
+    embedded FMUs, connections, and hierarchical sub-systems.
+
+    Attributes:
+        node_stack (list[AssemblyNode]): Stack of nodes used during XML parsing
+            for tracking hierarchy.
+        root (AssemblyNode | None): Root node after parsing is complete.
+        fmu_filenames (dict[str, str]): Mapping from SSD component names to
+            FMU filenames.
+    """
+
     def __init__(self, **kwargs):
         self.node_stack: List[AssemblyNode] = []
         self.root = None
@@ -546,6 +795,14 @@ class SSDParser:
         self.node_attrs = kwargs
 
     def parse(self, ssd_filepath: Path) -> AssemblyNode:
+        """Parse an SSD file and return the root assembly node.
+
+        Args:
+            ssd_filepath (Path): Path to the `.ssd` file.
+
+        Returns:
+            AssemblyNode: The root node representing the parsed system structure.
+        """
         logger.debug(f"Analysing {ssd_filepath}")
         with open(ssd_filepath, "rb") as file:
             parser = xml.parsers.expat.ParserCreate()
