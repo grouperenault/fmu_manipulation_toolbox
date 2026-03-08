@@ -102,7 +102,7 @@ class EmbeddedFMUPort:
         self.clock = attrs.get("clocks", None)
         self.interval_variability = attrs.get("intervalVariability", None)
 
-    def size(self):
+    def size(self) -> int:
         size = 1
         for dimension in self.dimensions:
             if dimension[0] == "start":
@@ -110,6 +110,7 @@ class EmbeddedFMUPort:
             else:
                 raise FMUError(f"Port '{self.name}' depends on structuralParameter '{dimension[1]}' "
                                f"which is not supported")
+        return size
 
     def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> str:
         if name is None:
@@ -432,11 +433,16 @@ class ValueReferenceTable:
         else:
             type_name = port_or_type_name
 
+        if isinstance(port_or_type_name, ContainerPort):
+            size = port_or_type_name.port.size()
+        else:
+            size = 1
+
         if local:
-            self.nb_local_variable[type_name] += 1
+            self.nb_local_variable[type_name] += size
 
         vr = self.vr_table[type_name]
-        self.vr_table[type_name] += 1
+        self.vr_table[type_name] += size
 
         return vr | self.masks[type_name]
 
