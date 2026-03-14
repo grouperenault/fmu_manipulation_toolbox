@@ -201,11 +201,12 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                 return fmi3Error;                                                                       \
         }                                                                                               \
                                                                                                         \
-        value_index += port->dimension;                                                                               \
+        value_index += port->dimension;                                                                 \
     }                                                                                                   \
                                                                                                         \
-    if (value_index != nValues) {                                                                        \
-        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu", value_index, nValues);    \
+    if (value_index != nValues) {                                                                       \
+        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu",                           \
+            __func__, value_index, nValues);                                                            \
         return fmi3Error;                                                                               \
     }                                                                                                   \
     return fmi3OK;                                                                                      \
@@ -234,6 +235,7 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
                          size_t nValues) {
     container_t* container = (container_t*)instance;
     fmu_status_t status;
+    size_t value_index = 0;
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
@@ -241,17 +243,24 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
         const int fmu_id = port->links[0].fmu_id;
 
         if (fmu_id < 0) {
-            values[i] = container->binaries[vr].data;
-            valueSizes[i] = container->binaries[vr].size;
+            values[value_index] = container->binaries[vr].data;
+            valueSizes[value_index] = container->binaries[vr].size;
         } else {
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
             const fmu_t *fmu = &container->fmu[fmu_id];
             
-            status = fmuGetBinary(fmu, &fmu_vr, 1, &valueSizes[i], &values[i]);
+            status = fmuGetBinary(fmu, &fmu_vr, 1, &valueSizes[i], &values[value_index]);
 
             if (status != FMU_STATUS_OK)
                 return fmi3Error;
         }
+        value_index += port->dimension;
+    }
+
+    if (value_index != nValues) {
+        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu",
+            __func__, value_index, nValues);
+        return fmi3Error;
     }
 
     return fmi3OK;
@@ -288,30 +297,40 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
 #undef FMI_GETTER
 
 
-#define FMI_SETTER(type, fmi_type, fmu_type) \
-fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference valueReferences[], size_t nValueReferences, const fmi3 ## fmi_type value[], size_t nValues) { \
-    container_t* container = (container_t*)instance; \
-    fmu_status_t status; \
-\
-    for (size_t i = 0; i < nValueReferences; i += 1) { \
-        const uint32_t vr = valueReferences[i] & 0xFFFFFF; \
-        const container_port_t *port = &container->port_ ##type [vr]; \
-        const int fmu_id = port->links[0].fmu_id; \
-\
-        if (fmu_id < 0) { \
-            container-> type [vr] = value[i]; \
-        } else { \
-            const fmu_vr_t fmu_vr = port->links[0].fmu_vr; \
-            const fmu_t *fmu = &container->fmu[fmu_id]; \
-\
-            status = fmuSet ## fmu_type (fmu, &fmu_vr, 1, &value[i]); \
-            if (status != FMU_STATUS_OK) \
-                return fmi3Error; \
-        } \
-    } \
-\
-    return fmi3OK; \
+#define FMI_SETTER(type, fmi_type, fmu_type)                                                        \
+fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference valueReferences[],  \
+    size_t nValueReferences, const fmi3 ## fmi_type value[], size_t nValues) {                      \
+                                                                                                    \
+    container_t* container = (container_t*)instance;                                                \
+    fmu_status_t status;                                                                            \
+    size_t value_index = 0;                                                                         \
+                                                                                                    \
+    for (size_t i = 0; i < nValueReferences; i += 1) {                                              \
+        const uint32_t vr = valueReferences[i] & 0xFFFFFF;                                          \
+        const container_port_t *port = &container->port_ ##type [vr];                               \
+        const int fmu_id = port->links[0].fmu_id;                                                   \
+                                                                                                    \
+        if (fmu_id < 0) {                                                                           \
+            container-> type [vr] = value[value_index];                                             \
+        } else {                                                                                    \
+            const fmu_vr_t fmu_vr = port->links[0].fmu_vr;                                          \
+            const fmu_t *fmu = &container->fmu[fmu_id];                                             \
+                                                                                                    \
+            status = fmuSet ## fmu_type (fmu, &fmu_vr, 1, &value[value_index]);                     \
+            if (status != FMU_STATUS_OK)                                                            \
+                return fmi3Error;                                                                   \
+        }                                                                                           \
+        value_index += port->dimension;                                                             \
+    }                                                                                               \
+                                                                                                    \
+    if (value_index != nValues) {                                                                   \
+        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu",                       \
+            __func__, value_index, nValues);                                                        \
+        return fmi3Error;                                                                           \
+    }                                                                                               \
+    return fmi3OK;                                                                                  \
 }
+
 FMI_SETTER(reals64, Float64, Real64);
 FMI_SETTER(reals32, Float32, Real32);
 FMI_SETTER(integers8, Int8, Integer8);
@@ -327,6 +346,7 @@ FMI_SETTER(booleans1, Boolean, Boolean1);
 fmi3Status fmi3SetString(fmi3Instance instance, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[], size_t nValues) {
     container_t* container = (container_t*)instance;
     fmu_status_t status;
+    size_t value_index = 0;
 
     for (size_t i = 0; i < nvr; i += 1) {
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
@@ -336,18 +356,25 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi2ValueReference vr[], s
 
             if (fmu_id < 0) {
                 free(container->strings[local_vr]);
-                container->strings[local_vr] = strdup(value[i]);
+                container->strings[local_vr] = strdup(value[value_index]);
             }
             else {
                 const fmu_t* fmu = &container->fmu[fmu_id];
                 const fmi2ValueReference fmu_vr = port->links[j].fmu_vr;
 
-                status = fmuSetString(fmu, &fmu_vr, 1, &value[i]);
+                status = fmuSetString(fmu, &fmu_vr, 1, &value[value_index]);
                 if (status != FMU_STATUS_OK)
                     return fmi3Error;
             }
         }
+            value_index += port->dimension;
     }
+
+    if (value_index != nValues) {   
+        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu",
+            __func__, value_index, nValues);
+        return fmi3Error;
+    }  
     return fmi3OK;
 }
 
@@ -360,6 +387,7 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
                          size_t nValues) {
     container_t* container = (container_t*)instance;
     fmu_status_t status;
+    size_t value_index = 0;
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
@@ -367,28 +395,34 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
         const int fmu_id = port->links[0].fmu_id;
 
         if (fmu_id < 0) {
-            if (container->binaries[vr].max_size < valueSizes[i]) {
-                container->binaries[vr].data = realloc(container->binaries[vr].data, valueSizes[i]);
+            if (container->binaries[vr].max_size < valueSizes[value_index]) {
+                container->binaries[vr].data = realloc(container->binaries[vr].data, valueSizes[value_index]);
                 if (! container->binaries[vr].data) {
                     logger(LOGGER_ERROR, "Cannot allocate memory for SetBinary");
                     return fmi3Error;
                 }
-                container->binaries[vr].max_size = valueSizes[i];
+                container->binaries[vr].max_size = valueSizes[value_index];
             }
 
-            container->binaries[vr].size = valueSizes[i];
-            memcpy(container->binaries[vr].data, values[i], valueSizes[i]);
+            container->binaries[vr].size = valueSizes[value_index];
+            memcpy(container->binaries[vr].data, values[value_index], valueSizes[value_index]);
         } else {
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
             const fmu_t *fmu = &container->fmu[fmu_id];
             
-            status = fmuSetBinary(fmu, &fmu_vr, 1, &valueSizes[i], &values[i]);
+            status = fmuSetBinary(fmu, &fmu_vr, 1, &valueSizes[value_index], &values[value_index]);
 
             if (status != FMU_STATUS_OK)
                 return fmi3Error;
         }
+        value_index += port->dimension;
     }
 
+    if (value_index != nValues) {   
+        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu",
+            __func__, value_index, nValues);
+        return fmi3Error;
+    }  
     return fmi3OK;
 }
 
