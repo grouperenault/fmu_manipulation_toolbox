@@ -88,7 +88,6 @@ class EmbeddedFMUPort:
         self.description = attrs.get("description", None)
         if isinstance(attrs, FMUPort):
             self.dimensions = attrs.dimensions
-            logger.critical(f"FMUPort '{self.name}' {self.dimensions}")
         else:
             self.dimensions = []
 
