@@ -178,28 +178,37 @@ fmi3Status fmi3Reset(fmi3Instance instance) {
 
 /* Getting and setting variable values */
 #define FMI_GETTER(type, fmi_type, fmu_type) \
-fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference valueReferences[], size_t nValueReferences, fmi3 ## fmi_type value[], size_t nValues) { \
-    container_t* container = (container_t*)instance; \
-    fmu_status_t status; \
-\
-    for (size_t i = 0; i < nValueReferences; i += 1) { \
-        const uint32_t vr = valueReferences[i] & 0xFFFFFF; \
-        const container_port_t *port = &container->port_ ##type [vr]; \
-        const int fmu_id = port->links[0].fmu_id; \
-\
-        if (fmu_id < 0) { \
-            value[i] = container-> type [vr]; \
-        } else { \
-            const fmu_vr_t fmu_vr = port->links[0].fmu_vr; \
-            const fmu_t *fmu = &container->fmu[fmu_id]; \
-\
-            status = fmuGet ## fmu_type (fmu, &fmu_vr, 1, &value[i]); \
-            if (status != FMU_STATUS_OK) \
-                return fmi3Error; \
-        } \
-    } \
-\
-    return fmi3OK; \
+fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference valueReferences[],      \
+    size_t nValueReferences, fmi3 ## fmi_type value[], size_t nValues) {                                \
+                                                                                                        \
+    container_t* container = (container_t*)instance;                                                    \
+    fmu_status_t status;                                                                                \
+    size_t value_index = 0;                                                                             \
+                                                                                                        \
+    for (size_t i = 0; i < nValueReferences; i += 1) {                                                  \
+        const uint32_t vr = valueReferences[i] & 0xFFFFFF;                                              \
+        const container_port_t *port = &container->port_ ##type [vr];                                   \
+        const int fmu_id = port->links[0].fmu_id;                                                       \
+                                                                                                        \
+        if (fmu_id < 0) {                                                                               \
+            value[value_index] = container-> type [vr];                                                 \
+        } else {                                                                                        \
+            const fmu_vr_t fmu_vr = port->links[0].fmu_vr;                                              \
+            const fmu_t *fmu = &container->fmu[fmu_id];                                                 \
+                                                                                                        \
+            status = fmuGet ## fmu_type (fmu, &fmu_vr, 1, &value[value_index]);                         \
+            if (status != FMU_STATUS_OK)                                                                \
+                return fmi3Error;                                                                       \
+        }                                                                                               \
+                                                                                                        \
+        value_index += port->dimension;                                                                               \
+    }                                                                                                   \
+                                                                                                        \
+    if (value_index != nValues) {                                                                        \
+        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu", value_index, nValues);    \
+        return fmi3Error;                                                                               \
+    }                                                                                                   \
+    return fmi3OK;                                                                                      \
 }
 
 

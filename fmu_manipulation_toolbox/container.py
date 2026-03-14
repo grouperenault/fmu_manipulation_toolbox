@@ -317,6 +317,7 @@ class ContainerInput:
         self.causality = cport_to.port.causality
         self.cport_list = [cport_to]
         self.vr = None
+        self.size = cport_to.port.size()
 
     def add_cport(self, cport_to: ContainerPort):
         if cport_to in self.cport_list: # Cannot be reached ! (Assembly prevent this to happen)
@@ -325,6 +326,10 @@ class ContainerInput:
         if cport_to.port.type_name != self.type_name:
             raise FMUContainerError(f"Cannot connect {self.name} of type {self.type_name} to "
                                     f"{cport_to} of type {cport_to.port.type_name}")
+
+        if cport_to.port.size() != self.size:
+            raise FMUContainerError(f"Cannot connect {self.name} with dimension {self.size} to "
+                                    f"{cport_to} with dimension {cport_to.port.size()}")
 
         if cport_to.port.causality != self.causality:
             raise FMUContainerError(f"Cannot connect {self.causality.upper()} {self.name} to "
@@ -375,7 +380,7 @@ class Link:
         self.name = cport_from.fmu.id + "." + cport_from.port.name  # strip .fmu suffix
         self.cport_from = cport_from
         self.cport_to_list: List[ContainerPort] = []
-
+        self.size = cport_from.port.size()
         self.vr: Optional[int] = None
         self.vr_converted: Dict[str, Optional[int]] = {}
 
@@ -390,7 +395,6 @@ class Link:
     def add_target(self, cport_to: ContainerPort):
         if not cport_to.port.causality == "input":
             raise FMUContainerError(f"{cport_to} is {cport_to.port.causality} instead of INPUT")
-
 
         if cport_to.port.type_name == "clock" and self.cport_from is None:
             self.cport_to_list.append(cport_to)
@@ -1107,7 +1111,7 @@ class FMUContainer:
                        "</fmiModelDescription>")
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
-        print("# Version 3", file=txt_file)
+        print("# Version 4", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
         flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)
@@ -1130,7 +1134,7 @@ class FMUContainer:
         fmu_io_list = FMUIOList(self.vr_table)
         clock_list = ClockList(self.involved_fmu)
 
-        local_per_type: Dict[str, List[int]] = defaultdict(list)
+        local_per_type: Dict[str, List[Tuple[int, int]]] = defaultdict(list) # VR, size
         links_per_fmu: Dict[str, List[Link]] = defaultdict(list)
 
         # Fill data structure
@@ -1150,10 +1154,10 @@ class FMUContainer:
         for link in self.links.values():
             # FMU Outputs
             if link.cport_from:
-                local_per_type[link.cport_from.port.type_name].append(link.vr)
+                local_per_type[link.cport_from.port.type_name].append((link.vr, link.size))
                 fmu_io_list.add_output(link.cport_from, link.vr)
             else:
-                local_per_type["clock"].append(link.vr)
+                local_per_type["clock"].append((link.vr, link.size))
                 for cport_to in link.cport_to_list:
                     if cport_to.port.interval_variability == "countdown":
                         logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, vr={link.vr})")
@@ -1168,7 +1172,7 @@ class FMUContainer:
                     if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
                         local_vr = link.vr
                     else:
-                        local_per_type[cport_to.port.type_name].append(link.vr_converted[cport_to.port.type_name])
+                        local_per_type[cport_to.port.type_name].append((link.vr_converted[cport_to.port.type_name], link.size))
                         links_per_fmu[link.cport_from.fmu.name].append(link)
                         local_vr = link.vr_converted[cport_to.port.type_name]
 
@@ -1179,7 +1183,7 @@ class FMUContainer:
         print(" ".join(nb_local), file=txt_file, end='')
         print("", file=txt_file)
 
-        print("# CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]", file=txt_file)
+        print("# CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]", file=txt_file)
         for type_name in EmbeddedFMUPort.ALL_TYPES:
             print(f"# {type_name}" , file=txt_file)
             nb_local = (len(inputs_per_type[type_name]) +
@@ -1190,20 +1194,20 @@ class FMUContainer:
                 nb_input_link += len(input_port.cport_list) - 1
             print(f"{nb_local} {nb_local + nb_input_link}", file=txt_file)
             if type_name == "real64":
-                print(f"0 1 -1 0", file=txt_file)  # Time slot
+                print(f"0 1 1 -1 0", file=txt_file)  # Time slot
                 if profiling:
                     for profiling_port, _ in enumerate(self.involved_fmu.values()):
-                        print(f"{profiling_port + 1} 1 -2 {profiling_port + 1}", file=txt_file)
+                        print(f"{profiling_port + 1} 1 1 -2 {profiling_port + 1}", file=txt_file)
             elif type_name == "integer32":
-                print(f"0 1 -1 0", file=txt_file)  # TS Multiplier
+                print(f"0 1 1 -1 0", file=txt_file)  # TS Multiplier
 
             for input_port in inputs_per_type[type_name]:
                 cport_string = [f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list]
-                print(f"{input_port.vr} {len(input_port.cport_list)}", " ".join(cport_string), file=txt_file)
+                print(f"{input_port.vr} {input_port.size} {len(input_port.cport_list)}", " ".join(cport_string), file=txt_file)
             for output_port in outputs_per_type[type_name]:
-                print(f"{output_port.vr} 1 {fmu_rank[output_port.fmu.name]} {output_port.port.vr}", file=txt_file)
-            for local_vr in local_per_type[type_name]:
-                print(f"{local_vr} 1 -1 {local_vr & 0xFFFFFF}", file=txt_file)
+                print(f"{output_port.vr} {output_port.port.size()} 1 {fmu_rank[output_port.fmu.name]} {output_port.port.vr}", file=txt_file)
+            for local_var in local_per_type[type_name]:
+                print(f"{local_var[0]} 1 {local_var[1]} -1 {local_var[0] & 0xFFFFFF}", file=txt_file)
 
         # LINKS
         for fmu in self.involved_fmu.values():

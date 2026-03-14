@@ -1,4 +1,4 @@
-# Version 3
+# Version 4
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
@@ -10,12 +10,12 @@ G
 {6853134c-427d-44a3-ac7a-36eca9552797}
 # NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
 1 0 0 0 0 0 1 0 0 0 0 0 0 0 0
-# CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
+# CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
 # real64
 3 3
-0 1 -1 0
-1 1 0 2
-2 1 0 0
+0 1 1 -1 0
+1 1 1 0 2
+2 1 1 0 0
 # real32
 0 0
 # integer8
@@ -28,7 +28,7 @@ G
 0 0
 # integer32
 1 1
-0 1 -1 0
+0 1 1 -1 0
 # uinteger32
 0 0
 # integer64

@@ -25,7 +25,8 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 typedef struct {
-    unsigned long               nb;	 /* number of connected FMU from a container port */
+	unsigned long				dimension; /* dimension of variable */
+	unsigned long               nb;	 /* number of connected FMU from a container port */
     container_vr_t              *links;
 } container_port_t;
 
@@ -37,7 +38,6 @@ typedef struct {
 typedef struct {
 	unsigned long				fmu_id;
 	unsigned long				nb;
-
 } container_clock_counter_t;
 
 typedef struct {

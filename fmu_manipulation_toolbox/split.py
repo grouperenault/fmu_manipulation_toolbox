@@ -264,9 +264,16 @@ class FMUSplitterDescription:
                 tokens = self.get_line(file).split(" ")
                 if len(tokens) > 3:
                     container_vr = int(tokens[0])
-                    for j in range(int(tokens[1])):
-                        fmu_id = int(tokens[2 + 2 * j])
-                        fmu_vr = int(tokens[2 + 2 * j + 1])
+                    if int(tokens[1]) * 2 + 1 == len(tokens):
+                        nb = int(tokens[1])
+                        offset = 0
+                    else:
+                        logger.critical("VERSION 4")
+                        nb = int(tokens[2])
+                        offset = 1
+                    for j in range(nb):
+                        fmu_id = int(tokens[2 + offset + 2 * j])
+                        fmu_vr = int(tokens[2 + offset + 2 * j + 1])
                         self.add_port(fmi_type, fmu_id, fmu_vr, container_vr)
                 else:  # For FMUContainer <= 1.8.4
                     container_vr = int(tokens[0])

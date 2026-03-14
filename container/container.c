@@ -776,65 +776,65 @@ static int read_conf_local(container_t* container, config_file_t* file) {
  * 0 0
  */
 static int read_conf_io(container_t* container, config_file_t* file) {
-#define READ_CONF_IO(type) \
-    if (get_line(file)) { \
-        logger(LOGGER_ERROR, "Cannot read I/O " #type "."); \
-        return -1;\
-    } \
-\
-    if (sscanf(file->line, "%lu %lu", &container->nb_ports_ ## type, &nb_links) < 2) { \
-        logger(LOGGER_ERROR, "Cannot read I/O " #type " '%s'.", file->line); \
-        return -1; \
-    } \
-    if (container->nb_ports_ ## type > 0) { \
-        container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ## type)); \
-        container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->port_ ##type)); \
-        if ((!container->vr_ ## type) || (!container->port_ ## type)) { \
-            logger(LOGGER_ERROR, "Memory exhausted."); \
-            return -1; \
-        } \
-        int vr_counter = 0; \
-        for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) { \
-            container_port_t port; \
-            fmu_vr_t vr; \
-            int offset; \
-\
-            if (get_line(file)) { \
-                logger(LOGGER_ERROR, "Cannot read I/O " #type " details."); \
-                return -1; \
-            } \
-\
-            if (sscanf(file->line, "%d %ld%n", &vr, &port.nb, &offset) < 2) { \
-                logger(LOGGER_ERROR, "Cannot read I/O " #type " details '%s'.", file->line); \
-                return -1; \
-            } \
-            port.links = &container->vr_ ## type [vr_counter]; \
-            for(int j=0; j < port.nb; j += 1) { \
-                int read; \
-                if (vr_counter >= nb_links) {\
-                    logger(LOGGER_ERROR, "Read %d links for %d expected.", vr_counter, nb_links); \
-                    return -1; \
-                }\
-\
-                if (sscanf(file->line+offset, " %ld %d%n", &container->vr_ ## type [vr_counter].fmu_id, \
-                                                          &container->vr_ ## type [vr_counter].fmu_vr, &read) < 2) { \
-                    logger(LOGGER_ERROR, "Cannot read I/O " #type " link details '%s'.", file->line+offset); \
-                    return -1; \
-                } \
-                offset += read; \
-                vr_counter += 1; \
-            } \
-            vr &= 0xFFFFFF; \
-            if (vr < container->nb_ports_ ## type) \
-                container->port_ ##type[vr] = port; \
-            else { \
-                logger(LOGGER_ERROR, "Cannot read I/O " #type ": too many links!"); \
-                return -8; \
-            } \
-        } \
-    } else { \
-        container->vr_ ## type = NULL; \
-        container->port_ ## type = NULL; \
+#define READ_CONF_IO(type)                                                                                      \
+    if (get_line(file)) {                                                                                       \
+        logger(LOGGER_ERROR, "Cannot read I/O " #type ".");                                                     \
+        return -1;                                                                                              \
+    }                                                                                                           \
+                                                                                                                \
+    if (sscanf(file->line, "%lu %lu", &container->nb_ports_ ## type, &nb_links) < 2) {                          \
+        logger(LOGGER_ERROR, "Cannot read I/O " #type " '%s'.", file->line);                                    \
+        return -1;                                                                                              \
+    }                                                                                                           \
+    if (container->nb_ports_ ## type > 0) {                                                                     \
+        container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ## type));                            \
+        container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->port_ ##type));     \
+        if ((!container->vr_ ## type) || (!container->port_ ## type)) {                                         \
+            logger(LOGGER_ERROR, "Memory exhausted.");                                                          \
+            return -1;                                                                                          \
+        }                                                                                                       \
+        int vr_counter = 0;                                                                                     \
+        for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {                                   \
+            container_port_t port;                                                                              \
+            fmu_vr_t vr;                                                                                        \
+            int offset;                                                                                         \
+                                                                                                                \
+            if (get_line(file)) {                                                                               \
+                logger(LOGGER_ERROR, "Cannot read I/O " #type " details.");                                     \
+                return -1;                                                                                      \
+            }                                                                                                   \
+                                                                                                                \
+            if (sscanf(file->line, "%d %ld %ld%n", &vr, &port.dimension, &port.nb, &offset) < 3) {              \
+                logger(LOGGER_ERROR, "Cannot read I/O " #type " details '%s'.", file->line);                    \
+                return -1;                                                                                      \
+            }                                                                                                   \
+            port.links = &container->vr_ ## type [vr_counter];                                                  \
+            for(int j=0; j < port.nb; j += 1) {                                                                 \
+                int read;                                                                                       \
+                if (vr_counter >= nb_links) {                                                                   \
+                    logger(LOGGER_ERROR, "Read %d links for %d expected.", vr_counter, nb_links);               \
+                    return -1;                                                                                  \
+                }                                                                                               \
+                                                                                                                \
+                if (sscanf(file->line+offset, " %ld %d%n", &container->vr_ ## type [vr_counter].fmu_id,         \
+                           &container->vr_ ## type [vr_counter].fmu_vr, &read) < 2) {                           \
+                    logger(LOGGER_ERROR, "Cannot read I/O " #type " link details '%s'.", file->line+offset);    \
+                    return -1;                                                                                  \
+                }                                                                                               \
+                offset += read;                                                                                 \
+                vr_counter += 1;                                                                                \
+            }                                                                                                   \
+            vr &= 0xFFFFFF;                                                                                     \
+            if (vr < container->nb_ports_ ## type)                                                              \
+                container->port_ ##type[vr] = port;                                                             \
+            else {                                                                                              \
+                logger(LOGGER_ERROR, "Cannot read I/O " #type ": too many links!");                             \
+                return -8;                                                                                      \
+            }                                                                                                   \
+        }                                                                                                       \
+    } else {                                                                                                    \
+        container->vr_ ## type = NULL;                                                                          \
+        container->port_ ## type = NULL;                                                                        \
     }
 
 
