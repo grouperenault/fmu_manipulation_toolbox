@@ -19,13 +19,14 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
-#define SET_INPUT(variable, fmi_type) \
-    for (int i = 0; i < fmu_io-> variable .in.nb; i += 1) { \
-        const unsigned int fmu_vr = fmu_io-> variable .in.translations[i].fmu_vr; \
-        const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr; \
-        status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr]); \
-        if (status != FMU_STATUS_OK) \
-            return status; \
+#define SET_INPUT(variable, fmi_type)                                                       \
+    for (int i = 0; i < fmu_io-> variable .in.nb; i += 1) {                                 \
+        const unsigned int fmu_vr = fmu_io-> variable .in.translations[i].fmu_vr;           \
+        const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr;             \
+        const unsigned int dimension =  fmu_io-> variable .in.translations[i].dimension;    \
+        status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr]);    \
+        if (status != FMU_STATUS_OK)                                                        \
+            return status;                                                                  \
     }
 
 

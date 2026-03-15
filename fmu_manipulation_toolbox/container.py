@@ -500,9 +500,9 @@ class AutoWired:
 class FMUIOList:
     def __init__(self, vr_table: ValueReferenceTable):
         self.vr_table = vr_table
-        self.inputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, vr])
+        self.inputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, dim, vr])
         self.nb_clocked_inputs = defaultdict(lambda: defaultdict(lambda: 0))
-        self.outputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, vr])
+        self.outputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, dim, vr])
         self.nb_clocked_outputs = defaultdict(lambda: defaultdict(lambda: 0))
         self.start_values = defaultdict(lambda: defaultdict(list)) # [type][fmu][(cport, value)]
 
@@ -516,7 +516,7 @@ class FMUIOList:
                 logger.error(f"Cannot expose clocked input: {cport}")
                 return
             self.nb_clocked_inputs[cport.port.type_name][cport.fmu.name] += 1
-        self.inputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, local_vr))
+        self.inputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, cport.port.size(), local_vr))
 
     def add_output(self, cport: ContainerPort, local_vr: int):
         if cport.port.clock is None:
@@ -528,46 +528,46 @@ class FMUIOList:
                 logger.error(f"Cannot expose clocked output: {cport}")
                 return
             self.nb_clocked_outputs[cport.port.type_name][cport.fmu.name] += 1
-        self.outputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, local_vr))
+        self.outputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, cport.port.size(), local_vr))
 
     def add_start_value(self, cport: ContainerPort, value: str):
         reset = 1 if cport.port.causality == "input" else 0
-        self.start_values[cport.port.type_name][cport.fmu.name].append((cport.port.vr, reset, value))
+        self.start_values[cport.port.type_name][cport.fmu.name].append((cport.port.vr, cport.port.size(), reset, value))
 
     def write_txt(self, fmu_name, txt_file):
         for type_name in EmbeddedFMUPort.ALL_TYPES:
-            print(f"# Inputs of {fmu_name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
+            print(f"# Inputs of {fmu_name} - {type_name}: <VR> <DIM> <FMU_VR>", file=txt_file)
             print(len(self.inputs[type_name][fmu_name][None]), file=txt_file)
-            for fmu_vr, vr in self.inputs[type_name][fmu_name][None]:
-                print(f"{vr} {fmu_vr}", file=txt_file)
+            for fmu_vr, dim, vr in self.inputs[type_name][fmu_name][None]:
+                print(f"{vr} {dim} {fmu_vr}", file=txt_file)
             if not type_name == "clock":
-                print(f"# Clocked Inputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>", file=txt_file)
+                print(f"# Clocked Inputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>", file=txt_file)
                 print(f"{len(self.inputs[type_name][fmu_name])-1} {self.nb_clocked_inputs[type_name][fmu_name]}",
                       file=txt_file)
                 for clock, table in self.inputs[type_name][fmu_name].items():
                     if not clock is None:
-                        s = " ".join([f"{vr} {fmu_vr}" for fmu_vr, vr in table])
+                        s = " ".join([f"{vr} {dim} {fmu_vr}" for fmu_vr, dim, vr in table])
                         print(f"{clock} {len(table)} {s}", file=txt_file)
 
         for type_name in EmbeddedFMUPort.ALL_TYPES[:-2]:  # No start values for binary or clock
-            print(f"# Start values of {fmu_name} - {type_name}: <FMU_VR> <RESET> <VALUE>", file=txt_file)
+            print(f"# Start values of {fmu_name} - {type_name}: <FMU_VR> <DIM> <RESET> <VALUE>", file=txt_file)
             print(len(self.start_values[type_name][fmu_name]), file=txt_file)
-            for vr, reset, value in self.start_values[type_name][fmu_name]:
-                print(f"{vr} {reset} {value}", file=txt_file)
+            for vr, dim, reset, value in self.start_values[type_name][fmu_name]:
+                print(f"{vr} {dim} {reset} {value}", file=txt_file)
 
         for type_name in EmbeddedFMUPort.ALL_TYPES:
-            print(f"# Outputs of {fmu_name} - {type_name}: <VR> <FMU_VR>", file=txt_file)
+            print(f"# Outputs of {fmu_name} - {type_name}: <VR> <DIM> <FMU_VR>", file=txt_file)
             print(len(self.outputs[type_name][fmu_name][None]), file=txt_file)
-            for fmu_vr, vr in self.outputs[type_name][fmu_name][None]:
-                print(f"{vr} {fmu_vr}", file=txt_file)
+            for fmu_vr, dim, vr in self.outputs[type_name][fmu_name][None]:
+                print(f"{vr} {dim} {fmu_vr}", file=txt_file)
 
             if not type_name == "clock":
-                print(f"# Clocked Outputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <VR> <FMU_VR>", file=txt_file)
+                print(f"# Clocked Outputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>", file=txt_file)
                 print(f"{len(self.outputs[type_name][fmu_name])-1} {self.nb_clocked_outputs[type_name][fmu_name]}",
                       file=txt_file)
                 for clock, translation in self.outputs[type_name][fmu_name].items():
                     if not clock is None:
-                        s = " ".join([f"{vr} {fmu_vr}" for fmu_vr, vr in translation])
+                        s = " ".join([f"{vr} {fmu_vr}" for fmu_vr, dim, vr in translation])
                         print(f"{clock} {len(translation)} {s}", file=txt_file)
 
 

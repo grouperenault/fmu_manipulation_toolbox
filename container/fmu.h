@@ -26,6 +26,7 @@ typedef unsigned int fmu_vr_t;
 typedef struct {
 	fmu_vr_t                    vr;
 	fmu_vr_t                    fmu_vr;
+    unsigned int                dimension;
 } fmu_translation_t;
 
 
