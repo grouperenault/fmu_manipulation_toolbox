@@ -10,9 +10,9 @@ extern "C" {
 /*----------------------------------------------------------------------------
                             D A T A L O G _ T
 ----------------------------------------------------------------------------*/
-#define DECLARE(type, c_type) \
-    unsigned long                   nb_ ## type; \
-    fmu_vr_t                        *vr_ ## type; \
+#define DECLARE(type, c_type) 							\
+    unsigned long                   nb_ ## type; 		\
+    fmu_vr_t                        *vr_ ## type; 		\
     c_type                          *values_ ## type
 
 typedef struct datalog_s {

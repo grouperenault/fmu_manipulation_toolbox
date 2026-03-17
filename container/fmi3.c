@@ -15,14 +15,14 @@
 ----------------------------------------------------------------------------*/
 
 /* unimplemented fmi3 functions */
-#define __NOT_IMPLEMENTED__ \
-    logger(LOGGER_ERROR, "Function '%s' is not implemented", __func__); \
+#define __NOT_IMPLEMENTED__                                                         \
+    logger(LOGGER_ERROR, "Function '%s' is not implemented", __func__);             \
     return fmi3Error;
 
-#define ASSERT_CONTAINER_STATE(_container, _state) \
-    if (_container->state != _state) { \
-    	logger(LOGGER_ERROR, "Must be in state %s to call %s", #_state, __func__); \
-        return fmi3Error; \
+#define ASSERT_CONTAINER_STATE(_container, _state)                                  \
+    if (_container->state != _state) {                                              \
+    	logger(LOGGER_ERROR, "Must be in state %s to call %s", #_state, __func__);  \
+        return fmi3Error;                                                           \
     }
 
 
@@ -177,7 +177,7 @@ fmi3Status fmi3Reset(fmi3Instance instance) {
 }
 
 /* Getting and setting variable values */
-#define FMI_GETTER(type, fmi_type, fmu_type) \
+#define FMI_GETTER(type, fmi_type, fmu_type)                                                            \
 fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference valueReferences[],      \
     size_t nValueReferences, fmi3 ## fmi_type value[], size_t nValues) {                                \
                                                                                                         \
@@ -191,12 +191,13 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
         const int fmu_id = port->links[0].fmu_id;                                                       \
                                                                                                         \
         if (fmu_id < 0) {                                                                               \
-            value[value_index] = container-> type [vr];                                                 \
+            for(size_t j = 0; j < port->dimension; j += 1)                                              \
+                value[value_index + j] = container-> type [vr + j];                                     \
         } else {                                                                                        \
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr;                                              \
             const fmu_t *fmu = &container->fmu[fmu_id];                                                 \
                                                                                                         \
-            status = fmuGet ## fmu_type (fmu, &fmu_vr, 1, &value[value_index]);                         \
+            status = fmuGet ## fmu_type (fmu, &fmu_vr, 1, &value[value_index], port->dimension);        \
             if (status != FMU_STATUS_OK)                                                                \
                 return fmi3Error;                                                                       \
         }                                                                                               \
@@ -243,13 +244,15 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
         const int fmu_id = port->links[0].fmu_id;
 
         if (fmu_id < 0) {
-            values[value_index] = container->binaries[vr].data;
-            valueSizes[value_index] = container->binaries[vr].size;
+            for(size_t j = 0; j < port->dimension; j += 1) {
+                values[value_index + j] = container->binaries[vr + j].data;
+                valueSizes[value_index + j] = container->binaries[vr + j].size;
+            }
         } else {
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
             const fmu_t *fmu = &container->fmu[fmu_id];
             
-            status = fmuGetBinary(fmu, &fmu_vr, 1, &valueSizes[i], &values[value_index]);
+            status = fmuGetBinary(fmu, &fmu_vr, 1, &valueSizes[i], &values[value_index], port->dimension);
 
             if (status != FMU_STATUS_OK)
                 return fmi3Error;
@@ -311,12 +314,13 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
         const int fmu_id = port->links[0].fmu_id;                                                   \
                                                                                                     \
         if (fmu_id < 0) {                                                                           \
-            container-> type [vr] = value[value_index];                                             \
+            for(size_t j = 0; j < port->dimension; j += 1)                                          \
+                container-> type [vr + j] = value[value_index + j];                                 \
         } else {                                                                                    \
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr;                                          \
             const fmu_t *fmu = &container->fmu[fmu_id];                                             \
                                                                                                     \
-            status = fmuSet ## fmu_type (fmu, &fmu_vr, 1, &value[value_index]);                     \
+            status = fmuSet ## fmu_type (fmu, &fmu_vr, 1, &value[value_index], port->dimension);    \
             if (status != FMU_STATUS_OK)                                                            \
                 return fmi3Error;                                                                   \
         }                                                                                           \
@@ -343,31 +347,34 @@ FMI_SETTER(integers64, Int64, Integer64);
 FMI_SETTER(uintegers64, UInt64, UInteger64);
 FMI_SETTER(booleans1, Boolean, Boolean1);
 
-fmi3Status fmi3SetString(fmi3Instance instance, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[], size_t nValues) {
+fmi3Status fmi3SetString(fmi3Instance instance, const fmi2ValueReference valueReferences[],
+    size_t nvr, const fmi2String value[], size_t nValues) {
     container_t* container = (container_t*)instance;
     fmu_status_t status;
     size_t value_index = 0;
 
     for (size_t i = 0; i < nvr; i += 1) {
-        const uint32_t local_vr = vr[i] & 0xFFFFFF;
-        const container_port_t* port = &container->port_strings[local_vr];
+        const uint32_t vr = valueReferences[i] & 0xFFFFFF;
+        const container_port_t* port = &container->port_strings[vr];
         for (int j = 0; j < port->nb; j += 1) {
             const int fmu_id = port->links[j].fmu_id;
 
             if (fmu_id < 0) {
-                free(container->strings[local_vr]);
-                container->strings[local_vr] = strdup(value[value_index]);
+                for(size_t j = 0; j < port->dimension; j += 1) {
+                    free(container->strings[vr + j]);
+                    container->strings[vr + j] = strdup(value[value_index + j]);
+                }
             }
             else {
                 const fmu_t* fmu = &container->fmu[fmu_id];
                 const fmi2ValueReference fmu_vr = port->links[j].fmu_vr;
 
-                status = fmuSetString(fmu, &fmu_vr, 1, &value[value_index]);
+                status = fmuSetString(fmu, &fmu_vr, 1, &value[value_index], port->dimension);
                 if (status != FMU_STATUS_OK)
                     return fmi3Error;
             }
         }
-            value_index += port->dimension;
+        value_index += port->dimension;
     }
 
     if (value_index != nValues) {   
@@ -395,22 +402,24 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
         const int fmu_id = port->links[0].fmu_id;
 
         if (fmu_id < 0) {
-            if (container->binaries[vr].max_size < valueSizes[value_index]) {
-                container->binaries[vr].data = realloc(container->binaries[vr].data, valueSizes[value_index]);
-                if (! container->binaries[vr].data) {
-                    logger(LOGGER_ERROR, "Cannot allocate memory for SetBinary");
-                    return fmi3Error;
+            for(size_t j = 0; j < port->dimension; j += 1) {
+                if (container->binaries[vr + j].max_size < valueSizes[value_index + j]) {
+                    container->binaries[vr + j].data = realloc(container->binaries[vr + j].data, valueSizes[value_index + j]);
+                    if (! container->binaries[vr + j].data) {
+                        logger(LOGGER_ERROR, "Cannot allocate memory for SetBinary");
+                        return fmi3Error;
+                    }
+                    container->binaries[vr + j].max_size = valueSizes[value_index + j];
                 }
-                container->binaries[vr].max_size = valueSizes[value_index];
-            }
 
-            container->binaries[vr].size = valueSizes[value_index];
-            memcpy(container->binaries[vr].data, values[value_index], valueSizes[value_index]);
+                container->binaries[vr + j].size = valueSizes[value_index + j];
+                memcpy(container->binaries[vr + j].data, values[value_index + j], valueSizes[value_index + j]);
+            }
         } else {
             const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
             const fmu_t *fmu = &container->fmu[fmu_id];
             
-            status = fmuSetBinary(fmu, &fmu_vr, 1, &valueSizes[value_index], &values[value_index]);
+            status = fmuSetBinary(fmu, &fmu_vr, 1, &valueSizes[value_index], &values[value_index], port->dimension);
 
             if (status != FMU_STATUS_OK)
                 return fmi3Error;

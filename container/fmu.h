@@ -26,6 +26,7 @@ typedef unsigned int fmu_vr_t;
 typedef struct {
 	fmu_vr_t                    vr;
 	fmu_vr_t                    fmu_vr;
+    unsigned int                dimension;
 } fmu_translation_t;
 
 
@@ -75,29 +76,29 @@ typedef struct {
                           F M U _ S T A R T _ xxx _ T
 ----------------------------------------------------------------------------*/
 
-#define DECLARE_START_TYPE(name, type) \
-typedef struct { \
-    unsigned long               nb; \
-    struct { \
-        fmu_vr_t                vr; \
-        int                     reset; \
-        type                    value; \
-    } *start_values; \
+#define DECLARE_START_TYPE(name, type)  \
+typedef struct {                        \
+    unsigned long               nb;     \
+    struct {                            \
+        fmu_vr_t                vr;     \
+        int                     reset;  \
+        type                    value;  \
+    } *start_values;                    \
 } fmu_start_ ## name ## _t
 
-DECLARE_START_TYPE(reals64, double);
-DECLARE_START_TYPE(reals32, float);
-DECLARE_START_TYPE(integers8, int8_t);
-DECLARE_START_TYPE(uintegers8, uint8_t);
-DECLARE_START_TYPE(integers16, int16_t);
+DECLARE_START_TYPE(reals64,     double);
+DECLARE_START_TYPE(reals32,     float);
+DECLARE_START_TYPE(integers8,   int8_t);
+DECLARE_START_TYPE(uintegers8,  uint8_t);
+DECLARE_START_TYPE(integers16,  int16_t);
 DECLARE_START_TYPE(uintegers16, uint16_t);
-DECLARE_START_TYPE(integers32, int32_t);
+DECLARE_START_TYPE(integers32,  int32_t);
 DECLARE_START_TYPE(uintegers32, uint32_t);
-DECLARE_START_TYPE(integers64, int64_t);
+DECLARE_START_TYPE(integers64,  int64_t);
 DECLARE_START_TYPE(uintegers64, uint64_t);
-DECLARE_START_TYPE(booleans, int);
-DECLARE_START_TYPE(booleans1, bool);
-DECLARE_START_TYPE(strings, const char *);
+DECLARE_START_TYPE(booleans,    int);
+DECLARE_START_TYPE(booleans1,   bool);
+DECLARE_START_TYPE(strings,     const char *);
 
 #undef DECLARE_TYPE_START
 
@@ -375,64 +376,64 @@ extern int fmu_load_from_directory(struct container_s *container, int i,
 extern void fmu_unload(fmu_t *fmu);
 
 extern fmu_status_t fmuGetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
-                                 size_t nvr, double value[]);
+                                 size_t nvr, double value[], size_t nvalues);
 extern fmu_status_t fmuGetReal32(const fmu_t *fmu, const fmu_vr_t vr[],
-                                 size_t nvr, float value[]);
+                                 size_t nvr, float value[], size_t nvalues);
 extern fmu_status_t fmuGetInteger8(const fmu_t *fmu, const fmu_vr_t vr[],
-                                   size_t nvr, int8_t value[]);
+                                   size_t nvr, int8_t value[], size_t nvalues);
 extern fmu_status_t fmuGetUInteger8(const fmu_t *fmu, const fmu_vr_t vr[],
-                                    size_t nvr, uint8_t value[]);
+                                    size_t nvr, uint8_t value[], size_t nvalues);
 extern fmu_status_t fmuGetInteger16(const fmu_t *fmu, const fmu_vr_t vr[],
-                                    size_t nvr, int16_t value[]);
+                                    size_t nvr, int16_t value[], size_t nvalues);
 extern fmu_status_t fmuGetUInteger16(const fmu_t *fmu, const fmu_vr_t vr[],
-                                    size_t nvr, uint16_t value[]);
+                                    size_t nvr, uint16_t value[], size_t nvalues);
 extern fmu_status_t fmuGetInteger32(const fmu_t *fmu, const fmu_vr_t vr[],
-                                    size_t nvr, int32_t value[]);
+                                    size_t nvr, int32_t value[], size_t nvalues);
 extern fmu_status_t fmuGetUInteger32(const fmu_t *fmu, const fmu_vr_t vr[],
-                                     size_t nvr, uint32_t value[]);
+                                     size_t nvr, uint32_t value[], size_t nvalues);
 extern fmu_status_t fmuGetInteger64(const fmu_t *fmu, const fmu_vr_t vr[],
-                                    size_t nvr, int64_t value[]);
+                                    size_t nvr, int64_t value[], size_t nvalues);
 extern fmu_status_t fmuGetUInteger64(const fmu_t *fmu, const fmu_vr_t vr[],
-                                    size_t nvr, uint64_t value[]);
+                                    size_t nvr, uint64_t value[], size_t nvalues);
 extern fmu_status_t fmuGetBoolean(const fmu_t *fmu, const fmu_vr_t vr[],
-                                  size_t nvr, int value[]);
+                                  size_t nvr, int value[], size_t nvalues);
 extern fmu_status_t fmuGetBoolean1(const fmu_t *fmu, const fmu_vr_t vr[],
-                                  size_t nvr, bool value[]);
+                                  size_t nvr, bool value[], size_t nvalues);
 extern fmu_status_t fmuGetString(const fmu_t* fmu, const fmu_vr_t vr[],
-                                 size_t nvr, const char *value[]);
+                                 size_t nvr, const char *value[], size_t nvalues);
 extern fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[],
-                                 size_t nvr, size_t size[], const uint8_t *value[]);
+                                 size_t nvr, size_t size[], const uint8_t *value[], size_t nvalues);
 extern fmu_status_t fmuGetClock(const fmu_t* fmu, const fmu_vr_t vr[],
                                  size_t nvr, bool value[]);
 
 extern fmu_status_t fmuSetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
-                                 size_t nvr, const double value[]);
+                                 size_t nvr, const double value[], size_t nvalues);
 extern fmu_status_t fmuSetReal32(const fmu_t *fmu, const fmu_vr_t vr[],
-                                 size_t nvr, const float value[]);
+                                 size_t nvr, const float value[], size_t nvalues);
 extern fmu_status_t fmuSetInteger8(const fmu_t *fmu, const fmu_vr_t vr[],
-                                   size_t nvr, const int8_t value[]);
+                                   size_t nvr, const int8_t value[], size_t nvalues);
 extern fmu_status_t fmuSetUInteger8(const fmu_t *fmu, const fmu_vr_t vr[],
-                                    size_t nvr, const uint8_t value[]);
+                                    size_t nvr, const uint8_t value[], size_t nvalues);
 extern fmu_status_t fmuSetInteger16(const fmu_t *fmu, const fmu_vr_t vr[],
-                                   size_t nvr, const int16_t value[]);
+                                   size_t nvr, const int16_t value[], size_t nvalues);
 extern fmu_status_t fmuSetUInteger16(const fmu_t *fmu, const fmu_vr_t vr[],
-                                    size_t nvr, const uint16_t value[]);
+                                    size_t nvr, const uint16_t value[], size_t nvalues);
 extern fmu_status_t fmuSetInteger32(const fmu_t *fmu, const fmu_vr_t vr[],
-                                   size_t nvr, const int32_t value[]);
+                                   size_t nvr, const int32_t value[], size_t nvalues);
 extern fmu_status_t fmuSetUInteger32(const fmu_t *fmu, const fmu_vr_t vr[],
-                                    size_t nvr, const uint32_t value[]);
+                                    size_t nvr, const uint32_t value[], size_t nvalues);
 extern fmu_status_t fmuSetInteger64(const fmu_t *fmu, const fmu_vr_t vr[],
-                                   size_t nvr, const int64_t value[]);
+                                   size_t nvr, const int64_t value[], size_t nvalues);
 extern fmu_status_t fmuSetUInteger64(const fmu_t *fmu, const fmu_vr_t vr[],
-                                    size_t nvr, const uint64_t value[]);
+                                    size_t nvr, const uint64_t value[], size_t nvalues);
 extern fmu_status_t fmuSetBoolean(const fmu_t *fmu, const fmu_vr_t vr[],
-                                  size_t nvr, const int value[]);
+                                  size_t nvr, const int value[], size_t nvalues);
 extern fmu_status_t fmuSetBoolean1(const fmu_t *fmu, const fmu_vr_t vr[],
-                                  size_t nvr, const bool value[]);
+                                  size_t nvr, const bool value[], size_t nvalues);
 extern fmu_status_t fmuSetString(const fmu_t* fmu, const fmu_vr_t vr[],
-                                 size_t nvr, const char * const value[]);
+                                 size_t nvr, const char * const value[], size_t nvalues);
 extern fmu_status_t fmuSetBinary(const fmu_t* fmu, const fmu_vr_t vr[],
-                                 size_t nvr, const size_t size[], const uint8_t * const value[]);
+                                 size_t nvr, const size_t size[], const uint8_t * const value[], size_t nvalues);
 extern fmu_status_t fmuSetClock(const fmu_t* fmu, const fmu_vr_t vr[],
                                 size_t nvr, const bool value[]);
 extern fmu_status_t fmuDoStep(fmu_t *fmu, 
