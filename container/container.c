@@ -268,26 +268,27 @@ static void container_set_start_values(container_t* container, int early_set) {
     else
         logger(LOGGER_DEBUG, "Re-setting some start values...");
     for (int i = 0; i < container->nb_fmu; i += 1) {
-#define SET_START(fmi_type, type) \
-        for(unsigned long j=0; j<container->fmu[i].fmu_io.start_ ## type .nb; j ++) { \
-            if (early_set || container->fmu[i].fmu_io.start_ ## type.start_values[j].reset) \
-                fmuSet ## fmi_type(&container->fmu[i], &container->fmu[i].fmu_io.start_ ## type.start_values[j].vr, 1, \
-                    &container->fmu[i].fmu_io.start_ ## type.start_values[j].value); \
+#define SET_START(fmi_type, type)                                                               \
+        for(unsigned long j=0; j<container->fmu[i].fmu_io.start_ ## type .nb; j ++) {           \
+            if (early_set || container->fmu[i].fmu_io.start_ ## type.start_values[j].reset)     \
+                fmuSet ## fmi_type(&container->fmu[i],                                          \
+                    &container->fmu[i].fmu_io.start_ ## type.start_values[j].vr, 1,             \
+                    &container->fmu[i].fmu_io.start_ ## type.start_values[j].value, 1);         \
         }
  
-        SET_START(Real64, reals64);
-        SET_START(Real32, reals32);
-        SET_START(Integer8, integers8);
-        SET_START(UInteger8, uintegers8);
-        SET_START(Integer16, integers16);
-        SET_START(UInteger16, uintegers16);
-        SET_START(Integer32, integers32);
-        SET_START(UInteger32, uintegers32);
-        SET_START(Integer64, integers64);
-        SET_START(UInteger64, uintegers64);
-        SET_START(Boolean, booleans);
-        SET_START(Boolean1, booleans1);
-        SET_START(String, strings);
+        SET_START(Real64,       reals64);
+        SET_START(Real32,       reals32);
+        SET_START(Integer8,     integers8);
+        SET_START(UInteger8,    uintegers8);
+        SET_START(Integer16,    integers16);
+        SET_START(UInteger16,   uintegers16);
+        SET_START(Integer32,    integers32);
+        SET_START(UInteger32,   uintegers32);
+        SET_START(Integer64,    integers64);
+        SET_START(UInteger64,   uintegers64);
+        SET_START(Boolean,      booleans);
+        SET_START(Boolean1,     booleans1);
+        SET_START(String,       strings);
         /* binaries and clocks don't support start values here */
 #undef SET_START
     }
@@ -710,16 +711,16 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         return -1;
     }
 
-#define ALLOC(type, value) \
-    if (container->nb_local_ ## type) { \
-        container-> type = malloc(container->nb_local_ ## type * sizeof(*container-> type)); \
-        if (!container-> type) { \
-            logger(LOGGER_ERROR, "Read container local: Memory exhauseted."); \
-            return -2; \
-        } \
-        for(unsigned long i=0; i < container->nb_local_ ## type; i += 1) \
-            container-> type [i] = value; \
-    } else \
+#define ALLOC(type, value)                                                                      \
+    if (container->nb_local_ ## type) {                                                         \
+        container-> type = malloc(container->nb_local_ ## type * sizeof(*container-> type));    \
+        if (!container-> type) {                                                                \
+            logger(LOGGER_ERROR, "Read container local: Memory exhauseted.");                   \
+            return -2;                                                                          \
+        }                                                                                       \
+        for(unsigned long i=0; i < container->nb_local_ ## type; i += 1)                        \
+            container-> type [i] = value;                                                       \
+    } else                                                                                      \
         container-> type = NULL
     
     ALLOC(reals64, 0.0);
@@ -872,100 +873,100 @@ static int read_conf_io(container_t* container, config_file_t* file) {
  * # Outputs of bb_position.fmu - Real: <VR> <DIM> <FMU_VR>
  * 0
  */
-#define READER_FMU_IO(type, causality)                                                                              \
-    if (get_line(file)) {                                                                                           \
-        logger(LOGGER_ERROR, "Cannot get FMU description for '" #type "' (" #causality ")");                        \
-        return -1;                                                                                                  \
-    }                                                                                                               \
-                                                                                                                    \
-    fmu_io-> type . causality .translations = NULL;                                                                 \
-                                                                                                                    \
-    if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) {                                            \
-        logger(LOGGER_ERROR, "Cannot interpret FMU description for '" #type "' (" #causality ")");                  \
-        return -2;                                                                                                  \
-    }                                                                                                               \
-                                                                                                                    \
-    if (fmu_io-> type . causality .nb > 0) {                                                                        \
-        fmu_io-> type . causality .translations = malloc(fmu_io-> type . causality .nb *                            \
-                                            sizeof(*fmu_io-> type . causality .translations));                      \
-        if (! fmu_io-> type . causality .translations) {                                                            \
-            logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted.");                                               \
-            return -3;                                                                                              \
-        }                                                                                                           \
-                                                                                                                    \
-        for(unsigned long i = 0; i < fmu_io-> type . causality .nb; i += 1) {                                       \
-            if (get_line(file)) {                                                                                   \
-                logger(LOGGER_ERROR, "Cannot get FMU I/O for '" #type "' (" #causality ")");                        \
-                return -4;                                                                                          \
-        }                                                                                                           \
-                                                                                                                    \
-            if (sscanf(file->line, "%u %u %u", &fmu_io-> type . causality .translations[i].vr,                      \
-                       &fmu_io-> type . causality .translations[i].dimension,                                       \
-                       &fmu_io-> type . causality .translations[i].fmu_vr) < 3) {                                   \
-                logger(LOGGER_ERROR, "Cannot interpret FMU I/O for '" #type "' (" #causality ")");                  \
-                return -5;                                                                                          \
-            }                                                                                                       \
-            fmu_io-> type . causality .translations[i].vr &= 0xFFFFFF;                                              \
-        }                                                                                                           \
+#define READER_FMU_IO(type, causality)                                                              \
+    if (get_line(file)) {                                                                           \
+        logger(LOGGER_ERROR, "Cannot get FMU description for '" #type "' (" #causality ")");        \
+        return -1;                                                                                  \
+    }                                                                                               \
+                                                                                                    \
+    fmu_io-> type . causality .translations = NULL;                                                 \
+                                                                                                    \
+    if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) {                            \
+        logger(LOGGER_ERROR, "Cannot interpret FMU description for '" #type "' (" #causality ")");  \
+        return -2;                                                                                  \
+    }                                                                                               \
+                                                                                                    \
+    if (fmu_io-> type . causality .nb > 0) {                                                        \
+        fmu_io-> type . causality .translations = malloc(fmu_io-> type . causality .nb              \
+            * sizeof(*fmu_io-> type . causality .translations));                                    \
+        if (! fmu_io-> type . causality .translations) {                                            \
+            logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted.");                               \
+            return -3;                                                                              \
+        }                                                                                           \
+                                                                                                    \
+        for(unsigned long i = 0; i < fmu_io-> type . causality .nb; i += 1) {                       \
+            if (get_line(file)) {                                                                   \
+                logger(LOGGER_ERROR, "Cannot get FMU I/O for '" #type "' (" #causality ")");        \
+                return -4;                                                                          \
+        }                                                                                           \
+                                                                                                    \
+            if (sscanf(file->line, "%u %u %u",                                                      \
+                &fmu_io-> type . causality .translations[i].vr,                                     \
+                &fmu_io-> type . causality .translations[i].dimension,                              \
+                &fmu_io-> type . causality .translations[i].fmu_vr) < 3) {                          \
+                logger(LOGGER_ERROR, "Cannot interpret FMU I/O for '" #type "' (" #causality ")");  \
+                return -5;                                                                          \
+            }                                                                                       \
+            fmu_io-> type . causality .translations[i].vr &= 0xFFFFFF;                              \
+        }                                                                                           \
     }
 
-#define READER_FMU_CLOCKED_IO(type, causality)                                                                      \
-    if (get_line(file)) {                                                                                           \
-        logger(LOGGER_ERROR, "Cannot get FMU description for 'clocked " #type "' (" #causality ")");                \
-        return -1;                                                                                                  \
-    }                                                                                                               \
-    fmu_io->clocked_ ## type . causality = NULL;                                                                    \
-                                                                                                                    \
-    if (sscanf(file->line, "%lu %lu",                                                                               \
-               &fmu_io->clocked_ ## type .nb_ ## causality,                                                         \
-               &nb_clocked) < 2) {                                                                                  \
-        logger(LOGGER_ERROR, "Cannot interpret FMU description for 'clocked " #type "' (" #causality ")");          \
-        return -2;                                                                                                  \
-    }                                                                                                               \
-                                                                                                                    \
-    if (fmu_io->clocked_ ## type .nb_ ## causality > 0) {                                                           \
-        fmu_io->clocked_ ## type . causality  = malloc(fmu_io->clocked_ ## type .nb_ ## causality *                 \
-                                                       sizeof(*fmu_io->clocked_ ## type . causality));              \
-        if (! fmu_io->clocked_ ## type . causality) {                                                               \
-            logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted.");                                               \
-            return -3;                                                                                              \
-        }                                                                                                           \
-                                                                                                                    \
-        for(unsigned long i = 0; i < fmu_io->clocked_ ## type .nb_ ## causality; i += 1) {                          \
-            if (get_line(file)) {                                                                                   \
-                logger(LOGGER_ERROR, "Cannot get FMU I/O for 'clocked " #type "' (" #causality ")");                \
-                return -4;                                                                                          \
-            }                                                                                                       \
-                                                                                                                    \
-            int offset = 0;                                                                                         \
-            if (sscanf(file->line, "%u %ld%n",                                                                      \
-                &fmu_io->clocked_ ## type . causality [i].clock_vr,                                                 \
-                &fmu_io->clocked_ ## type . causality [i].translations_list.nb, &offset) < 2) {                     \
-                logger(LOGGER_ERROR, "Cannot interpret FMU I/O for 'clocked " #type "' (" #causality ")");          \
-                return -5;                                                                                          \
-            }                                                                                                       \
-            fmu_io->clocked_ ## type . causality [i].clock_vr &= 0xFFFFFF;                                          \
-            fmu_io->clocked_ ## type . causality [i].translations_list.translations = malloc(                       \
-                fmu_io->clocked_ ## type . causality [i].translations_list.nb * sizeof(                             \
-                    *fmu_io->clocked_ ## type . causality [i].translations_list.translations));                     \
-            if (!fmu_io->clocked_ ## type . causality [i].translations_list.translations) {                         \
-                logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted.");                                           \
-                return -5;                                                                                          \
-            }                                                                                                       \
-            for(unsigned long j = 0; j < fmu_io->clocked_ ## type . causality [i].translations_list.nb; j += 1) {   \
-                int read;                                                                                           \
-                if (sscanf(file->line+offset, "%u %u %u%n",                                                         \
-                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr,                 \
-                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].dimension,          \
-                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].fmu_vr,             \
-                    &read) < 3) {                                                                                   \
-                    logger(LOGGER_ERROR, "Cannot interpret details of FMU I/O for 'clocked "                        \
-                        #type "' (" #causality ")");                                                                \
-                }                                                                                                   \
-                offset += read;                                                                                     \
-                fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr &= 0xFFFFFF;          \
-            }                                                                                                       \
-        }                                                                                                           \
+#define READER_FMU_CLOCKED_IO(type, causality)                                                                              \
+    if (get_line(file)) {                                                                                                   \
+        logger(LOGGER_ERROR, "Cannot get FMU description for 'clocked " #type "' (" #causality ")");                        \
+        return -1;                                                                                                          \
+    }                                                                                                                       \
+    fmu_io->clocked_ ## type . causality = NULL;                                                                            \
+                                                                                                                            \
+    if (sscanf(file->line, "%lu %lu",                                                                                       \
+               &fmu_io->clocked_ ## type .nb_ ## causality,                                                                 \
+               &nb_clocked) < 2) {                                                                                          \
+        logger(LOGGER_ERROR, "Cannot interpret FMU description for 'clocked " #type "' (" #causality ")");                  \
+        return -2;                                                                                                          \
+    }                                                                                                                       \
+                                                                                                                            \
+    if (fmu_io->clocked_ ## type .nb_ ## causality > 0) {                                                                   \
+        fmu_io->clocked_ ## type . causality  = malloc(fmu_io->clocked_ ## type .nb_ ## causality                           \
+            * sizeof(*fmu_io->clocked_ ## type . causality));                                                               \
+        if (! fmu_io->clocked_ ## type . causality) {                                                                       \
+            logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted.");                                                       \
+            return -3;                                                                                                      \
+        }                                                                                                                   \
+                                                                                                                            \
+        for(unsigned long i = 0; i < fmu_io->clocked_ ## type .nb_ ## causality; i += 1) {                                  \
+            if (get_line(file)) {                                                                                           \
+                logger(LOGGER_ERROR, "Cannot get FMU I/O for 'clocked " #type "' (" #causality ")");                        \
+                return -4;                                                                                                  \
+            }                                                                                                               \
+                                                                                                                            \
+            int offset = 0;                                                                                                 \
+            if (sscanf(file->line, "%u %ld%n",                                                                              \
+                &fmu_io->clocked_ ## type . causality [i].clock_vr,                                                         \
+                &fmu_io->clocked_ ## type . causality [i].translations_list.nb, &offset) < 2) {                             \
+                logger(LOGGER_ERROR, "Cannot interpret FMU I/O for 'clocked " #type "' (" #causality ")");                  \
+                return -5;                                                                                                  \
+            }                                                                                                               \
+            fmu_io->clocked_ ## type . causality [i].clock_vr &= 0xFFFFFF;                                                  \
+            fmu_io->clocked_ ## type . causality [i].translations_list.translations = malloc(                               \
+                fmu_io->clocked_ ## type . causality [i].translations_list.nb                                               \
+                    * sizeof(*fmu_io->clocked_ ## type . causality [i].translations_list.translations));                    \
+            if (!fmu_io->clocked_ ## type . causality [i].translations_list.translations) {                                 \
+                logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted.");                                                   \
+                return -5;                                                                                                  \
+            }                                                                                                               \
+            for(unsigned long j = 0; j < fmu_io->clocked_ ## type . causality [i].translations_list.nb; j += 1) {           \
+                int read;                                                                                                   \
+                if (sscanf(file->line+offset, "%u %u %u%n",                                                                 \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr,                         \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].dimension,                  \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].fmu_vr,                     \
+                    &read) < 3) {                                                                                           \
+                    logger(LOGGER_ERROR, "Cannot interpret details of FMU I/O for 'clocked " #type "' (" #causality ")");   \
+                }                                                                                                           \
+                offset += read;                                                                                             \
+                fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr &= 0xFFFFFF;                  \
+            }                                                                                                               \
+        }                                                                                                                   \
     }
 
 
@@ -1457,7 +1458,31 @@ int container_configure(container_t* container, const char* dirname) {
     
     container->datalog = datalog_new(dirname);
 
+
+    /* Allocate buffer for arrays of strings and arrays of binaries */
+    if (container->nb_local_strings) {
+        container->strings_tmp = malloc(container->nb_local_strings * sizeof(*container->strings_tmp));
+        if (!container->strings_tmp) {
+             logger(LOGGER_ERROR, "Cannot allocate buffer for strings.");
+             return -9;
+        }
+    } else
+        container->strings_tmp = NULL;
+
+    if (container->nb_local_binaries) {
+        container->binaries_tmp = malloc(container->nb_local_binaries * sizeof(*container->binaries_tmp));
+        container->binaries_size_tmp = malloc(container->nb_local_binaries * sizeof(*container->binaries_size_tmp));
+        if (!container->binaries_tmp || !container->binaries_size_tmp) {
+            logger(LOGGER_ERROR, "Cannot allocate buffer for binaries.");
+             return -9;
+        }
+    } else {
+        container->binaries_tmp = NULL;
+        container->binaries_size_tmp = NULL;
+    }
+
     logger(LOGGER_DEBUG, "Container is configured.");
+
     return 0;
 }
 
@@ -1477,11 +1502,11 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->nb_fmu = 0;
         container->fmu = NULL;
 
-#define INIT(type) \
-        container->nb_local_ ## type = 0; \
-        container-> type = NULL; \
-        container->nb_ports_ ## type = 0; \
-        container->vr_ ## type = NULL; \
+#define INIT(type)                          \
+        container->nb_local_ ## type = 0;   \
+        container-> type = NULL;            \
+        container->nb_ports_ ## type = 0;   \
+        container->vr_ ## type = NULL;      \
         container->port_ ## type = NULL
 
         INIT(reals64);
@@ -1539,8 +1564,8 @@ void container_free(container_t *container) {
     free(container->instance_name);
     free(container->uuid);
 
-#define FREE(type) \
-    free(container->vr_ ## type); \
+#define FREE(type)                  \
+    free(container->vr_ ## type);   \
     free(container->port_ ## type); \
     free(container-> type)
 
@@ -1564,6 +1589,9 @@ void container_free(container_t *container) {
     FREE(binaries);
     FREE(clocks);
 #undef FREE
+    free(container->binaries_tmp);
+    free(container->binaries_size_tmp);
+    free(container->strings_tmp);
 
     free(container->clocks_list.counter);
     free(container->clocks_list.buffer_qualifier);

@@ -99,8 +99,8 @@ typedef struct container_s {
 	container_state_t			state;		/* managed in fmi2.c and fmi3.c */
 
 	/* storage of local variables (conveyed from one FMU to an other) */
-#define DECLARE_LOCAL(name, type) \
-	unsigned long				nb_local_ ## name; \
+#define DECLARE_LOCAL(name, type) 					\
+	unsigned long				nb_local_ ## name;	\
 	type						* name
 
 	DECLARE_LOCAL(reals64, double);
@@ -116,13 +116,18 @@ typedef struct container_s {
 	DECLARE_LOCAL(booleans, int);
 	DECLARE_LOCAL(booleans1, bool);
 	DECLARE_LOCAL(strings, char *);
-	DECLARE_LOCAL(binaries, fmu_binary_t);
+	DECLARE_LOCAL(binaries, fmu_binary_t);	
 	DECLARE_LOCAL(clocks, bool);
+
+	uint8_t 					**binaries_tmp;
+	size_t 						*binaries_size_tmp;
+	const char					**strings_tmp;
+
 #undef DECLARE_LOCAL
 
 	/* container ports definition */
-#define DECLARE_PORT(type) \
-    unsigned long	   			nb_ports_ ## type; \
+#define DECLARE_PORT(type)							\
+    unsigned long	   			nb_ports_ ## type;	\
     container_vr_t				*vr_ ## type; /* used as buffer to optimize malloc() operations */ \
     container_port_t            *port_ ## type
 
