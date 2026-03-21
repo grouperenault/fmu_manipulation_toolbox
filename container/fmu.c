@@ -21,9 +21,9 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
 
 #define SET_INPUT(variable, fmi_type)                                                               \
     for (int i = 0; i < fmu_io-> variable .in.nb; i += 1) {                                         \
-        const unsigned int fmu_vr = fmu_io-> variable .in.translations[i].fmu_vr;                   \
+        const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                   \
         const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr;                     \
-        const unsigned int dimension = fmu_io->strings.in.translations[i].dimension;                \
+        const unsigned int dimension = fmu_io->variable .in.translations[i].dimension;                \
         status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
         if (status != FMU_STATUS_OK)                                                                \
             return status;                                                                          \
@@ -57,7 +57,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     for (int i = 0; i < fmu_io->binaries.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->binaries.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->binaries.in.translations[i].vr;
-        const unsigned int dimension = fmu_io->strings.in.translations[i].dimension;
+        const unsigned int dimension = fmu_io->binaries.in.translations[i].dimension;
         status = fmuSetBinary(fmu, &fmu_vr, 1, &container->binaries[local_vr].size,
                               (const uint8_t *const*)&container->binaries[local_vr].data, dimension);
         if (status != FMU_STATUS_OK)
