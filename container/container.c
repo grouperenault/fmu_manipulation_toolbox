@@ -535,6 +535,8 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                  R E A D   C O N F I G U R A T I O N
 ----------------------------------------------------------------------------*/
 
+#define CONFIG_ERROR(message, ...) config_file_error(file, __LINE__, message, __VA_ARGS__) 
+
 /*
  * # Container flags <MT> <Profiling> <Sequential>
  * 1 0 0 
@@ -762,7 +764,7 @@ static int read_conf_local(container_t* container, config_file_t* file) {
 
 
 /*
- * # CONTAINER I/O: <VR> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
+ * # CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
  * # Real
  * 3 3
  * 1 1 0 1
@@ -779,19 +781,19 @@ static int read_conf_local(container_t* container, config_file_t* file) {
 static int read_conf_io(container_t* container, config_file_t* file) {
 #define READ_CONF_IO(type)                                                                                      \
     if (get_line(file)) {                                                                                       \
-        logger(LOGGER_ERROR, "Cannot read I/O " #type ".");                                                     \
+        CONFIG_ERROR("Cannot read I/O " #type ".");                                                             \
         return -1;                                                                                              \
     }                                                                                                           \
                                                                                                                 \
     if (sscanf(file->line, "%lu %lu", &container->nb_ports_ ## type, &nb_links) < 2) {                          \
-        logger(LOGGER_ERROR, "Cannot read I/O " #type " '%s'.", file->line);                                    \
+        CONFIG_ERROR("Cannot read I/O " #type);                                                                 \
         return -1;                                                                                              \
     }                                                                                                           \
     if (container->nb_ports_ ## type > 0) {                                                                     \
         container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ## type));                            \
         container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->port_ ##type));     \
         if ((!container->vr_ ## type) || (!container->port_ ## type)) {                                         \
-            logger(LOGGER_ERROR, "Memory exhausted.");                                                          \
+            CONFIG_ERROR("Memory exhausted.");                                                                  \
             return -1;                                                                                          \
         }                                                                                                       \
         int vr_counter = 0;                                                                                     \
@@ -806,7 +808,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             }                                                                                                   \
                                                                                                                 \
             if (sscanf(file->line, "%d %ld %ld%n", &vr, &port.dimension, &port.nb, &offset) < 3) {              \
-                logger(LOGGER_ERROR, "Cannot read I/O " #type " details '%s'.", file->line);                    \
+                CONFIG_ERROR("Cannot read I/O " #type " details.");                                             \
                 return -1;                                                                                      \
             }                                                                                                   \
             port.links = &container->vr_ ## type [vr_counter];                                                  \
@@ -819,7 +821,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                                                                                                                 \
                 if (sscanf(file->line+offset, " %ld %d%n", &container->vr_ ## type [vr_counter].fmu_id,         \
                            &container->vr_ ## type [vr_counter].fmu_vr, &read) < 2) {                           \
-                    logger(LOGGER_ERROR, "Cannot read I/O " #type " link details '%s'.", file->line+offset);    \
+                    CONFIG_ERROR("Cannot read I/O " #type " link details.");                                    \
                     return -1;                                                                                  \
                 }                                                                                               \
                 offset += read;                                                                                 \
@@ -827,9 +829,9 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             }                                                                                                   \
             vr &= 0xFFFFFF;                                                                                     \
             if (vr < container->nb_ports_ ## type)                                                              \
-                container->port_ ##type[vr] = port;                                                             \
+                container->port_ ## type[vr] = port;                                                             \
             else {                                                                                              \
-                logger(LOGGER_ERROR, "Cannot read I/O " #type ": too many links!");                             \
+                CONFIG_ERROR("Cannot read I/O " #type ": too many links %u >= %u!", vr, container->nb_ports_ ## type); \
                 return -8;                                                                                      \
             }                                                                                                   \
         }                                                                                                       \
