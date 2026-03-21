@@ -566,8 +566,8 @@ class FMUIOList:
                 print(f"{len(self.outputs[type_name][fmu_name])-1} {self.nb_clocked_outputs[type_name][fmu_name]}",
                       file=txt_file)
                 for clock, translation in self.outputs[type_name][fmu_name].items():
-                    if not clock is None:
-                        s = " ".join([f"{vr} {fmu_vr}" for fmu_vr, dim, vr in translation])
+                    if clock is not None:
+                        s = " ".join([f"{vr} {dim} {fmu_vr}" for fmu_vr, dim, vr in translation])
                         print(f"{clock} {len(translation)} {s}", file=txt_file)
 
 

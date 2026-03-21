@@ -119,7 +119,7 @@ typedef struct container_s {
 	DECLARE_LOCAL(binaries, fmu_binary_t);	
 	DECLARE_LOCAL(clocks, bool);
 
-	uint8_t 					**binaries_tmp;
+	const uint8_t 				**binaries_tmp;
 	size_t 						*binaries_size_tmp;
 	const char					**strings_tmp;
 

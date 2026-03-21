@@ -268,7 +268,6 @@ class FMUSplitterDescription:
                         nb = int(tokens[1])
                         offset = 0
                     else:
-                        logger.critical("VERSION 4")
                         nb = int(tokens[2])
                         offset = 1
                     for j in range(nb):
@@ -307,7 +306,7 @@ class FMUSplitterDescription:
                     logger.debug(f"INPUT of {fmu_filename} {fmi_type} : {nb_input}")
 
                     for i in range(nb_input):
-                        local, vr = self.get_line(file).split(" ")
+                        local, dim, vr = self.get_line(file).split(" ")
                         try:
                             link = self.links[fmi_type][local]
                         except KeyError:
@@ -351,7 +350,7 @@ class FMUSplitterDescription:
                     logger.debug(f"OUTPUT of {fmu_filename} {fmi_type} : {nb_output}")
 
                     for i in range(nb_output):
-                        local, vr = self.get_line(file).split(" ")
+                        local, dim, vr = self.get_line(file).split(" ")
                         try:
                             link = self.links[fmi_type][local]
                         except KeyError:
