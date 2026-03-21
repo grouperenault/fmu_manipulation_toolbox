@@ -113,3 +113,4 @@ tests/array/modelDescription.xml
 tests/array/array.fmu
 tests/array/array
 .idea
+tests/array/results-array.csv

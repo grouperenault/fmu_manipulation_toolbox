@@ -366,4 +366,4 @@ class TestSuite:
         validate_fmu("array/array.fmu")
         self.assert_identical_files_but_guid("array/REF-container-modelDescription.xml", "array/array/modelDescription.xml")
         if os.name == 'nt':
-            self.assert_simulation_log("array/array.fmu", 0.1)
+            self.assert_simulation("array/array.fmu", 0.1)
