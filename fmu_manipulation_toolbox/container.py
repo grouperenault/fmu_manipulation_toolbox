@@ -424,11 +424,14 @@ class ValueReferenceTable:
         self.vr_table:Dict[str, int] = {}
         self.masks: Dict[str, int] = {}
         self.nb_local_variable:Dict[str, int] = {}
+        self.nb_local_storage: Dict[str, int] = {}
+
         self.local_clock = {}
         for i, type_name in enumerate(EmbeddedFMUPort.ALL_TYPES):
             self.vr_table[type_name] = 0
             self.masks[type_name] = i << 24
             self.nb_local_variable[type_name] = 0
+            self.nb_local_storage[type_name] = 0
 
     def add_vr(self, port_or_type_name: Union[ContainerPort, str], local: bool = False) -> int:
         if isinstance(port_or_type_name, ContainerPort):
@@ -442,10 +445,11 @@ class ValueReferenceTable:
             size = 1
 
         if local:
-            self.nb_local_variable[type_name] += size
+            self.nb_local_variable[type_name] += 1
+            self.nb_local_storage[type_name] += size
 
         vr = self.vr_table[type_name]
-        self.vr_table[type_name] += size
+        self.vr_table[type_name] += 1
 
         return vr | self.masks[type_name]
 
@@ -470,6 +474,9 @@ class ValueReferenceTable:
 
     def nb_local(self, type_name: str) -> int:
         return self.nb_local_variable[type_name]
+
+    def nb_storage(self, type_name: str) -> int:
+        return self.nb_local_storage[type_name]
 
 
 class AutoWired:
@@ -1178,8 +1185,8 @@ class FMUContainer:
                     fmu_io_list.add_input(cport_to, local_vr)
 
         print(f"# NB local variables:", ", ".join(EmbeddedFMUPort.ALL_TYPES), file=txt_file)
-        nb_local = [f"{self.vr_table.nb_local(type_name)}" for type_name in EmbeddedFMUPort.ALL_TYPES]
-        print(" ".join(nb_local), file=txt_file, end='')
+        nb_storage = [f"{self.vr_table.nb_storage(type_name)}" for type_name in EmbeddedFMUPort.ALL_TYPES]
+        print(" ".join(nb_storage), file=txt_file, end='')
         print("", file=txt_file)
 
         print("# CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]", file=txt_file)
@@ -1205,9 +1212,10 @@ class FMUContainer:
                 print(f"{input_port.vr} {input_port.size} {len(input_port.cport_list)}", " ".join(cport_string), file=txt_file)
             for output_port in outputs_per_type[type_name]:
                 print(f"{output_port.vr} {output_port.port.size()} 1 {fmu_rank[output_port.fmu.name]} {output_port.port.vr}", file=txt_file)
+            offset_storage = 0
             for local_var in local_per_type[type_name]:
-                print(f"{local_var[0]} 1 {local_var[1]} -1 {local_var[0] & 0xFFFFFF}", file=txt_file)
-
+                print(f"{local_var[0]} {local_var[1]} 1 -1 {local_var[0] & 0xFFFFFF + offset_storage}", file=txt_file)
+                offset_storage += local_var[1] - 1
         # LINKS
         for fmu in self.involved_fmu.values():
             fmu_io_list.write_txt(fmu.name, txt_file)
