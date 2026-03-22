@@ -1004,9 +1004,7 @@ static int read_conf_fmu_start_values_booleans1(fmu_io_t* fmu_io, config_file_t*
             CONFIG_ERROR("Cannot read  %luth start value.", i);
             return -4;
         }
-
         fmu_io->start_booleans1.start_values[i].value = &fmu_io->start_values_booleans1[pos];
-
         for(unsigned long j = 0; j < dimension; j += 1) {
             int read;
             int boolean;
@@ -1060,7 +1058,6 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
             &fmu_io->start_strings.start_values[i].reset) < 3) {
             return -5;
         }
-
         fmu_io->start_strings.start_values[i].value = &fmu_io->start_values_strings[pos];
         for(unsigned long j = 0; j < dimension; j += 1) {
             CONFIG_GETLINE;
@@ -1116,8 +1113,8 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
                        &offset) < 3) {                                                              \
                 CONFIG_ERROR("Cannot read %luth start value.", i);                                  \
                 return -5;                                                                          \
-             }                                                                                      \
-                                                                                                    \
+            }                                                                                       \
+            fmu_io->start_ ##type .start_values[i].value = &fmu_io->start_values_ ##type[pos];      \
             for(unsigned long j = 0; j < dimension; j += 1) {                                       \
                 int read;                                                                           \
                                                                                                     \
