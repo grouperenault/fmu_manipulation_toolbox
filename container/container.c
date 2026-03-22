@@ -559,13 +559,9 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
 static int read_flags(container_t* container, config_file_t* file) {
     int mt, sequential;
 
-    if (get_line(file)) {
-        logger(LOGGER_ERROR, "Cannot read container flags.");
-        return -1;
-    }
-
+    CONFIG_GETLINE;
     if (sscanf(file->line, "%d %d %d", &mt, &container->profiling, &sequential) < 3) {
-        logger(LOGGER_ERROR, "Cannot interpret container flags '%s'.", file->line);
+        CONFIG_ERROR("Cannot interpret container flags.");
         return -1;
     }
 
@@ -594,13 +590,9 @@ static int read_flags(container_t* container, config_file_t* file) {
  * .001
  */
 static int read_conf_time_step(container_t* container, config_file_t* file) {
-    if (get_line(file)) {
-        logger(LOGGER_ERROR, "Cannot read time_step.");
-        return -1;
-    }
-
+    CONFIG_GETLINE;
     if (sscanf(file->line, "%le", &container->time_step) < 1) {
-        logger(LOGGER_ERROR, "Cannort interpret time_step '%s'.", file->line);
+        CONFIG_ERROR("Cannot interpret time_step.");
         return -1;
     }
 
@@ -623,13 +615,9 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
 static int read_conf_fmu(container_t *container, const char *dirname, config_file_t* file) {
     int nb_fmu;
 
-    if (get_line(file)) {
-        logger(LOGGER_ERROR, "Cannot read number of embedded FMUs.");
-        return -1;
-    }
- 
+    CONFIG_GETLINE;
     if (sscanf(file->line, "%d", &nb_fmu) < 1) {
-        logger(LOGGER_ERROR, "Cannot read number of embedded FMUs '%s'.", file->line);
+        CONFIG_ERROR("Cannot read number of embedded FMUs.");
         return -1;
     }
 
@@ -639,21 +627,13 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         return 0;
     }
 
-    container->fmu = calloc(nb_fmu, sizeof(*container->fmu));
-    if (!container->fmu) {
-        logger(LOGGER_ERROR, "Memory exhausted.");
-        return -1;
-    }
+    CONFIG_ALLOC(container->fmu, nb_fmu);
 
     for (int i = 0; i < nb_fmu; i += 1) {
         char directory[CONFIG_FILE_SZ];
         snprintf(directory, CONFIG_FILE_SZ, "%s/%02x", dirname, i);
 
-        if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read embedded FMU #%d's name.", i);
-            return -1;
-        }
-
+        CONFIG_GETLINE;
         char* name = strdup(file->line);
         int fmi_version = 2;
         int support_event = 0;
@@ -661,30 +641,24 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
             if (name[i] == ' ') {
                 name[i] = '\0';
                 if (sscanf(name+i+1, "%d %d", &fmi_version, &support_event) < 2) {
-                    logger(LOGGER_ERROR, "Cannot read FMU flags from %s", name+i+1);
+                    CONFIG_ERROR("Cannot read FMU flags from %s", name+i+1);
                     return -2;
                 }
                 break;
             } 
         }
       
-        if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read embedded FMU #%d's identifier.", i);
-            return -1;
-        }
+        CONFIG_GETLINE;
         char *identifier = strdup(file->line);
 
-        if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read embedded FMU #%d's uuid.", i);
-            return -1;
-        }
+        CONFIG_GETLINE;
         const char *guid = file->line;
 
         int status = fmu_load_from_directory(container, i, directory, name, identifier, guid, fmi_version, support_event);
         free(identifier);
         free(name);
         if (status) {
-            logger(LOGGER_ERROR, "Cannot load from directory '%s' (status=%d)", directory, status);
+            CONFIG_ERROR("Cannot load from directory '%s' (status=%d)", directory, status);
             free(container->fmu);
             container->fmu = NULL; /* to allow freeInstance on container */
             container->nb_fmu = 0;
@@ -703,11 +677,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
  * 1 0 1 0 
  */
 static int read_conf_local(container_t* container, config_file_t* file) {
-    if (get_line(file)) {
-        logger(LOGGER_ERROR, "Cannot read container I/O.");
-        return -1;
-    }
-
+    CONFIG_GETLINE;
     if (sscanf(file->line, "%lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
         &container->nb_local_reals64,
         &container->nb_local_reals32,
@@ -724,17 +694,13 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         &container->nb_local_strings,
         &container->nb_local_binaries,
         &container->nb_local_clocks) < 15) {
-        logger(LOGGER_ERROR, "Cannort read container I/O '%s'.", file->line);
+            CONFIG_ERROR("Cannort read container I/O.");
         return -1;
     }
 
 #define ALLOC(type, value)                                                                      \
     if (container->nb_local_ ## type) {                                                         \
-        container-> type = malloc(container->nb_local_ ## type * sizeof(*container-> type));    \
-        if (!container-> type) {                                                                \
-            logger(LOGGER_ERROR, "Read container local: Memory exhauseted.");                   \
-            return -2;                                                                          \
-        }                                                                                       \
+        CONFIG_ALLOC(container-> type, container->nb_local_ ## type);                           \
         for(unsigned long i=0; i < container->nb_local_ ## type; i += 1)                        \
             container-> type [i] = value;                                                       \
     } else                                                                                      \
@@ -753,16 +719,14 @@ static int read_conf_local(container_t* container, config_file_t* file) {
     ALLOC(booleans, 0);
     ALLOC(booleans1, false);
     ALLOC(strings, NULL);
+
     /* Strings cannot be NULL */
     for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
         container->strings[i] = strdup("");
-    
+
+    /* Binaries have a complex type */
     if (container->nb_local_binaries) {
-        container->binaries = malloc(container->nb_local_binaries * sizeof(*container->binaries));
-        if (!container->binaries) {
-            logger(LOGGER_ERROR, "Read container local: Memory exhauseted."); \
-            return -2;
-        }
+        CONFIG_ALLOC(container->binaries, container->nb_local_binaries);
         for(unsigned long i=0; i < container->nb_local_binaries; i += 1) {
             container->binaries[i].size = 0;
             container->binaries[i].max_size = 0;
@@ -794,34 +758,25 @@ static int read_conf_local(container_t* container, config_file_t* file) {
  * 0 0
  */
 static int read_conf_io(container_t* container, config_file_t* file) {
+    unsigned long nb_links;
+
 #define READ_CONF_IO(type)                                                                                      \
-    if (get_line(file)) {                                                                                       \
-        CONFIG_ERROR("Cannot read I/O " #type ".");                                                             \
-        return -1;                                                                                              \
-    }                                                                                                           \
-                                                                                                                \
+    CONFIG_GETLINE;                                                                                             \
     if (sscanf(file->line, "%lu %lu", &container->nb_ports_ ## type, &nb_links) < 2) {                          \
         CONFIG_ERROR("Cannot read I/O " #type);                                                                 \
         return -1;                                                                                              \
     }                                                                                                           \
     if (container->nb_ports_ ## type > 0) {                                                                     \
-        container->vr_ ## type = malloc(nb_links * sizeof(*container->vr_ ## type));                            \
-        container->port_ ## type = malloc(container->nb_ports_ ## type * sizeof(*container->port_ ##type));     \
-        if ((!container->vr_ ## type) || (!container->port_ ## type)) {                                         \
-            CONFIG_ERROR("Memory exhausted.");                                                                  \
-            return -1;                                                                                          \
-        }                                                                                                       \
+        CONFIG_ALLOC(container->vr_ ## type, nb_links);                                                         \
+        CONFIG_ALLOC(container->port_ ## type, container->nb_ports_ ## type);                                   \
+                                                                                                                \
         int vr_counter = 0;                                                                                     \
         for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {                                   \
             container_port_t port;                                                                              \
             fmu_vr_t vr;                                                                                        \
             int offset;                                                                                         \
                                                                                                                 \
-            if (get_line(file)) {                                                                               \
-                logger(LOGGER_ERROR, "Cannot read I/O " #type " details.");                                     \
-                return -1;                                                                                      \
-            }                                                                                                   \
-                                                                                                                \
+            CONFIG_GETLINE;                                                                                     \
             if (sscanf(file->line, "%d %ld %ld%n", &vr, &port.dimension, &port.nb, &offset) < 3) {              \
                 CONFIG_ERROR("Cannot read I/O " #type " details.");                                             \
                 return -1;                                                                                      \
@@ -830,7 +785,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             for(int j=0; j < port.nb; j += 1) {                                                                 \
                 int read;                                                                                       \
                 if (vr_counter >= nb_links) {                                                                   \
-                    logger(LOGGER_ERROR, "Read %d links for %d expected.", vr_counter, nb_links);               \
+                    CONFIG_ERROR("Read %d links for %d expected.", vr_counter, nb_links);                       \
                     return -1;                                                                                  \
                 }                                                                                               \
                                                                                                                 \
@@ -844,9 +799,9 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             }                                                                                                   \
             vr &= 0xFFFFFF;                                                                                     \
             if (vr < container->nb_ports_ ## type)                                                              \
-                container->port_ ## type[vr] = port;                                                             \
+                container->port_ ## type[vr] = port;                                                            \
             else {                                                                                              \
-                CONFIG_ERROR("Cannot read I/O " #type ": too many links %u >= %u!", vr, container->nb_ports_ ## type); \
+                CONFIG_ERROR("Cannot read I/O " #type ": too many links.");                                     \
                 return -8;                                                                                      \
             }                                                                                                   \
         }                                                                                                       \
@@ -854,9 +809,6 @@ static int read_conf_io(container_t* container, config_file_t* file) {
         container->vr_ ## type = NULL;                                                                          \
         container->port_ ## type = NULL;                                                                        \
     }
-
-
-    unsigned long nb_links;
 
     READ_CONF_IO(reals64);
     READ_CONF_IO(reals32);
@@ -891,99 +843,70 @@ static int read_conf_io(container_t* container, config_file_t* file) {
  * 0
  */
 #define READER_FMU_IO(type, causality)                                                              \
-    if (get_line(file)) {                                                                           \
-        logger(LOGGER_ERROR, "Cannot get FMU description for '" #type "' (" #causality ")");        \
-        return -1;                                                                                  \
-    }                                                                                               \
-                                                                                                    \
     fmu_io-> type . causality .translations = NULL;                                                 \
                                                                                                     \
+    CONFIG_GETLINE;                                                                                 \
     if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) {                            \
-        logger(LOGGER_ERROR, "Cannot interpret FMU description for '" #type "' (" #causality ")");  \
+        CONFIG_ERROR("Cannot interpret FMU description for '" #type "' (" #causality ")");          \
         return -2;                                                                                  \
     }                                                                                               \
                                                                                                     \
     if (fmu_io-> type . causality .nb > 0) {                                                        \
-        fmu_io-> type . causality .translations = malloc(fmu_io-> type . causality .nb              \
-            * sizeof(*fmu_io-> type . causality .translations));                                    \
-        if (! fmu_io-> type . causality .translations) {                                            \
-            logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted.");                               \
-            return -3;                                                                              \
-        }                                                                                           \
+        CONFIG_ALLOC(fmu_io-> type . causality .translations, fmu_io-> type . causality .nb);       \
                                                                                                     \
         for(unsigned long i = 0; i < fmu_io-> type . causality .nb; i += 1) {                       \
-            if (get_line(file)) {                                                                   \
-                logger(LOGGER_ERROR, "Cannot get FMU I/O for '" #type "' (" #causality ")");        \
-                return -4;                                                                          \
-        }                                                                                           \
-                                                                                                    \
+            CONFIG_GETLINE;                                                                         \
             if (sscanf(file->line, "%u %u %u",                                                      \
                 &fmu_io-> type . causality .translations[i].vr,                                     \
                 &fmu_io-> type . causality .translations[i].dimension,                              \
                 &fmu_io-> type . causality .translations[i].fmu_vr) < 3) {                          \
-                logger(LOGGER_ERROR, "Cannot interpret FMU I/O for '" #type "' (" #causality ")");  \
+                CONFIG_ERROR("Cannot interpret FMU I/O for '" #type "' (" #causality ")");          \
                 return -5;                                                                          \
             }                                                                                       \
             fmu_io-> type . causality .translations[i].vr &= 0xFFFFFF;                              \
         }                                                                                           \
     }
 
-#define READER_FMU_CLOCKED_IO(type, causality)                                                                              \
-    if (get_line(file)) {                                                                                                   \
-        logger(LOGGER_ERROR, "Cannot get FMU description for 'clocked " #type "' (" #causality ")");                        \
-        return -1;                                                                                                          \
-    }                                                                                                                       \
-    fmu_io->clocked_ ## type . causality = NULL;                                                                            \
-                                                                                                                            \
-    if (sscanf(file->line, "%lu %lu",                                                                                       \
-               &fmu_io->clocked_ ## type .nb_ ## causality,                                                                 \
-               &nb_clocked) < 2) {                                                                                          \
-        logger(LOGGER_ERROR, "Cannot interpret FMU description for 'clocked " #type "' (" #causality ")");                  \
-        return -2;                                                                                                          \
-    }                                                                                                                       \
-                                                                                                                            \
-    if (fmu_io->clocked_ ## type .nb_ ## causality > 0) {                                                                   \
-        fmu_io->clocked_ ## type . causality  = malloc(fmu_io->clocked_ ## type .nb_ ## causality                           \
-            * sizeof(*fmu_io->clocked_ ## type . causality));                                                               \
-        if (! fmu_io->clocked_ ## type . causality) {                                                                       \
-            logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted.");                                                       \
-            return -3;                                                                                                      \
-        }                                                                                                                   \
-                                                                                                                            \
-        for(unsigned long i = 0; i < fmu_io->clocked_ ## type .nb_ ## causality; i += 1) {                                  \
-            if (get_line(file)) {                                                                                           \
-                logger(LOGGER_ERROR, "Cannot get FMU I/O for 'clocked " #type "' (" #causality ")");                        \
-                return -4;                                                                                                  \
-            }                                                                                                               \
-                                                                                                                            \
-            int offset = 0;                                                                                                 \
-            if (sscanf(file->line, "%u %ld%n",                                                                              \
-                &fmu_io->clocked_ ## type . causality [i].clock_vr,                                                         \
-                &fmu_io->clocked_ ## type . causality [i].translations_list.nb, &offset) < 2) {                             \
-                logger(LOGGER_ERROR, "Cannot interpret FMU I/O for 'clocked " #type "' (" #causality ")");                  \
-                return -5;                                                                                                  \
-            }                                                                                                               \
-            fmu_io->clocked_ ## type . causality [i].clock_vr &= 0xFFFFFF;                                                  \
-            fmu_io->clocked_ ## type . causality [i].translations_list.translations = malloc(                               \
-                fmu_io->clocked_ ## type . causality [i].translations_list.nb                                               \
-                    * sizeof(*fmu_io->clocked_ ## type . causality [i].translations_list.translations));                    \
-            if (!fmu_io->clocked_ ## type . causality [i].translations_list.translations) {                                 \
-                logger(LOGGER_ERROR, "Read FMU I/O: Memory exhauseted.");                                                   \
-                return -5;                                                                                                  \
-            }                                                                                                               \
-            for(unsigned long j = 0; j < fmu_io->clocked_ ## type . causality [i].translations_list.nb; j += 1) {           \
-                int read;                                                                                                   \
-                if (sscanf(file->line+offset, "%u %u %u%n",                                                                 \
-                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr,                         \
-                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].dimension,                  \
-                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].fmu_vr,                     \
-                    &read) < 3) {                                                                                           \
-                    logger(LOGGER_ERROR, "Cannot interpret details of FMU I/O for 'clocked " #type "' (" #causality ")");   \
-                }                                                                                                           \
-                offset += read;                                                                                             \
-                fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr &= 0xFFFFFF;                  \
-            }                                                                                                               \
-        }                                                                                                                   \
+#define READER_FMU_CLOCKED_IO(type, causality)                                                                      \
+    fmu_io->clocked_ ## type . causality = NULL;                                                                    \
+                                                                                                                    \
+    CONFIG_GETLINE;                                                                                                 \
+    if (sscanf(file->line, "%lu %lu",                                                                               \
+               &fmu_io->clocked_ ## type .nb_ ## causality,                                                         \
+               &nb_clocked) < 2) {                                                                                  \
+        CONFIG_ERROR("Cannot interpret FMU description for 'clocked " #type "' (" #causality ")");                  \
+        return -2;                                                                                                  \
+    }                                                                                                               \
+                                                                                                                    \
+    if (fmu_io->clocked_ ## type .nb_ ## causality > 0) {                                                           \
+        CONFIG_ALLOC(fmu_io->clocked_ ## type .causality, fmu_io->clocked_ ## type .nb_ ## causality);              \
+                                                                                                                    \
+        for(unsigned long i = 0; i < fmu_io->clocked_ ## type .nb_ ## causality; i += 1) {                          \
+            int offset = 0;                                                                                         \
+                                                                                                                    \
+            CONFIG_GETLINE;                                                                                         \
+            if (sscanf(file->line, "%u %ld%n",                                                                      \
+                &fmu_io->clocked_ ## type . causality [i].clock_vr,                                                 \
+                &fmu_io->clocked_ ## type . causality [i].translations_list.nb, &offset) < 2) {                     \
+                CONFIG_ERROR("Cannot interpret FMU I/O for 'clocked " #type "' (" #causality ")");                  \
+                return -5;                                                                                          \
+            }                                                                                                       \
+            fmu_io->clocked_ ## type . causality [i].clock_vr &= 0xFFFFFF;                                          \
+            CONFIG_ALLOC(fmu_io->clocked_ ## type . causality [i].translations_list.translations,                   \
+                         fmu_io->clocked_ ## type . causality [i].translations_list.nb);                            \
+            for(unsigned long j = 0; j < fmu_io->clocked_ ## type . causality [i].translations_list.nb; j += 1) {   \
+                int read;                                                                                           \
+                if (sscanf(file->line + offset, "%u %u %u%n",                                                       \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr,                 \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].dimension,          \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].fmu_vr,             \
+                    &read) < 3) {                                                                                   \
+                    CONFIG_ERROR("Cannot interpret details of FMU I/O for 'clocked " #type "' (" #causality ")");   \
+                }                                                                                                   \
+                offset += read;                                                                                     \
+                fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr &= 0xFFFFFF;          \
+            }                                                                                                       \
+        }                                                                                                           \
     }
 
 
@@ -991,8 +914,8 @@ static int read_conf_io(container_t* container, config_file_t* file) {
 static int read_conf_fmu_io_in(fmu_io_t* fmu_io, config_file_t* file) {
     unsigned long nb_clocked;
 
-#define READER_FMU_IN(type) \
-    READER_FMU_IO(type, in); \
+#define READER_FMU_IN(type)             \
+    READER_FMU_IO(type, in);            \
     READER_FMU_CLOCKED_IO(type, in)
 
     READER_FMU_IN(reals64);
@@ -1020,10 +943,9 @@ static int read_conf_fmu_io_in(fmu_io_t* fmu_io, config_file_t* file) {
 static int read_conf_fmu_io_out(fmu_io_t* fmu_io, config_file_t* file) {
     unsigned long nb_clocked;
 
-#define READER_FMU_OUT(type) \
-    READER_FMU_IO(type, out); \
+#define READER_FMU_OUT(type)            \
+    READER_FMU_IO(type, out);           \
     READER_FMU_CLOCKED_IO(type, out)
-
 
     READER_FMU_OUT(reals64);
     READER_FMU_OUT(reals32);
@@ -1096,30 +1018,22 @@ static char* string_token(char* buffer) {
 
 
 static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* file) {
-    if (get_line(file))
-        return -1;
-
     fmu_io->start_strings.start_values = NULL;
     fmu_io->start_strings.nb = 0;
     
-
+    CONFIG_GETLINE;
     if (sscanf(file->line, "%lu", &fmu_io->start_strings.nb) < 1)
         return -2;
                 
     if (fmu_io->start_strings.nb == 0)
         return 0;
-                    
-    fmu_io->start_strings.start_values = malloc(fmu_io->start_strings.nb * sizeof(*fmu_io->start_strings.start_values));
-    if (!fmu_io->start_strings.start_values)
-        return -3;
-                            
+    
+    CONFIG_ALLOC(fmu_io->start_strings.start_values, fmu_io->start_strings.nb);
     for (unsigned long i = 0; i < fmu_io->start_strings.nb; i += 1)
         fmu_io->start_strings.start_values[i].value = NULL; /* in case on ealry fmuFreeInstance() */
 
     for (unsigned long i = 0; i < fmu_io->start_strings.nb; i += 1) {
-        if (get_line(file))
-            return -4;
-    
+        CONFIG_GETLINE;
         char *value_string = string_token(file->line);
         unsigned int dimension;
 
@@ -1148,14 +1062,13 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
     fmu_io->start_ ## type .nb = 0;                                                                 \
                                                                                                     \
     CONFIG_GETLINE;                                                                                 \
-    if (sscanf(file->line, "%lu", &fmu_io->start_ ## type .nb) < 1)                                 \
+    if (sscanf(file->line, "%lu", &fmu_io->start_ ## type .nb) < 1) {                               \
+        CONFIG_ERROR("Cannot get number of start values.");                                         \
         return -2;                                                                                  \
+    }                                                                                               \
                                                                                                     \
     if (fmu_io->start_ ## type .nb > 0) {                                                           \
-        fmu_io->start_ ## type .start_values = malloc(fmu_io->start_ ## type .nb                    \
-            * sizeof(*fmu_io->start_ ## type .start_values));                                       \
-        if (! fmu_io->start_ ## type .start_values)                                                 \
-            return -3;                                                                              \
+        CONFIG_ALLOC(fmu_io->start_ ## type .start_values,fmu_io->start_ ## type .nb);              \
                                                                                                     \
         for (unsigned long i = 0; i < fmu_io->start_ ## type .nb; i += 1) {                         \
            CONFIG_GETLINE;                                                                          \
@@ -1164,8 +1077,10 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
              &fmu_io->start_ ## type .start_values[i].vr,                                           \
              &dimension,                                                                            \
              &fmu_io->start_ ## type .start_values[i].reset,                                        \
-             &fmu_io->start_ ## type .start_values[i].value) < 4)                                   \
+             &fmu_io->start_ ## type .start_values[i].value) < 4) {                                 \
+                CONFIG_ERROR("Cannot read %uth start value.", i);                                   \
                 return -5;                                                                          \
+             }                                                                                      \
         }                                                                                           \
     }
 
@@ -1199,19 +1114,15 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
 static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
     unsigned long nb;
 
-    if (get_line(file)) {
-        logger(LOGGER_ERROR, "Cannot read conversion table.");
-        return -1;
-    }
-
+    CONFIG_GETLINE;
     if (sscanf(file->line, "%lu", &nb) < 1) {
-        logger(LOGGER_ERROR, "Cannot get size of conversion table.");
+        CONFIG_ERROR("Cannot get size of conversion table.");
         return -2;
     }
 
     fmu->conversions = convert_new(nb);
     if (nb && !fmu->conversions) {
-        logger(LOGGER_ERROR, "Cannot allocate conversion table for %lu entries.", nb);
+        CONFIG_ERROR("Cannot allocate conversion table for %lu entries.", nb);
         return -3;
     }
 
@@ -1220,14 +1131,9 @@ static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
         fmu_vr_t from;
         fmu_vr_t to;
 
-        if (get_line(file)) {
-            logger(LOGGER_ERROR, "Cannot read conversion table entries.");
-            return -4;
-        }
-        
-
+        CONFIG_GETLINE;
         if (sscanf(file->line, "%u %u %n", &from, &to, &offset) < 2) {
-            logger(LOGGER_ERROR, "Cannot read conversion table entry %lu from '%s'", i, file->line);
+            CONFIG_ERROR("Cannot read conversion table entry %lu.", i);
             return -5;
         }
         fmu->conversions->entries[i].from = from & 0xFFFFFF;
@@ -1235,7 +1141,7 @@ static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
 
         fmu->conversions->entries[i].function = convert_function_get(file->line+offset);
         if (!fmu->conversions->entries[i].function) {
-            logger(LOGGER_ERROR, "Cannot configure conversion entry %lu from '%s'", i, file->line+offset);
+            CONFIG_ERROR("Cannot configure conversion entry %lu from '%s'", i, file->line+offset);
             return -6;
         }
     }
@@ -1263,50 +1169,32 @@ static int read_conf_fmu_io(fmu_t* fmu, config_file_t* file) {
 
 
 static int read_conf_clocks(container_t *container, config_file_t *file) {
-    if (get_line(file)) {
-        logger(LOGGER_ERROR, "Cannot clocks definitions.");
-        return -1;
-    }
-
+    CONFIG_GETLINE;
     if (sscanf(file->line, "%lu %lu", &container->clocks_list.nb_fmu, &container->clocks_list.nb_local_clocks) < 2) {
-        logger(LOGGER_ERROR, "Cannot get size of clocks defintions table.");
+        CONFIG_ERROR("Cannot get size of clocks defintions table.");
         return -2;
     }
     if (container->clocks_list.nb_fmu) {
-        container->clocks_list.counter =           malloc(container->clocks_list.nb_fmu          *  sizeof(*container->clocks_list.counter));
-        
-        container->clocks_list.buffer_qualifier =  malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.buffer_qualifier));
-        container->clocks_list.buffer_interval =   malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.buffer_interval));
-        container->clocks_list.fmu_vr =            malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.fmu_vr));
-        container->clocks_list.fmu_id =            malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.fmu_id));
-        container->clocks_list.next_clocks =       malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.next_clocks));
-        container->clocks_list.clock_index =       malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.clock_index));
-        container->clocks_list.buffer_previous =   malloc(container->clocks_list.nb_local_clocks * sizeof(*container->clocks_list.buffer_previous));
+        CONFIG_ALLOC(container->clocks_list.counter,            container->clocks_list.nb_fmu);
 
-        if (!container->clocks_list.counter || 
-            !container->clocks_list.buffer_qualifier ||
-            !container->clocks_list.buffer_interval ||
-            !container->clocks_list.fmu_vr ||
-            !container->clocks_list.fmu_id ||
-            !container->clocks_list.next_clocks ||
-            !container->clocks_list.clock_index) {
-            logger(LOGGER_ERROR, "Cannot allocat clock buffers.");
-            return -3;
-        }
+        CONFIG_ALLOC(container->clocks_list.buffer_qualifier,   container->clocks_list.nb_local_clocks);
+        CONFIG_ALLOC(container->clocks_list.buffer_interval,    container->clocks_list.nb_local_clocks);
+        CONFIG_ALLOC(container->clocks_list.fmu_vr,             container->clocks_list.nb_local_clocks);
+        CONFIG_ALLOC(container->clocks_list.fmu_id,             container->clocks_list.nb_local_clocks);
+        CONFIG_ALLOC(container->clocks_list.next_clocks,        container->clocks_list.nb_local_clocks);
+        CONFIG_ALLOC(container->clocks_list.clock_index,        container->clocks_list.nb_local_clocks);
+        CONFIG_ALLOC(container->clocks_list.buffer_previous,    container->clocks_list.nb_local_clocks);
 
         unsigned long pos = 0;
         for(unsigned long i = 0; i < container->clocks_list.nb_fmu; i += 1) {
             int offset;
 
-            if (get_line(file)) {
-                logger(LOGGER_ERROR, "Cannot read clock table entries.");
-                return -4;
-            }
+            CONFIG_GETLINE;
             if (sscanf(file->line, "%lu %lu %n",
                 &container->clocks_list.counter[i].fmu_id,
                 &container->clocks_list.counter[i].nb,
                 &offset) < 2) {
-                logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
+                CONFIG_ERROR("Cannot interpret %uth clock table entries.", i);
                 return -5;
             }
 
@@ -1317,7 +1205,7 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
                     &container->clocks_list.fmu_vr[pos],
                     &local_clock_index,
                     &read) < 2){
-                    logger(LOGGER_ERROR, "Cannot interpret clock table entries.");
+                    CONFIG_ERROR("Cannot interpret %u clock table entries value #%lu", i, j);
                     return -7;
                 }
                 offset += read;
