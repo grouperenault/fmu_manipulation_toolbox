@@ -2,15 +2,16 @@ import os.path
 import sys
 import textwrap
 
-from PySide6.QtCore import Qt, QUrl, QDir, Signal, QPoint, QModelIndex
+from PySide6.QtCore import Qt, QUrl, QDir, QModelIndex
 from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
                                QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView, QTabWidget, QTableView,
                                QCheckBox)
 from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
-                           QPainter, QColor, QImage, QStandardItemModel)
+                           QColor, QStandardItemModel)
 from functools import partial
 
 from fmu_manipulation_toolbox.gui.gui_style import gui_style, log_color
+from fmu_manipulation_toolbox.gui.dropfile import DropZoneWidget
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
@@ -22,89 +23,6 @@ from fmu_manipulation_toolbox.version import __version__ as version
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
-class DropZoneWidget(QLabel):
-    WIDTH = 150
-    HEIGHT = 150
-    fmu = None
-    last_directory = None
-    clicked = Signal()
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setAcceptDrops(True)
-        self.set_image(None)
-        self.setProperty("class", "dropped_fmu")
-        self.setFixedSize(self.WIDTH, self.HEIGHT)
-
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.accept()
-        else:
-            event.ignore()
-
-    def dragMoveEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.accept()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.setDropAction(Qt.DropAction.CopyAction)
-            try:
-                file_path = event.mimeData().urls()[0].toLocalFile()
-            except IndexError:
-                logger.error("Please select a regular file.")
-                return
-            self.set_fmu(file_path)
-            event.accept()
-        else:
-            event.ignore()
-
-    def mousePressEvent(self, event):
-        if self.last_directory:
-            default_directory = self.last_directory
-        else:
-            default_directory = os.path.expanduser('~')
-
-        fmu_filename, _ = QFileDialog.getOpenFileName(parent=self, caption='Select FMU to Manipulate',
-                                                      dir=default_directory, filter="FMU files (*.fmu)")
-        if fmu_filename:
-            self.set_fmu(fmu_filename)
-
-    def set_image(self, filename=None):
-        if not filename:
-            filename = os.path.join(os.path.dirname(__file__), "../resources", "drop_fmu.png")
-        elif not os.path.isfile(filename):
-            filename = os.path.join(os.path.dirname(__file__), "../resources", "fmu.png")
-
-        base_image = QImage(filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
-                                             Qt.TransformationMode.SmoothTransformation)
-        mask_filename = os.path.join(os.path.dirname(__file__), "../resources", "mask.png")
-        mask_image = QImage(mask_filename).scaled(self.WIDTH, self.HEIGHT, Qt.AspectRatioMode.IgnoreAspectRatio,
-                                                  Qt.TransformationMode.SmoothTransformation)
-        rounded_image = QImage(self.WIDTH, self.HEIGHT, QImage.Format.Format_ARGB32)
-        rounded_image.fill(QColor(0, 0, 0, 0))
-        painter = QPainter()
-        painter.begin(rounded_image)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.drawImage(QPoint(0, 0), base_image)
-        painter.drawImage(QPoint(0, 0), mask_image)
-        painter.end()
-        pixmap = QPixmap.fromImage(rounded_image)
-
-        self.setPixmap(pixmap)
-
-    def set_fmu(self, filename: str):
-        try:
-            self.last_directory = os.path.dirname(filename)
-            self.fmu = FMU(filename)
-            self.set_image(os.path.join(self.fmu.tmp_directory, "model.png"))
-        except Exception as e:
-            logger.error(f"Cannot load this FMU: {e}")
-            self.set_image(None)
-            self.fmu = None
-        self.clicked.emit()
 
 
 class LogHandler(logging.Handler):

@@ -9,7 +9,7 @@ import sys
 from enum import Enum
 from typing import List, Optional, Any, Dict
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Signal
+from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QTableView, QHeaderView,
@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QGridLayout,
 )
 
+from fmu_manipulation_toolbox.gui.dropfile import DropZoneWidget
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, FMUError, OperationAbstract
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -322,114 +323,6 @@ class UnitComboDelegate(QStyledItemDelegate):
     def updateEditorGeometry(self, editor, option, index):
         editor.setGeometry(option.rect)
 
-
-# ---------------------------------------------------------------------------
-#  Drop zone  (inspirée de gui.py DropZoneWidget)
-# ---------------------------------------------------------------------------
-
-class DropZoneWidget(QLabel):
-    """Zone de drag-and-drop / clic pour sélectionner un fichier .fmu."""
-
-    WIDTH = 150
-    HEIGHT = 150
-    fmu_loaded = Signal(object)  # émet l'objet FMU ou None
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.fmu = None
-        self.last_directory = None
-        self.setAcceptDrops(True)
-        self.setFixedSize(self.WIDTH, self.HEIGHT)
-        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setStyleSheet(
-            "QLabel {"
-            "  background-color: #e0e0e0;"
-            "  border: 3px dashed #aaaaaa;"
-            "  border-radius: 12px;"
-            "  color: #888888;"
-            "  font: bold 11pt;"
-            "}"
-            "QLabel:hover {"
-            "  background-color: #d0d0d0;"
-            "  border-color: #888888;"
-            "}"
-        )
-        self._set_placeholder()
-
-    # -- Affichage -------------------------------------------------------------
-
-    def _set_placeholder(self):
-        self.setText("Glisser un .fmu\nou cliquer ici")
-
-    def _set_image(self, filename: Optional[str] = None):
-        """Affiche la miniature du FMU ou le placeholder."""
-        resources = os.path.join(os.path.dirname(__file__), "..", "resources")
-
-        if filename and os.path.isfile(filename):
-            image_path = filename
-        elif filename:
-            image_path = os.path.join(resources, "fmu.png")
-        else:
-            self._set_placeholder()
-            return
-
-        if os.path.isfile(image_path):
-            pixmap = QPixmap(image_path).scaled(
-                self.WIDTH - 10, self.HEIGHT - 10,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            self.setPixmap(pixmap)
-        else:
-            self._set_placeholder()
-
-    # -- Événements drag & drop ------------------------------------------------
-
-    def dragEnterEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.accept()
-        else:
-            event.ignore()
-
-    def dragMoveEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.accept()
-        else:
-            event.ignore()
-
-    def dropEvent(self, event):
-        if event.mimeData().hasUrls():
-            event.setDropAction(Qt.DropAction.CopyAction)
-            try:
-                file_path = event.mimeData().urls()[0].toLocalFile()
-            except IndexError:
-                return
-            self._load_fmu(file_path)
-            event.accept()
-        else:
-            event.ignore()
-
-    def mousePressEvent(self, event):
-        default = self.last_directory or os.path.expanduser("~")
-        fmu_filename, _ = QFileDialog.getOpenFileName(
-            self, "Sélectionner un FMU", default, "FMU files (*.fmu)",
-        )
-        if fmu_filename:
-            self._load_fmu(fmu_filename)
-
-    # -- Chargement du FMU -----------------------------------------------------
-
-    def _load_fmu(self, filename: str):
-        try:
-            self.last_directory = os.path.dirname(filename)
-            self.fmu = FMU(filename)
-            model_png = os.path.join(self.fmu.tmp_directory, "model.png")
-            self._set_image(model_png)
-        except (FMUError, Exception) as e:
-            logger.error(f"Impossible de charger ce FMU : {e}")
-            self.fmu = None
-            self._set_image(None)
-        self.fmu_loaded.emit(self.fmu)
 
 
 # ---------------------------------------------------------------------------
