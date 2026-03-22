@@ -545,7 +545,7 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
     }
 
 #define CONFIG_ALLOC(ptr, nb_elem)                                          \
-    ptr = malloc(nb_elem * sizeof(*ptr));                                   \
+    ptr = calloc(nb_elem, sizeof(*ptr));                                    \
     if (! ptr) {                                                            \
         CONFIG_ERROR("Virtual memory exhaust. (" #ptr ")");                 \
         return -2;                                                          \
@@ -561,7 +561,7 @@ static int read_flags(container_t* container, config_file_t* file) {
 
     CONFIG_GETLINE;
     if (sscanf(file->line, "%d %d %d", &mt, &container->profiling, &sequential) < 3) {
-        CONFIG_ERROR("Cannot interpret container flags.");
+        CONFIG_ERROR("Cannot read container flags.");
         return -1;
     }
 
@@ -592,11 +592,11 @@ static int read_flags(container_t* container, config_file_t* file) {
 static int read_conf_time_step(container_t* container, config_file_t* file) {
     CONFIG_GETLINE;
     if (sscanf(file->line, "%le", &container->time_step) < 1) {
-        CONFIG_ERROR("Cannot interpret time_step.");
+        CONFIG_ERROR("Cannot read time_step.");
         return -1;
     }
 
-    logger(LOGGER_DEBUG, "Container time_step = %e", container->time_step);
+    logger(LOGGER_DEBUG, "Container time_step = %es", container->time_step);
 
     return 0;
 }
@@ -605,12 +605,12 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
 /*
  * # NB of embedded FMU's
  * 2
- * bb_position.fmu
- * bb_position
- * {8fbd9f16-ceaa-97ed-127f-987a60b25648}
- * bb_velocity.fmu
- * bb_velocity
- * {abf5f61d-b459-3641-3a2c-1e594b990280}
+ * scalar2array.fmu 3 1
+ * vec
+ * {121d828d-d4dd-3c76-8227-7be1b268a801}
+ * array2scalar.fmu 3 1
+ * array
+ * {e092864e-3b8e-7e1d-a4bf-ee0e4c648539}
  */
 static int read_conf_fmu(container_t *container, const char *dirname, config_file_t* file) {
     int nb_fmu;
@@ -621,7 +621,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         return -1;
     }
 
-    logger(LOGGER_DEBUG, "%d FMU's to be loaded", nb_fmu);
+    logger(LOGGER_DEBUG, "%d FMUs to be loaded.", nb_fmu);
     if (!nb_fmu) {
         container->fmu = NULL;
         return 0;
@@ -641,7 +641,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
             if (name[i] == ' ') {
                 name[i] = '\0';
                 if (sscanf(name+i+1, "%d %d", &fmi_version, &support_event) < 2) {
-                    CONFIG_ERROR("Cannot read FMU flags from %s", name+i+1);
+                    CONFIG_ERROR("Cannot read FMU flags from '%s'.", name + i + 1);
                     return -2;
                 }
                 break;
@@ -658,7 +658,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         free(identifier);
         free(name);
         if (status) {
-            CONFIG_ERROR("Cannot load from directory '%s' (status=%d)", directory, status);
+            CONFIG_ERROR("Cannot load FMU from directory '%s' (status=%d).", directory, status);
             free(container->fmu);
             container->fmu = NULL; /* to allow freeInstance on container */
             container->nb_fmu = 0;
@@ -673,8 +673,8 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
 
 
 /*
- * # NB local variables Real, Integer, Boolean, String
- * 1 0 1 0 
+ * # NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
+ * 3 0 0 0 0 0 1 0 0 0 0 0 0 0 0
  */
 static int read_conf_local(container_t* container, config_file_t* file) {
     CONFIG_GETLINE;
@@ -694,7 +694,7 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         &container->nb_local_strings,
         &container->nb_local_binaries,
         &container->nb_local_clocks) < 15) {
-            CONFIG_ERROR("Cannort read container I/O.");
+            CONFIG_ERROR("Cannot read number of local variables.");
         return -1;
     }
 
@@ -746,14 +746,14 @@ static int read_conf_local(container_t* container, config_file_t* file) {
  * # CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
  * # Real
  * 3 3
- * 1 1 0 1
- * 2 1 1 0
- * 0 1 -1 0
+ * 1 1 1 0 1
+ * 2 1 1 1 0
+ * 0 1 1 -1 0
  * # Integer
  * 0 0
  * # Boolean
  * 1 1
- * 0 1 -1 0
+ * 0 1 1 -1 0
  * # String
  * 0 0
  */
@@ -763,7 +763,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
 #define READ_CONF_IO(type)                                                                                      \
     CONFIG_GETLINE;                                                                                             \
     if (sscanf(file->line, "%lu %lu", &container->nb_ports_ ## type, &nb_links) < 2) {                          \
-        CONFIG_ERROR("Cannot read I/O " #type);                                                                 \
+        CONFIG_ERROR("Cannot read container I/O " #type ".");                                                   \
         return -1;                                                                                              \
     }                                                                                                           \
     if (container->nb_ports_ ## type > 0) {                                                                     \
@@ -778,7 +778,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                                                                                                                 \
             CONFIG_GETLINE;                                                                                     \
             if (sscanf(file->line, "%d %ld %ld%n", &vr, &port.dimension, &port.nb, &offset) < 3) {              \
-                CONFIG_ERROR("Cannot read I/O " #type " details.");                                             \
+                CONFIG_ERROR("Cannot read container I/O " #type " %uth details.", i);                           \
                 return -1;                                                                                      \
             }                                                                                                   \
             port.links = &container->vr_ ## type [vr_counter];                                                  \
@@ -791,7 +791,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                                                                                                                 \
                 if (sscanf(file->line+offset, " %ld %d%n", &container->vr_ ## type [vr_counter].fmu_id,         \
                            &container->vr_ ## type [vr_counter].fmu_vr, &read) < 2) {                           \
-                    CONFIG_ERROR("Cannot read I/O " #type " link details.");                                    \
+                    CONFIG_ERROR("Cannot read container I/O " #type " link details.");                          \
                     return -1;                                                                                  \
                 }                                                                                               \
                 offset += read;                                                                                 \
@@ -801,7 +801,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             if (vr < container->nb_ports_ ## type)                                                              \
                 container->port_ ## type[vr] = port;                                                            \
             else {                                                                                              \
-                CONFIG_ERROR("Cannot read I/O " #type ": too many links.");                                     \
+                CONFIG_ERROR("Cannot read container I/O " #type ": too many links.");                           \
                 return -8;                                                                                      \
             }                                                                                                   \
         }                                                                                                       \
@@ -833,21 +833,22 @@ static int read_conf_io(container_t* container, config_file_t* file) {
 
 
 /*
- * # Inputs of bb_position.fmu - Real: <VR> <FMU_VR>
+ * # Inputs of array2scalar.fmu - real64: <VR> <DIM> <FMU_VR>
  * 1
- * 0 0
+ * 1 2 0
  *
  * or
  * 
- * # Outputs of bb_position.fmu - Real: <VR> <DIM> <FMU_VR>
- * 0
+ * # Outputs of scalar2array.fmu - real64: <VR> <DIM> <FMU_VR>
+ * 1
+ * 1 2 1
  */
 #define READER_FMU_IO(type, causality)                                                              \
     fmu_io-> type . causality .translations = NULL;                                                 \
                                                                                                     \
     CONFIG_GETLINE;                                                                                 \
     if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) {                            \
-        CONFIG_ERROR("Cannot interpret FMU description for '" #type "' (" #causality ")");          \
+        CONFIG_ERROR("Cannot read FMU I/O number'" #type "' (" #causality ").");                    \
         return -2;                                                                                  \
     }                                                                                               \
                                                                                                     \
@@ -860,7 +861,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                 &fmu_io-> type . causality .translations[i].vr,                                     \
                 &fmu_io-> type . causality .translations[i].dimension,                              \
                 &fmu_io-> type . causality .translations[i].fmu_vr) < 3) {                          \
-                CONFIG_ERROR("Cannot interpret FMU I/O for '" #type "' (" #causality ")");          \
+                CONFIG_ERROR("Cannot read FMU %uth I/O for '" #type "' (" #causality ").", i);      \
                 return -5;                                                                          \
             }                                                                                       \
             fmu_io-> type . causality .translations[i].vr &= 0xFFFFFF;                              \
@@ -874,7 +875,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
     if (sscanf(file->line, "%lu %lu",                                                                               \
                &fmu_io->clocked_ ## type .nb_ ## causality,                                                         \
                &nb_clocked) < 2) {                                                                                  \
-        CONFIG_ERROR("Cannot interpret FMU description for 'clocked " #type "' (" #causality ")");                  \
+        CONFIG_ERROR("Cannot read FMU clocked I/O for '" #type "' (" #causality ").");                              \
         return -2;                                                                                                  \
     }                                                                                                               \
                                                                                                                     \
@@ -888,7 +889,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             if (sscanf(file->line, "%u %ld%n",                                                                      \
                 &fmu_io->clocked_ ## type . causality [i].clock_vr,                                                 \
                 &fmu_io->clocked_ ## type . causality [i].translations_list.nb, &offset) < 2) {                     \
-                CONFIG_ERROR("Cannot interpret FMU I/O for 'clocked " #type "' (" #causality ")");                  \
+                CONFIG_ERROR("Cannot read FMU %uth clocked I/O for '" #type "' (" #causality ").", i);              \
                 return -5;                                                                                          \
             }                                                                                                       \
             fmu_io->clocked_ ## type . causality [i].clock_vr &= 0xFFFFFF;                                          \
@@ -901,7 +902,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                     &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].dimension,          \
                     &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].fmu_vr,             \
                     &read) < 3) {                                                                                   \
-                    CONFIG_ERROR("Cannot interpret details of FMU I/O for 'clocked " #type "' (" #causality ")");   \
+                    CONFIG_ERROR("Cannot interpret FMU %uth clocked I/O for '" #type "' (" #causality ").", i);     \
                 }                                                                                                   \
                 offset += read;                                                                                     \
                 fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr &= 0xFFFFFF;          \
@@ -994,7 +995,7 @@ static int read_conf_fmu_start_values_booleans1(fmu_io_t* fmu_io, config_file_t*
             &dimension,
             &fmu_io->start_booleans1.start_values[i].reset,
             &boolean) < 4) {
-                CONFIG_ERROR("Cannot decode start value");
+                CONFIG_ERROR("Cannot decode start value.");
                 return -5;
         }
         fmu_io->start_booleans1.start_values[i].value = boolean;
@@ -1051,7 +1052,7 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
 
 
 /*
- * # Start values of bb_velocity.fmu - Real: <FMU_VR> <RESET> <VALUE>
+ * # Start values of bb_velocity.fmu - Real: <FMU_VR> <DIM> <RESET> <VALUE> [, <VALUE>]
  * 0
  */
 static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
@@ -1063,7 +1064,7 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
                                                                                                     \
     CONFIG_GETLINE;                                                                                 \
     if (sscanf(file->line, "%lu", &fmu_io->start_ ## type .nb) < 1) {                               \
-        CONFIG_ERROR("Cannot get number of start values.");                                         \
+        CONFIG_ERROR("Cannot read number of start values.");                                        \
         return -2;                                                                                  \
     }                                                                                               \
                                                                                                     \
@@ -1116,7 +1117,7 @@ static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
 
     CONFIG_GETLINE;
     if (sscanf(file->line, "%lu", &nb) < 1) {
-        CONFIG_ERROR("Cannot get size of conversion table.");
+        CONFIG_ERROR("Cannot read size of conversion table.");
         return -2;
     }
 
@@ -1133,7 +1134,7 @@ static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
 
         CONFIG_GETLINE;
         if (sscanf(file->line, "%u %u %n", &from, &to, &offset) < 2) {
-            CONFIG_ERROR("Cannot read conversion table entry %lu.", i);
+            CONFIG_ERROR("Cannot read conversion table %luth entry.", i);
             return -5;
         }
         fmu->conversions->entries[i].from = from & 0xFFFFFF;
@@ -1141,7 +1142,7 @@ static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
 
         fmu->conversions->entries[i].function = convert_function_get(file->line+offset);
         if (!fmu->conversions->entries[i].function) {
-            CONFIG_ERROR("Cannot configure conversion entry %lu from '%s'", i, file->line+offset);
+            CONFIG_ERROR("Cannot configure conversion %luth entry from '%s'", i, file->line+offset);
             return -6;
         }
     }
@@ -1194,7 +1195,7 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
                 &container->clocks_list.counter[i].fmu_id,
                 &container->clocks_list.counter[i].nb,
                 &offset) < 2) {
-                CONFIG_ERROR("Cannot interpret %uth clock table entries.", i);
+                CONFIG_ERROR("Cannot interpret %luth clock table entries.", i);
                 return -5;
             }
 
@@ -1205,7 +1206,7 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
                     &container->clocks_list.fmu_vr[pos],
                     &local_clock_index,
                     &read) < 2){
-                    CONFIG_ERROR("Cannot interpret %u clock table entries value #%lu", i, j);
+                    CONFIG_ERROR("Cannot interpret %luth clock table entries value #%lu", i, j);
                     return -7;
                 }
                 offset += read;
