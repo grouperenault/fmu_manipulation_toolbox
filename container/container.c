@@ -535,7 +535,22 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                  R E A D   C O N F I G U R A T I O N
 ----------------------------------------------------------------------------*/
 
-#define CONFIG_ERROR(message, ...) config_file_error(file, __LINE__, message, __VA_ARGS__) 
+#define CONFIG_ERROR(message, ...)                                  \
+    config_file_error(file, __LINE__, message, __VA_ARGS__) 
+
+#define CONFIG_GETLINE                                              \
+    if (get_line(file)) {                                           \
+        CONFIG_ERROR("Cannot read config data.");                   \
+        return -1;                                                  \
+    }
+
+#define CONFIG_ALLOC(ptr, nb_elem)                                  \
+    ptr = malloc(nb_elem * sizeof(*ptr));                           \
+    if (! ptr) {                                                    \
+        CONFIG_ERROR("Virtual memory exhaust. (" #ptr ")");         \
+        return -2;                                                  \
+    }
+
 
 /*
  * # Container flags <MT> <Profiling> <Sequential>
@@ -1035,30 +1050,31 @@ static int read_conf_fmu_io_out(fmu_io_t* fmu_io, config_file_t* file) {
 
 static int read_conf_fmu_start_values_booleans1(fmu_io_t* fmu_io, config_file_t* file) {
 
-    if (get_line(file))
-        return -1;
-
     fmu_io->start_booleans1.start_values = NULL;
     fmu_io->start_booleans1.nb = 0;
-    
 
+    CONFIG_GETLINE;    
     if (sscanf(file->line, "%lu", &fmu_io->start_booleans1.nb) < 1)
         return -2;
                 
     if (fmu_io->start_booleans1.nb == 0)
         return 0;
-                    
-    fmu_io->start_booleans1.start_values = malloc(fmu_io->start_booleans1.nb * sizeof(*fmu_io->start_booleans1.start_values));
-    if (!fmu_io->start_booleans1.start_values)
-        return -3;
-
+    
+    CONFIG_ALLOC(fmu_io->start_booleans1.start_values, fmu_io->start_booleans1.nb);
+ 
     for (unsigned long i = 0; i < fmu_io->start_booleans1.nb; i += 1) {
-        if (get_line(file))
-            return -4;
         int boolean;
+        int dimension;
 
-        if (sscanf(file->line, "%u %d %d", &fmu_io->start_booleans1.start_values[i].vr, &fmu_io->start_booleans1.start_values[i].reset, &boolean) < 3)
-            return -5;
+        CONFIG_GETLINE;
+        if (sscanf(file->line, "%u %u %d %d",
+            &fmu_io->start_booleans1.start_values[i].vr,
+            &dimension,
+            &fmu_io->start_booleans1.start_values[i].reset,
+            &boolean) < 4) {
+                CONFIG_ERROR("Cannot decode start value");
+                return -5;
+        }
         fmu_io->start_booleans1.start_values[i].value = boolean;
     }
 
@@ -1077,34 +1093,6 @@ static char* string_token(char* buffer) {
     }
     return buffer + len;
 }
-
-
-#define READER_FMU_START_VALUES(type, format) \
-    if (get_line(file)) \
-        return -1; \
-\
-    fmu_io->start_ ## type .start_values = NULL; \
-    fmu_io->start_ ## type .nb = 0; \
-\
-    if (sscanf(file->line, "%lu", &fmu_io->start_ ## type .nb) < 1) \
-        return -2; \
-\
-    if (fmu_io->start_ ## type .nb > 0) { \
-        fmu_io->start_ ## type .start_values = malloc(fmu_io->start_ ## type .nb * sizeof(*fmu_io->start_ ## type .start_values)); \
-        if (! fmu_io->start_ ## type .start_values) \
-            return -3; \
-\
-        for (unsigned long i = 0; i < fmu_io->start_ ## type .nb; i += 1) { \
-            if (get_line(file)) \
-                return -4; \
-\
-           if (sscanf(file->line, "%u %d " format, \
-             &fmu_io->start_ ## type .start_values[i].vr, \
-             &fmu_io->start_ ## type .start_values[i].reset, \
-             &fmu_io->start_ ## type .start_values[i].value) < 3) \
-                return -5; \
-        } \
-    }
 
 
 static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* file) {
@@ -1133,7 +1121,12 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
             return -4;
     
         char *value_string = string_token(file->line);
-        if (sscanf(file->line, "%u %d", &fmu_io->start_strings.start_values[i].vr, &fmu_io->start_strings.start_values[i].reset) < 2) {
+        unsigned int dimension;
+
+        if (sscanf(file->line, "%u %u %d", 
+            &fmu_io->start_strings.start_values[i].vr, 
+            &dimension, 
+            &fmu_io->start_strings.start_values[i].reset) < 3) {
             return -5;
         }
         fmu_io->start_strings.start_values[i].value = strdup(value_string);
@@ -1148,6 +1141,34 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
  * 0
  */
 static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
+    int status;
+    
+#define READER_FMU_START_VALUES(type, format)                                                       \
+    fmu_io->start_ ## type .start_values = NULL;                                                    \
+    fmu_io->start_ ## type .nb = 0;                                                                 \
+                                                                                                    \
+    CONFIG_GETLINE;                                                                                 \
+    if (sscanf(file->line, "%lu", &fmu_io->start_ ## type .nb) < 1)                                 \
+        return -2;                                                                                  \
+                                                                                                    \
+    if (fmu_io->start_ ## type .nb > 0) {                                                           \
+        fmu_io->start_ ## type .start_values = malloc(fmu_io->start_ ## type .nb                    \
+            * sizeof(*fmu_io->start_ ## type .start_values));                                       \
+        if (! fmu_io->start_ ## type .start_values)                                                 \
+            return -3;                                                                              \
+                                                                                                    \
+        for (unsigned long i = 0; i < fmu_io->start_ ## type .nb; i += 1) {                         \
+           CONFIG_GETLINE;                                                                          \
+           unsigned int dimension;                                                                  \
+           if (sscanf(file->line, "%u %u %d " format,                                               \
+             &fmu_io->start_ ## type .start_values[i].vr,                                           \
+             &dimension,                                                                            \
+             &fmu_io->start_ ## type .start_values[i].reset,                                        \
+             &fmu_io->start_ ## type .start_values[i].value) < 4)                                   \
+                return -5;                                                                          \
+        }                                                                                           \
+    }
+
     READER_FMU_START_VALUES(reals64,     "%lf");
     READER_FMU_START_VALUES(reals32,     "%f");
     READER_FMU_START_VALUES(integers8,   "%" SCNd8);
@@ -1160,7 +1181,7 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
     READER_FMU_START_VALUES(uintegers64, "%" SCNu64);
     READER_FMU_START_VALUES(booleans,    "%d");
 
-    int status;
+#undef READER_FMU_START_VALUES
 
     status = read_conf_fmu_start_values_booleans1(fmu_io, file);
     if (status)
