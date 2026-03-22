@@ -120,6 +120,37 @@ if os.name == 'nt':
     QTabBar::tab:top:first, QTabBar::tab:bottom:first {
         margin-left: 0;
     }
+    QLabel.caption {
+        color: #888888;
+        font: bold;
+    }
+    QLabel.info {
+        color: #999999;
+    }
+    QTableView {
+        background-color: #282830;
+        color: #b5bab9;
+        gridline-color: #3a3a44;
+        selection-background-color: #4571a4;
+        selection-color: #ffffff;
+        alternate-background-color: #35353d;
+    }
+    QHeaderView::section {
+        background-color: #3a3a44;
+        color: #dddddd;
+        padding: 4px;
+        border: 1px solid #282830;
+    }
+    QLineEdit {
+        background-color: #282830;
+        color: #b5bab9;
+        border: 1px solid #3a3a44;
+        border-radius: 3px;
+        padding: 2px 4px;
+    }
+    QLineEdit:focus {
+        border: 1px solid #4571a4;
+    }
     """
 else:
     gui_style = """
@@ -240,6 +271,37 @@ else:
     }
     QTabBar::tab:top:first, QTabBar::tab:bottom:first {
         margin-left: 0;
+    }
+    QLabel.caption {
+        color: #888888;
+        font: bold;
+    }
+    QLabel.info {
+        color: #999999;
+    }
+    QTableView {
+        background-color: #282830;
+        color: #b5bab9;
+        gridline-color: #3a3a44;
+        selection-background-color: #4571a4;
+        selection-color: #ffffff;
+        alternate-background-color: #35353d;
+    }
+    QHeaderView::section {
+        background-color: #3a3a44;
+        color: #dddddd;
+        padding: 4px;
+        border: 1px solid #282830;
+    }
+    QLineEdit {
+        background-color: #282830;
+        color: #b5bab9;
+        border: 1px solid #3a3a44;
+        border-radius: 3px;
+        padding: 2px 4px;
+    }
+    QLineEdit:focus {
+        border: 1px solid #4571a4;
     }
     """
 

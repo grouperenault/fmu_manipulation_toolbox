@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from fmu_manipulation_toolbox.gui.dropfile import DropZoneWidget
+from fmu_manipulation_toolbox.gui.gui_style import gui_style
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, FMUError, OperationAbstract
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -341,16 +342,16 @@ class MainWindow(QMainWindow):
 
         # Infos FMU (lecture seule)
         self._fmu_title = QLabel()
-        self._fmu_title.setStyleSheet("font: bold 14pt;")
+        self._fmu_title.setProperty("class", "title")
 
         self._generation_tool_label = QLabel()
-        self._generation_tool_label.setStyleSheet("color: #555555;")
+        self._generation_tool_label.setProperty("class", "info")
 
         self._generation_date_label = QLabel()
-        self._generation_date_label.setStyleSheet("color: #555555;")
+        self._generation_date_label.setProperty("class", "info")
 
         self._info_label = QLabel()
-        self._info_label.setStyleSheet("color: #666666;")
+        self._info_label.setProperty("class", "info")
 
         # DefaultExperiment (éditable)
         self._start_time_edit = QLineEdit()
@@ -387,10 +388,12 @@ class MainWindow(QMainWindow):
 
         # --- Boutons ---
         self._save_button = QPushButton("Sauvegarder sous…")
+        self._save_button.setProperty("class", "save")
         self._save_button.setEnabled(False)
         self._save_button.clicked.connect(self._save_fmu_as)
 
         self._quit_button = QPushButton("Quitter")
+        self._quit_button.setProperty("class", "quit")
         self._quit_button.clicked.connect(self.close)
 
         # --- Layout ---
@@ -408,23 +411,23 @@ class MainWindow(QMainWindow):
 
         # Ligne 1 : outil de génération + date
         tool_caption = QLabel("Outil :")
-        tool_caption.setStyleSheet("color: #888888; font: bold;")
+        tool_caption.setProperty("class", "caption")
         info_grid.addWidget(tool_caption, 1, 0)
         info_grid.addWidget(self._generation_tool_label, 1, 1)
 
         date_caption = QLabel("Date :")
-        date_caption.setStyleSheet("color: #888888; font: bold;")
+        date_caption.setProperty("class", "caption")
         info_grid.addWidget(date_caption, 1, 2)
         info_grid.addWidget(self._generation_date_label, 1, 3)
 
         # Ligne 2 : startTime / stopTime
         start_caption = QLabel("Start time :")
-        start_caption.setStyleSheet("color: #888888; font: bold;")
+        start_caption.setProperty("class", "caption")
         info_grid.addWidget(start_caption, 2, 0)
         info_grid.addWidget(self._start_time_edit, 2, 1)
 
         stop_caption = QLabel("Stop time :")
-        stop_caption.setStyleSheet("color: #888888; font: bold;")
+        stop_caption.setProperty("class", "caption")
         info_grid.addWidget(stop_caption, 2, 2)
         info_grid.addWidget(self._stop_time_edit, 2, 3)
 
@@ -542,7 +545,18 @@ class MainWindow(QMainWindow):
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    from PySide6.QtCore import QDir
+    from PySide6.QtGui import QIcon
+
     app = QApplication(sys.argv)
+    QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "../resources"))
+    app.setStyleSheet(gui_style)
+
+    if os.name == 'nt':
+        app.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'icon-round.png')))
+    else:
+        app.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'icon.png')))
+
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
