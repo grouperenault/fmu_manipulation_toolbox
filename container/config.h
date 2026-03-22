@@ -16,6 +16,10 @@ extern "C" {
 #   define STRLCAT(dst, src, len)   strncat(dst, src, len-strlen(dst)-1); dst[len-1] = '\0'
 #endif
 
+#ifdef WIN32
+#   define __attribute__(x)
+#endif
+
 
 /*----------------------------------------------------------------------------
                         C O N F I G _ F I L E _ T
