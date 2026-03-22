@@ -17,11 +17,11 @@ This guide walks you through installing **FMU Manipulation Toolbox** on your sys
 
 ### Optional Dependencies (for compilation from source)
 
-- **C Compiler** compatible with C99 or later
-  - Windows: Visual Studio 2019+ or MinGW
-  - Linux: GCC 9+ or Clang
-  - macOS: Xcode Command Line Tools
-- **CMake 3.20 or higher**
+- **C Compiler** with C23 support (for the container) or C99 (for remoting)
+  - Windows: Visual Studio 2022+ or MinGW
+  - Linux: GCC 13+ or Clang 16+
+  - macOS: Xcode Command Line Tools (with recent Clang)
+- **CMake 3.21 or higher**
 
 ## Method 1: Installation via PyPI (Recommended)
 
@@ -101,8 +101,8 @@ coverage-badge >= 1.1.2
 
 ### Step 3: Compile C Components
 
-Two native components are written in C and should be compiled. You will need a C99 aware compiler. For the remoting
-code the compiler should be able to produce 64bits and 32bits objects.
+Two native components are written in C and should be compiled. The container requires a C23 compatible compiler, while the remoting
+code requires a C99 compatible compiler that should be able to produce 64-bit and 32-bit objects.
 
 
 #### Container code

@@ -11,8 +11,8 @@
 ## Table of Contents
 
 - [Overview](#-overview)
-- [Installation](#%EF%B8%8F-installation)
-- [Graphical User Interface](#%EF%B8%8F-graphical-user-interface)
+- [Installation](#-installation)
+- [Graphical User Interface](#-graphical-user-interface)
 - [Command Line Interface](#-command-line-interface)
 - [API](#-api)
 - [Project Architecture](#-project-architecture)
@@ -51,8 +51,8 @@ Two options available to install FMU Manipulation Toolbox:
   version of FMU Manipulation Toolbox and all its dependencies. See [PyPI page](https://pypi.org/project/fmu-manipulation-toolbox/).
 - Compile and install from [GitHub repository](https://github.com/grouperenault/fmu_manipulation_toolbox). You will need 
   - Python required packages. See [`requirements.txt`](requirements.txt).
-  - C compiler (C99 or later)
-  - CMake (>= 3.20)
+  - C compiler with C23 support (for the container) or C99 (for remoting)
+  - CMake ≥ 3.21
 
 
 ### Supported platforms
@@ -215,7 +215,7 @@ docs/                          # Documentation source (MkDocs Material)
 
 Key design points:
 - **Pure Python manipulation**: analyzing and altering FMUs is done entirely in Python — no compilation required.
-- **Native C code**: the FMU Container runtime and the Remoting feature are implemented in C (C99). These are compiled with CMake and shipped as pre-built binaries in `resources/`.
+- **Native C code**: the FMU Container runtime is implemented in C (C23) and the Remoting feature in C (C99). These are compiled with CMake and shipped as pre-built binaries in `resources/`.
 - **FMI 2.0 & 3.0**: both FMI standards are supported across all features.
 
 
@@ -224,8 +224,8 @@ Key design points:
 ### Prerequisites
 
 - Python ≥ 3.9
-- C compiler (C99 or later) — only needed for building the container/remoting binaries
-- CMake ≥ 3.20 — only needed for building the C code
+- C compiler with C23 support (for the container) or C99 (for remoting) — only needed for building the container/remoting binaries
+- CMake ≥ 3.21 — only needed for building the C code
 
 ### Setup
 
