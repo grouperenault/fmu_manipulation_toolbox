@@ -264,9 +264,15 @@ class FMUSplitterDescription:
                 tokens = self.get_line(file).split(" ")
                 if len(tokens) > 3:
                     container_vr = int(tokens[0])
-                    for j in range(int(tokens[1])):
-                        fmu_id = int(tokens[2 + 2 * j])
-                        fmu_vr = int(tokens[2 + 2 * j + 1])
+                    if int(tokens[1]) * 2 + 1 == len(tokens):
+                        nb = int(tokens[1])
+                        offset = 0
+                    else:
+                        nb = int(tokens[2])
+                        offset = 1
+                    for j in range(nb):
+                        fmu_id = int(tokens[2 + offset + 2 * j])
+                        fmu_vr = int(tokens[2 + offset + 2 * j + 1])
                         self.add_port(fmi_type, fmu_id, fmu_vr, container_vr)
                 else:  # For FMUContainer <= 1.8.4
                     container_vr = int(tokens[0])
@@ -300,7 +306,7 @@ class FMUSplitterDescription:
                     logger.debug(f"INPUT of {fmu_filename} {fmi_type} : {nb_input}")
 
                     for i in range(nb_input):
-                        local, vr = self.get_line(file).split(" ")
+                        local, dim, vr = self.get_line(file).split(" ")
                         try:
                             link = self.links[fmi_type][local]
                         except KeyError:
@@ -324,7 +330,8 @@ class FMUSplitterDescription:
                                                                 self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]))
 
                 for fmi_type in self.supported_fmi_types[:-2]:
-                    nb_start = int(self.get_line(file))
+                    nb_start_as_string = self.get_line(file).split(" ")[0]
+                    nb_start = int(nb_start_as_string)
                     logger.debug(f"nb start for {fmu_filename} {fmi_type} : {nb_start}")
                     for i in range(nb_start):
                         tokens = self.get_line(file).split(" ")
@@ -344,7 +351,7 @@ class FMUSplitterDescription:
                     logger.debug(f"OUTPUT of {fmu_filename} {fmi_type} : {nb_output}")
 
                     for i in range(nb_output):
-                        local, vr = self.get_line(file).split(" ")
+                        local, dim, vr = self.get_line(file).split(" ")
                         try:
                             link = self.links[fmi_type][local]
                         except KeyError:

@@ -5,7 +5,7 @@
 extern "C" {
 #	endif
 
-
+#include "config.h"
 #include "fmu.h"
 
 #define LOGGER_DEBUG        0   /* fmi2OK or fmi3OK */
@@ -32,12 +32,12 @@ extern void logger_init(fmu_version_t version, logger_function_t callback,
                         const char *instance_name, int debug);
 extern void logger_set_debug(int debug);
 extern int logger_get_debug(void);
-extern void logger(int status, const char *message, ...);
+extern void logger(int status, const char *message, ...) __attribute__((__format__(__printf__, 2, 3)));
 extern void logger_embedded_fmu2(void *fmu, fmi2String instanceName,
-                                 fmi2Status status, fmi2String category, fmi2String message, ...);
+                                 fmi2Status status, fmi2String category, fmi2String message, ...) __attribute__((__format__(__printf__, 5, 6)));
 extern void logger_embedded_fmu3(void *fmu,
                                  fmi3Status status, fmi3String category, fmi3String message);
-                                 
+
 #	ifdef __cplusplus
 }
 #	endif

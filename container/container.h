@@ -25,7 +25,8 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 typedef struct {
-    unsigned long               nb;	 /* number of connected FMU from a container port */
+	unsigned long				dimension; /* dimension of variable */
+	unsigned long               nb;	 /* number of connected FMU from a container port */
     container_vr_t              *links;
 } container_port_t;
 
@@ -37,7 +38,6 @@ typedef struct {
 typedef struct {
 	unsigned long				fmu_id;
 	unsigned long				nb;
-
 } container_clock_counter_t;
 
 typedef struct {
@@ -76,6 +76,15 @@ typedef struct {
 typedef fmu_status_t (*container_do_step_function_t)(struct container_s *container);
 
 
+typedef enum {
+	CONTAINER_STATE_INSTANTIATED,
+    CONTAINER_STATE_INITIALIZATION_MODE,
+    CONTAINER_STATE_CONFIGURATION_MODE,
+    CONTAINER_STATE_STEP_MODE,
+    CONTAINER_STATE_EVENT_MODE,
+    CONTAINER_STATE_TERMINATED
+} container_state_t;
+
 /*----------------------------------------------------------------------------
                             C O N T A I N E R _ T
 ----------------------------------------------------------------------------*/
@@ -87,10 +96,11 @@ typedef struct container_s {
 	fmu_t						*fmu;		/* embedded FMUs */
 	char						*instance_name;
 	char						*uuid;
+	container_state_t			state;		/* managed in fmi2.c and fmi3.c */
 
 	/* storage of local variables (conveyed from one FMU to an other) */
-#define DECLARE_LOCAL(name, type) \
-	unsigned long				nb_local_ ## name; \
+#define DECLARE_LOCAL(name, type) 					\
+	unsigned long				nb_local_ ## name;	\
 	type						* name
 
 	DECLARE_LOCAL(reals64, double);
@@ -106,13 +116,18 @@ typedef struct container_s {
 	DECLARE_LOCAL(booleans, int);
 	DECLARE_LOCAL(booleans1, bool);
 	DECLARE_LOCAL(strings, char *);
-	DECLARE_LOCAL(binaries, fmu_binary_t);
+	DECLARE_LOCAL(binaries, fmu_binary_t);	
 	DECLARE_LOCAL(clocks, bool);
+
+	const uint8_t 				**binaries_tmp;
+	size_t 						*binaries_size_tmp;
+	const char					**strings_tmp;
+
 #undef DECLARE_LOCAL
 
 	/* container ports definition */
-#define DECLARE_PORT(type) \
-    unsigned long	   			nb_ports_ ## type; \
+#define DECLARE_PORT(type)							\
+    unsigned long	   			nb_ports_ ## type;	\
     container_vr_t				*vr_ ## type; /* used as buffer to optimize malloc() operations */ \
     container_port_t            *port_ ## type
 
@@ -142,9 +157,9 @@ typedef struct container_s {
 	long long					nb_steps;				/* incremental counter */
 	double						start_time;				/* used for initialization */
 	double						time;					/* used internally during simulation */
-	int							stop_time_defined;	
+	bool						stop_time_defined;	
 	double						stop_time;				/* used for initialization */
-	int							tolerance_defined;
+	bool						tolerance_defined;
 	double						tolerance;				/* used for comparisons */
 	container_clock_list_t		clocks_list;
 	bool						need_event_update;
@@ -164,9 +179,11 @@ extern container_t *container_new(const char *instance_name, const char *fmu_uui
 extern int container_configure(container_t* container, const char* dirname);
 extern void container_free(container_t *container);
 
-extern void container_set_start_values(container_t* container, int early_set);
+fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
+                                        double startTime, bool stopTimeDefined, double stopTime);
+extern fmu_status_t container_enter_initialization_mode(container_t* container);
 extern fmu_status_t container_exit_initialization_mode(container_t* container);
-extern fmu_status_t container_update_discrete_state(container_t *container);
+extern fmu_status_t container_enter_event_mode(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);
 

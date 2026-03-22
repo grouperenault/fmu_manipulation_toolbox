@@ -16,6 +16,11 @@ extern "C" {
 #   define STRLCAT(dst, src, len)   strncat(dst, src, len-strlen(dst)-1); dst[len-1] = '\0'
 #endif
 
+#ifdef WIN32
+#   define __attribute__(x)
+#endif
+
+
 /*----------------------------------------------------------------------------
                         C O N F I G _ F I L E _ T
 ----------------------------------------------------------------------------*/
@@ -23,6 +28,7 @@ extern "C" {
 typedef struct {
 	FILE						*fp;
 	char						line[CONFIG_FILE_SZ];
+    unsigned int                line_number;
 } config_file_t;
 
 
@@ -33,6 +39,7 @@ typedef struct {
 int get_line(config_file_t* config_file);
 extern int config_file_open(config_file_t* config_file, const char *dirname, const char *filename);
 extern void config_file_close(config_file_t* config_file);
+extern void config_file_error(config_file_t *config_file, unsigned int code_line_number, const char *message, ...) __attribute__((__format__(__printf__, 3, 4)));
 
 #	ifdef __cplusplus
 }

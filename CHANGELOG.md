@@ -1,7 +1,8 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
-# Version 1.9.3
+# Version 1.9.3 (dev)
+* ADDED: Support of array variables
 * CHANGE: refactor the documentation
 * FIXED: `remoting` (rare) race condition when multiple instances share the same unzip directory
 
