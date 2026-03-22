@@ -10,6 +10,8 @@ import zipfile
 import hashlib
 from typing import *
 
+from .terminals import Terminals
+
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 class FMU:
@@ -797,6 +799,13 @@ class OperationSummary(OperationAbstract):
         logger.info("| Number of ports")
         for causality, nb_ports in self.nb_port_per_causality.items():
             logger.info(f"|  {causality} : {nb_ports}")
+
+        terminals = Terminals(self.fmu.tmp_directory)
+        if terminals:
+            logger.info("|")
+            logger.info("| Terminals:")
+            for terminal in terminals:
+                logger.info(f"|  - {terminal}")
 
         logger.info("|")
         logger.info("| [End of report]")

@@ -5,6 +5,7 @@ This package was formerly known as `fmutool`.
 * ADDED: Support of array variables
 * CHANGE: refactor the documentation
 * FIXED: `remoting` (rare) race condition when multiple instances share the same unzip directory
+* ADDED: `OperationSummary` display defined Terminals (if any)
 
 # Version 1.9.2.1
 * FIXED: `fmucontainer` embed the _original_ modelDescription.xml of the nested FMU instead.

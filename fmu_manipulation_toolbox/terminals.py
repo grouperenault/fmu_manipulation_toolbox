@@ -10,7 +10,7 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 class Terminal:
     def __init__(self, name: str, kind: str, matching: str):
         self.name = name
-        self.kind = str
+        self.kind = kind
         self.matching = matching
         self.members:Dict[str, str] = {}
         self.sub_terminals: Dict[str, Terminal] = {}
@@ -19,7 +19,7 @@ class Terminal:
         self.members[member_name] = variable_name
 
     def __repr__(self):
-        return f"{self.name} ({len(self.members)} signals)"
+        return f"{self.name} ({len(self.members)} signals, {self.kind})"
 
     def __eq__(self, other):
         if isinstance(other, Terminal):
@@ -106,6 +106,9 @@ class Terminals:
                         logger.debug(f"Terminal '{terminal.name}' defined with {len(terminal.members)} signals")
             except IndexError:
                 logger.error(f"{filename} is wrongly formated.")
+
+    def __iter__(self):
+        return iter(self.terminals.values())
 
     def __len__(self):
         return len(self.terminals)

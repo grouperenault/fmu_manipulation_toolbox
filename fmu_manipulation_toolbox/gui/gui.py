@@ -10,7 +10,6 @@ from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopS
                            QPainter, QColor, QImage, QStandardItemModel)
 from functools import partial
 
-
 from fmu_manipulation_toolbox.gui.gui_style import gui_style, log_color
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
@@ -136,7 +135,7 @@ class LogWidget(QTextBrowser):
         self.setMinimumHeight(500)
         self.setSearchPaths([os.path.join(os.path.dirname(__file__), "../resources")])
         self.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
-        self.log_handler = LogHandler(self, logging.DEBUG)
+        self.log_handler = LogHandler(self, logging.INFO)
 
     def loadResource(self, _, name):
         image_path = os.path.join(os.path.dirname(__file__), "../resources", name.toString())
