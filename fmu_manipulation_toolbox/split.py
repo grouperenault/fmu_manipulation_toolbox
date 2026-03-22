@@ -330,7 +330,8 @@ class FMUSplitterDescription:
                                                                 self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]))
 
                 for fmi_type in self.supported_fmi_types[:-2]:
-                    nb_start = int(self.get_line(file))
+                    nb_start_as_string = self.get_line(file).split(" ")[0]
+                    nb_start = int(nb_start_as_string)
                     logger.debug(f"nb start for {fmu_filename} {fmi_type} : {nb_start}")
                     for i in range(nb_start):
                         tokens = self.get_line(file).split(" ")

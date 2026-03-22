@@ -134,31 +134,31 @@ not_bool
 # Inputs of constant3.fmu - clock: <VR> <DIM> <FMU_VR>
 0
 # Start values of constant3.fmu - real64: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - real32: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - integer8: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - uinteger8: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - integer16: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - uinteger16: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - integer32: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - uinteger32: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - integer64: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - uinteger64: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - boolean: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - boolean1: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of constant3.fmu - string: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Outputs of constant3.fmu - real64: <VR> <DIM> <FMU_VR>
 1
 1 1 0
@@ -302,31 +302,31 @@ not_bool
 # Inputs of passthrough3.fmu - clock: <VR> <DIM> <FMU_VR>
 0
 # Start values of passthrough3.fmu - real64: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - real32: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - integer8: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - uinteger8: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - integer16: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - uinteger16: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - integer32: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - uinteger32: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - integer64: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - uinteger64: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - boolean: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - boolean1: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of passthrough3.fmu - string: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Outputs of passthrough3.fmu - real64: <VR> <DIM> <FMU_VR>
 0
 # Clocked Outputs of passthrough3.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
@@ -449,31 +449,31 @@ not_bool
 # Inputs of not2.fmu - clock: <VR> <DIM> <FMU_VR>
 0
 # Start values of not2.fmu - real64: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - real32: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - integer8: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - uinteger8: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - integer16: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - uinteger16: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - integer32: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - uinteger32: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - integer64: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - uinteger64: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - boolean: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - boolean1: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Start values of not2.fmu - string: <FMU_VR> <DIM> <RESET> <VALUE>
-0
+0 0
 # Outputs of not2.fmu - real64: <VR> <DIM> <FMU_VR>
 0
 # Clocked Outputs of not2.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>

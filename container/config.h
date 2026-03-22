@@ -35,7 +35,7 @@ typedef struct {
 int get_line(config_file_t* config_file);
 extern int config_file_open(config_file_t* config_file, const char *dirname, const char *filename);
 extern void config_file_close(config_file_t* config_file);
-extern void config_file_error(config_file_t *config_file, unsigned int code_line_number, const char *message, ...);
+extern void config_file_error(config_file_t *config_file, unsigned int code_line_number, const char *message, ...) __attribute__((__format__(__printf__, 3, 4)));
 
 #	ifdef __cplusplus
 }

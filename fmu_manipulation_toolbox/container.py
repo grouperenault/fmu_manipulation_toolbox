@@ -558,7 +558,11 @@ class FMUIOList:
 
         for type_name in EmbeddedFMUPort.ALL_TYPES[:-2]:  # No start values for binary or clock
             print(f"# Start values of {fmu_name} - {type_name}: <FMU_VR> <DIM> <RESET> <VALUE>", file=txt_file)
-            print(len(self.start_values[type_name][fmu_name]), file=txt_file)
+            nb_start_lines = len(self.start_values[type_name][fmu_name])
+            nb_start_values = 0
+            for vr, dim, reset, value in self.start_values[type_name][fmu_name]:
+                nb_start_values += dim
+            print(f"{nb_start_lines} {nb_start_values}", file=txt_file)
             for vr, dim, reset, value in self.start_values[type_name][fmu_name]:
                 print(f"{vr} {dim} {reset} {value}", file=txt_file)
 

@@ -82,9 +82,9 @@ typedef struct {                        \
     struct {                            \
         fmu_vr_t                vr;     \
         int                     reset;  \
-        type                    value;  \
+        type                    *value; \
     } *start_values;                    \
-} fmu_start_ ## name ## _t
+} fmu_start_ ## name ## _t;
 
 DECLARE_START_TYPE(reals64,     double);
 DECLARE_START_TYPE(reals32,     float);
@@ -139,6 +139,19 @@ typedef struct {
 	fmu_clocked_port_list_t		clocked_strings;
     fmu_clocked_port_list_t		clocked_binaries;
 
+    double                      *start_values_reals64;
+    float                       *start_values_reals32;
+    int8_t                      *start_values_integers8;
+    uint8_t                     *start_values_uintegers8;
+    int16_t                     *start_values_integers16;
+    uint16_t                    *start_values_uintegers16;
+    int32_t                     *start_values_integers32;
+    uint32_t                    *start_values_uintegers32;
+    int64_t                     *start_values_integers64;
+    uint64_t                    *start_values_uintegers64;
+    int                         *start_values_booleans;
+    bool                        *start_values_booleans1;
+    const char                  **start_values_strings;
     fmu_start_reals64_t         start_reals64;
     fmu_start_reals32_t         start_reals32;
     fmu_start_integers8_t       start_integers8;

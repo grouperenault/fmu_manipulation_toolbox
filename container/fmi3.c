@@ -587,7 +587,7 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance,
         const int fmu_id = port->links[0].fmu_id;
 
         if (fmu_id < 0) {
-            logger(LOGGER_ERROR, "GetIntervalDecimal not available for vr=%lu", valueReferences[i]);
+            logger(LOGGER_ERROR, "GetIntervalDecimal not available for vr=%d", valueReferences[i]);
             return fmi3Error;
         }
         else {
