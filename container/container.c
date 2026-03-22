@@ -535,20 +535,20 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                  R E A D   C O N F I G U R A T I O N
 ----------------------------------------------------------------------------*/
 
-#define CONFIG_ERROR(message, ...)                                  \
-    config_file_error(file, __LINE__, message, __VA_ARGS__) 
+#define CONFIG_ERROR(message, ...)                                          \
+    config_file_error(file, __LINE__, message __VA_OPT__(,) __VA_ARGS__) 
 
-#define CONFIG_GETLINE                                              \
-    if (get_line(file)) {                                           \
-        CONFIG_ERROR("Cannot read config data.");                   \
-        return -1;                                                  \
+#define CONFIG_GETLINE                                                      \
+    if (get_line(file)) {                                                   \
+        CONFIG_ERROR("Cannot read config data.");                           \
+        return -1;                                                          \
     }
 
-#define CONFIG_ALLOC(ptr, nb_elem)                                  \
-    ptr = malloc(nb_elem * sizeof(*ptr));                           \
-    if (! ptr) {                                                    \
-        CONFIG_ERROR("Virtual memory exhaust. (" #ptr ")");         \
-        return -2;                                                  \
+#define CONFIG_ALLOC(ptr, nb_elem)                                          \
+    ptr = malloc(nb_elem * sizeof(*ptr));                                   \
+    if (! ptr) {                                                            \
+        CONFIG_ERROR("Virtual memory exhaust. (" #ptr ")");                 \
+        return -2;                                                          \
     }
 
 
