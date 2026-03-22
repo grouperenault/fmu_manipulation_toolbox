@@ -818,20 +818,31 @@ class FMUContainer:
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
         cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
 
-        try:
-            if cport.port.type_name.startswith('real'):
-                value = float(value)
-            elif cport.port.type_name.startswith('integer') or  cport.port.type_name.startswith('uinteger'):
-                value = int(value)
-            elif cport.port.type_name.startswith('boolean'):
-                value = int(bool(value))
-            elif cport.port.type_name == 'String':
-                value = value
-            else:
-                logger.error(f"Start value cannot be set on '{cport.port.type_name}'")
-                return
-        except ValueError:
-            raise FMUContainerError(f"Start value is not conforming to {cport.port.type_name} format.")
+        # Check dimensions
+        value_tokens = str(value).split(' ')
+        if not len(value_tokens) == cport.port.size():
+            raise FMUContainerError(f"Start value missmatch for {cport.port.type_name} which is dimension {cport.port.size()}")
+
+        # Check type
+        for token in value_tokens:
+            try:
+                if cport.port.type_name.startswith('real'):
+                    float(token)
+                elif cport.port.type_name.startswith('integer') or  cport.port.type_name.startswith('uinteger'):
+                    int(token)
+                elif cport.port.type_name.startswith('boolean'):
+                    int(bool(token))
+                elif cport.port.type_name == 'String':
+                    pass
+                else:
+                    logger.error(f"Start value cannot be set on '{cport.port.type_name}'")
+                    return
+            except ValueError:
+                raise FMUContainerError(f"Start value is not conforming to {cport.port.type_name} format.")
+
+        # Format is different for string
+        if cport.port.type_name == 'String':
+            value = "\n" + "\n".join(value_tokens)
 
         self.start_values[cport] = value
 

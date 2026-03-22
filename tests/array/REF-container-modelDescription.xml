@@ -3,10 +3,10 @@
   fmiVersion="3.0"
   modelName="array"
   generationTool="FMUContainer-0.0.dev0"
-  generationDateAndTime="2026-03-21T21:31:46Z"
-  instantiationToken="dce0fb32-6513-48a6-b000-cdd218bc7352"
+  generationDateAndTime="2026-03-22T13:45:29Z"
+  instantiationToken="be97e97c-be7c-4277-a7ac-c6f52742cd52"
   description="FMUContainer with scalar2array.fmu, array2scalar.fmu"
-  author="a067220"
+  author="nl"
   license="Proprietary"
   copyright="See Embedded FMU's copyrights."
   variableNamingConvention="structured">
@@ -38,7 +38,7 @@
   <ModelVariables>
     <Float64 valueReference="0" name="time" causality="independent"/>
     <Float64 name="scalar2array.Out1" valueReference="1" causality="local" variability="continuous" initial="calculated" description="Out1"><Dimension start="2"/></Float64>
-    <Float64 name="In1" valueReference="2" causality="input" variability="continuous" initial="exact" description="In1" start="0"/>
+    <Float64 name="In1" valueReference="2" causality="input" variability="continuous" initial="exact" description="In1" start="1"/>
     <Float64 name="Out1" valueReference="3" causality="output" variability="continuous" initial="calculated" description="Out1"/>
   </ModelVariables>
 

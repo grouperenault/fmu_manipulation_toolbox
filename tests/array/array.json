@@ -6,5 +6,8 @@
   ],
   "link": [
     ["scalar2array.fmu", "Out1", "array2scalar.fmu", "In1"]
+  ],
+  "start": [
+    [ "scalar2array.fmu", "In1", 1]
   ]
 }

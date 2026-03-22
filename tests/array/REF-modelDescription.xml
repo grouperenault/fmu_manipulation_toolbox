@@ -20,9 +20,9 @@
 
             <UInt64 name="r" valueReference="3" description="Number of outputs" causality="structuralParameter" variability="tunable" start="3" min="0" max="5"/>
 
-        
-            
-            
+
+
+
             <Float64 name="A" valueReference="4" description="Matrix coefficient A" causality="parameter" variability="tunable" start="1 0 0 0 1 0 0 0 1">
       <Dimension valueReference="2"/>
       <Dimension valueReference="2"/>
@@ -52,32 +52,32 @@
       <Dimension valueReference="1"/>
     </Float64>
 
-        
-            
+
+
             <Float64 name="x0" valueReference="8" description="Initial state vector" causality="parameter" variability="tunable" start="0 0 0">
       <Dimension valueReference="2"/>
     </Float64>
 
-        
-            
+
+
             <Float64 name="u" valueReference="9" description="Input vector" causality="input" start="1 2 3">
       <Dimension valueReference="1"/>
     </Float64>
 
-        
-            
+
+
             <Float64 name="y" valueReference="10" description="Output vector" causality="output">
       <Dimension valueReference="3"/>
     </Float64>
 
-        
-            
+
+
             <Float64 name="x" valueReference="11" description="State vector" causality="local">
       <Dimension valueReference="2"/>
     </Float64>
 
-        
-            
+
+
             <Float64 name="der(x)" valueReference="12" description="Derivative of the state vector" causality="local" derivative="11">
       <Dimension valueReference="2"/>
     </Float64>
