@@ -232,7 +232,7 @@ class EmbeddedFMUPort:
 
 
 class EmbeddedFMU(OperationAbstract):
-    """Represents an FMU loaded and analysed for embedding inside a container.
+    """Represents an FMU loaded and analyzed for embedding inside a container.
 
     Parses the `modelDescription.xml` of an FMU to extract its ports,
     capabilities, step size, platform support, and co-simulation metadata.
@@ -519,7 +519,7 @@ class Link:
 
         if not cport_from.port.causality == "output":
             if cport_from.port.type_name == "clock":
-                # LS-BUS allows to connected to input clocks.
+                # LS-BUS allows connected input clocks.
                 self.cport_from = None
                 self.add_target(cport_from)
             else:
@@ -841,6 +841,12 @@ class FMUIOList:
                         print(f"{clock} {len(translation)} {s}", file=txt_file)
 
 
+class Clock:
+    def __init__(self, container_vr: int, fmu_vr: int):
+        self.container_vr = container_vr
+        self.fmu_vr = fmu_vr
+
+
 class ClockList:
     """Tracks clocks that need to be scheduled by the FMI importer.
 
@@ -855,7 +861,7 @@ class ClockList:
     """
 
     def __init__(self, involved_fmu: OrderedDict[str, EmbeddedFMU]):
-        self.clocks_per_fmu: DefaultDict[int, List[Tuple[int, int]]] = defaultdict(list)
+        self.clocks_per_fmu: DefaultDict[int, List[Clock]] = defaultdict(list)
         self.fmu_index: Dict[str, int] = {}
         for i, fmu_name in enumerate(involved_fmu):
             self.fmu_index[fmu_name] = i
@@ -867,7 +873,7 @@ class ClockList:
             cport (ContainerPort): The clocked port on the embedded FMU.
             vr (int): The local value reference of the clock.
         """
-        self.clocks_per_fmu[self.fmu_index[cport.fmu.name]].append((cport.port.vr, vr))
+        self.clocks_per_fmu[self.fmu_index[cport.fmu.name]].append(Clock(cport.port.vr, vr))
 
     def write_txt(self, txt_file):
         """Write the clock scheduling table to the `container.txt` file.
@@ -882,9 +888,26 @@ class ClockList:
 
         print(f"{len(self.clocks_per_fmu)} {nb_total_clocks}", file=txt_file)
         for index, clocks in self.clocks_per_fmu.items():
-            clocks_str = " ".join([f"{clock[0]} {clock[1]}" for clock in clocks])
+            clocks_str = " ".join([f"{clock.container_vr} {clock.fmu_vr}" for clock in clocks])
             print(f"{index} {len(clocks)} {clocks_str}", file=txt_file)
 
+
+class LocalVariable:
+    def __init__(self, vr: int, dimension: int):
+        self.vr: int = vr
+        self.dimension: int = dimension
+
+
+class Platform:
+    def __init__(self, origin_bindir: str, suffixe: str, target_bindir: str):
+        self.origin_bindir = origin_bindir
+        self.suffixe = suffixe
+        self.target_bindir = target_bindir
+
+class Port:
+    def __init__(self, vr: int, name: str):
+        self.vr: int = vr
+        self.name = name
 
 class FMUContainer:
     """Builds an FMU Container that embeds multiple FMUs into a single FMU.
@@ -1395,7 +1418,7 @@ class FMUContainer:
             step_size (float | None): Internal time step in seconds. If `None`,
                 deduced from the embedded FMUs.
             debug (bool): Keep intermediate build artifacts.
-            mt (bool): Enable multi-threaded mode.
+            mt (bool): Enable multithreaded mode.
             profiling (bool): Enable profiling mode.
             sequential (bool): Use sequential scheduling.
             ts_multiplier (bool): Add a `TS_MULTIPLIER` input port.
@@ -1609,7 +1632,7 @@ class FMUContainer:
         fmu_io_list = FMUIOList(self.vr_table)
         clock_list = ClockList(self.involved_fmu)
 
-        local_per_type: Dict[str, List[Tuple[int, int]]] = defaultdict(list) # VR, size
+        local_per_type: Dict[str, List[LocalVariable]] = defaultdict(list)
         links_per_fmu: Dict[str, List[Link]] = defaultdict(list)
 
         # Fill data structure
@@ -1629,10 +1652,10 @@ class FMUContainer:
         for link in self.links.values():
             # FMU Outputs
             if link.cport_from:
-                local_per_type[link.cport_from.port.type_name].append((link.vr, link.size))
+                local_per_type[link.cport_from.port.type_name].append(LocalVariable(link.vr, link.size))
                 fmu_io_list.add_output(link.cport_from, link.vr)
             else:
-                local_per_type["clock"].append((link.vr, link.size))
+                local_per_type["clock"].append(LocalVariable(link.vr, link.size))
                 for cport_to in link.cport_to_list:
                     if cport_to.port.interval_variability == "countdown":
                         logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, vr={link.vr})")
@@ -1647,7 +1670,7 @@ class FMUContainer:
                     if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
                         local_vr = link.vr
                     else:
-                        local_per_type[cport_to.port.type_name].append((link.vr_converted[cport_to.port.type_name], link.size))
+                        local_per_type[cport_to.port.type_name].append(LocalVariable(link.vr_converted[cport_to.port.type_name], link.size))
                         links_per_fmu[link.cport_from.fmu.name].append(link)
                         local_vr = link.vr_converted[cport_to.port.type_name]
 
@@ -1680,11 +1703,13 @@ class FMUContainer:
                 cport_string = [f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list]
                 print(f"{input_port.vr} {input_port.size} {len(input_port.cport_list)}", " ".join(cport_string), file=txt_file)
             for output_port in outputs_per_type[type_name]:
-                print(f"{output_port.vr} {output_port.port.size()} 1 {fmu_rank[output_port.fmu.name]} {output_port.port.vr}", file=txt_file)
+                print(f"{output_port.vr} {output_port.port.size()} 1 {fmu_rank[output_port.fmu.name]} "
+                      f"{output_port.port.vr}", file=txt_file)
             offset_storage = 0
-            for local_var in local_per_type[type_name]:
-                print(f"{local_var[0]} {local_var[1]} 1 -1 {local_var[0] & 0xFFFFFF + offset_storage}", file=txt_file)
-                offset_storage += local_var[1] - 1
+            for local_variable in local_per_type[type_name]:
+                print(f"{local_variable.vr} {local_variable.dimension} 1 -1 "
+                      f"{local_variable.vr & 0xFFFFFF + offset_storage}", file=txt_file)
+                offset_storage += local_variable.dimension - 1
         # LINKS
         for fmu in self.involved_fmu.values():
             fmu_io_list.write_txt(fmu.name, txt_file)
@@ -1713,21 +1738,21 @@ class FMUContainer:
 
         ports = defaultdict(list)
         for input_port_name, input_port in self.inputs.items():
-            ports[input_port.type_name].append((input_port.vr, input_port_name))
+            ports[input_port.type_name].append(Port(input_port.vr, input_port_name))
         for output_port_name, output_port in self.outputs.items():
-            ports[output_port.port.type_name].append((output_port.vr, output_port_name))
+            ports[output_port.port.type_name].append(Port(output_port.vr, output_port_name))
         for link in self.links.values():
             if link.cport_from is None:
-                # LS-BUS allows to connected to input clocks.
-                ports[link.cport_to_list[0].port.type_name].append((link.vr, link.name))
+                # LS-BUS allows connected input clocks.
+                ports[link.cport_to_list[0].port.type_name].append(Port(link.vr, link.name))
             else:
-                ports[link.cport_from.port.type_name].append((link.vr, link.name))
+                ports[link.cport_from.port.type_name].append(Port(link.vr, link.name))
 
         for type_name in EmbeddedFMUPort.ALL_TYPES:
             print(f"# {type_name}: <VR> <NAME>" , file=datalog_file)
             print(f"{len(ports[type_name])}", file=datalog_file)
             for port in ports[type_name]:
-                print(f"{port[0]} {port[1]}", file=datalog_file)
+                print(f"{port.vr} {port.name}", file=datalog_file)
 
     @staticmethod
     def long_path(path: Union[str, Path]) -> str:
@@ -1742,7 +1767,7 @@ class FMUContainer:
         logger.debug(f"Copying {origin} in {destination}")
         shutil.copy(origin, destination)
 
-    def get_bindir_and_suffixe(self) -> Generator[Tuple[str, str, str], Any, None]:
+    def get_platforms(self) -> Generator[Platform, Any, None]:
         fmu_iter = iter(self.involved_fmu.values())
         try:
             fmu = next(fmu_iter)
@@ -1784,7 +1809,7 @@ class FMUContainer:
 
         for os_name in os_list:
             try:
-                yield origin_bindirs[os_name], suffixes[os_name], target_bindirs[os_name]
+                yield Platform(origin_bindirs[os_name], suffixes[os_name], target_bindirs[os_name])
             except KeyError:
                 raise FMUContainerError(f"OS '{os_name}' is not supported.")
 
@@ -1806,12 +1831,12 @@ class FMUContainer:
 
         self.copyfile(origin / "model.png", base_directory)
 
-        for origin_bindir, suffixe, target_bindir in self.get_bindir_and_suffixe():
-            library_filename = origin / origin_bindir / f"container.{suffixe}"
+        for platform in self.get_platforms():
+            library_filename = origin / platform.origin_bindir / f"container.{platform.suffixe}"
             if library_filename.is_file():
-                binary_directory = binaries_directory / target_bindir
+                binary_directory = binaries_directory / platform.target_bindir
                 binary_directory.mkdir(exist_ok=True)
-                self.copyfile(library_filename, binary_directory / f"{self.identifier}.{suffixe}")
+                self.copyfile(library_filename, binary_directory / f"{self.identifier}.{platform.suffixe}")
             else:
                 logger.critical(f"File {library_filename} not found.")
 
