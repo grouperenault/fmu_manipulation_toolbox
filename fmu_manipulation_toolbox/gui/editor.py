@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from fmu_manipulation_toolbox.gui.dropfile import DropZoneWidget
-from fmu_manipulation_toolbox.gui.gui_style import gui_style
+from fmu_manipulation_toolbox.gui.style import gui_style
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, FMUError, OperationAbstract
 
 logger = logging.getLogger("fmu_manipulation_toolbox")

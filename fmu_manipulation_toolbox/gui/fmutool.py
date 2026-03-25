@@ -10,7 +10,7 @@ from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopS
                            QColor, QStandardItemModel)
 from functools import partial
 
-from fmu_manipulation_toolbox.gui.gui_style import gui_style, log_color
+from fmu_manipulation_toolbox.gui.style import gui_style, log_color
 from fmu_manipulation_toolbox.gui.dropfile import DropZoneWidget
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
@@ -21,8 +21,6 @@ from fmu_manipulation_toolbox.help import Help
 from fmu_manipulation_toolbox.version import __version__ as version
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
-
-
 
 
 class LogHandler(logging.Handler):
@@ -292,6 +290,14 @@ class WindowWithLayout(QWidget):
 
 
 class MainWindow(WindowWithLayout):
+    """
+Analyse and modify your FMUs.
+
+Note: modifying the modelDescription.xml can damage your FMU !
+Communicating with the FMU-developer and adapting the way the FMU is generated, is preferable when possible.
+
+    """
+
     def __init__(self):
         super().__init__('FMU Manipulation Toolbox')
 
@@ -303,13 +309,6 @@ class MainWindow(WindowWithLayout):
         self.fmu_title = QLabel()
         self.fmu_title.setProperty("class", "title")
         self.layout.addWidget(self.fmu_title, 0, 1, 1, 4)
-
-        self.container_window = None
-        #TODO: Container Window
-        #container_button = QPushButton("Make a container")
-        #container_button.setProperty("class", "quit")
-        #container_button.clicked.connect(self.launch_container)
-        #self.layout.addWidget(container_button, 4, 1, 1, 1)
 
         help_widget = HelpWidget()
         self.layout.addWidget(help_widget, 0, 5, 1, 1)
@@ -387,18 +386,11 @@ class MainWindow(WindowWithLayout):
         # show the window
         self.show()
 
+        logger.info(" " * 80 + f"Version {version}")
+        logger.info(self.__doc__)
+
     def closeEvent(self, event):
-        if self.container_window:
-            self.container_window.close()
-            self.container_window = None
         event.accept()
-
-    def launch_container(self):
-        if not self.container_window:
-            self.container_window = ContainerWindow(self)
-
-    def closing_container(self):
-        self.container_window = None
 
     def set_tooltip(self, widget, usage):
         widget.setToolTip("\n".join(textwrap.wrap(self.help.usage(usage))))
@@ -624,13 +616,6 @@ class ContainerWindow(WindowWithLayout):
 
 
 class Application(QApplication):
-    """
-Analyse and modify your FMUs.
-
-Note: modifying the modelDescription.xml can damage your FMU !
-Communicating with the FMU-developer and adapting the way the FMU is generated, is preferable when possible.
-
-    """
     def __init__(self, *args, **kwargs):
         self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor)
         super().__init__(*args, **kwargs)
@@ -655,10 +640,6 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 
 def main():
     application = Application(sys.argv)
-
-    logger.info(" " * 80 + f"Version {version}")
-    logger.info(application.__doc__)
-
     sys.exit(application.exec())
 
 

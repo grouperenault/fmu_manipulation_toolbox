@@ -1,6 +1,6 @@
 """
 Widget réutilisable de drop zone pour charger un fichier .fmu.
-Utilisé par gui.py et editor.py.
+Utilisé par fmutool.py et editor.py.
 """
 
 import logging

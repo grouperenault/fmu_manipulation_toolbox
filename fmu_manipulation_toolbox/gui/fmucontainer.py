@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
     QGraphicsSceneMouseEvent, QStyleOptionGraphicsItem,
     QApplication, QTreeView, QSplitter,
     QStackedWidget, QTableView, QLabel, QHeaderView,
-    QFileDialog,
+    QFileDialog, QMainWindow
 )
 
 
@@ -1293,6 +1293,19 @@ class NodeTreePanel(QWidget):
                 node.remove_wires()
                 self._graph.scene.removeItem(node)
                 return
+
+class MainWindow(QSplitter):
+    def __init__(self):
+        super().__init__()
+        splitter = QSplitter()
+        graph = NodeGraphWidget()
+        tree = NodeTreePanel(graph)
+        splitter.addWidget(graph)
+        splitter.addWidget(tree)
+        splitter.setSizes([700, 300])
+        self.addWidget(splitter)
+        self.setWindowTitle("FMU Container Builder")
+        self.resize(1200, 700)
 
 
 # ═══════════════════════════════════════════════════════════════════════════

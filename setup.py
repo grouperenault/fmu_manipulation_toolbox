@@ -47,7 +47,9 @@ setup(
                                       "fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit",
                                       "datalog2pcap = fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap",
                                       ],
-                  "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.gui:main"]
+                  "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.fmutool:main",
+                                  "fmucontainer-gui = fmu_manipulation_toolbox.gui.fmucontainer:main",
+                                  "fmueditor = fmu_manipulation_toolbox.gui.editor:main",]
                   },
     author=author,
     url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
