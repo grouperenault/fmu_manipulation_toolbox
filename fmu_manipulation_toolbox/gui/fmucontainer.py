@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import os
+import sys
 import uuid
 from enum import Enum, auto
 from typing import Optional, List
@@ -42,6 +43,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QMainWindow
 )
 
+from fmu_manipulation_toolbox.gui.application import Application
 
 # ─────────────────────────── Constantes visuelles ──────────────────────────
 
@@ -1294,40 +1296,30 @@ class NodeTreePanel(QWidget):
                 self._graph.scene.removeItem(node)
                 return
 
-class MainWindow(QSplitter):
+
+class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+
         splitter = QSplitter()
         graph = NodeGraphWidget()
         tree = NodeTreePanel(graph)
         splitter.addWidget(graph)
         splitter.addWidget(tree)
         splitter.setSizes([700, 300])
-        self.addWidget(splitter)
+        self.setCentralWidget(splitter)
+
         self.setWindowTitle("FMU Container Builder")
         self.resize(1200, 700)
 
+        self.show()
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  Point d'entrée de démonstration
-# ═══════════════════════════════════════════════════════════════════════════
+
+def main():
+    application = Application(sys.argv)
+    application.window = MainWindow()
+    sys.exit(application.exec())
+
 
 if __name__ == "__main__":
-    import sys
-
-    app = QApplication(sys.argv)
-
-    graph = NodeGraphWidget()
-    tree = NodeTreePanel(graph)
-
-    splitter = QSplitter(Qt.Orientation.Horizontal)
-    splitter.addWidget(graph)
-    splitter.addWidget(tree)
-    splitter.setSizes([700, 300])
-    splitter.setWindowTitle("FMU Container Builder")
-    splitter.resize(1200, 700)
-    splitter.show()
-
-    sys.exit(app.exec())
-
-
+    main()

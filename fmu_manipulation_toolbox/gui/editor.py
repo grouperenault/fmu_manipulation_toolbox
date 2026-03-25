@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from fmu_manipulation_toolbox.gui.dropfile import DropZoneWidget
 from fmu_manipulation_toolbox.gui.style import gui_style
+from fmu_manipulation_toolbox.gui.application import Application
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, FMUError, OperationAbstract
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -459,6 +460,8 @@ class MainWindow(QMainWindow):
         self._original_start_time: str = ""
         self._original_stop_time: str = ""
 
+        self.show()
+
     # -- Slot : FMU chargé -----------------------------------------------------
 
     def _on_fmu_loaded(self, fmu: Optional[FMU]):
@@ -543,21 +546,12 @@ class MainWindow(QMainWindow):
 # ---------------------------------------------------------------------------
 #  Point d'entrée
 # ---------------------------------------------------------------------------
+def main():
+    application = Application(sys.argv)
+    application.window = MainWindow()
+    sys.exit(application.exec())
 
 if __name__ == "__main__":
-    from PySide6.QtCore import QDir
-    from PySide6.QtGui import QIcon
+    main()
 
-    app = QApplication(sys.argv)
-    QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "../resources"))
-    app.setStyleSheet(gui_style)
-
-    if os.name == 'nt':
-        app.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'icon-round.png')))
-    else:
-        app.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'icon.png')))
-
-    window = MainWindow()
-    window.show()
-    sys.exit(app.exec())
 

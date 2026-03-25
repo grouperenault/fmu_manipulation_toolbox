@@ -10,7 +10,8 @@ from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopS
                            QColor, QStandardItemModel)
 from functools import partial
 
-from fmu_manipulation_toolbox.gui.style import gui_style, log_color
+from fmu_manipulation_toolbox.gui.style import log_color
+from fmu_manipulation_toolbox.gui.application import Application
 from fmu_manipulation_toolbox.gui.dropfile import DropZoneWidget
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
@@ -615,31 +616,9 @@ class ContainerWindow(WindowWithLayout):
                 logger.error(e)
 
 
-class Application(QApplication):
-    def __init__(self, *args, **kwargs):
-        self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor)
-        super().__init__(*args, **kwargs)
-
-
-        QDir.addSearchPath('images', os.path.join(os.path.dirname(__file__), "../resources"))
-        self.setStyleSheet(gui_style)
-
-        if os.name == 'nt':
-            import ctypes
-            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'icon-round.png')))
-
-            # https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7/1552105#1552105
-
-            application_id = 'FMU_Manipulation_Toolbox'  # arbitrary string
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(application_id)
-        else:
-            self.setWindowIcon(QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'icon.png')))
-
-        self.window = MainWindow()
-
-
 def main():
     application = Application(sys.argv)
+    application.window = MainWindow()
     sys.exit(application.exec())
 
 
