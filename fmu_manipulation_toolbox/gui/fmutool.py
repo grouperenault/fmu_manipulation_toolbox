@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLine
 from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
                            QColor, QStandardItemModel)
 from functools import partial
+from pathlib import Path
 
 from fmu_manipulation_toolbox.gui.style import log_color
 from fmu_manipulation_toolbox.gui.application import Application
@@ -55,19 +56,19 @@ class LogWidget(QTextBrowser):
         self.log_handler = LogHandler(self, logging.INFO)
 
     def loadResource(self, _, name):
-        image_path = os.path.join(os.path.dirname(__file__), "../resources", name.toString())
-        return QPixmap(image_path)
+        image_path = Path(__file__).parent.parent / "resources" / name.toString()
+        return QPixmap(str(image_path))
 
 
 class HelpWidget(QLabel):
-    HELP_URL = "https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/README.md"
+    HELP_URL = "https://grouperenault.github.io/fmu_manipulation_toolbox/"
 
     def __init__(self):
         super().__init__()
         self.setProperty("class", "help")
 
-        filename = os.path.join(os.path.dirname(__file__), "../resources", "help.png")
-        image = QPixmap(filename)
+        filename = Path(__file__).parent.parent / "resources" / "help.png"
+        image = QPixmap(str(filename))
         self.setPixmap(image)
         self.setAlignment(Qt.AlignmentFlag.AlignRight)
 
@@ -113,169 +114,6 @@ class FilterWidget(QPushButton):
             return []
         else:
             return sorted(self.items_selected)
-
-
-class AssemblyTreeWidget(QTreeView):
-    class AssemblyTreeModel(QStandardItemModel):
-
-        def __init__(self, assembly: Assembly, parent=None):
-            super().__init__(parent)
-
-            self.lastDroppedItems = []
-            self.pendingRemoveRowsAfterDrop = False
-            self.setHorizontalHeaderLabels(['col1'])
-            self.dnd_target_node: Optional[AssemblyNode] = None
-
-            self.icon_container = QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'container.png'))
-            self.icon_fmu = QIcon(os.path.join(os.path.dirname(__file__), '../resources', 'icon_fmu.png'))
-
-            if assembly:
-                self.add_node(assembly.root, self)
-
-        def add_node(self, node: AssemblyNode, parent_item):
-            # Add Container
-            item = QStandardItem(self.icon_container, node.name)
-            parent_item.appendRow(item)
-            item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable | Qt.ItemFlag.ItemIsDragEnabled |
-                          Qt.ItemFlag.ItemIsDropEnabled)
-            item.setData(node, role=Qt.ItemDataRole.UserRole + 1)
-            item.setData("container", role=Qt.ItemDataRole.UserRole + 2)
-
-            # Add FMU's
-            children_name = node.children.keys()
-            for fmu_name in node.fmu_names_list:
-                if fmu_name not in children_name:
-                    fmu_node = QStandardItem(self.icon_fmu, fmu_name)
-                    fmu_node.setData(node, role=Qt.ItemDataRole.UserRole + 1)
-                    fmu_node.setData("fmu", role=Qt.ItemDataRole.UserRole + 2)
-                    fmu_node.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable |
-                                      Qt.ItemFlag.ItemIsDragEnabled)
-                    item.appendRow(fmu_node)
-
-            # Add Sub-Containers
-            for child in node.children.values():
-                self.add_node(child, item)
-
-        def insertRows(self, row, count, parent=QModelIndex()):
-            self.dnd_target_node = parent.data(role=Qt.ItemDataRole.UserRole + 1)
-            return super().insertRows(row, count, parent=parent)
-
-        def removeRows(self, row, count, parent=QModelIndex()):
-            if not self.dnd_target_node:
-                logger.error("NO DROP NODE!?")
-
-            source_index = self.itemFromIndex(parent).child(row, 0).data(role=Qt.ItemDataRole.UserRole+1)
-            logger.debug(f"{source_index} ==> {self.dnd_target_node.name}")
-
-            self.dnd_target_node = None
-            return super().removeRows(row, count, parent)
-
-        def dropMimeData(self, data, action, row, column, parent: QModelIndex):
-            if parent.column() < 0:  # Avoid to drop item as a sibling of the root.
-                return False
-            return super().dropMimeData(data, action, row, column, parent)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self.model = self.AssemblyTreeModel(None)
-        self.setModel(self.model)
-
-        self.expandAll()
-        self.setDropIndicatorShown(True)
-        self.setDragDropOverwriteMode(False)
-        self.setAcceptDrops(True)
-        self.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
-        self.setRootIsDecorated(True)
-        self.setHeaderHidden(True)
-
-    def load_container(self, filename):
-        assembly = Assembly(filename)
-        self.model = self.AssemblyTreeModel(assembly)
-        self.setModel(self.model)
-
-    def setTopIndex(self):
-        topIndex = self.model.index(0, 0, self.rootIndex())
-        logger.debug(topIndex.isValid(), topIndex.model())
-        if topIndex.isValid():
-            self.setCurrentIndex(topIndex)
-            if self.layoutCheck:
-                self.model.layoutChanged.disconnect(self.setTopIndex)
-        else:
-            if not self.layoutCheck:
-                self.model.layoutChanged.connect(self.setTopIndex)
-                self.layoutCheck = True
-
-
-    def dragEnterEvent2(self, event):
-        if event.mimeData().hasImage:
-            event.accept()
-        else:
-            event.ignore()
-
-    def dragMoveEvent2(self, event):
-        if event.mimeData().hasImage:
-            event.accept()
-        else:
-            event.ignore()
-
-    def dropEvent2(self, event):
-        if event.mimeData().hasImage:
-            event.setDropAction(Qt.DropAction.CopyAction)
-            try:
-                file_path = event.mimeData().urls()[0].toLocalFile()
-            except IndexError:
-                logger.error("Please select a regular file.")
-                return
-            logger.debug(f"DROP: {file_path}")
-            event.accept()
-        else:
-            event.ignore()
-
-
-class AssemblPropertiesWidget(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        self.layout = QGridLayout()
-        self.layout.setVerticalSpacing(4)
-        self.layout.setHorizontalSpacing(4)
-        self.layout.setContentsMargins(10, 10, 10, 10)
-        self.setLayout(self.layout)
-
-        mt_check = QCheckBox("Multi-Threaded", self)
-        self.layout.addWidget(mt_check, 1, 0)
-
-        profiling_check = QCheckBox("Profiling", self)
-        self.layout.addWidget(profiling_check, 1, 1)
-
-        auto_inputs_check = QCheckBox("Auto Inputs", self)
-        self.layout.addWidget(auto_inputs_check, 0, 0)
-
-        auto_outputs_check = QCheckBox("Auto Outputs", self)
-        self.layout.addWidget(auto_outputs_check, 0, 1)
-
-        auto_links_check = QCheckBox("Auto Links", self)
-        self.layout.addWidget(auto_links_check, 0, 2)
-
-
-class AssemblyTabWidget(QTabWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-
-        table = AssemblPropertiesWidget(parent=self)
-        self.addTab(table, "Properties")
-        table = QTableView()
-        self.addTab(table, "Links")
-        table = QTableView()
-        self.addTab(table, "Inputs")
-        table = QTableView()
-        self.addTab(table, "Outputs")
-        table = QTableView()
-        self.addTab(table, "Start values")
-
-        self.tabBar().setDocumentMode(True)
-        self.tabBar().setExpanding(True)
 
 
 class WindowWithLayout(QWidget):
@@ -519,101 +357,6 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 
             scroll_bar = self.log_widget.verticalScrollBar()
             scroll_bar.setValue(scroll_bar.maximum())
-
-
-class ContainerWindow(WindowWithLayout):
-    def __init__(self, parent: MainWindow):
-        super().__init__('FMU Manipulation Toolbox - Container')
-        self.main_window = parent
-        self.last_directory = None
-
-        # ROW 0
-        load_button = QPushButton("Load Description")
-        load_button.clicked.connect(self.load_container)
-        load_button.setProperty("class", "quit")
-        self.layout.addWidget(load_button, 0, 0)
-
-        self.container_label = QLabel()
-        self.container_label.setProperty("class", "title")
-        self.container_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.container_label, 0, 1, 1, 2)
-
-        # ROW 1
-        add_fmu_button = QPushButton("Add FMU")
-        add_fmu_button.setProperty("class", "modify")
-        add_fmu_button.setDisabled(True)
-        self.layout.addWidget(add_fmu_button, 1, 1)
-
-        add_sub_button = QPushButton("Add SubContainer")
-        add_sub_button.setProperty("class", "modify")
-        add_sub_button.setDisabled(True)
-        self.layout.addWidget(add_sub_button, 1, 2)
-
-        self.assembly_tree = AssemblyTreeWidget(parent=self)
-        self.assembly_tree.setMinimumHeight(600)
-        self.assembly_tree.setMinimumWidth(200)
-        self.layout.addWidget(self.assembly_tree, 1, 0, 3, 1)
-
-        # ROW 2
-        del_fmu_button = QPushButton("Remove FMU")
-        del_fmu_button.setProperty("class", "removal")
-        del_fmu_button.setDisabled(True)
-        self.layout.addWidget(del_fmu_button, 2, 1)
-
-        del_sub_button = QPushButton("Remove SubContainer")
-        del_sub_button.setProperty("class", "removal")
-        del_sub_button.setDisabled(True)
-        self.layout.addWidget(del_sub_button, 2, 2)
-
-        # ROW 3
-        self.assembly_tab = AssemblyTabWidget(parent=self)
-        self.assembly_tab.setMinimumWidth(600)
-        self.layout.addWidget(self.assembly_tab, 3, 1, 1, 2)
-
-        # ROW 4
-        close_button = QPushButton("Close")
-        close_button.setProperty("class", "quit")
-        close_button.clicked.connect(self.close)
-        self.layout.addWidget(close_button, 4, 0)
-
-        save_button = QPushButton("Save Container")
-        save_button.setProperty("class", "save")
-        self.layout.addWidget(save_button, 4, 2)
-
-        self.assembly_tree.selectionModel().currentChanged.connect(self.item_selected)
-        topIndex = self.assembly_tree.model.index(0, 0, self.assembly_tree.rootIndex())
-        self.assembly_tree.setCurrentIndex(topIndex)
-
-        self.show()
-
-    def closeEvent(self, event):
-        if self.main_window:
-            self.main_window.closing_container()
-        event.accept()
-
-    def item_selected(self, current: QModelIndex, previous: QModelIndex):
-        if current.isValid():
-            node = current.data(role=Qt.ItemDataRole.UserRole + 1)
-            node_type = current.data(role=Qt.ItemDataRole.UserRole + 2)
-            self.container_label.setText(f"{node.name} ({node_type})")
-        else:
-            self.container_label.setText("")
-
-    def load_container(self):
-        if self.last_directory:
-            default_directory = self.last_directory
-        else:
-            default_directory = os.path.expanduser('~')
-
-        filename, _ = QFileDialog.getOpenFileName(parent=self, caption='Select FMU to Manipulate',
-                                                  dir=default_directory,
-                                                  filter="JSON files (*.json);;SSP files (*.ssp)")
-        if filename:
-            try:
-                self.last_directory = os.path.dirname(filename)
-                self.assembly_tree.load_container(filename)
-            except Exception as e:
-                logger.error(e)
 
 
 def main():

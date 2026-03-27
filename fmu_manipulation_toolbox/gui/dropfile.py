@@ -1,6 +1,6 @@
 """
-Widget réutilisable de drop zone pour charger un fichier .fmu.
-Utilisé par fmutool.py et editor.py.
+Reusable drop zone widget to load an .fmu file.
+Used by fmutool.py and editor.py.
 """
 
 import logging
@@ -16,11 +16,11 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
 class DropZoneWidget(QLabel):
-    """Zone de drag-and-drop / clic pour sélectionner et charger un fichier .fmu.
+    """Drag-and-drop / click zone to select and load an .fmu file.
 
     Signals:
-        clicked: émis après chaque tentative de chargement (succès ou échec).
-        fmu_loaded(object): émis avec l'objet FMU chargé, ou None en cas d'échec.
+        clicked: emitted after each load attempt (success or failure).
+        fmu_loaded(object): emitted with the loaded FMU object, or None on failure.
     """
 
     WIDTH = 150
@@ -38,10 +38,10 @@ class DropZoneWidget(QLabel):
         self.setFixedSize(self.WIDTH, self.HEIGHT)
         self.set_image(None)
 
-    # -- Affichage -------------------------------------------------------------
+    # -- Display ----------------------------------------------------------------
 
     def set_image(self, filename=None):
-        """Affiche la miniature du FMU (avec masque arrondi) ou le placeholder."""
+        """Display the FMU thumbnail (with rounded mask) or the placeholder."""
         resources = os.path.join(os.path.dirname(__file__), "..", "resources")
 
         if not filename:
@@ -74,7 +74,7 @@ class DropZoneWidget(QLabel):
 
         self.setPixmap(QPixmap.fromImage(rounded_image))
 
-    # -- Événements drag & drop ------------------------------------------------
+    # -- Drag & drop events ----------------------------------------------------
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -116,10 +116,10 @@ class DropZoneWidget(QLabel):
         if fmu_filename:
             self.set_fmu(fmu_filename)
 
-    # -- Chargement du FMU -----------------------------------------------------
+    # -- FMU loading -----------------------------------------------------------
 
     def set_fmu(self, filename: str):
-        """Charge un FMU depuis *filename* et émet les signaux."""
+        """Load an FMU from *filename* and emit the signals."""
         try:
             self.last_directory = os.path.dirname(filename)
             self.fmu = FMU(filename)
