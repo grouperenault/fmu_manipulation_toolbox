@@ -395,7 +395,10 @@ class MainWindow(QMainWindow):
         info_grid.setVerticalSpacing(4)
 
         # Row 0: FMU name (spans full width)
-        info_grid.addWidget(self._fmu_title, 0, 0, 1, 4)
+        info_grid.addWidget(self._fmu_title, 0, 0, 1, 5)
+
+        # Spacer column between col 1 and col 3
+        info_grid.setColumnMinimumWidth(2, 100)
 
         # Row 1: spacer
         info_grid.setRowMinimumHeight(1, 10)
@@ -408,8 +411,8 @@ class MainWindow(QMainWindow):
 
         date_caption = QLabel("Generation time:")
         date_caption.setProperty("class", "caption")
-        info_grid.addWidget(date_caption, 2, 2)
-        info_grid.addWidget(self._generation_date_label, 2, 3)
+        info_grid.addWidget(date_caption, 2, 3)
+        info_grid.addWidget(self._generation_date_label, 2, 4)
 
         # Row 3: startTime / stopTime
         start_caption = QLabel("Start time:")
@@ -419,8 +422,8 @@ class MainWindow(QMainWindow):
 
         stop_caption = QLabel("Stop time:")
         stop_caption.setProperty("class", "caption")
-        info_grid.addWidget(stop_caption, 3, 2)
-        info_grid.addWidget(self._stop_time_edit, 3, 3)
+        info_grid.addWidget(stop_caption, 3, 3)
+        info_grid.addWidget(self._stop_time_edit, 3, 4)
 
         # Row 4: step size
         step_caption = QLabel("Preferred Step Size:")
@@ -432,16 +435,19 @@ class MainWindow(QMainWindow):
         info_grid.setRowMinimumHeight(5, 10)
 
         # Row 6: variable count
-        info_grid.addWidget(self._info_label, 6, 0, 1, 4)
+        info_grid.addWidget(self._info_label, 6, 0, 1, 5)
 
         # Stretch to push content upward
         info_grid.setRowStretch(7, 1)
 
         top_bar.addLayout(info_grid, 1)
 
-        # Bottom button bar
+        # Bottom bar: status + buttons
+        self._status_bar = QStatusBar()
+        self._status_bar.setSizeGripEnabled(False)
+
         button_bar = QHBoxLayout()
-        button_bar.addStretch()
+        button_bar.addWidget(self._status_bar, 1)
         button_bar.addWidget(self._save_button)
         button_bar.addWidget(self._quit_button)
 
@@ -460,9 +466,7 @@ class MainWindow(QMainWindow):
         self._original_start_time: str = ""
         self._original_stop_time: str = ""
 
-        # Status bar with log handler
-        self._status_bar = QStatusBar()
-        self.setStatusBar(self._status_bar)
+        # Log handler on status bar
         self._log_handler = StatusBarLogHandler(self._status_bar)
 
         self.show()

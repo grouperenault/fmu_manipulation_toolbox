@@ -17,7 +17,6 @@ from fmu_manipulation_toolbox.gui.dropfile import DropZoneWidget
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
-from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode
 from fmu_manipulation_toolbox.checker import get_checkers
 from fmu_manipulation_toolbox.help import Help
 from fmu_manipulation_toolbox.version import __version__ as version

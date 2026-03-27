@@ -7,6 +7,9 @@ if os.name == 'nt':
         background: #4b4e51;
         color: #b5bab9;
     }
+    QWidget#launcher_window {
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #282830, stop:1 #4b4e51);
+    }
     QPushButton, QComboBox {
         min-height: 30px;
         padding: 1px 1px 0.2em 0.2em;
@@ -151,40 +154,23 @@ if os.name == 'nt':
     QLineEdit:focus {
         border: 1px solid #4571a4;
     }
-    QPushButton.launcher {
+    QToolButton.launcher {
         min-width: 180px;
         max-width: 180px;
         min-height: 180px;
         max-height: 180px;
-        border: 2px solid #282830;
-        border-radius: 12px;
+        border: 1px solid #282830;
+        border-radius: 5px;
         font: bold 11pt "Verdana";
         color: #dddddd;
-        padding-top: 110px;
+        background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4b4e51, stop:1 #282830);
     }
-    QPushButton.launcher:hover {
+    QToolButton.launcher:hover {
+        background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5c5f62, stop:1 #a9874f);
         border: 2px solid #b5bab9;
     }
-    QPushButton.launcher:pressed {
+    QToolButton.launcher:pressed {
         border: 3px solid #b5bab9;
-    }
-    QPushButton#fmutool {
-        background-color: #4e6749;
-    }
-    QPushButton#fmutool:hover {
-        background-color: #5f7850;
-    }
-    QPushButton#editor {
-        background-color: #98763f;
-    }
-    QPushButton#editor:hover {
-        background-color: #a9874f;
-    }
-    QPushButton#builder {
-        background-color: #4571a4;
-    }
-    QPushButton#builder:hover {
-        background-color: #5682b5;
     }
     """
 else:
@@ -193,6 +179,9 @@ else:
         font: 12pt;
         background: #4b4e51;
         color: #b5bab9;
+    }
+    QWidget#launcher_window {
+        background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #282830, stop:1 #4b4e51);
     }
     QPushButton, QComboBox {
         min-height: 30px;
@@ -338,40 +327,23 @@ else:
     QLineEdit:focus {
         border: 1px solid #4571a4;
     }
-    QPushButton.launcher {
+    QToolButton.launcher {
         min-width: 180px;
         max-width: 180px;
         min-height: 180px;
         max-height: 180px;
-        border: 2px solid #282830;
-        border-radius: 12px;
+        border: 1px solid #282830;
+        border-radius: 5px;
         font: bold 11pt "Verdana";
         color: #dddddd;
-        padding-top: 110px;
+        background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #4b4e51, stop:1 #282830);
     }
-    QPushButton.launcher:hover {
+    QToolButton.launcher:hover {
+        background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #5c5f62, stop:1 #a9874f);
         border: 2px solid #b5bab9;
     }
-    QPushButton.launcher:pressed {
+    QToolButton.launcher:pressed {
         border: 3px solid #b5bab9;
-    }
-    QPushButton#fmutool {
-        background-color: #4e6749;
-    }
-    QPushButton#fmutool:hover {
-        background-color: #5f7850;
-    }
-    QPushButton#editor {
-        background-color: #98763f;
-    }
-    QPushButton#editor:hover {
-        background-color: #a9874f;
-    }
-    QPushButton#builder {
-        background-color: #4571a4;
-    }
-    QPushButton#builder:hover {
-        background-color: #5682b5;
     }
     """
 

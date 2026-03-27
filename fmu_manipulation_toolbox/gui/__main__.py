@@ -13,8 +13,8 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QDir, QSize
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QLabel, QSplitter,
-    QPushButton, QVBoxLayout, QHBoxLayout,
+    QApplication, QWidget, QLabel,
+    QPushButton, QToolButton, QVBoxLayout, QHBoxLayout,
 )
 
 from fmu_manipulation_toolbox.gui.style import gui_style
@@ -34,14 +34,17 @@ def _make_icon(source_path: Path, size: int = 80) -> QIcon:
     return QIcon(pix)
 
 
-class LauncherButton(QPushButton):
+class LauncherButton(QToolButton):
     """Square button with icon centered above the text."""
 
     def __init__(self, object_name: str, label: str, icon_path: Path, parent=None):
-        super().__init__(label, parent)
+        super().__init__(parent)
+        self.setText(label)
         self.setObjectName(object_name)
-        #self.setProperty("class", "launcher")
+        self.setProperty("class", "launcher")
+        self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFixedSize(180, 180)
         self.setIconSize(QSize(80, 80))
         self.setIcon(_make_icon(icon_path))
 
@@ -51,6 +54,7 @@ class LauncherWindow(QWidget):
 
     def __init__(self):
         super().__init__()
+        self.setObjectName("launcher_window")
         self.setWindowTitle(f"FMU Manipulation Toolbox  v{version}")
 
         # References to opened windows (prevents garbage collection)
@@ -68,11 +72,13 @@ class LauncherWindow(QWidget):
                 400, Qt.TransformationMode.SmoothTransformation
             )
         logo.setPixmap(logo_pixmap)
+        logo.setStyleSheet("background: transparent;")
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root_layout.addWidget(logo)
 
         subtitle = QLabel(f"v{version}")
         subtitle.setProperty("class", "info")
+        subtitle.setStyleSheet("background: transparent;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root_layout.addWidget(subtitle)
 
@@ -85,21 +91,21 @@ class LauncherWindow(QWidget):
 
         btn_fmutool = LauncherButton(
             "fmutool",
-            "Operation on FMU",
+            "Operation\non FMU",
             RESOURCES / "fmu.png",
         )
         btn_fmutool.clicked.connect(self._launch_fmutool)
 
         btn_editor = LauncherButton(
             "editor",
-            "FMU Variables Editor",
+            "FMU Variables\nEditor",
             RESOURCES / "model.png",
         )
         btn_editor.clicked.connect(self._launch_editor)
 
         btn_builder = LauncherButton(
             "builder",
-            "FMU Container Build",
+            "FMU Container\nBuild",
             RESOURCES / "container.png",
         )
         btn_builder.clicked.connect(self._launch_builder)
