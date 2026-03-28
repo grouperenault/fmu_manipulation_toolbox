@@ -1,53 +1,37 @@
-"""
-Mini-modeleur graphique réutilisable (PySide6).
-
-Widget basé sur QGraphicsView permettant de :
-  • créer des boîtes (nœuds rectangulaires) ;
-  • ajouter des ports d'entrée / sortie sur chaque boîte ;
-  • relier les ports par des fils (wires) routés en courbe de Bézier ;
-  • déplacer les boîtes (les fils suivent) ;
-  • supprimer nœuds et fils ;
-  • renommer les nœuds (double-clic sur le titre).
-
-Usage minimal :
-    from builder import NodeGraphWidget
-    widget = NodeGraphWidget()
-    widget.show()
-"""
-
-from __future__ import annotations
-
+import logging
+import json
 import math
-import os
 import sys
 import uuid
 from enum import Enum, auto
+from pathlib import Path
 from typing import Optional, List
 
-from PySide6.QtCore import (
-    Qt, QRectF, QPointF, QLineF, Signal, QItemSelectionModel,
-)
+from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal, QItemSelectionModel, QSize
 from PySide6.QtGui import (
     QPainter, QPen, QBrush, QColor, QPainterPath, QFont,
-    QFontMetrics, QKeyEvent,
-    QStandardItemModel, QStandardItem,
+    QFontMetrics, QKeyEvent, QIcon,
+    QStandardItemModel, QStandardItem
 )
 from PySide6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsItem,
     QGraphicsRectItem, QGraphicsTextItem, QGraphicsPathItem,
     QGraphicsEllipseItem,
-    QMenu, QInputDialog, QWidget, QVBoxLayout,
+    QMenu, QInputDialog, QWidget, QVBoxLayout, QHBoxLayout,
     QGraphicsSceneMouseEvent, QStyleOptionGraphicsItem,
-    QApplication, QTreeView, QSplitter,
+    QTreeView, QSplitter,
     QStackedWidget, QTableView, QLabel, QHeaderView,
-    QFileDialog, QMainWindow
+    QFileDialog, QMainWindow, QPushButton
 )
 
-from fmu_manipulation_toolbox.gui.helper import Application
+from fmu_manipulation_toolbox.gui.helper import Application, StatusBar
+from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode
 
-# ─────────────────────────── Constantes visuelles ──────────────────────────
+logger = logging.getLogger("fmu_manipulation_toolbox")
 
-# Couleurs
+# ─────────────────────────── Visual constants ──────────────────────────
+
+# Colors
 COLOR_BACKGROUND    = QColor("#2b2b2b")
 COLOR_GRID_LIGHT    = QColor("#333333")
 COLOR_GRID_DARK     = QColor("#292929")
@@ -81,21 +65,13 @@ FONT_TITLE          = QFont("Verdana", 10, QFont.Weight.Bold)
 FONT_PORT           = QFont("Verdana", 8)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  PortType
-# ═══════════════════════════════════════════════════════════════════════════
-
 class PortType(Enum):
     INPUT = auto()
     OUTPUT = auto()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  PortItem  –  petit cercle cliquable sur le bord d'un nœud
-# ═══════════════════════════════════════════════════════════════════════════
-
 class PortItem(QGraphicsEllipseItem):
-    """Port d'entrée ou de sortie attaché à un NodeItem."""
+    """Input or output port attached to a NodeItem."""
 
     def __init__(self, name: str, port_type: PortType, parent: "NodeItem"):
         r = PORT_RADIUS
@@ -128,7 +104,7 @@ class PortItem(QGraphicsEllipseItem):
             self._label.setPos(-PORT_RADIUS - 4 - br.width(), -br.height() / 2)
 
     def center_scene_pos(self) -> QPointF:
-        """Position du centre du port en coordonnées scène."""
+        """Port center position in scene coordinates."""
         return self.scenePos()
 
     # -- Hover feedback --------------------------------------------------------
@@ -141,22 +117,18 @@ class PortItem(QGraphicsEllipseItem):
         self.setPen(QPen(COLOR_PORT_BORDER, 1.5))
         super().hoverLeaveEvent(event)
 
-    # -- Surbrillance pendant le drag d'un fil --------------------------------
+    # -- Highlight while dragging a wire --------------------------------
 
     def set_drop_highlight(self, on: bool):
-        """Active / désactive la surbrillance de cible de connexion."""
+        """Enable/disable highlight for a valid connection target."""
         if on:
             self.setPen(QPen(QColor("#ffffff"), 2))
         else:
             self.setPen(QPen(COLOR_PORT_BORDER, 1.5))
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  NodeItem  –  rectangle déplaçable avec titre + ports
-# ═══════════════════════════════════════════════════════════════════════════
-
 class NodeItem(QGraphicsRectItem):
-    """Boîte rectangulaire avec un titre et des ports d'E/S."""
+    """Rectangular box with a title and I/O ports."""
 
     def __init__(
         self,
@@ -183,7 +155,7 @@ class NodeItem(QGraphicsRectItem):
         self.setAcceptHoverEvents(True)
         self.setZValue(1)
 
-        # -- Calcul de la taille -----------------------------------------------
+        # -- Size calculation -----------------------------------------------
         height = NODE_TITLE_HEIGHT + NODE_PORT_SPACING + 10
 
         fm_title = QFontMetrics(FONT_TITLE)
@@ -197,20 +169,20 @@ class NodeItem(QGraphicsRectItem):
         self.setRect(0, 0, width, height)
         self.setPos(x, y)
 
-        # -- Titre -------------------------------------------------------------
+        # -- Title -------------------------------------------------------------
         self._title_item = QGraphicsTextItem(title, self)
         self._title_item.setDefaultTextColor(COLOR_TEXT)
         self._title_item.setFont(FONT_TITLE)
         tbr = self._title_item.boundingRect()
         self._title_item.setPos((width - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
 
-        # -- Ports (exactement 1 entrée + 1 sortie) ---------------------------
+        # -- Ports (exactly 1 input + 1 output) ---------------------------
         y_port = NODE_TITLE_HEIGHT + 0.5 * NODE_PORT_SPACING + 5
 
         self.input_port.setPos(0, y_port)
         self.output_port.setPos(width, y_port)
 
-    # -- Titre -----------------------------------------------------------------
+    # -- Title -----------------------------------------------------------------
 
     @property
     def title(self) -> str:
@@ -224,7 +196,7 @@ class NodeItem(QGraphicsRectItem):
         w = self.rect().width()
         self._title_item.setPos((w - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
 
-    # -- Dessin ----------------------------------------------------------------
+    # -- Rendering ----------------------------------------------------------------
 
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget=None):
         rect = self.rect()
@@ -254,7 +226,7 @@ class NodeItem(QGraphicsRectItem):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRoundedRect(0, 0, w, h, NODE_CORNER_RADIUS, NODE_CORNER_RADIUS)
 
-    # -- Déplacement → mettre à jour les fils ----------------------------------
+    # -- Move -> update wires ----------------------------------
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
@@ -263,7 +235,7 @@ class NodeItem(QGraphicsRectItem):
                     wire.update_path()
         return super().itemChange(change, value)
 
-    # -- Double-clic pour renommer ---------------------------------------------
+    # -- Double-click to rename ---------------------------------------------
 
     def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent):
         if event.pos().y() < NODE_TITLE_HEIGHT:
@@ -282,28 +254,24 @@ class NodeItem(QGraphicsRectItem):
         return [self.input_port, self.output_port]
 
     def remove_wires(self):
-        """Supprime tous les fils connectés à ce nœud."""
+        """Remove all wires connected to this node."""
         for port in self.all_ports():
             for wire in list(port.wires):
                 wire.remove()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  _WireHandle  –  point de contrôle draggable sur un fil
-# ═══════════════════════════════════════════════════════════════════════════
-
 class _WireHandle(QGraphicsEllipseItem):
-    """Petit cercle que l'utilisateur peut tirer pour courber le fil.
+    """Small handle the user can drag to bend the wire.
 
-    Il est créé en tant qu'enfant du WireItem (parent graphique).
-    Double-clic pour réinitialiser la courbure.
+    It is created as a child of WireItem (graphics parent).
+    Double-click resets curvature.
     """
 
     def __init__(self, wire: "WireItem"):
         r = WIRE_HANDLE_RADIUS
         super().__init__(-r, -r, 2 * r, 2 * r, wire)
         self._wire = wire
-        self._updating = False          # évite la récursion setPos ↔ itemChange
+        self._updating = False          # avoids setPos <-> itemChange recursion
 
         self.setBrush(QBrush(QColor(136, 187, 255, 140)))
         self.setPen(QPen(QColor("#446688"), 1.0))
@@ -314,9 +282,9 @@ class _WireHandle(QGraphicsEllipseItem):
         self.setAcceptHoverEvents(True)
         self.setCursor(Qt.CursorShape.SizeAllCursor)
         self.setZValue(3)
-        self.setVisible(False)          # caché tant que le fil n'est pas sélectionné
+        self.setVisible(False)          # hidden until the wire is selected
 
-    # -- Quand l'utilisateur déplace le handle ---------------------------------
+    # -- When user drags the handle ---------------------------------
 
     def itemChange(self, change, value):
         if (
@@ -326,7 +294,7 @@ class _WireHandle(QGraphicsEllipseItem):
             self._wire._on_handle_dragged(value)
         return super().itemChange(change, value)
 
-    # -- Feedback visuel -------------------------------------------------------
+    # -- Visual feedback -------------------------------------------------------
 
     def hoverEnterEvent(self, event):
         self.setBrush(QBrush(QColor(170, 221, 255, 220)))
@@ -338,24 +306,20 @@ class _WireHandle(QGraphicsEllipseItem):
         self.setPen(QPen(QColor("#446688"), 1.0))
         super().hoverLeaveEvent(event)
 
-    # -- Double-clic → reset ---------------------------------------------------
+    # -- Double-click -> reset ---------------------------------------------------
 
     def mouseDoubleClickEvent(self, event):
-        """Remet le point de contrôle au milieu par défaut."""
+        """Reset the control point to its default midpoint."""
         self._wire._ctrl_offset = QPointF(0, 0)
         self._wire.update_path()
         event.accept()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  WireItem  –  courbe de Bézier entre deux ports avec point de contrôle
-# ═══════════════════════════════════════════════════════════════════════════
-
 class WireItem(QGraphicsPathItem):
-    """Fil reliant un port source (output) à un port destination (input).
+    """Wire connecting a source port (output) to a destination port (input).
 
-    Un point de contrôle central (_WireHandle) permet à l'utilisateur de
-    modifier la courbure.  Double-clic sur le point pour la réinitialiser.
+    A central control point (_WireHandle) allows users to adjust curvature.
+    Double-click the handle to reset it.
     """
 
     def __init__(
@@ -372,7 +336,7 @@ class WireItem(QGraphicsPathItem):
         source.wires.append(self)
         destination.wires.append(self)
 
-        self._ctrl_offset = QPointF(0, 0)   # décalage utilisateur
+        self._ctrl_offset = QPointF(0, 0)   # user offset
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -381,11 +345,11 @@ class WireItem(QGraphicsPathItem):
         self._handle = _WireHandle(self)
         self.update_path()
 
-    # -- Calculs de la courbe --------------------------------------------------
+    # -- Curve calculations --------------------------------------------------
 
     @staticmethod
     def _default_controls(p1: QPointF, p2: QPointF):
-        """Points de contrôle C1, C2 par défaut (tangentes horizontales)."""
+        """Default C1/C2 control points (horizontal tangents)."""
         dist = max(abs(p2.x() - p1.x()) * 0.5, 50)
         c1 = QPointF(p1.x() + dist, p1.y())
         c2 = QPointF(p2.x() - dist, p2.y())
@@ -393,8 +357,8 @@ class WireItem(QGraphicsPathItem):
 
     @staticmethod
     def _midpoint(p0: QPointF, c1: QPointF, c2: QPointF, p3: QPointF) -> QPointF:
-        """Point sur la Bézier cubique à t = 0.5."""
-        # B(0.5) = (P0 + 3·C1 + 3·C2 + P3) / 8
+        """Point on the cubic Bezier at t = 0.5."""
+        # B(0.5) = (P0 + 3*C1 + 3*C2 + P3) / 8
         return QPointF(
             (p0.x() + 3 * c1.x() + 3 * c2.x() + p3.x()) / 8.0,
             (p0.y() + 3 * c1.y() + 3 * c2.y() + p3.y()) / 8.0,
@@ -402,7 +366,7 @@ class WireItem(QGraphicsPathItem):
 
     @staticmethod
     def _bezier(p1: QPointF, p2: QPointF) -> QPainterPath:
-        """Bézier par défaut (sans offset) — utilisé aussi par _DragWireItem."""
+        """Default Bezier (without offset), also used by _DragWireItem."""
         dist = max(abs(p2.x() - p1.x()) * 0.5, 50)
         path = QPainterPath(p1)
         path.cubicTo(
@@ -412,16 +376,16 @@ class WireItem(QGraphicsPathItem):
         )
         return path
 
-    # -- Mise à jour du chemin -------------------------------------------------
+    # -- Path update -------------------------------------------------
 
     def update_path(self):
-        """Recalcule la courbe et repositionne le handle."""
+        """Recompute the curve and reposition the handle."""
         p1 = self.source.center_scene_pos()
         p2 = self.destination.center_scene_pos()
         c1, c2 = self._default_controls(p1, p2)
 
-        # Appliquer le décalage utilisateur aux points de contrôle.
-        # Facteur 4/3 pour que le handle reste exactement sur B(0.5).
+        # Apply user offset to control points.
+        # 4/3 factor keeps the handle exactly on B(0.5).
         adj = self._ctrl_offset * (4.0 / 3.0)
         ac1 = c1 + adj
         ac2 = c2 + adj
@@ -430,27 +394,27 @@ class WireItem(QGraphicsPathItem):
         path.cubicTo(ac1, ac2, p2)
         self.setPath(path)
 
-        # Repositionner le handle (sans déclencher _on_handle_dragged)
+        # Reposition the handle (without triggering _on_handle_dragged)
         mid = self._midpoint(p1, c1, c2, p2) + self._ctrl_offset
         self._handle._updating = True
         self._handle.setPos(mid)
         self._handle._updating = False
 
     def _on_handle_dragged(self, new_pos: QPointF):
-        """Appelé par le handle quand l'utilisateur le déplace."""
+        """Called by the handle when the user drags it."""
         p1 = self.source.center_scene_pos()
         p2 = self.destination.center_scene_pos()
         c1, c2 = self._default_controls(p1, p2)
         default_mid = self._midpoint(p1, c1, c2, p2)
         self._ctrl_offset = new_pos - default_mid
 
-        # Reconstruire le chemin sans toucher au handle (l'utilisateur le tient)
+        # Rebuild path without moving the handle (user is dragging it)
         adj = self._ctrl_offset * (4.0 / 3.0)
         path = QPainterPath(p1)
         path.cubicTo(c1 + adj, c2 + adj, p2)
         self.setPath(path)
 
-    # -- Dessin ----------------------------------------------------------------
+    # -- Rendering ----------------------------------------------------------------
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
@@ -465,10 +429,10 @@ class WireItem(QGraphicsPathItem):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self.path())
 
-    # -- Suppression -----------------------------------------------------------
+    # -- Deletion -----------------------------------------------------------
 
     def remove(self):
-        """Retire le fil de la scène et des listes de ports."""
+        """Remove the wire from scene and ports lists."""
         if self.source and self in self.source.wires:
             self.source.wires.remove(self)
         if self.destination and self in self.destination.wires:
@@ -477,12 +441,8 @@ class WireItem(QGraphicsPathItem):
             self.scene().removeItem(self)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  _DragWireItem  –  fil temporaire pendant le drag d'un port
-# ═══════════════════════════════════════════════════════════════════════════
-
 class _DragWireItem(QGraphicsPathItem):
-    """Fil fantôme affiché pendant le drag depuis un port."""
+    """Ghost wire shown while dragging from a port."""
 
     def __init__(self, start: QPointF, from_output: bool):
         super().__init__()
@@ -500,14 +460,10 @@ class _DragWireItem(QGraphicsPathItem):
         self.setPath(path)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  NodeGraphScene  –  scène qui gère les interactions
-# ═══════════════════════════════════════════════════════════════════════════
-
 class NodeGraphScene(QGraphicsScene):
-    """Scène graphique gérant nœuds, ports et fils."""
+    """Graphics scene managing nodes, ports, and wires."""
 
-    # Signaux publics
+    # Public signals
     node_added = Signal(object)       # NodeItem
     node_removed = Signal(object)     # NodeItem
     wire_added = Signal(object)       # WireItem
@@ -521,7 +477,7 @@ class NodeGraphScene(QGraphicsScene):
         self._drag_start_port: Optional[PortItem] = None
         self._drag_target_port: Optional[PortItem] = None
 
-    # -- API publique ----------------------------------------------------------
+    # -- Public API ----------------------------------------------------------
 
     def add_node(
         self,
@@ -530,23 +486,23 @@ class NodeGraphScene(QGraphicsScene):
         y: float = 0,
         fmu_path: str = "",
     ) -> NodeItem:
-        """Crée et ajoute un nœud à la scène."""
+        """Create and add a node to the scene."""
         node = NodeItem(title=title, x=x, y=y, fmu_path=fmu_path)
         self.addItem(node)
         self.node_added.emit(node)
         return node
 
     def add_wire(self, source: PortItem, destination: PortItem) -> Optional[WireItem]:
-        """Connecte deux ports par un fil.  Retourne None si la connexion est invalide."""
+        """Connect two ports with a wire. Returns None if invalid."""
         # Validation
         if source.port_type == destination.port_type:
             return None
         if source.node is destination.node:
             return None
-        # Assurer l'ordre output → input
+        # Enforce output -> input order
         if source.port_type == PortType.INPUT:
             source, destination = destination, source
-        # Pas de doublon
+        # No duplicates
         for w in source.wires:
             if w.destination is destination:
                 return None
@@ -556,7 +512,7 @@ class NodeGraphScene(QGraphicsScene):
         return wire
 
     def remove_selected(self):
-        """Supprime les éléments sélectionnés (fils d'abord, puis nœuds)."""
+        """Remove selected items (wires first, then nodes)."""
         for item in list(self.selectedItems()):
             if isinstance(item, WireItem):
                 self.wire_removed.emit(item)
@@ -574,16 +530,16 @@ class NodeGraphScene(QGraphicsScene):
         return [it for it in self.items() if isinstance(it, WireItem)]
 
     def clear_all(self):
-        """Supprime tous les nœuds et fils."""
+        """Remove all nodes and wires."""
         for wire in self.wires():
             wire.remove()
         for node in self.nodes():
             self.removeItem(node)
 
-    # -- Interaction : drag de fil ---------------------------------------------
+    # -- Interaction: wire drag ---------------------------------------------
 
     def _port_at(self, scene_pos: QPointF) -> Optional[PortItem]:
-        """Retourne le PortItem le plus proche sous la position."""
+        """Return the nearest PortItem under the given position."""
         for item in self.items(scene_pos, Qt.ItemSelectionMode.IntersectsItemBoundingRect):
             if isinstance(item, PortItem):
                 return item
@@ -603,7 +559,7 @@ class NodeGraphScene(QGraphicsScene):
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
         if self._drag_wire:
             self._drag_wire.update_destination(event.scenePos())
-            # Surbrillance du port cible
+            # Target port highlight
             port = self._port_at(event.scenePos())
             if port is self._drag_start_port:
                 port = None
@@ -619,15 +575,15 @@ class NodeGraphScene(QGraphicsScene):
 
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
         if self._drag_wire:
-            # Retirer la surbrillance
+            # Clear highlight
             if self._drag_target_port:
                 self._drag_target_port.set_drop_highlight(False)
                 self._drag_target_port = None
-            # Chercher un port sous le curseur
+            # Find a port under cursor
             target = self._port_at(event.scenePos())
             if target and target is not self._drag_start_port:
                 self.add_wire(self._drag_start_port, target)
-            # Nettoyer
+            # Cleanup
             self.removeItem(self._drag_wire)
             self._drag_wire = None
             self._drag_start_port = None
@@ -636,12 +592,8 @@ class NodeGraphScene(QGraphicsScene):
         super().mouseReleaseEvent(event)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  NodeGraphView  –  vue avec zoom, pan et grille
-# ═══════════════════════════════════════════════════════════════════════════
-
 class NodeGraphView(QGraphicsView):
-    """Vue graphique avec grille, zoom molette et pan bouton milieu."""
+    """Graph view with grid, wheel zoom, and middle-button pan."""
 
     def __init__(self, scene: NodeGraphScene, parent=None):
         super().__init__(scene, parent)
@@ -663,12 +615,12 @@ class NodeGraphView(QGraphicsView):
         self._pan_active = False
         self._pan_start = QPointF()
 
-        # Limites de zoom : le nœud le plus petit (hauteur=64) doit rester ≥ 10 px
+        # Zoom limits: smallest node (height=64) should remain >= 10 px
         node_min_dim = NODE_TITLE_HEIGHT + NODE_PORT_SPACING + 10  # 64
         self._zoom_min = 10.0 / node_min_dim   # ≈ 0.156
         self._zoom_max = 5.0
 
-    # -- Grille ----------------------------------------------------------------
+    # -- Grid ----------------------------------------------------------------
 
     def drawBackground(self, painter: QPainter, rect: QRectF):
         super().drawBackground(painter, rect)
@@ -681,7 +633,7 @@ class NodeGraphView(QGraphicsView):
         first_left = left - (left % GRID_SIZE)
         first_top = top - (top % GRID_SIZE)
 
-        # Lignes fines
+        # Thin lines
         lines_light = []
         for x in range(first_left, right, GRID_SIZE):
             lines_light.append(QLineF(x, top, x, bottom))
@@ -690,7 +642,7 @@ class NodeGraphView(QGraphicsView):
         painter.setPen(QPen(COLOR_GRID_LIGHT, 0.5))
         painter.drawLines(lines_light)
 
-        # Lignes épaisses
+        # Thick lines
         big = GRID_SIZE * GRID_SQUARES
         first_left_big = left - (left % big)
         first_top_big = top - (top % big)
@@ -702,7 +654,7 @@ class NodeGraphView(QGraphicsView):
         painter.setPen(QPen(COLOR_GRID_DARK, 1.0))
         painter.drawLines(lines_dark)
 
-    # -- Zoom molette ----------------------------------------------------------
+    # -- Mouse wheel zoom ----------------------------------------------------------
 
     def wheelEvent(self, event):
         factor = 1.15
@@ -719,7 +671,7 @@ class NodeGraphView(QGraphicsView):
             self._zoom = new_zoom
             self.scale(1 / factor, 1 / factor)
 
-    # -- Pan (bouton milieu ou Alt+clic) ---------------------------------------
+    # -- Pan (middle button or Alt+click) ---------------------------------------
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.MiddleButton or (
@@ -755,7 +707,7 @@ class NodeGraphView(QGraphicsView):
             return
         super().mouseReleaseEvent(event)
 
-    # -- Clavier ---------------------------------------------------------------
+    # -- Keyboard ---------------------------------------------------------------
 
     def keyPressEvent(self, event: QKeyEvent):
         if event.key() in (Qt.Key.Key_Delete, Qt.Key.Key_Backspace):
@@ -764,7 +716,7 @@ class NodeGraphView(QGraphicsView):
             return
         super().keyPressEvent(event)
 
-    # -- Glisser-déposer de fichiers .fmu --------------------------------------
+    # -- Drag and drop .fmu files --------------------------------------
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
@@ -784,9 +736,10 @@ class NodeGraphView(QGraphicsView):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 path = url.toLocalFile()
-                if path.lower().endswith(".fmu"):
+                path_obj = Path(path)
+                if path_obj.suffix.lower() == ".fmu":
                     scene_pos = self.mapToScene(event.position().toPoint())
-                    name = os.path.splitext(os.path.basename(path))[0]
+                    name = path_obj.stem
                     self._scene.add_node(
                         title=name,
                         x=scene_pos.x(),
@@ -797,13 +750,13 @@ class NodeGraphView(QGraphicsView):
             return
         super().dropEvent(event)
 
-    # -- Menu contextuel -------------------------------------------------------
+    # -- Context menu -------------------------------------------------------
 
     def contextMenuEvent(self, event):
         menu = QMenu(self)
         scene_pos = self.mapToScene(event.pos())
 
-        # Sous le curseur ?
+        # Under cursor?
         item = self._scene.itemAt(scene_pos, self.transform())
 
         add_fmu_action = menu.addAction("Ajouter FMU…")
@@ -819,14 +772,14 @@ class NodeGraphView(QGraphicsView):
                 self, "Sélectionner des FMU", "", "FMU (*.fmu)"
             )
             for path in paths:
-                name = os.path.splitext(os.path.basename(path))[0]
+                name = Path(path).stem
                 self._scene.add_node(
                     title=name,
                     x=scene_pos.x(),
                     y=scene_pos.y(),
                     fmu_path=path,
                 )
-                scene_pos += QPointF(20, 20)  # décaler les suivants
+                scene_pos += QPointF(20, 20)  # offset subsequent nodes
         elif chosen == delete_action:
             self._scene.remove_selected()
         elif chosen == fit_action:
@@ -839,16 +792,12 @@ class NodeGraphView(QGraphicsView):
             self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
 
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  NodeGraphWidget  –  widget englobant prêt à être intégré
-# ═══════════════════════════════════════════════════════════════════════════
-
 class NodeGraphWidget(QWidget):
-    """Widget réutilisable contenant le mini-modeleur (scène + vue).
+    """Reusable widget containing the mini editor (scene + view).
 
-    Attributs publics :
-        scene  : NodeGraphScene   – pour manipuler nœuds et fils par code.
-        view   : NodeGraphView    – pour contrôler la vue.
+    Public attributes:
+        scene  : NodeGraphScene   - programmatic access to nodes and wires.
+        view   : NodeGraphView    - view control.
     """
 
     def __init__(self, parent=None):
@@ -863,7 +812,7 @@ class NodeGraphWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.view)
 
-    # -- Raccourcis API --------------------------------------------------------
+    # -- API shortcuts --------------------------------------------------------
 
     def add_node(
         self,
@@ -880,35 +829,32 @@ class NodeGraphWidget(QWidget):
     def clear(self):
         self.scene.clear_all()
 
-
-# ═══════════════════════════════════════════════════════════════════════════
-#  NodeTreePanel  –  arbre hiérarchique (conteneurs + nœuds)
-# ═══════════════════════════════════════════════════════════════════════════
-
-# Rôles de données personnalisés stockés sur les items de la colonne 0
+# Custom data roles stored on column 0 items
 ROLE_IS_CONTAINER = Qt.ItemDataRole.UserRole + 1
 ROLE_NODE_UID     = Qt.ItemDataRole.UserRole + 2
-
-
+ROLE_IS_ROOT      = Qt.ItemDataRole.UserRole + 3
 
 class _NodeTreeModel(QStandardItemModel):
-    """Modèle qui n'autorise le drop que sur les items « Container »."""
+    """Model that only allows drop on "Container" items."""
 
     def canDropMimeData(self, data, action, row, column, parent):
         if not parent.isValid():
-            return False                        # pas au niveau racine invisible
-        item = self.itemFromIndex(parent)
+            return False                        # not at invisible root level
+        col0 = parent.sibling(parent.row(), 0) if parent.column() != 0 else parent
+        item = self.itemFromIndex(col0)
         if item is None or not item.data(ROLE_IS_CONTAINER):
-            return False                        # seulement sur un Container
+            return False                        # only on a Container
         return super().canDropMimeData(data, action, row, column, parent)
 
+    def dropMimeData(self, data, action, row, column, parent):
+        # Redirect drops to column 0 so children are added under type_item
+        if parent.isValid() and parent.column() != 0:
+            parent = parent.sibling(parent.row(), 0)
+        return super().dropMimeData(data, action, row, column, parent)
 
-# ═══════════════════════════════════════════════════════════════════════════
-#  Widgets de détails  –  panneau bas selon le type d'objet sélectionné
-# ═══════════════════════════════════════════════════════════════════════════
 
 class WireDetailWidget(QWidget):
-    """Détails d'un WireItem : nom + tableau à 4 colonnes."""
+    """WireItem details: name + 4-column table."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -944,7 +890,7 @@ class WireDetailWidget(QWidget):
 
 
 class FMUDetailWidget(QWidget):
-    """Détails d'un NodeItem (FMU) – contenu à définir ultérieurement."""
+    """NodeItem (FMU) details - content to be defined later."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -964,7 +910,7 @@ class FMUDetailWidget(QWidget):
 
 
 class ContainerDetailWidget(QWidget):
-    """Détails d'un Container – contenu à définir ultérieurement."""
+    """Container details - content to be defined later."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -984,31 +930,33 @@ class ContainerDetailWidget(QWidget):
 
 
 class NodeTreePanel(QWidget):
-    """Panneau latéral affichant les nœuds sous forme d'arbre hiérarchique.
+    """Side panel showing nodes as a hierarchical tree.
 
-    • Deux colonnes : **Type** (Container / Node) | **Nom**.
-    • Le premier niveau contient un conteneur racine (*Projet*).
-    • Clic-droit → ajouter nœud, ajouter conteneur, renommer, supprimer.
-    • Glisser-déposer interne pour réorganiser la hiérarchie.
-    • Synchronisé avec la scène : les nœuds ajoutés / supprimés dans le
-      graphe apparaissent / disparaissent automatiquement de l'arbre.
-    """
+    • Two columns: **Type** (Container / Node) | **Name**.
+    • First level contains a root container (*Project*).
+    • Right-click -> add node, add container, rename, delete.
+    • Internal drag-and-drop to reorganize hierarchy.
+    • Synchronized with scene: nodes added/removed in graph
+      appear/disappear automatically in the tree.
+"""
 
     def __init__(self, graph_widget: NodeGraphWidget, parent=None):
         super().__init__(parent)
         self._graph = graph_widget
         self._pending_parent: Optional[QStandardItem] = None
+        resources_dir = Path(__file__).resolve().parent.parent / "resources"
+        self._icon_container = QIcon(str(resources_dir / "container.png"))
+        self._icon_fmu = QIcon(str(resources_dir / "icon_fmu.png"))
 
-        # ── Modèle ────────────────────────────────────────────────────────
+        # ── Model ────────────────────────────────────────────────────────
         self._model = _NodeTreeModel(0, 2)
-        self._model.setHorizontalHeaderLabels(["Type", "Nom"])
+        self._model.setHorizontalHeaderLabels(["", "Name"])
 
-        root_row = self._make_container_row("Projet")
-        root_row[0].setDragEnabled(False)           # racine non déplaçable
+        root_row = self._make_container_row("container.fmu", is_root=True)
         self._model.appendRow(root_row)
         self._root: QStandardItem = root_row[0]
 
-        # ── Vue ───────────────────────────────────────────────────────────
+        # ── View ───────────────────────────────────────────────────────────
         self._tree = QTreeView()
         self._tree.setModel(self._model)
         self._tree.setDragDropMode(QTreeView.DragDropMode.InternalMove)
@@ -1017,10 +965,12 @@ class NodeTreePanel(QWidget):
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
         self._tree.header().setStretchLastSection(True)
-        self._tree.setColumnWidth(0, 90)
+        self._tree.setColumnWidth(0, 80)
+        self._tree.setIconSize(QSize(30, 30))  # Larger icons
+        self._tree.setUniformRowHeights(True)
         self._tree.expandAll()
 
-        # ── Connexions scène → arbre ──────────────────────────────────────
+        # ── Scene -> tree connections ──────────────────────────────────────
         self._syncing_selection = False
 
         self._graph.scene.node_added.connect(self._on_scene_node_added)
@@ -1028,7 +978,7 @@ class NodeTreePanel(QWidget):
         self._graph.scene.selectionChanged.connect(self._on_scene_selection_changed)
         self._tree.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
 
-        # ── Panneau de détails ────────────────────────────────────────────
+        # ── Details panel ────────────────────────────────────────────
         self._empty_widget = QWidget()                          # page 0
         self._wire_detail = WireDetailWidget()                  # page 1
         self._fmu_detail = FMUDetailWidget()                    # page 2
@@ -1041,35 +991,41 @@ class NodeTreePanel(QWidget):
         self._detail_stack.addWidget(self._container_detail)
         self._detail_stack.setCurrentIndex(0)
 
-        # ── Mise en page ──────────────────────────────────────────────────
-        vsplit = QSplitter(Qt.Orientation.Vertical)
-        vsplit.addWidget(self._tree)
-        vsplit.addWidget(self._detail_stack)
-        vsplit.setSizes([300, 200])
+        # ── Layout ──────────────────────────────────────────────────
+        self._tree_splitter = QSplitter(Qt.Orientation.Vertical)
+        self._tree_splitter.addWidget(self._tree)
+        self._tree_splitter.addWidget(self._detail_stack)
+        self._tree_splitter.setChildrenCollapsible(False)
+        self._tree_splitter.setStretchFactor(0, 3)
+        self._tree_splitter.setStretchFactor(1, 2)
+        self._tree_splitter.setSizes([300, 200])
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(vsplit)
+        lay.addWidget(self._tree_splitter)
 
-    # ── Fabriques de lignes ──────────────────────────────────────────────
+    # ── Row builders ──────────────────────────────────────────────
 
-    @staticmethod
-    def _make_container_row(name: str) -> List[QStandardItem]:
-        type_item = QStandardItem("Container")
+    def _make_container_row(self, name: str, is_root: bool = False) -> List[QStandardItem]:
+        type_item = QStandardItem()
+        type_item.setIcon(self._icon_container)
+        type_item.setToolTip("Container")
         type_item.setData(True, ROLE_IS_CONTAINER)
+        type_item.setData(is_root, ROLE_IS_ROOT)
         type_item.setEditable(False)
         type_item.setDropEnabled(True)
-        type_item.setDragEnabled(True)
+        type_item.setDragEnabled(not is_root)
 
         name_item = QStandardItem(name)
         name_item.setEditable(True)
-        name_item.setDropEnabled(False)
-        name_item.setDragEnabled(False)
+        name_item.setDropEnabled(True)
+        name_item.setDragEnabled(not is_root)
         return [type_item, name_item]
 
-    @staticmethod
-    def _make_node_row(node: NodeItem) -> List[QStandardItem]:
-        type_item = QStandardItem("Node")
+    def _make_node_row(self, node: NodeItem) -> List[QStandardItem]:
+        type_item = QStandardItem()
+        type_item.setIcon(self._icon_fmu)
+        type_item.setToolTip("FMU")
         type_item.setData(False, ROLE_IS_CONTAINER)
         type_item.setData(node.uid, ROLE_NODE_UID)
         type_item.setEditable(False)
@@ -1079,10 +1035,10 @@ class NodeTreePanel(QWidget):
         name_item = QStandardItem(node.title)
         name_item.setEditable(False)
         name_item.setDropEnabled(False)
-        name_item.setDragEnabled(False)
+        name_item.setDragEnabled(True)
         return [type_item, name_item]
 
-    # ── Synchronisation scène → arbre ────────────────────────────────────
+    # ── Scene -> tree synchronization ────────────────────────────────────
 
     def _on_scene_node_added(self, node: NodeItem):
         target = self._pending_parent or self._root
@@ -1105,7 +1061,7 @@ class NodeTreePanel(QWidget):
         return False
 
     def _find_tree_item_by_uid(self, parent: QStandardItem, uid: str) -> Optional[QStandardItem]:
-        """Recherche récursive d'un item Node par son UID."""
+        """Recursively find a Node item by UID."""
         for r in range(parent.rowCount()):
             child = parent.child(r, 0)
             if child is None:
@@ -1118,11 +1074,11 @@ class NodeTreePanel(QWidget):
                     return found
         return None
 
-    # ── Synchronisation de la sélection ──────────────────────────────────
+    # ── Selection synchronization ──────────────────────────────────
 
     def _on_scene_selection_changed(self):
-        """Scène → Arbre : le nœud sélectionné dans le graphe est sélectionné
-        dans l'arbre.  Met aussi à jour le panneau de détails."""
+        """Scene -> tree: select in tree when node is selected in graph.
+        Also updates the details panel."""
         if self._syncing_selection:
             return
         self._syncing_selection = True
@@ -1132,7 +1088,7 @@ class NodeTreePanel(QWidget):
 
             selected = self._graph.scene.selectedItems()
 
-            # Chercher un NodeItem
+            # Find a NodeItem
             for scene_item in selected:
                 if isinstance(scene_item, NodeItem):
                     tree_item = self._find_tree_item_by_uid(
@@ -1148,21 +1104,21 @@ class NodeTreePanel(QWidget):
                         self._tree.scrollTo(idx)
                     self._fmu_detail.set_node(scene_item)
                     self._detail_stack.setCurrentWidget(self._fmu_detail)
-                    return  # traité
-            # Chercher un WireItem
+                    return  # handled
+            # Find a WireItem
             for scene_item in selected:
                 if isinstance(scene_item, WireItem):
                     self._wire_detail.set_wire(scene_item)
                     self._detail_stack.setCurrentWidget(self._wire_detail)
-                    return  # traité
-            # Rien de pertinent
+                    return  # handled
+            # Nothing relevant
             self._detail_stack.setCurrentWidget(self._empty_widget)
         finally:
             self._syncing_selection = False
 
     def _on_tree_selection_changed(self, _selected, _deselected):
-        """Arbre → Scène : le nœud sélectionné dans l'arbre est sélectionné
-        dans le graphe.  Met aussi à jour le panneau de détails."""
+        """Tree -> scene: select in graph when node is selected in tree.
+        Also updates the details panel."""
         if self._syncing_selection:
             return
         self._syncing_selection = True
@@ -1173,7 +1129,7 @@ class NodeTreePanel(QWidget):
                 if item is None:
                     continue
                 if item.data(ROLE_IS_CONTAINER):
-                    # Container sélectionné → panneau Container
+                    # Container selected -> Container panel
                     parent_std = item.parent() or self._model.invisibleRootItem()
                     name_col = parent_std.child(item.row(), 1)
                     self._container_detail.set_container(
@@ -1189,12 +1145,12 @@ class NodeTreePanel(QWidget):
                             self._fmu_detail.set_node(node)
                             self._detail_stack.setCurrentWidget(self._fmu_detail)
                             return
-            # Rien de pertinent
+            # Nothing relevant
             self._detail_stack.setCurrentWidget(self._empty_widget)
         finally:
             self._syncing_selection = False
 
-    # ── Menu contextuel ──────────────────────────────────────────────────
+    # ── Context menu ──────────────────────────────────────────────────
 
     def _on_context_menu(self, pos):
         index = self._tree.indexAt(pos)
@@ -1224,7 +1180,7 @@ class NodeTreePanel(QWidget):
             )
             self._pending_parent = target
             for i, path in enumerate(paths):
-                name = os.path.splitext(os.path.basename(path))[0]
+                name = Path(path).stem
                 self._graph.add_node(
                     name,
                     x=center.x() + i * 20,
@@ -1252,7 +1208,7 @@ class NodeTreePanel(QWidget):
             self._delete_item(item)
 
     def _resolve_target(self, index):
-        """Renvoie *(conteneur_cible, item_cliqué)* ou *(root, None)*."""
+        """Return *(target_container, clicked_item)* or *(root, None)*."""
         if not index.isValid():
             return self._root, None
         col0 = index.sibling(index.row(), 0) if index.column() != 0 else index
@@ -1263,11 +1219,10 @@ class NodeTreePanel(QWidget):
             return item, item
         return (item.parent() or self._root), item
 
-    # ── Suppression ──────────────────────────────────────────────────────
+    # ── Deletion ──────────────────────────────────────────────────────
 
     def _delete_item(self, item: QStandardItem):
-        """Supprime un nœud ou un conteneur (+ tout son contenu) de l'arbre
-        et de la scène."""
+        """Delete a node or container (+ all its content) from tree and scene."""
         if item.data(ROLE_IS_CONTAINER):
             self._purge_container(item)
         else:
@@ -1276,7 +1231,7 @@ class NodeTreePanel(QWidget):
         parent.removeRow(item.row())
 
     def _purge_container(self, ctn: QStandardItem):
-        """Supprime récursivement les nœuds de scène contenus dans *ctn*."""
+        """Recursively delete scene nodes contained in *ctn*."""
         for r in range(ctn.rowCount() - 1, -1, -1):
             child = ctn.child(r, 0)
             if child is None:
@@ -1287,7 +1242,7 @@ class NodeTreePanel(QWidget):
                 self._remove_scene_node(child.data(ROLE_NODE_UID))
 
     def _remove_scene_node(self, uid: Optional[str]):
-        """Retire le nœud correspondant de la scène graphique."""
+        """Remove the matching node from the graphics scene."""
         if uid is None:
             return
         for node in self._graph.scene.nodes():
@@ -1302,17 +1257,151 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         splitter = QSplitter()
-        graph = NodeGraphWidget()
-        tree = NodeTreePanel(graph)
-        splitter.addWidget(graph)
-        splitter.addWidget(tree)
+        self._graph = NodeGraphWidget()
+        self._tree = NodeTreePanel(self._graph)
+        splitter.addWidget(self._graph)
+        splitter.addWidget(self._tree)
         splitter.setSizes([700, 300])
-        self.setCentralWidget(splitter)
+
+        self._load_button = QPushButton("Load")
+        self._export_button = QPushButton("Export")
+        self._save_button = QPushButton("Save")
+        self._exit_button = QPushButton("Exit")
+        self._save_button.setProperty("class", "save")
+        self._exit_button.setProperty("class", "quit")
+
+        btn_width = max(
+            self._load_button.sizeHint().width(),
+            self._export_button.sizeHint().width(),
+            self._save_button.sizeHint().width(),
+            self._exit_button.sizeHint().width(),
+        )
+        for button in (
+            self._load_button,
+            self._export_button,
+            self._save_button,
+            self._exit_button,
+        ):
+            button.setMinimumWidth(btn_width)
+
+        self._load_button.clicked.connect(self._on_load_clicked)
+        self._export_button.clicked.connect(self._on_export_clicked)
+        self._save_button.clicked.connect(self._on_save_clicked)
+        self._exit_button.clicked.connect(self.close)
+
+        self._status_bar = StatusBar()
+        self._status_bar.setSizeGripEnabled(False)
+
+        button_bar = QHBoxLayout()
+        button_bar.addWidget(self._status_bar, 1)
+        button_bar.addWidget(self._load_button)
+        button_bar.addWidget(self._export_button)
+        button_bar.addWidget(self._save_button)
+        button_bar.addWidget(self._exit_button)
+
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.addWidget(splitter, 1)
+        main_layout.addLayout(button_bar)
+
+        central = QWidget()
+        central.setLayout(main_layout)
+        self.setCentralWidget(central)
 
         self.setWindowTitle("FMU Container Builder")
         self.resize(1200, 700)
 
+        logger.info("FMU Container Builder ready")
         self.show()
+
+    def _on_load_clicked(self):
+        # Reserved hook for the Load action.
+        logger.info("Load clicked")
+        pass
+
+    def _on_export_clicked(self):
+        # Reserved hook for the Export action.
+        logger.info("Export clicked")
+        pass
+
+    def _on_save_clicked(self):
+        logger.info("Save clicked")
+
+        model: _NodeTreeModel = self._tree._model
+        root_item: QStandardItem = self._tree._root
+        nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
+
+        def _name_for(item: QStandardItem) -> str:
+            parent_std = item.parent() or model.invisibleRootItem()
+            name_col = parent_std.child(item.row(), 1)
+            return name_col.text() if name_col is not None else ""
+
+        def _serialize_item(item: QStandardItem) -> dict:
+            if item.data(ROLE_IS_CONTAINER):
+                children = []
+                for r in range(item.rowCount()):
+                    child = item.child(r, 0)
+                    if child is not None:
+                        children.append(_serialize_item(child))
+                return {
+                    "type": "container",
+                    "name": _name_for(item),
+                    "is_root": bool(item.data(ROLE_IS_ROOT)),
+                    "children": children,
+                }
+
+            uid = item.data(ROLE_NODE_UID)
+            scene_node = nodes_by_uid.get(uid)
+            return {
+                "type": "fmu",
+                "uid": uid,
+                "name": _name_for(item),
+                "title": scene_node.title if scene_node is not None else "",
+                "fmu_path": scene_node.fmu_path if scene_node is not None else "",
+            }
+
+        wires_payload = []
+        for wire in self._graph.scene.wires():
+            wires_payload.append(
+                {
+                    "source_uid": wire.source.node.uid,
+                    "source_port": wire.source.name,
+                    "target_uid": wire.destination.node.uid,
+                    "target_port": wire.destination.name,
+                }
+            )
+
+        payload = {
+            "tree": _serialize_item(root_item),
+            "wires": wires_payload,
+            "summary": {
+                "node_count": len(nodes_by_uid),
+                "wire_count": len(wires_payload),
+            },
+        }
+
+        output_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save container snapshot",
+            "container_snapshot.json",
+            "JSON (*.json)",
+        )
+        if not output_path:
+            logger.info("Save cancelled")
+            return
+
+        with open(output_path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, indent=2, ensure_ascii=False)
+
+        logger.info(
+            "Snapshot saved to %s (%d nodes, %d wires)",
+            output_path,
+            len(nodes_by_uid),
+            len(wires_payload),
+        )
+
+    def closeEvent(self, event):
+        super().closeEvent(event)
 
 
 def main():

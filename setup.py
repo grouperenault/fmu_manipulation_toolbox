@@ -49,7 +49,9 @@ setup(
                                       ],
                   "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.fmutool:main",
                                   "fmucontainer-gui = fmu_manipulation_toolbox.gui.fmucontainer:main",
-                                  "fmueditor = fmu_manipulation_toolbox.gui.editor:main",]
+                                  "fmueditor = fmu_manipulation_toolbox.gui.editor:main",
+                                  "fmutoolbox = fmu_manipulation_toolbox.gui.__main__:main",
+                                  ]
                   },
     author=author,
     url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
@@ -66,12 +68,12 @@ FMU Manipulation Toolbox can be used in different ways:
 
 Major features:
 - Analyze FMU content: list ports and their attributes, check compliance of `ModelDescription.xml` with XSD, etc.
-- Alter FMU by modifying its `REF-modelDescription.xml` file. NOTE: manipulating this file can be a risky.
+- Alter FMU by modifying its `modelDescription.xml` file. NOTE: manipulating this file can be a risky.
   When possible, it is preferable to communicate with the FMU developer and adapt the FMU generation process.
 - Add binary interfaces. Typical use case is porting a 32-bit FMUs to 64-bit systems (or vice et versa). 
-- Combine FMUs into [FMU Containers](doc/container.md) and allow your favourite FMI tool to orchestrate complex assembly of FMUs.
+- Combine FMUs into FMU Containers and allow your favourite FMI tool to orchestrate complex assemblies of FMUs.
 
-FMI versions 2.0 and 3.0 are supported.
+FMI versions 2.0, 3.0 and LS-BUS are supported.
     """,
     long_description_content_type="text/markdown",
     install_requires=[

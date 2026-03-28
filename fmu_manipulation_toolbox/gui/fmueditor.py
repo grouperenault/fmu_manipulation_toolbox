@@ -14,37 +14,14 @@ from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen
 from PySide6.QtWidgets import (
     QMainWindow, QTableView, QHeaderView, QPushButton,
     QVBoxLayout, QHBoxLayout, QWidget, QLabel, QFileDialog,
-    QLineEdit, QGridLayout, QStatusBar, QMessageBox,
+    QLineEdit, QGridLayout, QMessageBox,
 )
 
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
-from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget
-from fmu_manipulation_toolbox.gui.style import log_color
+from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget, StatusBar
+
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
-
-
-class StatusBarLogHandler(logging.Handler):
-    """Logging handler that displays messages in a QStatusBar with level-based colors."""
-
-    LOG_COLORS = {
-        logging.DEBUG: log_color["DEBUG"],
-        logging.INFO: log_color["INFO"],
-        logging.WARNING: log_color["WARNING"],
-        logging.ERROR: log_color["ERROR"],
-        logging.CRITICAL: log_color["CRITICAL"],
-    }
-
-    def __init__(self, status_bar: QStatusBar, level=logging.INFO):
-        super().__init__(level)
-        self._status_bar = status_bar
-        logger.addHandler(self)
-        logger.setLevel(level)
-
-    def emit(self, record):
-        color = self.LOG_COLORS.get(record.levelno, log_color["INFO"])
-        self._status_bar.setStyleSheet(f"QStatusBar {{ color: {color}; }}")
-        self._status_bar.showMessage(self.format(record), 10000)
 
 
 class Causality(Enum):
@@ -442,7 +419,7 @@ class MainWindow(QMainWindow):
         top_bar.addLayout(info_grid, 1)
 
         # Bottom bar: status + buttons
-        self._status_bar = QStatusBar()
+        self._status_bar = StatusBar()
         self._status_bar.setSizeGripEnabled(False)
 
         button_bar = QHBoxLayout()
@@ -464,9 +441,6 @@ class MainWindow(QMainWindow):
         # Initial values to detect experiment changes
         self._original_start_time: str = ""
         self._original_stop_time: str = ""
-
-        # Log handler on status bar
-        self._log_handler = StatusBarLogHandler(self._status_bar)
 
         self.show()
 

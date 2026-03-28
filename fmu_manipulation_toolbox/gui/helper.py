@@ -2,14 +2,14 @@ import logging
 import os
 
 from typing import *
-from PySide6.QtWidgets import QApplication, QFileDialog, QLabel
+from PySide6.QtWidgets import QApplication, QFileDialog, QLabel, QStatusBar
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage
 
 from pathlib import Path
 
-from fmu_manipulation_toolbox.gui.style import gui_style
+from fmu_manipulation_toolbox.gui.style import gui_style, log_color
 from fmu_manipulation_toolbox.operations import FMU
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -171,3 +171,35 @@ class DropZoneWidget(QLabel):
 
         self.clicked.emit()
         self.fmu_loaded.emit(self.fmu)
+
+
+class StatusBar(QStatusBar):
+    class StatusBarLogHandler(logging.Handler):
+        """Affiche les logs dans une QStatusBar avec une couleur par niveau."""
+
+        LOG_COLORS = {
+            logging.DEBUG: log_color["DEBUG"],
+            logging.INFO: log_color["INFO"],
+            logging.WARNING: log_color["WARNING"],
+            logging.ERROR: log_color["ERROR"],
+            logging.CRITICAL: log_color["CRITICAL"],
+        }
+
+        def __init__(self, status_bar: QStatusBar, level=logging.INFO):
+            super().__init__(level)
+            self._status_bar = status_bar
+            logger.addHandler(self)
+            logger.setLevel(level)
+
+        def emit(self, record: logging.LogRecord):
+            color = self.LOG_COLORS.get(record.levelno, log_color["INFO"])
+            self._status_bar.setStyleSheet(f"QStatusBar {{ color: {color}; }}")
+            self._status_bar.showMessage(self.format(record), 10000)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._log_handler = StatusBar.StatusBarLogHandler(self)
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        logger.removeHandler(self._log_handler)
+        self._log_handler.close()
