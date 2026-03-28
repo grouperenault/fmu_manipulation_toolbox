@@ -7,9 +7,9 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Optional, List
 
-from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal, QItemSelectionModel, QSize
+from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal, QItemSelectionModel, QSize, QSortFilterProxyModel, QModelIndex
 from PySide6.QtGui import (
-    QPainter, QPen, QBrush, QColor, QPainterPath, QFont,
+    QPainter, QPen, QBrush, QColor, QPainterPath, QPainterPathStroker, QFont,
     QFontMetrics, QKeyEvent, QIcon,
     QStandardItemModel, QStandardItem
 )
@@ -21,11 +21,13 @@ from PySide6.QtWidgets import (
     QGraphicsSceneMouseEvent, QStyleOptionGraphicsItem,
     QTreeView, QSplitter,
     QStackedWidget, QTableView, QLabel, QHeaderView,
-    QFileDialog, QMainWindow, QPushButton
+    QFileDialog, QMainWindow, QPushButton, QComboBox,
+    QStyledItemDelegate, QAbstractItemView
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, StatusBar
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode
+from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -127,24 +129,34 @@ class PortItem(QGraphicsEllipseItem):
             self.setPen(QPen(COLOR_PORT_BORDER, 1.5))
 
 
-class NodeItem(QGraphicsRectItem):
+class NodeItem(QGraphicsRectItem, OperationAbstract):
     """Rectangular box with a title and I/O ports."""
 
-    def __init__(
-        self,
-        title: str = "Node",
-        x: float = 0,
-        y: float = 0,
-        fmu_path: str = "",
-    ):
+    def __init__(self, fmu_path: Path, x: float = 0, y: float = 0):
         super().__init__()
 
-        self.input_port = PortItem("in", PortType.INPUT, self)
-        self.output_port = PortItem("out", PortType.OUTPUT, self)
-
         self.uid = str(uuid.uuid4())
-        self._title = title
+        self._title = fmu_path.name
         self.fmu_path = fmu_path
+
+
+        # -- Read FMU ports ---------------------------------------------------
+
+        # Keep full port lists for serialization / logic
+        self.fmu_input_names: List[str] = []
+        self.fmu_output_names: List[str] = []
+        fmu = FMU(fmu_path)
+        fmu.apply_operation(self)
+        del fmu
+
+        # -- Visual ports: at most one "in" and one "out" ---------------------
+        self.input_port: Optional[PortItem] = None
+        self.output_port: Optional[PortItem] = None
+
+        if self.fmu_input_names:
+            self.input_port = PortItem("in", PortType.INPUT, self)
+        if self.fmu_output_names:
+            self.output_port = PortItem("out", PortType.OUTPUT, self)
 
         # Flags
         self.setFlags(
@@ -163,24 +175,37 @@ class NodeItem(QGraphicsRectItem):
         width = max(
             NODE_MIN_WIDTH,
             fm_port.horizontalAdvance("in") + fm_port.horizontalAdvance("out") + 4 * PORT_RADIUS + 40,
-            fm_title.horizontalAdvance(title) + 20,
+            fm_title.horizontalAdvance(self.title) + 20,
         )
 
         self.setRect(0, 0, width, height)
         self.setPos(x, y)
 
         # -- Title -------------------------------------------------------------
-        self._title_item = QGraphicsTextItem(title, self)
+        self._title_item = QGraphicsTextItem(self.title, self)
         self._title_item.setDefaultTextColor(COLOR_TEXT)
         self._title_item.setFont(FONT_TITLE)
         tbr = self._title_item.boundingRect()
         self._title_item.setPos((width - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
 
-        # -- Ports (exactly 1 input + 1 output) ---------------------------
+        # -- Position ports ----------------------------------------------------
         y_port = NODE_TITLE_HEIGHT + 0.5 * NODE_PORT_SPACING + 5
+        if self.input_port:
+            self.input_port.setPos(0, y_port)
+        if self.output_port:
+            self.output_port.setPos(width, y_port)
 
-        self.input_port.setPos(0, y_port)
-        self.output_port.setPos(width, y_port)
+    def __repr__(self):
+        return "Collect I/O ports"
+
+    def port_attrs(self, fmu_port: FMUPort) -> int:
+        causality = fmu_port.get("causality", "local")
+        name = fmu_port.get("name", "")
+        if causality in ("input", "parameter"):
+            self.fmu_input_names.append(name)
+        elif causality == "output":
+            self.fmu_output_names.append(name)
+        return 0
 
     # -- Title -----------------------------------------------------------------
 
@@ -230,7 +255,7 @@ class NodeItem(QGraphicsRectItem):
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            for port in (self.input_port, self.output_port):
+            for port in self.all_ports():
                 for wire in port.wires:
                     wire.update_path()
         return super().itemChange(change, value)
@@ -241,7 +266,7 @@ class NodeItem(QGraphicsRectItem):
         if event.pos().y() < NODE_TITLE_HEIGHT:
             view = self.scene().views()[0] if self.scene().views() else None
             new_name, ok = QInputDialog.getText(
-                view, "Renommer le nœud", "Nouveau nom :", text=self._title
+                view, "Rename Node", "New name:", text=self._title
             )
             if ok and new_name.strip():
                 self.title = new_name.strip()
@@ -251,7 +276,13 @@ class NodeItem(QGraphicsRectItem):
     # -- Helpers ---------------------------------------------------------------
 
     def all_ports(self) -> List[PortItem]:
-        return [self.input_port, self.output_port]
+        """Return the list of visible PortItems."""
+        ports = []
+        if self.input_port:
+            ports.append(self.input_port)
+        if self.output_port:
+            ports.append(self.output_port)
+        return ports
 
     def remove_wires(self):
         """Remove all wires connected to this node."""
@@ -337,6 +368,7 @@ class WireItem(QGraphicsPathItem):
         destination.wires.append(self)
 
         self._ctrl_offset = QPointF(0, 0)   # user offset
+        self.mappings: List[tuple] = []      # [(output_port, input_port), …]
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -414,6 +446,15 @@ class WireItem(QGraphicsPathItem):
         path.cubicTo(c1 + adj, c2 + adj, p2)
         self.setPath(path)
 
+    # -- Selection hit area ---------------------------------------------------
+
+    def shape(self) -> QPainterPath:
+        """Return a widened path so the wire is easier to click."""
+        stroker = QPainterPathStroker()
+        stroker.setWidth(12)
+        stroker.setCapStyle(Qt.PenCapStyle.RoundCap)
+        return stroker.createStroke(self.path())
+
     # -- Rendering ----------------------------------------------------------------
 
     def itemChange(self, change, value):
@@ -479,15 +520,9 @@ class NodeGraphScene(QGraphicsScene):
 
     # -- Public API ----------------------------------------------------------
 
-    def add_node(
-        self,
-        title: str = "Node",
-        x: float = 0,
-        y: float = 0,
-        fmu_path: str = "",
-    ) -> NodeItem:
+    def add_node(self, fmu_path: Path, x: float = 0, y: float = 0) -> NodeItem:
         """Create and add a node to the scene."""
-        node = NodeItem(title=title, x=x, y=y, fmu_path=fmu_path)
+        node = NodeItem(Path(fmu_path), x=x, y=y)
         self.addItem(node)
         self.node_added.emit(node)
         return node
@@ -739,13 +774,7 @@ class NodeGraphView(QGraphicsView):
                 path_obj = Path(path)
                 if path_obj.suffix.lower() == ".fmu":
                     scene_pos = self.mapToScene(event.position().toPoint())
-                    name = path_obj.stem
-                    self._scene.add_node(
-                        title=name,
-                        x=scene_pos.x(),
-                        y=scene_pos.y(),
-                        fmu_path=path,
-                    )
+                    self._scene.add_node(fmu_path=path, x=scene_pos.x(), y=scene_pos.y())
             event.acceptProposedAction()
             return
         super().dropEvent(event)
@@ -759,26 +788,20 @@ class NodeGraphView(QGraphicsView):
         # Under cursor?
         item = self._scene.itemAt(scene_pos, self.transform())
 
-        add_fmu_action = menu.addAction("Ajouter FMU…")
+        add_fmu_action = menu.addAction("Add FMU…")
         delete_action = None
         if self._scene.selectedItems():
-            delete_action = menu.addAction("Supprimer la sélection")
+            delete_action = menu.addAction("Delete Selection")
         menu.addSeparator()
-        fit_action = menu.addAction("Ajuster la vue")
+        fit_action = menu.addAction("Fit View")
 
         chosen = menu.exec(event.globalPos())
         if chosen == add_fmu_action:
             paths, _ = QFileDialog.getOpenFileNames(
-                self, "Sélectionner des FMU", "", "FMU (*.fmu)"
+                self, "Select FMU files", "", "FMU (*.fmu)"
             )
             for path in paths:
-                name = Path(path).stem
-                self._scene.add_node(
-                    title=name,
-                    x=scene_pos.x(),
-                    y=scene_pos.y(),
-                    fmu_path=path,
-                )
+                self._scene.add_node(fmu_path=Path(path), x=scene_pos.x(), y=scene_pos.y())
                 scene_pos += QPointF(20, 20)  # offset subsequent nodes
         elif chosen == delete_action:
             self._scene.remove_selected()
@@ -840,53 +863,219 @@ class _NodeTreeModel(QStandardItemModel):
     def canDropMimeData(self, data, action, row, column, parent):
         if not parent.isValid():
             return False                        # not at invisible root level
-        col0 = parent.sibling(parent.row(), 0) if parent.column() != 0 else parent
-        item = self.itemFromIndex(col0)
+        item = self.itemFromIndex(parent)
         if item is None or not item.data(ROLE_IS_CONTAINER):
             return False                        # only on a Container
         return super().canDropMimeData(data, action, row, column, parent)
 
-    def dropMimeData(self, data, action, row, column, parent):
-        # Redirect drops to column 0 so children are added under type_item
-        if parent.isValid() and parent.column() != 0:
-            parent = parent.sibling(parent.row(), 0)
-        return super().dropMimeData(data, action, row, column, parent)
 
-
-class WireDetailWidget(QWidget):
-    """WireItem details: name + 4-column table."""
+class _PortComboDelegate(QStyledItemDelegate):
+    """Delegate that presents a QComboBox populated with port names."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self._items: List[str] = []
 
+    def set_items(self, items: List[str]):
+        self._items = list(items)
+
+    def createEditor(self, parent, option, index):
+        combo = QComboBox(parent)
+        combo.addItems(self._items)
+        return combo
+
+    def setEditorData(self, editor, index):
+        value = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        idx = editor.findText(value)
+        if idx >= 0:
+            editor.setCurrentIndex(idx)
+        elif self._items:
+            editor.setCurrentIndex(0)
+
+    def setModelData(self, editor, model, index):
+        model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+
+    def updateEditorGeometry(self, editor, option, index):
+        editor.setGeometry(option.rect)
+
+
+class WireDetailWidget(QWidget):
+    """WireItem details: title label + 2-column port-mapping table.
+
+    Columns:
+        0 – Output port  (from the source node's FMU outputs)
+        1 – Input port   (from the destination node's FMU inputs)
+
+    Each cell uses a combo-box delegate so the user picks port names
+    from drop-down menus.  *Add* / *Remove* buttons manage rows.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._wire: Optional[WireItem] = None
+
+        # -- Title --
         self._name_label = QLabel()
         font = self._name_label.font()
         font.setBold(True)
         self._name_label.setFont(font)
 
-        self._table_model = QStandardItemModel(0, 4)
-        self._table_model.setHorizontalHeaderLabels(
-            ["Col A", "Col B", "Col C", "Col D"],
-        )
+        # -- Table model (2 columns) --
+        self._table_model = QStandardItemModel(0, 2)
+        self._table_model.setHorizontalHeaderLabels(["From", "To"])
 
+        # -- Sort proxy (avoids editor invalidation on sort) --
+        self._proxy_model = QSortFilterProxyModel(self)
+        self._proxy_model.setSourceModel(self._table_model)
+
+        # -- Table view --
         self._table = QTableView()
-        self._table.setModel(self._table_model)
+        self._table.setSortingEnabled(True)
+        self._table.setModel(self._proxy_model)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
         self._table.horizontalHeader().setStretchLastSection(True)
         self._table.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch,
         )
+        self._table.setAlternatingRowColors(True)
+        self._table.verticalHeader().setVisible(False)
 
+        # -- Combo-box delegates (one per column) --
+        self._source_delegate = _PortComboDelegate(self._table)
+        self._dest_delegate = _PortComboDelegate(self._table)
+        self._table.setItemDelegateForColumn(0, self._source_delegate)
+        self._table.setItemDelegateForColumn(1, self._dest_delegate)
+
+        # -- Sync edits back to WireItem --
+        self._table_model.dataChanged.connect(self._on_table_data_changed)
+
+        # -- Buttons --
+        self._add_btn = QPushButton("Add link")
+        self._remove_btn = QPushButton("Remove link")
+        self._auto_btn = QPushButton("Auto-Connect")
+        self._add_btn.clicked.connect(self._on_add)
+        self._remove_btn.clicked.connect(self._on_remove)
+        self._auto_btn.clicked.connect(self._on_auto_connect)
+
+        btn_width = max(
+            self._add_btn.sizeHint().width(),
+            self._remove_btn.sizeHint().width(),
+            self._auto_btn.sizeHint().width(),
+        )
+        self._add_btn.setMinimumWidth(btn_width)
+        self._remove_btn.setMinimumWidth(btn_width)
+        self._auto_btn.setMinimumWidth(btn_width)
+
+        btn_lay = QHBoxLayout()
+        btn_lay.setContentsMargins(0, 0, 0, 0)
+        btn_lay.addWidget(self._add_btn)
+        btn_lay.addWidget(self._remove_btn)
+        btn_lay.addWidget(self._auto_btn)
+        btn_lay.addStretch()
+
+        # -- Layout --
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.addWidget(self._name_label)
-        lay.addWidget(self._table)
+        lay.addWidget(self._table, 1)
+        lay.addLayout(btn_lay)
+
+    # ── Public API ──────────────────────────────────────────────
 
     def set_wire(self, wire: WireItem):
+        """Bind to a wire and refresh delegates / table."""
+        # Save current table to the previous wire before switching
+        self._sync_to_wire()
+
+        self._wire = wire
         src, dst = wire.source, wire.destination
-        self._name_label.setText(
-            f"{src.node.title}.{src.name}  →  {dst.node.title}.{dst.name}"
-        )
+        self._name_label.setText(f"{src.node.title}  →  {dst.node.title}")
+
+        # Refresh available port names in delegates
+        self._source_delegate.set_items(src.node.fmu_output_names)
+        self._dest_delegate.set_items(dst.node.fmu_input_names)
+
+        # Reload mappings stored on the wire
+        self._load_from_wire()
+
+    # ── Internal sync helpers ─────────────────────────────────────
+
+    def _sync_to_wire(self):
+        """Write the current table content back to self._wire.mappings."""
+        if self._wire is None:
+            return
+        mappings = []
+        for r in range(self._table_model.rowCount()):
+            out_item = self._table_model.item(r, 0)
+            in_item = self._table_model.item(r, 1)
+            if out_item and in_item:
+                out_name = out_item.text()
+                in_name = in_item.text()
+                if out_name and in_name:
+                    mappings.append((out_name, in_name))
+        self._wire.mappings = mappings
+
+    def _load_from_wire(self):
+        """Populate the table from self._wire.mappings."""
         self._table_model.removeRows(0, self._table_model.rowCount())
+        if self._wire is None:
+            return
+        for out_name, in_name in self._wire.mappings:
+            self._table_model.appendRow(
+                [QStandardItem(out_name), QStandardItem(in_name)]
+            )
+
+    # ── Slots ────────────────────────────────────────────────────
+
+    def _on_add(self):
+        """Add a new mapping row with default first port names."""
+        if self._wire is None:
+            return
+        out_names = self._wire.source.node.fmu_output_names
+        in_names = self._wire.destination.node.fmu_input_names
+        if not out_names or not in_names:
+            return
+
+        src_item = QStandardItem(out_names[0])
+        dst_item = QStandardItem(in_names[0])
+        self._table_model.appendRow([src_item, dst_item])
+        self._sync_to_wire()
+
+    def _on_remove(self):
+        """Remove selected rows from the mapping table."""
+        source_rows = sorted(
+            {self._proxy_model.mapToSource(idx).row()
+             for idx in self._table.selectionModel().selectedRows()},
+            reverse=True,
+        )
+        # Close any active editor before removing rows
+        self._table.setCurrentIndex(QModelIndex())
+        for r in source_rows:
+            self._table_model.removeRow(r)
+        self._sync_to_wire()
+
+    def _on_auto_connect(self):
+        """Automatically map ports that share the same name."""
+        if self._wire is None:
+            return
+        out_names = self._wire.source.node.fmu_output_names
+        in_names = self._wire.destination.node.fmu_input_names
+        in_set = set(in_names)
+
+        # Collect already-mapped pairs to avoid duplicates
+        existing = set(self._wire.mappings)
+
+        for name in out_names:
+            if name in in_set and (name, name) not in existing:
+                self._table_model.appendRow(
+                    [QStandardItem(name), QStandardItem(name)]
+                )
+        self._sync_to_wire()
+
+    def _on_table_data_changed(self, _top_left, _bottom_right, _roles):
+        """Sync to wire whenever a cell is edited via combo box."""
+        self._sync_to_wire()
 
 
 class FMUDetailWidget(QWidget):
@@ -932,7 +1121,7 @@ class ContainerDetailWidget(QWidget):
 class NodeTreePanel(QWidget):
     """Side panel showing nodes as a hierarchical tree.
 
-    • Two columns: **Type** (Container / Node) | **Name**.
+    • Single column with icon (Container / FMU) and name.
     • First level contains a root container (*Project*).
     • Right-click -> add node, add container, rename, delete.
     • Internal drag-and-drop to reorganize hierarchy.
@@ -949,26 +1138,28 @@ class NodeTreePanel(QWidget):
         self._icon_fmu = QIcon(str(resources_dir / "icon_fmu.png"))
 
         # ── Model ────────────────────────────────────────────────────────
-        self._model = _NodeTreeModel(0, 2)
-        self._model.setHorizontalHeaderLabels(["", "Name"])
+        self._model = _NodeTreeModel()
+        self._model.setHorizontalHeaderLabels(["Name"])
 
-        root_row = self._make_container_row("container.fmu", is_root=True)
-        self._model.appendRow(root_row)
-        self._root: QStandardItem = root_row[0]
+        root_item = self._make_container_item("container.fmu", is_root=True)
+        self._model.appendRow(root_item)
+        self._root: QStandardItem = root_item
 
         # ── View ───────────────────────────────────────────────────────────
         self._tree = QTreeView()
         self._tree.setModel(self._model)
+        self._tree.setHeaderHidden(True)
         self._tree.setDragDropMode(QTreeView.DragDropMode.InternalMove)
         self._tree.setDefaultDropAction(Qt.DropAction.MoveAction)
         self._tree.setSelectionMode(QTreeView.SelectionMode.SingleSelection)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
-        self._tree.header().setStretchLastSection(True)
-        self._tree.setColumnWidth(0, 80)
         self._tree.setIconSize(QSize(30, 30))  # Larger icons
         self._tree.setUniformRowHeights(True)
         self._tree.expandAll()
+
+        # Enforce .fmu extension when a container is renamed in-place
+        self._model.itemChanged.connect(self._on_item_changed)
 
         # ── Scene -> tree connections ──────────────────────────────────────
         self._syncing_selection = False
@@ -1004,45 +1195,55 @@ class NodeTreePanel(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self._tree_splitter)
 
+    # ── Helpers ────────────────────────────────────────────────────
+
+    @staticmethod
+    def _ensure_fmu_ext(name: str) -> str:
+        """Ensure *name* ends with '.fmu'."""
+        if not name.lower().endswith(".fmu"):
+            return name + ".fmu"
+        return name
+
+    def _on_item_changed(self, item: QStandardItem):
+        """Called when an item is edited in-place (e.g. double-click rename)."""
+        if not item.data(ROLE_IS_CONTAINER):
+            return
+        fixed = self._ensure_fmu_ext(item.text().strip())
+        if fixed != item.text():
+            # Block signals to avoid recursion
+            self._model.blockSignals(True)
+            item.setText(fixed)
+            self._model.blockSignals(False)
+
     # ── Row builders ──────────────────────────────────────────────
 
-    def _make_container_row(self, name: str, is_root: bool = False) -> List[QStandardItem]:
-        type_item = QStandardItem()
-        type_item.setIcon(self._icon_container)
-        type_item.setToolTip("Container")
-        type_item.setData(True, ROLE_IS_CONTAINER)
-        type_item.setData(is_root, ROLE_IS_ROOT)
-        type_item.setEditable(False)
-        type_item.setDropEnabled(True)
-        type_item.setDragEnabled(not is_root)
+    def _make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
+        item = QStandardItem(name)
+        item.setIcon(self._icon_container)
+        item.setToolTip("Container")
+        item.setData(True, ROLE_IS_CONTAINER)
+        item.setData(is_root, ROLE_IS_ROOT)
+        item.setEditable(True)
+        item.setDropEnabled(True)
+        item.setDragEnabled(not is_root)
+        return item
 
-        name_item = QStandardItem(name)
-        name_item.setEditable(True)
-        name_item.setDropEnabled(True)
-        name_item.setDragEnabled(not is_root)
-        return [type_item, name_item]
-
-    def _make_node_row(self, node: NodeItem) -> List[QStandardItem]:
-        type_item = QStandardItem()
-        type_item.setIcon(self._icon_fmu)
-        type_item.setToolTip("FMU")
-        type_item.setData(False, ROLE_IS_CONTAINER)
-        type_item.setData(node.uid, ROLE_NODE_UID)
-        type_item.setEditable(False)
-        type_item.setDropEnabled(False)
-        type_item.setDragEnabled(True)
-
-        name_item = QStandardItem(node.title)
-        name_item.setEditable(False)
-        name_item.setDropEnabled(False)
-        name_item.setDragEnabled(True)
-        return [type_item, name_item]
+    def _make_node_item(self, node: NodeItem) -> QStandardItem:
+        item = QStandardItem(node.title)
+        item.setIcon(self._icon_fmu)
+        item.setToolTip("FMU")
+        item.setData(False, ROLE_IS_CONTAINER)
+        item.setData(node.uid, ROLE_NODE_UID)
+        item.setEditable(False)
+        item.setDropEnabled(False)
+        item.setDragEnabled(True)
+        return item
 
     # ── Scene -> tree synchronization ────────────────────────────────────
 
     def _on_scene_node_added(self, node: NodeItem):
         target = self._pending_parent or self._root
-        target.appendRow(self._make_node_row(node))
+        target.appendRow(self._make_node_item(node))
         self._tree.expandAll()
 
     def _on_scene_node_removed(self, node: NodeItem):
@@ -1083,10 +1284,17 @@ class NodeTreePanel(QWidget):
             return
         self._syncing_selection = True
         try:
+            # Flush any pending edits from the wire detail table
+            self._wire_detail._sync_to_wire()
+
             sel = self._tree.selectionModel()
             sel.clearSelection()
 
-            selected = self._graph.scene.selectedItems()
+            try:
+                selected = self._graph.scene.selectedItems()
+            except RuntimeError:
+                # C++ scene already deleted (e.g. during shutdown)
+                return
 
             # Find a NodeItem
             for scene_item in selected:
@@ -1123,23 +1331,27 @@ class NodeTreePanel(QWidget):
             return
         self._syncing_selection = True
         try:
-            self._graph.scene.clearSelection()
+            try:
+                self._graph.scene.clearSelection()
+            except RuntimeError:
+                return
+
             for index in self._tree.selectionModel().selectedRows(0):
                 item = self._model.itemFromIndex(index)
                 if item is None:
                     continue
                 if item.data(ROLE_IS_CONTAINER):
                     # Container selected -> Container panel
-                    parent_std = item.parent() or self._model.invisibleRootItem()
-                    name_col = parent_std.child(item.row(), 1)
-                    self._container_detail.set_container(
-                        name_col.text() if name_col else ""
-                    )
+                    self._container_detail.set_container(item.text())
                     self._detail_stack.setCurrentWidget(self._container_detail)
                     return
                 uid = item.data(ROLE_NODE_UID)
                 if uid:
-                    for node in self._graph.scene.nodes():
+                    try:
+                        scene_nodes = self._graph.scene.nodes()
+                    except RuntimeError:
+                        return
+                    for node in scene_nodes:
                         if node.uid == uid:
                             node.setSelected(True)
                             self._fmu_detail.set_node(node)
@@ -1157,15 +1369,16 @@ class NodeTreePanel(QWidget):
         target, item = self._resolve_target(index)
 
         menu = QMenu(self)
-        act_add_fmu  = menu.addAction("Ajouter FMU…")
-        act_add_ctn  = menu.addAction("Ajouter un conteneur")
+        act_add_fmu  = menu.addAction("Add FMU…")
+        act_add_ctn  = menu.addAction("Add Container")
 
         act_rename = act_delete = None
-        if item is not None and item is not self._root:
+        if item is not None:
             menu.addSeparator()
             if item.data(ROLE_IS_CONTAINER):
-                act_rename = menu.addAction("Renommer")
-            act_delete = menu.addAction("Supprimer")
+                act_rename = menu.addAction("Rename")
+            if item is not self._root:
+                act_delete = menu.addAction("Delete")
 
         chosen = menu.exec(self._tree.viewport().mapToGlobal(pos))
         if chosen is None:
@@ -1173,7 +1386,7 @@ class NodeTreePanel(QWidget):
 
         if chosen is act_add_fmu:
             paths, _ = QFileDialog.getOpenFileNames(
-                self, "Sélectionner des FMU", "", "FMU (*.fmu)"
+                self, "Select FMU files", "", "FMU (*.fmu)"
             )
             center = self._graph.view.mapToScene(
                 self._graph.view.viewport().rect().center()
@@ -1190,19 +1403,17 @@ class NodeTreePanel(QWidget):
             self._pending_parent = None
 
         elif chosen is act_add_ctn:
-            name, ok = QInputDialog.getText(self, "Nouveau conteneur", "Nom :")
+            name, ok = QInputDialog.getText(self, "New Container", "Name:")
             if ok and name.strip():
-                target.appendRow(self._make_container_row(name.strip()))
+                target.appendRow(self._make_container_item(self._ensure_fmu_ext(name.strip())))
                 self._tree.expandAll()
 
         elif chosen is act_rename and item is not None:
-            parent_std = item.parent() or self._model.invisibleRootItem()
-            name_col = parent_std.child(item.row(), 1)
             new, ok = QInputDialog.getText(
-                self, "Renommer", "Nom :", text=name_col.text()
+                self, "Rename", "Name:", text=item.text()
             )
             if ok and new.strip():
-                name_col.setText(new.strip())
+                item.setText(self._ensure_fmu_ext(new.strip()))
 
         elif chosen is act_delete and item is not None:
             self._delete_item(item)
@@ -1211,8 +1422,7 @@ class NodeTreePanel(QWidget):
         """Return *(target_container, clicked_item)* or *(root, None)*."""
         if not index.isValid():
             return self._root, None
-        col0 = index.sibling(index.row(), 0) if index.column() != 0 else index
-        item = self._model.itemFromIndex(col0)
+        item = self._model.itemFromIndex(index)
         if item is None:
             return self._root, None
         if item.data(ROLE_IS_CONTAINER):
@@ -1327,14 +1537,12 @@ class MainWindow(QMainWindow):
     def _on_save_clicked(self):
         logger.info("Save clicked")
 
+        # Flush any in-progress edits from wire detail table
+        self._tree._wire_detail._sync_to_wire()
+
         model: _NodeTreeModel = self._tree._model
         root_item: QStandardItem = self._tree._root
         nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
-
-        def _name_for(item: QStandardItem) -> str:
-            parent_std = item.parent() or model.invisibleRootItem()
-            name_col = parent_std.child(item.row(), 1)
-            return name_col.text() if name_col is not None else ""
 
         def _serialize_item(item: QStandardItem) -> dict:
             if item.data(ROLE_IS_CONTAINER):
@@ -1345,7 +1553,7 @@ class MainWindow(QMainWindow):
                         children.append(_serialize_item(child))
                 return {
                     "type": "container",
-                    "name": _name_for(item),
+                    "name": item.text(),
                     "is_root": bool(item.data(ROLE_IS_ROOT)),
                     "children": children,
                 }
@@ -1355,7 +1563,7 @@ class MainWindow(QMainWindow):
             return {
                 "type": "fmu",
                 "uid": uid,
-                "name": _name_for(item),
+                "name": item.text(),
                 "title": scene_node.title if scene_node is not None else "",
                 "fmu_path": scene_node.fmu_path if scene_node is not None else "",
             }
@@ -1368,6 +1576,10 @@ class MainWindow(QMainWindow):
                     "source_port": wire.source.name,
                     "target_uid": wire.destination.node.uid,
                     "target_port": wire.destination.name,
+                    "links": [
+                        {"from": out, "to": inp}
+                        for out, inp in wire.mappings
+                    ],
                 }
             )
 
@@ -1412,3 +1624,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
