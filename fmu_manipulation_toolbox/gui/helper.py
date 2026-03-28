@@ -1,18 +1,58 @@
-"""
-Reusable drop zone widget to load an .fmu file.
-Used by fmutool.py and editor.py.
-"""
-
 import logging
 import os
 
-from PySide6.QtCore import Qt, Signal, QPoint
+from typing import *
+from PySide6.QtWidgets import QApplication, QFileDialog, QLabel
+from PySide6.QtGui import QDesktopServices, QIcon
+from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage
-from PySide6.QtWidgets import QLabel, QFileDialog
 
+from pathlib import Path
+
+from fmu_manipulation_toolbox.gui.style import gui_style
 from fmu_manipulation_toolbox.operations import FMU
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+
+
+class Application(QApplication):
+    def __init__(self, *args, **kwargs):
+        self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor)
+        super().__init__(*args, **kwargs)
+
+
+        QDir.addSearchPath('images', str(Path(__file__).parent.parent / "resources"))
+        self.setStyleSheet(gui_style)
+
+        if os.name == 'nt':
+            import ctypes
+            self.setWindowIcon(QIcon(str(Path(__file__).parent.parent / 'resources' / 'icon-round.png')))
+
+            # https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7/1552105#1552105
+
+            application_id = 'FMU_Manipulation_Toolbox'  # arbitrary string
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(application_id)
+        else:
+            self.setWindowIcon(QIcon(str(Path(__file__).parent.parent / 'resources' / 'icon.png')))
+
+        self.window = None
+
+
+class HelpWidget(QLabel):
+    HELP_URL = "https://grouperenault.github.io/fmu_manipulation_toolbox/"
+
+    def __init__(self):
+        super().__init__()
+        self.setProperty("class", "help")
+        self.setStyleSheet("background: transparent;")
+
+        filename = Path(__file__).parent.parent / "resources" / "help.png"
+        image = QPixmap(str(filename))
+        self.setPixmap(image)
+        self.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+    def mousePressEvent(self, event):
+        QDesktopServices.openUrl(QUrl(self.HELP_URL))
 
 
 class DropZoneWidget(QLabel):
@@ -40,23 +80,23 @@ class DropZoneWidget(QLabel):
 
     # -- Display ----------------------------------------------------------------
 
-    def set_image(self, filename=None):
+    def set_image(self, filename:Optional[Path]=None):
         """Display the FMU thumbnail (with rounded mask) or the placeholder."""
-        resources = os.path.join(os.path.dirname(__file__), "..", "resources")
+        resources = Path(__file__).parent.parent / "resources"
 
         if not filename:
-            filename = os.path.join(resources, "drop_fmu.png")
-        elif not os.path.isfile(filename):
-            filename = os.path.join(resources, "fmu.png")
+            filename = resources / "drop_fmu.png"
+        elif not filename.is_file():
+            filename = resources / "fmu.png"
 
-        base_image = QImage(filename).scaled(
+        base_image = QImage(str(filename)).scaled(
             self.WIDTH, self.HEIGHT,
             Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
         )
 
-        mask_filename = os.path.join(resources, "mask.png")
-        mask_image = QImage(mask_filename).scaled(
+        mask_filename = resources / "mask.png"
+        mask_image = QImage(str(mask_filename)).scaled(
             self.WIDTH, self.HEIGHT,
             Qt.AspectRatioMode.IgnoreAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
@@ -96,7 +136,7 @@ class DropZoneWidget(QLabel):
             except IndexError:
                 logger.error("Please select a regular file.")
                 return
-            self.set_fmu(file_path)
+            self.set_fmu(Path(file_path))
             event.accept()
         else:
             event.ignore()
@@ -114,16 +154,16 @@ class DropZoneWidget(QLabel):
             filter="FMU files (*.fmu)",
         )
         if fmu_filename:
-            self.set_fmu(fmu_filename)
+            self.set_fmu(Path(fmu_filename))
 
     # -- FMU loading -----------------------------------------------------------
 
-    def set_fmu(self, filename: str):
+    def set_fmu(self, filename: Path):
         """Load an FMU from *filename* and emit the signals."""
         try:
-            self.last_directory = os.path.dirname(filename)
+            self.last_directory = str(Path(filename).parent)
             self.fmu = FMU(filename)
-            self.set_image(os.path.join(self.fmu.tmp_directory, "model.png"))
+            self.set_image(Path(self.fmu.tmp_directory) / "model.png")
         except Exception as e:
             logger.error(f"Cannot load this FMU: {e}")
             self.set_image(None)
@@ -131,5 +171,3 @@ class DropZoneWidget(QLabel):
 
         self.clicked.emit()
         self.fmu_loaded.emit(self.fmu)
-
-

@@ -2,18 +2,15 @@ import os.path
 import sys
 import textwrap
 
-from PySide6.QtCore import Qt, QUrl, QDir, QModelIndex
-from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
-                               QTextBrowser, QInputDialog, QMenu, QTreeView, QAbstractItemView, QTabWidget, QTableView,
-                               QCheckBox)
-from PySide6.QtGui import (QPixmap, QTextCursor, QStandardItem, QIcon, QDesktopServices, QAction,
-                           QColor, QStandardItemModel)
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
+                               QTextBrowser, QInputDialog, QMenu)
+from PySide6.QtGui import QPixmap, QTextCursor, QAction, QColor
 from functools import partial
 from pathlib import Path
 
 from fmu_manipulation_toolbox.gui.style import log_color
-from fmu_manipulation_toolbox.gui.application import Application
-from fmu_manipulation_toolbox.gui.dropfile import DropZoneWidget
+from fmu_manipulation_toolbox.gui.helper import Application, HelpWidget, DropZoneWidget
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
@@ -57,22 +54,6 @@ class LogWidget(QTextBrowser):
     def loadResource(self, _, name):
         image_path = Path(__file__).parent.parent / "resources" / name.toString()
         return QPixmap(str(image_path))
-
-
-class HelpWidget(QLabel):
-    HELP_URL = "https://grouperenault.github.io/fmu_manipulation_toolbox/"
-
-    def __init__(self):
-        super().__init__()
-        self.setProperty("class", "help")
-
-        filename = Path(__file__).parent.parent / "resources" / "help.png"
-        image = QPixmap(str(filename))
-        self.setPixmap(image)
-        self.setAlignment(Qt.AlignmentFlag.AlignRight)
-
-    def mousePressEvent(self, event):
-        QDesktopServices.openUrl(QUrl(self.HELP_URL))
 
 
 class FilterWidget(QPushButton):

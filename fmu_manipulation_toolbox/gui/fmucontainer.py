@@ -43,7 +43,7 @@ from PySide6.QtWidgets import (
     QFileDialog, QMainWindow
 )
 
-from fmu_manipulation_toolbox.gui.application import Application
+from fmu_manipulation_toolbox.gui.helper import Application
 
 # ─────────────────────────── Constantes visuelles ──────────────────────────
 

@@ -17,9 +17,8 @@ from PySide6.QtWidgets import (
     QLineEdit, QGridLayout, QStatusBar, QMessageBox,
 )
 
-from fmu_manipulation_toolbox.gui.dropfile import DropZoneWidget
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
-from fmu_manipulation_toolbox.gui.application import Application
+from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget
 from fmu_manipulation_toolbox.gui.style import log_color
 
 logger = logging.getLogger("fmu_manipulation_toolbox")

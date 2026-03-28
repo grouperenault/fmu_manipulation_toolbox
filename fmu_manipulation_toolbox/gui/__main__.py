@@ -18,20 +18,11 @@ from PySide6.QtWidgets import (
 )
 
 from fmu_manipulation_toolbox.gui.style import gui_style
+from fmu_manipulation_toolbox.gui.helper import HelpWidget
 from fmu_manipulation_toolbox.version import __version__ as version
 
 
 RESOURCES = Path(__file__).parent / ".." / "resources"
-
-
-
-def _make_icon(source_path: Path, size: int = 80) -> QIcon:
-    """Load an image and resize it to use as an icon."""
-    pix = QPixmap(str(source_path))
-    if not pix.isNull():
-        pix = pix.scaled(size, size, Qt.AspectRatioMode.KeepAspectRatio,
-                         Qt.TransformationMode.SmoothTransformation)
-    return QIcon(pix)
 
 
 class LauncherButton(QToolButton):
@@ -45,8 +36,9 @@ class LauncherButton(QToolButton):
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(180, 180)
-        self.setIconSize(QSize(80, 80))
-        self.setIcon(_make_icon(icon_path))
+        self.setIconSize(QSize(100, 100))
+        self.setIcon(QIcon(QPixmap(str(icon_path))))
+
 
 
 class LauncherWindow(QWidget):
@@ -64,7 +56,9 @@ class LauncherWindow(QWidget):
         root_layout.setContentsMargins(20, 20, 20, 20)
         self.setLayout(root_layout)
 
-        # --- Logo / Title ---
+        # --- Logo / Title + Help ---
+        top_bar = QHBoxLayout()
+        
         logo = QLabel()
         logo_pixmap = QPixmap(str(RESOURCES / "fmu_manipulation_toolbox.png"))
         if not logo_pixmap.isNull():
@@ -74,7 +68,15 @@ class LauncherWindow(QWidget):
         logo.setPixmap(logo_pixmap)
         logo.setStyleSheet("background: transparent;")
         logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root_layout.addWidget(logo)
+
+        help_widget = HelpWidget()
+
+        top_bar.addStretch()
+        top_bar.addWidget(logo)
+        top_bar.addStretch()
+        top_bar.addWidget(help_widget, 0, Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
+
+        root_layout.addLayout(top_bar)
 
         subtitle = QLabel(f"v{version}")
         subtitle.setProperty("class", "info")
@@ -92,21 +94,21 @@ class LauncherWindow(QWidget):
         btn_fmutool = LauncherButton(
             "fmutool",
             "Operation\non FMU",
-            RESOURCES / "fmu.png",
+            RESOURCES / "fmutool.png",
         )
         btn_fmutool.clicked.connect(self._launch_fmutool)
 
         btn_editor = LauncherButton(
             "editor",
             "FMU Variables\nEditor",
-            RESOURCES / "model.png",
+            RESOURCES / "fmueditor.png",
         )
         btn_editor.clicked.connect(self._launch_editor)
 
         btn_builder = LauncherButton(
             "builder",
             "FMU Container\nBuild",
-            RESOURCES / "container.png",
+            RESOURCES / "fmucontainer.png",
         )
         btn_builder.clicked.connect(self._launch_builder)
 
@@ -151,7 +153,7 @@ class LauncherWindow(QWidget):
         self._keep_ref(window)
 
     def _launch_editor(self):
-        from fmu_manipulation_toolbox.gui.editor import MainWindow
+        from fmu_manipulation_toolbox.gui.fmueditor import MainWindow
         window = MainWindow()
         window.show()
         self._keep_ref(window)
