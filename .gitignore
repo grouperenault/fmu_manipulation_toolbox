@@ -114,3 +114,4 @@ tests/array/array
 .idea
 tests/array/results-array.csv
 site
+tests/containers/bouncing_ball/bouncing.dir

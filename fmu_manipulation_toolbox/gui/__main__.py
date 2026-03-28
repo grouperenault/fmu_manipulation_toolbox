@@ -93,7 +93,7 @@ class LauncherWindow(QWidget):
 
         btn_fmutool = LauncherButton(
             "fmutool",
-            "Operation\non FMU",
+            "Operations\non FMU",
             RESOURCES / "fmutool.png",
         )
         btn_fmutool.clicked.connect(self._launch_fmutool)
