@@ -954,6 +954,11 @@ class WireDetailWidget(QWidget):
         self._add_btn = QPushButton("Add link")
         self._remove_btn = QPushButton("Remove link")
         self._auto_btn = QPushButton("Auto-Connect")
+
+        self._add_btn.setProperty("class", "info")
+        self._remove_btn.setProperty("class", "removal")
+        self._auto_btn.setProperty("class", "info")
+
         self._add_btn.clicked.connect(self._on_add)
         self._remove_btn.clicked.connect(self._on_remove)
         self._auto_btn.clicked.connect(self._on_auto_connect)
@@ -969,9 +974,9 @@ class WireDetailWidget(QWidget):
 
         btn_lay = QHBoxLayout()
         btn_lay.setContentsMargins(0, 0, 0, 0)
+        btn_lay.addWidget(self._auto_btn)
         btn_lay.addWidget(self._add_btn)
         btn_lay.addWidget(self._remove_btn)
-        btn_lay.addWidget(self._auto_btn)
         btn_lay.addStretch()
 
         # -- Layout --
@@ -1189,7 +1194,7 @@ class NodeTreePanel(QWidget):
         self._tree_splitter.setChildrenCollapsible(False)
         self._tree_splitter.setStretchFactor(0, 3)
         self._tree_splitter.setStretchFactor(1, 2)
-        self._tree_splitter.setSizes([300, 200])
+        self._tree_splitter.setSizes([250, 250])
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -1471,13 +1476,15 @@ class MainWindow(QMainWindow):
         self._tree = NodeTreePanel(self._graph)
         splitter.addWidget(self._graph)
         splitter.addWidget(self._tree)
-        splitter.setSizes([700, 300])
+        splitter.setSizes([600, 400])
 
         self._load_button = QPushButton("Load")
         self._export_button = QPushButton("Export")
         self._save_button = QPushButton("Save")
         self._exit_button = QPushButton("Exit")
         self._save_button.setProperty("class", "save")
+        self._export_button.setProperty("class", "save")
+        self._load_button.setProperty("class", "quit")
         self._exit_button.setProperty("class", "quit")
 
         btn_width = max(
@@ -1485,6 +1492,7 @@ class MainWindow(QMainWindow):
             self._export_button.sizeHint().width(),
             self._save_button.sizeHint().width(),
             self._exit_button.sizeHint().width(),
+            150,
         )
         for button in (
             self._load_button,
