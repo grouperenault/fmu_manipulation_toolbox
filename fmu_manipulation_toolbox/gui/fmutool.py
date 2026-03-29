@@ -4,7 +4,7 @@ import textwrap
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
-                               QTextBrowser, QInputDialog, QMenu)
+                               QTextBrowser, QInputDialog, QMenu, QLayout)
 from PySide6.QtGui import QPixmap, QTextCursor, QAction, QColor
 from functools import partial
 from pathlib import Path
@@ -49,7 +49,7 @@ class LogWidget(QTextBrowser):
         self.setMinimumHeight(500)
         self.setSearchPaths([os.path.join(os.path.dirname(__file__), "../resources")])
         self.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
-        self.log_handler = LogHandler(self, logging.INFO)
+        self.log_handler = LogHandler(self, level)
 
     def loadResource(self, _, name):
         image_path = Path(__file__).parent.parent / "resources" / name.toString()
@@ -96,21 +96,9 @@ class FilterWidget(QPushButton):
             return sorted(self.items_selected)
 
 
-class WindowWithLayout(QWidget):
-    def __init__(self, title: str):
-        super().__init__(None)  # Do not set parent to have a separated window
-        self.setWindowTitle(title)
-
-        self.layout = QGridLayout()
-        self.layout.setVerticalSpacing(4)
-        self.layout.setHorizontalSpacing(4)
-        self.layout.setContentsMargins(10, 10, 10, 10)
-        self.setLayout(self.layout)
-
-
-class MainWindow(WindowWithLayout):
+class MainWindow(QWidget):
     """
-Analyse and modify your FMUs.
+Analyze and modify your FMUs.
 
 Note: modifying the modelDescription.xml can damage your FMU !
 Communicating with the FMU-developer and adapting the way the FMU is generated, is preferable when possible.
@@ -118,19 +106,21 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
     """
 
     def __init__(self):
-        super().__init__('FMU Manipulation Toolbox')
+        super().__init__()
+        self.setWindowTitle('FMU Manipulation Toolbox')
+        self.layout = QGridLayout()
 
+        line = 0
         self.dropped_fmu = DropZoneWidget()
         self.dropped_fmu.clicked.connect(self.update_fmu)
-
-        self.layout.addWidget(self.dropped_fmu, 0, 0, 4, 1)
+        self.layout.addWidget(self.dropped_fmu, line, 0, 4, 1)
 
         self.fmu_title = QLabel()
         self.fmu_title.setProperty("class", "title")
-        self.layout.addWidget(self.fmu_title, 0, 1, 1, 4)
+        self.layout.addWidget(self.fmu_title, line, 1, 1, 4)
 
         help_widget = HelpWidget()
-        self.layout.addWidget(help_widget, 0, 5, 1, 1)
+        self.layout.addWidget(help_widget, line, 5, 1, 1)
 
         # Operations
         self.help = Help()
@@ -152,55 +142,67 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             ("Check",                 '-check',              'info',    get_checkers()),
         ]
 
-        width = 5
+        WIDTH = 5
         line = 1
+
+        self.operations_button_list = []
         for i, operation in enumerate(operations_list):
-            col = i % width + 1
-            line = int(i / width) + 1
+            col = i % WIDTH + 1
+            line = int(i / WIDTH) + 1
 
             if len(operation) < 5:
-                self.add_operation(operation[0], operation[1], operation[2], operation[3], line, col)
+                button = self.add_operation(operation[0], operation[1], operation[2], operation[3])
             else:
-                self.add_operation(operation[0], operation[1], operation[2], operation[3], line, col, **operation[4])
+                button = self.add_operation(operation[0], operation[1], operation[2], operation[3], **operation[4])
+
+            self.operations_button_list.append(button)
+            self.layout.addWidget(button, line, col)
 
         line += 1
+        self.reload_button = QPushButton('Reload')
+        self.reload_button.clicked.connect(self.reload_fmu)
+        self.reload_button.setProperty("class", "quit")
+        self.layout.addWidget(self.reload_button, line, 0, 1, 1)
+
         self.apply_filter_label = QLabel("Apply only on: ")
-        self.layout.addWidget(self.apply_filter_label, line, 2, 1, 1, alignment=Qt.AlignmentFlag.AlignRight)
         self.set_tooltip(self.apply_filter_label, 'gui-apply-only')
+        self.layout.addWidget(self.apply_filter_label, line, 2, 1, 1, alignment=Qt.AlignmentFlag.AlignRight)
 
         causality = ["parameter", "calculatedParameter", "input", "output", "local", "independent"]
         self.filter_list = FilterWidget(items=causality)
-        self.layout.addWidget(self.filter_list, line, 3, 1, 3)
         self.filter_list.setProperty("class", "quit")
+        self.layout.addWidget(self.filter_list, line, 3, 1, 3)
 
         # Text
         line += 1
         self.log_widget = LogWidget()
-        self.layout.addWidget(self.log_widget, line, 0, 1, width + 1)
+        self.layout.addWidget(self.log_widget, line, 0, 1, WIDTH + 1)
 
         # buttons
         line += 1
+        self.exit_button = QPushButton('Exit')
+        self.exit_button.clicked.connect(self.close)
+        self.exit_button.setProperty("class", "quit")
+        self.layout.addWidget(self.exit_button, line, 0, 1, 2)
 
-        reload_button = QPushButton('Reload')
-        self.layout.addWidget(reload_button, 4, 0, 1, 1)
-        reload_button.clicked.connect(self.reload_fmu)
-        reload_button.setProperty("class", "quit")
+        self.save_log_button = QPushButton('Save log as')
+        self.save_log_button.clicked.connect(self.save_log)
+        self.save_log_button.setProperty("class", "save")
+        self.layout.addWidget(self.save_log_button, line, 2, 1, 2)
 
-        exit_button = QPushButton('Exit')
-        self.layout.addWidget(exit_button, line, 0, 1, 2)
-        exit_button.clicked.connect(self.close)
-        exit_button.setProperty("class", "quit")
+        self.save_fmu_button = QPushButton('Save modified FMU as')
+        self.save_fmu_button.clicked.connect(self.save_fmu)
+        self.save_fmu_button.setProperty("class", "save")
+        self.set_tooltip(self.save_fmu_button, '-output')
+        self.layout.addWidget(self.save_fmu_button, line, 4, 1, 2)
 
-        save_log_button = QPushButton('Save log as')
-        self.layout.addWidget(save_log_button, line, 2, 1, 2)
-        save_log_button.clicked.connect(self.save_log)
-        save_log_button.setProperty("class", "save")
-
-        save_fmu_button = QPushButton('Save modified FMU as')
-        self.layout.addWidget(save_fmu_button, line, 4, 1, 2)
-        save_fmu_button.clicked.connect(self.save_fmu)
-        save_fmu_button.setProperty("class", "save")
-        self.set_tooltip(save_fmu_button, '-output')
+        # Fix the layout
+        self.layout.setVerticalSpacing(4)
+        self.layout.setHorizontalSpacing(4)
+        self.layout.setContentsMargins(10, 10, 10, 10)
+        for row in range(self.layout.rowCount()):
+            self.layout.setRowMinimumHeight(row, 36)
+        self.setLayout(self.layout)
 
         # show the window
         self.show()
@@ -254,8 +256,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             except Exception as e:
                 logger.error(f"{e}")
 
-    def add_operation(self, name, usage, severity, operation, x, y, prompt=None, prompt_file=None, arg=None,
-                      func=None):
+    def add_operation(self, name, usage, severity, operation, prompt=None, prompt_file=None, arg=None,
+                      func=None) -> QPushButton:
         if prompt:
             def operation_handler():
                 local_arg = self.prompt_string(prompt)
@@ -285,7 +287,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             button.clicked.connect(func)
         else:
             button.clicked.connect(operation_handler)
-        self.layout.addWidget(button, x, y)
+
+        return button
 
     def prompt_string(self, message):
         text, ok = QInputDialog().getText(self, "Enter value", f"{message}:", QLineEdit.EchoMode.Normal, "")

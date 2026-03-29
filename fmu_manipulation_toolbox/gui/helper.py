@@ -19,22 +19,17 @@ class Application(QApplication):
     def __init__(self, *args, **kwargs):
         self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor)
         super().__init__(*args, **kwargs)
-
-
-        QDir.addSearchPath('images', str(Path(__file__).parent.parent / "resources"))
-        self.setStyleSheet(gui_style)
-
         if os.name == 'nt':
             import ctypes
             self.setWindowIcon(QIcon(str(Path(__file__).parent.parent / 'resources' / 'icon-round.png')))
-
             # https://stackoverflow.com/questions/1551605/how-to-set-applications-taskbar-icon-in-windows-7/1552105#1552105
-
             application_id = 'FMU_Manipulation_Toolbox'  # arbitrary string
             ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(application_id)
         else:
             self.setWindowIcon(QIcon(str(Path(__file__).parent.parent / 'resources' / 'icon.png')))
 
+        QDir.addSearchPath('images', str(Path(__file__).parent.parent / "resources"))
+        self.setStyleSheet(gui_style)
         self.window = None
 
 

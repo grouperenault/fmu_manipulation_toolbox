@@ -49,7 +49,7 @@ setup(
                                       ],
                   "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.fmutool:main",
                                   "fmucontainer-gui = fmu_manipulation_toolbox.gui.fmucontainer:main",
-                                  "fmueditor = fmu_manipulation_toolbox.gui.editor:main",
+                                  "fmueditor = fmu_manipulation_toolbox.gui.fmueditor:main",
                                   "fmutoolbox = fmu_manipulation_toolbox.gui.__main__:main",
                                   ]
                   },
@@ -77,7 +77,7 @@ FMI versions 2.0, 3.0 and LS-BUS are supported.
     """,
     long_description_content_type="text/markdown",
     install_requires=[
-        "PySide6 >= 6.8.0",
+        "PySide6 >= 6.10.0",
         "xmlschema >= 3.3.1",
         "elementpath >= 4.4.0",
         "colorama >= 0.4.6",
