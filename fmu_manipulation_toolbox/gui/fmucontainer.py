@@ -852,19 +852,19 @@ class NodeGraphWidget(QWidget):
     def clear(self):
         self.scene.clear_all()
 
-# Custom data roles stored on column 0 items
-ROLE_IS_CONTAINER = Qt.ItemDataRole.UserRole + 1
-ROLE_NODE_UID     = Qt.ItemDataRole.UserRole + 2
-ROLE_IS_ROOT      = Qt.ItemDataRole.UserRole + 3
 
 class _NodeTreeModel(QStandardItemModel):
     """Model that only allows drop on "Container" items."""
+    # Custom data roles stored on column 0 items
+    ROLE_IS_CONTAINER = Qt.ItemDataRole.UserRole + 1
+    ROLE_NODE_UID = Qt.ItemDataRole.UserRole + 2
+    ROLE_IS_ROOT = Qt.ItemDataRole.UserRole + 3
 
     def canDropMimeData(self, data, action, row, column, parent):
         if not parent.isValid():
             return False                        # not at invisible root level
         item = self.itemFromIndex(parent)
-        if item is None or not item.data(ROLE_IS_CONTAINER):
+        if item is None or not item.data(_NodeTreeModel.ROLE_IS_CONTAINER):
             return False                        # only on a Container
         return super().canDropMimeData(data, action, row, column, parent)
 
@@ -1206,7 +1206,7 @@ class NodeTreePanel(QWidget):
 
     def _on_item_changed(self, item: QStandardItem):
         """Called when an item is edited in-place (e.g. double-click rename)."""
-        if not item.data(ROLE_IS_CONTAINER):
+        if not item.data(_NodeTreeModel.ROLE_IS_CONTAINER):
             return
         fixed = self._ensure_fmu_ext(item.text().strip())
         if fixed != item.text():
@@ -1221,8 +1221,8 @@ class NodeTreePanel(QWidget):
         item = QStandardItem(name)
         item.setIcon(self._icon_container)
         item.setToolTip("Container")
-        item.setData(True, ROLE_IS_CONTAINER)
-        item.setData(is_root, ROLE_IS_ROOT)
+        item.setData(True, _NodeTreeModel.ROLE_IS_CONTAINER)
+        item.setData(is_root, _NodeTreeModel.ROLE_IS_ROOT)
         item.setEditable(True)
         item.setDropEnabled(True)
         item.setDragEnabled(not is_root)
@@ -1232,8 +1232,8 @@ class NodeTreePanel(QWidget):
         item = QStandardItem(node.title)
         item.setIcon(self._icon_fmu)
         item.setToolTip("FMU")
-        item.setData(False, ROLE_IS_CONTAINER)
-        item.setData(node.uid, ROLE_NODE_UID)
+        item.setData(False, _NodeTreeModel.ROLE_IS_CONTAINER)
+        item.setData(node.uid, _NodeTreeModel.ROLE_NODE_UID)
         item.setEditable(False)
         item.setDropEnabled(False)
         item.setDragEnabled(True)
@@ -1254,10 +1254,10 @@ class NodeTreePanel(QWidget):
             child = parent.child(r, 0)
             if child is None:
                 continue
-            if not child.data(ROLE_IS_CONTAINER) and child.data(ROLE_NODE_UID) == uid:
+            if not child.data(_NodeTreeModel.ROLE_IS_CONTAINER) and child.data(_NodeTreeModel.ROLE_NODE_UID) == uid:
                 parent.removeRow(r)
                 return True
-            if child.data(ROLE_IS_CONTAINER) and self._remove_uid_from(child, uid):
+            if child.data(_NodeTreeModel.ROLE_IS_CONTAINER) and self._remove_uid_from(child, uid):
                 return True
         return False
 
@@ -1267,9 +1267,9 @@ class NodeTreePanel(QWidget):
             child = parent.child(r, 0)
             if child is None:
                 continue
-            if not child.data(ROLE_IS_CONTAINER) and child.data(ROLE_NODE_UID) == uid:
+            if not child.data(_NodeTreeModel.ROLE_IS_CONTAINER) and child.data(_NodeTreeModel.ROLE_NODE_UID) == uid:
                 return child
-            if child.data(ROLE_IS_CONTAINER):
+            if child.data(_NodeTreeModel.ROLE_IS_CONTAINER):
                 found = self._find_tree_item_by_uid(child, uid)
                 if found is not None:
                     return found
@@ -1340,12 +1340,12 @@ class NodeTreePanel(QWidget):
                 item = self._model.itemFromIndex(index)
                 if item is None:
                     continue
-                if item.data(ROLE_IS_CONTAINER):
+                if item.data(_NodeTreeModel.ROLE_IS_CONTAINER):
                     # Container selected -> Container panel
                     self._container_detail.set_container(item.text())
                     self._detail_stack.setCurrentWidget(self._container_detail)
                     return
-                uid = item.data(ROLE_NODE_UID)
+                uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
                 if uid:
                     try:
                         scene_nodes = self._graph.scene.nodes()
@@ -1375,7 +1375,7 @@ class NodeTreePanel(QWidget):
         act_rename = act_delete = None
         if item is not None:
             menu.addSeparator()
-            if item.data(ROLE_IS_CONTAINER):
+            if item.data(_NodeTreeModel.ROLE_IS_CONTAINER):
                 act_rename = menu.addAction("Rename")
             if item is not self._root:
                 act_delete = menu.addAction("Delete")
@@ -1425,7 +1425,7 @@ class NodeTreePanel(QWidget):
         item = self._model.itemFromIndex(index)
         if item is None:
             return self._root, None
-        if item.data(ROLE_IS_CONTAINER):
+        if item.data(_NodeTreeModel.ROLE_IS_CONTAINER):
             return item, item
         return (item.parent() or self._root), item
 
@@ -1433,10 +1433,10 @@ class NodeTreePanel(QWidget):
 
     def _delete_item(self, item: QStandardItem):
         """Delete a node or container (+ all its content) from tree and scene."""
-        if item.data(ROLE_IS_CONTAINER):
+        if item.data(_NodeTreeModel.ROLE_IS_CONTAINER):
             self._purge_container(item)
         else:
-            self._remove_scene_node(item.data(ROLE_NODE_UID))
+            self._remove_scene_node(item.data(_NodeTreeModel.ROLE_NODE_UID))
         parent = item.parent() or self._model.invisibleRootItem()
         parent.removeRow(item.row())
 
@@ -1446,10 +1446,10 @@ class NodeTreePanel(QWidget):
             child = ctn.child(r, 0)
             if child is None:
                 continue
-            if child.data(ROLE_IS_CONTAINER):
+            if child.data(_NodeTreeModel.ROLE_IS_CONTAINER):
                 self._purge_container(child)
             else:
-                self._remove_scene_node(child.data(ROLE_NODE_UID))
+                self._remove_scene_node(child.data(_NodeTreeModel.ROLE_NODE_UID))
 
     def _remove_scene_node(self, uid: Optional[str]):
         """Remove the matching node from the graphics scene."""
@@ -1545,7 +1545,7 @@ class MainWindow(QMainWindow):
         nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
 
         def _serialize_item(item: QStandardItem) -> dict:
-            if item.data(ROLE_IS_CONTAINER):
+            if item.data(_NodeTreeModel.ROLE_IS_CONTAINER):
                 children = []
                 for r in range(item.rowCount()):
                     child = item.child(r, 0)
@@ -1554,11 +1554,11 @@ class MainWindow(QMainWindow):
                 return {
                     "type": "container",
                     "name": item.text(),
-                    "is_root": bool(item.data(ROLE_IS_ROOT)),
+                    "is_root": bool(item.data(_NodeTreeModel.ROLE_IS_ROOT)),
                     "children": children,
                 }
 
-            uid = item.data(ROLE_NODE_UID)
+            uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
             scene_node = nodes_by_uid.get(uid)
             return {
                 "type": "fmu",
