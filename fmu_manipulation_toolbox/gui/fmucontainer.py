@@ -5,7 +5,9 @@ import sys
 import uuid
 from enum import Enum, auto
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
+
+from random import randint
 
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal, QItemSelectionModel, QSize, QSortFilterProxyModel, QModelIndex
 from PySide6.QtGui import (
@@ -22,7 +24,7 @@ from PySide6.QtWidgets import (
     QTreeView, QSplitter,
     QStackedWidget, QTableView, QLabel, QHeaderView,
     QFileDialog, QMainWindow, QPushButton, QComboBox,
-    QStyledItemDelegate, QAbstractItemView
+    QStyledItemDelegate, QAbstractItemView, QListView
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, StatusBar
@@ -145,6 +147,9 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         # Keep full port lists for serialization / logic
         self.fmu_input_names: List[str] = []
         self.fmu_output_names: List[str] = []
+        self.fmu_step_size:Optional[str] = None
+        self.fmu_generator:str = ""
+
         fmu = FMU(fmu_path)
         fmu.apply_operation(self)
         del fmu
@@ -197,6 +202,12 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     def __repr__(self):
         return "Collect I/O ports"
+
+    def fmi_attrs(self, attrs):
+        self.fmu_generator = attrs.get("generationTool", "-")
+
+    def experiment_attrs(self, attrs):
+        self.fmu_step_size = attrs.get("stepSize", "")
 
     def port_attrs(self, fmu_port: FMUPort) -> int:
         causality = fmu_port.get("causality", "local")
@@ -859,6 +870,7 @@ class _NodeTreeModel(QStandardItemModel):
     ROLE_IS_CONTAINER = Qt.ItemDataRole.UserRole + 1
     ROLE_NODE_UID = Qt.ItemDataRole.UserRole + 2
     ROLE_IS_ROOT = Qt.ItemDataRole.UserRole + 3
+    ROLE_CONTAINER_PARAMETERS = Qt.ItemDataRole.UserRole + 4
 
     def canDropMimeData(self, data, action, row, column, parent):
         if not parent.isValid():
@@ -1100,7 +1112,24 @@ class FMUDetailWidget(QWidget):
         lay.addStretch()
 
     def set_node(self, node: NodeItem):
-        self._name_label.setText(node.title)
+        self._name_label.setText(f"{node.title} ({node.fmu_generator}, {node.fmu_step_size}s)")
+
+
+class ContainerParameters:
+    def __init__(self, name: str, ):
+        self.name = name
+        self.parameters = {
+            "step_size": "",
+            "mt": False,
+            "profiling": False,
+            "sequential": False,
+            "auto_link": True,
+            "auto_input": True,
+            "auto_output": True,
+            "auto_parameter": False,
+            "auto_local": False,
+            "ts_multiplier": False,
+        }
 
 
 class ContainerDetailWidget(QWidget):
@@ -1114,13 +1143,56 @@ class ContainerDetailWidget(QWidget):
         font.setBold(True)
         self._name_label.setFont(font)
 
+        self._model = QStandardItemModel(0, 2)
+        self._model.setHorizontalHeaderLabels(["Parameters", ""])
+        self._table = QTableView()
+        self._table.setModel(self._model)
+
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.horizontalHeader().setStretchLastSection(True)
+        self._table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch,
+        )
+        self._table.setAlternatingRowColors(True)
+        self._table.verticalHeader().setVisible(False)
+
+        # -- Sync edits back to WireItem --
+        self._model.dataChanged.connect(self._on_table_data_changed)
+
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.addWidget(self._name_label)
-        lay.addStretch()
+        lay.addWidget(self._table, 1)
 
-    def set_container(self, name: str):
-        self._name_label.setText(name)
+
+    def set_container(self, container_parameter: ContainerParameters):
+        self._name_label.setText(f"{container_parameter.name}")
+
+        self._model.removeRows(0, self._model.rowCount())
+        for k, v in container_parameter.parameters.items():
+            if isinstance(v, bool):
+                value_item = QStandardItem("")
+                value_item.setCheckable(True)
+                value_item.setCheckState(Qt.Checked if v else Qt.Unchecked)
+                value_item.setEditable(False)
+            else:
+                value_item = QStandardItem(v)
+                value_item.setEditable(True)
+            key_item = QStandardItem(k)
+            key_item.setEditable(False)
+            self._model.appendRow([key_item, value_item])
+
+    def _on_table_data_changed(self):
+        for r in range(self._model.rowCount()):
+            key = self._model.item(r, 0).text()
+            value_item = self._model.item(r, 1)
+            if value_item.isCheckable():
+                value = value_item.checkState() == Qt.Checked
+            else:
+                value = value_item.text()
+
+            print(key, value)
+
 
 
 class NodeTreePanel(QWidget):
@@ -1143,12 +1215,14 @@ class NodeTreePanel(QWidget):
         self._icon_fmu = QIcon(str(resources_dir / "icon_fmu.png"))
 
         # ── Model ────────────────────────────────────────────────────────
+        self._container_parameters: Dict[str, ContainerParameters] = {}
         self._model = _NodeTreeModel()
         self._model.setHorizontalHeaderLabels(["Name"])
 
         root_item = self._make_container_item("container.fmu", is_root=True)
         self._model.appendRow(root_item)
         self._root: QStandardItem = root_item
+
 
         # ── View ───────────────────────────────────────────────────────────
         self._tree = QTreeView()
@@ -1231,6 +1305,8 @@ class NodeTreePanel(QWidget):
         item.setEditable(True)
         item.setDropEnabled(True)
         item.setDragEnabled(not is_root)
+        self._container_parameters[name] = ContainerParameters(name)
+
         return item
 
     def _make_node_item(self, node: NodeItem) -> QStandardItem:
@@ -1347,7 +1423,7 @@ class NodeTreePanel(QWidget):
                     continue
                 if item.data(_NodeTreeModel.ROLE_IS_CONTAINER):
                     # Container selected -> Container panel
-                    self._container_detail.set_container(item.text())
+                    self._container_detail.set_container(self._container_parameters[item.text()])
                     self._detail_stack.setCurrentWidget(self._container_detail)
                     return
                 uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
