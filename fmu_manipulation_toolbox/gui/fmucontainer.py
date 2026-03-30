@@ -1000,7 +1000,7 @@ class WireDetailWidget(QWidget):
     def set_wire(self, wire: WireItem):
         """Bind to a wire and refresh delegates / table."""
         # Save current table to the previous wire before switching
-        self._sync_to_wire()
+        self.sync_to_wire()
 
         self._wire = wire
         src, dst = wire.source, wire.destination
@@ -1015,7 +1015,7 @@ class WireDetailWidget(QWidget):
 
     # ── Internal sync helpers ─────────────────────────────────────
 
-    def _sync_to_wire(self):
+    def sync_to_wire(self):
         """Write the current table content back to self._wire.mappings."""
         if self._wire is None:
             return
@@ -1054,7 +1054,7 @@ class WireDetailWidget(QWidget):
         src_item = QStandardItem(out_names[0])
         dst_item = QStandardItem(in_names[0])
         self._table_model.appendRow([src_item, dst_item])
-        self._sync_to_wire()
+        self.sync_to_wire()
 
     def _on_remove(self):
         """Remove selected rows from the mapping table."""
@@ -1067,7 +1067,7 @@ class WireDetailWidget(QWidget):
         self._table.setCurrentIndex(QModelIndex())
         for r in source_rows:
             self._table_model.removeRow(r)
-        self._sync_to_wire()
+        self.sync_to_wire()
 
     def _on_auto_connect(self):
         """Automatically map ports that share the same name."""
@@ -1085,11 +1085,11 @@ class WireDetailWidget(QWidget):
                 self._table_model.appendRow(
                     [QStandardItem(name), QStandardItem(name)]
                 )
-        self._sync_to_wire()
+        self.sync_to_wire()
 
     def _on_table_data_changed(self, _top_left, _bottom_right, _roles):
         """Sync to wire whenever a cell is edited via combo box."""
-        self._sync_to_wire()
+        self.sync_to_wire()
 
 
 class FMUDetailWidget(QWidget):
@@ -1193,7 +1193,6 @@ class ContainerDetailWidget(QWidget):
                 value = value_item.text()
 
             self._container_parameters.parameters[key] = value
-            print(key, value)
 
 
 class NodeTreePanel(QWidget):
@@ -1365,7 +1364,7 @@ class NodeTreePanel(QWidget):
         self._syncing_selection = True
         try:
             # Flush any pending edits from the wire detail table
-            self._wire_detail._sync_to_wire()
+            self._wire_detail.sync_to_wire()
 
             sel = self._tree.selectionModel()
             sel.clearSelection()
@@ -1608,72 +1607,44 @@ class MainWindow(QMainWindow):
         logger.info("Load clicked")
         pass
 
-    def coucou(self, arg):
-        logger.critical(arg)
-
     def _on_export_clicked(self):
         # Reserved hook for the Export action.
         logger.info("Export clicked")
         RunTask(self.coucou, "message", parent=self, title="Export to JSON", level=logging.DEBUG)
 
-    def _on_save_clicked(self):
+
+    def save_as_fmu(self, output_path):
         logger.info("Save clicked")
 
         # Flush any in-progress edits from wire detail table
-        self._tree._wire_detail._sync_to_wire()
+        self._tree._wire_detail.sync_to_wire()
 
-        model: _NodeTreeModel = self._tree._model
         root_item: QStandardItem = self._tree._root
         nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
 
-        def _serialize_item(item: QStandardItem) -> dict:
-            if item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS):
-                children = []
+        for wire in self._graph.scene.wires():
+            fmu_from = nodes_by_uid[wire.source.node.uid]
+            fmu_to = nodes_by_uid[wire.destination.node.uid]
+            logger.info(f"{fmu_from.fmu_path} {wire.source.name} -> {fmu_to.fmu_path} {wire.destination.name}")
+
+        def _serialize_item(item: QStandardItem, level:int = 0):
+            container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+            if container_parameters:
+                logger.info(f"{'  ' * level}CONTAINER: {container_parameters.name}")
                 for r in range(item.rowCount()):
                     child = item.child(r, 0)
                     if child is not None:
-                        children.append(_serialize_item(child))
-                return {
-                    "type": "container",
-                    "name": item.text(),
-                    "is_root": bool(item.data(_NodeTreeModel.ROLE_IS_ROOT)),
-                    "children": children,
-                }
+                        _serialize_item(child, level=level + 1)
+                logger.info(f"{'  ' * level}.")
+            else:
+                uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
+                scene_node = nodes_by_uid.get(uid)
+                logger.info(f"{'  ' * level}FMU: {scene_node.fmu_path}")
 
-            uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
-            scene_node = nodes_by_uid.get(uid)
-            return {
-                "type": "fmu",
-                "uid": uid,
-                "name": item.text(),
-                "title": scene_node.title if scene_node is not None else "",
-                "fmu_path": scene_node.fmu_path if scene_node is not None else "",
-            }
+        _serialize_item(root_item)
 
-        wires_payload = []
-        for wire in self._graph.scene.wires():
-            wires_payload.append(
-                {
-                    "source_uid": wire.source.node.uid,
-                    "source_port": wire.source.name,
-                    "target_uid": wire.destination.node.uid,
-                    "target_port": wire.destination.name,
-                    "links": [
-                        {"from": out, "to": inp}
-                        for out, inp in wire.mappings
-                    ],
-                }
-            )
 
-        payload = {
-            "tree": _serialize_item(root_item),
-            "wires": wires_payload,
-            "summary": {
-                "node_count": len(nodes_by_uid),
-                "wire_count": len(wires_payload),
-            },
-        }
-
+    def _on_save_clicked(self):
         output_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save container snapshot",
@@ -1684,15 +1655,7 @@ class MainWindow(QMainWindow):
             logger.info("Save cancelled")
             return
 
-        with open(output_path, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=2, ensure_ascii=False)
-
-        logger.info(
-            "Snapshot saved to %s (%d nodes, %d wires)",
-            output_path,
-            len(nodes_by_uid),
-            len(wires_payload),
-        )
+        RunTask(self.save_as_fmu, output_path, parent=self, title="Saving as FMU", level=logging.DEBUG)
 
     def closeEvent(self, event):
         super().closeEvent(event)

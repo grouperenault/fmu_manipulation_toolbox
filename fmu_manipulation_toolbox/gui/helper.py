@@ -241,7 +241,7 @@ class RunTask(QDialog):
         self.setModal(True)
         self.setWindowTitle(title)
 
-        self.text = LogWidget(width=640, height=240, level=level)
+        self.text = LogWidget(height=300, level=level)
         self.button = QPushButton("Close")
         self.button.setProperty("class", "quit")
         self.button.clicked.connect(self.close)
