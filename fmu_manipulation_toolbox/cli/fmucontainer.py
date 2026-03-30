@@ -88,11 +88,11 @@ def fmucontainer():
             filename = description
 
         try:
-            assembly = Assembly(filename, step_size=step_size, auto_link=config.auto_link,
-                                auto_input=config.auto_input, auto_output=config.auto_output,
-                                auto_local=config.auto_local, mt=config.mt, sequential=config.sequential,
-                                profiling=config.profiling, fmu_directory=fmu_directory, debug=config.debug,
-                                auto_parameter=config.auto_parameter, ts_multiplier=config.ts_multiplier)
+            assembly = Assembly(filename, default_step_size=step_size, default_auto_link=config.auto_link,
+                                default_auto_input=config.auto_input, default_auto_output=config.auto_output,
+                                default_auto_local=config.auto_local, default_mt=config.mt, default_sequential=config.sequential,
+                                default_profiling=config.profiling, fmu_directory=fmu_directory, debug=config.debug,
+                                default_auto_parameter=config.auto_parameter, default_ts_multiplier=config.ts_multiplier)
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")
             close_logger(logger)

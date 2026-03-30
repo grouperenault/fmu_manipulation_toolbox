@@ -408,21 +408,22 @@ class Assembly:
         root (AssemblyNode | None): Root node of the assembly tree.
     """
 
-    def __init__(self, filename: str, step_size=None, auto_link=True,  auto_input=True, debug=False, sequential=False,
-                 auto_output=True, mt=False, profiling=False, fmu_directory: Path = Path("."), auto_parameter=False,
-                 auto_local=False, ts_multiplier=False):
-        self.filename = Path(filename)
-        self.default_auto_input = auto_input
+    def __init__(self, filename: Optional[str]=None, default_step_size=None, default_auto_link=True,
+                 default_auto_input=True, debug=False, default_sequential=False, default_auto_output=True,
+                 default_mt=False, default_profiling=False, fmu_directory: Path = Path("."),
+                 default_auto_parameter=False, default_auto_local=False, default_ts_multiplier=False):
+        self.filename = Path(filename) if filename else None
+        self.default_auto_input = default_auto_input
         self.debug = debug
-        self.default_auto_output = auto_output
-        self.default_step_size = step_size
-        self.default_auto_link = auto_link
-        self.default_auto_parameter = auto_parameter
-        self.default_auto_local = auto_local
-        self.default_mt = mt
-        self.default_sequential = sequential
-        self.default_profiling = profiling
-        self.default_ts_multiplier = ts_multiplier
+        self.default_auto_output = default_auto_output
+        self.default_step_size = default_step_size
+        self.default_auto_link = default_auto_link
+        self.default_auto_parameter = default_auto_parameter
+        self.default_auto_local = default_auto_local
+        self.default_mt = default_mt
+        self.default_sequential = default_sequential
+        self.default_profiling = default_profiling
+        self.default_ts_multiplier = default_ts_multiplier
         self.fmu_directory = fmu_directory
         self.transient_filenames: List[Path] = []
         self.transient_dirnames: Set[Path] = set()
@@ -430,10 +431,14 @@ class Assembly:
         if not fmu_directory.is_dir():
             raise AssemblyError(f"FMU directory is not valid: '{fmu_directory.resolve()}'")
 
-        self.input_pathname = fmu_directory / self.filename
-        self.description_pathname = self.input_pathname   # For inclusion in FMU
         self.root: Optional[AssemblyNode] = None
-        self.read()
+
+        if self.filename:
+            self.input_pathname = fmu_directory / self.filename
+            self.description_pathname = self.input_pathname  # For inclusion in FMU
+            self.read()
+        else:
+            self.description_pathname = None
 
     def add_transient_file(self, filename: str):
         self.transient_filenames.append(self.fmu_directory / filename)

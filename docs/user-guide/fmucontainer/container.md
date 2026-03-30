@@ -145,7 +145,7 @@ from fmu_manipulation_toolbox.assembly import Assembly
 # Load a CSV description and build the container
 assembly = Assembly("bouncing.json",
                     fmu_directory=Path("containers/bouncing_ball"),
-                    mt=True)
+                    default_mt=True)
 assembly.make_fmu()
 ```
 
