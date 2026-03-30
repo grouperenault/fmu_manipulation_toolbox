@@ -2,7 +2,8 @@ import logging
 import os
 
 from typing import *
-from PySide6.QtWidgets import QApplication, QFileDialog, QLabel, QStatusBar
+from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
+                               QPushButton)
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage
@@ -198,3 +199,60 @@ class StatusBar(QStatusBar):
     def __exit__(self, exc_type, exc_val, exc_tb):
         logger.removeHandler(self._log_handler)
         self._log_handler.close()
+
+
+class LogWidget(QTextBrowser):
+    class LogHandler(logging.Handler):
+        LOG_COLOR = {
+            logging.DEBUG: QColor(log_color["DEBUG"]),
+            logging.INFO: QColor(log_color["INFO"]),
+            logging.WARNING: QColor(log_color["WARNING"]),
+            logging.ERROR: QColor(log_color["ERROR"]),
+            logging.CRITICAL: QColor(log_color["CRITICAL"]),
+        }
+
+        def __init__(self, text_browser, level):
+            super().__init__(level)
+            self.text_browser: QTextBrowser = text_browser
+            logger.addHandler(self)
+            logger.setLevel(level)
+
+        def emit(self, record) -> None:
+            self.text_browser.setTextColor(self.LOG_COLOR[record.levelno])
+            self.text_browser.insertPlainText(record.msg + "\n")
+
+    def __init__(self, parent=None, level=logging.INFO, width=900, height=500):
+        super().__init__(parent)
+
+        self.setMinimumWidth(width)
+        self.setMinimumHeight(height)
+        self.setSearchPaths([os.path.join(os.path.dirname(__file__), "../resources")])
+        self.log_handler = LogWidget.LogHandler(self, level)
+
+    def loadResource(self, _, name):
+        image_path = Path(__file__).parent.parent / "resources" / name.toString()
+        return QPixmap(str(image_path))
+
+
+class RunTask(QDialog):
+    def __init__(self, task: Callable, *args, parent=None, title="Run command...",  level=logging.INFO, **kwargs):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.Tool)
+        self.setModal(True)
+        self.setWindowTitle(title)
+
+        self.text = LogWidget(width=640, height=240, level=level)
+        self.button = QPushButton("Close")
+        self.button.setProperty("class", "quit")
+        self.button.clicked.connect(self.close)
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        layout.addWidget(self.text)
+        layout.addWidget(self.button)
+
+        self.show()
+
+        logger.debug("Starting...")
+        task(*args, **kwargs)
+        logger.debug("End of task.")

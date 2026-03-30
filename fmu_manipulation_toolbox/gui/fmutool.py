@@ -4,13 +4,11 @@ import textwrap
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
-                               QTextBrowser, QInputDialog, QMenu, QLayout)
-from PySide6.QtGui import QPixmap, QTextCursor, QAction, QColor
+                               QInputDialog, QMenu)
+from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
-from pathlib import Path
 
-from fmu_manipulation_toolbox.gui.style import log_color
-from fmu_manipulation_toolbox.gui.helper import Application, HelpWidget, DropZoneWidget
+from fmu_manipulation_toolbox.gui.helper import Application, HelpWidget, DropZoneWidget, LogWidget
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
@@ -19,41 +17,6 @@ from fmu_manipulation_toolbox.help import Help
 from fmu_manipulation_toolbox.version import __version__ as version
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
-
-
-class LogHandler(logging.Handler):
-    LOG_COLOR = {
-        logging.DEBUG: QColor(log_color["DEBUG"]),
-        logging.INFO: QColor(log_color["INFO"]),
-        logging.WARNING: QColor(log_color["WARNING"]),
-        logging.ERROR: QColor(log_color["ERROR"]),
-        logging.CRITICAL: QColor(log_color["CRITICAL"]),
-    }
-
-    def __init__(self, text_browser, level):
-        super().__init__(level)
-        self.text_browser: QTextBrowser = text_browser
-        logger.addHandler(self)
-        logger.setLevel(level)
-
-    def emit(self, record) -> None:
-        self.text_browser.setTextColor(self.LOG_COLOR[record.levelno])
-        self.text_browser.insertPlainText(record.msg+"\n")
-
-
-class LogWidget(QTextBrowser):
-    def __init__(self, parent=None, level=logging.INFO):
-        super().__init__(parent)
-
-        self.setMinimumWidth(900)
-        self.setMinimumHeight(500)
-        self.setSearchPaths([os.path.join(os.path.dirname(__file__), "../resources")])
-        self.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
-        self.log_handler = LogHandler(self, level)
-
-    def loadResource(self, _, name):
-        image_path = Path(__file__).parent.parent / "resources" / name.toString()
-        return QPixmap(str(image_path))
 
 
 class FilterWidget(QPushButton):
@@ -176,6 +139,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         # Text
         line += 1
         self.log_widget = LogWidget()
+        self.log_widget.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
         self.layout.addWidget(self.log_widget, line, 0, 1, WIDTH + 1)
 
         # buttons

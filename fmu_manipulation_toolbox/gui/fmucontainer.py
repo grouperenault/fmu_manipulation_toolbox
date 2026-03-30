@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
     QStyledItemDelegate, QAbstractItemView, QListView
 )
 
-from fmu_manipulation_toolbox.gui.helper import Application, StatusBar
+from fmu_manipulation_toolbox.gui.helper import Application, StatusBar, RunTask
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 
@@ -1613,10 +1613,13 @@ class MainWindow(QMainWindow):
         logger.info("Load clicked")
         pass
 
+    def coucou(self, arg):
+        logger.critical(arg)
+
     def _on_export_clicked(self):
         # Reserved hook for the Export action.
         logger.info("Export clicked")
-        pass
+        RunTask(self.coucou, "message", parent=self, title="Export to JSON", level=logging.DEBUG)
 
     def _on_save_clicked(self):
         logger.info("Save clicked")
