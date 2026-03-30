@@ -1,8 +1,8 @@
 import logging
-import json
 import math
 import sys
 import uuid
+import tempfile
 
 from enum import Enum, auto
 from pathlib import Path
@@ -27,8 +27,9 @@ from PySide6.QtWidgets import (
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, StatusBar, RunTask
-from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode
+from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
+from fmu_manipulation_toolbox.container import FMUContainerError
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -530,7 +531,7 @@ class NodeGraphScene(QGraphicsScene):
 
     # -- Public API ----------------------------------------------------------
 
-    def add_node(self, fmu_path: Path | str, x: float = 0, y: float = 0) -> NodeItem:
+    def add_node(self, fmu_path: Union[Path, str], x: float = 0, y: float = 0) -> NodeItem:
         """Create and add a node to the scene."""
         node = NodeItem(Path(fmu_path), x=x, y=y)
         self.addItem(node)
@@ -1608,48 +1609,118 @@ class MainWindow(QMainWindow):
         pass
 
     def _on_export_clicked(self):
-        # Reserved hook for the Export action.
-        logger.info("Export clicked")
-        RunTask(self.coucou, "message", parent=self, title="Export to JSON", level=logging.DEBUG)
-
-
-    def save_as_fmu(self, output_path):
-        logger.info("Save clicked")
-
-        # Flush any in-progress edits from wire detail table
-        self._tree._wire_detail.sync_to_wire()
-
-        root_item: QStandardItem = self._tree._root
-        nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
-
-        for wire in self._graph.scene.wires():
-            fmu_from = nodes_by_uid[wire.source.node.uid]
-            fmu_to = nodes_by_uid[wire.destination.node.uid]
-            logger.info(f"{fmu_from.fmu_path} {wire.source.name} -> {fmu_to.fmu_path} {wire.destination.name}")
-
-        def _serialize_item(item: QStandardItem, level:int = 0):
-            container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
-            if container_parameters:
-                logger.info(f"{'  ' * level}CONTAINER: {container_parameters.name}")
-                for r in range(item.rowCount()):
-                    child = item.child(r, 0)
-                    if child is not None:
-                        _serialize_item(child, level=level + 1)
-                logger.info(f"{'  ' * level}.")
-            else:
-                uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
-                scene_node = nodes_by_uid.get(uid)
-                logger.info(f"{'  ' * level}FMU: {scene_node.fmu_path}")
-
-        _serialize_item(root_item)
-
-
-    def _on_save_clicked(self):
         output_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save container snapshot",
             "container_snapshot.json",
             "JSON (*.json)",
+        )
+        if not output_path:
+            logger.info("Save cancelled")
+            return
+
+        RunTask(self.save_as_json, output_path, parent=self, title="Saving as FMU", level=logging.DEBUG)
+
+
+    def _apply_links(self, assembly_node: AssemblyNode, links_list: List[Tuple])-> List[Tuple]:
+        for sub_assembly_node in assembly_node.children.values():
+            links_list = self._apply_links(sub_assembly_node, links_list)
+
+        logger.info(f"Links applied: {len(links_list)}")
+        logger.info(f"Assembly node: {assembly_node.name}")
+        logger.info(f"{assembly_node.fmu_names_list}")
+
+        remaining_links_list = []
+        for link in links_list:
+            logger.info(f"{link}")
+            if link[0] in assembly_node.fmu_names_list:
+                if link[2] in assembly_node.fmu_names_list:
+                    assembly_node.add_link(link[0], link[1], link[2], link[3])
+                else:
+                    assembly_node.add_output(link[0], link[1], link[1])
+                    remaining_links_list.append((assembly_node.name, link[1], link[2], link[3]))
+            else:
+                if link[2] in assembly_node.fmu_names_list:
+                    assembly_node.add_input(link[3], link[2], link[3])
+                    remaining_links_list.append((link[0], link[1], assembly_node.name, link[3]))
+                else:
+                    remaining_links_list.append(link)
+
+        return remaining_links_list
+
+
+    def create_assembly(self) -> Optional[Assembly]:
+        # Flush any in-progress edits from wire detail table
+        self._tree._wire_detail.sync_to_wire()
+        nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
+
+        def _item_to_assembly_node(parent_assembly_node: Optional[AssemblyNode], item: QStandardItem) -> Optional[AssemblyNode]:
+            container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+            if container_parameters:
+                logger.debug(f"ADD Container: {container_parameters.name}")
+                assembly_node = AssemblyNode(container_parameters.name,
+                                             **container_parameters.parameters)
+                for r in range(item.rowCount()):
+                    child = item.child(r, 0)
+                    if child is not None:
+                        sub_assembly_node = _item_to_assembly_node(assembly_node, child)
+                        if sub_assembly_node:
+                            assembly_node.add_sub_node(sub_assembly_node)
+                return assembly_node
+            else:
+                uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
+                fmu_path =  nodes_by_uid.get(uid).fmu_path
+                logger.info(f"ADD: FMU: {fmu_path.name}")
+                parent_assembly_node.add_fmu(str(fmu_path))
+                return None
+
+        root_item: QStandardItem = self._tree._root
+        assembly = None
+        try:
+            assembly = Assembly()
+            assembly.root = _item_to_assembly_node(None, root_item)
+        except FileNotFoundError as e:
+            logger.fatal(f"Cannot read file: {e}")
+        except (FMUContainerError, AssemblyError) as e:
+            logger.fatal(f"{e}")
+
+        links_list: List[Tuple[str, str, str, str]] = []
+        for wire in self._graph.scene.wires():
+            fmu_from = nodes_by_uid[wire.source.node.uid]
+            fmu_to = nodes_by_uid[wire.destination.node.uid]
+            for link in wire.mappings:
+                logger.info(f"{fmu_from.fmu_path} {link[0]} -> {fmu_to.fmu_path} {link[1]}")
+                links_list.append((str(fmu_from.fmu_path), link[0], str(fmu_to.fmu_path), link[1]))
+
+        self._apply_links(assembly.root, links_list)
+
+
+        return assembly
+
+    def save_as_json(self, output_path):
+        assembly = self.create_assembly()
+        if assembly:
+            assembly.write_json(output_path)
+
+    def save_as_fmu(self, output_path):
+        assembly = self.create_assembly()
+
+        if assembly:
+            try:
+                with tempfile.NamedTemporaryFile("wt", suffix=".json") as temp_file:
+                    assembly.write_json(temp_file.name)
+                    assembly.description_pathname = temp_file.name
+                    assembly.make_fmu(filename=output_path)
+
+            except FMUContainerError as e:
+                logger.fatal(f"{e}")
+
+    def _on_save_clicked(self):
+        output_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save container snapshot",
+            "container_snapshot.fmu",
+            "JSON (*.fmu)",
         )
         if not output_path:
             logger.info("Save cancelled")

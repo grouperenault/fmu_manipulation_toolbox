@@ -3,7 +3,7 @@ import os
 
 from typing import *
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
-                               QPushButton)
+                               QPushButton, QMainWindow)
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage
@@ -233,14 +233,15 @@ class LogWidget(QTextBrowser):
         image_path = Path(__file__).parent.parent / "resources" / name.toString()
         return QPixmap(str(image_path))
 
+    def stop_logging(self):
+        logger.removeHandler(self.log_handler)
+
 
 class RunTask(QDialog):
     def __init__(self, task: Callable, *args, parent=None, title="Run command...",  level=logging.INFO, **kwargs):
         super().__init__(parent)
-        self.setWindowFlags(Qt.Tool)
-        self.setModal(True)
-        self.setWindowTitle(title)
 
+        self.setWindowTitle(title)
         self.text = LogWidget(height=300, level=level)
         self.button = QPushButton("Close")
         self.button.setProperty("class", "quit")
@@ -256,3 +257,4 @@ class RunTask(QDialog):
         logger.debug("Starting...")
         task(*args, **kwargs)
         logger.debug("End of task.")
+        self.text.stop_logging()
