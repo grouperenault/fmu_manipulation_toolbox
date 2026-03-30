@@ -3,11 +3,10 @@ import json
 import math
 import sys
 import uuid
+
 from enum import Enum, auto
 from pathlib import Path
-from typing import Optional, List, Dict
-
-from random import randint
+from typing import *
 
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal, QItemSelectionModel, QSize, QSortFilterProxyModel, QModelIndex
 from PySide6.QtGui import (
@@ -24,7 +23,7 @@ from PySide6.QtWidgets import (
     QTreeView, QSplitter,
     QStackedWidget, QTableView, QLabel, QHeaderView,
     QFileDialog, QMainWindow, QPushButton, QComboBox,
-    QStyledItemDelegate, QAbstractItemView, QListView
+    QStyledItemDelegate, QAbstractItemView
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, StatusBar, RunTask
@@ -531,7 +530,7 @@ class NodeGraphScene(QGraphicsScene):
 
     # -- Public API ----------------------------------------------------------
 
-    def add_node(self, fmu_path: Path, x: float = 0, y: float = 0) -> NodeItem:
+    def add_node(self, fmu_path: Path | str, x: float = 0, y: float = 0) -> NodeItem:
         """Create and add a node to the scene."""
         node = NodeItem(Path(fmu_path), x=x, y=y)
         self.addItem(node)
@@ -785,7 +784,7 @@ class NodeGraphView(QGraphicsView):
                 path_obj = Path(path)
                 if path_obj.suffix.lower() == ".fmu":
                     scene_pos = self.mapToScene(event.position().toPoint())
-                    self._scene.add_node(fmu_path=path, x=scene_pos.x(), y=scene_pos.y())
+                    self._scene.add_node(fmu_path=path_obj, x=scene_pos.x(), y=scene_pos.y())
             event.acceptProposedAction()
             return
         super().dropEvent(event)
@@ -850,12 +849,11 @@ class NodeGraphWidget(QWidget):
 
     def add_node(
         self,
-        title: str = "Node",
         x: float = 0,
         y: float = 0,
         fmu_path: str = "",
     ) -> NodeItem:
-        return self.scene.add_node(title, x, y, fmu_path=fmu_path)
+        return self.scene.add_node(fmu_path, x, y)
 
     def add_wire(self, source: PortItem, destination: PortItem) -> Optional[WireItem]:
         return self.scene.add_wire(source, destination)
@@ -1138,6 +1136,8 @@ class ContainerDetailWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
+        self._container_parameters: Optional[ContainerParameters] = None
+
         self._name_label = QLabel()
         font = self._name_label.font()
         font.setBold(True)
@@ -1165,11 +1165,11 @@ class ContainerDetailWidget(QWidget):
         lay.addWidget(self._table, 1)
 
 
-    def set_container(self, container_parameter: ContainerParameters):
-        self._name_label.setText(f"{container_parameter.name}")
+    def set_container(self, container_parameters: ContainerParameters):
+        self._name_label.setText(f"{container_parameters.name}")
 
         self._model.removeRows(0, self._model.rowCount())
-        for k, v in container_parameter.parameters.items():
+        for k, v in container_parameters.parameters.items():
             if isinstance(v, bool):
                 value_item = QStandardItem("")
                 value_item.setCheckable(True)
@@ -1182,6 +1182,8 @@ class ContainerDetailWidget(QWidget):
             key_item.setEditable(False)
             self._model.appendRow([key_item, value_item])
 
+            self._container_parameters = container_parameters
+
     def _on_table_data_changed(self):
         for r in range(self._model.rowCount()):
             key = self._model.item(r, 0).text()
@@ -1191,8 +1193,8 @@ class ContainerDetailWidget(QWidget):
             else:
                 value = value_item.text()
 
+            self._container_parameters.parameters[key] = value
             print(key, value)
-
 
 
 class NodeTreePanel(QWidget):
@@ -1215,7 +1217,6 @@ class NodeTreePanel(QWidget):
         self._icon_fmu = QIcon(str(resources_dir / "icon_fmu.png"))
 
         # ── Model ────────────────────────────────────────────────────────
-        self._container_parameters: Dict[str, ContainerParameters] = {}
         self._model = _NodeTreeModel()
         self._model.setHorizontalHeaderLabels(["Name"])
 
@@ -1300,12 +1301,11 @@ class NodeTreePanel(QWidget):
         item = QStandardItem(name)
         item.setIcon(self._icon_container)
         item.setToolTip("Container")
-        item.setData(True, _NodeTreeModel.ROLE_IS_CONTAINER)
+        item.setData(ContainerParameters(name), _NodeTreeModel.ROLE_IS_CONTAINER)
         item.setData(is_root, _NodeTreeModel.ROLE_IS_ROOT)
         item.setEditable(True)
         item.setDropEnabled(True)
         item.setDragEnabled(not is_root)
-        self._container_parameters[name] = ContainerParameters(name)
 
         return item
 
@@ -1421,9 +1421,11 @@ class NodeTreePanel(QWidget):
                 item = self._model.itemFromIndex(index)
                 if item is None:
                     continue
-                if item.data(_NodeTreeModel.ROLE_IS_CONTAINER):
+
+                container_parameter = item.data(_NodeTreeModel.ROLE_IS_CONTAINER)
+                if container_parameter is not None:
                     # Container selected -> Container panel
-                    self._container_detail.set_container(self._container_parameters[item.text()])
+                    self._container_detail.set_container(container_parameter)
                     self._detail_stack.setCurrentWidget(self._container_detail)
                     return
                 uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
@@ -1474,13 +1476,7 @@ class NodeTreePanel(QWidget):
             )
             self._pending_parent = target
             for i, path in enumerate(paths):
-                name = Path(path).stem
-                self._graph.add_node(
-                    name,
-                    x=center.x() + i * 20,
-                    y=center.y() + i * 20,
-                    fmu_path=path,
-                )
+                self._graph.add_node(center.x() + i * 20, center.y() + i * 20, path)
             self._pending_parent = None
 
         elif chosen is act_add_ctn:
