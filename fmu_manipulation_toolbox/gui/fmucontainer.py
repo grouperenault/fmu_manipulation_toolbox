@@ -1,3 +1,4 @@
+import json
 import logging
 import math
 import sys
@@ -30,6 +31,7 @@ from fmu_manipulation_toolbox.gui.helper import Application, StatusBar, RunTask
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.container import FMUContainerError
+from fmu_manipulation_toolbox.split import FMUSplitter, FMUSplitterError
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -1114,20 +1116,25 @@ class FMUDetailWidget(QWidget):
 
 
 class ContainerParameters:
-    def __init__(self, name: str, ):
+    def __init__(self, name: str, step_size="", mt=False, profiling=False, sequential=False, auto_link=True,
+                 auto_input=True, auto_output=True, auto_parameter=False, auto_local=False, ts_multiplier=False,
+                 **kwargs):
         self.name = name
         self.parameters = {
-            "step_size": "",
-            "mt": False,
-            "profiling": False,
-            "sequential": False,
-            "auto_link": True,
-            "auto_input": True,
-            "auto_output": True,
-            "auto_parameter": False,
-            "auto_local": False,
-            "ts_multiplier": False,
+            "step_size": step_size,
+            "mt": mt,
+            "profiling": profiling,
+            "sequential": sequential,
+            "auto_link": auto_link,
+            "auto_input": auto_input,
+            "auto_output": auto_output,
+            "auto_parameter": auto_parameter,
+            "auto_local": auto_local,
+            "ts_multiplier": ts_multiplier,
         }
+
+    def __repr__(self):
+        return " ".join([ f"{k} = {v}\n" for k, v in self.parameters.items()])
 
 
 class ContainerDetailWidget(QWidget):
@@ -1154,6 +1161,7 @@ class ContainerDetailWidget(QWidget):
             QHeaderView.ResizeMode.Stretch,
         )
         self._table.setAlternatingRowColors(True)
+        self._table.horizontalHeader().setVisible(False)
         self._table.verticalHeader().setVisible(False)
 
         # -- Sync edits back to WireItem --
@@ -1176,7 +1184,7 @@ class ContainerDetailWidget(QWidget):
                 value_item.setCheckState(Qt.Checked if v else Qt.Unchecked)
                 value_item.setEditable(False)
             else:
-                value_item = QStandardItem(v)
+                value_item = QStandardItem(str(v))
                 value_item.setEditable(True)
             key_item = QStandardItem(k)
             key_item.setEditable(False)
@@ -1192,7 +1200,6 @@ class ContainerDetailWidget(QWidget):
                 value = value_item.checkState() == Qt.Checked
             else:
                 value = value_item.text()
-
             self._container_parameters.parameters[key] = value
 
 
@@ -1603,10 +1610,93 @@ class MainWindow(QMainWindow):
         logger.info("FMU Container Builder ready")
         self.show()
 
+    def _data_to_items(self, parent, data_node, folder, links_list: List[List[str]], x=0, y=0):
+        for fmu in data_node["fmu"]:
+            logger.debug(f"ADD FMU: {fmu}")
+            self._graph.add_node(fmu_path=folder / fmu, x=x, y=y)
+            x = x + 100
+            y = y + 100
+
+
+        container_name = data_node["name"]
+        container_parameters = ContainerParameters(**data_node)
+        logger.debug(f"SET CONTAINER: {container_name} -> {container_parameters}")
+        parent.setData(container_parameters, _NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+        parent.setText(container_name)
+
+        if "link" in data_node:
+            for link in data_node["link"]:
+                logger.debug(f"ADD LINK: {link}")
+                links_list.append(link)
+
+        if "container" in data_node:
+            for container_fmu in data_node["container"]:
+                logger.debug(f"ADD CONTAINER: {container_fmu['name']}")
+                child = self._tree._make_container_item(container_fmu["name"])
+                parent.appendRow(child)
+                self._data_to_items(child, container_fmu, folder, links_list, x=x, y=y)
+
+        for link in links_list:
+            if link[2] == container_name:
+                for input_container in data_node["input"]:
+                    if link[3] == input_container[0]:
+                        link[2] = input_container[1]
+                        link[3] = input_container[2]
+                        break
+
+        for link in links_list:
+            if link[0] == container_name:
+                for output_container in data_node["output"]:
+                    if link[1] == output_container[2]:
+                        link[0] = output_container[0]
+                        link[1] = output_container[1]
+                        break
+
+    def load_container_fmu(self, input_path: str):
+        try:
+            splitter = FMUSplitter(input_path)
+            splitter.split_fmu()
+
+        except FMUSplitterError as e:
+            logger.fatal(f"{e}")
+        except FileNotFoundError as e:
+            logger.fatal(f"Cannot read file: {e}")
+
+        folder = Path(input_path).with_suffix(".dir")
+        json_filename =  folder / Path(input_path).with_suffix(".json").name
+        with open(json_filename, "rt") as file:
+            data = json.load(file)
+
+        links_list: List[List[str, str, str, str]] = []
+        self._data_to_items(self._tree._root, data, folder, links_list)
+
+        nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
+        links_list: List[Tuple[str, str, str, str]] = []
+        for wire in self._graph.scene.wires():
+            fmu_from = nodes_by_uid[wire.source.node.uid]
+            fmu_to = nodes_by_uid[wire.destination.node.uid]
+            for link in wire.mappings:
+                logger.info(f"{fmu_from.fmu_path} {link[0]} -> {fmu_to.fmu_path} {link[1]}")
+                links_list.append((str(fmu_from.fmu_path), link[0], str(fmu_to.fmu_path), link[1]))
+
+        self._graph.add_wire()
+
+        # Refresh Views
+        self._tree._tree.expandAll()
+        self._graph.view._fit_all()
+
     def _on_load_clicked(self):
-        # Reserved hook for the Load action.
-        logger.info("Load clicked")
-        pass
+        input_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Load FMU Container",
+            "container_snapshot.fmu",
+            "JSON (*.fmu)",
+        )
+        if not input_path:
+            logger.info("Load cancelled")
+            return
+
+        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=logging.DEBUG)
 
     def _on_export_clicked(self):
         output_path, _ = QFileDialog.getSaveFileName(
@@ -1621,10 +1711,9 @@ class MainWindow(QMainWindow):
 
         RunTask(self.save_as_json, output_path, parent=self, title="Saving as FMU", level=logging.DEBUG)
 
-
-    def _apply_links(self, assembly_node: AssemblyNode, links_list: List[Tuple])-> List[Tuple]:
+    def _apply_links_on_assembly_node(self, assembly_node: AssemblyNode, links_list: List[Tuple])-> List[Tuple]:
         for sub_assembly_node in assembly_node.children.values():
-            links_list = self._apply_links(sub_assembly_node, links_list)
+            links_list = self._apply_links_on_assembly_node(sub_assembly_node, links_list)
 
         logger.info(f"Links applied: {len(links_list)}")
         logger.info(f"Assembly node: {assembly_node.name}")
@@ -1647,7 +1736,6 @@ class MainWindow(QMainWindow):
                     remaining_links_list.append(link)
 
         return remaining_links_list
-
 
     def create_assembly(self) -> Optional[Assembly]:
         # Flush any in-progress edits from wire detail table
@@ -1692,7 +1780,7 @@ class MainWindow(QMainWindow):
                 logger.info(f"{fmu_from.fmu_path} {link[0]} -> {fmu_to.fmu_path} {link[1]}")
                 links_list.append((str(fmu_from.fmu_path), link[0], str(fmu_to.fmu_path), link[1]))
 
-        self._apply_links(assembly.root, links_list)
+        self._apply_links_on_assembly_node(assembly.root, links_list)
 
 
         return assembly
