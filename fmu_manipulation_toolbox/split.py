@@ -3,14 +3,6 @@ import zipfile
 import json
 import xml.parsers.expat
 
-from typing import *
-from pathlib import Path
-
-from .container import EmbeddedFMUPort
-import logging
-import zipfile
-import json
-import xml.parsers.expat
 
 from typing import *
 from pathlib import Path
@@ -132,16 +124,16 @@ class FMUSplitterDescription:
             "auto_local": False,
             "auto_link": False,
         }
-        self.format = 0
+        self.fileformat = 4
         self.fmu_filename_list = []
 
         # used for modelDescription.xml parsing
-        self.current_fmu_filename = None
-        self.current_fmi_version = None
-        self.current_vr = None
-        self.current_name = None
-        self.current_causality = None
-        self.supported_fmi_types: Tuple[str] = tuple()
+        self.current_fmu_filename: Optional[str] = None
+        self.current_fmi_version: Optional[str] = None
+        self.current_vr: Optional[int] = None
+        self.current_name: Optional[str] = None
+        self.current_causality: Optional[str] = None
+        self.supported_fmi_types: Tuple = tuple()
 
     @staticmethod
     def get_line(file):
@@ -153,6 +145,12 @@ class FMUSplitterDescription:
         raise StopIteration
 
     def start_element(self, tag, attrs):
+        if tag == "Enumeration":
+            if self.current_fmi_version == "2.0":
+                tag = "Integer"
+            else:
+                tag = "Int32"
+
         if tag == "fmiModelDescription":
             self.current_fmi_version = attrs["fmiVersion"]
         elif tag == "ScalarVariable":
@@ -196,10 +194,11 @@ class FMUSplitterDescription:
     def parse_txt_file_header(self, file, txt_filename):
         flags = self.get_line(file).split(" ")
         if len(flags) == 1:
-            self.supported_fmi_types = ("Real", "Integer", "Boolean", "String")
+            self.supported_fmi_types = tuple(EmbeddedFMUPort.CONTAINER_TO_FMI[2].keys())
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = self.get_line(file) == "1"
             self.config["sequential"] = False
+            self.fileformat = 1
         elif len(flags) >= 3:
             self.supported_fmi_types = EmbeddedFMUPort.ALL_TYPES
             self.config["mt"] = flags[0] == "1"
@@ -286,7 +285,7 @@ class FMUSplitterDescription:
 
 
     def parse_txt_file(self, txt_filename: str):
-        self.parse_model_description(str(Path(txt_filename).parent.parent), ".")
+        self.parse_model_description(str(Path(txt_filename).parent.parent).replace("\\", "/"), ".")
         logger.debug(f"Parsing container file '{txt_filename}'")
         with (self.zip.open(txt_filename) as file):
             self.parse_txt_file_header(file, txt_filename)
@@ -310,7 +309,7 @@ class FMUSplitterDescription:
                                                             self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]))
 
                     #clocked
-                    if not fmi_type == "clock":
+                    if self.fileformat > 1 and not fmi_type == "clock":
                         nb_input = self.get_nb(self.get_line(file))
                         logger.debug(f"INPUT of {fmu_filename} {fmi_type} : CLOCKED {nb_input}")
                         for i in range(nb_input):
@@ -323,7 +322,11 @@ class FMUSplitterDescription:
                             link.to_port.append(FMUSplitterPort(fmu_filename,
                                                                 self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]))
 
-                for fmi_type in self.supported_fmi_types[:-2]:
+                if self.fileformat > 1:
+                    supported_by_start = self.supported_fmi_types[:-2]
+                else:
+                    supported_by_start = self.supported_fmi_types[:]
+                for fmi_type in supported_by_start:
                     nb_start = int(self.get_line(file))
                     logger.debug(f"nb start for {fmu_filename} {fmi_type} : {nb_start}")
                     for i in range(nb_start):
@@ -353,7 +356,7 @@ class FMUSplitterDescription:
                         link.from_port = FMUSplitterPort(fmu_filename,
                                                          self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"])
 
-                    if not fmi_type == "clock":
+                    if self.fileformat > 1 and not fmi_type == "clock":
                         nb_output = self.get_nb(self.get_line(file))
                         logger.debug(f"OUTPUT {fmi_type} : CLOCKED {nb_output}")
 
@@ -368,9 +371,10 @@ class FMUSplitterDescription:
                                                              self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"])
 
                 #conversion
-                nb_conversion = int(self.get_line(file))
-                for i in range(nb_conversion):
-                    self.get_line(file)
+                if self.fileformat > 1:
+                    nb_conversion = int(self.get_line(file))
+                    for i in range(nb_conversion):
+                        self.get_line(file)
 
             logger.debug("End of parsing.")
 
