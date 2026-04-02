@@ -1,5 +1,7 @@
+import json
+import logging
 import xml.parsers.expat
-
+import zipfile
 
 from typing import *
 from pathlib import Path
@@ -330,7 +332,7 @@ class FMUSplitterDescription:
                 else:
                     supported_by_start = self.supported_fmi_types[:]
                 for fmi_type in supported_by_start:
-                	nb_start_as_string = self.get_line(file).split(" ")[0]
+                    nb_start_as_string = self.get_line(file).split(" ")[0]
                     nb_start = int(nb_start_as_string)
                     logger.debug(f"nb start for {fmu_filename} {fmi_type} : {nb_start}")
                     for i in range(nb_start):
