@@ -341,7 +341,7 @@ class _WireHandle(QGraphicsEllipseItem):
             change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged
             and not self._updating
         ):
-            self._wire._on_handle_dragged(value)
+            self._wire.on_handle_dragged(value)
         return super().itemChange(change, value)
 
     # -- Visual feedback -------------------------------------------------------
@@ -416,7 +416,7 @@ class WireItem(QGraphicsPathItem):
         )
 
     @staticmethod
-    def _bezier(p1: QPointF, p2: QPointF) -> QPainterPath:
+    def bezier(p1: QPointF, p2: QPointF) -> QPainterPath:
         """Default Bezier (without offset), also used by _DragWireItem."""
         dist = max(abs(p2.x() - p1.x()) * 0.5, 50)
         path = QPainterPath(p1)
@@ -451,7 +451,7 @@ class WireItem(QGraphicsPathItem):
         self._handle.setPos(mid)
         self._handle._updating = False
 
-    def _on_handle_dragged(self, new_pos: QPointF):
+    def on_handle_dragged(self, new_pos: QPointF):
         """Called by the handle when the user drags it."""
         p1 = self.source.center_scene_pos()
         p2 = self.destination.center_scene_pos()
@@ -514,9 +514,9 @@ class _DragWireItem(QGraphicsPathItem):
 
     def update_destination(self, end: QPointF):
         if self._from_output:
-            path = WireItem._bezier(self._start, end)
+            path = WireItem.bezier(self._start, end)
         else:
-            path = WireItem._bezier(end, self._start)
+            path = WireItem.bezier(end, self._start)
         self.setPath(path)
 
 
@@ -804,9 +804,6 @@ class NodeGraphView(QGraphicsView):
         menu = QMenu(self)
         scene_pos = self.mapToScene(event.pos())
 
-        # Under cursor?
-        item = self._scene.itemAt(scene_pos, self.transform())
-
         add_fmu_action = menu.addAction("Add FMU…")
         delete_action = None
         if self._scene.selectedItems():
@@ -825,9 +822,9 @@ class NodeGraphView(QGraphicsView):
         elif chosen == delete_action:
             self._scene.remove_selected()
         elif chosen == fit_action:
-            self._fit_all()
+            self.fit_all()
 
-    def _fit_all(self):
+    def fit_all(self):
         rect = self._scene.itemsBoundingRect()
         if not rect.isNull():
             rect.adjust(-40, -40, 40, 40)
@@ -1214,7 +1211,7 @@ class FMUDetailWidget(QWidget):
 class ContainerParameters:
     def __init__(self, name: str, step_size="", mt=False, profiling=False, sequential=False, auto_link=True,
                  auto_input=True, auto_output=True, auto_parameter=False, auto_local=False, ts_multiplier=False,
-                 **kwargs):
+                 **_):
         self.name = name
         self.parameters = {
             "step_size": step_size,
@@ -1382,6 +1379,41 @@ class NodeTreePanel(QWidget):
 
     # ── Helpers ────────────────────────────────────────────────────
 
+    @property
+    def model(self) -> '_NodeTreeModel':
+        return self._model
+
+    @property
+    def root(self) -> QStandardItem:
+        return self._root
+
+    @property
+    def tree_view(self) -> QTreeView:
+        return self._tree
+
+    @property
+    def wire_detail(self) -> WireDetailWidget:
+        return self._wire_detail
+
+    @property
+    def fmu_detail(self) -> FMUDetailWidget:
+        return self._fmu_detail
+
+    @property
+    def container_detail(self) -> ContainerDetailWidget:
+        return self._container_detail
+
+    @property
+    def pending_parent(self) -> Optional[QStandardItem]:
+        return self._pending_parent
+
+    @pending_parent.setter
+    def pending_parent(self, value: Optional[QStandardItem]):
+        self._pending_parent = value
+
+    def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
+        return self._make_container_item(name, is_root)
+
     @staticmethod
     def _ensure_fmu_ext(name: str) -> str:
         """Ensure *name* ends with '.fmu'."""
@@ -1411,7 +1443,6 @@ class NodeTreePanel(QWidget):
         item.setEditable(True)
         item.setDropEnabled(True)
         item.setDragEnabled(not is_root)
-
         return item
 
     def _make_node_item(self, node: NodeItem) -> QStandardItem:
@@ -1751,15 +1782,15 @@ class MainWindow(QMainWindow):
         self._graph.scene.wire_removed.connect(lambda _: self._mark_dirty())
 
         # Detail panels edits
-        self._tree._wire_detail.changed.connect(self._mark_dirty)
-        self._tree._fmu_detail.changed.connect(self._mark_dirty)
-        self._tree._container_detail.changed.connect(self._mark_dirty)
+        self._tree.wire_detail.changed.connect(self._mark_dirty)
+        self._tree.fmu_detail.changed.connect(self._mark_dirty)
+        self._tree.container_detail.changed.connect(self._mark_dirty)
 
         # Tree model structural changes (drag-drop, rename, add/remove rows)
-        self._tree._model.dataChanged.connect(lambda *_: self._mark_dirty())
-        self._tree._model.rowsInserted.connect(lambda *_: self._mark_dirty())
-        self._tree._model.rowsRemoved.connect(lambda *_: self._mark_dirty())
-        self._tree._model.rowsMoved.connect(lambda *_: self._mark_dirty())
+        self._tree.model.dataChanged.connect(lambda *_: self._mark_dirty())
+        self._tree.model.rowsInserted.connect(lambda *_: self._mark_dirty())
+        self._tree.model.rowsRemoved.connect(lambda *_: self._mark_dirty())
+        self._tree.model.rowsMoved.connect(lambda *_: self._mark_dirty())
 
         self.show()
 
@@ -1772,13 +1803,13 @@ class MainWindow(QMainWindow):
             self._last_directory = node.fmu_path.parent
 
     def _data_to_items(self, parent, data_node, folder, links_list: List[List[str]], x=0, y=0):
-        self._tree._pending_parent = parent
+        self._tree.pending_parent = parent
         for fmu in data_node["fmu"]:
             logger.debug(f"ADD FMU: {fmu}")
             self._graph.add_node(fmu_path=folder / fmu, x=x, y=y)
             x = x + 100
             y = y + 100
-        self._tree._pending_parent = None
+        self._tree.pending_parent = None
 
 
         container_name = data_node["name"]
@@ -1795,7 +1826,7 @@ class MainWindow(QMainWindow):
         if "container" in data_node:
             for container_fmu in data_node["container"]:
                 logger.debug(f"ADD CONTAINER: {container_fmu['name']}")
-                child = self._tree._make_container_item(container_fmu["name"])
+                child = self._tree.make_container_item(container_fmu["name"])
                 parent.appendRow(child)
                 self._data_to_items(child, container_fmu, folder, links_list, x=x, y=y)
 
@@ -1833,7 +1864,7 @@ class MainWindow(QMainWindow):
             data = json.load(file)
 
         links_list: List[List[str]] = []
-        self._data_to_items(self._tree._root, data, folder, links_list)
+        self._data_to_items(self._tree.root, data, folder, links_list)
 
         # Build a map from FMU filename to its NodeItem
         nodes_by_name: Dict[str, NodeItem] = {}
@@ -1866,8 +1897,8 @@ class MainWindow(QMainWindow):
                 logger.warning(f"Wire already exists: {fmu_from} -> {fmu_to}")
 
         # Refresh views
-        self._tree._tree.expandAll()
-        self._graph.view._fit_all()
+        self._tree.tree_view.expandAll()
+        self._graph.view.fit_all()
 
     def _on_load_clicked(self):
         default_dir = str(self._last_directory) if self._last_directory else ""
@@ -1885,9 +1916,9 @@ class MainWindow(QMainWindow):
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=log_level)
         self._dirty= False
-        
+
     def _on_export_clicked(self):
-        root_name = Path(self._tree._root.text()).with_suffix(".json").name
+        root_name = Path(self._tree.root.text()).with_suffix(".json").name
         default_dir = str(self._last_directory / root_name) if self._last_directory else root_name
         output_path, _ = QFileDialog.getSaveFileName(
             self,
@@ -1932,8 +1963,8 @@ class MainWindow(QMainWindow):
 
     def create_assembly(self) -> Optional[Assembly]:
         # Flush any in-progress edits from detail panels
-        self._tree._wire_detail.sync_to_wire()
-        self._tree._fmu_detail.sync_to_node()
+        self._tree.wire_detail.sync_to_wire()
+        self._tree.fmu_detail.sync_to_node()
         nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
 
         def _item_to_assembly_node(parent_assembly_node: Optional[AssemblyNode], item: QStandardItem) -> Optional[AssemblyNode]:
@@ -1961,7 +1992,7 @@ class MainWindow(QMainWindow):
                     parent_assembly_node.add_start_value(str(fmu_path), port_name, value)
                 return None
 
-        root_item: QStandardItem = self._tree._root
+        root_item: QStandardItem = self._tree.root
         assembly = None
         try:
             assembly = Assembly()
@@ -2005,7 +2036,7 @@ class MainWindow(QMainWindow):
                 logger.fatal(f"{e}")
 
     def _on_save_clicked(self):
-        root_name = Path(self._tree._root.text()).with_suffix(".fmu").name
+        root_name = Path(self._tree.root.text()).with_suffix(".fmu").name
         default_dir = str(self._last_directory / root_name) if self._last_directory else root_name
         output_path, _ = QFileDialog.getSaveFileName(
             self,
