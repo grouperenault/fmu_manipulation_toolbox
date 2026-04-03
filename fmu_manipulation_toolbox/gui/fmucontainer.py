@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
     QStackedWidget, QTableView, QLabel, QHeaderView,
     QFileDialog, QMainWindow, QPushButton, QComboBox, QCheckBox,
     QStyledItemDelegate, QAbstractItemView,
-    QWidgetAction, QRadioButton, QButtonGroup, QFrame
+    QWidgetAction, QRadioButton, QButtonGroup, QFrame, QMessageBox
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, RunTask
@@ -928,6 +928,8 @@ class WireDetailWidget(QWidget):
     from drop-down menus.  *Add* / *Remove* buttons manage rows.
     """
 
+    changed = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._wire: Optional[WireItem] = None
@@ -1064,6 +1066,7 @@ class WireDetailWidget(QWidget):
         dst_item = QStandardItem(in_names[0])
         self._table_model.appendRow([src_item, dst_item])
         self.sync_to_wire()
+        self.changed.emit()
 
     def _on_remove(self):
         """Remove selected rows from the mapping table."""
@@ -1077,6 +1080,7 @@ class WireDetailWidget(QWidget):
         for r in source_rows:
             self._table_model.removeRow(r)
         self.sync_to_wire()
+        self.changed.emit()
 
     def _on_auto_connect(self):
         """Automatically map ports that share the same name."""
@@ -1095,10 +1099,12 @@ class WireDetailWidget(QWidget):
                     [QStandardItem(name), QStandardItem(name)]
                 )
         self.sync_to_wire()
+        self.changed.emit()
 
     def _on_table_data_changed(self, _top_left, _bottom_right, _roles):
         """Sync to wire whenever a cell is edited via combo box."""
         self.sync_to_wire()
+        self.changed.emit()
 
 
 class _StartValueDelegate(QStyledItemDelegate):
@@ -1132,6 +1138,8 @@ class _StartValueDelegate(QStyledItemDelegate):
 class FMUDetailWidget(QWidget):
     """NodeItem (FMU) details with a start-values table for input ports."""
 
+    changed = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -1145,6 +1153,7 @@ class FMUDetailWidget(QWidget):
         # Start-values table: column 0 = port name (read-only), column 1 = value (editable)
         self._sv_model = QStandardItemModel(0, 2)
         self._sv_model.setHorizontalHeaderLabels(["Input Port", "Start Value"])
+        self._sv_model.dataChanged.connect(lambda *_: self.changed.emit())
 
         self._sv_table = QTableView()
         self._sv_table.setModel(self._sv_model)
@@ -1227,6 +1236,8 @@ class ContainerParameters:
 class ContainerDetailWidget(QWidget):
     """Container details - content to be defined later."""
 
+    changed = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -1288,6 +1299,7 @@ class ContainerDetailWidget(QWidget):
             else:
                 value = value_item.text()
             self._container_parameters.parameters[key] = value
+        self.changed.emit()
 
 
 class NodeTreePanel(QWidget):
@@ -1731,8 +1743,28 @@ class MainWindow(QMainWindow):
         self.resize(1200, 700)
 
         logger.info("FMU Container Builder ready")
+        self._dirty = False
         self._graph.scene.node_added.connect(self._on_node_added_update_dir)
+        self._graph.scene.node_added.connect(lambda _: self._mark_dirty())
+        self._graph.scene.node_removed.connect(lambda _: self._mark_dirty())
+        self._graph.scene.wire_added.connect(lambda _: self._mark_dirty())
+        self._graph.scene.wire_removed.connect(lambda _: self._mark_dirty())
+
+        # Detail panels edits
+        self._tree._wire_detail.changed.connect(self._mark_dirty)
+        self._tree._fmu_detail.changed.connect(self._mark_dirty)
+        self._tree._container_detail.changed.connect(self._mark_dirty)
+
+        # Tree model structural changes (drag-drop, rename, add/remove rows)
+        self._tree._model.dataChanged.connect(lambda *_: self._mark_dirty())
+        self._tree._model.rowsInserted.connect(lambda *_: self._mark_dirty())
+        self._tree._model.rowsRemoved.connect(lambda *_: self._mark_dirty())
+        self._tree._model.rowsMoved.connect(lambda *_: self._mark_dirty())
+
         self.show()
+
+    def _mark_dirty(self):
+        self._dirty = True
 
     def _on_node_added_update_dir(self, node: NodeItem):
         """Track the directory of the last FMU added to the scene."""
@@ -1852,12 +1884,14 @@ class MainWindow(QMainWindow):
         self._last_directory = Path(input_path).parent
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=log_level)
-
+        self._dirty= False
+        
     def _on_export_clicked(self):
-        default_dir = str(self._last_directory / "container_snapshot.json") if self._last_directory else "container_snapshot.json"
+        root_name = Path(self._tree._root.text()).with_suffix(".json").name
+        default_dir = str(self._last_directory / root_name) if self._last_directory else root_name
         output_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Save container snapshot",
+            "Save container configuration",
             default_dir,
             "JSON (*.json)",
         )
@@ -1954,6 +1988,7 @@ class MainWindow(QMainWindow):
         assembly = self.create_assembly()
         if assembly:
             assembly.write_json(output_path)
+            self._dirty = False
 
     def save_as_fmu(self, output_path, fmi_version=2):
         assembly = self.create_assembly()
@@ -1964,15 +1999,17 @@ class MainWindow(QMainWindow):
                     assembly.write_json(temp_file.name)
                     assembly.description_pathname = temp_file.name
                     assembly.make_fmu(filename=output_path, fmi_version=fmi_version)
+                    self._dirty = False
 
             except FMUContainerError as e:
                 logger.fatal(f"{e}")
 
     def _on_save_clicked(self):
-        default_dir = str(self._last_directory / "container_snapshot.fmu") if self._last_directory else "container_snapshot.fmu"
+        root_name = Path(self._tree._root.text()).with_suffix(".fmu").name
+        default_dir = str(self._last_directory / root_name) if self._last_directory else root_name
         output_path, _ = QFileDialog.getSaveFileName(
             self,
-            "Save container snapshot",
+            "Save FMU container",
             default_dir,
             "FMU (*.fmu)",
         )
@@ -1987,6 +2024,29 @@ class MainWindow(QMainWindow):
                 parent=self, title="Saving as FMU", level=log_level)
 
     def closeEvent(self, event):
+        if self._dirty:
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setWindowTitle("Unsaved changes")
+            msg.setText("You have unsaved changes. Are you sure you want to quit?")
+            msg.setStandardButtons(
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+            msg.setDefaultButton(QMessageBox.StandardButton.No)
+
+            btn_yes = msg.button(QMessageBox.StandardButton.Yes)
+            btn_no = msg.button(QMessageBox.StandardButton.No)
+
+            btn_yes.setProperty("class", "removal")
+            btn_no.setProperty("class", "info")
+
+            btn_width = max(btn_yes.sizeHint().width(), btn_no.sizeHint().width(), 150)
+            btn_yes.setMinimumWidth(btn_width)
+            btn_no.setMinimumWidth(btn_width)
+
+            if msg.exec() == QMessageBox.StandardButton.No:
+                event.ignore()
+                return
         super().closeEvent(event)
 
 
