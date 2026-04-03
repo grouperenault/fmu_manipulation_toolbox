@@ -23,11 +23,12 @@ from PySide6.QtWidgets import (
     QGraphicsSceneMouseEvent, QStyleOptionGraphicsItem,
     QTreeView, QSplitter,
     QStackedWidget, QTableView, QLabel, QHeaderView,
-    QFileDialog, QMainWindow, QPushButton, QComboBox,
-    QStyledItemDelegate, QAbstractItemView
+    QFileDialog, QMainWindow, QPushButton, QComboBox, QCheckBox,
+    QStyledItemDelegate, QAbstractItemView,
+    QWidgetAction, QRadioButton, QButtonGroup, QFrame
 )
 
-from fmu_manipulation_toolbox.gui.helper import Application, StatusBar, RunTask
+from fmu_manipulation_toolbox.gui.helper import Application, RunTask
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.container import FMUContainerError
@@ -1673,11 +1674,45 @@ class MainWindow(QMainWindow):
         self._save_button.clicked.connect(self._on_save_clicked)
         self._exit_button.clicked.connect(self.close)
 
-        self._status_bar = StatusBar()
-        self._status_bar.setSizeGripEnabled(False)
+        # Debug checkbox
+        self._debug_checkbox = QCheckBox("Verbose Mode")
+        self._debug_checkbox.setToolTip("Keep intermediate build artifacts and enable verbose logging")
+
+        # FMI version radio buttons
+        self._fmi2_radio = QRadioButton("Generate FMI-2")
+        self._fmi3_radio = QRadioButton("Generate FMI-3")
+        self._fmi2_radio.setChecked(True)
+
+        self._fmi_group = QButtonGroup(self)
+        self._fmi_group.addButton(self._fmi2_radio, 2)
+        self._fmi_group.addButton(self._fmi3_radio, 3)
+
+        # "Configuration" popup menu grouping FMI version + debug
+        config_widget = QWidget()
+        config_layout = QVBoxLayout(config_widget)
+        config_layout.setContentsMargins(8, 4, 8, 4)
+        config_layout.addWidget(self._fmi2_radio)
+        config_layout.addWidget(self._fmi3_radio)
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        config_layout.addWidget(separator)
+        config_layout.addWidget(self._debug_checkbox)
+
+        config_action = QWidgetAction(self)
+        config_action.setDefaultWidget(config_widget)
+
+        config_menu = QMenu(self)
+        config_menu.addAction(config_action)
+
+        self._config_button = QPushButton("Configuration")
+        self._config_button.setProperty("class", "quit")
+        self._config_button.setMinimumWidth(btn_width)
+        self._config_button.setMenu(config_menu)
 
         button_bar = QHBoxLayout()
-        button_bar.addWidget(self._status_bar, 1)
+        button_bar.addWidget(self._config_button)
+        button_bar.addStretch(1)
         button_bar.addWidget(self._load_button)
         button_bar.addWidget(self._export_button)
         button_bar.addWidget(self._save_button)
@@ -1815,7 +1850,8 @@ class MainWindow(QMainWindow):
             return
 
         self._last_directory = Path(input_path).parent
-        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=logging.DEBUG)
+        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
+        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=log_level)
 
     def _on_export_clicked(self):
         default_dir = str(self._last_directory / "container_snapshot.json") if self._last_directory else "container_snapshot.json"
@@ -1829,8 +1865,10 @@ class MainWindow(QMainWindow):
             logger.info("Save cancelled")
             return
 
+        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
+
         self._last_directory = Path(output_path).parent
-        RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON", level=logging.DEBUG)
+        RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON", level=log_level)
 
     def _apply_links_on_assembly_node(self, assembly_node: AssemblyNode, links_list: List[Tuple])-> List[Tuple]:
         for sub_assembly_node in assembly_node.children.values():
@@ -1917,7 +1955,7 @@ class MainWindow(QMainWindow):
         if assembly:
             assembly.write_json(output_path)
 
-    def save_as_fmu(self, output_path):
+    def save_as_fmu(self, output_path, fmi_version=2):
         assembly = self.create_assembly()
 
         if assembly:
@@ -1925,7 +1963,7 @@ class MainWindow(QMainWindow):
                 with tempfile.NamedTemporaryFile("wt", suffix=".json") as temp_file:
                     assembly.write_json(temp_file.name)
                     assembly.description_pathname = temp_file.name
-                    assembly.make_fmu(filename=output_path)
+                    assembly.make_fmu(filename=output_path, fmi_version=fmi_version)
 
             except FMUContainerError as e:
                 logger.fatal(f"{e}")
@@ -1943,7 +1981,10 @@ class MainWindow(QMainWindow):
             return
 
         self._last_directory = Path(output_path).parent
-        RunTask(self.save_as_fmu, output_path, parent=self, title="Saving as FMU", level=logging.DEBUG)
+        fmi_version = self._fmi_group.checkedId()
+        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
+        RunTask(self.save_as_fmu, output_path, fmi_version,
+                parent=self, title="Saving as FMU", level=log_level)
 
     def closeEvent(self, event):
         super().closeEvent(event)
