@@ -149,8 +149,10 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         # Keep full port lists for serialization / logic
         self.fmu_input_names: List[str] = []
         self.fmu_output_names: List[str] = []
-        self.fmu_step_size:Optional[str] = None
-        self.fmu_generator:str = ""
+        self.fmu_start_values: Dict[str, str] = {}
+        self.user_start_values: Dict[str, str] = {}
+        self.fmu_step_size: Optional[str] = None
+        self.fmu_generator: str = ""
 
         fmu = FMU(fmu_path)
         fmu.apply_operation(self)
@@ -218,6 +220,9 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
             self.fmu_input_names.append(name)
         elif causality == "output":
             self.fmu_output_names.append(name)
+        start = fmu_port.get("start", None)
+        if start is not None:
+            self.fmu_start_values[name] = start
         return 0
 
     # -- Title -----------------------------------------------------------------
@@ -1095,24 +1100,105 @@ class WireDetailWidget(QWidget):
         self.sync_to_wire()
 
 
+class _StartValueDelegate(QStyledItemDelegate):
+    """Delegate that shows the FMU default start value as a gray placeholder
+    when the user has not entered a value."""
+
+    ROLE_PLACEHOLDER = Qt.ItemDataRole.UserRole + 100
+
+    def displayText(self, value, locale):
+        # If there is actual text, show it normally
+        if value:
+            return str(value)
+        return ""
+
+    def paint(self, painter, option, index):
+        # Let the default painting happen first
+        super().paint(painter, option, index)
+        # If the cell is empty, draw the placeholder in gray
+        value = index.data(Qt.ItemDataRole.DisplayRole)
+        if not value:
+            placeholder = index.data(self.ROLE_PLACEHOLDER)
+            if placeholder:
+                painter.save()
+                painter.setPen(QColor(140, 140, 140))
+                rect = option.rect.adjusted(4, 0, -4, 0)
+                painter.drawText(rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                                 str(placeholder))
+                painter.restore()
+
+
 class FMUDetailWidget(QWidget):
-    """NodeItem (FMU) details - content to be defined later."""
+    """NodeItem (FMU) details with a start-values table for input ports."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
+
+        self._current_node: Optional[NodeItem] = None
 
         self._name_label = QLabel()
         font = self._name_label.font()
         font.setBold(True)
         self._name_label.setFont(font)
 
+        # Start-values table: column 0 = port name (read-only), column 1 = value (editable)
+        self._sv_model = QStandardItemModel(0, 2)
+        self._sv_model.setHorizontalHeaderLabels(["Input Port", "Start Value"])
+
+        self._sv_table = QTableView()
+        self._sv_table.setModel(self._sv_model)
+        self._sv_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._sv_table.horizontalHeader().setStretchLastSection(True)
+        self._sv_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._sv_table.verticalHeader().setVisible(False)
+        self._sv_table.setSortingEnabled(True)
+
+        # Custom delegate for placeholder hints on column 1
+        self._sv_delegate = _StartValueDelegate(self._sv_table)
+        self._sv_table.setItemDelegateForColumn(1, self._sv_delegate)
+
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.addWidget(self._name_label)
-        lay.addStretch()
+        lay.addWidget(self._sv_table, 1)
+
+    # -- Sync helpers ----------------------------------------------------------
+
+    def sync_to_node(self):
+        """Write the table content back into the current NodeItem."""
+        if self._current_node is None:
+            return
+        self._current_node.user_start_values.clear()
+        for row in range(self._sv_model.rowCount()):
+            port_name = self._sv_model.item(row, 0).text()
+            value_item = self._sv_model.item(row, 1)
+            value = value_item.text().strip() if value_item else ""
+            if value:
+                self._current_node.user_start_values[port_name] = value
 
     def set_node(self, node: NodeItem):
-        self._name_label.setText(f"{node.title} ({node.fmu_generator}, {node.fmu_step_size}s)")
+        """Persist edits on the previous node, then populate with *node*."""
+        self.sync_to_node()
+
+        self._current_node = node
+        self._name_label.setText(
+            f"{node.title} ({node.fmu_generator}, {node.fmu_step_size}s)"
+        )
+
+        self._sv_model.removeRows(0, self._sv_model.rowCount())
+        for port_name in node.fmu_input_names:
+            name_item = QStandardItem(port_name)
+            name_item.setEditable(False)
+
+            user_val = node.user_start_values.get(port_name, "")
+            value_item = QStandardItem(user_val)
+            # Store FMU default as placeholder hint
+            default = node.fmu_start_values.get(port_name)
+            if default is not None:
+                value_item.setData(str(default), _StartValueDelegate.ROLE_PLACEHOLDER)
+                value_item.setToolTip(f"FMU default: {default}")
+
+            self._sv_model.appendRow([name_item, value_item])
 
 
 class ContainerParameters:
@@ -1773,8 +1859,9 @@ class MainWindow(QMainWindow):
         return remaining_links_list
 
     def create_assembly(self) -> Optional[Assembly]:
-        # Flush any in-progress edits from wire detail table
+        # Flush any in-progress edits from detail panels
         self._tree._wire_detail.sync_to_wire()
+        self._tree._fmu_detail.sync_to_node()
         nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
 
         def _item_to_assembly_node(parent_assembly_node: Optional[AssemblyNode], item: QStandardItem) -> Optional[AssemblyNode]:
@@ -1792,9 +1879,14 @@ class MainWindow(QMainWindow):
                 return assembly_node
             else:
                 uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
-                fmu_path =  nodes_by_uid.get(uid).fmu_path
+                node = nodes_by_uid.get(uid)
+                fmu_path = node.fmu_path
                 logger.info(f"ADD: FMU: {fmu_path.name}")
                 parent_assembly_node.add_fmu(str(fmu_path))
+                # Apply user-defined start values
+                for port_name, value in node.user_start_values.items():
+                    logger.debug(f"START VALUE: {fmu_path.name}/{port_name} = {value}")
+                    parent_assembly_node.add_start_value(str(fmu_path), port_name, value)
                 return None
 
         root_item: QStandardItem = self._tree._root
