@@ -1549,6 +1549,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self._last_directory: Optional[Path] = None
+
         splitter = QSplitter()
         self._graph = NodeGraphWidget()
         self._tree = NodeTreePanel(self._graph)
@@ -1608,14 +1610,22 @@ class MainWindow(QMainWindow):
         self.resize(1200, 700)
 
         logger.info("FMU Container Builder ready")
+        self._graph.scene.node_added.connect(self._on_node_added_update_dir)
         self.show()
 
+    def _on_node_added_update_dir(self, node: NodeItem):
+        """Track the directory of the last FMU added to the scene."""
+        if node.fmu_path and node.fmu_path.parent.exists():
+            self._last_directory = node.fmu_path.parent
+
     def _data_to_items(self, parent, data_node, folder, links_list: List[List[str]], x=0, y=0):
+        self._tree._pending_parent = parent
         for fmu in data_node["fmu"]:
             logger.debug(f"ADD FMU: {fmu}")
             self._graph.add_node(fmu_path=folder / fmu, x=x, y=y)
             x = x + 100
             y = y + 100
+        self._tree._pending_parent = None
 
 
         container_name = data_node["name"]
@@ -1659,57 +1669,82 @@ class MainWindow(QMainWindow):
 
         except FMUSplitterError as e:
             logger.fatal(f"{e}")
+            return
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")
+            return
 
         folder = Path(input_path).with_suffix(".dir")
-        json_filename =  folder / Path(input_path).with_suffix(".json").name
+        json_filename = folder / Path(input_path).with_suffix(".json").name
         with open(json_filename, "rt") as file:
             data = json.load(file)
 
-        links_list: List[List[str, str, str, str]] = []
+        links_list: List[List[str]] = []
         self._data_to_items(self._tree._root, data, folder, links_list)
 
-        nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
-        links_list: List[Tuple[str, str, str, str]] = []
-        for wire in self._graph.scene.wires():
-            fmu_from = nodes_by_uid[wire.source.node.uid]
-            fmu_to = nodes_by_uid[wire.destination.node.uid]
-            for link in wire.mappings:
-                logger.info(f"{fmu_from.fmu_path} {link[0]} -> {fmu_to.fmu_path} {link[1]}")
-                links_list.append((str(fmu_from.fmu_path), link[0], str(fmu_to.fmu_path), link[1]))
+        # Build a map from FMU filename to its NodeItem
+        nodes_by_name: Dict[str, NodeItem] = {}
+        for node in self._graph.scene.nodes():
+            nodes_by_name[node.fmu_path.name] = node
 
-        self._graph.add_wire()
+        # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
+        wire_mappings: Dict[Tuple[str, str], List[Tuple[str, str]]] = {}
+        for link in links_list:
+            fmu_from, port_from, fmu_to, port_to = link[0], link[1], link[2], link[3]
+            key = (fmu_from, fmu_to)
+            wire_mappings.setdefault(key, []).append((port_from, port_to))
 
-        # Refresh Views
+        # Create wires with their port-level mappings
+        for (fmu_from, fmu_to), mappings in wire_mappings.items():
+            node_from = nodes_by_name.get(fmu_from)
+            node_to = nodes_by_name.get(fmu_to)
+            if not node_from or not node_to:
+                logger.warning(f"Cannot create wire: node not found for {fmu_from} -> {fmu_to}")
+                continue
+            if not node_from.output_port or not node_to.input_port:
+                logger.warning(f"Cannot create wire: missing port on {fmu_from} -> {fmu_to}")
+                continue
+
+            wire = self._graph.scene.add_wire(node_from.output_port, node_to.input_port)
+            if wire:
+                wire.mappings = mappings
+                logger.debug(f"Wire created: {fmu_from} -> {fmu_to} with {len(mappings)} mapping(s)")
+            else:
+                logger.warning(f"Wire already exists: {fmu_from} -> {fmu_to}")
+
+        # Refresh views
         self._tree._tree.expandAll()
         self._graph.view._fit_all()
 
     def _on_load_clicked(self):
+        default_dir = str(self._last_directory) if self._last_directory else ""
         input_path, _ = QFileDialog.getOpenFileName(
             self,
             "Load FMU Container",
-            "container_snapshot.fmu",
-            "JSON (*.fmu)",
+            default_dir,
+            "FMU (*.fmu)",
         )
         if not input_path:
             logger.info("Load cancelled")
             return
 
+        self._last_directory = Path(input_path).parent
         RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=logging.DEBUG)
 
     def _on_export_clicked(self):
+        default_dir = str(self._last_directory / "container_snapshot.json") if self._last_directory else "container_snapshot.json"
         output_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save container snapshot",
-            "container_snapshot.json",
+            default_dir,
             "JSON (*.json)",
         )
         if not output_path:
             logger.info("Save cancelled")
             return
 
-        RunTask(self.save_as_json, output_path, parent=self, title="Saving as FMU", level=logging.DEBUG)
+        self._last_directory = Path(output_path).parent
+        RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON", level=logging.DEBUG)
 
     def _apply_links_on_assembly_node(self, assembly_node: AssemblyNode, links_list: List[Tuple])-> List[Tuple]:
         for sub_assembly_node in assembly_node.children.values():
@@ -1804,16 +1839,18 @@ class MainWindow(QMainWindow):
                 logger.fatal(f"{e}")
 
     def _on_save_clicked(self):
+        default_dir = str(self._last_directory / "container_snapshot.fmu") if self._last_directory else "container_snapshot.fmu"
         output_path, _ = QFileDialog.getSaveFileName(
             self,
             "Save container snapshot",
-            "container_snapshot.fmu",
-            "JSON (*.fmu)",
+            default_dir,
+            "FMU (*.fmu)",
         )
         if not output_path:
             logger.info("Save cancelled")
             return
 
+        self._last_directory = Path(output_path).parent
         RunTask(self.save_as_fmu, output_path, parent=self, title="Saving as FMU", level=logging.DEBUG)
 
     def closeEvent(self, event):
