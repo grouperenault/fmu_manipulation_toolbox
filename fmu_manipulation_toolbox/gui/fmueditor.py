@@ -458,14 +458,26 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         if self._has_unsaved_changes():
-            reply = QMessageBox.question(
-                self,
-                "Unsaved changes",
-                "Some changes have not been saved.\nDo you really want to quit?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Icon.Warning)
+            msg.setWindowTitle("Unsaved changes")
+            msg.setText("Some changes have not been saved.\nDo you really want to quit?")
+            msg.setStandardButtons(
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
-            if reply == QMessageBox.StandardButton.No:
+            msg.setDefaultButton(QMessageBox.StandardButton.No)
+
+            btn_yes = msg.button(QMessageBox.StandardButton.Yes)
+            btn_no = msg.button(QMessageBox.StandardButton.No)
+
+            btn_yes.setProperty("class", "removal")
+            btn_no.setProperty("class", "info")
+
+            btn_width = max(btn_yes.sizeHint().width(), btn_no.sizeHint().width(), 150)
+            btn_yes.setMinimumWidth(btn_width)
+            btn_no.setMinimumWidth(btn_width)
+
+            if msg.exec() == QMessageBox.StandardButton.No:
                 event.ignore()
                 return
         event.accept()
@@ -556,6 +568,13 @@ class MainWindow(QMainWindow):
 
         fmu.repack(filename)
         logger.info(f"FMU saved as '{filename}'.")
+
+        # Reset modification tracking so close-event won't warn again
+        for var in self._model.variables:
+            var.original_name = var.name
+            var._original_description = var.description
+        self._original_start_time = self._start_time_edit.text().strip()
+        self._original_stop_time = self._stop_time_edit.text().strip()
 
 
 def main():
