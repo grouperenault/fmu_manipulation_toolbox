@@ -88,6 +88,24 @@ _COMMON_STYLE = """
         width: 32px;
         height: 32px;
     }}
+    QRadioButton::indicator:checked {{
+        image: url(images:radio-checked.png);
+    }}
+    QRadioButton::indicator:checked:hover {{
+        image: url(images:radio-checked-hover.png);
+    }}
+    QRadioButton::indicator:checked:disabled {{
+        image: url(images:radio-checked-disabled.png);
+    }}
+    QRadioButton::indicator:unchecked {{
+        image: url(images:radio-unchecked.png);
+    }}
+    QRadioButton::indicator:unchecked:hover {{
+        image: url(images:radio-unchecked-hover.png);
+    }}
+    QRadioButton::indicator:unchecked:disabled {{
+        image: url(images:radio-unchecked-disabled.png);
+    }}
     QMenu::indicator:checked, QCheckBox::indicator:checked {{
         image: url(images:checkbox-checked.png);
     }}
