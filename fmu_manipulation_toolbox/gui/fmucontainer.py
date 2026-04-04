@@ -1901,22 +1901,29 @@ class MainWindow(QMainWindow):
             wire_mappings.setdefault(key, []).append((port_from, port_to))
 
         # Create wires with their port-level mappings
-        for (fmu_from, fmu_to), mappings in wire_mappings.items():
-            node_from = nodes_by_name.get(fmu_from)
-            node_to = nodes_by_name.get(fmu_to)
-            if not node_from or not node_to:
-                logger.warning(f"Cannot create wire: node not found for {fmu_from} -> {fmu_to}")
-                continue
-            if not node_from.output_port or not node_to.input_port:
-                logger.warning(f"Cannot create wire: missing port on {fmu_from} -> {fmu_to}")
-                continue
+        # Block scene signals to prevent auto-selection from triggering
+        # set_wire/sync_to_wire which would overwrite mappings before they are set.
+        self._graph.scene.blockSignals(True)
+        try:
+            for (fmu_from, fmu_to), mappings in wire_mappings.items():
+                node_from = nodes_by_name.get(fmu_from)
+                node_to = nodes_by_name.get(fmu_to)
+                if not node_from or not node_to:
+                    logger.warning(f"Cannot create wire: node not found for {fmu_from} -> {fmu_to}")
+                    continue
+                if not node_from.output_port or not node_to.input_port:
+                    logger.warning(f"Cannot create wire: missing port on {fmu_from} -> {fmu_to}")
+                    continue
 
-            wire = self._graph.scene.add_wire(node_from.output_port, node_to.input_port)
-            if wire:
-                wire.mappings = mappings
-                logger.debug(f"Wire created: {fmu_from} -> {fmu_to} with {len(mappings)} mapping(s)")
-            else:
-                logger.warning(f"Wire already exists: {fmu_from} -> {fmu_to}")
+                wire = self._graph.scene.add_wire(node_from.output_port, node_to.input_port)
+                if wire:
+                    wire.mappings = mappings
+                    logger.debug(f"Wire created: {fmu_from} -> {fmu_to} with {len(mappings)} mapping(s)")
+                else:
+                    logger.warning(f"Wire already exists: {fmu_from} -> {fmu_to}")
+        finally:
+            self._graph.scene.blockSignals(False)
+            self._graph.scene.clearSelection()
 
         # Refresh views
         self._tree.tree_view.expandAll()
