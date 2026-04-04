@@ -267,26 +267,7 @@ class TestSuite:
         if os.name == 'nt':
             self.assert_simulation("fmi3/passthrough/container-passthrough.fmu")
 
-    def test_container_move(self):
-        #bb = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"))
-        #links = bb.root.get_fmu_connections("bb_position.fmu")
-        #print("Links: ", links)
-        #bb.write_json("bouncing.json")
-        assembly = Assembly("nested.json", fmu_directory=Path("containers/arch"))
-        fmu_name = "fmu1b.fmu"
-        links_fmu1b = assembly.root.children["level1.fmu"].get_fmu_connections("fmu1b.fmu")
-
-        print("RESULTS:")
-        for link in links_fmu1b:
-            print(f"{link}")
-
-        links_fmu0a = assembly.root.get_fmu_connections("fmu0a.fmu")
-        print("RESULTS:")
-        for link in links_fmu0a:
-            print(f"{link}")
-
     def test_fmutool(self):
-
         sys.argv = ['fmutool',
                     '-input', 'operations/bouncing_ball.fmu', '-summary', '-check', '-dump-csv',
                     'operations/cli-bouncing_ball.csv']
@@ -317,6 +298,34 @@ class TestSuite:
         assert Path("containers/ssp/bouncing.dir/bb_velocity.fmu").exists()
         self.assert_identical_files("containers/ssp/REF-split-bouncing.json",
                                     "containers/ssp/bouncing.dir/bouncing.json")
+
+    def fmusplit_n(self, version):
+        sys.argv = ['fmusplit',
+                    "-fmu", f"split/container-V{version}.fmu"]
+        fmusplit()
+        assert Path(f"split/container-V{version}.dir/gain.fmu").exists()
+        assert Path(f"split/container-V{version}.dir/integrate.fmu").exists()
+        assert Path(f"split/container-V{version}.dir/sine.fmu").exists()
+        self.assert_identical_files(f"split/container-V{version}.dir/container-V{version}.json",
+                                    f"split/REF-container-V{version}.json")
+
+    def test_fmusplit_0(self):
+        self.fmusplit_n(0)
+
+    def test_fmusplit_1(self):
+        self.fmusplit_n(1)
+
+    def test_fmusplit_2(self):
+        self.fmusplit_n(2)
+
+    def test_fmusplit_3(self):
+        self.fmusplit_n(3)
+
+    def test_fmusplit_4(self):
+        self.fmusplit_n(4)
+
+    def test_fmusplit_5(self):
+        self.fmusplit_n(5)
 
     def test_ls_bus_nodes_and_bus(self):
         assembly = Assembly("bus+nodes.json", fmu_directory=Path("ls-bus"))

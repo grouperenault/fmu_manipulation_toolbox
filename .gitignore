@@ -115,3 +115,9 @@ tests/array/array
 tests/array/results-array.csv
 site
 tests/containers/bouncing_ball/bouncing.dir
+tests/split/container-V0.dir
+tests/split/container-V1.dir
+tests/split/container-V2.dir
+tests/split/container-V3.dir
+tests/split/container-V4.dir
+tests/split/container-V5.dir
