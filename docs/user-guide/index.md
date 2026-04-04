@@ -100,18 +100,18 @@ The **Graphical User Interface** supports a subset of operations, as summarized 
 | Guide | Description |
 |---|---|
 | [CLI Usage](fmutool/cli-usage.md) | Complete reference for all `fmutool` command-line options |
-| [GUI Usage](fmutool/gui-usage.md) | Step-by-step guide to the graphical interface (`fmutool-gui`) |
-| [FMU Variable Editor](fmueditor.md) | Spreadsheet-like editor for variable names, descriptions, and experiment settings (`fmueditor`) |
+| [Operations GUI](fmutool/gui-usage.md) | Step-by-step guide to the graphical interface (`fmutool-gui`) |
+| [Variable Editor](fmutool/fmueditor.md) | Spreadsheet-like editor for variable names, descriptions, and experiment settings (`fmueditor`) |
 | [Python API](fmutool/python-api.md) | Programmatic access to analysis and modification operations |
 | [Remoting](fmutool/remoting.md) | Add cross-bitness or frontend interfaces to your FMUs |
 | [Checker](fmutool/checker.md) | Built-in and custom FMU validation rules |
 
-### FMU Containers
+### FMU Container
 
 | Guide | Description |
 |---|---|
 | [Container Concept](fmucontainer/container.md) | How to combine multiple FMUs into a single container |
-| [Container Builder GUI](fmucontainer/gui-usage.md) | Visual node-graph editor to build containers (`fmucontainer-gui`) |
+| [Container Builder](fmucontainer/gui-usage.md) | Visual node-graph editor to build containers (`fmucontainer-gui`) |
 | [Variable Step Size](fmucontainer/container-vr.md) | Handling variable step sizes inside containers |
 | [Datalog](fmucontainer/datalog.md) | Logging simulation data from containers |
 | [LS-BUS Support](fmucontainer/ls-bus.md) | Network bus signal routing in containers |

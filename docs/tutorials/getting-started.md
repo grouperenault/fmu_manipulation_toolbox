@@ -454,7 +454,7 @@ Now that you've mastered the basics, explore more advanced features:
     
     Use the graphical interface
 
--   [:octicons-pencil-24: FMU Variable Editor](../user-guide/fmueditor.md)
+-   [:octicons-pencil-24: FMU Variable Editor](../user-guide/fmutool/fmueditor.md)
     
     Edit variable names and descriptions
 

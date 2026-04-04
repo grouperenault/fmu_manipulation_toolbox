@@ -267,7 +267,7 @@ Some advanced operations are only available via command line:
 !!! tip "Other GUI Tools"
     Looking for more graphical tools?
     
-    - **[FMU Variable Editor](../fmueditor.md)** (`fmueditor`): spreadsheet-like editor for variable names and descriptions.
+    - **[FMU Variable Editor](fmueditor.md)** (`fmueditor`): spreadsheet-like editor for variable names and descriptions.
     - **[FMU Container Builder](../fmucontainer/gui-usage.md)** (`fmucontainer-gui`): visual node-graph editor to assemble FMU containers.
     - **[FMU Toolbox Launcher](../launcher.md)** (`fmutoolbox`): unified launcher for all GUI tools.
 

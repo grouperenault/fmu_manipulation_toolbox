@@ -9,7 +9,7 @@ The **FMU Variable Editor** provides a spreadsheet-like interface to inspect and
 fmueditor
 ```
 
-Or from the [FMU Toolbox Launcher](launcher.md), click **FMU Variables Editor**.
+Or from the [FMU Toolbox Launcher](../launcher.md), click **FMU Variables Editor**.
 
 ![FMU Variable Editor](fmueditor.png)
 
