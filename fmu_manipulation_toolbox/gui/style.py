@@ -75,6 +75,11 @@ _COMMON_STYLE = """
         background-color: #282830;
         color: #b5bab9;
     }}
+    QTreeView::item:selected:active,
+    QTreeView::item:selected:!active {{
+        background: #4571a4;
+        color: #ffffff;
+    }}
     QMenu::item {{
         padding: 2px 250px 2px 20px;
         border: 1px solid transparent;
