@@ -146,7 +146,7 @@ class TestSuite:
                                         OperationKeepOnlyRegexp("e"))
 
     def test_container_bouncing_ball(self):
-        assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True, debug=True)
+        assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), default_mt=True, debug=True)
         assembly.write_json("bouncing.json")
         assembly.make_fmu()
         assembly.write_csv("bouncing2.csv")
@@ -158,8 +158,8 @@ class TestSuite:
             self.assert_simulation("containers/bouncing_ball/bouncing.fmu")
 
     def test_container_bouncing_ball_seq(self):
-        assembly = Assembly("bouncing-seq.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True, debug=True,
-                            sequential=True)
+        assembly = Assembly("bouncing-seq.csv", fmu_directory=Path("containers/bouncing_ball"), default_mt=True, debug=True,
+                            default_sequential=True)
         assembly.write_json("bouncing-seq.json")
         assembly.make_fmu()
         self.assert_identical_files("containers/bouncing_ball/REF-container-seq.txt",
@@ -170,7 +170,7 @@ class TestSuite:
             self.assert_simulation("containers/bouncing_ball/bouncing-seq.fmu")
 
     def test_container_bouncing_ball_profiling(self):
-        assembly = Assembly("bouncing-profiling.csv", fmu_directory=Path("containers/bouncing_ball"), profiling=True,
+        assembly = Assembly("bouncing-profiling.csv", fmu_directory=Path("containers/bouncing_ball"), default_profiling=True,
                             debug=True)
         assembly.write_json("bouncing-profiling.json")
         assembly.make_fmu()
@@ -184,7 +184,7 @@ class TestSuite:
             self.assert_simulation("containers/bouncing_ball/bouncing-profiling.fmu")
 
     def test_container_bouncing_ball_profiling_3(self):
-        assembly = Assembly("bouncing-3.csv", fmu_directory=Path("containers/bouncing_ball"), profiling=True,
+        assembly = Assembly("bouncing-3.csv", fmu_directory=Path("containers/bouncing_ball"), default_profiling=True,
                             debug=True)
         assembly.make_fmu(fmi_version=3)
         self.assert_identical_files("containers/bouncing_ball/REF-container-3.txt",
@@ -267,26 +267,7 @@ class TestSuite:
         if os.name == 'nt':
             self.assert_simulation("fmi3/passthrough/container-passthrough.fmu")
 
-    def test_container_move(self):
-        #bb = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"))
-        #links = bb.root.get_fmu_connections("bb_position.fmu")
-        #print("Links: ", links)
-        #bb.write_json("bouncing.json")
-        assembly = Assembly("nested.json", fmu_directory=Path("containers/arch"))
-        fmu_name = "fmu1b.fmu"
-        links_fmu1b = assembly.root.children["level1.fmu"].get_fmu_connections("fmu1b.fmu")
-
-        print("RESULTS:")
-        for link in links_fmu1b:
-            print(f"{link}")
-
-        links_fmu0a = assembly.root.get_fmu_connections("fmu0a.fmu")
-        print("RESULTS:")
-        for link in links_fmu0a:
-            print(f"{link}")
-
     def test_fmutool(self):
-
         sys.argv = ['fmutool',
                     '-input', 'operations/bouncing_ball.fmu', '-summary', '-check', '-dump-csv',
                     'operations/cli-bouncing_ball.csv']
@@ -318,6 +299,34 @@ class TestSuite:
         self.assert_identical_files("containers/ssp/REF-split-bouncing.json",
                                     "containers/ssp/bouncing.dir/bouncing.json")
 
+    def fmusplit_n(self, version):
+        sys.argv = ['fmusplit',
+                    "-fmu", f"split/container-V{version}.fmu"]
+        fmusplit()
+        assert Path(f"split/container-V{version}.dir/gain.fmu").exists()
+        assert Path(f"split/container-V{version}.dir/integrate.fmu").exists()
+        assert Path(f"split/container-V{version}.dir/sine.fmu").exists()
+        self.assert_identical_files(f"split/container-V{version}.dir/container-V{version}.json",
+                                    f"split/REF-container-V{version}.json")
+
+    def test_fmusplit_0(self):
+        self.fmusplit_n(0)
+
+    def test_fmusplit_1(self):
+        self.fmusplit_n(1)
+
+    def test_fmusplit_2(self):
+        self.fmusplit_n(2)
+
+    def test_fmusplit_3(self):
+        self.fmusplit_n(3)
+
+    def test_fmusplit_4(self):
+        self.fmusplit_n(4)
+
+    def test_fmusplit_5(self):
+        self.fmusplit_n(5)
+
     def test_ls_bus_nodes_and_bus(self):
         assembly = Assembly("bus+nodes.json", fmu_directory=Path("ls-bus"))
         assembly.make_fmu(fmi_version=3)
@@ -329,7 +338,7 @@ class TestSuite:
         self.assert_simulation_log("ls-bus/nodes-only.fmu", 0.1)
 
     def test_datalog(self):
-        assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), mt=True, debug=True)
+        assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), default_mt=True, debug=True)
         assembly.make_fmu(filename="bouncing-datalog.fmu", datalog=True)
         self.assert_identical_files("containers/bouncing_ball/bouncing-datalog/resources/datalog.txt",
                                     "containers/bouncing_ball/REF-datalog.txt")
@@ -338,7 +347,7 @@ class TestSuite:
             self.assert_file_exist("bouncing-datalog.csv")
 
     def test_datalog3(self):
-        assembly = Assembly("VanDerPol.json", fmu_directory=Path("containers/VanDerPol"), mt=True, debug=True)
+        assembly = Assembly("VanDerPol.json", fmu_directory=Path("containers/VanDerPol"), default_mt=True, debug=True)
         assembly.make_fmu(filename="VanDerPol-datalog.fmu", datalog=True, fmi_version=3)
         self.assert_identical_files("containers/VanDerPol/VanDerPol-datalog/resources/datalog.txt",
                                     "containers/VanDerPol/REF-datalog.txt")
