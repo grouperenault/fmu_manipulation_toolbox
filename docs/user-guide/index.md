@@ -41,7 +41,8 @@ FMU Manipulation Toolbox offers five main capabilities:
     Combine multiple FMUs into a single container with automatic or explicit routing, multi-threading, and profiling.
 
     [:octicons-arrow-right-24: CLI Reference](fmutool/cli-usage.md) · 
-    [:octicons-arrow-right-24: Python API](fmutool/python-api.md)
+    [:octicons-arrow-right-24: Python API](fmutool/python-api.md) · 
+    [:octicons-arrow-right-24: GUI](fmucontainer/gui-usage.md)
 
 -   :material-chip:{ .lg .middle } __Remoting__
 
@@ -72,26 +73,35 @@ The **Graphical User Interface** supports a subset of operations, as summarized 
 |---|:---:|:---:|:---:|
 | Analysis | :material-check: | :material-check: | :material-check: |
 | Modification | :material-check: | :material-check: | :material-check: |
-| FMU Containers | :material-check: | :material-check: | :material-close: |
+| FMU Variable Editor | — | — | :material-check: |
+| FMU Containers | :material-check: | :material-check: | :material-check: |
 | Remoting | :material-check: | :material-check: | :material-check: |
 | Checker | :material-check: | :material-check: | :material-check: |
 
 !!! tip "Which interface should I use?"
 
     - **GUI** — Best for interactive exploration: loading an FMU, visually inspecting its ports, applying quick
-      modifications, or adding remoting interfaces.
+      modifications, editing variables, or building FMU containers with a node-graph editor.
+      The [Launcher](launcher.md) gives you quick access to all GUI tools.
     - **CLI** — Ideal for automation, scripting, and CI/CD pipelines. Every feature is available from the command line.
     - **Python API** — Offers full programmatic control for complex workflows, batch processing, and custom
       integrations.
 
 ## Guides by Topic
 
+### Launcher
+
+| Guide | Description |
+|---|---|
+| [FMU Toolbox Launcher](launcher.md) | Unified entry point for all GUI tools (`fmutoolbox`) |
+
 ### Understand & Modify FMUs
 
 | Guide | Description |
 |---|---|
 | [CLI Usage](fmutool/cli-usage.md) | Complete reference for all `fmutool` command-line options |
-| [GUI Usage](fmutool/gui-usage.md) | Step-by-step guide to the graphical interface |
+| [GUI Usage](fmutool/gui-usage.md) | Step-by-step guide to the graphical interface (`fmutool-gui`) |
+| [FMU Variable Editor](fmueditor.md) | Spreadsheet-like editor for variable names, descriptions, and experiment settings (`fmueditor`) |
 | [Python API](fmutool/python-api.md) | Programmatic access to analysis and modification operations |
 | [Remoting](fmutool/remoting.md) | Add cross-bitness or frontend interfaces to your FMUs |
 | [Checker](fmutool/checker.md) | Built-in and custom FMU validation rules |
@@ -101,6 +111,7 @@ The **Graphical User Interface** supports a subset of operations, as summarized 
 | Guide | Description |
 |---|---|
 | [Container Concept](fmucontainer/container.md) | How to combine multiple FMUs into a single container |
+| [Container Builder GUI](fmucontainer/gui-usage.md) | Visual node-graph editor to build containers (`fmucontainer-gui`) |
 | [Variable Step Size](fmucontainer/container-vr.md) | Handling variable step sizes inside containers |
 | [Datalog](fmucontainer/datalog.md) | Logging simulation data from containers |
 | [LS-BUS Support](fmucontainer/ls-bus.md) | Network bus signal routing in containers |

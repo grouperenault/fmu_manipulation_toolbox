@@ -106,7 +106,7 @@ class FMUPort:
         fmi_type (str | None): The FMI type name (e.g. `"Real"`, `"Float64"`).
         attrs_list (list[dict[str, str]]): Stacked attribute dictionaries,
             one per XML nesting level.
-        dimension (int | None): Array dimension, if applicable.
+        dimensions_list (int | None): Array dimension, if applicable.
     """
 
     def __init__(self):
@@ -114,7 +114,7 @@ class FMUPort:
         self.attrs_list: List[Dict] = []
         self.dimensions_list = []
 
-    def dict_level(self, nb):
+    def dict_level(self, nb) -> str:
         """Format one level of attributes as an XML attribute string.
 
         Args:
@@ -125,12 +125,12 @@ class FMUPort:
         """
         return " ".join([f'{key}="{Manipulation.escape(value)}"' for key, value in self.attrs_list[nb].items()])
 
-    def write_xml(self, fmi_version: int, file):
+    def write_xml(self, fmi_version: int, file: IO) -> None:
         """Write the port definition as XML to a file.
 
         Args:
             fmi_version (int): FMI version (`2` or `3`).
-            file: Writable text file handle.
+            file (IO): Writable text file handle.
 
         Raises:
             FMUError: If the FMI version is not supported.
@@ -265,7 +265,7 @@ class Manipulation:
         self.apply_on = None
 
     @staticmethod
-    def escape(value):
+    def escape(value) -> str:
         """HTML-escape a string value for safe XML output.
 
         Args:

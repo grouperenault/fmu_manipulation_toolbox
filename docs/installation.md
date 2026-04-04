@@ -51,10 +51,15 @@ pip install fmu-manipulation-toolbox==1.9.2
 # Check installed version
 pip show fmu-manipulation-toolbox
 
-# Test commands
+# Test CLI commands
 fmutool -h
-fmutool-gui
 fmucontainer -h
+
+# Test GUI commands
+fmutoolbox         # Launcher with all GUI tools
+fmutool-gui        # FMU analysis & modification
+fmueditor          # FMU variable editor
+fmucontainer-gui   # FMU container builder
 ```
 
 **Expected Output:**

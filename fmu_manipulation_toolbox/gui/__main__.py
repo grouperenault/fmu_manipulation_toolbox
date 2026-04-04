@@ -107,7 +107,7 @@ class LauncherWindow(QWidget):
 
         btn_builder = LauncherButton(
             "builder",
-            "FMU Container\nBuild",
+            "FMU Container\nBuilder",
             RESOURCES / "fmucontainer.png",
         )
         btn_builder.clicked.connect(self._launch_builder)
