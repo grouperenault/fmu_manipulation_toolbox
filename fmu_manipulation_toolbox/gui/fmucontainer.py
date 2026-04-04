@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, RunTask
+from fmu_manipulation_toolbox.gui.style import placeholder_color
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.container import FMUContainerError
@@ -1129,7 +1130,7 @@ class _StartValueDelegate(QStyledItemDelegate):
             placeholder = index.data(self.ROLE_PLACEHOLDER)
             if placeholder:
                 painter.save()
-                painter.setPen(QColor(140, 140, 140))
+                painter.setPen(QColor(placeholder_color))
                 rect = option.rect.adjusted(4, 0, -4, 0)
                 painter.drawText(rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                                  str(placeholder))
@@ -1186,6 +1187,7 @@ class FMUDetailWidget(QWidget):
             value = value_item.text().strip() if value_item else ""
             if value:
                 self._current_node.user_start_values[port_name] = value
+
 
     def set_node(self, node: NodeItem):
         """Persist edits on the previous node, then populate with *node*."""
@@ -1794,7 +1796,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.setWindowTitle("FMU Container Builder")
-        self.resize(1200, 700)
+        self.resize(1600, 900)
 
         self._dirty = False
         self._graph.scene.node_added.connect(self._on_node_added_update_dir)
@@ -1824,7 +1826,7 @@ class MainWindow(QMainWindow):
         if node.fmu_path and node.fmu_path.parent.exists():
             self._last_directory = node.fmu_path.parent
 
-    def _data_to_items(self, parent, data_node, folder, links_list: List[List[str]], x=0, y=0):
+    def _data_to_items(self, parent, data_node, folder, links_list: List[List[str]], start_values_list: List[List[str]], x=0, y=0):
         self._tree.pending_parent = parent
         for fmu in data_node["fmu"]:
             logger.debug(f"ADD FMU: {fmu}")
@@ -1845,12 +1847,17 @@ class MainWindow(QMainWindow):
                 logger.debug(f"ADD LINK: {link}")
                 links_list.append(link)
 
+        if "start" in data_node:
+            for start in data_node["start"]:
+                logger.debug(f"ADD START VALUE: {start}")
+                start_values_list.append(start)
+
         if "container" in data_node:
             for container_fmu in data_node["container"]:
                 logger.debug(f"ADD CONTAINER: {container_fmu['name']}")
                 child = self._tree.make_container_item(container_fmu["name"])
                 parent.appendRow(child)
-                self._data_to_items(child, container_fmu, folder, links_list, x=x, y=y)
+                self._data_to_items(child, container_fmu, folder, links_list, start_values_list, x=x, y=y)
 
         for link in links_list:
             if link[2] == container_name:
@@ -1886,12 +1893,15 @@ class MainWindow(QMainWindow):
             data = json.load(file)
 
         links_list: List[List[str]] = []
-        self._data_to_items(self._tree.root, data, folder, links_list)
+        start_values_list: List[List[str]] = []
+        self._data_to_items(self._tree.root, data, folder, links_list, start_values_list)
 
         # Build a map from FMU filename to its NodeItem
         nodes_by_name: Dict[str, NodeItem] = {}
         for node in self._graph.scene.nodes():
             nodes_by_name[node.fmu_path.name] = node
+
+
 
         # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
         wire_mappings: Dict[Tuple[str, str], List[Tuple[str, str]]] = {}
@@ -1924,6 +1934,20 @@ class MainWindow(QMainWindow):
         finally:
             self._graph.scene.blockSignals(False)
             self._graph.scene.clearSelection()
+
+        # Apply start values to scene nodes
+        for fmu_name, port_name, value in start_values_list:
+            node = nodes_by_name.get(fmu_name)
+            if node:
+                node.user_start_values[port_name] = value
+                logger.debug(f"Start value: {fmu_name}/{port_name} = {value}")
+            else:
+                logger.warning(f"Cannot apply start value: node not found for {fmu_name}")
+
+        # Reset the detail panels so that the next sync_to_node/sync_to_wire
+        # does not overwrite the just-loaded data with stale empty table content.
+        self._tree.fmu_detail._current_node = None
+        self._tree.wire_detail._wire = None
 
         # Refresh views
         self._tree.tree_view.expandAll()

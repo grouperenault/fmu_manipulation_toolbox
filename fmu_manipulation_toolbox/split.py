@@ -378,7 +378,6 @@ class FMUSplitterDescription:
                     logger.debug(f"nb start for {fmu_filename} {fmi_type} : {nb_start}")
                     for i in range(nb_start):
                         tokens = self.get_line(file).split(" ")
-                        logger.error(tokens)
                         vr = int(tokens[0])
                         value = tokens[-1]
                         start_definition = [fmu_filename, self.vr_to_name[fmu_filename][fmi_type][vr]["name"],

@@ -219,7 +219,7 @@ class LogWidget(QTextBrowser):
 
         def emit(self, record) -> None:
             self.text_browser.setTextColor(self.LOG_COLOR[record.levelno])
-            self.text_browser.insertPlainText(record.msg + "\n")
+            self.text_browser.insertPlainText(str(record.msg) + "\n")
 
     def __init__(self, parent=None, level=logging.INFO, width=900, height=500):
         super().__init__(parent)

@@ -190,6 +190,8 @@ gui_style = _COMMON_STYLE.format(
     font_textbrowser=_FONT_TEXTBROWSER,
 )
 
+placeholder_color = "#505058"
+
 log_color = {
     "DEBUG": "#6E6B6B",
     "INFO": "#b5bab9",
