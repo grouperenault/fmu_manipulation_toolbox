@@ -1431,14 +1431,25 @@ class NodeTreePanel(QWidget):
 
     def _on_item_changed(self, item: QStandardItem):
         """Called when an item is edited in-place (e.g. double-click rename)."""
-        if not item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS):
+        container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+        if not container_parameters:
             return
+
         fixed = self._ensure_fmu_ext(item.text().strip())
         if fixed != item.text():
             # Block signals to avoid recursion
             self._model.blockSignals(True)
             item.setText(fixed)
             self._model.blockSignals(False)
+
+        # Keep data model in sync with the visible name.
+        container_parameters.name = fixed
+
+        # If this container is currently selected, refresh the details panel.
+        current = self._tree.currentIndex()
+        if current.isValid() and self._model.itemFromIndex(current) is item:
+            self._container_detail.set_container(container_parameters)
+            self._detail_stack.setCurrentWidget(self._container_detail)
 
     # ── Row builders ──────────────────────────────────────────────
 
