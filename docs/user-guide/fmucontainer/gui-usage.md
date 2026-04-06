@@ -90,6 +90,8 @@ You can create nested containers to organize complex assemblies:
 - **Rename**: right-click on a container → **Rename**.
 - **Drag & Drop**: reorganize nodes and sub-containers by dragging them within the tree.
 
+After renaming a container, the **Container Details** panel is refreshed immediately to reflect the new name.
+
 ### Context Menu (Right-click on Tree View)
 
 | Action | Description |
@@ -168,6 +170,7 @@ Click **Configuration** to open a popup menu with:
 
 - **Generate FMI-2 / FMI-3**: choose the target FMI version for the output container.
 - **Verbose Mode**: enable detailed logging and keep intermediate build artifacts.
+- **Enable Datalog**: include a `datalog.txt` configuration in the generated FMU (useful for simulation trace export).
 
 ### Actions
 
@@ -177,6 +180,8 @@ Click **Configuration** to open a popup menu with:
 | **Export as JSON** | Export the assembly as a JSON description file |
 | **Save as FMU Container** | Build and save the container as a `.fmu` file |
 | **Exit** | Close the window (prompts if there are unsaved changes) |
+
+During **Load**, **Export**, and **Save** operations, a progress dialog shows execution logs in real time.
 
 ## Typical Workflow
 
