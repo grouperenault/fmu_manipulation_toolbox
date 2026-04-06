@@ -1745,6 +1745,10 @@ class MainWindow(QMainWindow):
         self._debug_checkbox = QCheckBox("Verbose Mode")
         self._debug_checkbox.setToolTip("Keep intermediate build artifacts and enable verbose logging")
 
+        # Datalog checkbox
+        self._datalog_checkbox = QCheckBox("Enable Datalog")
+        self._datalog_checkbox.setToolTip("Generate datalog.txt in the FMU resources")
+
         # FMI version radio buttons
         self._fmi2_radio = QRadioButton("Generate FMI-2")
         self._fmi3_radio = QRadioButton("Generate FMI-3")
@@ -1765,6 +1769,7 @@ class MainWindow(QMainWindow):
         separator.setFrameShadow(QFrame.Shadow.Sunken)
         config_layout.addWidget(separator)
         config_layout.addWidget(self._debug_checkbox)
+        config_layout.addWidget(self._datalog_checkbox)
 
         config_action = QWidgetAction(self)
         config_action.setDefaultWidget(config_widget)
@@ -2074,7 +2079,7 @@ class MainWindow(QMainWindow):
             assembly.write_json(output_path)
             self._dirty = False
 
-    def save_as_fmu(self, output_path, fmi_version=2):
+    def save_as_fmu(self, output_path, fmi_version=2, datalog=False):
         assembly = self.create_assembly()
 
         if assembly:
@@ -2082,7 +2087,7 @@ class MainWindow(QMainWindow):
                 with tempfile.NamedTemporaryFile("wt", suffix=".json") as temp_file:
                     assembly.write_json(temp_file.name)
                     assembly.description_pathname = temp_file.name
-                    assembly.make_fmu(filename=output_path, fmi_version=fmi_version)
+                    assembly.make_fmu(filename=output_path, fmi_version=fmi_version, datalog=datalog)
                     self._dirty = False
 
             except FMUContainerError as e:
@@ -2103,8 +2108,9 @@ class MainWindow(QMainWindow):
 
         self._last_directory = Path(output_path).parent
         fmi_version = self._fmi_group.checkedId()
+        datalog = self._datalog_checkbox.isChecked()
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.save_as_fmu, output_path, fmi_version,
+        RunTask(self.save_as_fmu, output_path, fmi_version, datalog,
                 parent=self, title="Saving as FMU", level=log_level)
 
     def closeEvent(self, event):
