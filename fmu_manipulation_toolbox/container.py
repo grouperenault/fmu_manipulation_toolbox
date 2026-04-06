@@ -1064,9 +1064,10 @@ class FMUContainer:
         Raises:
             FMUContainerError: If the FMU cannot be loaded.
         """
-        if fmu_filename in self.involved_fmu:
-            return self.involved_fmu[fmu_filename]
-
+        fmu_name = Path(fmu_filename).name
+        if fmu_name in self.involved_fmu:
+            return self.involved_fmu[fmu_name]
+        
         try:
             fmu = EmbeddedFMU(self.fmu_directory / fmu_filename)
             if not fmu.fmi_version == self.fmi_version:
