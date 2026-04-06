@@ -580,148 +580,6 @@ class NodeGraphScene(QGraphicsScene):
         for node in self.nodes():
             self.removeItem(node)
 
-    # -- Layout optimization (Sugiyama-style) --------------------------------
-
-    def optimize_layout(self):
-        """Reposition nodes to minimise wire crossings.
-
-        Algorithm (Sugiyama simplified, cycle-safe):
-
-        1. Build a directed adjacency from wire *mappings*.  Each mapping
-           ``(from_fmu, port, to_fmu, port)`` gives an edge from_node → to_node.
-           Edges whose direction cannot be resolved are treated as A→B.
-        2. **Layer assignment** – iterative BFS (Kahn's algorithm).
-           Nodes with no incoming edge go to layer 0, then each successor
-           gets ``max(layer[pred] + 1)``.  Nodes trapped in pure cycles
-           are placed in layer 0.
-        3. **Barycenter ordering** – within each layer, sort nodes by the
-           average position of their neighbours in the adjacent layer.
-           4 forward + backward sweeps.
-        4. **Grid placement** – uniform horizontal/vertical spacing, centred
-           on the origin.
-        5. **Clear waypoints** on every wire (the new straight-line layout
-           should make them unnecessary).
-        """
-        from collections import deque
-
-        all_nodes = self.nodes()
-        all_wires = self.wires()
-        if not all_nodes:
-            return
-
-        # -- 1. Directed adjacency from mappings ----------------------------
-        node_by_name: Dict[str, NodeItem] = {}
-        for n in all_nodes:
-            node_by_name[n.fmu_path.name] = n
-
-        successors:   Dict[NodeItem, Set[NodeItem]] = {n: set() for n in all_nodes}
-        predecessors: Dict[NodeItem, Set[NodeItem]] = {n: set() for n in all_nodes}
-
-        for w in all_wires:
-            if w.mappings:
-                for m in w.mappings:
-                    if len(m) >= 4:
-                        src = node_by_name.get(m[0])
-                        dst = node_by_name.get(m[2])
-                        if src and dst and src is not dst:
-                            successors[src].add(dst)
-                            predecessors[dst].add(src)
-                    # else: malformed mapping – skip
-                if not any(len(m) >= 4 for m in w.mappings):
-                    # no usable mapping – fall through to default
-                    successors[w.node_a].add(w.node_b)
-                    predecessors[w.node_b].add(w.node_a)
-            else:
-                # Wire with no mappings yet – default A→B
-                successors[w.node_a].add(w.node_b)
-                predecessors[w.node_b].add(w.node_a)
-
-        # -- 2. Layer assignment (Kahn BFS, cycle-safe) ---------------------
-        in_degree: Dict[NodeItem, int] = {n: len(predecessors[n]) for n in all_nodes}
-        layer: Dict[NodeItem, int] = {}
-
-        queue: deque = deque()
-        for n in all_nodes:
-            if in_degree[n] == 0:
-                layer[n] = 0
-                queue.append(n)
-
-        while queue:
-            node = queue.popleft()
-            for succ in successors[node]:
-                new_layer = layer[node] + 1
-                if succ not in layer or new_layer > layer[succ]:
-                    layer[succ] = new_layer
-                in_degree[succ] -= 1
-                if in_degree[succ] == 0:
-                    queue.append(succ)
-
-        # Pure-cycle nodes – assign layer 0
-        for n in all_nodes:
-            if n not in layer:
-                layer[n] = 0
-
-        num_layers = max(layer.values()) + 1 if layer else 1
-
-        layers: List[List[NodeItem]] = [[] for _ in range(num_layers)]
-        for n in all_nodes:
-            layers[layer[n]].append(n)
-
-        # -- 3. Barycenter ordering -----------------------------------------
-        for col in layers:
-            col.sort(key=lambda n: n.pos().y())
-
-        def _idx(node, col):
-            try:
-                return col.index(node)
-            except ValueError:
-                return 0
-
-        for _ in range(4):
-            # Forward sweep
-            for li in range(1, num_layers):
-                prev = layers[li - 1]
-                bary = {}
-                for node in layers[li]:
-                    preds = [p for p in predecessors[node] if layer.get(p) == li - 1]
-                    bary[node] = (sum(_idx(p, prev) for p in preds) / len(preds)) if preds else _idx(node, layers[li])
-                layers[li].sort(key=lambda n: bary[n])
-            # Backward sweep
-            for li in range(num_layers - 2, -1, -1):
-                nxt = layers[li + 1]
-                bary = {}
-                for node in layers[li]:
-                    succs = [s for s in successors[node] if layer.get(s) == li + 1]
-                    bary[node] = (sum(_idx(s, nxt) for s in succs) / len(succs)) if succs else _idx(node, layers[li])
-                layers[li].sort(key=lambda n: bary[n])
-
-        # -- 4. Grid placement ----------------------------------------------
-        H_GAP = 80
-        V_GAP = 30
-
-        col_widths = [
-            max((n.rect().width() for n in col), default=NODE_MIN_WIDTH)
-            for col in layers
-        ]
-        col_x = [0.0] * num_layers
-        for li in range(1, num_layers):
-            col_x[li] = col_x[li - 1] + col_widths[li - 1] + H_GAP
-
-        total_w = (col_x[-1] + col_widths[-1]) if col_widths else 0
-        x_off = -total_w / 2.0
-
-        for li, col in enumerate(layers):
-            total_h = sum(n.rect().height() for n in col) + V_GAP * max(len(col) - 1, 0)
-            y = -total_h / 2.0
-            for node in col:
-                node.setPos(x_off + col_x[li], y)
-                y += node.rect().height() + V_GAP
-
-        # -- 5. Clear wire waypoints ----------------------------------------
-        for w in all_wires:
-            w._waypoints.clear()
-            w._sync_handles()
-            w.update_path()
 
     # -- Interaction: wire drag from node border ----------------------------
 
@@ -944,7 +802,6 @@ class NodeGraphView(QGraphicsView):
             delete_action = menu.addAction("Delete Selection")
         menu.addSeparator()
         fit_action = menu.addAction("Fit View")
-        optimize_action = menu.addAction("Optimize Layout")
 
         chosen = menu.exec(event.globalPos())
         if chosen == add_fmu_action:
@@ -957,9 +814,6 @@ class NodeGraphView(QGraphicsView):
         elif chosen == delete_action:
             self._scene.remove_selected()
         elif chosen == fit_action:
-            self.fit_all()
-        elif chosen == optimize_action:
-            self._scene.optimize_layout()
             self.fit_all()
 
     def fit_all(self):
@@ -1070,6 +924,7 @@ class _WireDirectionTab(QWidget):
         self._model.setHorizontalHeaderLabels(["Output Port", "Input Port"])
 
         self._proxy = QSortFilterProxyModel(self)
+        self._proxy.setDynamicSortFilter(False)
         self._proxy.setSourceModel(self._model)
 
         self._table = QTableView()
@@ -1119,6 +974,10 @@ class _WireDirectionTab(QWidget):
 
     # ── Data access ─────────────────────────────────────────────
 
+    def _close_editor(self):
+        """Close any active cell editor to avoid commitData warnings."""
+        self._table.setCurrentIndex(QModelIndex())
+
     def mappings(self) -> List[tuple]:
         """Return list of 4-tuples (from_fmu, output, to_fmu, input)."""
         if not self._from_node or not self._to_node:
@@ -1135,6 +994,7 @@ class _WireDirectionTab(QWidget):
 
     def load_mappings(self, mappings: List[tuple]):
         """Populate the table from 4-tuples (only keep rows matching this direction)."""
+        self._close_editor()
         self._model.removeRows(0, self._model.rowCount())
         if not self._from_node or not self._to_node:
             return
@@ -1156,6 +1016,7 @@ class _WireDirectionTab(QWidget):
         """Add rows for matching output/input port names not in *existing*."""
         if not self._from_node or not self._to_node:
             return
+        self._close_editor()
         from_name = self._from_node.fmu_path.name
         to_name = self._to_node.fmu_path.name
         to_inputs = set(self._to_node.fmu_input_names)
@@ -1209,6 +1070,8 @@ class WireDetailWidget(QWidget):
         font = self._name_label.font()
         font.setBold(True)
         self._name_label.setFont(font)
+        self._name_label.setWordWrap(True)
+        self._name_label.setMinimumWidth(0)
 
         # -- Tabs (one per direction) --
         self._tab_ab = _WireDirectionTab()
@@ -1243,12 +1106,10 @@ class WireDetailWidget(QWidget):
         self.sync_to_wire()
         self._wire = wire
         na, nb = wire.node_a, wire.node_b
-        self._name_label.setText(f"{na.title}  ↔  {nb.title}")
+        self._name_label.setText(f"{na.title} (A) ↔ {nb.title} (B)")
 
         self._tab_ab.set_nodes(na, nb)
         self._tab_ba.set_nodes(nb, na)
-        self._tabs.setTabText(0, f"{na.title} → {nb.title}")
-        self._tabs.setTabText(1, f"{nb.title} → {na.title}")
 
         self._load_from_wire()
 
@@ -1335,6 +1196,7 @@ class FMUDetailWidget(QWidget):
         font = self._name_label.font()
         font.setBold(True)
         self._name_label.setFont(font)
+        self._name_label.setWordWrap(True)
 
         # ── Tab widget ────────────────────────────────────────────
         self._tabs = QTabWidget()
@@ -1484,6 +1346,7 @@ class ContainerDetailWidget(QWidget):
         font = self._name_label.font()
         font.setBold(True)
         self._name_label.setFont(font)
+        self._name_label.setWordWrap(True)
 
         self._model = QStandardItemModel(0, 2)
         self._model.setHorizontalHeaderLabels(["Parameters", ""])
