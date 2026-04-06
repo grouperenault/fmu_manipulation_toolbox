@@ -314,16 +314,17 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
 
 class _WireHandle(QGraphicsEllipseItem):
-    """Small handle the user can drag to bend the wire.
+    """Small draggable handle representing a waypoint on a WireItem.
 
-    It is created as a child of WireItem (graphics parent).
-    Double-click resets curvature.
+    Each handle sits at a user-defined waypoint through which the Bézier
+    wire passes.  Drag to reshape; double-click to remove the waypoint.
     """
 
-    def __init__(self, wire: "WireItem"):
+    def __init__(self, wire: "WireItem", index: int):
         r = WIRE_HANDLE_RADIUS
         super().__init__(-r, -r, 2 * r, 2 * r, wire)
         self._wire = wire
+        self._index = index
         self._updating = False          # avoids setPos <-> itemChange recursion
 
         self.setBrush(QBrush(QColor(136, 187, 255, 140)))
@@ -344,7 +345,7 @@ class _WireHandle(QGraphicsEllipseItem):
             change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged
             and not self._updating
         ):
-            self._wire.on_handle_dragged(value)
+            self._wire.on_handle_dragged(self._index, value)
         return super().itemChange(change, value)
 
     # -- Visual feedback -------------------------------------------------------
@@ -359,20 +360,23 @@ class _WireHandle(QGraphicsEllipseItem):
         self.setPen(QPen(QColor("#446688"), 1.0))
         super().hoverLeaveEvent(event)
 
-    # -- Double-click -> reset ---------------------------------------------------
+    # -- Double-click -> remove this waypoint ----------------------------------
 
     def mouseDoubleClickEvent(self, event):
-        """Reset the control point to its default midpoint."""
-        self._wire._ctrl_offset = QPointF(0, 0)
-        self._wire.update_path()
+        """Remove this waypoint from the wire."""
+        self._wire.remove_waypoint(self._index)
         event.accept()
 
 
 class WireItem(QGraphicsPathItem):
     """Wire connecting a source port (output) to a destination port (input).
 
-    A central control point (_WireHandle) allows users to adjust curvature.
-    Double-click the handle to reset it.
+    The wire is drawn as a chain of cubic Bézier curves passing through
+    user-defined *waypoints*.
+
+    - **Double-click** on the wire to add a waypoint.
+    - **Drag** a handle to move a waypoint.
+    - **Double-click** a handle to remove that waypoint.
     """
 
     def __init__(
@@ -389,38 +393,37 @@ class WireItem(QGraphicsPathItem):
         source.wires.append(self)
         destination.wires.append(self)
 
-        self._ctrl_offset = QPointF(0, 0)   # user offset
-        self.mappings: List[tuple] = []      # [(output_port, input_port), …]
+        self._waypoints: List[QPointF] = []   # intermediate pass-through points (scene coords)
+        self.mappings: List[tuple] = []        # [(output_port, input_port), …]
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        self.setAcceptedMouseButtons(Qt.MouseButton.LeftButton)
         self.setZValue(0)
 
-        self._handle = _WireHandle(self)
+        self._handles: List[_WireHandle] = []
         self.update_path()
 
-    # -- Curve calculations --------------------------------------------------
+    # -- Ordered list of all pass-through points ------------------------------
+
+    def _all_points(self) -> List[QPointF]:
+        """Return [source, wp0, wp1, …, destination] in scene coords."""
+        return [self.source.center_scene_pos()] + list(self._waypoints) + [self.destination.center_scene_pos()]
+
+    # -- Bézier helpers -------------------------------------------------------
 
     @staticmethod
-    def _default_controls(p1: QPointF, p2: QPointF):
-        """Default C1/C2 control points (horizontal tangents)."""
+    def _segment_bezier(p1: QPointF, p2: QPointF) -> tuple:
+        """Return (c1, c2) default control-points for a single Bézier span
+        with horizontal tangents (classic node-editor look)."""
         dist = max(abs(p2.x() - p1.x()) * 0.5, 50)
         c1 = QPointF(p1.x() + dist, p1.y())
         c2 = QPointF(p2.x() - dist, p2.y())
         return c1, c2
 
     @staticmethod
-    def _midpoint(p0: QPointF, c1: QPointF, c2: QPointF, p3: QPointF) -> QPointF:
-        """Point on the cubic Bezier at t = 0.5."""
-        # B(0.5) = (P0 + 3*C1 + 3*C2 + P3) / 8
-        return QPointF(
-            (p0.x() + 3 * c1.x() + 3 * c2.x() + p3.x()) / 8.0,
-            (p0.y() + 3 * c1.y() + 3 * c2.y() + p3.y()) / 8.0,
-        )
-
-    @staticmethod
     def bezier(p1: QPointF, p2: QPointF) -> QPainterPath:
-        """Default Bezier (without offset), also used by _DragWireItem."""
+        """Single Bézier span – also used by _DragWireItem."""
         dist = max(abs(p2.x() - p1.x()) * 0.5, 50)
         path = QPainterPath(p1)
         path.cubicTo(
@@ -430,43 +433,193 @@ class WireItem(QGraphicsPathItem):
         )
         return path
 
-    # -- Path update -------------------------------------------------
+    # -- Build the full path (Catmull-Rom spline) -----------------------------
+
+    @staticmethod
+    def _build_path(points: List[QPointF]) -> QPainterPath:
+        """Build a smooth Bézier spline through *points*.
+
+        * For a single span (source → destination) the classic horizontal-
+          tangent Bézier is used.
+        * For multiple spans the tangent at each **interior** waypoint is
+          derived from the Catmull-Rom formula so that the curve passes
+          through the point with a natural, non-horizontal direction.
+        * Source and destination endpoints keep horizontal tangents so that
+          wires leave / arrive parallel to the port.
+        """
+        n = len(points)
+        path = QPainterPath(points[0])
+        if n < 2:
+            return path
+
+        if n == 2:
+            # Single span – original horizontal-tangent style
+            dist = max(abs(points[1].x() - points[0].x()) * 0.5, 50)
+            path.cubicTo(
+                points[0].x() + dist, points[0].y(),
+                points[1].x() - dist, points[1].y(),
+                points[1].x(), points[1].y(),
+            )
+            return path
+
+        # --- Compute a tangent vector at every point -------------------------
+        # The tangent is expressed as the full velocity vector;
+        # control points will be placed at  P ± T/3.
+        tangents: List[QPointF] = []
+        for i in range(n):
+            if i == 0:
+                # Source port – horizontal tangent (pointing right)
+                dist = max(abs(points[1].x() - points[0].x()) * 0.5, 50)
+                tangents.append(QPointF(3.0 * dist, 0.0))
+            elif i == n - 1:
+                # Destination port – horizontal tangent (arriving from left)
+                dist = max(abs(points[-1].x() - points[-2].x()) * 0.5, 50)
+                tangents.append(QPointF(3.0 * dist, 0.0))
+            else:
+                # Interior waypoint – Catmull-Rom tangent
+                tx = (points[i + 1].x() - points[i - 1].x()) * 0.5
+                ty = (points[i + 1].y() - points[i - 1].y()) * 0.5
+                tangents.append(QPointF(tx, ty))
+
+        # --- Build cubic Bézier segments from tangents -----------------------
+        for i in range(n - 1):
+            c1 = QPointF(
+                points[i].x()     + tangents[i].x()     / 3.0,
+                points[i].y()     + tangents[i].y()     / 3.0,
+            )
+            c2 = QPointF(
+                points[i + 1].x() - tangents[i + 1].x() / 3.0,
+                points[i + 1].y() - tangents[i + 1].y() / 3.0,
+            )
+            path.cubicTo(c1, c2, points[i + 1])
+
+        return path
+
+    # -- Path update -----------------------------------------------------------
 
     def update_path(self):
-        """Recompute the curve and reposition the handle."""
-        p1 = self.source.center_scene_pos()
-        p2 = self.destination.center_scene_pos()
-        c1, c2 = self._default_controls(p1, p2)
+        """Recompute the Bézier chain and reposition all handles."""
+        points = self._all_points()
+        self.setPath(self._build_path(points))
 
-        # Apply user offset to control points.
-        # 4/3 factor keeps the handle exactly on B(0.5).
-        adj = self._ctrl_offset * (4.0 / 3.0)
-        ac1 = c1 + adj
-        ac2 = c2 + adj
+        # Reposition handles on their waypoint (without triggering on_handle_dragged)
+        for i, handle in enumerate(self._handles):
+            handle._updating = True
+            handle.setPos(self._waypoints[i])
+            handle._updating = False
 
-        path = QPainterPath(p1)
-        path.cubicTo(ac1, ac2, p2)
-        self.setPath(path)
+    def on_handle_dragged(self, index: int, new_pos: QPointF):
+        """Called by a _WireHandle when the user drags it."""
+        if 0 <= index < len(self._waypoints):
+            self._waypoints[index] = QPointF(new_pos)
+            # Rebuild path only – the handle is already being moved by the user
+            self.setPath(self._build_path(self._all_points()))
 
-        # Reposition the handle (without triggering _on_handle_dragged)
-        mid = self._midpoint(p1, c1, c2, p2) + self._ctrl_offset
-        self._handle._updating = True
-        self._handle.setPos(mid)
-        self._handle._updating = False
+    # -- Waypoint management ---------------------------------------------------
 
-    def on_handle_dragged(self, new_pos: QPointF):
-        """Called by the handle when the user drags it."""
-        p1 = self.source.center_scene_pos()
-        p2 = self.destination.center_scene_pos()
-        c1, c2 = self._default_controls(p1, p2)
-        default_mid = self._midpoint(p1, c1, c2, p2)
-        self._ctrl_offset = new_pos - default_mid
+    def _rebuild_handles(self):
+        """Synchronise the handle list with the waypoint list."""
+        # Remove excess handles
+        while len(self._handles) > len(self._waypoints):
+            handle = self._handles.pop()
+            if handle.scene():
+                handle.scene().removeItem(handle)
 
-        # Rebuild path without moving the handle (user is dragging it)
-        adj = self._ctrl_offset * (4.0 / 3.0)
-        path = QPainterPath(p1)
-        path.cubicTo(c1 + adj, c2 + adj, p2)
-        self.setPath(path)
+        # Create missing handles
+        while len(self._handles) < len(self._waypoints):
+            idx = len(self._handles)
+            handle = _WireHandle(self, idx)
+            handle.setVisible(self.isSelected())
+            self._handles.append(handle)
+
+        # Fixup indices
+        for i, handle in enumerate(self._handles):
+            handle._index = i
+
+    @staticmethod
+    def _point_to_cubic_dist(p: QPointF,
+                             p1: QPointF, c1: QPointF,
+                             c2: QPointF, p2: QPointF,
+                             samples: int = 20) -> float:
+        """Approximate shortest distance from *p* to the cubic Bézier
+        defined by endpoints *p1*, *p2* and control-points *c1*, *c2*."""
+        best = float("inf")
+        for k in range(samples + 1):
+            t = k / samples
+            u = 1.0 - t
+            bx = u*u*u*p1.x() + 3*u*u*t*c1.x() + 3*u*t*t*c2.x() + t*t*t*p2.x()
+            by = u*u*u*p1.y() + 3*u*u*t*c1.y() + 3*u*t*t*c2.y() + t*t*t*p2.y()
+            d = math.hypot(p.x() - bx, p.y() - by)
+            if d < best:
+                best = d
+        return best
+
+    def _span_control_points(self) -> List[tuple]:
+        """Return the (p1, c1, c2, p2) quad for every Bézier span,
+        using the same Catmull-Rom tangent logic as *_build_path*."""
+        points = self._all_points()
+        n = len(points)
+        if n < 2:
+            return []
+        if n == 2:
+            dist = max(abs(points[1].x() - points[0].x()) * 0.5, 50)
+            c1 = QPointF(points[0].x() + dist, points[0].y())
+            c2 = QPointF(points[1].x() - dist, points[1].y())
+            return [(points[0], c1, c2, points[1])]
+
+        tangents: List[QPointF] = []
+        for i in range(n):
+            if i == 0:
+                dist = max(abs(points[1].x() - points[0].x()) * 0.5, 50)
+                tangents.append(QPointF(3.0 * dist, 0.0))
+            elif i == n - 1:
+                dist = max(abs(points[-1].x() - points[-2].x()) * 0.5, 50)
+                tangents.append(QPointF(3.0 * dist, 0.0))
+            else:
+                tx = (points[i + 1].x() - points[i - 1].x()) * 0.5
+                ty = (points[i + 1].y() - points[i - 1].y()) * 0.5
+                tangents.append(QPointF(tx, ty))
+
+        spans = []
+        for i in range(n - 1):
+            c1 = QPointF(
+                points[i].x()     + tangents[i].x()     / 3.0,
+                points[i].y()     + tangents[i].y()     / 3.0,
+            )
+            c2 = QPointF(
+                points[i + 1].x() - tangents[i + 1].x() / 3.0,
+                points[i + 1].y() - tangents[i + 1].y() / 3.0,
+            )
+            spans.append((points[i], c1, c2, points[i + 1]))
+        return spans
+
+    def add_waypoint(self, scene_pos: QPointF):
+        """Insert a new waypoint at *scene_pos* into the closest Bézier span."""
+        spans = self._span_control_points()
+        best_idx = 0
+        best_dist = float("inf")
+        for i, (p1, c1, c2, p2) in enumerate(spans):
+            d = self._point_to_cubic_dist(scene_pos, p1, c1, c2, p2)
+            if d < best_dist:
+                best_dist = d
+                best_idx = i
+        # Insert *after* point[best_idx], i.e. at position best_idx in _waypoints
+        self._waypoints.insert(best_idx, QPointF(scene_pos))
+        self._rebuild_handles()
+        self.update_path()
+
+    def remove_waypoint(self, index: int):
+        """Remove waypoint at *index*."""
+        if 0 <= index < len(self._waypoints):
+            del self._waypoints[index]
+            self._rebuild_handles()
+            self.update_path()
+
+    # -- Double-click on the wire → add a waypoint ----------------------------
+
+    def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent):
+        self.add_waypoint(event.scenePos())
+        event.accept()
 
     # -- Selection hit area ---------------------------------------------------
 
@@ -481,7 +634,9 @@ class WireItem(QGraphicsPathItem):
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
-            self._handle.setVisible(bool(value))
+            visible = bool(value)
+            for handle in self._handles:
+                handle.setVisible(visible)
         return super().itemChange(change, value)
 
     def paint(self, painter: QPainter, option, widget=None):

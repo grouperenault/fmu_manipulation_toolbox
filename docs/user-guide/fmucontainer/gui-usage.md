@@ -53,6 +53,24 @@ To create a connection between two FMUs:
 !!! info "Port direction"
     You can also drag from an input to an output — the direction is automatically corrected.
 
+### Reshaping Wires with Control Points
+
+Wires are drawn as smooth Bézier curves. You can add **control points** (waypoints) to reshape
+a wire and route it around nodes for better readability.
+
+| Action | How |
+|---|---|
+| **Add a control point** | Double-click on a wire |
+| **Move a control point** | Drag the blue handle (visible when the wire is selected) |
+| **Remove a control point** | Double-click on a blue handle |
+
+You can add as many control points as needed. The curve passes smoothly through each point
+with natural tangent continuity.
+
+!!! tip "Visibility"
+    Control point handles are only visible when the wire is **selected**. Click on a wire to
+    select it and reveal its handles.
+
 ### Navigating the Canvas
 
 | Action | How |
