@@ -36,39 +36,40 @@ There are three ways to add FMUs to the canvas:
 - **Right-click → Add FMU…**: opens a file dialog to select one or more `.fmu` files.
 - **Tree View → Right-click → Add FMU…**: adds FMUs under a specific container in the hierarchy.
 
-Each FMU node displays:
-
-- Its filename as a title
-- An **input port** (green, left side) if the FMU has input or parameter variables
-- An **output port** (orange, right side) if the FMU has output variables
+Each FMU node displays its filename as a title.
 
 ### Connecting FMUs with Wires
 
 To create a connection between two FMUs:
 
-1. Click and drag from an **output port** (orange) of one node
-2. Release on the **input port** (green) of another node
-3. A wire is created
+1. Click and drag from the **border** of one node
+2. Release on another node
+3. A wire is created between the two nodes
 
-!!! info "Port direction"
-    You can also drag from an input to an output — the direction is automatically corrected.
+Wires are **directional** — arrowheads indicate the data-flow direction:
 
-### Reshaping Wires with Control Points
+- **Arrow on one end** → data flows in that direction (from one FMU to the other)
+- **Arrows on both ends** → bidirectional connection (each FMU feeds the other)
 
-Wires are drawn as smooth Bézier curves. You can add **control points** (waypoints) to reshape
-a wire and route it around nodes for better readability.
+The direction is determined by the port mappings configured in the [Wire Details](#wire-details)
+panel.
+
+### Reshaping Wires with Waypoints
+
+Wires are drawn as straight-line segments. You can add **waypoints** to create broken lines
+and route wires around nodes for better readability.
 
 | Action | How |
 |---|---|
-| **Add a control point** | Double-click on a wire |
-| **Move a control point** | Drag the blue handle (visible when the wire is selected) |
-| **Remove a control point** | Double-click on a blue handle |
+| **Add a waypoint** | Double-click on a wire |
+| **Move a waypoint** | Drag the blue handle (visible when the wire is selected) |
+| **Remove a waypoint** | Double-click on a blue handle |
 
-You can add as many control points as needed. The curve passes smoothly through each point
-with natural tangent continuity.
+You can add as many waypoints as needed. The wire becomes a polyline passing through each
+waypoint in order.
 
 !!! tip "Visibility"
-    Control point handles are only visible when the wire is **selected**. Click on a wire to
+    Waypoint handles are only visible when the wire is **selected**. Click on a wire to
     select it and reveal its handles.
 
 ### Navigating the Canvas
@@ -143,25 +144,39 @@ Each row in the start values table shows:
 
 ### Wire Details
 
-When a wire is selected, the detail panel shows the **port mappings** between the source and
-destination FMUs:
+When a wire is selected, the detail panel shows the **variable-level mappings** between the
+two connected FMUs.
+
+A header label identifies the two nodes: **A = *first FMU*,  B = *second FMU***.
+
+The mappings are split into **two tabs**, one per direction:
+
+| Tab | Description |
+|---|---|
+| **A → B** | Output ports of A connected to input ports of B |
+| **B → A** | Output ports of B connected to input ports of A |
+
+Each tab contains a 2-column table:
 
 | Column | Description |
 |---|---|
-| **Output Port** | Output port of the source FMU (combo-box) |
-| **Input Port** | Input port of the destination FMU (combo-box) |
+| **Output Port** | Output variable of the source FMU (combo-box) |
+| **Input Port** | Input variable of the destination FMU (combo-box) |
 
-Use the buttons below the table:
+Each tab has its own **Add link** / **Remove link** buttons to manage mappings for that direction.
+
+The arrowheads on the wire update automatically to reflect the configured directions.
+
+Below the tabs, a global button is available:
 
 | Button | Description |
 |---|---|
-| **Add** | Add a new port mapping row |
-| **Remove** | Remove the selected mapping row(s) |
-| **Auto-connect** | Automatically map ports that share the same name |
+| **Auto-Connect** | Automatically map ports that share the same name — in **both** directions at once |
 
-!!! tip "Auto-connect"
-    The **Auto-connect** button is very useful when FMUs have been designed to work together — it
-    matches output and input ports by name.
+!!! tip "Auto-Connect"
+    The **Auto-Connect** button matches output and input ports by name in both directions —
+    it will create A → B mappings where A has an output matching a B input, and B → A mappings
+    where B has an output matching an A input.
 
 ### Container Details
 

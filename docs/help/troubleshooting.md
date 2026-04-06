@@ -122,7 +122,7 @@ pip install PySide6
 
 ### ❌ FMU Container Builder: wires have no port mappings
 
-**Symptom:** After loading an existing FMU container, clicking on a wire shows an empty mapping table.
+**Symptom:** After loading an existing FMU container, clicking on a wire shows empty mapping tables in both tabs.
 
 **Cause:** The container FMU may have been built with a version that did not store port-level
 mappings. Or the `.fmu` file is corrupted.
@@ -130,8 +130,8 @@ mappings. Or the `.fmu` file is corrupted.
 **Solution:**
 
 1. Select the wire
-2. Use the **Auto-connect** button to re-create mappings from matching port names
-3. Manually adjust if needed using the combo-box dropdowns
+2. Use the **Auto-Connect** button to re-create mappings from matching port names (populates both A → B and B → A tabs)
+3. Manually adjust if needed using the combo-box dropdowns in each tab
 
 ### ❌ FMU Variable Editor: changes are not saved
 
