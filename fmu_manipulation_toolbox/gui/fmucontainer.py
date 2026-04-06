@@ -5,7 +5,6 @@ import sys
 import uuid
 import tempfile
 
-from enum import Enum, auto
 from pathlib import Path
 from typing import *
 
@@ -51,10 +50,6 @@ COLOR_NODE_BORDER   = QColor("#222222")
 COLOR_NODE_SELECTED = QColor("#f0a030")
 COLOR_TEXT          = QColor("#dddddd")
 
-COLOR_PORT_INPUT    = QColor("#68b86a")
-COLOR_PORT_OUTPUT   = QColor("#e07040")
-COLOR_PORT_BORDER   = QColor("#111111")
-
 COLOR_WIRE          = QColor("#cccccc")
 COLOR_WIRE_SELECTED = QColor("#f0a030")
 COLOR_WIRE_DRAGGING = QColor("#88bbff")
@@ -64,80 +59,19 @@ NODE_MIN_WIDTH      = 140
 NODE_TITLE_HEIGHT   = 28
 NODE_PORT_SPACING   = 26
 NODE_CORNER_RADIUS  = 6
-PORT_RADIUS         = 7
 GRID_SIZE           = 20
 GRID_SQUARES        = 5
-WIRE_HANDLE_RADIUS  = 5
+ARROW_SIZE          = 10
+WAYPOINT_RADIUS     = 5
 
 # Fonts
 FONT_TITLE          = QFont("Verdana", 10, QFont.Weight.Bold)
 FONT_PORT           = QFont("Verdana", 8)
 
 
-class PortType(Enum):
-    INPUT = auto()
-    OUTPUT = auto()
-
-
-class PortItem(QGraphicsEllipseItem):
-    """Input or output port attached to a NodeItem."""
-
-    def __init__(self, name: str, port_type: PortType, parent: "NodeItem"):
-        r = PORT_RADIUS
-        super().__init__(-r, -r, 2 * r, 2 * r, parent)
-
-        self.name = name
-        self.port_type = port_type
-        self.node: "NodeItem" = parent
-        self.wires: List["WireItem"] = []
-
-        color = COLOR_PORT_INPUT if port_type == PortType.INPUT else COLOR_PORT_OUTPUT
-        self.setBrush(QBrush(color))
-        self.setPen(QPen(COLOR_PORT_BORDER, 1.5))
-
-        self.setAcceptHoverEvents(True)
-        self.setCursor(Qt.CursorShape.CrossCursor)
-        self.setZValue(2)
-
-        # Label
-        self._label = QGraphicsTextItem(name, self)
-        self._label.setDefaultTextColor(COLOR_TEXT)
-        self._label.setFont(FONT_PORT)
-        self._update_label_pos()
-
-    def _update_label_pos(self):
-        br = self._label.boundingRect()
-        if self.port_type == PortType.INPUT:
-            self._label.setPos(PORT_RADIUS + 4, -br.height() / 2)
-        else:
-            self._label.setPos(-PORT_RADIUS - 4 - br.width(), -br.height() / 2)
-
-    def center_scene_pos(self) -> QPointF:
-        """Port center position in scene coordinates."""
-        return self.scenePos()
-
-    # -- Hover feedback --------------------------------------------------------
-
-    def hoverEnterEvent(self, event):
-        self.setPen(QPen(QColor("#ffffff"), 2))
-        super().hoverEnterEvent(event)
-
-    def hoverLeaveEvent(self, event):
-        self.setPen(QPen(COLOR_PORT_BORDER, 1.5))
-        super().hoverLeaveEvent(event)
-
-    # -- Highlight while dragging a wire --------------------------------
-
-    def set_drop_highlight(self, on: bool):
-        """Enable/disable highlight for a valid connection target."""
-        if on:
-            self.setPen(QPen(QColor("#ffffff"), 2))
-        else:
-            self.setPen(QPen(COLOR_PORT_BORDER, 1.5))
-
-
 class NodeItem(QGraphicsRectItem, OperationAbstract):
-    """Rectangular box with a title and I/O ports."""
+    """Rectangular node representing an FMU. No visual ports — wires
+    connect directly to the node edges."""
 
     def __init__(self, fmu_path: Path, x: float = 0, y: float = 0):
         super().__init__()
@@ -146,15 +80,12 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self._title = fmu_path.name
         self.fmu_path = fmu_path
 
-
         # -- Read FMU ports ---------------------------------------------------
-
-        # Keep full port lists for serialization / logic
         self.fmu_input_names: List[str] = []
         self.fmu_output_names: List[str] = []
         self.fmu_start_values: Dict[str, str] = {}
         self.user_start_values: Dict[str, str] = {}
-        self.user_exposed_outputs: Dict[str, bool] = {}  # port_name -> exposed?
+        self.user_exposed_outputs: Dict[str, bool] = {}
         self.fmu_step_size: Optional[str] = None
         self.fmu_generator: str = ""
 
@@ -162,14 +93,8 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         fmu.apply_operation(self)
         del fmu
 
-        # -- Visual ports: at most one "in" and one "out" ---------------------
-        self.input_port: Optional[PortItem] = None
-        self.output_port: Optional[PortItem] = None
-
-        if self.fmu_input_names:
-            self.input_port = PortItem("in", PortType.INPUT, self)
-        if self.fmu_output_names:
-            self.output_port = PortItem("out", PortType.OUTPUT, self)
+        # -- Wires attached to this node --------------------------------------
+        self.wires: List["WireItem"] = []
 
         # Flags
         self.setFlags(
@@ -180,33 +105,21 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.setAcceptHoverEvents(True)
         self.setZValue(1)
 
-        # -- Size calculation -----------------------------------------------
+        # -- Size calculation -------------------------------------------------
         height = NODE_TITLE_HEIGHT + NODE_PORT_SPACING + 10
 
         fm_title = QFontMetrics(FONT_TITLE)
-        fm_port = QFontMetrics(FONT_PORT)
-        width = max(
-            NODE_MIN_WIDTH,
-            fm_port.horizontalAdvance("in") + fm_port.horizontalAdvance("out") + 4 * PORT_RADIUS + 40,
-            fm_title.horizontalAdvance(self.title) + 20,
-        )
+        width = max(NODE_MIN_WIDTH, fm_title.horizontalAdvance(self.title) + 20)
 
         self.setRect(0, 0, width, height)
         self.setPos(x, y)
 
-        # -- Title -------------------------------------------------------------
+        # -- Title ------------------------------------------------------------
         self._title_item = QGraphicsTextItem(self.title, self)
         self._title_item.setDefaultTextColor(COLOR_TEXT)
         self._title_item.setFont(FONT_TITLE)
         tbr = self._title_item.boundingRect()
         self._title_item.setPos((width - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
-
-        # -- Position ports ----------------------------------------------------
-        y_port = NODE_TITLE_HEIGHT + 0.5 * NODE_PORT_SPACING + 5
-        if self.input_port:
-            self.input_port.setPos(0, y_port)
-        if self.output_port:
-            self.output_port.setPos(width, y_port)
 
     def __repr__(self):
         return "Collect I/O ports"
@@ -243,6 +156,34 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         w = self.rect().width()
         self._title_item.setPos((w - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
 
+    # -- Edge anchor -----------------------------------------------------------
+
+    def edge_point(self, other_center: QPointF) -> QPointF:
+        """Return the point on the node border closest to *other_center*.
+
+        The anchor is the intersection of the line from this node's center
+        to *other_center* with the node rectangle (in scene coords).
+        """
+        r = self.sceneBoundingRect()
+        cx, cy = r.center().x(), r.center().y()
+        dx = other_center.x() - cx
+        dy = other_center.y() - cy
+        if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+            return QPointF(cx, cy)
+
+        hw, hh = r.width() / 2.0, r.height() / 2.0
+        # Determine which edge the line crosses first
+        if abs(dx) * hh > abs(dy) * hw:
+            # Hits left or right edge
+            t = hw / abs(dx)
+        else:
+            # Hits top or bottom edge
+            t = hh / abs(dy)
+        return QPointF(cx + dx * t, cy + dy * t)
+
+    def center_scene_pos(self) -> QPointF:
+        return self.sceneBoundingRect().center()
+
     # -- Rendering ----------------------------------------------------------------
 
     def paint(self, painter: QPainter, option: QStyleOptionGraphicsItem, widget=None):
@@ -273,16 +214,15 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRoundedRect(0, 0, w, h, NODE_CORNER_RADIUS, NODE_CORNER_RADIUS)
 
-    # -- Move -> update wires ----------------------------------
+    # -- Move -> update wires --------------------------------------------------
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            for port in self.all_ports():
-                for wire in port.wires:
-                    wire.update_path()
+            for wire in self.wires:
+                wire.update_path()
         return super().itemChange(change, value)
 
-    # -- Double-click to rename ---------------------------------------------
+    # -- Double-click to rename ------------------------------------------------
 
     def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent):
         if event.pos().y() < NODE_TITLE_HEIGHT:
@@ -297,35 +237,25 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     # -- Helpers ---------------------------------------------------------------
 
-    def all_ports(self) -> List[PortItem]:
-        """Return the list of visible PortItems."""
-        ports = []
-        if self.input_port:
-            ports.append(self.input_port)
-        if self.output_port:
-            ports.append(self.output_port)
-        return ports
-
     def remove_wires(self):
         """Remove all wires connected to this node."""
-        for port in self.all_ports():
-            for wire in list(port.wires):
-                wire.remove()
+        for wire in list(self.wires):
+            wire.remove()
 
 
-class _WireHandle(QGraphicsEllipseItem):
-    """Small draggable handle representing a waypoint on a WireItem.
+class _WaypointHandle(QGraphicsEllipseItem):
+    """Small draggable handle sitting on a wire waypoint.
 
-    Each handle sits at a user-defined waypoint through which the Bézier
-    wire passes.  Drag to reshape; double-click to remove the waypoint.
+    * **Drag** to move the waypoint.
+    * **Double-click** to remove it.
     """
 
     def __init__(self, wire: "WireItem", index: int):
-        r = WIRE_HANDLE_RADIUS
+        r = WAYPOINT_RADIUS
         super().__init__(-r, -r, 2 * r, 2 * r, wire)
         self._wire = wire
         self._index = index
-        self._updating = False          # avoids setPos <-> itemChange recursion
+        self._updating = False
 
         self.setBrush(QBrush(QColor(136, 187, 255, 140)))
         self.setPen(QPen(QColor("#446688"), 1.0))
@@ -336,19 +266,15 @@ class _WireHandle(QGraphicsEllipseItem):
         self.setAcceptHoverEvents(True)
         self.setCursor(Qt.CursorShape.SizeAllCursor)
         self.setZValue(3)
-        self.setVisible(False)          # hidden until the wire is selected
-
-    # -- When user drags the handle ---------------------------------
+        self.setVisible(False)
 
     def itemChange(self, change, value):
         if (
             change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged
             and not self._updating
         ):
-            self._wire.on_handle_dragged(self._index, value)
+            self._wire._on_handle_moved(self._index, value)
         return super().itemChange(change, value)
-
-    # -- Visual feedback -------------------------------------------------------
 
     def hoverEnterEvent(self, event):
         self.setBrush(QBrush(QColor(170, 221, 255, 220)))
@@ -360,262 +286,140 @@ class _WireHandle(QGraphicsEllipseItem):
         self.setPen(QPen(QColor("#446688"), 1.0))
         super().hoverLeaveEvent(event)
 
-    # -- Double-click -> remove this waypoint ----------------------------------
-
     def mouseDoubleClickEvent(self, event):
-        """Remove this waypoint from the wire."""
         self._wire.remove_waypoint(self._index)
         event.accept()
 
 
 class WireItem(QGraphicsPathItem):
-    """Wire connecting a source port (output) to a destination port (input).
+    """Wire connecting two NodeItems as a polyline (broken line).
 
-    The wire is drawn as a chain of cubic Bézier curves passing through
-    user-defined *waypoints*.
+    Arrowheads indicate data-flow direction, derived from the per-variable
+    mappings:
 
-    - **Double-click** on the wire to add a waypoint.
-    - **Drag** a handle to move a waypoint.
-    - **Double-click** a handle to remove that waypoint.
+    * Arrow on node_b side → data flows from node_a to node_b
+    * Arrow on node_a side → data flows from node_b to node_a
+    * Arrows on both sides → bidirectional
+
+    Waypoints:
+
+    * **Double-click** on the wire to add a waypoint.
+    * **Drag** a handle to move a waypoint.
+    * **Double-click** a handle to remove it.
     """
 
-    def __init__(
-        self,
-        source: PortItem,
-        destination: PortItem,
-        parent=None,
-    ):
+    def __init__(self, node_a: NodeItem, node_b: NodeItem, parent=None):
         super().__init__(parent)
 
-        self.source = source
-        self.destination = destination
+        self.node_a = node_a
+        self.node_b = node_b
 
-        source.wires.append(self)
-        destination.wires.append(self)
+        node_a.wires.append(self)
+        node_b.wires.append(self)
 
-        self._waypoints: List[QPointF] = []   # intermediate pass-through points (scene coords)
-        self.mappings: List[tuple] = []        # [(output_port, input_port), …]
+        self._waypoints: List[QPointF] = []
+        self._handles: List[_WaypointHandle] = []
+        self.mappings: List[tuple] = []
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         self.setAcceptedMouseButtons(Qt.MouseButton.LeftButton)
         self.setZValue(0)
 
-        self._handles: List[_WireHandle] = []
         self.update_path()
 
-    # -- Ordered list of all pass-through points ------------------------------
+    # -- Direction helpers ----------------------------------------------------
+
+    def _directions(self) -> tuple:
+        """Return (a_to_b, b_to_a) booleans from mappings."""
+        a_name = self.node_a.fmu_path.name
+        b_name = self.node_b.fmu_path.name
+        a_to_b = any(m[0] == a_name and m[2] == b_name for m in self.mappings)
+        b_to_a = any(m[0] == b_name and m[2] == a_name for m in self.mappings)
+        return a_to_b, b_to_a
+
+    # -- All points of the polyline -------------------------------------------
 
     def _all_points(self) -> List[QPointF]:
-        """Return [source, wp0, wp1, …, destination] in scene coords."""
-        return [self.source.center_scene_pos()] + list(self._waypoints) + [self.destination.center_scene_pos()]
-
-    # -- Bézier helpers -------------------------------------------------------
-
-    @staticmethod
-    def _segment_bezier(p1: QPointF, p2: QPointF) -> tuple:
-        """Return (c1, c2) default control-points for a single Bézier span
-        with horizontal tangents (classic node-editor look)."""
-        dist = max(abs(p2.x() - p1.x()) * 0.5, 50)
-        c1 = QPointF(p1.x() + dist, p1.y())
-        c2 = QPointF(p2.x() - dist, p2.y())
-        return c1, c2
-
-    @staticmethod
-    def bezier(p1: QPointF, p2: QPointF) -> QPainterPath:
-        """Single Bézier span – also used by _DragWireItem."""
-        dist = max(abs(p2.x() - p1.x()) * 0.5, 50)
-        path = QPainterPath(p1)
-        path.cubicTo(
-            p1.x() + dist, p1.y(),
-            p2.x() - dist, p2.y(),
-            p2.x(), p2.y(),
-        )
-        return path
-
-    # -- Build the full path (Catmull-Rom spline) -----------------------------
-
-    @staticmethod
-    def _build_path(points: List[QPointF]) -> QPainterPath:
-        """Build a smooth Bézier spline through *points*.
-
-        * For a single span (source → destination) the classic horizontal-
-          tangent Bézier is used.
-        * For multiple spans the tangent at each **interior** waypoint is
-          derived from the Catmull-Rom formula so that the curve passes
-          through the point with a natural, non-horizontal direction.
-        * Source and destination endpoints keep horizontal tangents so that
-          wires leave / arrive parallel to the port.
-        """
-        n = len(points)
-        path = QPainterPath(points[0])
-        if n < 2:
-            return path
-
-        if n == 2:
-            # Single span – original horizontal-tangent style
-            dist = max(abs(points[1].x() - points[0].x()) * 0.5, 50)
-            path.cubicTo(
-                points[0].x() + dist, points[0].y(),
-                points[1].x() - dist, points[1].y(),
-                points[1].x(), points[1].y(),
-            )
-            return path
-
-        # --- Compute a tangent vector at every point -------------------------
-        # The tangent is expressed as the full velocity vector;
-        # control points will be placed at  P ± T/3.
-        tangents: List[QPointF] = []
-        for i in range(n):
-            if i == 0:
-                # Source port – horizontal tangent (pointing right)
-                dist = max(abs(points[1].x() - points[0].x()) * 0.5, 50)
-                tangents.append(QPointF(3.0 * dist, 0.0))
-            elif i == n - 1:
-                # Destination port – horizontal tangent (arriving from left)
-                dist = max(abs(points[-1].x() - points[-2].x()) * 0.5, 50)
-                tangents.append(QPointF(3.0 * dist, 0.0))
-            else:
-                # Interior waypoint – Catmull-Rom tangent
-                tx = (points[i + 1].x() - points[i - 1].x()) * 0.5
-                ty = (points[i + 1].y() - points[i - 1].y()) * 0.5
-                tangents.append(QPointF(tx, ty))
-
-        # --- Build cubic Bézier segments from tangents -----------------------
-        for i in range(n - 1):
-            c1 = QPointF(
-                points[i].x()     + tangents[i].x()     / 3.0,
-                points[i].y()     + tangents[i].y()     / 3.0,
-            )
-            c2 = QPointF(
-                points[i + 1].x() - tangents[i + 1].x() / 3.0,
-                points[i + 1].y() - tangents[i + 1].y() / 3.0,
-            )
-            path.cubicTo(c1, c2, points[i + 1])
-
-        return path
+        """Return [anchor_a, wp0, wp1, …, anchor_b] in scene coords."""
+        cb = self.node_b.center_scene_pos()
+        ca = self.node_a.center_scene_pos()
+        target_a = self._waypoints[0] if self._waypoints else cb
+        target_b = self._waypoints[-1] if self._waypoints else ca
+        pa = self.node_a.edge_point(target_a)
+        pb = self.node_b.edge_point(target_b)
+        return [pa] + list(self._waypoints) + [pb]
 
     # -- Path update -----------------------------------------------------------
 
     def update_path(self):
-        """Recompute the Bézier chain and reposition all handles."""
         points = self._all_points()
-        self.setPath(self._build_path(points))
+        path = QPainterPath(points[0])
+        for pt in points[1:]:
+            path.lineTo(pt)
+        self.setPath(path)
 
-        # Reposition handles on their waypoint (without triggering on_handle_dragged)
         for i, handle in enumerate(self._handles):
             handle._updating = True
             handle.setPos(self._waypoints[i])
             handle._updating = False
 
-    def on_handle_dragged(self, index: int, new_pos: QPointF):
-        """Called by a _WireHandle when the user drags it."""
+    def _on_handle_moved(self, index: int, new_pos: QPointF):
         if 0 <= index < len(self._waypoints):
             self._waypoints[index] = QPointF(new_pos)
-            # Rebuild path only – the handle is already being moved by the user
-            self.setPath(self._build_path(self._all_points()))
+            points = self._all_points()
+            path = QPainterPath(points[0])
+            for pt in points[1:]:
+                path.lineTo(pt)
+            self.setPath(path)
 
     # -- Waypoint management ---------------------------------------------------
 
-    def _rebuild_handles(self):
-        """Synchronise the handle list with the waypoint list."""
-        # Remove excess handles
+    def _sync_handles(self):
+        """Create / destroy handles to match the waypoint list."""
         while len(self._handles) > len(self._waypoints):
-            handle = self._handles.pop()
-            if handle.scene():
-                handle.scene().removeItem(handle)
-
-        # Create missing handles
+            h = self._handles.pop()
+            if h.scene():
+                h.scene().removeItem(h)
         while len(self._handles) < len(self._waypoints):
             idx = len(self._handles)
-            handle = _WireHandle(self, idx)
-            handle.setVisible(self.isSelected())
-            self._handles.append(handle)
-
-        # Fixup indices
-        for i, handle in enumerate(self._handles):
-            handle._index = i
+            h = _WaypointHandle(self, idx)
+            h.setVisible(self.isSelected())
+            self._handles.append(h)
+        for i, h in enumerate(self._handles):
+            h._index = i
 
     @staticmethod
-    def _point_to_cubic_dist(p: QPointF,
-                             p1: QPointF, c1: QPointF,
-                             c2: QPointF, p2: QPointF,
-                             samples: int = 20) -> float:
-        """Approximate shortest distance from *p* to the cubic Bézier
-        defined by endpoints *p1*, *p2* and control-points *c1*, *c2*."""
-        best = float("inf")
-        for k in range(samples + 1):
-            t = k / samples
-            u = 1.0 - t
-            bx = u*u*u*p1.x() + 3*u*u*t*c1.x() + 3*u*t*t*c2.x() + t*t*t*p2.x()
-            by = u*u*u*p1.y() + 3*u*u*t*c1.y() + 3*u*t*t*c2.y() + t*t*t*p2.y()
-            d = math.hypot(p.x() - bx, p.y() - by)
-            if d < best:
-                best = d
-        return best
-
-    def _span_control_points(self) -> List[tuple]:
-        """Return the (p1, c1, c2, p2) quad for every Bézier span,
-        using the same Catmull-Rom tangent logic as *_build_path*."""
-        points = self._all_points()
-        n = len(points)
-        if n < 2:
-            return []
-        if n == 2:
-            dist = max(abs(points[1].x() - points[0].x()) * 0.5, 50)
-            c1 = QPointF(points[0].x() + dist, points[0].y())
-            c2 = QPointF(points[1].x() - dist, points[1].y())
-            return [(points[0], c1, c2, points[1])]
-
-        tangents: List[QPointF] = []
-        for i in range(n):
-            if i == 0:
-                dist = max(abs(points[1].x() - points[0].x()) * 0.5, 50)
-                tangents.append(QPointF(3.0 * dist, 0.0))
-            elif i == n - 1:
-                dist = max(abs(points[-1].x() - points[-2].x()) * 0.5, 50)
-                tangents.append(QPointF(3.0 * dist, 0.0))
-            else:
-                tx = (points[i + 1].x() - points[i - 1].x()) * 0.5
-                ty = (points[i + 1].y() - points[i - 1].y()) * 0.5
-                tangents.append(QPointF(tx, ty))
-
-        spans = []
-        for i in range(n - 1):
-            c1 = QPointF(
-                points[i].x()     + tangents[i].x()     / 3.0,
-                points[i].y()     + tangents[i].y()     / 3.0,
-            )
-            c2 = QPointF(
-                points[i + 1].x() - tangents[i + 1].x() / 3.0,
-                points[i + 1].y() - tangents[i + 1].y() / 3.0,
-            )
-            spans.append((points[i], c1, c2, points[i + 1]))
-        return spans
+    def _point_to_segment_dist(p: QPointF, a: QPointF, b: QPointF) -> float:
+        dx, dy = b.x() - a.x(), b.y() - a.y()
+        len_sq = dx * dx + dy * dy
+        if len_sq < 1e-10:
+            return math.hypot(p.x() - a.x(), p.y() - a.y())
+        t = max(0.0, min(1.0, ((p.x() - a.x()) * dx + (p.y() - a.y()) * dy) / len_sq))
+        proj_x = a.x() + t * dx
+        proj_y = a.y() + t * dy
+        return math.hypot(p.x() - proj_x, p.y() - proj_y)
 
     def add_waypoint(self, scene_pos: QPointF):
-        """Insert a new waypoint at *scene_pos* into the closest Bézier span."""
-        spans = self._span_control_points()
-        best_idx = 0
-        best_dist = float("inf")
-        for i, (p1, c1, c2, p2) in enumerate(spans):
-            d = self._point_to_cubic_dist(scene_pos, p1, c1, c2, p2)
+        """Insert a waypoint at *scene_pos* in the closest segment."""
+        points = self._all_points()
+        best_idx, best_dist = 0, float("inf")
+        for i in range(len(points) - 1):
+            d = self._point_to_segment_dist(scene_pos, points[i], points[i + 1])
             if d < best_dist:
                 best_dist = d
                 best_idx = i
-        # Insert *after* point[best_idx], i.e. at position best_idx in _waypoints
         self._waypoints.insert(best_idx, QPointF(scene_pos))
-        self._rebuild_handles()
+        self._sync_handles()
         self.update_path()
 
     def remove_waypoint(self, index: int):
-        """Remove waypoint at *index*."""
         if 0 <= index < len(self._waypoints):
             del self._waypoints[index]
-            self._rebuild_handles()
+            self._sync_handles()
             self.update_path()
 
-    # -- Double-click on the wire → add a waypoint ----------------------------
+    # -- Double-click → add waypoint ------------------------------------------
 
     def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent):
         self.add_waypoint(event.scenePos())
@@ -623,82 +427,113 @@ class WireItem(QGraphicsPathItem):
 
     # -- Selection hit area ---------------------------------------------------
 
-    def shape(self) -> QPainterPath:
-        """Return a widened path so the wire is easier to click."""
+    def shape(self):
         stroker = QPainterPathStroker()
         stroker.setWidth(12)
         stroker.setCapStyle(Qt.PenCapStyle.RoundCap)
+        stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         return stroker.createStroke(self.path())
 
-    # -- Rendering ----------------------------------------------------------------
+    # -- Rendering (with arrowheads) -------------------------------------------
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
             visible = bool(value)
-            for handle in self._handles:
-                handle.setVisible(visible)
+            for h in self._handles:
+                h.setVisible(visible)
         return super().itemChange(change, value)
+
+    @staticmethod
+    def _draw_arrow(painter: QPainter, tip: QPointF, direction: QPointF, size: float):
+        """Draw a filled arrowhead at *tip* pointing in *direction*."""
+        length = math.hypot(direction.x(), direction.y())
+        if length < 1e-6:
+            return
+        dx, dy = direction.x() / length, direction.y() / length
+        nx, ny = -dy, dx
+        base = QPointF(tip.x() - dx * size, tip.y() - dy * size)
+        left  = QPointF(base.x() + nx * size * 0.45, base.y() + ny * size * 0.45)
+        right = QPointF(base.x() - nx * size * 0.45, base.y() - ny * size * 0.45)
+        arrow = QPainterPath()
+        arrow.moveTo(tip)
+        arrow.lineTo(left)
+        arrow.lineTo(right)
+        arrow.closeSubpath()
+        painter.drawPath(arrow)
 
     def paint(self, painter: QPainter, option, widget=None):
         color = COLOR_WIRE_SELECTED if self.isSelected() else COLOR_WIRE
         pen = QPen(color, 2.5 if self.isSelected() else 2.0)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self.path())
 
+        # -- Arrowheads --------------------------------------------------------
+        a_to_b, b_to_a = self._directions()
+        if not a_to_b and not b_to_a and not self.mappings:
+            return
+
+        points = self._all_points()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(color))
+
+        if a_to_b or (not a_to_b and not b_to_a):
+            tip = points[-1]
+            prev = points[-2] if len(points) >= 2 else points[0]
+            self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
+        if b_to_a:
+            tip = points[0]
+            prev = points[1] if len(points) >= 2 else points[-1]
+            self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
+
     # -- Deletion -----------------------------------------------------------
 
     def remove(self):
-        """Remove the wire from scene and ports lists."""
-        if self.source and self in self.source.wires:
-            self.source.wires.remove(self)
-        if self.destination and self in self.destination.wires:
-            self.destination.wires.remove(self)
+        if self.node_a and self in self.node_a.wires:
+            self.node_a.wires.remove(self)
+        if self.node_b and self in self.node_b.wires:
+            self.node_b.wires.remove(self)
         if self.scene():
             self.scene().removeItem(self)
 
 
 class _DragWireItem(QGraphicsPathItem):
-    """Ghost wire shown while dragging from a port."""
+    """Ghost wire shown while dragging from a node."""
 
-    def __init__(self, start: QPointF, from_output: bool):
+    def __init__(self, start: QPointF):
         super().__init__()
         self._start = start
-        self._from_output = from_output
         pen = QPen(COLOR_WIRE_DRAGGING, 2.0, Qt.PenStyle.DashLine)
         self.setPen(pen)
         self.setZValue(10)
 
     def update_destination(self, end: QPointF):
-        if self._from_output:
-            path = WireItem.bezier(self._start, end)
-        else:
-            path = WireItem.bezier(end, self._start)
+        path = QPainterPath(self._start)
+        path.lineTo(end)
         self.setPath(path)
 
 
 class NodeGraphScene(QGraphicsScene):
-    """Graphics scene managing nodes, ports, and wires."""
+    """Graphics scene managing nodes and wires."""
 
-    # Public signals
-    node_added = Signal(object)       # NodeItem
-    node_removed = Signal(object)     # NodeItem
-    wire_added = Signal(object)       # WireItem
-    wire_removed = Signal(object)     # WireItem
+    node_added = Signal(object)
+    node_removed = Signal(object)
+    wire_added = Signal(object)
+    wire_removed = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setBackgroundBrush(QBrush(COLOR_BACKGROUND))
 
         self._drag_wire: Optional[_DragWireItem] = None
-        self._drag_start_port: Optional[PortItem] = None
-        self._drag_target_port: Optional[PortItem] = None
+        self._drag_start_node: Optional[NodeItem] = None
+        self._drag_target_node: Optional[NodeItem] = None
 
     # -- Public API ----------------------------------------------------------
 
     def add_node(self, fmu_path: Union[Path, str], x: float = 0, y: float = 0) -> NodeItem:
-        """Create and add a node to the scene."""
         node = NodeItem(Path(fmu_path), x=x, y=y)
         self.addItem(node)
         self.clearSelection()
@@ -706,21 +541,16 @@ class NodeGraphScene(QGraphicsScene):
         self.node_added.emit(node)
         return node
 
-    def add_wire(self, source: PortItem, destination: PortItem) -> Optional[WireItem]:
-        """Connect two ports with a wire. Returns None if invalid."""
-        # Validation
-        if source.port_type == destination.port_type:
+    def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> Optional[WireItem]:
+        """Connect two nodes with a wire. Returns None if invalid."""
+        if node_a is node_b:
             return None
-        if source.node is destination.node:
-            return None
-        # Enforce output -> input order
-        if source.port_type == PortType.INPUT:
-            source, destination = destination, source
-        # No duplicates
-        for w in source.wires:
-            if w.destination is destination:
+        # No duplicate wire between the same pair
+        for w in node_a.wires:
+            other = w.node_b if w.node_a is node_a else w.node_a
+            if other is node_b:
                 return None
-        wire = WireItem(source, destination)
+        wire = WireItem(node_a, node_b)
         self.addItem(wire)
         self.clearSelection()
         wire.setSelected(True)
@@ -728,7 +558,6 @@ class NodeGraphScene(QGraphicsScene):
         return wire
 
     def remove_selected(self):
-        """Remove selected items (wires first, then nodes)."""
         for item in list(self.selectedItems()):
             if isinstance(item, WireItem):
                 self.wire_removed.emit(item)
@@ -746,63 +575,206 @@ class NodeGraphScene(QGraphicsScene):
         return [it for it in self.items() if isinstance(it, WireItem)]
 
     def clear_all(self):
-        """Remove all nodes and wires."""
         for wire in self.wires():
             wire.remove()
         for node in self.nodes():
             self.removeItem(node)
 
-    # -- Interaction: wire drag ---------------------------------------------
+    # -- Layout optimization (Sugiyama-style) --------------------------------
 
-    def _port_at(self, scene_pos: QPointF) -> Optional[PortItem]:
-        """Return the nearest PortItem under the given position."""
+    def optimize_layout(self):
+        """Reposition nodes to minimise wire crossings.
+
+        Algorithm (Sugiyama simplified, cycle-safe):
+
+        1. Build a directed adjacency from wire *mappings*.  Each mapping
+           ``(from_fmu, port, to_fmu, port)`` gives an edge from_node → to_node.
+           Edges whose direction cannot be resolved are treated as A→B.
+        2. **Layer assignment** – iterative BFS (Kahn's algorithm).
+           Nodes with no incoming edge go to layer 0, then each successor
+           gets ``max(layer[pred] + 1)``.  Nodes trapped in pure cycles
+           are placed in layer 0.
+        3. **Barycenter ordering** – within each layer, sort nodes by the
+           average position of their neighbours in the adjacent layer.
+           4 forward + backward sweeps.
+        4. **Grid placement** – uniform horizontal/vertical spacing, centred
+           on the origin.
+        5. **Clear waypoints** on every wire (the new straight-line layout
+           should make them unnecessary).
+        """
+        from collections import deque
+
+        all_nodes = self.nodes()
+        all_wires = self.wires()
+        if not all_nodes:
+            return
+
+        # -- 1. Directed adjacency from mappings ----------------------------
+        node_by_name: Dict[str, NodeItem] = {}
+        for n in all_nodes:
+            node_by_name[n.fmu_path.name] = n
+
+        successors:   Dict[NodeItem, Set[NodeItem]] = {n: set() for n in all_nodes}
+        predecessors: Dict[NodeItem, Set[NodeItem]] = {n: set() for n in all_nodes}
+
+        for w in all_wires:
+            if w.mappings:
+                for m in w.mappings:
+                    if len(m) >= 4:
+                        src = node_by_name.get(m[0])
+                        dst = node_by_name.get(m[2])
+                        if src and dst and src is not dst:
+                            successors[src].add(dst)
+                            predecessors[dst].add(src)
+                    # else: malformed mapping – skip
+                if not any(len(m) >= 4 for m in w.mappings):
+                    # no usable mapping – fall through to default
+                    successors[w.node_a].add(w.node_b)
+                    predecessors[w.node_b].add(w.node_a)
+            else:
+                # Wire with no mappings yet – default A→B
+                successors[w.node_a].add(w.node_b)
+                predecessors[w.node_b].add(w.node_a)
+
+        # -- 2. Layer assignment (Kahn BFS, cycle-safe) ---------------------
+        in_degree: Dict[NodeItem, int] = {n: len(predecessors[n]) for n in all_nodes}
+        layer: Dict[NodeItem, int] = {}
+
+        queue: deque = deque()
+        for n in all_nodes:
+            if in_degree[n] == 0:
+                layer[n] = 0
+                queue.append(n)
+
+        while queue:
+            node = queue.popleft()
+            for succ in successors[node]:
+                new_layer = layer[node] + 1
+                if succ not in layer or new_layer > layer[succ]:
+                    layer[succ] = new_layer
+                in_degree[succ] -= 1
+                if in_degree[succ] == 0:
+                    queue.append(succ)
+
+        # Pure-cycle nodes – assign layer 0
+        for n in all_nodes:
+            if n not in layer:
+                layer[n] = 0
+
+        num_layers = max(layer.values()) + 1 if layer else 1
+
+        layers: List[List[NodeItem]] = [[] for _ in range(num_layers)]
+        for n in all_nodes:
+            layers[layer[n]].append(n)
+
+        # -- 3. Barycenter ordering -----------------------------------------
+        for col in layers:
+            col.sort(key=lambda n: n.pos().y())
+
+        def _idx(node, col):
+            try:
+                return col.index(node)
+            except ValueError:
+                return 0
+
+        for _ in range(4):
+            # Forward sweep
+            for li in range(1, num_layers):
+                prev = layers[li - 1]
+                bary = {}
+                for node in layers[li]:
+                    preds = [p for p in predecessors[node] if layer.get(p) == li - 1]
+                    bary[node] = (sum(_idx(p, prev) for p in preds) / len(preds)) if preds else _idx(node, layers[li])
+                layers[li].sort(key=lambda n: bary[n])
+            # Backward sweep
+            for li in range(num_layers - 2, -1, -1):
+                nxt = layers[li + 1]
+                bary = {}
+                for node in layers[li]:
+                    succs = [s for s in successors[node] if layer.get(s) == li + 1]
+                    bary[node] = (sum(_idx(s, nxt) for s in succs) / len(succs)) if succs else _idx(node, layers[li])
+                layers[li].sort(key=lambda n: bary[n])
+
+        # -- 4. Grid placement ----------------------------------------------
+        H_GAP = 80
+        V_GAP = 30
+
+        col_widths = [
+            max((n.rect().width() for n in col), default=NODE_MIN_WIDTH)
+            for col in layers
+        ]
+        col_x = [0.0] * num_layers
+        for li in range(1, num_layers):
+            col_x[li] = col_x[li - 1] + col_widths[li - 1] + H_GAP
+
+        total_w = (col_x[-1] + col_widths[-1]) if col_widths else 0
+        x_off = -total_w / 2.0
+
+        for li, col in enumerate(layers):
+            total_h = sum(n.rect().height() for n in col) + V_GAP * max(len(col) - 1, 0)
+            y = -total_h / 2.0
+            for node in col:
+                node.setPos(x_off + col_x[li], y)
+                y += node.rect().height() + V_GAP
+
+        # -- 5. Clear wire waypoints ----------------------------------------
+        for w in all_wires:
+            w._waypoints.clear()
+            w._sync_handles()
+            w.update_path()
+
+    # -- Interaction: wire drag from node border ----------------------------
+
+    def _node_at(self, scene_pos: QPointF) -> Optional[NodeItem]:
         for item in self.items(scene_pos, Qt.ItemSelectionMode.IntersectsItemBoundingRect):
-            if isinstance(item, PortItem):
+            if isinstance(item, NodeItem):
                 return item
         return None
 
+    def _is_on_node_border(self, node: NodeItem, scene_pos: QPointF, margin: float = 10) -> bool:
+        """True if *scene_pos* is within *margin* of the node rectangle edge."""
+        r = node.sceneBoundingRect()
+        inner = r.adjusted(margin, margin, -margin, -margin)
+        return r.contains(scene_pos) and not inner.contains(scene_pos)
+
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
-        port = self._port_at(event.scenePos())
-        if port and event.button() == Qt.MouseButton.LeftButton:
-            self._drag_start_port = port
-            from_output = port.port_type == PortType.OUTPUT
-            self._drag_wire = _DragWireItem(port.center_scene_pos(), from_output)
-            self.addItem(self._drag_wire)
-            event.accept()
-            return
+        if event.button() == Qt.MouseButton.LeftButton:
+            node = self._node_at(event.scenePos())
+            if node and self._is_on_node_border(node, event.scenePos()):
+                self._drag_start_node = node
+                start = node.edge_point(event.scenePos())
+                self._drag_wire = _DragWireItem(start)
+                self.addItem(self._drag_wire)
+                event.accept()
+                return
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
         if self._drag_wire:
             self._drag_wire.update_destination(event.scenePos())
-            # Target port highlight
-            port = self._port_at(event.scenePos())
-            if port is self._drag_start_port:
-                port = None
-            if port is not self._drag_target_port:
-                if self._drag_target_port:
-                    self._drag_target_port.set_drop_highlight(False)
-                self._drag_target_port = port
-                if port:
-                    port.set_drop_highlight(True)
+            # Highlight target node
+            node = self._node_at(event.scenePos())
+            if node is self._drag_start_node:
+                node = None
+            if node is not self._drag_target_node:
+                if self._drag_target_node:
+                    self._drag_target_node.setZValue(1)  # reset
+                self._drag_target_node = node
             event.accept()
             return
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
         if self._drag_wire:
-            # Clear highlight
-            if self._drag_target_port:
-                self._drag_target_port.set_drop_highlight(False)
-                self._drag_target_port = None
-            # Find a port under cursor
-            target = self._port_at(event.scenePos())
-            if target and target is not self._drag_start_port:
-                self.add_wire(self._drag_start_port, target)
-            # Cleanup
+            if self._drag_target_node:
+                self._drag_target_node.setZValue(1)
+                self._drag_target_node = None
+            target = self._node_at(event.scenePos())
+            if target and target is not self._drag_start_node:
+                self.add_wire(self._drag_start_node, target)
             self.removeItem(self._drag_wire)
             self._drag_wire = None
-            self._drag_start_port = None
+            self._drag_start_node = None
             event.accept()
             return
         super().mouseReleaseEvent(event)
@@ -972,6 +944,7 @@ class NodeGraphView(QGraphicsView):
             delete_action = menu.addAction("Delete Selection")
         menu.addSeparator()
         fit_action = menu.addAction("Fit View")
+        optimize_action = menu.addAction("Optimize Layout")
 
         chosen = menu.exec(event.globalPos())
         if chosen == add_fmu_action:
@@ -984,6 +957,9 @@ class NodeGraphView(QGraphicsView):
         elif chosen == delete_action:
             self._scene.remove_selected()
         elif chosen == fit_action:
+            self.fit_all()
+        elif chosen == optimize_action:
+            self._scene.optimize_layout()
             self.fit_all()
 
     def fit_all(self):
@@ -1023,8 +999,8 @@ class NodeGraphWidget(QWidget):
     ) -> NodeItem:
         return self.scene.add_node(fmu_path, x, y)
 
-    def add_wire(self, source: PortItem, destination: PortItem) -> Optional[WireItem]:
-        return self.scene.add_wire(source, destination)
+    def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> Optional[WireItem]:
+        return self.scene.add_wire(node_a, node_b)
 
     def clear(self):
         self.scene.clear_all()
@@ -1077,14 +1053,14 @@ class _PortComboDelegate(QStyledItemDelegate):
 
 
 class WireDetailWidget(QWidget):
-    """WireItem details: title label + 2-column port-mapping table.
+    """WireItem details: 4-column table where each row defines a directed
+    variable connection between the two nodes.
 
     Columns:
-        0 – Output port  (from the source node's FMU outputs)
-        1 – Input port   (from the destination node's FMU inputs)
-
-    Each cell uses a combo-box delegate so the user picks port names
-    from drop-down menus.  *Add* / *Remove* buttons manage rows.
+        0 – From FMU   (combo: node_a.title or node_b.title)
+        1 – Output Port (combo: outputs of the selected "from" FMU)
+        2 – To FMU     (combo: the other node)
+        3 – Input Port  (combo: inputs of the selected "to" FMU)
     """
 
     changed = Signal()
@@ -1099,11 +1075,13 @@ class WireDetailWidget(QWidget):
         font.setBold(True)
         self._name_label.setFont(font)
 
-        # -- Table model (2 columns) --
-        self._table_model = QStandardItemModel(0, 2)
-        self._table_model.setHorizontalHeaderLabels(["From", "To"])
+        # -- Table model (4 columns) --
+        self._table_model = QStandardItemModel(0, 4)
+        self._table_model.setHorizontalHeaderLabels(
+            ["From FMU", "Output Port", "To FMU", "Input Port"]
+        )
 
-        # -- Sort proxy (avoids editor invalidation on sort) --
+        # -- Sort proxy --
         self._proxy_model = QSortFilterProxyModel(self)
         self._proxy_model.setSourceModel(self._table_model)
 
@@ -1120,11 +1098,15 @@ class WireDetailWidget(QWidget):
         self._table.setAlternatingRowColors(True)
         self._table.verticalHeader().setVisible(False)
 
-        # -- Combo-box delegates (one per column) --
-        self._source_delegate = _PortComboDelegate(self._table)
-        self._dest_delegate = _PortComboDelegate(self._table)
-        self._table.setItemDelegateForColumn(0, self._source_delegate)
-        self._table.setItemDelegateForColumn(1, self._dest_delegate)
+        # -- Delegates --
+        self._from_fmu_delegate = _PortComboDelegate(self._table)
+        self._output_delegate = _PortComboDelegate(self._table)
+        self._to_fmu_delegate = _PortComboDelegate(self._table)
+        self._input_delegate = _PortComboDelegate(self._table)
+        self._table.setItemDelegateForColumn(0, self._from_fmu_delegate)
+        self._table.setItemDelegateForColumn(1, self._output_delegate)
+        self._table.setItemDelegateForColumn(2, self._to_fmu_delegate)
+        self._table.setItemDelegateForColumn(3, self._input_delegate)
 
         # -- Sync edits back to WireItem --
         self._table_model.dataChanged.connect(self._on_table_data_changed)
@@ -1165,76 +1147,108 @@ class WireDetailWidget(QWidget):
         lay.addWidget(self._table, 1)
         lay.addLayout(btn_lay)
 
+    # ── Helpers ──────────────────────────────────────────────────
+
+    def _fmu_names(self) -> List[str]:
+        if not self._wire:
+            return []
+        return [self._wire.node_a.fmu_path.name, self._wire.node_b.fmu_path.name]
+
+    def _other_name(self, name: str) -> str:
+        names = self._fmu_names()
+        if not names:
+            return ""
+        return names[1] if name == names[0] else names[0]
+
+    def _node_by_name(self, name: str) -> Optional[NodeItem]:
+        if not self._wire:
+            return None
+        if name == self._wire.node_a.fmu_path.name:
+            return self._wire.node_a
+        if name == self._wire.node_b.fmu_path.name:
+            return self._wire.node_b
+        return None
+
     # ── Public API ──────────────────────────────────────────────
 
     def set_wire(self, wire: WireItem):
-        """Bind to a wire and refresh delegates / table."""
-        # Save current table to the previous wire before switching
         self.sync_to_wire()
-
         self._wire = wire
-        src, dst = wire.source, wire.destination
-        self._name_label.setText(f"{src.node.title}  →  {dst.node.title}")
+        na, nb = wire.node_a, wire.node_b
+        self._name_label.setText(f"{na.title}  ↔  {nb.title}")
 
-        # Refresh available port names in delegates
-        self._source_delegate.set_items(src.node.fmu_output_names)
-        self._dest_delegate.set_items(dst.node.fmu_input_names)
+        fmu_names = [na.fmu_path.name, nb.fmu_path.name]
+        self._from_fmu_delegate.set_items(fmu_names)
+        self._to_fmu_delegate.set_items(fmu_names)
 
-        # Reload mappings stored on the wire
+        # Output/input delegates will hold the union; the combo just offers
+        # what is available.  Per-row accuracy depends on the "from" column.
+        all_outputs = na.fmu_output_names + nb.fmu_output_names
+        all_inputs  = na.fmu_input_names  + nb.fmu_input_names
+        self._output_delegate.set_items(all_outputs)
+        self._input_delegate.set_items(all_inputs)
+
         self._load_from_wire()
 
     # ── Internal sync helpers ─────────────────────────────────────
 
     def sync_to_wire(self):
-        """Write the current table content back to self._wire.mappings."""
         if self._wire is None:
             return
         mappings = []
         for r in range(self._table_model.rowCount()):
-            out_item = self._table_model.item(r, 0)
-            in_item = self._table_model.item(r, 1)
-            if out_item and in_item:
-                out_name = out_item.text()
-                in_name = in_item.text()
-                if out_name and in_name:
-                    mappings.append((out_name, in_name))
+            items = [self._table_model.item(r, c) for c in range(4)]
+            if all(items) and all(it.text() for it in items):
+                mappings.append(tuple(it.text() for it in items))
         self._wire.mappings = mappings
 
     def _load_from_wire(self):
-        """Populate the table from self._wire.mappings."""
         self._table_model.removeRows(0, self._table_model.rowCount())
         if self._wire is None:
             return
-        for out_name, in_name in self._wire.mappings:
-            self._table_model.appendRow(
-                [QStandardItem(out_name), QStandardItem(in_name)]
-            )
+        for mapping in self._wire.mappings:
+            if len(mapping) == 4:
+                row = [QStandardItem(str(v)) for v in mapping]
+            elif len(mapping) == 2:
+                # Legacy 2-tuple (output_port, input_port) — assume A→B
+                row = [
+                    QStandardItem(self._wire.node_a.fmu_path.name),
+                    QStandardItem(mapping[0]),
+                    QStandardItem(self._wire.node_b.fmu_path.name),
+                    QStandardItem(mapping[1]),
+                ]
+            else:
+                continue
+            self._table_model.appendRow(row)
 
     # ── Slots ────────────────────────────────────────────────────
 
     def _on_add(self):
-        """Add a new mapping row with default first port names."""
         if self._wire is None:
             return
-        out_names = self._wire.source.node.fmu_output_names
-        in_names = self._wire.destination.node.fmu_input_names
-        if not out_names or not in_names:
+        na, nb = self._wire.node_a, self._wire.node_b
+        # Default: first node with outputs → other with inputs
+        from_node, to_node = na, nb
+        if not na.fmu_output_names and nb.fmu_output_names:
+            from_node, to_node = nb, na
+        if not from_node.fmu_output_names or not to_node.fmu_input_names:
             return
-
-        src_item = QStandardItem(out_names[0])
-        dst_item = QStandardItem(in_names[0])
-        self._table_model.appendRow([src_item, dst_item])
+        row = [
+            QStandardItem(from_node.fmu_path.name),
+            QStandardItem(from_node.fmu_output_names[0]),
+            QStandardItem(to_node.fmu_path.name),
+            QStandardItem(to_node.fmu_input_names[0]),
+        ]
+        self._table_model.appendRow(row)
         self.sync_to_wire()
         self.changed.emit()
 
     def _on_remove(self):
-        """Remove selected rows from the mapping table."""
         source_rows = sorted(
             {self._proxy_model.mapToSource(idx).row()
              for idx in self._table.selectionModel().selectedRows()},
             reverse=True,
         )
-        # Close any active editor before removing rows
         self._table.setCurrentIndex(QModelIndex())
         for r in source_rows:
             self._table_model.removeRow(r)
@@ -1242,26 +1256,31 @@ class WireDetailWidget(QWidget):
         self.changed.emit()
 
     def _on_auto_connect(self):
-        """Automatically map ports that share the same name."""
         if self._wire is None:
             return
-        out_names = self._wire.source.node.fmu_output_names
-        in_names = self._wire.destination.node.fmu_input_names
-        in_set = set(in_names)
-
-        # Collect already-mapped pairs to avoid duplicates
+        na, nb = self._wire.node_a, self._wire.node_b
         existing = set(self._wire.mappings)
 
-        for name in out_names:
-            if name in in_set and (name, name) not in existing:
-                self._table_model.appendRow(
-                    [QStandardItem(name), QStandardItem(name)]
-                )
+        # A→B: outputs of A matching inputs of B
+        b_inputs = set(nb.fmu_input_names)
+        for name in na.fmu_output_names:
+            if name in b_inputs:
+                m = (na.fmu_path.name, name, nb.fmu_path.name, name)
+                if m not in existing:
+                    self._table_model.appendRow([QStandardItem(v) for v in m])
+
+        # B→A: outputs of B matching inputs of A
+        a_inputs = set(na.fmu_input_names)
+        for name in nb.fmu_output_names:
+            if name in a_inputs:
+                m = (nb.fmu_path.name, name, na.fmu_path.name, name)
+                if m not in existing:
+                    self._table_model.appendRow([QStandardItem(v) for v in m])
+
         self.sync_to_wire()
         self.changed.emit()
 
     def _on_table_data_changed(self, _top_left, _bottom_right, _roles):
-        """Sync to wire whenever a cell is edited via combo box."""
         self.sync_to_wire()
         self.changed.emit()
 
@@ -2148,33 +2167,35 @@ class MainWindow(QMainWindow):
 
 
         # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
-        wire_mappings: Dict[Tuple[str, str], List[Tuple[str, str]]] = {}
+        # A wire between two nodes can carry mappings in both directions.
+        wire_key_mappings: Dict[Tuple[str, str], List[Tuple[str, str, str, str]]] = {}
         for link in links_list:
             fmu_from, port_from, fmu_to, port_to = link[0], link[1], link[2], link[3]
-            key = (fmu_from, fmu_to)
-            wire_mappings.setdefault(key, []).append((port_from, port_to))
+            # Canonical key: sorted pair so A→B and B→A end up on the same wire
+            key = tuple(sorted([fmu_from, fmu_to]))
+            wire_key_mappings.setdefault(key, []).append((fmu_from, port_from, fmu_to, port_to))
 
         # Create wires with their port-level mappings
-        # Block scene signals to prevent auto-selection from triggering
-        # set_wire/sync_to_wire which would overwrite mappings before they are set.
         self._graph.scene.blockSignals(True)
         try:
-            for (fmu_from, fmu_to), mappings in wire_mappings.items():
-                node_from = nodes_by_name.get(fmu_from)
-                node_to = nodes_by_name.get(fmu_to)
-                if not node_from or not node_to:
-                    logger.warning(f"Cannot create wire: node not found for {fmu_from} -> {fmu_to}")
-                    continue
-                if not node_from.output_port or not node_to.input_port:
-                    logger.warning(f"Cannot create wire: missing port on {fmu_from} -> {fmu_to}")
+            for (name1, name2), mappings in wire_key_mappings.items():
+                node1 = nodes_by_name.get(name1)
+                node2 = nodes_by_name.get(name2)
+                if not node1 or not node2:
+                    logger.warning(f"Cannot create wire: node not found for {name1} ↔ {name2}")
                     continue
 
-                wire = self._graph.scene.add_wire(node_from.output_port, node_to.input_port)
+                wire = self._graph.scene.add_wire(node1, node2)
                 if wire:
                     wire.mappings = mappings
-                    logger.debug(f"Wire created: {fmu_from} -> {fmu_to} with {len(mappings)} mapping(s)")
+                    logger.debug(f"Wire created: {name1} ↔ {name2} with {len(mappings)} mapping(s)")
                 else:
-                    logger.warning(f"Wire already exists: {fmu_from} -> {fmu_to}")
+                    # Wire already exists — append mappings
+                    for w in node1.wires:
+                        other = w.node_b if w.node_a is node1 else w.node_a
+                        if other is node2:
+                            w.mappings.extend(mappings)
+                            break
         finally:
             self._graph.scene.blockSignals(False)
             self._graph.scene.clearSelection()
@@ -2317,12 +2338,26 @@ class MainWindow(QMainWindow):
             logger.fatal(f"{e}")
 
         links_list: List[Tuple[str, str, str, str]] = []
+        # Build fmu_path lookup by fmu_path.name
+        path_by_name: Dict[str, str] = {}
+        for node in self._graph.scene.nodes():
+            path_by_name[node.fmu_path.name] = str(node.fmu_path)
+
         for wire in self._graph.scene.wires():
-            fmu_from = nodes_by_uid[wire.source.node.uid]
-            fmu_to = nodes_by_uid[wire.destination.node.uid]
             for link in wire.mappings:
-                logger.info(f"{fmu_from.fmu_path} {link[0]} -> {fmu_to.fmu_path} {link[1]}")
-                links_list.append((str(fmu_from.fmu_path), link[0], str(fmu_to.fmu_path), link[1]))
+                if len(link) == 4:
+                    fmu_from_name, port_from, fmu_to_name, port_to = link
+                    fmu_from_path = path_by_name.get(fmu_from_name, fmu_from_name)
+                    fmu_to_path = path_by_name.get(fmu_to_name, fmu_to_name)
+                elif len(link) == 2:
+                    # Legacy 2-tuple: assume node_a → node_b
+                    fmu_from_path = str(wire.node_a.fmu_path)
+                    fmu_to_path = str(wire.node_b.fmu_path)
+                    port_from, port_to = link
+                else:
+                    continue
+                logger.info(f"{fmu_from_path} {port_from} -> {fmu_to_path} {port_to}")
+                links_list.append((fmu_from_path, port_from, fmu_to_path, port_to))
 
         self._apply_links_on_assembly_node(assembly.root, links_list)
 
