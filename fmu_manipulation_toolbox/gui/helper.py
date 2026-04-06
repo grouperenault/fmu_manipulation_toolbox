@@ -257,7 +257,9 @@ class RunTask(QDialog):
 
         self.show()
 
-        logger.debug("Starting...")
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        logger.debug(f"Starting {title}...")
         task(*args, **kwargs)
-        logger.debug("End of task.")
+        logger.info(f"{title} finished.")
+        QApplication.restoreOverrideCursor()
         self.text.stop_logging()
