@@ -1052,15 +1052,150 @@ class _PortComboDelegate(QStyledItemDelegate):
         editor.setGeometry(option.rect)
 
 
-class WireDetailWidget(QWidget):
-    """WireItem details: 4-column table where each row defines a directed
-    variable connection between the two nodes.
+class _WireDirectionTab(QWidget):
+    """One direction of a wire: 2-column table (Output Port → Input Port).
 
-    Columns:
-        0 – From FMU   (combo: node_a.title or node_b.title)
-        1 – Output Port (combo: outputs of the selected "from" FMU)
-        2 – To FMU     (combo: the other node)
-        3 – Input Port  (combo: inputs of the selected "to" FMU)
+    *from_node* is the source node, *to_node* the destination.
+    """
+
+    changed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._from_node: Optional[NodeItem] = None
+        self._to_node: Optional[NodeItem] = None
+
+        # -- Table model (2 columns) --
+        self._model = QStandardItemModel(0, 2)
+        self._model.setHorizontalHeaderLabels(["Output Port", "Input Port"])
+
+        self._proxy = QSortFilterProxyModel(self)
+        self._proxy.setSourceModel(self._model)
+
+        self._table = QTableView()
+        self._table.setSortingEnabled(True)
+        self._table.setModel(self._proxy)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
+        self._table.horizontalHeader().setStretchLastSection(True)
+        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._table.setAlternatingRowColors(True)
+        self._table.verticalHeader().setVisible(False)
+
+        # -- Delegates --
+        self._output_delegate = _PortComboDelegate(self._table)
+        self._input_delegate = _PortComboDelegate(self._table)
+        self._table.setItemDelegateForColumn(0, self._output_delegate)
+        self._table.setItemDelegateForColumn(1, self._input_delegate)
+
+        self._model.dataChanged.connect(lambda *_: self.changed.emit())
+
+        # -- Buttons --
+        self._add_btn = QPushButton("Add link")
+        self._remove_btn = QPushButton("Remove link")
+        self._add_btn.setProperty("class", "info")
+        self._remove_btn.setProperty("class", "removal")
+        self._add_btn.clicked.connect(self._on_add)
+        self._remove_btn.clicked.connect(self._on_remove)
+
+        btn_lay = QHBoxLayout()
+        btn_lay.setContentsMargins(0, 0, 0, 0)
+        btn_lay.addWidget(self._add_btn)
+        btn_lay.addWidget(self._remove_btn)
+        btn_lay.addStretch()
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self._table, 1)
+        lay.addLayout(btn_lay)
+
+    # ── Configuration ───────────────────────────────────────────
+
+    def set_nodes(self, from_node: NodeItem, to_node: NodeItem):
+        self._from_node = from_node
+        self._to_node = to_node
+        self._output_delegate.set_items(from_node.fmu_output_names)
+        self._input_delegate.set_items(to_node.fmu_input_names)
+
+    # ── Data access ─────────────────────────────────────────────
+
+    def mappings(self) -> List[tuple]:
+        """Return list of 4-tuples (from_fmu, output, to_fmu, input)."""
+        if not self._from_node or not self._to_node:
+            return []
+        result = []
+        from_name = self._from_node.fmu_path.name
+        to_name = self._to_node.fmu_path.name
+        for r in range(self._model.rowCount()):
+            out_item = self._model.item(r, 0)
+            in_item = self._model.item(r, 1)
+            if out_item and in_item and out_item.text() and in_item.text():
+                result.append((from_name, out_item.text(), to_name, in_item.text()))
+        return result
+
+    def load_mappings(self, mappings: List[tuple]):
+        """Populate the table from 4-tuples (only keep rows matching this direction)."""
+        self._model.removeRows(0, self._model.rowCount())
+        if not self._from_node or not self._to_node:
+            return
+        from_name = self._from_node.fmu_path.name
+        to_name = self._to_node.fmu_path.name
+        for m in mappings:
+            if len(m) >= 4 and m[0] == from_name and m[2] == to_name:
+                self._model.appendRow([QStandardItem(m[1]), QStandardItem(m[3])])
+            elif len(m) == 2:
+                # Legacy 2-tuple: only load in the first direction tab
+                self._model.appendRow([QStandardItem(m[0]), QStandardItem(m[1])])
+
+    def row_count(self) -> int:
+        return self._model.rowCount()
+
+    # ── Auto-connect ────────────────────────────────────────────
+
+    def auto_connect(self, existing: set):
+        """Add rows for matching output/input port names not in *existing*."""
+        if not self._from_node or not self._to_node:
+            return
+        from_name = self._from_node.fmu_path.name
+        to_name = self._to_node.fmu_path.name
+        to_inputs = set(self._to_node.fmu_input_names)
+        for name in self._from_node.fmu_output_names:
+            if name in to_inputs:
+                m = (from_name, name, to_name, name)
+                if m not in existing:
+                    self._model.appendRow([QStandardItem(name), QStandardItem(name)])
+                    existing.add(m)
+
+    # ── Slots ───────────────────────────────────────────────────
+
+    def _on_add(self):
+        if not self._from_node or not self._to_node:
+            return
+        if not self._from_node.fmu_output_names or not self._to_node.fmu_input_names:
+            return
+        self._model.appendRow([
+            QStandardItem(self._from_node.fmu_output_names[0]),
+            QStandardItem(self._to_node.fmu_input_names[0]),
+        ])
+        self.changed.emit()
+
+    def _on_remove(self):
+        source_rows = sorted(
+            {self._proxy.mapToSource(idx).row()
+             for idx in self._table.selectionModel().selectedRows()},
+            reverse=True,
+        )
+        self._table.setCurrentIndex(QModelIndex())
+        for r in source_rows:
+            self._model.removeRow(r)
+        self.changed.emit()
+
+
+class WireDetailWidget(QWidget):
+    """WireItem details with two tabs – one per direction (A → B and B → A).
+
+    Each tab shows a 2-column table (Output Port, Input Port).
+    The *Auto-Connect* button populates **both** directions at once.
     """
 
     changed = Signal()
@@ -1075,99 +1210,32 @@ class WireDetailWidget(QWidget):
         font.setBold(True)
         self._name_label.setFont(font)
 
-        # -- Table model (4 columns) --
-        self._table_model = QStandardItemModel(0, 4)
-        self._table_model.setHorizontalHeaderLabels(
-            ["From FMU", "Output Port", "To FMU", "Input Port"]
-        )
+        # -- Tabs (one per direction) --
+        self._tab_ab = _WireDirectionTab()
+        self._tab_ba = _WireDirectionTab()
+        self._tab_ab.changed.connect(self._on_tab_changed)
+        self._tab_ba.changed.connect(self._on_tab_changed)
 
-        # -- Sort proxy --
-        self._proxy_model = QSortFilterProxyModel(self)
-        self._proxy_model.setSourceModel(self._table_model)
+        self._tabs = QTabWidget()
+        self._tabs.addTab(self._tab_ab, "A → B")
+        self._tabs.addTab(self._tab_ba, "B → A")
 
-        # -- Table view --
-        self._table = QTableView()
-        self._table.setSortingEnabled(True)
-        self._table.setModel(self._proxy_model)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._table.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
-        self._table.horizontalHeader().setStretchLastSection(True)
-        self._table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch,
-        )
-        self._table.setAlternatingRowColors(True)
-        self._table.verticalHeader().setVisible(False)
-
-        # -- Delegates --
-        self._from_fmu_delegate = _PortComboDelegate(self._table)
-        self._output_delegate = _PortComboDelegate(self._table)
-        self._to_fmu_delegate = _PortComboDelegate(self._table)
-        self._input_delegate = _PortComboDelegate(self._table)
-        self._table.setItemDelegateForColumn(0, self._from_fmu_delegate)
-        self._table.setItemDelegateForColumn(1, self._output_delegate)
-        self._table.setItemDelegateForColumn(2, self._to_fmu_delegate)
-        self._table.setItemDelegateForColumn(3, self._input_delegate)
-
-        # -- Sync edits back to WireItem --
-        self._table_model.dataChanged.connect(self._on_table_data_changed)
-
-        # -- Buttons --
-        self._add_btn = QPushButton("Add link")
-        self._remove_btn = QPushButton("Remove link")
+        # -- Auto-Connect button --
         self._auto_btn = QPushButton("Auto-Connect")
-
-        self._add_btn.setProperty("class", "info")
-        self._remove_btn.setProperty("class", "removal")
         self._auto_btn.setProperty("class", "info")
-
-        self._add_btn.clicked.connect(self._on_add)
-        self._remove_btn.clicked.connect(self._on_remove)
         self._auto_btn.clicked.connect(self._on_auto_connect)
-
-        btn_width = max(
-            self._add_btn.sizeHint().width(),
-            self._remove_btn.sizeHint().width(),
-            self._auto_btn.sizeHint().width(),
-        )
-        self._add_btn.setMinimumWidth(btn_width)
-        self._remove_btn.setMinimumWidth(btn_width)
-        self._auto_btn.setMinimumWidth(btn_width)
 
         btn_lay = QHBoxLayout()
         btn_lay.setContentsMargins(0, 0, 0, 0)
         btn_lay.addWidget(self._auto_btn)
-        btn_lay.addWidget(self._add_btn)
-        btn_lay.addWidget(self._remove_btn)
         btn_lay.addStretch()
 
         # -- Layout --
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.addWidget(self._name_label)
-        lay.addWidget(self._table, 1)
+        lay.addWidget(self._tabs, 1)
         lay.addLayout(btn_lay)
-
-    # ── Helpers ──────────────────────────────────────────────────
-
-    def _fmu_names(self) -> List[str]:
-        if not self._wire:
-            return []
-        return [self._wire.node_a.fmu_path.name, self._wire.node_b.fmu_path.name]
-
-    def _other_name(self, name: str) -> str:
-        names = self._fmu_names()
-        if not names:
-            return ""
-        return names[1] if name == names[0] else names[0]
-
-    def _node_by_name(self, name: str) -> Optional[NodeItem]:
-        if not self._wire:
-            return None
-        if name == self._wire.node_a.fmu_path.name:
-            return self._wire.node_a
-        if name == self._wire.node_b.fmu_path.name:
-            return self._wire.node_b
-        return None
 
     # ── Public API ──────────────────────────────────────────────
 
@@ -1177,16 +1245,10 @@ class WireDetailWidget(QWidget):
         na, nb = wire.node_a, wire.node_b
         self._name_label.setText(f"{na.title}  ↔  {nb.title}")
 
-        fmu_names = [na.fmu_path.name, nb.fmu_path.name]
-        self._from_fmu_delegate.set_items(fmu_names)
-        self._to_fmu_delegate.set_items(fmu_names)
-
-        # Output/input delegates will hold the union; the combo just offers
-        # what is available.  Per-row accuracy depends on the "from" column.
-        all_outputs = na.fmu_output_names + nb.fmu_output_names
-        all_inputs  = na.fmu_input_names  + nb.fmu_input_names
-        self._output_delegate.set_items(all_outputs)
-        self._input_delegate.set_items(all_inputs)
+        self._tab_ab.set_nodes(na, nb)
+        self._tab_ba.set_nodes(nb, na)
+        self._tabs.setTabText(0, f"{na.title} → {nb.title}")
+        self._tabs.setTabText(1, f"{nb.title} → {na.title}")
 
         self._load_from_wire()
 
@@ -1195,92 +1257,27 @@ class WireDetailWidget(QWidget):
     def sync_to_wire(self):
         if self._wire is None:
             return
-        mappings = []
-        for r in range(self._table_model.rowCount()):
-            items = [self._table_model.item(r, c) for c in range(4)]
-            if all(items) and all(it.text() for it in items):
-                mappings.append(tuple(it.text() for it in items))
-        self._wire.mappings = mappings
+        self._wire.mappings = self._tab_ab.mappings() + self._tab_ba.mappings()
 
     def _load_from_wire(self):
-        self._table_model.removeRows(0, self._table_model.rowCount())
         if self._wire is None:
             return
-        for mapping in self._wire.mappings:
-            if len(mapping) == 4:
-                row = [QStandardItem(str(v)) for v in mapping]
-            elif len(mapping) == 2:
-                # Legacy 2-tuple (output_port, input_port) — assume A→B
-                row = [
-                    QStandardItem(self._wire.node_a.fmu_path.name),
-                    QStandardItem(mapping[0]),
-                    QStandardItem(self._wire.node_b.fmu_path.name),
-                    QStandardItem(mapping[1]),
-                ]
-            else:
-                continue
-            self._table_model.appendRow(row)
+        all_mappings = list(self._wire.mappings)
+        self._tab_ab.load_mappings(all_mappings)
+        self._tab_ba.load_mappings(all_mappings)
 
     # ── Slots ────────────────────────────────────────────────────
-
-    def _on_add(self):
-        if self._wire is None:
-            return
-        na, nb = self._wire.node_a, self._wire.node_b
-        # Default: first node with outputs → other with inputs
-        from_node, to_node = na, nb
-        if not na.fmu_output_names and nb.fmu_output_names:
-            from_node, to_node = nb, na
-        if not from_node.fmu_output_names or not to_node.fmu_input_names:
-            return
-        row = [
-            QStandardItem(from_node.fmu_path.name),
-            QStandardItem(from_node.fmu_output_names[0]),
-            QStandardItem(to_node.fmu_path.name),
-            QStandardItem(to_node.fmu_input_names[0]),
-        ]
-        self._table_model.appendRow(row)
-        self.sync_to_wire()
-        self.changed.emit()
-
-    def _on_remove(self):
-        source_rows = sorted(
-            {self._proxy_model.mapToSource(idx).row()
-             for idx in self._table.selectionModel().selectedRows()},
-            reverse=True,
-        )
-        self._table.setCurrentIndex(QModelIndex())
-        for r in source_rows:
-            self._table_model.removeRow(r)
-        self.sync_to_wire()
-        self.changed.emit()
 
     def _on_auto_connect(self):
         if self._wire is None:
             return
-        na, nb = self._wire.node_a, self._wire.node_b
         existing = set(self._wire.mappings)
-
-        # A→B: outputs of A matching inputs of B
-        b_inputs = set(nb.fmu_input_names)
-        for name in na.fmu_output_names:
-            if name in b_inputs:
-                m = (na.fmu_path.name, name, nb.fmu_path.name, name)
-                if m not in existing:
-                    self._table_model.appendRow([QStandardItem(v) for v in m])
-
-        # B→A: outputs of B matching inputs of A
-        a_inputs = set(na.fmu_input_names)
-        for name in nb.fmu_output_names:
-            if name in a_inputs:
-                m = (nb.fmu_path.name, name, na.fmu_path.name, name)
-                if m not in existing:
-                    self._table_model.appendRow([QStandardItem(v) for v in m])
-
+        self._tab_ab.auto_connect(existing)
+        self._tab_ba.auto_connect(existing)
         self.sync_to_wire()
         self.changed.emit()
 
-    def _on_table_data_changed(self, _top_left, _bottom_right, _roles):
+    def _on_tab_changed(self):
         self.sync_to_wire()
         self.changed.emit()
 
