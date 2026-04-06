@@ -25,7 +25,8 @@ from PySide6.QtWidgets import (
     QStackedWidget, QTableView, QLabel, QHeaderView,
     QFileDialog, QMainWindow, QPushButton, QComboBox, QCheckBox,
     QStyledItemDelegate, QAbstractItemView,
-    QWidgetAction, QRadioButton, QButtonGroup, QFrame, QMessageBox
+    QWidgetAction, QRadioButton, QButtonGroup, QFrame, QMessageBox,
+    QTabWidget
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, RunTask
@@ -153,6 +154,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_output_names: List[str] = []
         self.fmu_start_values: Dict[str, str] = {}
         self.user_start_values: Dict[str, str] = {}
+        self.user_exposed_outputs: Dict[str, bool] = {}  # port_name -> exposed?
         self.fmu_step_size: Optional[str] = None
         self.fmu_generator: str = ""
 
@@ -1137,8 +1139,19 @@ class _StartValueDelegate(QStyledItemDelegate):
                 painter.restore()
 
 
+class _CheckableSortProxy(QSortFilterProxyModel):
+    """Proxy that sorts checkable columns by check-state instead of display text."""
+
+    def lessThan(self, left, right):
+        left_data = self.sourceModel().itemFromIndex(left)
+        right_data = self.sourceModel().itemFromIndex(right)
+        if left_data and left_data.isCheckable():
+            return int(left_data.checkState()) < int(right_data.checkState())
+        return super().lessThan(left, right)
+
+
 class FMUDetailWidget(QWidget):
-    """NodeItem (FMU) details with a start-values table for input ports."""
+    """NodeItem (FMU) details with tabs for start values and output port exposure."""
 
     changed = Signal()
 
@@ -1152,27 +1165,53 @@ class FMUDetailWidget(QWidget):
         font.setBold(True)
         self._name_label.setFont(font)
 
-        # Start-values table: column 0 = port name (read-only), column 1 = value (editable)
+        # ── Tab widget ────────────────────────────────────────────
+        self._tabs = QTabWidget()
+
+        # ── Tab 1: Start Values ───────────────────────────────────
         self._sv_model = QStandardItemModel(0, 2)
         self._sv_model.setHorizontalHeaderLabels(["Input Port", "Start Value"])
         self._sv_model.dataChanged.connect(lambda *_: self.changed.emit())
 
+        self._sv_proxy = QSortFilterProxyModel(self)
+        self._sv_proxy.setSourceModel(self._sv_model)
+
         self._sv_table = QTableView()
-        self._sv_table.setModel(self._sv_model)
+        self._sv_table.setModel(self._sv_proxy)
+        self._sv_table.setSortingEnabled(True)
         self._sv_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._sv_table.horizontalHeader().setStretchLastSection(True)
         self._sv_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._sv_table.verticalHeader().setVisible(False)
-        self._sv_table.setSortingEnabled(True)
 
-        # Custom delegate for placeholder hints on column 1
         self._sv_delegate = _StartValueDelegate(self._sv_table)
         self._sv_table.setItemDelegateForColumn(1, self._sv_delegate)
 
+        self._tabs.addTab(self._sv_table, "Start Values")
+
+        # ── Tab 2: Output Ports ───────────────────────────────────
+        self._out_model = QStandardItemModel(0, 2)
+        self._out_model.setHorizontalHeaderLabels(["Output Port", "Exposed"])
+        self._out_model.dataChanged.connect(lambda *_: self.changed.emit())
+
+        self._out_proxy = _CheckableSortProxy(self)
+        self._out_proxy.setSourceModel(self._out_model)
+
+        self._out_table = QTableView()
+        self._out_table.setModel(self._out_proxy)
+        self._out_table.setSortingEnabled(True)
+        self._out_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._out_table.horizontalHeader().setStretchLastSection(True)
+        self._out_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._out_table.verticalHeader().setVisible(False)
+
+        self._tabs.addTab(self._out_table, "Output Ports")
+
+        # ── Layout ────────────────────────────────────────────────
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.addWidget(self._name_label)
-        lay.addWidget(self._sv_table, 1)
+        lay.addWidget(self._tabs, 1)
 
     # -- Sync helpers ----------------------------------------------------------
 
@@ -1180,6 +1219,7 @@ class FMUDetailWidget(QWidget):
         """Write the table content back into the current NodeItem."""
         if self._current_node is None:
             return
+        # Sync start values
         self._current_node.user_start_values.clear()
         for row in range(self._sv_model.rowCount()):
             port_name = self._sv_model.item(row, 0).text()
@@ -1188,6 +1228,13 @@ class FMUDetailWidget(QWidget):
             if value:
                 self._current_node.user_start_values[port_name] = value
 
+        # Sync exposed outputs
+        self._current_node.user_exposed_outputs.clear()
+        for row in range(self._out_model.rowCount()):
+            port_name = self._out_model.item(row, 0).text()
+            check_item = self._out_model.item(row, 1)
+            exposed = check_item.checkState() == Qt.CheckState.Checked
+            self._current_node.user_exposed_outputs[port_name] = exposed
 
     def set_node(self, node: NodeItem):
         """Persist edits on the previous node, then populate with *node*."""
@@ -1199,7 +1246,7 @@ class FMUDetailWidget(QWidget):
             f"{node.title} (generated by {node.fmu_generator}, step size = {fmu_step_size})"
         )
 
-
+        # ── Populate Start Values tab ─────────────────────────────
         self._sv_model.removeRows(0, self._sv_model.rowCount())
         for port_name in node.fmu_input_names:
             name_item = QStandardItem(port_name)
@@ -1207,13 +1254,26 @@ class FMUDetailWidget(QWidget):
 
             user_val = node.user_start_values.get(port_name, "")
             value_item = QStandardItem(user_val)
-            # Store FMU default as placeholder hint
             default = node.fmu_start_values.get(port_name)
             if default is not None:
                 value_item.setData(str(default), _StartValueDelegate.ROLE_PLACEHOLDER)
                 value_item.setToolTip(f"FMU default: {default}")
 
             self._sv_model.appendRow([name_item, value_item])
+
+        # ── Populate Output Ports tab ─────────────────────────────
+        self._out_model.removeRows(0, self._out_model.rowCount())
+        for port_name in node.fmu_output_names:
+            name_item = QStandardItem(port_name)
+            name_item.setEditable(False)
+
+            check_item = QStandardItem("")
+            check_item.setEditable(False)
+            check_item.setCheckable(True)
+            exposed = node.user_exposed_outputs.get(port_name, False)
+            check_item.setCheckState(Qt.CheckState.Checked if exposed else Qt.CheckState.Unchecked)
+
+            self._out_model.appendRow([name_item, check_item])
 
 
 class ContainerParameters:
@@ -1842,7 +1902,7 @@ class MainWindow(QMainWindow):
         if node.fmu_path and node.fmu_path.parent.exists():
             self._last_directory = node.fmu_path.parent
 
-    def _data_to_items(self, parent, data_node, folder, links_list: List[List[str]], start_values_list: List[List[str]], x=0, y=0):
+    def _data_to_items(self, parent, data_node, folder, links_list: List[List[str]], start_values_list: List[List[str]], output_ports_list: List[List[str]], x=0, y=0):
         self._tree.pending_parent = parent
         for fmu in data_node["fmu"]:
             logger.debug(f"ADD FMU: {fmu}")
@@ -1868,12 +1928,18 @@ class MainWindow(QMainWindow):
                 logger.debug(f"ADD START VALUE: {start}")
                 start_values_list.append(start)
 
+        if "output" in data_node:
+            for output in data_node["output"]:
+                # output format: [fmu_name, port_name, exposed_name]
+                logger.debug(f"ADD OUTPUT PORT: {output}")
+                output_ports_list.append(output)
+
         if "container" in data_node:
             for container_fmu in data_node["container"]:
                 logger.debug(f"ADD CONTAINER: {container_fmu['name']}")
                 child = self._tree.make_container_item(container_fmu["name"])
                 parent.appendRow(child)
-                self._data_to_items(child, container_fmu, folder, links_list, start_values_list, x=x, y=y)
+                self._data_to_items(child, container_fmu, folder, links_list, start_values_list, output_ports_list, x=x, y=y)
 
         for link in links_list:
             if link[2] == container_name:
@@ -1910,7 +1976,8 @@ class MainWindow(QMainWindow):
 
         links_list: List[List[str]] = []
         start_values_list: List[List[str]] = []
-        self._data_to_items(self._tree.root, data, folder, links_list, start_values_list)
+        output_ports_list: List[List[str]] = []
+        self._data_to_items(self._tree.root, data, folder, links_list, start_values_list, output_ports_list)
 
         # Build a map from FMU filename to its NodeItem
         nodes_by_name: Dict[str, NodeItem] = {}
@@ -1959,6 +2026,15 @@ class MainWindow(QMainWindow):
                 logger.debug(f"Start value: {fmu_name}/{port_name} = {value}")
             else:
                 logger.warning(f"Cannot apply start value: node not found for {fmu_name}")
+
+        # Apply exposed output ports to scene nodes
+        for fmu_name, port_name, _exposed_name in output_ports_list:
+            node = nodes_by_name.get(fmu_name)
+            if node:
+                node.user_exposed_outputs[port_name] = True
+                logger.debug(f"Exposed output: {fmu_name}/{port_name}")
+            else:
+                logger.warning(f"Cannot apply exposed output: node not found for {fmu_name}")
 
         # Reset the detail panels so that the next sync_to_node/sync_to_wire
         # does not overwrite the just-loaded data with stale empty table content.
@@ -2059,6 +2135,11 @@ class MainWindow(QMainWindow):
                 for port_name, value in node.user_start_values.items():
                     logger.debug(f"START VALUE: {fmu_path.name}/{port_name} = {value}")
                     parent_assembly_node.add_start_value(str(fmu_path), port_name, value)
+                # Apply user-exposed output ports
+                for port_name, exposed in node.user_exposed_outputs.items():
+                    if exposed:
+                        logger.debug(f"EXPOSE OUTPUT: {fmu_path.name}/{port_name}")
+                        parent_assembly_node.add_output(str(fmu_path), port_name, port_name)
                 return None
 
         root_item: QStandardItem = self._tree.root
