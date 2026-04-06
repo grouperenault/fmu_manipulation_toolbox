@@ -148,13 +148,6 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
     def title(self) -> str:
         return self._title
 
-    @title.setter
-    def title(self, value: str):
-        self._title = value
-        self._title_item.setPlainText(value)
-        tbr = self._title_item.boundingRect()
-        w = self.rect().width()
-        self._title_item.setPos((w - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
 
     # -- Edge anchor -----------------------------------------------------------
 
@@ -222,18 +215,19 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
                 wire.update_path()
         return super().itemChange(change, value)
 
-    # -- Double-click to rename ------------------------------------------------
 
-    def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent):
+    # -- Hover cursor feedback -------------------------------------------------
+
+    def hoverMoveEvent(self, event):
         if event.pos().y() < NODE_TITLE_HEIGHT:
-            view = self.scene().views()[0] if self.scene().views() else None
-            new_name, ok = QInputDialog.getText(
-                view, "Rename Node", "New name:", text=self._title
-            )
-            if ok and new_name.strip():
-                self.title = new_name.strip()
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
         else:
-            super().mouseDoubleClickEvent(event)
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        super().hoverMoveEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self.unsetCursor()
+        super().hoverLeaveEvent(event)
 
     # -- Helpers ---------------------------------------------------------------
 
@@ -581,7 +575,7 @@ class NodeGraphScene(QGraphicsScene):
             self.removeItem(node)
 
 
-    # -- Interaction: wire drag from node border ----------------------------
+    # -- Interaction: wire drag from node body ---------------------------------
 
     def _node_at(self, scene_pos: QPointF) -> Optional[NodeItem]:
         for item in self.items(scene_pos, Qt.ItemSelectionMode.IntersectsItemBoundingRect):
@@ -589,22 +583,23 @@ class NodeGraphScene(QGraphicsScene):
                 return item
         return None
 
-    def _is_on_node_border(self, node: NodeItem, scene_pos: QPointF, margin: float = 10) -> bool:
-        """True if *scene_pos* is within *margin* of the node rectangle edge."""
-        r = node.sceneBoundingRect()
-        inner = r.adjusted(margin, margin, -margin, -margin)
-        return r.contains(scene_pos) and not inner.contains(scene_pos)
-
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
         if event.button() == Qt.MouseButton.LeftButton:
             node = self._node_at(event.scenePos())
-            if node and self._is_on_node_border(node, event.scenePos()):
-                self._drag_start_node = node
-                start = node.edge_point(event.scenePos())
-                self._drag_wire = _DragWireItem(start)
-                self.addItem(self._drag_wire)
-                event.accept()
-                return
+            if node:
+                local_pos = node.mapFromScene(event.scenePos())
+                if local_pos.y() >= NODE_TITLE_HEIGHT:
+                    # Clicked on the node body → start wire creation
+                    self._drag_start_node = node
+                    start = node.edge_point(event.scenePos())
+                    self._drag_wire = _DragWireItem(start)
+                    self.addItem(self._drag_wire)
+                    # Select the source node (for detail panel feedback)
+                    self.clearSelection()
+                    node.setSelected(True)
+                    event.accept()
+                    return
+                # Clicked on the title bar → normal move / select (handled by super)
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):

@@ -42,9 +42,15 @@ Each FMU node displays its filename as a title.
 
 To create a connection between two FMUs:
 
-1. Click and drag from the **border** of one node
+1. Click and drag from the **body** of a node (below its title bar)
 2. Release on another node
 3. A wire is created between the two nodes
+
+!!! tip "Title bar vs body"
+    - **Title bar** (top strip with the FMU name): click to **select** or drag to **move** the node.
+    - **Body** (area below the title bar): drag to **create a wire**.
+    
+    The cursor changes on hover to indicate the available action: ✥ for move, ✛ for wire creation.
 
 Wires are **directional** — arrowheads indicate the data-flow direction:
 
