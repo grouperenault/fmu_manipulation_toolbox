@@ -794,12 +794,12 @@ class FMUIOList:
         reset = 1 if cport.port.causality == "input" else 0
         self.start_values[cport.port.type_name][cport.fmu.name].append((cport.port.vr, cport.port.size(), reset, value))
 
-    def write_txt(self, fmu_name, txt_file):
+    def write_txt(self, fmu_name: str, txt_file: IO) -> None:
         """Write the I/O mapping for one FMU to the `container.txt` file.
 
         Args:
             fmu_name (str): Name of the embedded FMU.
-            txt_file: Writable text file handle.
+            txt_file (IO): Writable text file handle.
         """
         for type_name in EmbeddedFMUPort.ALL_TYPES:
             print(f"# Inputs of {fmu_name} - {type_name}: <VR> <DIM> <FMU_VR>", file=txt_file)
@@ -875,11 +875,11 @@ class ClockList:
         """
         self.clocks_per_fmu[self.fmu_index[cport.fmu.name]].append(Clock(cport.port.vr, vr))
 
-    def write_txt(self, txt_file):
+    def write_txt(self, txt_file: IO) -> None:
         """Write the clock scheduling table to the `container.txt` file.
 
         Args:
-            txt_file: Writable text file handle.
+            txt_file (IO): Writable text file handle.
         """
         print(f"# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]", file=txt_file)
         nb_total_clocks = 0
@@ -1064,9 +1064,10 @@ class FMUContainer:
         Raises:
             FMUContainerError: If the FMU cannot be loaded.
         """
-        if fmu_filename in self.involved_fmu:
-            return self.involved_fmu[fmu_filename]
-
+        fmu_name = Path(fmu_filename).name
+        if fmu_name in self.involved_fmu:
+            return self.involved_fmu[fmu_name]
+        
         try:
             fmu = EmbeddedFMU(self.fmu_directory / fmu_filename)
             if not fmu.fmi_version == self.fmi_version:

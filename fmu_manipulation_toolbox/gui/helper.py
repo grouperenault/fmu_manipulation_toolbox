@@ -219,7 +219,10 @@ class LogWidget(QTextBrowser):
 
         def emit(self, record) -> None:
             self.text_browser.setTextColor(self.LOG_COLOR[record.levelno])
-            self.text_browser.insertPlainText(record.msg + "\n")
+            self.text_browser.insertPlainText(self.format(record) + "\n")
+            self.text_browser.ensureCursorVisible()
+            # Keep the RunTask dialog responsive and repaint log lines immediately.
+            QApplication.processEvents()
 
     def __init__(self, parent=None, level=logging.INFO, width=900, height=500):
         super().__init__(parent)
@@ -254,7 +257,9 @@ class RunTask(QDialog):
 
         self.show()
 
-        logger.debug("Starting...")
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        logger.debug(f"Starting {title}...")
         task(*args, **kwargs)
-        logger.debug("End of task.")
+        logger.info(f"{title} finished.")
+        QApplication.restoreOverrideCursor()
         self.text.stop_logging()

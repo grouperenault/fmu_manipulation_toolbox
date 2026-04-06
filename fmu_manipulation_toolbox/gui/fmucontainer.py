@@ -5,7 +5,6 @@ import sys
 import uuid
 import tempfile
 
-from enum import Enum, auto
 from pathlib import Path
 from typing import *
 
@@ -25,10 +24,12 @@ from PySide6.QtWidgets import (
     QStackedWidget, QTableView, QLabel, QHeaderView,
     QFileDialog, QMainWindow, QPushButton, QComboBox, QCheckBox,
     QStyledItemDelegate, QAbstractItemView,
-    QWidgetAction, QRadioButton, QButtonGroup, QFrame, QMessageBox
+    QWidgetAction, QRadioButton, QButtonGroup, QFrame, QMessageBox,
+    QTabWidget
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, RunTask
+from fmu_manipulation_toolbox.gui.style import placeholder_color
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.container import FMUContainerError
@@ -49,10 +50,6 @@ COLOR_NODE_BORDER   = QColor("#222222")
 COLOR_NODE_SELECTED = QColor("#f0a030")
 COLOR_TEXT          = QColor("#dddddd")
 
-COLOR_PORT_INPUT    = QColor("#68b86a")
-COLOR_PORT_OUTPUT   = QColor("#e07040")
-COLOR_PORT_BORDER   = QColor("#111111")
-
 COLOR_WIRE          = QColor("#cccccc")
 COLOR_WIRE_SELECTED = QColor("#f0a030")
 COLOR_WIRE_DRAGGING = QColor("#88bbff")
@@ -62,80 +59,19 @@ NODE_MIN_WIDTH      = 140
 NODE_TITLE_HEIGHT   = 28
 NODE_PORT_SPACING   = 26
 NODE_CORNER_RADIUS  = 6
-PORT_RADIUS         = 7
 GRID_SIZE           = 20
 GRID_SQUARES        = 5
-WIRE_HANDLE_RADIUS  = 5
+ARROW_SIZE          = 10
+WAYPOINT_RADIUS     = 5
 
 # Fonts
 FONT_TITLE          = QFont("Verdana", 10, QFont.Weight.Bold)
 FONT_PORT           = QFont("Verdana", 8)
 
 
-class PortType(Enum):
-    INPUT = auto()
-    OUTPUT = auto()
-
-
-class PortItem(QGraphicsEllipseItem):
-    """Input or output port attached to a NodeItem."""
-
-    def __init__(self, name: str, port_type: PortType, parent: "NodeItem"):
-        r = PORT_RADIUS
-        super().__init__(-r, -r, 2 * r, 2 * r, parent)
-
-        self.name = name
-        self.port_type = port_type
-        self.node: "NodeItem" = parent
-        self.wires: List["WireItem"] = []
-
-        color = COLOR_PORT_INPUT if port_type == PortType.INPUT else COLOR_PORT_OUTPUT
-        self.setBrush(QBrush(color))
-        self.setPen(QPen(COLOR_PORT_BORDER, 1.5))
-
-        self.setAcceptHoverEvents(True)
-        self.setCursor(Qt.CursorShape.CrossCursor)
-        self.setZValue(2)
-
-        # Label
-        self._label = QGraphicsTextItem(name, self)
-        self._label.setDefaultTextColor(COLOR_TEXT)
-        self._label.setFont(FONT_PORT)
-        self._update_label_pos()
-
-    def _update_label_pos(self):
-        br = self._label.boundingRect()
-        if self.port_type == PortType.INPUT:
-            self._label.setPos(PORT_RADIUS + 4, -br.height() / 2)
-        else:
-            self._label.setPos(-PORT_RADIUS - 4 - br.width(), -br.height() / 2)
-
-    def center_scene_pos(self) -> QPointF:
-        """Port center position in scene coordinates."""
-        return self.scenePos()
-
-    # -- Hover feedback --------------------------------------------------------
-
-    def hoverEnterEvent(self, event):
-        self.setPen(QPen(QColor("#ffffff"), 2))
-        super().hoverEnterEvent(event)
-
-    def hoverLeaveEvent(self, event):
-        self.setPen(QPen(COLOR_PORT_BORDER, 1.5))
-        super().hoverLeaveEvent(event)
-
-    # -- Highlight while dragging a wire --------------------------------
-
-    def set_drop_highlight(self, on: bool):
-        """Enable/disable highlight for a valid connection target."""
-        if on:
-            self.setPen(QPen(QColor("#ffffff"), 2))
-        else:
-            self.setPen(QPen(COLOR_PORT_BORDER, 1.5))
-
-
 class NodeItem(QGraphicsRectItem, OperationAbstract):
-    """Rectangular box with a title and I/O ports."""
+    """Rectangular node representing an FMU. No visual ports — wires
+    connect directly to the node edges."""
 
     def __init__(self, fmu_path: Path, x: float = 0, y: float = 0):
         super().__init__()
@@ -144,14 +80,12 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self._title = fmu_path.name
         self.fmu_path = fmu_path
 
-
         # -- Read FMU ports ---------------------------------------------------
-
-        # Keep full port lists for serialization / logic
         self.fmu_input_names: List[str] = []
         self.fmu_output_names: List[str] = []
         self.fmu_start_values: Dict[str, str] = {}
         self.user_start_values: Dict[str, str] = {}
+        self.user_exposed_outputs: Dict[str, bool] = {}
         self.fmu_step_size: Optional[str] = None
         self.fmu_generator: str = ""
 
@@ -159,14 +93,8 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         fmu.apply_operation(self)
         del fmu
 
-        # -- Visual ports: at most one "in" and one "out" ---------------------
-        self.input_port: Optional[PortItem] = None
-        self.output_port: Optional[PortItem] = None
-
-        if self.fmu_input_names:
-            self.input_port = PortItem("in", PortType.INPUT, self)
-        if self.fmu_output_names:
-            self.output_port = PortItem("out", PortType.OUTPUT, self)
+        # -- Wires attached to this node --------------------------------------
+        self.wires: List["WireItem"] = []
 
         # Flags
         self.setFlags(
@@ -177,33 +105,21 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.setAcceptHoverEvents(True)
         self.setZValue(1)
 
-        # -- Size calculation -----------------------------------------------
+        # -- Size calculation -------------------------------------------------
         height = NODE_TITLE_HEIGHT + NODE_PORT_SPACING + 10
 
         fm_title = QFontMetrics(FONT_TITLE)
-        fm_port = QFontMetrics(FONT_PORT)
-        width = max(
-            NODE_MIN_WIDTH,
-            fm_port.horizontalAdvance("in") + fm_port.horizontalAdvance("out") + 4 * PORT_RADIUS + 40,
-            fm_title.horizontalAdvance(self.title) + 20,
-        )
+        width = max(NODE_MIN_WIDTH, fm_title.horizontalAdvance(self.title) + 20)
 
         self.setRect(0, 0, width, height)
         self.setPos(x, y)
 
-        # -- Title -------------------------------------------------------------
+        # -- Title ------------------------------------------------------------
         self._title_item = QGraphicsTextItem(self.title, self)
         self._title_item.setDefaultTextColor(COLOR_TEXT)
         self._title_item.setFont(FONT_TITLE)
         tbr = self._title_item.boundingRect()
         self._title_item.setPos((width - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
-
-        # -- Position ports ----------------------------------------------------
-        y_port = NODE_TITLE_HEIGHT + 0.5 * NODE_PORT_SPACING + 5
-        if self.input_port:
-            self.input_port.setPos(0, y_port)
-        if self.output_port:
-            self.output_port.setPos(width, y_port)
 
     def __repr__(self):
         return "Collect I/O ports"
@@ -232,13 +148,34 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
     def title(self) -> str:
         return self._title
 
-    @title.setter
-    def title(self, value: str):
-        self._title = value
-        self._title_item.setPlainText(value)
-        tbr = self._title_item.boundingRect()
-        w = self.rect().width()
-        self._title_item.setPos((w - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
+
+    # -- Edge anchor -----------------------------------------------------------
+
+    def edge_point(self, other_center: QPointF) -> QPointF:
+        """Return the point on the node border closest to *other_center*.
+
+        The anchor is the intersection of the line from this node's center
+        to *other_center* with the node rectangle (in scene coords).
+        """
+        r = self.sceneBoundingRect()
+        cx, cy = r.center().x(), r.center().y()
+        dx = other_center.x() - cx
+        dy = other_center.y() - cy
+        if abs(dx) < 1e-6 and abs(dy) < 1e-6:
+            return QPointF(cx, cy)
+
+        hw, hh = r.width() / 2.0, r.height() / 2.0
+        # Determine which edge the line crosses first
+        if abs(dx) * hh > abs(dy) * hw:
+            # Hits left or right edge
+            t = hw / abs(dx)
+        else:
+            # Hits top or bottom edge
+            t = hh / abs(dy)
+        return QPointF(cx + dx * t, cy + dy * t)
+
+    def center_scene_pos(self) -> QPointF:
+        return self.sceneBoundingRect().center()
 
     # -- Rendering ----------------------------------------------------------------
 
@@ -270,58 +207,49 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRoundedRect(0, 0, w, h, NODE_CORNER_RADIUS, NODE_CORNER_RADIUS)
 
-    # -- Move -> update wires ----------------------------------
+    # -- Move -> update wires --------------------------------------------------
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged:
-            for port in self.all_ports():
-                for wire in port.wires:
-                    wire.update_path()
+            for wire in self.wires:
+                wire.update_path()
         return super().itemChange(change, value)
 
-    # -- Double-click to rename ---------------------------------------------
 
-    def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent):
+    # -- Hover cursor feedback -------------------------------------------------
+
+    def hoverMoveEvent(self, event):
         if event.pos().y() < NODE_TITLE_HEIGHT:
-            view = self.scene().views()[0] if self.scene().views() else None
-            new_name, ok = QInputDialog.getText(
-                view, "Rename Node", "New name:", text=self._title
-            )
-            if ok and new_name.strip():
-                self.title = new_name.strip()
+            self.setCursor(Qt.CursorShape.SizeAllCursor)
         else:
-            super().mouseDoubleClickEvent(event)
+            self.setCursor(Qt.CursorShape.CrossCursor)
+        super().hoverMoveEvent(event)
+
+    def hoverLeaveEvent(self, event):
+        self.unsetCursor()
+        super().hoverLeaveEvent(event)
 
     # -- Helpers ---------------------------------------------------------------
 
-    def all_ports(self) -> List[PortItem]:
-        """Return the list of visible PortItems."""
-        ports = []
-        if self.input_port:
-            ports.append(self.input_port)
-        if self.output_port:
-            ports.append(self.output_port)
-        return ports
-
     def remove_wires(self):
         """Remove all wires connected to this node."""
-        for port in self.all_ports():
-            for wire in list(port.wires):
-                wire.remove()
+        for wire in list(self.wires):
+            wire.remove()
 
 
-class _WireHandle(QGraphicsEllipseItem):
-    """Small handle the user can drag to bend the wire.
+class _WaypointHandle(QGraphicsEllipseItem):
+    """Small draggable handle sitting on a wire waypoint.
 
-    It is created as a child of WireItem (graphics parent).
-    Double-click resets curvature.
+    * **Drag** to move the waypoint.
+    * **Double-click** to remove it.
     """
 
-    def __init__(self, wire: "WireItem"):
-        r = WIRE_HANDLE_RADIUS
+    def __init__(self, wire: "WireItem", index: int):
+        r = WAYPOINT_RADIUS
         super().__init__(-r, -r, 2 * r, 2 * r, wire)
         self._wire = wire
-        self._updating = False          # avoids setPos <-> itemChange recursion
+        self._index = index
+        self._updating = False
 
         self.setBrush(QBrush(QColor(136, 187, 255, 140)))
         self.setPen(QPen(QColor("#446688"), 1.0))
@@ -332,19 +260,15 @@ class _WireHandle(QGraphicsEllipseItem):
         self.setAcceptHoverEvents(True)
         self.setCursor(Qt.CursorShape.SizeAllCursor)
         self.setZValue(3)
-        self.setVisible(False)          # hidden until the wire is selected
-
-    # -- When user drags the handle ---------------------------------
+        self.setVisible(False)
 
     def itemChange(self, change, value):
         if (
             change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged
             and not self._updating
         ):
-            self._wire.on_handle_dragged(value)
+            self._wire._on_handle_moved(self._index, value)
         return super().itemChange(change, value)
-
-    # -- Visual feedback -------------------------------------------------------
 
     def hoverEnterEvent(self, event):
         self.setBrush(QBrush(QColor(170, 221, 255, 220)))
@@ -356,191 +280,254 @@ class _WireHandle(QGraphicsEllipseItem):
         self.setPen(QPen(QColor("#446688"), 1.0))
         super().hoverLeaveEvent(event)
 
-    # -- Double-click -> reset ---------------------------------------------------
-
     def mouseDoubleClickEvent(self, event):
-        """Reset the control point to its default midpoint."""
-        self._wire._ctrl_offset = QPointF(0, 0)
-        self._wire.update_path()
+        self._wire.remove_waypoint(self._index)
         event.accept()
 
 
 class WireItem(QGraphicsPathItem):
-    """Wire connecting a source port (output) to a destination port (input).
+    """Wire connecting two NodeItems as a polyline (broken line).
 
-    A central control point (_WireHandle) allows users to adjust curvature.
-    Double-click the handle to reset it.
+    Arrowheads indicate data-flow direction, derived from the per-variable
+    mappings:
+
+    * Arrow on node_b side → data flows from node_a to node_b
+    * Arrow on node_a side → data flows from node_b to node_a
+    * Arrows on both sides → bidirectional
+
+    Waypoints:
+
+    * **Double-click** on the wire to add a waypoint.
+    * **Drag** a handle to move a waypoint.
+    * **Double-click** a handle to remove it.
     """
 
-    def __init__(
-        self,
-        source: PortItem,
-        destination: PortItem,
-        parent=None,
-    ):
+    def __init__(self, node_a: NodeItem, node_b: NodeItem, parent=None):
         super().__init__(parent)
 
-        self.source = source
-        self.destination = destination
+        self.node_a = node_a
+        self.node_b = node_b
 
-        source.wires.append(self)
-        destination.wires.append(self)
+        node_a.wires.append(self)
+        node_b.wires.append(self)
 
-        self._ctrl_offset = QPointF(0, 0)   # user offset
-        self.mappings: List[tuple] = []      # [(output_port, input_port), …]
+        self._waypoints: List[QPointF] = []
+        self._handles: List[_WaypointHandle] = []
+        self.mappings: List[tuple] = []
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
+        self.setAcceptedMouseButtons(Qt.MouseButton.LeftButton)
         self.setZValue(0)
 
-        self._handle = _WireHandle(self)
         self.update_path()
 
-    # -- Curve calculations --------------------------------------------------
+    # -- Direction helpers ----------------------------------------------------
 
-    @staticmethod
-    def _default_controls(p1: QPointF, p2: QPointF):
-        """Default C1/C2 control points (horizontal tangents)."""
-        dist = max(abs(p2.x() - p1.x()) * 0.5, 50)
-        c1 = QPointF(p1.x() + dist, p1.y())
-        c2 = QPointF(p2.x() - dist, p2.y())
-        return c1, c2
+    def _directions(self) -> tuple:
+        """Return (a_to_b, b_to_a) booleans from mappings."""
+        a_name = self.node_a.fmu_path.name
+        b_name = self.node_b.fmu_path.name
+        a_to_b = any(m[0] == a_name and m[2] == b_name for m in self.mappings)
+        b_to_a = any(m[0] == b_name and m[2] == a_name for m in self.mappings)
+        return a_to_b, b_to_a
 
-    @staticmethod
-    def _midpoint(p0: QPointF, c1: QPointF, c2: QPointF, p3: QPointF) -> QPointF:
-        """Point on the cubic Bezier at t = 0.5."""
-        # B(0.5) = (P0 + 3*C1 + 3*C2 + P3) / 8
-        return QPointF(
-            (p0.x() + 3 * c1.x() + 3 * c2.x() + p3.x()) / 8.0,
-            (p0.y() + 3 * c1.y() + 3 * c2.y() + p3.y()) / 8.0,
-        )
+    # -- All points of the polyline -------------------------------------------
 
-    @staticmethod
-    def bezier(p1: QPointF, p2: QPointF) -> QPainterPath:
-        """Default Bezier (without offset), also used by _DragWireItem."""
-        dist = max(abs(p2.x() - p1.x()) * 0.5, 50)
-        path = QPainterPath(p1)
-        path.cubicTo(
-            p1.x() + dist, p1.y(),
-            p2.x() - dist, p2.y(),
-            p2.x(), p2.y(),
-        )
-        return path
+    def _all_points(self) -> List[QPointF]:
+        """Return [anchor_a, wp0, wp1, …, anchor_b] in scene coords."""
+        cb = self.node_b.center_scene_pos()
+        ca = self.node_a.center_scene_pos()
+        target_a = self._waypoints[0] if self._waypoints else cb
+        target_b = self._waypoints[-1] if self._waypoints else ca
+        pa = self.node_a.edge_point(target_a)
+        pb = self.node_b.edge_point(target_b)
+        return [pa] + list(self._waypoints) + [pb]
 
-    # -- Path update -------------------------------------------------
+    # -- Path update -----------------------------------------------------------
 
     def update_path(self):
-        """Recompute the curve and reposition the handle."""
-        p1 = self.source.center_scene_pos()
-        p2 = self.destination.center_scene_pos()
-        c1, c2 = self._default_controls(p1, p2)
-
-        # Apply user offset to control points.
-        # 4/3 factor keeps the handle exactly on B(0.5).
-        adj = self._ctrl_offset * (4.0 / 3.0)
-        ac1 = c1 + adj
-        ac2 = c2 + adj
-
-        path = QPainterPath(p1)
-        path.cubicTo(ac1, ac2, p2)
+        points = self._all_points()
+        path = QPainterPath(points[0])
+        for pt in points[1:]:
+            path.lineTo(pt)
         self.setPath(path)
 
-        # Reposition the handle (without triggering _on_handle_dragged)
-        mid = self._midpoint(p1, c1, c2, p2) + self._ctrl_offset
-        self._handle._updating = True
-        self._handle.setPos(mid)
-        self._handle._updating = False
+        for i, handle in enumerate(self._handles):
+            handle._updating = True
+            handle.setPos(self._waypoints[i])
+            handle._updating = False
 
-    def on_handle_dragged(self, new_pos: QPointF):
-        """Called by the handle when the user drags it."""
-        p1 = self.source.center_scene_pos()
-        p2 = self.destination.center_scene_pos()
-        c1, c2 = self._default_controls(p1, p2)
-        default_mid = self._midpoint(p1, c1, c2, p2)
-        self._ctrl_offset = new_pos - default_mid
+    def _on_handle_moved(self, index: int, new_pos: QPointF):
+        if 0 <= index < len(self._waypoints):
+            self._waypoints[index] = QPointF(new_pos)
+            points = self._all_points()
+            path = QPainterPath(points[0])
+            for pt in points[1:]:
+                path.lineTo(pt)
+            self.setPath(path)
 
-        # Rebuild path without moving the handle (user is dragging it)
-        adj = self._ctrl_offset * (4.0 / 3.0)
-        path = QPainterPath(p1)
-        path.cubicTo(c1 + adj, c2 + adj, p2)
-        self.setPath(path)
+    # -- Waypoint management ---------------------------------------------------
+
+    def _sync_handles(self):
+        """Create / destroy handles to match the waypoint list."""
+        while len(self._handles) > len(self._waypoints):
+            h = self._handles.pop()
+            if h.scene():
+                h.scene().removeItem(h)
+        while len(self._handles) < len(self._waypoints):
+            idx = len(self._handles)
+            h = _WaypointHandle(self, idx)
+            h.setVisible(self.isSelected())
+            self._handles.append(h)
+        for i, h in enumerate(self._handles):
+            h._index = i
+
+    @staticmethod
+    def _point_to_segment_dist(p: QPointF, a: QPointF, b: QPointF) -> float:
+        dx, dy = b.x() - a.x(), b.y() - a.y()
+        len_sq = dx * dx + dy * dy
+        if len_sq < 1e-10:
+            return math.hypot(p.x() - a.x(), p.y() - a.y())
+        t = max(0.0, min(1.0, ((p.x() - a.x()) * dx + (p.y() - a.y()) * dy) / len_sq))
+        proj_x = a.x() + t * dx
+        proj_y = a.y() + t * dy
+        return math.hypot(p.x() - proj_x, p.y() - proj_y)
+
+    def add_waypoint(self, scene_pos: QPointF):
+        """Insert a waypoint at *scene_pos* in the closest segment."""
+        points = self._all_points()
+        best_idx, best_dist = 0, float("inf")
+        for i in range(len(points) - 1):
+            d = self._point_to_segment_dist(scene_pos, points[i], points[i + 1])
+            if d < best_dist:
+                best_dist = d
+                best_idx = i
+        self._waypoints.insert(best_idx, QPointF(scene_pos))
+        self._sync_handles()
+        self.update_path()
+
+    def remove_waypoint(self, index: int):
+        if 0 <= index < len(self._waypoints):
+            del self._waypoints[index]
+            self._sync_handles()
+            self.update_path()
+
+    # -- Double-click → add waypoint ------------------------------------------
+
+    def mouseDoubleClickEvent(self, event: QGraphicsSceneMouseEvent):
+        self.add_waypoint(event.scenePos())
+        event.accept()
 
     # -- Selection hit area ---------------------------------------------------
 
-    def shape(self) -> QPainterPath:
-        """Return a widened path so the wire is easier to click."""
+    def shape(self):
         stroker = QPainterPathStroker()
         stroker.setWidth(12)
         stroker.setCapStyle(Qt.PenCapStyle.RoundCap)
+        stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         return stroker.createStroke(self.path())
 
-    # -- Rendering ----------------------------------------------------------------
+    # -- Rendering (with arrowheads) -------------------------------------------
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.GraphicsItemChange.ItemSelectedHasChanged:
-            self._handle.setVisible(bool(value))
+            visible = bool(value)
+            for h in self._handles:
+                h.setVisible(visible)
         return super().itemChange(change, value)
+
+    @staticmethod
+    def _draw_arrow(painter: QPainter, tip: QPointF, direction: QPointF, size: float):
+        """Draw a filled arrowhead at *tip* pointing in *direction*."""
+        length = math.hypot(direction.x(), direction.y())
+        if length < 1e-6:
+            return
+        dx, dy = direction.x() / length, direction.y() / length
+        nx, ny = -dy, dx
+        base = QPointF(tip.x() - dx * size, tip.y() - dy * size)
+        left  = QPointF(base.x() + nx * size * 0.45, base.y() + ny * size * 0.45)
+        right = QPointF(base.x() - nx * size * 0.45, base.y() - ny * size * 0.45)
+        arrow = QPainterPath()
+        arrow.moveTo(tip)
+        arrow.lineTo(left)
+        arrow.lineTo(right)
+        arrow.closeSubpath()
+        painter.drawPath(arrow)
 
     def paint(self, painter: QPainter, option, widget=None):
         color = COLOR_WIRE_SELECTED if self.isSelected() else COLOR_WIRE
         pen = QPen(color, 2.5 if self.isSelected() else 2.0)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(self.path())
 
+        # -- Arrowheads --------------------------------------------------------
+        a_to_b, b_to_a = self._directions()
+        if not a_to_b and not b_to_a and not self.mappings:
+            return
+
+        points = self._all_points()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QBrush(color))
+
+        if a_to_b or (not a_to_b and not b_to_a):
+            tip = points[-1]
+            prev = points[-2] if len(points) >= 2 else points[0]
+            self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
+        if b_to_a:
+            tip = points[0]
+            prev = points[1] if len(points) >= 2 else points[-1]
+            self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
+
     # -- Deletion -----------------------------------------------------------
 
     def remove(self):
-        """Remove the wire from scene and ports lists."""
-        if self.source and self in self.source.wires:
-            self.source.wires.remove(self)
-        if self.destination and self in self.destination.wires:
-            self.destination.wires.remove(self)
+        if self.node_a and self in self.node_a.wires:
+            self.node_a.wires.remove(self)
+        if self.node_b and self in self.node_b.wires:
+            self.node_b.wires.remove(self)
         if self.scene():
             self.scene().removeItem(self)
 
 
 class _DragWireItem(QGraphicsPathItem):
-    """Ghost wire shown while dragging from a port."""
+    """Ghost wire shown while dragging from a node."""
 
-    def __init__(self, start: QPointF, from_output: bool):
+    def __init__(self, start: QPointF):
         super().__init__()
         self._start = start
-        self._from_output = from_output
         pen = QPen(COLOR_WIRE_DRAGGING, 2.0, Qt.PenStyle.DashLine)
         self.setPen(pen)
         self.setZValue(10)
 
     def update_destination(self, end: QPointF):
-        if self._from_output:
-            path = WireItem.bezier(self._start, end)
-        else:
-            path = WireItem.bezier(end, self._start)
+        path = QPainterPath(self._start)
+        path.lineTo(end)
         self.setPath(path)
 
 
 class NodeGraphScene(QGraphicsScene):
-    """Graphics scene managing nodes, ports, and wires."""
+    """Graphics scene managing nodes and wires."""
 
-    # Public signals
-    node_added = Signal(object)       # NodeItem
-    node_removed = Signal(object)     # NodeItem
-    wire_added = Signal(object)       # WireItem
-    wire_removed = Signal(object)     # WireItem
+    node_added = Signal(object)
+    node_removed = Signal(object)
+    wire_added = Signal(object)
+    wire_removed = Signal(object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setBackgroundBrush(QBrush(COLOR_BACKGROUND))
 
         self._drag_wire: Optional[_DragWireItem] = None
-        self._drag_start_port: Optional[PortItem] = None
-        self._drag_target_port: Optional[PortItem] = None
+        self._drag_start_node: Optional[NodeItem] = None
+        self._drag_target_node: Optional[NodeItem] = None
 
     # -- Public API ----------------------------------------------------------
 
     def add_node(self, fmu_path: Union[Path, str], x: float = 0, y: float = 0) -> NodeItem:
-        """Create and add a node to the scene."""
         node = NodeItem(Path(fmu_path), x=x, y=y)
         self.addItem(node)
         self.clearSelection()
@@ -548,21 +535,16 @@ class NodeGraphScene(QGraphicsScene):
         self.node_added.emit(node)
         return node
 
-    def add_wire(self, source: PortItem, destination: PortItem) -> Optional[WireItem]:
-        """Connect two ports with a wire. Returns None if invalid."""
-        # Validation
-        if source.port_type == destination.port_type:
+    def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> Optional[WireItem]:
+        """Connect two nodes with a wire. Returns None if invalid."""
+        if node_a is node_b:
             return None
-        if source.node is destination.node:
-            return None
-        # Enforce output -> input order
-        if source.port_type == PortType.INPUT:
-            source, destination = destination, source
-        # No duplicates
-        for w in source.wires:
-            if w.destination is destination:
+        # No duplicate wire between the same pair
+        for w in node_a.wires:
+            other = w.node_b if w.node_a is node_a else w.node_a
+            if other is node_b:
                 return None
-        wire = WireItem(source, destination)
+        wire = WireItem(node_a, node_b)
         self.addItem(wire)
         self.clearSelection()
         wire.setSelected(True)
@@ -570,7 +552,6 @@ class NodeGraphScene(QGraphicsScene):
         return wire
 
     def remove_selected(self):
-        """Remove selected items (wires first, then nodes)."""
         for item in list(self.selectedItems()):
             if isinstance(item, WireItem):
                 self.wire_removed.emit(item)
@@ -588,63 +569,65 @@ class NodeGraphScene(QGraphicsScene):
         return [it for it in self.items() if isinstance(it, WireItem)]
 
     def clear_all(self):
-        """Remove all nodes and wires."""
         for wire in self.wires():
             wire.remove()
         for node in self.nodes():
             self.removeItem(node)
 
-    # -- Interaction: wire drag ---------------------------------------------
 
-    def _port_at(self, scene_pos: QPointF) -> Optional[PortItem]:
-        """Return the nearest PortItem under the given position."""
+    # -- Interaction: wire drag from node body ---------------------------------
+
+    def _node_at(self, scene_pos: QPointF) -> Optional[NodeItem]:
         for item in self.items(scene_pos, Qt.ItemSelectionMode.IntersectsItemBoundingRect):
-            if isinstance(item, PortItem):
+            if isinstance(item, NodeItem):
                 return item
         return None
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
-        port = self._port_at(event.scenePos())
-        if port and event.button() == Qt.MouseButton.LeftButton:
-            self._drag_start_port = port
-            from_output = port.port_type == PortType.OUTPUT
-            self._drag_wire = _DragWireItem(port.center_scene_pos(), from_output)
-            self.addItem(self._drag_wire)
-            event.accept()
-            return
+        if event.button() == Qt.MouseButton.LeftButton:
+            node = self._node_at(event.scenePos())
+            if node:
+                local_pos = node.mapFromScene(event.scenePos())
+                if local_pos.y() >= NODE_TITLE_HEIGHT:
+                    # Clicked on the node body → start wire creation
+                    self._drag_start_node = node
+                    start = node.edge_point(event.scenePos())
+                    self._drag_wire = _DragWireItem(start)
+                    self.addItem(self._drag_wire)
+                    # Select the source node (for detail panel feedback)
+                    self.clearSelection()
+                    node.setSelected(True)
+                    event.accept()
+                    return
+                # Clicked on the title bar → normal move / select (handled by super)
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
         if self._drag_wire:
             self._drag_wire.update_destination(event.scenePos())
-            # Target port highlight
-            port = self._port_at(event.scenePos())
-            if port is self._drag_start_port:
-                port = None
-            if port is not self._drag_target_port:
-                if self._drag_target_port:
-                    self._drag_target_port.set_drop_highlight(False)
-                self._drag_target_port = port
-                if port:
-                    port.set_drop_highlight(True)
+            # Highlight target node
+            node = self._node_at(event.scenePos())
+            if node is self._drag_start_node:
+                node = None
+            if node is not self._drag_target_node:
+                if self._drag_target_node:
+                    self._drag_target_node.setZValue(1)  # reset
+                self._drag_target_node = node
             event.accept()
             return
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
         if self._drag_wire:
-            # Clear highlight
-            if self._drag_target_port:
-                self._drag_target_port.set_drop_highlight(False)
-                self._drag_target_port = None
-            # Find a port under cursor
-            target = self._port_at(event.scenePos())
-            if target and target is not self._drag_start_port:
-                self.add_wire(self._drag_start_port, target)
-            # Cleanup
+            if self._drag_target_node:
+                self._drag_target_node.setZValue(1)
+                self._drag_target_node = None
+            target = self._node_at(event.scenePos())
+            if target and target is not self._drag_start_node:
+                self.add_wire(self._drag_start_node, target)
             self.removeItem(self._drag_wire)
             self._drag_wire = None
-            self._drag_start_port = None
+            self._drag_start_node = None
             event.accept()
             return
         super().mouseReleaseEvent(event)
@@ -865,8 +848,8 @@ class NodeGraphWidget(QWidget):
     ) -> NodeItem:
         return self.scene.add_node(fmu_path, x, y)
 
-    def add_wire(self, source: PortItem, destination: PortItem) -> Optional[WireItem]:
-        return self.scene.add_wire(source, destination)
+    def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> Optional[WireItem]:
+        return self.scene.add_wire(node_a, node_b)
 
     def clear(self):
         self.scene.clear_all()
@@ -918,15 +901,157 @@ class _PortComboDelegate(QStyledItemDelegate):
         editor.setGeometry(option.rect)
 
 
+class _WireDirectionTab(QWidget):
+    """One direction of a wire: 2-column table (Output Port → Input Port).
+
+    *from_node* is the source node, *to_node* the destination.
+    """
+
+    changed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._from_node: Optional[NodeItem] = None
+        self._to_node: Optional[NodeItem] = None
+
+        # -- Table model (2 columns) --
+        self._model = QStandardItemModel(0, 2)
+        self._model.setHorizontalHeaderLabels(["Output Port", "Input Port"])
+
+        self._proxy = QSortFilterProxyModel(self)
+        self._proxy.setDynamicSortFilter(False)
+        self._proxy.setSourceModel(self._model)
+
+        self._table = QTableView()
+        self._table.setSortingEnabled(True)
+        self._table.setModel(self._proxy)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
+        self._table.horizontalHeader().setStretchLastSection(True)
+        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._table.setAlternatingRowColors(True)
+        self._table.verticalHeader().setVisible(False)
+
+        # -- Delegates --
+        self._output_delegate = _PortComboDelegate(self._table)
+        self._input_delegate = _PortComboDelegate(self._table)
+        self._table.setItemDelegateForColumn(0, self._output_delegate)
+        self._table.setItemDelegateForColumn(1, self._input_delegate)
+
+        self._model.dataChanged.connect(lambda *_: self.changed.emit())
+
+        # -- Buttons --
+        self._add_btn = QPushButton("Add link")
+        self._remove_btn = QPushButton("Remove link")
+        self._add_btn.setProperty("class", "info")
+        self._remove_btn.setProperty("class", "removal")
+        self._add_btn.clicked.connect(self._on_add)
+        self._remove_btn.clicked.connect(self._on_remove)
+
+        btn_lay = QHBoxLayout()
+        btn_lay.setContentsMargins(0, 0, 0, 0)
+        btn_lay.addWidget(self._add_btn)
+        btn_lay.addWidget(self._remove_btn)
+        btn_lay.addStretch()
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self._table, 1)
+        lay.addLayout(btn_lay)
+
+    # ── Configuration ───────────────────────────────────────────
+
+    def set_nodes(self, from_node: NodeItem, to_node: NodeItem):
+        self._from_node = from_node
+        self._to_node = to_node
+        self._output_delegate.set_items(from_node.fmu_output_names)
+        self._input_delegate.set_items(to_node.fmu_input_names)
+
+    # ── Data access ─────────────────────────────────────────────
+
+    def _close_editor(self):
+        """Close any active cell editor to avoid commitData warnings."""
+        self._table.setCurrentIndex(QModelIndex())
+
+    def mappings(self) -> List[tuple]:
+        """Return list of 4-tuples (from_fmu, output, to_fmu, input)."""
+        if not self._from_node or not self._to_node:
+            return []
+        result = []
+        from_name = self._from_node.fmu_path.name
+        to_name = self._to_node.fmu_path.name
+        for r in range(self._model.rowCount()):
+            out_item = self._model.item(r, 0)
+            in_item = self._model.item(r, 1)
+            if out_item and in_item and out_item.text() and in_item.text():
+                result.append((from_name, out_item.text(), to_name, in_item.text()))
+        return result
+
+    def load_mappings(self, mappings: List[tuple]):
+        """Populate the table from 4-tuples (only keep rows matching this direction)."""
+        self._close_editor()
+        self._model.removeRows(0, self._model.rowCount())
+        if not self._from_node or not self._to_node:
+            return
+        from_name = self._from_node.fmu_path.name
+        to_name = self._to_node.fmu_path.name
+        for m in mappings:
+            if len(m) >= 4 and m[0] == from_name and m[2] == to_name:
+                self._model.appendRow([QStandardItem(m[1]), QStandardItem(m[3])])
+            elif len(m) == 2:
+                # Legacy 2-tuple: only load in the first direction tab
+                self._model.appendRow([QStandardItem(m[0]), QStandardItem(m[1])])
+
+    def row_count(self) -> int:
+        return self._model.rowCount()
+
+    # ── Auto-connect ────────────────────────────────────────────
+
+    def auto_connect(self, existing: set):
+        """Add rows for matching output/input port names not in *existing*."""
+        if not self._from_node or not self._to_node:
+            return
+        self._close_editor()
+        from_name = self._from_node.fmu_path.name
+        to_name = self._to_node.fmu_path.name
+        to_inputs = set(self._to_node.fmu_input_names)
+        for name in self._from_node.fmu_output_names:
+            if name in to_inputs:
+                m = (from_name, name, to_name, name)
+                if m not in existing:
+                    self._model.appendRow([QStandardItem(name), QStandardItem(name)])
+                    existing.add(m)
+
+    # ── Slots ───────────────────────────────────────────────────
+
+    def _on_add(self):
+        if not self._from_node or not self._to_node:
+            return
+        if not self._from_node.fmu_output_names or not self._to_node.fmu_input_names:
+            return
+        self._model.appendRow([
+            QStandardItem(self._from_node.fmu_output_names[0]),
+            QStandardItem(self._to_node.fmu_input_names[0]),
+        ])
+        self.changed.emit()
+
+    def _on_remove(self):
+        source_rows = sorted(
+            {self._proxy.mapToSource(idx).row()
+             for idx in self._table.selectionModel().selectedRows()},
+            reverse=True,
+        )
+        self._table.setCurrentIndex(QModelIndex())
+        for r in source_rows:
+            self._model.removeRow(r)
+        self.changed.emit()
+
+
 class WireDetailWidget(QWidget):
-    """WireItem details: title label + 2-column port-mapping table.
+    """WireItem details with two tabs – one per direction (A → B and B → A).
 
-    Columns:
-        0 – Output port  (from the source node's FMU outputs)
-        1 – Input port   (from the destination node's FMU inputs)
-
-    Each cell uses a combo-box delegate so the user picks port names
-    from drop-down menus.  *Add* / *Remove* buttons manage rows.
+    Each tab shows a 2-column table (Output Port, Input Port).
+    The *Auto-Connect* button populates **both** directions at once.
     """
 
     changed = Signal()
@@ -940,170 +1065,75 @@ class WireDetailWidget(QWidget):
         font = self._name_label.font()
         font.setBold(True)
         self._name_label.setFont(font)
+        self._name_label.setWordWrap(True)
+        self._name_label.setMinimumWidth(0)
 
-        # -- Table model (2 columns) --
-        self._table_model = QStandardItemModel(0, 2)
-        self._table_model.setHorizontalHeaderLabels(["From", "To"])
+        # -- Tabs (one per direction) --
+        self._tab_ab = _WireDirectionTab()
+        self._tab_ba = _WireDirectionTab()
+        self._tab_ab.changed.connect(self._on_tab_changed)
+        self._tab_ba.changed.connect(self._on_tab_changed)
 
-        # -- Sort proxy (avoids editor invalidation on sort) --
-        self._proxy_model = QSortFilterProxyModel(self)
-        self._proxy_model.setSourceModel(self._table_model)
+        self._tabs = QTabWidget()
+        self._tabs.addTab(self._tab_ab, "A → B")
+        self._tabs.addTab(self._tab_ba, "B → A")
 
-        # -- Table view --
-        self._table = QTableView()
-        self._table.setSortingEnabled(True)
-        self._table.setModel(self._proxy_model)
-        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._table.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
-        self._table.horizontalHeader().setStretchLastSection(True)
-        self._table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch,
-        )
-        self._table.setAlternatingRowColors(True)
-        self._table.verticalHeader().setVisible(False)
-
-        # -- Combo-box delegates (one per column) --
-        self._source_delegate = _PortComboDelegate(self._table)
-        self._dest_delegate = _PortComboDelegate(self._table)
-        self._table.setItemDelegateForColumn(0, self._source_delegate)
-        self._table.setItemDelegateForColumn(1, self._dest_delegate)
-
-        # -- Sync edits back to WireItem --
-        self._table_model.dataChanged.connect(self._on_table_data_changed)
-
-        # -- Buttons --
-        self._add_btn = QPushButton("Add link")
-        self._remove_btn = QPushButton("Remove link")
+        # -- Auto-Connect button --
         self._auto_btn = QPushButton("Auto-Connect")
-
-        self._add_btn.setProperty("class", "info")
-        self._remove_btn.setProperty("class", "removal")
         self._auto_btn.setProperty("class", "info")
-
-        self._add_btn.clicked.connect(self._on_add)
-        self._remove_btn.clicked.connect(self._on_remove)
         self._auto_btn.clicked.connect(self._on_auto_connect)
-
-        btn_width = max(
-            self._add_btn.sizeHint().width(),
-            self._remove_btn.sizeHint().width(),
-            self._auto_btn.sizeHint().width(),
-        )
-        self._add_btn.setMinimumWidth(btn_width)
-        self._remove_btn.setMinimumWidth(btn_width)
-        self._auto_btn.setMinimumWidth(btn_width)
 
         btn_lay = QHBoxLayout()
         btn_lay.setContentsMargins(0, 0, 0, 0)
         btn_lay.addWidget(self._auto_btn)
-        btn_lay.addWidget(self._add_btn)
-        btn_lay.addWidget(self._remove_btn)
         btn_lay.addStretch()
 
         # -- Layout --
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.addWidget(self._name_label)
-        lay.addWidget(self._table, 1)
+        lay.addWidget(self._tabs, 1)
         lay.addLayout(btn_lay)
 
     # ── Public API ──────────────────────────────────────────────
 
     def set_wire(self, wire: WireItem):
-        """Bind to a wire and refresh delegates / table."""
-        # Save current table to the previous wire before switching
         self.sync_to_wire()
-
         self._wire = wire
-        src, dst = wire.source, wire.destination
-        self._name_label.setText(f"{src.node.title}  →  {dst.node.title}")
+        na, nb = wire.node_a, wire.node_b
+        self._name_label.setText(f"{na.title} (A) ↔ {nb.title} (B)")
 
-        # Refresh available port names in delegates
-        self._source_delegate.set_items(src.node.fmu_output_names)
-        self._dest_delegate.set_items(dst.node.fmu_input_names)
+        self._tab_ab.set_nodes(na, nb)
+        self._tab_ba.set_nodes(nb, na)
 
-        # Reload mappings stored on the wire
         self._load_from_wire()
 
     # ── Internal sync helpers ─────────────────────────────────────
 
     def sync_to_wire(self):
-        """Write the current table content back to self._wire.mappings."""
         if self._wire is None:
             return
-        mappings = []
-        for r in range(self._table_model.rowCount()):
-            out_item = self._table_model.item(r, 0)
-            in_item = self._table_model.item(r, 1)
-            if out_item and in_item:
-                out_name = out_item.text()
-                in_name = in_item.text()
-                if out_name and in_name:
-                    mappings.append((out_name, in_name))
-        self._wire.mappings = mappings
+        self._wire.mappings = self._tab_ab.mappings() + self._tab_ba.mappings()
 
     def _load_from_wire(self):
-        """Populate the table from self._wire.mappings."""
-        self._table_model.removeRows(0, self._table_model.rowCount())
         if self._wire is None:
             return
-        for out_name, in_name in self._wire.mappings:
-            self._table_model.appendRow(
-                [QStandardItem(out_name), QStandardItem(in_name)]
-            )
+        all_mappings = list(self._wire.mappings)
+        self._tab_ab.load_mappings(all_mappings)
+        self._tab_ba.load_mappings(all_mappings)
 
     # ── Slots ────────────────────────────────────────────────────
 
-    def _on_add(self):
-        """Add a new mapping row with default first port names."""
-        if self._wire is None:
-            return
-        out_names = self._wire.source.node.fmu_output_names
-        in_names = self._wire.destination.node.fmu_input_names
-        if not out_names or not in_names:
-            return
-
-        src_item = QStandardItem(out_names[0])
-        dst_item = QStandardItem(in_names[0])
-        self._table_model.appendRow([src_item, dst_item])
-        self.sync_to_wire()
-        self.changed.emit()
-
-    def _on_remove(self):
-        """Remove selected rows from the mapping table."""
-        source_rows = sorted(
-            {self._proxy_model.mapToSource(idx).row()
-             for idx in self._table.selectionModel().selectedRows()},
-            reverse=True,
-        )
-        # Close any active editor before removing rows
-        self._table.setCurrentIndex(QModelIndex())
-        for r in source_rows:
-            self._table_model.removeRow(r)
-        self.sync_to_wire()
-        self.changed.emit()
-
     def _on_auto_connect(self):
-        """Automatically map ports that share the same name."""
         if self._wire is None:
             return
-        out_names = self._wire.source.node.fmu_output_names
-        in_names = self._wire.destination.node.fmu_input_names
-        in_set = set(in_names)
-
-        # Collect already-mapped pairs to avoid duplicates
         existing = set(self._wire.mappings)
-
-        for name in out_names:
-            if name in in_set and (name, name) not in existing:
-                self._table_model.appendRow(
-                    [QStandardItem(name), QStandardItem(name)]
-                )
+        self._tab_ab.auto_connect(existing)
+        self._tab_ba.auto_connect(existing)
         self.sync_to_wire()
         self.changed.emit()
 
-    def _on_table_data_changed(self, _top_left, _bottom_right, _roles):
-        """Sync to wire whenever a cell is edited via combo box."""
+    def _on_tab_changed(self):
         self.sync_to_wire()
         self.changed.emit()
 
@@ -1129,15 +1159,26 @@ class _StartValueDelegate(QStyledItemDelegate):
             placeholder = index.data(self.ROLE_PLACEHOLDER)
             if placeholder:
                 painter.save()
-                painter.setPen(QColor(140, 140, 140))
+                painter.setPen(QColor(placeholder_color))
                 rect = option.rect.adjusted(4, 0, -4, 0)
                 painter.drawText(rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                                  str(placeholder))
                 painter.restore()
 
 
+class _CheckableSortProxy(QSortFilterProxyModel):
+    """Proxy that sorts checkable columns by check-state instead of display text."""
+
+    def lessThan(self, left, right):
+        left_data = self.sourceModel().itemFromIndex(left)
+        right_data = self.sourceModel().itemFromIndex(right)
+        if left_data and left_data.isCheckable():
+            return int(left_data.checkState()) < int(right_data.checkState())
+        return super().lessThan(left, right)
+
+
 class FMUDetailWidget(QWidget):
-    """NodeItem (FMU) details with a start-values table for input ports."""
+    """NodeItem (FMU) details with tabs for start values and output port exposure."""
 
     changed = Signal()
 
@@ -1150,28 +1191,56 @@ class FMUDetailWidget(QWidget):
         font = self._name_label.font()
         font.setBold(True)
         self._name_label.setFont(font)
+        self._name_label.setWordWrap(True)
 
-        # Start-values table: column 0 = port name (read-only), column 1 = value (editable)
+        # ── Tab widget ────────────────────────────────────────────
+        self._tabs = QTabWidget()
+
+        # ── Tab 1: Start Values ───────────────────────────────────
         self._sv_model = QStandardItemModel(0, 2)
         self._sv_model.setHorizontalHeaderLabels(["Input Port", "Start Value"])
         self._sv_model.dataChanged.connect(lambda *_: self.changed.emit())
 
+        self._sv_proxy = QSortFilterProxyModel(self)
+        self._sv_proxy.setSourceModel(self._sv_model)
+
         self._sv_table = QTableView()
-        self._sv_table.setModel(self._sv_model)
+        self._sv_table.setModel(self._sv_proxy)
+        self._sv_table.setSortingEnabled(True)
         self._sv_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._sv_table.horizontalHeader().setStretchLastSection(True)
         self._sv_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._sv_table.verticalHeader().setVisible(False)
-        self._sv_table.setSortingEnabled(True)
 
-        # Custom delegate for placeholder hints on column 1
         self._sv_delegate = _StartValueDelegate(self._sv_table)
         self._sv_table.setItemDelegateForColumn(1, self._sv_delegate)
 
+        self._tabs.addTab(self._sv_table, "Start Values")
+
+        # ── Tab 2: Output Ports ───────────────────────────────────
+        self._out_model = QStandardItemModel(0, 2)
+        self._out_model.setHorizontalHeaderLabels(["Output Port", "Exposed"])
+        self._out_model.dataChanged.connect(lambda *_: self.changed.emit())
+
+        self._out_proxy = _CheckableSortProxy(self)
+        self._out_proxy.setSourceModel(self._out_model)
+
+        self._out_table = QTableView()
+        self._out_table.setModel(self._out_proxy)
+        self._out_table.setSortingEnabled(True)
+        self._out_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._out_table.horizontalHeader().setStretchLastSection(True)
+        self._out_table.setAlternatingRowColors(True)
+        self._out_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._out_table.verticalHeader().setVisible(False)
+
+        self._tabs.addTab(self._out_table, "Output Ports")
+
+        # ── Layout ────────────────────────────────────────────────
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.addWidget(self._name_label)
-        lay.addWidget(self._sv_table, 1)
+        lay.addWidget(self._tabs, 1)
 
     # -- Sync helpers ----------------------------------------------------------
 
@@ -1179,6 +1248,7 @@ class FMUDetailWidget(QWidget):
         """Write the table content back into the current NodeItem."""
         if self._current_node is None:
             return
+        # Sync start values
         self._current_node.user_start_values.clear()
         for row in range(self._sv_model.rowCount()):
             port_name = self._sv_model.item(row, 0).text()
@@ -1187,17 +1257,25 @@ class FMUDetailWidget(QWidget):
             if value:
                 self._current_node.user_start_values[port_name] = value
 
+        # Sync exposed outputs
+        self._current_node.user_exposed_outputs.clear()
+        for row in range(self._out_model.rowCount()):
+            port_name = self._out_model.item(row, 0).text()
+            check_item = self._out_model.item(row, 1)
+            exposed = check_item.checkState() == Qt.CheckState.Checked
+            self._current_node.user_exposed_outputs[port_name] = exposed
+
     def set_node(self, node: NodeItem):
         """Persist edits on the previous node, then populate with *node*."""
         self.sync_to_node()
 
         self._current_node = node
-        fmu_step_size = f"{node.fmu_step_size}s" if node.fmu_step_size else "unknow"
+        fmu_step_size = f"{node.fmu_step_size}s" if node.fmu_step_size else "unknown"
         self._name_label.setText(
             f"{node.title} (generated by {node.fmu_generator}, step size = {fmu_step_size})"
         )
 
-
+        # ── Populate Start Values tab ─────────────────────────────
         self._sv_model.removeRows(0, self._sv_model.rowCount())
         for port_name in node.fmu_input_names:
             name_item = QStandardItem(port_name)
@@ -1205,13 +1283,26 @@ class FMUDetailWidget(QWidget):
 
             user_val = node.user_start_values.get(port_name, "")
             value_item = QStandardItem(user_val)
-            # Store FMU default as placeholder hint
             default = node.fmu_start_values.get(port_name)
             if default is not None:
                 value_item.setData(str(default), _StartValueDelegate.ROLE_PLACEHOLDER)
                 value_item.setToolTip(f"FMU default: {default}")
 
             self._sv_model.appendRow([name_item, value_item])
+
+        # ── Populate Output Ports tab ─────────────────────────────
+        self._out_model.removeRows(0, self._out_model.rowCount())
+        for port_name in node.fmu_output_names:
+            name_item = QStandardItem(port_name)
+            name_item.setEditable(False)
+
+            check_item = QStandardItem("")
+            check_item.setEditable(False)
+            check_item.setCheckable(True)
+            exposed = node.user_exposed_outputs.get(port_name, False)
+            check_item.setCheckState(Qt.CheckState.Checked if exposed else Qt.CheckState.Unchecked)
+
+            self._out_model.appendRow([name_item, check_item])
 
 
 class ContainerParameters:
@@ -1237,7 +1328,7 @@ class ContainerParameters:
 
 
 class ContainerDetailWidget(QWidget):
-    """Container details - content to be defined later."""
+    """Container details: name label and editable parameter table."""
 
     changed = Signal()
 
@@ -1250,6 +1341,7 @@ class ContainerDetailWidget(QWidget):
         font = self._name_label.font()
         font.setBold(True)
         self._name_label.setFont(font)
+        self._name_label.setWordWrap(True)
 
         self._model = QStandardItemModel(0, 2)
         self._model.setHorizontalHeaderLabels(["Parameters", ""])
@@ -1265,7 +1357,7 @@ class ContainerDetailWidget(QWidget):
         self._table.horizontalHeader().setVisible(False)
         self._table.verticalHeader().setVisible(False)
 
-        # -- Sync edits back to WireItem --
+        # -- Sync edits back to ContainerParameters --
         self._model.dataChanged.connect(self._on_table_data_changed)
 
         lay = QVBoxLayout(self)
@@ -1282,7 +1374,7 @@ class ContainerDetailWidget(QWidget):
             if isinstance(v, bool):
                 value_item = QStandardItem("")
                 value_item.setCheckable(True)
-                value_item.setCheckState(Qt.Checked if v else Qt.Unchecked)
+                value_item.setCheckState(Qt.CheckState.Checked if v else Qt.CheckState.Unchecked)
                 value_item.setEditable(False)
             else:
                 value_item = QStandardItem(str(v))
@@ -1291,14 +1383,14 @@ class ContainerDetailWidget(QWidget):
             key_item.setEditable(False)
             self._model.appendRow([key_item, value_item])
 
-            self._container_parameters = container_parameters
+        self._container_parameters = container_parameters
 
     def _on_table_data_changed(self):
         for r in range(self._model.rowCount()):
             key = self._model.item(r, 0).text()
             value_item = self._model.item(r, 1)
             if value_item.isCheckable():
-                value = value_item.checkState() == Qt.Checked
+                value = value_item.checkState() == Qt.CheckState.Checked
             else:
                 value = value_item.text()
             self._container_parameters.parameters[key] = value
@@ -1429,14 +1521,25 @@ class NodeTreePanel(QWidget):
 
     def _on_item_changed(self, item: QStandardItem):
         """Called when an item is edited in-place (e.g. double-click rename)."""
-        if not item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS):
+        container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+        if not container_parameters:
             return
+
         fixed = self._ensure_fmu_ext(item.text().strip())
         if fixed != item.text():
             # Block signals to avoid recursion
             self._model.blockSignals(True)
             item.setText(fixed)
             self._model.blockSignals(False)
+
+        # Keep data model in sync with the visible name.
+        container_parameters.name = fixed
+
+        # If this container is currently selected, refresh the details panel.
+        current = self._tree.currentIndex()
+        if current.isValid() and self._model.itemFromIndex(current) is item:
+            self._container_detail.set_container(container_parameters)
+            self._detail_stack.setCurrentWidget(self._container_detail)
 
     # ── Row builders ──────────────────────────────────────────────
 
@@ -1521,8 +1624,9 @@ class NodeTreePanel(QWidget):
             return
         self._syncing_selection = True
         try:
-            # Flush any pending edits from the wire detail table
+            # Flush any pending edits from detail panels
             self._wire_detail.sync_to_wire()
+            self._fmu_detail.sync_to_node()
 
             sel = self._tree.selectionModel()
             sel.clearSelection()
@@ -1743,6 +1847,10 @@ class MainWindow(QMainWindow):
         self._debug_checkbox = QCheckBox("Verbose Mode")
         self._debug_checkbox.setToolTip("Keep intermediate build artifacts and enable verbose logging")
 
+        # Datalog checkbox
+        self._datalog_checkbox = QCheckBox("Enable Datalog")
+        self._datalog_checkbox.setToolTip("Generate datalog.txt in the FMU resources")
+
         # FMI version radio buttons
         self._fmi2_radio = QRadioButton("Generate FMI-2")
         self._fmi3_radio = QRadioButton("Generate FMI-3")
@@ -1763,6 +1871,7 @@ class MainWindow(QMainWindow):
         separator.setFrameShadow(QFrame.Shadow.Sunken)
         config_layout.addWidget(separator)
         config_layout.addWidget(self._debug_checkbox)
+        config_layout.addWidget(self._datalog_checkbox)
 
         config_action = QWidgetAction(self)
         config_action.setDefaultWidget(config_widget)
@@ -1794,7 +1903,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.setWindowTitle("FMU Container Builder")
-        self.resize(1200, 700)
+        self.resize(1600, 900)
 
         self._dirty = False
         self._graph.scene.node_added.connect(self._on_node_added_update_dir)
@@ -1824,7 +1933,7 @@ class MainWindow(QMainWindow):
         if node.fmu_path and node.fmu_path.parent.exists():
             self._last_directory = node.fmu_path.parent
 
-    def _data_to_items(self, parent, data_node, folder, links_list: List[List[str]], x=0, y=0):
+    def _data_to_items(self, parent, data_node, folder, links_list: List[List[str]], start_values_list: List[List[str]], output_ports_list: List[List[str]], x=0, y=0):
         self._tree.pending_parent = parent
         for fmu in data_node["fmu"]:
             logger.debug(f"ADD FMU: {fmu}")
@@ -1845,12 +1954,23 @@ class MainWindow(QMainWindow):
                 logger.debug(f"ADD LINK: {link}")
                 links_list.append(link)
 
+        if "start" in data_node:
+            for start in data_node["start"]:
+                logger.debug(f"ADD START VALUE: {start}")
+                start_values_list.append(start)
+
+        if "output" in data_node:
+            for output in data_node["output"]:
+                # output format: [fmu_name, port_name, exposed_name]
+                logger.debug(f"ADD OUTPUT PORT: {output}")
+                output_ports_list.append(output)
+
         if "container" in data_node:
             for container_fmu in data_node["container"]:
                 logger.debug(f"ADD CONTAINER: {container_fmu['name']}")
                 child = self._tree.make_container_item(container_fmu["name"])
                 parent.appendRow(child)
-                self._data_to_items(child, container_fmu, folder, links_list, x=x, y=y)
+                self._data_to_items(child, container_fmu, folder, links_list, start_values_list, output_ports_list, x=x, y=y)
 
         for link in links_list:
             if link[2] == container_name:
@@ -1880,50 +2000,83 @@ class MainWindow(QMainWindow):
             logger.fatal(f"Cannot read file: {e}")
             return
 
+        # Clear existing scene and tree before loading
+        self._graph.scene.clear_all()
+        self._tree.root.removeRows(0, self._tree.root.rowCount())
+
         folder = Path(input_path).with_suffix(".dir")
         json_filename = folder / Path(input_path).with_suffix(".json").name
         with open(json_filename, "rt") as file:
             data = json.load(file)
 
         links_list: List[List[str]] = []
-        self._data_to_items(self._tree.root, data, folder, links_list)
+        start_values_list: List[List[str]] = []
+        output_ports_list: List[List[str]] = []
+        self._data_to_items(self._tree.root, data, folder, links_list, start_values_list, output_ports_list)
 
         # Build a map from FMU filename to its NodeItem
         nodes_by_name: Dict[str, NodeItem] = {}
         for node in self._graph.scene.nodes():
             nodes_by_name[node.fmu_path.name] = node
 
+
+
         # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
-        wire_mappings: Dict[Tuple[str, str], List[Tuple[str, str]]] = {}
+        # A wire between two nodes can carry mappings in both directions.
+        wire_key_mappings: Dict[Tuple[str, str], List[Tuple[str, str, str, str]]] = {}
         for link in links_list:
             fmu_from, port_from, fmu_to, port_to = link[0], link[1], link[2], link[3]
-            key = (fmu_from, fmu_to)
-            wire_mappings.setdefault(key, []).append((port_from, port_to))
+            # Canonical key: sorted pair so A→B and B→A end up on the same wire
+            key = tuple(sorted([fmu_from, fmu_to]))
+            wire_key_mappings.setdefault(key, []).append((fmu_from, port_from, fmu_to, port_to))
 
         # Create wires with their port-level mappings
-        # Block scene signals to prevent auto-selection from triggering
-        # set_wire/sync_to_wire which would overwrite mappings before they are set.
         self._graph.scene.blockSignals(True)
         try:
-            for (fmu_from, fmu_to), mappings in wire_mappings.items():
-                node_from = nodes_by_name.get(fmu_from)
-                node_to = nodes_by_name.get(fmu_to)
-                if not node_from or not node_to:
-                    logger.warning(f"Cannot create wire: node not found for {fmu_from} -> {fmu_to}")
-                    continue
-                if not node_from.output_port or not node_to.input_port:
-                    logger.warning(f"Cannot create wire: missing port on {fmu_from} -> {fmu_to}")
+            for (name1, name2), mappings in wire_key_mappings.items():
+                node1 = nodes_by_name.get(name1)
+                node2 = nodes_by_name.get(name2)
+                if not node1 or not node2:
+                    logger.warning(f"Cannot create wire: node not found for {name1} ↔ {name2}")
                     continue
 
-                wire = self._graph.scene.add_wire(node_from.output_port, node_to.input_port)
+                wire = self._graph.scene.add_wire(node1, node2)
                 if wire:
                     wire.mappings = mappings
-                    logger.debug(f"Wire created: {fmu_from} -> {fmu_to} with {len(mappings)} mapping(s)")
+                    logger.debug(f"Wire created: {name1} ↔ {name2} with {len(mappings)} mapping(s)")
                 else:
-                    logger.warning(f"Wire already exists: {fmu_from} -> {fmu_to}")
+                    # Wire already exists — append mappings
+                    for w in node1.wires:
+                        other = w.node_b if w.node_a is node1 else w.node_a
+                        if other is node2:
+                            w.mappings.extend(mappings)
+                            break
         finally:
             self._graph.scene.blockSignals(False)
             self._graph.scene.clearSelection()
+
+        # Apply start values to scene nodes
+        for fmu_name, port_name, value in start_values_list:
+            node = nodes_by_name.get(fmu_name)
+            if node:
+                node.user_start_values[port_name] = value
+                logger.debug(f"Start value: {fmu_name}/{port_name} = {value}")
+            else:
+                logger.warning(f"Cannot apply start value: node not found for {fmu_name}")
+
+        # Apply exposed output ports to scene nodes
+        for fmu_name, port_name, _exposed_name in output_ports_list:
+            node = nodes_by_name.get(fmu_name)
+            if node:
+                node.user_exposed_outputs[port_name] = True
+                logger.debug(f"Exposed output: {fmu_name}/{port_name}")
+            else:
+                logger.warning(f"Cannot apply exposed output: node not found for {fmu_name}")
+
+        # Reset the detail panels so that the next sync_to_node/sync_to_wire
+        # does not overwrite the just-loaded data with stale empty table content.
+        self._tree.fmu_detail._current_node = None
+        self._tree.wire_detail._wire = None
 
         # Refresh views
         self._tree.tree_view.expandAll()
@@ -1944,7 +2097,7 @@ class MainWindow(QMainWindow):
         self._last_directory = Path(input_path).parent
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=log_level)
-        self._dirty= False
+        self._dirty = False
 
     def _on_export_clicked(self):
         root_name = Path(self._tree.root.text()).with_suffix(".json").name
@@ -1968,13 +2121,13 @@ class MainWindow(QMainWindow):
         for sub_assembly_node in assembly_node.children.values():
             links_list = self._apply_links_on_assembly_node(sub_assembly_node, links_list)
 
-        logger.info(f"Links applied: {len(links_list)}")
-        logger.info(f"Assembly node: {assembly_node.name}")
-        logger.info(f"{assembly_node.fmu_names_list}")
+        logger.debug(f"Links applied: {len(links_list)}")
+        logger.debug(f"Assembly node: {assembly_node.name}")
+        logger.debug(f"{assembly_node.fmu_names_list}")
 
         remaining_links_list = []
         for link in links_list:
-            logger.info(f"{link}")
+            logger.debug(f"{link}")
             if link[0] in assembly_node.fmu_names_list:
                 if link[2] in assembly_node.fmu_names_list:
                     assembly_node.add_link(link[0], link[1], link[2], link[3])
@@ -2012,6 +2165,9 @@ class MainWindow(QMainWindow):
             else:
                 uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
                 node = nodes_by_uid.get(uid)
+                if node is None:
+                    logger.warning(f"Node with uid {uid} not found in scene, skipping.")
+                    return None
                 fmu_path = node.fmu_path
                 logger.info(f"ADD: FMU: {fmu_path.name}")
                 parent_assembly_node.add_fmu(str(fmu_path))
@@ -2019,6 +2175,11 @@ class MainWindow(QMainWindow):
                 for port_name, value in node.user_start_values.items():
                     logger.debug(f"START VALUE: {fmu_path.name}/{port_name} = {value}")
                     parent_assembly_node.add_start_value(str(fmu_path), port_name, value)
+                # Apply user-exposed output ports
+                for port_name, exposed in node.user_exposed_outputs.items():
+                    if exposed:
+                        logger.debug(f"EXPOSE OUTPUT: {fmu_path.name}/{port_name}")
+                        parent_assembly_node.add_output(str(fmu_path), port_name, port_name)
                 return None
 
         root_item: QStandardItem = self._tree.root
@@ -2032,12 +2193,26 @@ class MainWindow(QMainWindow):
             logger.fatal(f"{e}")
 
         links_list: List[Tuple[str, str, str, str]] = []
+        # Build fmu_path lookup by fmu_path.name
+        path_by_name: Dict[str, str] = {}
+        for node in self._graph.scene.nodes():
+            path_by_name[node.fmu_path.name] = str(node.fmu_path)
+
         for wire in self._graph.scene.wires():
-            fmu_from = nodes_by_uid[wire.source.node.uid]
-            fmu_to = nodes_by_uid[wire.destination.node.uid]
             for link in wire.mappings:
-                logger.info(f"{fmu_from.fmu_path} {link[0]} -> {fmu_to.fmu_path} {link[1]}")
-                links_list.append((str(fmu_from.fmu_path), link[0], str(fmu_to.fmu_path), link[1]))
+                if len(link) == 4:
+                    fmu_from_name, port_from, fmu_to_name, port_to = link
+                    fmu_from_path = path_by_name.get(fmu_from_name, fmu_from_name)
+                    fmu_to_path = path_by_name.get(fmu_to_name, fmu_to_name)
+                elif len(link) == 2:
+                    # Legacy 2-tuple: assume node_a → node_b
+                    fmu_from_path = str(wire.node_a.fmu_path)
+                    fmu_to_path = str(wire.node_b.fmu_path)
+                    port_from, port_to = link
+                else:
+                    continue
+                logger.info(f"{fmu_from_path} {port_from} -> {fmu_to_path} {port_to}")
+                links_list.append((fmu_from_path, port_from, fmu_to_path, port_to))
 
         self._apply_links_on_assembly_node(assembly.root, links_list)
 
@@ -2050,7 +2225,7 @@ class MainWindow(QMainWindow):
             assembly.write_json(output_path)
             self._dirty = False
 
-    def save_as_fmu(self, output_path, fmi_version=2):
+    def save_as_fmu(self, output_path, fmi_version=2, datalog=False):
         assembly = self.create_assembly()
 
         if assembly:
@@ -2058,7 +2233,7 @@ class MainWindow(QMainWindow):
                 with tempfile.NamedTemporaryFile("wt", suffix=".json") as temp_file:
                     assembly.write_json(temp_file.name)
                     assembly.description_pathname = temp_file.name
-                    assembly.make_fmu(filename=output_path, fmi_version=fmi_version)
+                    assembly.make_fmu(filename=output_path, fmi_version=fmi_version, datalog=datalog)
                     self._dirty = False
 
             except FMUContainerError as e:
@@ -2079,8 +2254,9 @@ class MainWindow(QMainWindow):
 
         self._last_directory = Path(output_path).parent
         fmi_version = self._fmi_group.checkedId()
+        datalog = self._datalog_checkbox.isChecked()
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.save_as_fmu, output_path, fmi_version,
+        RunTask(self.save_as_fmu, output_path, fmi_version, datalog,
                 parent=self, title="Saving as FMU", level=log_level)
 
     def closeEvent(self, event):

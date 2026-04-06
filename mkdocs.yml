@@ -30,7 +30,7 @@ theme:
         icon: material/brightness-7
         name: Switch to dark mode
     # Palette toggle for dark mode
-  custom_dir: overrides
+
 
   font:
     text: Roboto
@@ -139,17 +139,20 @@ nav:
     - Quick Start: tutorials/getting-started.md
   - User Guide:
     - Index: user-guide/index.md
-    - CLI: user-guide/fmutool/cli-usage.md
-    - Understand & Modify FMUs:
-      - GUI: user-guide/fmutool/gui-usage.md
+    - Launcher: user-guide/launcher.md
+    - FMU Manipulation:
+      - Command Line: user-guide/fmutool/cli-usage.md
+      - Operations GUI: user-guide/fmutool/gui-usage.md
+      - Variable Editor: user-guide/fmutool/fmueditor.md
       - Python API: user-guide/fmutool/python-api.md
       - Remoting: user-guide/fmutool/remoting.md
       - Checker: user-guide/fmutool/checker.md
-    - FMU Containers:
+    - FMU Container:
       - Concept: user-guide/fmucontainer/container.md
+      - Container Builder: user-guide/fmucontainer/gui-usage.md
       - Variable Step Size: user-guide/fmucontainer/container-vr.md
       - Datalog: user-guide/fmucontainer/datalog.md
-      - LS-BUS support: user-guide/fmucontainer/ls-bus.md
+      - LS-BUS Support: user-guide/fmucontainer/ls-bus.md
   - API documentation:
       - API/assembly.md
       - API/checker.md

@@ -88,6 +88,24 @@ _COMMON_STYLE = """
         width: 32px;
         height: 32px;
     }}
+    QRadioButton::indicator:checked {{
+        image: url(images:radio-checked.png);
+    }}
+    QRadioButton::indicator:checked:hover {{
+        image: url(images:radio-checked-hover.png);
+    }}
+    QRadioButton::indicator:checked:disabled {{
+        image: url(images:radio-checked-disabled.png);
+    }}
+    QRadioButton::indicator:unchecked {{
+        image: url(images:radio-unchecked.png);
+    }}
+    QRadioButton::indicator:unchecked:hover {{
+        image: url(images:radio-unchecked-hover.png);
+    }}
+    QRadioButton::indicator:unchecked:disabled {{
+        image: url(images:radio-unchecked-disabled.png);
+    }}
     QMenu::indicator:checked, QCheckBox::indicator:checked {{
         image: url(images:checkbox-checked.png);
     }}
@@ -189,6 +207,8 @@ gui_style = _COMMON_STYLE.format(
     font_size=_FONT_SIZE_MAIN,
     font_textbrowser=_FONT_TEXTBROWSER,
 )
+
+placeholder_color = "#505058"
 
 log_color = {
     "DEBUG": "#6E6B6B",

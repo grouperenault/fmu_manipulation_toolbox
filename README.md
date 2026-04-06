@@ -65,9 +65,9 @@ FMU Manipulation Toolbox is packaged for:
 
 # 🖥️ Graphical User Interface
 
-FMU Manipulation Toolbox is released with a GUI. You can launch it with the following command `fmutool-gui`
+FMU Manipulation Toolbox is released with a GUI. You can launch it with the following command `fmutoolbox`
 
-![GUI](docs/gui.png "GUI")
+![GUI](docs/gui-launcher.png "GUI")
 
 Button color descriptions:
 - red: remove information from the `modelDescription.xml`

@@ -2,6 +2,7 @@
 This package was formerly known as `fmutool`.
 
 # Version 1.9.3 (dev)
+* ADDED: Graphical User Interfaces for quick FMU variable edition and build FMU Container
 * ADDED: Support of array variables
 * CHANGE: refactor the documentation
 * FIXED: `remoting` (rare) race condition when multiple instances share the same unzip directory

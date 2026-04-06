@@ -454,6 +454,14 @@ Now that you've mastered the basics, explore more advanced features:
     
     Use the graphical interface
 
+-   [:octicons-pencil-24: FMU Variable Editor](../user-guide/fmutool/fmueditor.md)
+    
+    Edit variable names and descriptions
+
+-   [:octicons-package-24: Container Builder GUI](../user-guide/fmucontainer/gui-usage.md)
+    
+    Build FMU containers visually
+
 -   [:octicons-light-bulb-24: Use Cases](../examples/examples.md)
     
     Real-world examples

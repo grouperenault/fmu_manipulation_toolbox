@@ -49,8 +49,15 @@ developers working with FMI-compliant models, it provides three powerful interfa
 
 === "Graphical Interface"
 
-    ![](gui.png)
-    Perfect for interactive, visual manipulation of FMUs with an intuitive point-and-click interface.
+    ![](gui-launcher.png)
+    
+    Three dedicated GUI tools for interactive manipulation:
+    
+    - **FMU Tool** (`fmutool-gui`): analyze, modify, and transform FMUs
+    - **FMU Variable Editor** (`fmueditor`): rename variables and edit descriptions
+    - **FMU Container Builder** (`fmucontainer-gui`): visual node-graph editor to assemble FMU containers
+    
+    Launch them all from the **FMU Toolbox Launcher** (`fmutoolbox`).
 
 === "Command Line"
 

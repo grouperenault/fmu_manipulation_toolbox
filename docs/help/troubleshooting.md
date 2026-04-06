@@ -120,6 +120,42 @@ ModuleNotFoundError: No module named 'PySide6'
 pip install PySide6
 ```
 
+### ❌ FMU Container Builder: wires have no port mappings
+
+**Symptom:** After loading an existing FMU container, clicking on a wire shows empty mapping tables in both tabs.
+
+**Cause:** The container FMU may have been built with a version that did not store port-level
+mappings. Or the `.fmu` file is corrupted.
+
+**Solution:**
+
+1. Select the wire
+2. Use the **Auto-Connect** button to re-create mappings from matching port names (populates both A → B and B → A tabs)
+3. Manually adjust if needed using the combo-box dropdowns in each tab
+
+### ❌ FMU Variable Editor: changes are not saved
+
+**Symptom:** After editing variable names or descriptions, saving the FMU does not apply the changes.
+
+**Cause:** Only modified cells (highlighted in orange) are written to the output FMU. If no cell
+appears orange, the edit was not registered.
+
+**Solution:**
+
+- Make sure to press ++enter++ or click another cell after editing to confirm the change.
+- Look for the orange highlight on modified cells before saving.
+
+### ❌ Available GUI commands
+
+All GUI tools can be launched independently:
+
+| Command | Description |
+|---|---|
+| `fmutoolbox` | Launcher with all GUI tools |
+| `fmutool-gui` | FMU analysis & modification |
+| `fmueditor` | FMU variable editor |
+| `fmucontainer-gui` | FMU container builder |
+
 
 ## Python API Issues
 
@@ -153,4 +189,4 @@ fmu.repack("output.fmu")
 
 ---
 
-**Last updated:** February 2026
+**Last updated:** April 2026
