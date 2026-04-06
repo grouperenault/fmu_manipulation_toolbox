@@ -219,7 +219,10 @@ class LogWidget(QTextBrowser):
 
         def emit(self, record) -> None:
             self.text_browser.setTextColor(self.LOG_COLOR[record.levelno])
-            self.text_browser.insertPlainText(str(record.msg) + "\n")
+            self.text_browser.insertPlainText(self.format(record) + "\n")
+            self.text_browser.ensureCursorVisible()
+            # Keep the RunTask dialog responsive and repaint log lines immediately.
+            QApplication.processEvents()
 
     def __init__(self, parent=None, level=logging.INFO, width=900, height=500):
         super().__init__(parent)
