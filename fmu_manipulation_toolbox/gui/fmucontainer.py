@@ -1202,6 +1202,7 @@ class FMUDetailWidget(QWidget):
         self._out_table.setSortingEnabled(True)
         self._out_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._out_table.horizontalHeader().setStretchLastSection(True)
+        self._out_table.setAlternatingRowColors(True)
         self._out_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._out_table.verticalHeader().setVisible(False)
 
