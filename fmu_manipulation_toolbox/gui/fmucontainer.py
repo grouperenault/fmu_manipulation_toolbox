@@ -873,6 +873,23 @@ class _NodeTreeModel(QStandardItemModel):
         return super().canDropMimeData(data, action, row, column, parent)
 
 
+def _unlock_column_resize(table: QTableView):
+    """Switch from *Stretch* to *Interactive*, preserving the current widths.
+
+    Call from ``showEvent`` so the columns start stretched (50 / 50) and
+    then become user-resizable.  Runs only once (no-op after the switch).
+    """
+    header = table.horizontalHeader()
+    if header.sectionResizeMode(0) != QHeaderView.ResizeMode.Stretch:
+        return
+    widths = [header.sectionSize(i) for i in range(header.count())]
+    if not any(widths):
+        return
+    header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+    for i, w in enumerate(widths):
+        header.resizeSection(i, w)
+
+
 class _PortComboDelegate(QStyledItemDelegate):
     """Delegate that presents a QComboBox populated with port names."""
 
@@ -960,6 +977,10 @@ class _WireDirectionTab(QWidget):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self._table, 1)
         lay.addLayout(btn_lay)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        _unlock_column_resize(self._table)
 
     # ── Configuration ───────────────────────────────────────────
 
@@ -1244,6 +1265,16 @@ class FMUDetailWidget(QWidget):
         lay.addWidget(self._name_label)
         lay.addWidget(self._tabs, 1)
 
+        # Unlock column resize when each tab page gets its real geometry
+        self._sv_table.installEventFilter(self)
+        self._out_table.installEventFilter(self)
+
+    def eventFilter(self, obj, event):
+        if event.type() == event.Type.Resize:
+            if obj is self._sv_table or obj is self._out_table:
+                _unlock_column_resize(obj)
+        return super().eventFilter(obj, event)
+
     # -- Sync helpers ----------------------------------------------------------
 
     def sync_to_node(self):
@@ -1352,9 +1383,7 @@ class ContainerDetailWidget(QWidget):
 
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self._table.horizontalHeader().setStretchLastSection(True)
-        self._table.horizontalHeader().setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch,
-        )
+        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table.setAlternatingRowColors(True)
         self._table.horizontalHeader().setVisible(False)
         self._table.verticalHeader().setVisible(False)
