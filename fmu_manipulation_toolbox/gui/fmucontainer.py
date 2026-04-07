@@ -118,6 +118,8 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self._title_item = QGraphicsTextItem(self.title, self)
         self._title_item.setDefaultTextColor(COLOR_TEXT)
         self._title_item.setFont(FONT_TITLE)
+        self._title_item.setAcceptHoverEvents(False)
+        self._title_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         tbr = self._title_item.boundingRect()
         self._title_item.setPos((width - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
 
