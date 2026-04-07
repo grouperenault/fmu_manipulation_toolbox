@@ -2230,9 +2230,10 @@ class MainWindow(QMainWindow):
 
         if assembly:
             try:
-                with tempfile.NamedTemporaryFile("wt", suffix=".json") as temp_file:
-                    assembly.write_json(temp_file.name)
-                    assembly.description_pathname = temp_file.name
+                with tempfile.TemporaryDirectory() as tmp_dir:
+                    json_file_path = Path(tmp_dir) / "container.json"
+                    assembly.write_json(json_file_path)
+                    assembly.description_pathname = json_file_path
                     assembly.make_fmu(filename=output_path, fmi_version=fmi_version, datalog=datalog)
                     self._dirty = False
 

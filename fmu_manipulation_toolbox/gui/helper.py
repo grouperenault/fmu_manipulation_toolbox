@@ -1,5 +1,6 @@
 import logging
 import os
+import traceback
 
 from typing import *
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
@@ -259,7 +260,11 @@ class RunTask(QDialog):
 
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         logger.debug(f"Starting {title}...")
-        task(*args, **kwargs)
-        logger.info(f"{title} finished.")
+        try:
+            task(*args, **kwargs)
+            logger.info(f"{title} finished.")
+        except Exception as e:
+            logger.critical(f"Unexpected error: {e}")
+            logger.critical(f"Operation aborted.")
         QApplication.restoreOverrideCursor()
         self.text.stop_logging()
