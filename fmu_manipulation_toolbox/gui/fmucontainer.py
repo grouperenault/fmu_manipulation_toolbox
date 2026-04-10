@@ -1846,16 +1846,19 @@ class MainWindow(QMainWindow):
         splitter.setSizes([600, 400])
 
         self._load_button = QPushButton("Load FMU Container")
+        self._import_button = QPushButton("Import")
         self._export_button = QPushButton("Export as JSON")
         self._save_button = QPushButton("Save as FMU Container")
         self._exit_button = QPushButton("Exit")
         self._save_button.setProperty("class", "save")
         self._export_button.setProperty("class", "save")
         self._load_button.setProperty("class", "quit")
+        self._import_button.setProperty("class", "quit")
         self._exit_button.setProperty("class", "quit")
 
         btn_width = max(
             self._load_button.sizeHint().width(),
+            self._import_button.sizeHint().width(),
             self._export_button.sizeHint().width(),
             self._save_button.sizeHint().width(),
             self._exit_button.sizeHint().width(),
@@ -1863,6 +1866,7 @@ class MainWindow(QMainWindow):
         )
         for button in (
             self._load_button,
+            self._import_button,
             self._export_button,
             self._save_button,
             self._exit_button,
@@ -1870,6 +1874,7 @@ class MainWindow(QMainWindow):
             button.setMinimumWidth(btn_width)
 
         self._load_button.clicked.connect(self._on_load_clicked)
+        self._import_button.clicked.connect(self._on_import_clicked)
         self._export_button.clicked.connect(self._on_export_clicked)
         self._save_button.clicked.connect(self._on_save_clicked)
         self._exit_button.clicked.connect(self.close)
@@ -1919,6 +1924,7 @@ class MainWindow(QMainWindow):
         button_bar.addWidget(self._config_button)
         button_bar.addStretch(1)
         button_bar.addWidget(self._load_button)
+        button_bar.addWidget(self._import_button)
         button_bar.addWidget(self._exit_button)
         button_bar.addWidget(self._export_button)
         button_bar.addWidget(self._save_button)
@@ -2019,38 +2025,26 @@ class MainWindow(QMainWindow):
                         link[1] = output_container[1]
                         break
 
-    def load_container_fmu(self, input_path: str):
-        try:
-            splitter = FMUSplitter(input_path)
-            splitter.split_fmu()
+    def _import_data(self, data: dict, fmu_directory: Path):
+        """Populate the scene and tree from a JSON-style dict.
 
-        except FMUSplitterError as e:
-            logger.fatal(f"{e}")
-            return
-        except FileNotFoundError as e:
-            logger.fatal(f"Cannot read file: {e}")
-            return
-
-        # Clear existing scene and tree before loading
+        Shared by *load_container_fmu* (from a split FMU) and
+        *import_assembly_file* (from a raw JSON / CSV).
+        """
+        # Clear existing scene and tree
         self._graph.scene.clear_all()
         self._tree.root.removeRows(0, self._tree.root.rowCount())
-
-        folder = Path(input_path).with_suffix(".dir")
-        json_filename = folder / Path(input_path).with_suffix(".json").name
-        with open(json_filename, "rt") as file:
-            data = json.load(file)
 
         links_list: List[List[str]] = []
         start_values_list: List[List[str]] = []
         output_ports_list: List[List[str]] = []
-        self._data_to_items(self._tree.root, data, folder, links_list, start_values_list, output_ports_list)
+        self._data_to_items(self._tree.root, data, fmu_directory,
+                            links_list, start_values_list, output_ports_list)
 
         # Build a map from FMU filename to its NodeItem
         nodes_by_name: Dict[str, NodeItem] = {}
         for node in self._graph.scene.nodes():
             nodes_by_name[node.fmu_path.name] = node
-
-
 
         # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
         # A wire between two nodes can carry mappings in both directions.
@@ -2113,6 +2107,25 @@ class MainWindow(QMainWindow):
         self._tree.tree_view.expandAll()
         self._graph.view.fit_all()
 
+    def load_container_fmu(self, input_path: str):
+        try:
+            splitter = FMUSplitter(input_path)
+            splitter.split_fmu()
+
+        except FMUSplitterError as e:
+            logger.fatal(f"{e}")
+            return
+        except FileNotFoundError as e:
+            logger.fatal(f"Cannot read file: {e}")
+            return
+
+        folder = Path(input_path).with_suffix(".dir")
+        json_filename = folder / Path(input_path).with_suffix(".json").name
+        with open(json_filename, "rt") as file:
+            data = json.load(file)
+
+        self._import_data(data, folder)
+
     def _on_load_clicked(self):
         default_dir = str(self._last_directory) if self._last_directory else ""
         input_path, _ = QFileDialog.getOpenFileName(
@@ -2128,6 +2141,44 @@ class MainWindow(QMainWindow):
         self._last_directory = Path(input_path).parent
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=log_level)
+        self._dirty = False
+
+    def import_assembly_file(self, input_path: str):
+        """Read a JSON or CSV assembly file and populate the graph."""
+        file_path = Path(input_path)
+        fmu_directory = file_path.parent
+
+        try:
+            assembly = Assembly(filename=file_path.name, fmu_directory=fmu_directory)
+        except AssemblyError as e:
+            logger.fatal(f"{e}")
+            return
+        except Exception as e:
+            logger.fatal(f"Cannot read file: {e}")
+            return
+
+        if assembly.root is None:
+            logger.fatal("Failed to read assembly: no root node.")
+            return
+
+        data = assembly._json_encode_node(assembly.root)
+        self._import_data(data, fmu_directory)
+
+    def _on_import_clicked(self):
+        default_dir = str(self._last_directory) if self._last_directory else ""
+        input_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Assembly",
+            default_dir,
+            "Assembly files (*.json *.csv);;JSON (*.json);;CSV (*.csv)",
+        )
+        if not input_path:
+            logger.info("Import cancelled")
+            return
+
+        self._last_directory = Path(input_path).parent
+        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
+        RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly", level=log_level)
         self._dirty = False
 
     def _on_export_clicked(self):

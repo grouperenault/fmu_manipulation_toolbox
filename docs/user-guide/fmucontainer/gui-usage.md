@@ -216,11 +216,12 @@ Click **Configuration** to open a popup menu with:
 | Button | Description |
 |---|---|
 | **Load FMU Container** | Load an existing FMU container (splits it and reconstructs the graph) |
+| **Import** | Import an assembly from a [JSON](container.md#json-input-file) or [CSV](container.md#csv-input-file) description file |
 | **Export as JSON** | Export the assembly as a JSON description file |
 | **Save as FMU Container** | Build and save the container as a `.fmu` file |
 | **Exit** | Close the window (prompts if there are unsaved changes) |
 
-During **Load**, **Export**, and **Save** operations, a progress dialog shows execution logs in real time.
+During **Load**, **Import**, **Export**, and **Save** operations, a progress dialog shows execution logs in real time.
 
 ## Typical Workflow
 
@@ -261,7 +262,23 @@ Click **Load FMU Container** to open an existing `.fmu` container. The tool will
 
 You can then modify the assembly and re-save it.
 
+## Importing an Assembly File
+
+Click **Import** to load an assembly from an existing description file. Two formats are supported:
+
+- [**JSON**](container.md#json-input-file) — full assembly description including container parameters, FMU list, links, start values, and sub-containers.
+- [**CSV**](container.md#csv-input-file) — routing table only (FMU list, links, inputs/outputs). Container parameters use defaults.
+
+The tool will:
+
+1. Parse the description file using the same engine as the `fmucontainer` CLI
+2. Reconstruct the node graph with all FMUs, wires, port mappings, and start values
+3. Restore container parameters (from JSON) or apply defaults (from CSV)
+
+!!! important "FMU location"
+    The `.fmu` files referenced in the description must be located in the **same directory**
+    as the JSON or CSV file.
+
 !!! warning "Unsaved Changes"
     If you have unsaved changes when closing the window or loading a new container, you will be
     prompted to confirm.
-
