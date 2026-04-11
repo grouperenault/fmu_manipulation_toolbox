@@ -1,14 +1,18 @@
-# FMU Containers ?
+# FMU Containers
 
-A FMU Container is classical FMU which embeds other FMU's:
+An FMU Container is a classical FMU which embeds other FMU's:
 
 ![FMU Container](FMUContainer.png "FMU Container")
 
 From API point of view, an FMUContainer can be seen as
-* an FMU which implement the FMI API (either version 2.0 or 3.0)
+* an FMU which implements the FMI API (either version 2.0 or 3.0)
 * an fmi-importer which can load FMUs
 
-FMU Manipulation Toolbox is shipped with `fmucontainer` command which makes easy to nest FMU's into FMU.
+FMU Manipulation Toolbox is shipped with `fmucontainer` command which makes it easy to nest FMU's into FMU.
+
+!!! tip "Video Presentation"
+    A video presentation of FMU Containers is available on YouTube:
+    :fontawesome-brands-youtube:{ style="color: #EE0F0F" } [FMU Container Presentation](https://www.youtube.com/watch?v=CAjS3oH3QNI){ target="_blank" }
 
 
 # How to create an FMU Container ?
@@ -23,7 +27,7 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
 - routing table
   - Input ports: the list of the Container's inputs. Each input is linked to one input (or more) of one of the embedded FMU's.
   - Output ports: the list of the container's outputs. Each output is linked to one output of one of the embedded FMU's.
-  - Connexions between embedded FMU's
+  - Connections between embedded FMU's
   - Explicitly ignored ports (only port with `causality = "output"` can be ignored)
 - Automation of routing table
   - *auto_input* exposes automatically the (unconnected) ports of embedded FMU's with `causality = "input"`
@@ -116,18 +120,19 @@ fmucontainer -container container.json
 
 ## SSP Input file
  
-This feature is still alpha.
+This feature is still alpha. User interface may change in the future.
 
 The following command 
 ```
 fmucontainer -container my_file.ssp:0.1
 ```
 
-will 
-1. extact FMU's from the SSP file
+will generate an FMU container :  
+
+1. extract FMU's from the SSP file
 2. build a container accordingly to the SSP
 
-Note: the optional `:0.1` suffix means the timestep should be `0.1` second.  
+Note: the optional `:0.1` suffix means the timestep should be `0.1` second.
 
 # Python API
 
@@ -258,7 +263,7 @@ Those containers may embed
   - Arrays are not supported
 
 
-# Muti-Threading
+# Multi-Threading
 If enabled through `MT` flag, each FMU will be run using its own thread which
 1. fetch its inputs from container buffer which is shared with all FMUs.
 2. process `DoStep()`

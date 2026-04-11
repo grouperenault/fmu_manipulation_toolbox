@@ -175,12 +175,12 @@ Here's how to analyze and modify an FMU in just a few lines:
 === "Python"
 
     ```python
-    from fmu_manipulation_toolbox.operations import FMU
+    from fmu_manipulation_toolbox.operations import FMU, OperationRemoveRegexp
     
     # Load and analyze
     fmu = FMU("my_model.fmu")
 
-    # Display informations about the FMU
+    # Display information about the FMU
     fmu.summary()
     
     # Remove internal variables

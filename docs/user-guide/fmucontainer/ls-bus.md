@@ -1,11 +1,11 @@
-# Container with LS-BUS enable FMUs
+# Container with LS-BUS enabled FMUs
 
 ![Container with LS-BUS](ls-bus-container.png)
 
 
 ## Step-by-step example
 
-The topology supported be `fmucontainer` require a BUS Simulation FMU. (See 3.2.2 of LS-BUS specification).
+The topology supported by `fmucontainer` requires a BUS Simulation FMU. (See 3.2.2 of LS-BUS specification).
 
 1. From [LS-BUS Examples](https://github.com/modelica/fmi-ls-bus-examples) build 2 nodes 
 [`node1.fmu`](https://github.com/grouperenault/fmu_manipulation_toolbox/raw/refs/heads/main/tests/ls-bus/node1.fmu) and
@@ -36,7 +36,7 @@ connects `node1.fmu` to `bus.fmu` through their terminals and the same for `node
    fmucontainer -container bus+nodes.json -fmi 3
    ```
 
-4. You could run the `bus+nodes.fmu` with you're favourite FMI-importer. Here is a 
+4. You could run the `bus+nodes.fmu` with your favourite FMI-importer. Here is an example: 
     ```python
     from fmpy.simulation import simulate_fmu
     
@@ -47,7 +47,7 @@ connects `node1.fmu` to `bus.fmu` through their terminals and the same for `node
         print(f"{msg}")
     
     
-    simulate_fmu("bus+node.fmu", step_size=0.1, stop_time=1,
+    simulate_fmu("bus+nodes.fmu", step_size=0.1, stop_time=1,
                  output_interval=0.1, validate=True, use_event_mode=True,
                  logger=log, debug_logging=True, relative_tolerance=1e-6)
     ```

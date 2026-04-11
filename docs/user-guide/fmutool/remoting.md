@@ -2,8 +2,8 @@
 
 ## What is it ?
 
-The remoting feature lets you to implement an additional interface to an existing FMU.
-There is 3 use cases:
+The remoting feature lets you implement an additional interface to an existing FMU.
+There are 3 use cases:
 1. Add a different bitness interface. For example, add a Windows 64bits interface to a existing 32bits only FMU.
 2. Encapsulate the DLL of an existing FMU inside a dedicated process. This process will communicate with the simulation 
 master.
@@ -11,7 +11,7 @@ master.
 
 ## Rationale
 
-Some OS can support 32-bits and 64-bits. Remoting feature adds a new interface to a existing FMU and let
+Some OS can support 32-bits and 64-bits. Remoting feature adds a new interface to an existing FMU and let
 the user mix bitness between fmi-importer and the DLL contained into the FMU.
 
 
@@ -20,7 +20,7 @@ the user mix bitness between fmi-importer and the DLL contained into the FMU.
 Currently, only Co-simulation mode for FMI 2.0 is supported.
 
 
-## Available  configurations
+## Available configurations
 
 | FMU \ master   | Windows 32bits        | Windows 64bits        | Linux 32bit                           | Linux 64bits                          |   
 |----------------|-----------------------|-----------------------|---------------------------------------|---------------------------------------|
@@ -80,7 +80,7 @@ To improve performance, this implementation minimize the number of Inter Process
 values of signal of the DLL are cached on client side in local buffers.
 
 
-### How it's work ?
+### How does it work?
 
 Considering win64 FMU, only the `binaries/win64` folder is populated. It contains `model.dll`.
 
@@ -88,7 +88,7 @@ Considering win64 FMU, only the `binaries/win64` folder is populated. It contain
   1. Copy `client_sm.dll` (32 bits) as `model.dll` in `binaries/win32`
   2. Copy `server_sm.exe` (64 bits) in `binaries/win64`
   
-When Simulation Enviroment will use the FMU on 32 bits OS:
+When Simulation Environment will use the FMU on 32 bits OS:
   1. it will load  `win32/model.dll` (which is a copy of `client_sm.dll`)
   2. which will communicate with `win64/server_exe`.
   3. which will load `win64/model.dll` 
@@ -97,7 +97,7 @@ When Simulation Enviroment will use the FMU on 32 bits OS:
   1. Copy `client_sm.dll` (64 bits) as `model.dll` in `binaries/win64`
   2. Copy `server_sm.exe` (32 bits) in `binaries/win32`
   
-  When Simulation Enviroment will use the FMU on 64bits kernel:
+  When Simulation Environment will use the FMU on 64bits kernel:
   1. it will load  `win64/model.dll` (which is a copy of `client_sm.dll`)
   2. which will communicate with `win32/server_exe`.
   3. which will load `win32/model.dll` 
@@ -111,7 +111,7 @@ This feature is available easily with `fmutool` command line or with its graphic
 
 ## LICENSE
 
-Using the remoting code will alter your FMU by introducting additionnal interface.
+Using the remoting code will alter your FMU by introducing additional interface.
 This code is released under the 2-Clause BSD license:
 
 Copyright 2023-2025 Renault SAS

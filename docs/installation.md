@@ -265,8 +265,11 @@ sudo pip install fmu-manipulation-toolbox
 ### Check Available Version
 
 ```bash
-pip search fmu-manipulation-toolbox
-# Or visit: https://pypi.org/project/fmu-manipulation-toolbox/
+# Check current installed version
+pip show fmu-manipulation-toolbox
+
+# Check latest version on PyPI:
+# https://pypi.org/project/fmu-manipulation-toolbox/
 ```
 
 ### Update to Latest Version
@@ -290,7 +293,7 @@ pip uninstall fmu-manipulation-toolbox
 For complete uninstallation (with dependencies):
 
 ```bash
-pip uninstall fmu-manipulation-toolbox lxml numpy
+pip uninstall fmu-manipulation-toolbox PySide6 xmlschema elementpath colorama fmpy
 ```
 
 ## Supported Python Versions
