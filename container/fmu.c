@@ -13,6 +13,24 @@
  * FMI-importer supporting FMI-2.0 and FMI-3.0. FMUs are handled through fmu_t pointers.
  */
 
+/*
+ * X-macro: lists all numeric types (field name, FMI type suffix).
+ * Expand with: FOR_ALL_NUMERIC_TYPES(MACRO) where MACRO(variable, fmi_type)
+ */
+#define FOR_ALL_NUMERIC_TYPES(X)    \
+    X(reals64,     Real64)          \
+    X(reals32,     Real32)          \
+    X(integers8,   Integer8)        \
+    X(uintegers8,  UInteger8)       \
+    X(integers16,  Integer16)       \
+    X(uintegers16, UInteger16)      \
+    X(integers32,  Integer32)       \
+    X(uintegers32, UInteger32)      \
+    X(integers64,  Integer64)       \
+    X(uintegers64, UInteger64)      \
+    X(booleans,    Boolean)         \
+    X(booleans1,   Boolean1)
+
 
 fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
@@ -30,20 +48,9 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     }
 
 
-    SET_INPUT(reals64, Real64);
-    SET_INPUT(reals32, Real32);
-    SET_INPUT(integers8, Integer8);
-    SET_INPUT(uintegers8, UInteger8);
-    SET_INPUT(integers16, Integer16);
-    SET_INPUT(uintegers16, UInteger16);
-    SET_INPUT(integers32, Integer32);
-    SET_INPUT(uintegers32, UInteger32);
-    SET_INPUT(integers64, Integer64);
-    SET_INPUT(uintegers64, UInteger64);
-    SET_INPUT(booleans, Boolean);
-    SET_INPUT(booleans1, Boolean1);
- 
-    /* strings: Need to add a (cast) to avod a warning */
+    FOR_ALL_NUMERIC_TYPES(SET_INPUT)
+
+    /* strings: Need to add a (cast) to avoid a warning */
     for (int i = 0; i < fmu_io->strings.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->strings.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->strings.in.translations[i].vr;
@@ -103,20 +110,9 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
     /*
      * CLOCKED INPUTs
      */
-    SET_CLOCKED_INPUT(reals64,      Real64);
-    SET_CLOCKED_INPUT(reals32,      Real32);
-    SET_CLOCKED_INPUT(integers8,    Integer8);
-    SET_CLOCKED_INPUT(uintegers8,   UInteger8);
-    SET_CLOCKED_INPUT(integers16,   Integer16);
-    SET_CLOCKED_INPUT(uintegers16,  UInteger16);
-    SET_CLOCKED_INPUT(integers32,   Integer32);
-    SET_CLOCKED_INPUT(uintegers32,  UInteger32);
-    SET_CLOCKED_INPUT(integers64,   Integer64);
-    SET_CLOCKED_INPUT(uintegers64,  UInteger64);
-    SET_CLOCKED_INPUT(booleans,     Boolean);
-    SET_CLOCKED_INPUT(booleans1,    Boolean1);
+    FOR_ALL_NUMERIC_TYPES(SET_CLOCKED_INPUT)
 
-    /* strings: Need to add a (cast) to avod a warning */
+    /* strings: Need to add a (cast) to avoid a warning */
     for (unsigned long i = 0; i < fmu_io->clocked_strings.nb_in; i += 1) {
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_strings.in[i];
         if (container->clocks[clocked_port->clock_vr]) {
@@ -168,18 +164,7 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             return status;                                                                          \
     }
 
-    GET_OUTPUT(reals64,     Real64);
-    GET_OUTPUT(reals32,     Real32);
-    GET_OUTPUT(integers8,   Integer8);
-    GET_OUTPUT(uintegers8,  UInteger8);
-    GET_OUTPUT(integers16,  Integer16);
-    GET_OUTPUT(uintegers16, UInteger16);
-    GET_OUTPUT(integers32,  Integer32);
-    GET_OUTPUT(uintegers32, UInteger32);
-    GET_OUTPUT(integers64,  Integer64);
-    GET_OUTPUT(uintegers64, UInteger64);
-    GET_OUTPUT(booleans,    Boolean);
-    GET_OUTPUT(booleans1,   Boolean1);
+    FOR_ALL_NUMERIC_TYPES(GET_OUTPUT)
 
 #undef GET_OUTPUT
 
@@ -260,20 +245,9 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
         }                                                                                                   \
     }
 
-    GET_CLOCKED_OUTPUT(reals64, Real64);
-    GET_CLOCKED_OUTPUT(reals32, Real32);
-    GET_CLOCKED_OUTPUT(integers8, Integer8);
-    GET_CLOCKED_OUTPUT(uintegers8, UInteger8);
-    GET_CLOCKED_OUTPUT(integers16, Integer16);
-    GET_CLOCKED_OUTPUT(uintegers16, UInteger16);
-    GET_CLOCKED_OUTPUT(integers32, Integer32);
-    GET_CLOCKED_OUTPUT(uintegers32, UInteger32);
-    GET_CLOCKED_OUTPUT(integers64, Integer64);
-    GET_CLOCKED_OUTPUT(uintegers64, UInteger64);
-    GET_CLOCKED_OUTPUT(booleans, Boolean);
-    GET_CLOCKED_OUTPUT(booleans1, Boolean1);
+    FOR_ALL_NUMERIC_TYPES(GET_CLOCKED_OUTPUT)
 
-        /* strings: Need to add a (cast) to avod a warning */
+    /* strings: Need to add a (cast) to avoid a warning */
     for (unsigned long i = 0; i < fmu_io->clocked_strings.nb_out; i += 1) {
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_strings.out[i];
         if (container->clocks[clocked_port->clock_vr]) {
