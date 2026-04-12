@@ -574,10 +574,23 @@ void fmu_unload(fmu_t *fmu) {
     /* and finally unload the library */
     library_unload(fmu->library);
 
-#define FREE_FMU_DATA(type)                         \
-    free(fmu->fmu_io. type .in.translations);       \
-    free(fmu->fmu_io. type .out.translations);      \
-    free(fmu->fmu_io.start_ ## type .start_values)
+/* Free a plain translation port (in + out) and the associated start values  */
+#define FREE_FMU_DATA(type)                                             \
+    free(fmu->fmu_io. type .in.translations);                           \
+    free(fmu->fmu_io. type .out.translations);                          \
+    free(fmu->fmu_io.start_ ## type .start_values);                     \
+    free(fmu->fmu_io.start_values_ ## type)   /* flat values array */
+
+/* Free a clocked port list: the per-entry translations arrays, then the
+   array of port descriptors itself */
+#define FREE_CLOCKED_DATA(type) do {                                                \
+    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## type .nb_in; _i++)      \
+        free(fmu->fmu_io.clocked_ ## type .in[_i].translations_list.translations);  \
+    free(fmu->fmu_io.clocked_ ## type .in);                                         \
+    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## type .nb_out; _i++)     \
+        free(fmu->fmu_io.clocked_ ## type .out[_i].translations_list.translations); \
+    free(fmu->fmu_io.clocked_ ## type .out);                                        \
+} while(0)
 
     FREE_FMU_DATA(reals64);
     FREE_FMU_DATA(reals32);
@@ -591,8 +604,10 @@ void fmu_unload(fmu_t *fmu) {
     FREE_FMU_DATA(uintegers64);
     FREE_FMU_DATA(booleans);
     FREE_FMU_DATA(booleans1);
+
+    /* strings: free each strdup'd value then the struct and flat array */
     for (int i = 0; i < fmu->fmu_io.start_strings.nb; i += 1)
-        free((char*)fmu->fmu_io.start_strings.start_values[i].value);
+        free((char*)*fmu->fmu_io.start_strings.start_values[i].value);
     FREE_FMU_DATA(strings);
 
     free(fmu->fmu_io.binaries.in.translations);
@@ -601,7 +616,23 @@ void fmu_unload(fmu_t *fmu) {
     free(fmu->fmu_io.clocks.in.translations);
     free(fmu->fmu_io.clocks.out.translations);
 
+    FREE_CLOCKED_DATA(reals64);
+    FREE_CLOCKED_DATA(reals32);
+    FREE_CLOCKED_DATA(integers8);
+    FREE_CLOCKED_DATA(uintegers8);
+    FREE_CLOCKED_DATA(integers16);
+    FREE_CLOCKED_DATA(uintegers16);
+    FREE_CLOCKED_DATA(integers32);
+    FREE_CLOCKED_DATA(uintegers32);
+    FREE_CLOCKED_DATA(integers64);
+    FREE_CLOCKED_DATA(uintegers64);
+    FREE_CLOCKED_DATA(booleans);
+    FREE_CLOCKED_DATA(booleans1);
+    FREE_CLOCKED_DATA(strings);
+    FREE_CLOCKED_DATA(binaries);
+
 #undef FREE_FMU_DATA
+#undef FREE_CLOCKED_DATA
 
     return;
 }
