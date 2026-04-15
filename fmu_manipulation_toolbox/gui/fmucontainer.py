@@ -529,8 +529,30 @@ class NodeGraphScene(QGraphicsScene):
 
     # -- Public API ----------------------------------------------------------
 
-    def add_node(self, fmu_path: Union[Path, str], x: float = 0, y: float = 0) -> NodeItem:
-        node = NodeItem(Path(fmu_path), x=x, y=y)
+    def add_node(self, fmu_path: Union[Path, str], x: float = 0, y: float = 0) -> Optional[NodeItem]:
+        fmu_path = Path(fmu_path)
+        # Check for duplicate FMU (same resolved path)
+        resolved = fmu_path.resolve()
+        for existing in self.nodes():
+            if existing.fmu_path.resolve() == resolved:
+                parent_widget = None
+                for view in self.views():
+                    parent_widget = view
+                    break
+                msg = QMessageBox(parent_widget)
+                msg.setIcon(QMessageBox.Icon.Warning)
+                msg.setWindowTitle("Duplicate FMU")
+                msg.setText(
+                    f"'{fmu_path.name}' is already present in the assembly.\n"
+                    "It is not yet possible to include the same FMU more than once."
+                )
+                msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+                btn_ok = msg.button(QMessageBox.StandardButton.Ok)
+                btn_ok.setProperty("class", "info")
+                btn_ok.setMinimumWidth(150)
+                msg.exec()
+                return None
+        node = NodeItem(fmu_path, x=x, y=y)
         self.addItem(node)
         self.clearSelection()
         node.setSelected(True)
@@ -847,7 +869,7 @@ class NodeGraphWidget(QWidget):
         x: float = 0,
         y: float = 0,
         fmu_path: str = "",
-    ) -> NodeItem:
+    ) -> Optional[NodeItem]:
         return self.scene.add_node(fmu_path, x, y)
 
     def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> Optional[WireItem]:
