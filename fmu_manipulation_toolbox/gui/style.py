@@ -58,6 +58,13 @@ _COMMON_STYLE = """
     QPushButton::disabled {{
         background-color: gray;
     }}
+    QPushButton::menu-indicator {{
+        subcontrol-origin: padding;
+        subcontrol-position: center right;
+        width: 12px;
+        height: 12px;
+        right: 6px;
+    }}
     QToolTip {{
         color: black
     }}
@@ -83,6 +90,10 @@ _COMMON_STYLE = """
     QMenu::item {{
         padding: 2px 250px 2px 20px;
         border: 1px solid transparent;
+    }}
+    QMenu::item:selected {{
+        background-color: #4571a4;
+        color: #ffffff;
     }}
     QMenu::item::indicator, QCheckBox::item::indicator {{
         width: 32px;
