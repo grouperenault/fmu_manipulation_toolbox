@@ -80,6 +80,9 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self._title = fmu_path.name
         self.fmu_path = fmu_path
 
+        # Title bar highlight (for selected container)
+        self._title_highlighted = False
+
         # -- Read FMU ports ---------------------------------------------------
         self.fmu_input_names: List[str] = []
         self.fmu_output_names: List[str] = []
@@ -125,6 +128,11 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     def __repr__(self):
         return "Collect I/O ports"
+
+    def set_title_highlighted(self, highlighted: bool):
+        if self._title_highlighted != highlighted:
+            self._title_highlighted = highlighted
+            self.update()
 
     def fmi_attrs(self, attrs):
         self.fmu_generator = attrs.get("generationTool", "-")
@@ -199,7 +207,13 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         path_title.addRect(0, NODE_TITLE_HEIGHT - NODE_CORNER_RADIUS, NODE_CORNER_RADIUS, NODE_CORNER_RADIUS)
         path_title.addRect(w - NODE_CORNER_RADIUS, NODE_TITLE_HEIGHT - NODE_CORNER_RADIUS,
                            NODE_CORNER_RADIUS, NODE_CORNER_RADIUS)
-        painter.setBrush(QBrush(COLOR_NODE_TITLE_BG))
+
+        color = QColor(COLOR_NODE_TITLE_BG)
+        # Lighter color if highlighted
+        if self._title_highlighted:
+            color = color.lighter(150)  # 50% lighter
+        painter.setBrush(QBrush(color))
+
         painter.drawPath(path_title.simplified())
 
         # Border
@@ -1720,7 +1734,8 @@ class NodeTreePanel(QWidget):
 
     def _on_tree_selection_changed(self, _selected, _deselected):
         """Tree -> scene: select in graph when node is selected in tree.
-        Also updates the details panel."""
+        Also updates the details panel.
+        Highlights first-level FMU nodes of the selected container."""
         if self._syncing_selection:
             return
         self._syncing_selection = True
@@ -1730,6 +1745,10 @@ class NodeTreePanel(QWidget):
             except RuntimeError:
                 return
 
+            # First, remove highlight from all nodes
+            for node in self._graph.scene.nodes():
+                    node.set_title_highlighted(False)
+
             for index in self._tree.selectionModel().selectedRows(0):
                 item = self._model.itemFromIndex(index)
                 if item is None:
@@ -1737,7 +1756,16 @@ class NodeTreePanel(QWidget):
 
                 container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
                 if container_parameters is not None:
-                    # Container selected -> Container panel
+                    # Container selected: highlight immediate FMU child nodes
+                    # 1. Iterate over the container's children in the tree
+                    for r in range(item.rowCount()):
+                        child = item.child(r, 0)
+                        if child is not None and not child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS):
+                            uid = child.data(_NodeTreeModel.ROLE_NODE_UID)
+                            if uid:
+                                for node in self._graph.scene.nodes():
+                                    if node.uid == uid:
+                                        node.set_title_highlighted(True)
                     self._container_detail.set_container(container_parameters)
                     self._detail_stack.setCurrentWidget(self._container_detail)
                     return
