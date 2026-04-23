@@ -34,6 +34,7 @@ from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyEr
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.container import FMUContainerError
 from fmu_manipulation_toolbox.split import FMUSplitter, FMUSplitterError
+from fmu_manipulation_toolbox.help import Help
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -1437,6 +1438,7 @@ class ContainerDetailWidget(QWidget):
         self._name_label.setText(f"{container_parameters.name}")
 
         self._model.removeRows(0, self._model.rowCount())
+        help_instance = Help()
         for k, v in container_parameters.parameters.items():
             if isinstance(v, bool):
                 value_item = QStandardItem("")
@@ -1448,6 +1450,11 @@ class ContainerDetailWidget(QWidget):
                 value_item.setEditable(True)
             key_item = QStandardItem(k)
             key_item.setEditable(False)
+            # Set tooltip from help.py if available
+            tooltip = help_instance.usage(f'-{k}')
+            if tooltip:
+                key_item.setToolTip(tooltip)
+                value_item.setToolTip(tooltip)
             self._model.appendRow([key_item, value_item])
 
         self._container_parameters = container_parameters
