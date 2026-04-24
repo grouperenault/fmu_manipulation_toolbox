@@ -1,3 +1,5 @@
+from typing import *
+
 class Help:
     _usage = {
         '-h': "display help.",
@@ -83,8 +85,25 @@ class Help:
 
         # GUI message
         "gui-apply-only": "Apply operation only on ports with specified causality. If selected, at least one causality "
-        "should be selected."
+        "should be selected.",
+        
+        # Container message
+        "-step_size": "Simulation step size for the container. This value (in seconds) determines the time increment\n"
+                      "used during simulation.",
+        "-mt": "Enable multi-threading for this container. Allows parallel execution if supported.",
+        "-profiling": "Enable profiling to collect performance metrics during simulation.\n"
+                      "The container will expose as local variables (named 'container.rt_ratio_*') these metrics.",
+        "-sequential": "Force sequential execution of FMUs in this container, disabling parallelism.\n"
+                       "The order of execution is shown in the above tree.",
+        "-auto_link": "Automatically connect compatible ports between FMUs in the container.",
+        "-auto_input": "Automatically expose all input ports of contained FMUs at the container level.",
+        "-auto_output": "Automatically expose all output ports of contained FMUs at the container level.",
+        "-auto_parameter": "Automatically expose all parameter ports of contained FMUs at the container level.",
+        "-auto_local": "Automatically expose all local ports of contained FMUs at the container level.",
+        "-ts_multiplier": "Enable time step multiplier for this container.\n"
+                          "The multiplier can be set with input variable name 'container.ts_multiplier'",
     }
 
-    def usage(self, option):
-        return self._usage[option]
+
+    def usage(self, key: str) -> str:
+        return self._usage[key]

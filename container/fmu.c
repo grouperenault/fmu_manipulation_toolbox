@@ -13,6 +13,24 @@
  * FMI-importer supporting FMI-2.0 and FMI-3.0. FMUs are handled through fmu_t pointers.
  */
 
+/*
+ * X-macro: lists all numeric types (field name, FMI type suffix).
+ * Expand with: FOR_ALL_NUMERIC_TYPES(MACRO) where MACRO(variable, fmi_type)
+ */
+#define FOR_ALL_NUMERIC_TYPES(X)    \
+    X(reals64,     Real64)          \
+    X(reals32,     Real32)          \
+    X(integers8,   Integer8)        \
+    X(uintegers8,  UInteger8)       \
+    X(integers16,  Integer16)       \
+    X(uintegers16, UInteger16)      \
+    X(integers32,  Integer32)       \
+    X(uintegers32, UInteger32)      \
+    X(integers64,  Integer64)       \
+    X(uintegers64, UInteger64)      \
+    X(booleans,    Boolean)         \
+    X(booleans1,   Boolean1)
+
 
 fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
@@ -30,20 +48,9 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     }
 
 
-    SET_INPUT(reals64, Real64);
-    SET_INPUT(reals32, Real32);
-    SET_INPUT(integers8, Integer8);
-    SET_INPUT(uintegers8, UInteger8);
-    SET_INPUT(integers16, Integer16);
-    SET_INPUT(uintegers16, UInteger16);
-    SET_INPUT(integers32, Integer32);
-    SET_INPUT(uintegers32, UInteger32);
-    SET_INPUT(integers64, Integer64);
-    SET_INPUT(uintegers64, UInteger64);
-    SET_INPUT(booleans, Boolean);
-    SET_INPUT(booleans1, Boolean1);
- 
-    /* strings: Need to add a (cast) to avod a warning */
+    FOR_ALL_NUMERIC_TYPES(SET_INPUT)
+
+    /* strings: Need to add a (cast) to avoid a warning */
     for (int i = 0; i < fmu_io->strings.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->strings.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->strings.in.translations[i].vr;
@@ -103,20 +110,9 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
     /*
      * CLOCKED INPUTs
      */
-    SET_CLOCKED_INPUT(reals64,      Real64);
-    SET_CLOCKED_INPUT(reals32,      Real32);
-    SET_CLOCKED_INPUT(integers8,    Integer8);
-    SET_CLOCKED_INPUT(uintegers8,   UInteger8);
-    SET_CLOCKED_INPUT(integers16,   Integer16);
-    SET_CLOCKED_INPUT(uintegers16,  UInteger16);
-    SET_CLOCKED_INPUT(integers32,   Integer32);
-    SET_CLOCKED_INPUT(uintegers32,  UInteger32);
-    SET_CLOCKED_INPUT(integers64,   Integer64);
-    SET_CLOCKED_INPUT(uintegers64,  UInteger64);
-    SET_CLOCKED_INPUT(booleans,     Boolean);
-    SET_CLOCKED_INPUT(booleans1,    Boolean1);
+    FOR_ALL_NUMERIC_TYPES(SET_CLOCKED_INPUT)
 
-    /* strings: Need to add a (cast) to avod a warning */
+    /* strings: Need to add a (cast) to avoid a warning */
     for (unsigned long i = 0; i < fmu_io->clocked_strings.nb_in; i += 1) {
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_strings.in[i];
         if (container->clocks[clocked_port->clock_vr]) {
@@ -168,18 +164,7 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             return status;                                                                          \
     }
 
-    GET_OUTPUT(reals64,     Real64);
-    GET_OUTPUT(reals32,     Real32);
-    GET_OUTPUT(integers8,   Integer8);
-    GET_OUTPUT(uintegers8,  UInteger8);
-    GET_OUTPUT(integers16,  Integer16);
-    GET_OUTPUT(uintegers16, UInteger16);
-    GET_OUTPUT(integers32,  Integer32);
-    GET_OUTPUT(uintegers32, UInteger32);
-    GET_OUTPUT(integers64,  Integer64);
-    GET_OUTPUT(uintegers64, UInteger64);
-    GET_OUTPUT(booleans,    Boolean);
-    GET_OUTPUT(booleans1,   Boolean1);
+    FOR_ALL_NUMERIC_TYPES(GET_OUTPUT)
 
 #undef GET_OUTPUT
 
@@ -260,20 +245,9 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
         }                                                                                                   \
     }
 
-    GET_CLOCKED_OUTPUT(reals64, Real64);
-    GET_CLOCKED_OUTPUT(reals32, Real32);
-    GET_CLOCKED_OUTPUT(integers8, Integer8);
-    GET_CLOCKED_OUTPUT(uintegers8, UInteger8);
-    GET_CLOCKED_OUTPUT(integers16, Integer16);
-    GET_CLOCKED_OUTPUT(uintegers16, UInteger16);
-    GET_CLOCKED_OUTPUT(integers32, Integer32);
-    GET_CLOCKED_OUTPUT(uintegers32, UInteger32);
-    GET_CLOCKED_OUTPUT(integers64, Integer64);
-    GET_CLOCKED_OUTPUT(uintegers64, UInteger64);
-    GET_CLOCKED_OUTPUT(booleans, Boolean);
-    GET_CLOCKED_OUTPUT(booleans1, Boolean1);
+    FOR_ALL_NUMERIC_TYPES(GET_CLOCKED_OUTPUT)
 
-        /* strings: Need to add a (cast) to avod a warning */
+    /* strings: Need to add a (cast) to avoid a warning */
     for (unsigned long i = 0; i < fmu_io->clocked_strings.nb_out; i += 1) {
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_strings.out[i];
         if (container->clocks[clocked_port->clock_vr]) {
@@ -600,10 +574,23 @@ void fmu_unload(fmu_t *fmu) {
     /* and finally unload the library */
     library_unload(fmu->library);
 
-#define FREE_FMU_DATA(type)                         \
-    free(fmu->fmu_io. type .in.translations);       \
-    free(fmu->fmu_io. type .out.translations);      \
-    free(fmu->fmu_io.start_ ## type .start_values)
+/* Free a plain translation port (in + out) and the associated start values  */
+#define FREE_FMU_DATA(type)                                             \
+    free(fmu->fmu_io. type .in.translations);                           \
+    free(fmu->fmu_io. type .out.translations);                          \
+    free(fmu->fmu_io.start_ ## type .start_values);                     \
+    free(fmu->fmu_io.start_values_ ## type)   /* flat values array */
+
+/* Free a clocked port list: the per-entry translations arrays, then the
+   array of port descriptors itself */
+#define FREE_CLOCKED_DATA(type) do {                                                \
+    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## type .nb_in; _i++)      \
+        free(fmu->fmu_io.clocked_ ## type .in[_i].translations_list.translations);  \
+    free(fmu->fmu_io.clocked_ ## type .in);                                         \
+    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## type .nb_out; _i++)     \
+        free(fmu->fmu_io.clocked_ ## type .out[_i].translations_list.translations); \
+    free(fmu->fmu_io.clocked_ ## type .out);                                        \
+} while(0)
 
     FREE_FMU_DATA(reals64);
     FREE_FMU_DATA(reals32);
@@ -617,8 +604,10 @@ void fmu_unload(fmu_t *fmu) {
     FREE_FMU_DATA(uintegers64);
     FREE_FMU_DATA(booleans);
     FREE_FMU_DATA(booleans1);
+
+    /* strings: free each strdup'd value then the struct and flat array */
     for (int i = 0; i < fmu->fmu_io.start_strings.nb; i += 1)
-        free((char*)fmu->fmu_io.start_strings.start_values[i].value);
+        free((char*)*fmu->fmu_io.start_strings.start_values[i].value);
     FREE_FMU_DATA(strings);
 
     free(fmu->fmu_io.binaries.in.translations);
@@ -627,7 +616,23 @@ void fmu_unload(fmu_t *fmu) {
     free(fmu->fmu_io.clocks.in.translations);
     free(fmu->fmu_io.clocks.out.translations);
 
+    FREE_CLOCKED_DATA(reals64);
+    FREE_CLOCKED_DATA(reals32);
+    FREE_CLOCKED_DATA(integers8);
+    FREE_CLOCKED_DATA(uintegers8);
+    FREE_CLOCKED_DATA(integers16);
+    FREE_CLOCKED_DATA(uintegers16);
+    FREE_CLOCKED_DATA(integers32);
+    FREE_CLOCKED_DATA(uintegers32);
+    FREE_CLOCKED_DATA(integers64);
+    FREE_CLOCKED_DATA(uintegers64);
+    FREE_CLOCKED_DATA(booleans);
+    FREE_CLOCKED_DATA(booleans1);
+    FREE_CLOCKED_DATA(strings);
+    FREE_CLOCKED_DATA(binaries);
+
 #undef FREE_FMU_DATA
+#undef FREE_CLOCKED_DATA
 
     return;
 }
