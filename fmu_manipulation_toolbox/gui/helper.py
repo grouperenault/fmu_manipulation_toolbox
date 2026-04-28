@@ -211,6 +211,13 @@ class LogWidget(QTextBrowser):
             logging.ERROR: QColor(log_color["ERROR"]),
             logging.CRITICAL: QColor(log_color["CRITICAL"]),
         }
+        LOG_PREFIX = {
+            logging.DEBUG: "",
+            logging.INFO: "",
+            logging.WARNING: "WARNING: ",
+            logging.ERROR: "ERROR: ",
+            logging.CRITICAL: "CRITICAL: ",
+        }
 
         def __init__(self, text_browser, level):
             super().__init__(level)
@@ -220,12 +227,13 @@ class LogWidget(QTextBrowser):
 
         def emit(self, record) -> None:
             self.text_browser.setTextColor(self.LOG_COLOR[record.levelno])
+            self.text_browser.insertPlainText(self.LOG_PREFIX[record.levelno])
             self.text_browser.insertPlainText(self.format(record) + "\n")
             self.text_browser.ensureCursorVisible()
             # Keep the RunTask dialog responsive and repaint log lines immediately.
             QApplication.processEvents()
 
-    def __init__(self, parent=None, level=logging.INFO, width=900, height=500):
+    def __init__(self, parent=None, level=logging.INFO, width=1200, height=500):
         super().__init__(parent)
 
         self.setMinimumWidth(width)

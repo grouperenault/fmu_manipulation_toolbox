@@ -2039,7 +2039,7 @@ class MainWindow(QMainWindow):
 
         container_name = data_node["name"]
         container_parameters = ContainerParameters(**data_node)
-        logger.debug(f"SET CONTAINER: {container_name} -> {container_parameters}")
+        logger.debug(f"SET CONTAINER: {container_name}: {container_parameters}")
         parent.setData(container_parameters, _NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
         parent.setText(container_name)
 
@@ -2142,7 +2142,7 @@ class MainWindow(QMainWindow):
             node = nodes_by_name.get(fmu_name)
             if node:
                 node.user_start_values[port_name] = value
-                logger.debug(f"Start value: {fmu_name}/{port_name} = {value}")
+                logger.debug(f"Start value: {Path(fmu_name).name}/{port_name} = {value}")
             else:
                 logger.warning(f"Cannot apply start value: node not found for {fmu_name}")
 
@@ -2151,7 +2151,7 @@ class MainWindow(QMainWindow):
             node = nodes_by_name.get(fmu_name)
             if node:
                 node.user_exposed_outputs[port_name] = True
-                logger.debug(f"Exposed output: {fmu_name}/{port_name}")
+                logger.debug(f"Exposed output: {Path(fmu_name).name}/{port_name}")
             else:
                 logger.warning(f"Cannot apply exposed output: node not found for {fmu_name}")
 
@@ -2341,8 +2341,8 @@ class MainWindow(QMainWindow):
             for link in wire.mappings:
                 if len(link) == 4:
                     fmu_from_name, port_from, fmu_to_name, port_to = link
-                    fmu_from_path = path_by_name.get(fmu_from_name, fmu_from_name)
-                    fmu_to_path = path_by_name.get(fmu_to_name, fmu_to_name)
+                    fmu_from_path = path_by_name[fmu_from_name]
+                    fmu_to_path = path_by_name[fmu_to_name]
                 elif len(link) == 2:
                     # Legacy 2-tuple: assume node_a → node_b
                     fmu_from_path = str(wire.node_a.fmu_path)
@@ -2350,7 +2350,7 @@ class MainWindow(QMainWindow):
                     port_from, port_to = link
                 else:
                     continue
-                logger.info(f"{fmu_from_path} {port_from} -> {fmu_to_path} {port_to}")
+                logger.info(f"{Path(fmu_from_path).name}/{port_from} → {Path(fmu_to_path).name}/{port_to}")
                 links_list.append((fmu_from_path, port_from, fmu_to_path, port_to))
 
         self._apply_links_on_assembly_node(assembly.root, links_list)
