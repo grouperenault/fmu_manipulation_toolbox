@@ -30,6 +30,7 @@ from .details import ContainerParameters
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
 
 
 class MainWindow(QMainWindow):
@@ -37,6 +38,9 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self._last_directory: Optional[Path] = None
+
+        # Setup tree logger with stdout handler
+        self._setup_tree_logger()
 
         splitter = QSplitter()
         self._graph = NodeGraphWidget()
@@ -82,6 +86,7 @@ class MainWindow(QMainWindow):
         # Debug checkbox
         self._debug_checkbox = QCheckBox("Verbose Mode")
         self._debug_checkbox.setToolTip("Keep intermediate build artifacts and enable verbose logging")
+        self._debug_checkbox.stateChanged.connect(self._on_debug_mode_changed)
 
         # Datalog checkbox
         self._datalog_checkbox = QCheckBox("Enable Datalog")
@@ -164,6 +169,30 @@ class MainWindow(QMainWindow):
 
     def _mark_dirty(self):
         self._dirty = True
+
+    def _setup_tree_logger(self):
+        """Configure tree logger with stdout handler."""
+        # Create a stdout handler
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        ))
+
+        # Add handler to tree logger
+        tree_logger.addHandler(handler)
+
+        # Set initial level (INFO by default, DEBUG if checkbox is checked)
+        tree_logger.setLevel(logging.INFO)
+        tree_logger.propagate = False  # Don't propagate to parent logger
+
+    def _on_debug_mode_changed(self, state):
+        """Update tree logger level when debug checkbox changes."""
+        if state:  # Qt.CheckState.Checked
+            tree_logger.setLevel(logging.DEBUG)
+            tree_logger.debug("Debug mode enabled - tree logger set to DEBUG level")
+        else:  # Qt.CheckState.Unchecked
+            tree_logger.setLevel(logging.INFO)
+            tree_logger.debug("Debug mode disabled - tree logger set to INFO level")
 
     def _on_node_added_update_dir(self, node: NodeItem):
         """Track the directory of the last FMU added to the scene."""
