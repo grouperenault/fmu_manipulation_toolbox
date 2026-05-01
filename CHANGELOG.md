@@ -1,7 +1,12 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
-# Version 1.9.3 (dev)
+# Version 1.9.3.1
+* ADDED: Highlight FMUs nested in selected container
+* ADDED: Tooltips for the parameters of containers
+* FIXED: FMU extraction of a container
+
+# Version 1.9.3
 * ADDED: Graphical User Interfaces for quick FMU variable edition and build FMU Container
 * ADDED: Support of array variables
 * CHANGE: refactor the documentation

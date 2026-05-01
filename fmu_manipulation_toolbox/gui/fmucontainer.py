@@ -68,6 +68,8 @@ WAYPOINT_RADIUS     = 5
 # Fonts
 FONT_TITLE          = QFont("Verdana", 10, QFont.Weight.Bold)
 FONT_PORT           = QFont("Verdana", 8)
+FONT_PORT_PARAMETER = QFont("Verdana", 8)
+FONT_PORT_PARAMETER.setItalic(True)
 
 
 class NodeItem(QGraphicsRectItem, OperationAbstract):
@@ -87,6 +89,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         # -- Read FMU ports ---------------------------------------------------
         self.fmu_input_names: List[str] = []
         self.fmu_output_names: List[str] = []
+        self.fmu_port_causality: Dict[str, str] = {}  # Maps port name to causality
         self.fmu_start_values: Dict[str, str] = {}
         self.user_start_values: Dict[str, str] = {}
         self.user_exposed_outputs: Dict[str, bool] = {}
@@ -148,6 +151,8 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
             self.fmu_input_names.append(name)
         elif causality == "output":
             self.fmu_output_names.append(name)
+        # Store causality for later use
+        self.fmu_port_causality[name] = causality
         start = fmu_port.get("start", None)
         if start is not None:
             self.fmu_start_values[name] = start
@@ -928,14 +933,22 @@ def _unlock_column_resize(table: QTableView):
 
 
 class _PortComboDelegate(QStyledItemDelegate):
-    """Delegate that presents a QComboBox populated with port names."""
+    """Delegate that presents a QComboBox populated with port names
+    and displays parameter ports in italics."""
+
+    ROLE_PORT_CAUSALITIES = Qt.ItemDataRole.UserRole + 200
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._items: List[str] = []
+        self._causalities: Dict[str, str] = {}  # Maps port name to causality
 
     def set_items(self, items: List[str]):
         self._items = list(items)
+
+    def set_causalities(self, causalities: Dict[str, str]):
+        """Set the causality info for ports."""
+        self._causalities = causalities
 
     def createEditor(self, parent, option, index):
         combo = QComboBox(parent)
@@ -955,6 +968,17 @@ class _PortComboDelegate(QStyledItemDelegate):
 
     def updateEditorGeometry(self, editor, option, index):
         editor.setGeometry(option.rect)
+
+    def paint(self, painter, option, index):
+        # Check if this port has "parameter" causality and apply italic formatting
+        text = index.data(Qt.ItemDataRole.DisplayRole)
+        if text and text in self._causalities and self._causalities[text] == "parameter":
+            font = option.font
+            font.setItalic(True)
+            option.font = font
+
+        # Let the default painting happen
+        super().paint(painter, option, index)
 
 
 class _WireDirectionTab(QWidget):
@@ -1025,7 +1049,9 @@ class _WireDirectionTab(QWidget):
         self._from_node = from_node
         self._to_node = to_node
         self._output_delegate.set_items(from_node.fmu_output_names)
+        self._output_delegate.set_causalities(from_node.fmu_port_causality)
         self._input_delegate.set_items(to_node.fmu_input_names)
+        self._input_delegate.set_causalities(to_node.fmu_port_causality)
 
     # ── Data access ─────────────────────────────────────────────
 
@@ -1057,10 +1083,19 @@ class _WireDirectionTab(QWidget):
         to_name = self._to_node.fmu_path.name
         for m in mappings:
             if len(m) >= 4 and m[0] == from_name and m[2] == to_name:
-                self._model.appendRow([QStandardItem(m[1]), QStandardItem(m[3])])
+                out_item = QStandardItem(m[1])
+                in_item = QStandardItem(m[3])
+                # Store causality info for display formatting
+                out_causality = self._from_node.fmu_port_causality.get(m[1], "output")
+                in_causality = self._to_node.fmu_port_causality.get(m[3], "input")
+                out_item.setData(out_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
+                in_item.setData(in_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
+                self._model.appendRow([out_item, in_item])
             elif len(m) == 2:
                 # Legacy 2-tuple: only load in the first direction tab
-                self._model.appendRow([QStandardItem(m[0]), QStandardItem(m[1])])
+                out_item = QStandardItem(m[0])
+                in_item = QStandardItem(m[1])
+                self._model.appendRow([out_item, in_item])
 
     def row_count(self) -> int:
         return self._model.rowCount()
@@ -1079,7 +1114,14 @@ class _WireDirectionTab(QWidget):
             if name in to_inputs:
                 m = (from_name, name, to_name, name)
                 if m not in existing:
-                    self._model.appendRow([QStandardItem(name), QStandardItem(name)])
+                    out_item = QStandardItem(name)
+                    in_item = QStandardItem(name)
+                    # Store causality info
+                    out_causality = self._from_node.fmu_port_causality.get(name, "output")
+                    in_causality = self._to_node.fmu_port_causality.get(name, "input")
+                    out_item.setData(out_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
+                    in_item.setData(in_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
+                    self._model.appendRow([out_item, in_item])
                     existing.add(m)
 
     # ── Slots ───────────────────────────────────────────────────
@@ -1089,10 +1131,14 @@ class _WireDirectionTab(QWidget):
             return
         if not self._from_node.fmu_output_names or not self._to_node.fmu_input_names:
             return
-        self._model.appendRow([
-            QStandardItem(self._from_node.fmu_output_names[0]),
-            QStandardItem(self._to_node.fmu_input_names[0]),
-        ])
+        out_item = QStandardItem(self._from_node.fmu_output_names[0])
+        in_item = QStandardItem(self._to_node.fmu_input_names[0])
+        # Store causality info
+        out_causality = self._from_node.fmu_port_causality.get(self._from_node.fmu_output_names[0], "output")
+        in_causality = self._to_node.fmu_port_causality.get(self._to_node.fmu_input_names[0], "input")
+        out_item.setData(out_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
+        in_item.setData(in_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
+        self._model.appendRow([out_item, in_item])
         self.changed.emit()
 
     def _on_remove(self):
@@ -1200,9 +1246,10 @@ class WireDetailWidget(QWidget):
 
 class _StartValueDelegate(QStyledItemDelegate):
     """Delegate that shows the FMU default start value as a gray placeholder
-    when the user has not entered a value."""
+    when the user has not entered a value. Also displays parameter ports in italics."""
 
     ROLE_PLACEHOLDER = Qt.ItemDataRole.UserRole + 100
+    ROLE_CAUSALITY = Qt.ItemDataRole.UserRole + 101
 
     def displayText(self, value, locale):
         # If there is actual text, show it normally
@@ -1211,6 +1258,14 @@ class _StartValueDelegate(QStyledItemDelegate):
         return ""
 
     def paint(self, painter, option, index):
+        # Check if this is a parameter port and apply italic formatting
+        causality = index.data(self.ROLE_CAUSALITY)
+        if causality == "parameter":
+            # Get the default font from the option and make it italic
+            font = option.font
+            font.setItalic(True)
+            option.font = font
+
         # Let the default painting happen first
         super().paint(painter, option, index)
         # If the cell is empty, draw the placeholder in gray
@@ -1273,6 +1328,7 @@ class FMUDetailWidget(QWidget):
         self._sv_table.verticalHeader().setVisible(False)
 
         self._sv_delegate = _StartValueDelegate(self._sv_table)
+        self._sv_table.setItemDelegateForColumn(0, self._sv_delegate)
         self._sv_table.setItemDelegateForColumn(1, self._sv_delegate)
 
         self._tabs.addTab(self._sv_table, "Start Values")
@@ -1293,6 +1349,10 @@ class FMUDetailWidget(QWidget):
         self._out_table.setAlternatingRowColors(True)
         self._out_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._out_table.verticalHeader().setVisible(False)
+
+        # Apply delegate to display parameter ports in italics
+        self._out_delegate = _StartValueDelegate(self._out_table)
+        self._out_table.setItemDelegateForColumn(0, self._out_delegate)
 
         self._tabs.addTab(self._out_table, "Output Ports")
 
@@ -1350,6 +1410,9 @@ class FMUDetailWidget(QWidget):
         for port_name in node.fmu_input_names:
             name_item = QStandardItem(port_name)
             name_item.setEditable(False)
+            # Store causality for display formatting
+            causality = node.fmu_port_causality.get(port_name, "input")
+            name_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
 
             user_val = node.user_start_values.get(port_name, "")
             value_item = QStandardItem(user_val)
@@ -1357,6 +1420,8 @@ class FMUDetailWidget(QWidget):
             if default is not None:
                 value_item.setData(str(default), _StartValueDelegate.ROLE_PLACEHOLDER)
                 value_item.setToolTip(f"FMU default: {default}")
+            # Also store causality on value item for consistency
+            value_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
 
             self._sv_model.appendRow([name_item, value_item])
 
@@ -1365,12 +1430,17 @@ class FMUDetailWidget(QWidget):
         for port_name in node.fmu_output_names:
             name_item = QStandardItem(port_name)
             name_item.setEditable(False)
+            # Store causality for display formatting
+            causality = node.fmu_port_causality.get(port_name, "output")
+            name_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
 
             check_item = QStandardItem("")
             check_item.setEditable(False)
             check_item.setCheckable(True)
             exposed = node.user_exposed_outputs.get(port_name, False)
             check_item.setCheckState(Qt.CheckState.Checked if exposed else Qt.CheckState.Unchecked)
+            # Also store causality on check item for consistency
+            check_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
 
             self._out_model.appendRow([name_item, check_item])
 
