@@ -25,11 +25,11 @@ from PySide6.QtWidgets import (
     QFileDialog, QMainWindow, QPushButton, QComboBox, QCheckBox,
     QStyledItemDelegate, QAbstractItemView,
     QWidgetAction, QRadioButton, QButtonGroup, QFrame, QMessageBox,
-    QTabWidget
+    QTabWidget, QLineEdit, QListWidget, QListWidgetItem, QDialog
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, RunTask
-from fmu_manipulation_toolbox.gui.style import placeholder_color
+from fmu_manipulation_toolbox.gui.style import placeholder_color, port_list_selector_dialog_style
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.container import FMUContainerError
@@ -37,6 +37,7 @@ from fmu_manipulation_toolbox.split import FMUSplitter, FMUSplitterError
 from fmu_manipulation_toolbox.help import Help
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
 
 # ─────────────────────────── Visual constants ──────────────────────────
 
@@ -532,7 +533,13 @@ class _DragWireItem(QGraphicsPathItem):
 
 
 class NodeGraphScene(QGraphicsScene):
-    """Graphics scene managing nodes and wires."""
+    """Graphics scene managing nodes and wires.
+
+    Features:
+    • Single selection enforcement (no multi-select)
+    • Automatic sync with tree view
+    • Wire drag-and-drop
+    """
 
     node_added = Signal(object)
     node_removed = Signal(object)
@@ -546,6 +553,29 @@ class NodeGraphScene(QGraphicsScene):
         self._drag_wire: Optional[_DragWireItem] = None
         self._drag_start_node: Optional[NodeItem] = None
         self._drag_target_node: Optional[NodeItem] = None
+        
+        # Enforce single selection by validating after selection changes
+        self.selectionChanged.connect(self._enforce_single_selection)
+
+    def _enforce_single_selection(self):
+        """Ensure only ONE item is selected at a time.
+        
+        This prevents Ctrl+Click multi-selection which is not supported
+        in this application's single-selection-only workflow.
+        """
+        selected = self.selectedItems()
+        if len(selected) > 1:
+            tree_logger.warning(f"Multi-selection detected ({len(selected)} items), correcting to single selection")
+            # Keep only the first selected item
+            self.clearSelection()
+            if selected:
+                selected[0].setSelected(True)
+                tree_logger.debug(f"Single selection enforced: {selected[0]}")
+        elif len(selected) == 1:
+            # Single selection is okay, just log for debugging
+            if isinstance(selected[0], (NodeItem, WireItem)):
+                item_type = "Node" if isinstance(selected[0], NodeItem) else "Wire"
+                tree_logger.debug(f"Scene selection: 1 {item_type}")
 
     # -- Public API ----------------------------------------------------------
 
@@ -628,6 +658,11 @@ class NodeGraphScene(QGraphicsScene):
         return None
 
     def mousePressEvent(self, event: QGraphicsSceneMouseEvent):
+        # Ignore Ctrl+Click completely
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            event.accept()
+            return
+
         if event.button() == Qt.MouseButton.LeftButton:
             node = self._node_at(event.scenePos())
             if node:
@@ -638,15 +673,21 @@ class NodeGraphScene(QGraphicsScene):
                     start = node.edge_point(event.scenePos())
                     self._drag_wire = _DragWireItem(start)
                     self.addItem(self._drag_wire)
-                    # Select the source node (for detail panel feedback)
+                    # Select ONLY the source node (ensure single selection)
                     self.clearSelection()
                     node.setSelected(True)
+                    tree_logger.debug(f"Dragging from node: {node.title}")
                     event.accept()
                     return
                 # Clicked on the title bar → normal move / select (handled by super)
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QGraphicsSceneMouseEvent):
+        # Ignore Ctrl+Move completely
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            event.accept()
+            return
+
         if self._drag_wire:
             self._drag_wire.update_destination(event.scenePos())
             # Highlight target node
@@ -662,6 +703,11 @@ class NodeGraphScene(QGraphicsScene):
         super().mouseMoveEvent(event)
 
     def mouseReleaseEvent(self, event: QGraphicsSceneMouseEvent):
+        # Ignore Ctrl+Release completely
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            event.accept()
+            return
+        
         if self._drag_wire:
             if self._drag_target_node:
                 self._drag_target_node.setZValue(1)
@@ -693,7 +739,7 @@ class NodeGraphView(QGraphicsView):
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
-        self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self.setDragMode(QGraphicsView.DragMode.NoDrag)
         self.setAcceptDrops(True)
 
         self._zoom = 1.0
@@ -915,6 +961,88 @@ class _NodeTreeModel(QStandardItemModel):
         return super().canDropMimeData(data, action, row, column, parent)
 
 
+class TreeItemRoles:
+    """Centralizes tree item roles and provides type-safe accessors.
+
+    This class provides:
+    • Centralized role constants
+    • Type-safe getters for item data
+    • Reduced risk of typos and inconsistencies
+    """
+
+    CONTAINER_PARAMETERS = _NodeTreeModel.ROLE_CONTAINER_PARAMETERS
+    NODE_UID = _NodeTreeModel.ROLE_NODE_UID
+    IS_ROOT = _NodeTreeModel.ROLE_IS_ROOT
+
+    @staticmethod
+    def get_container_params(item: Optional[QStandardItem]) -> Optional["ContainerParameters"]:
+        """Get ContainerParameters from item (type-safe)."""
+        if item is None:
+            return None
+        return item.data(TreeItemRoles.CONTAINER_PARAMETERS)
+
+    @staticmethod
+    def get_node_uid(item: Optional[QStandardItem]) -> Optional[str]:
+        """Get NODE_UID from item (type-safe)."""
+        if item is None:
+            return None
+        return item.data(TreeItemRoles.NODE_UID)
+
+    @staticmethod
+    def is_root(item: Optional[QStandardItem]) -> bool:
+        """Check if item is a root node (type-safe)."""
+        if item is None:
+            return False
+        return bool(item.data(TreeItemRoles.IS_ROOT))
+
+    @staticmethod
+    def is_container(item: Optional[QStandardItem]) -> bool:
+        """Check if item is a container (type-safe)."""
+        return TreeItemRoles.get_container_params(item) is not None
+
+    @staticmethod
+    def is_fmu_node(item: Optional[QStandardItem]) -> bool:
+        """Check if item is an FMU node (type-safe)."""
+        return (
+            TreeItemRoles.get_node_uid(item) is not None
+            and TreeItemRoles.get_container_params(item) is None
+        )
+
+
+class SelectionSynchronizer:
+    """Context manager for safe cross-widget selection synchronization.
+
+    Prevents circular updates when synchronizing selection between
+    scene and tree views by temporarily blocking signals.
+
+    Usage:
+    ```
+    with SelectionSynchronizer(tree, scene):
+        tree.setCurrentIndex(index)  # Won't trigger scene selection
+    ```
+    """
+
+    def __init__(self, tree_view: QTreeView, scene: QGraphicsScene):
+        self._tree_view = tree_view
+        self._scene = scene
+        self._tree_signals_blocked = False
+        self._scene_signals_blocked = False
+
+    def __enter__(self) -> "SelectionSynchronizer":
+        """Block signals at entry."""
+        self._tree_signals_blocked = self._tree_view.selectionModel().blockSignals(True)
+        self._scene_signals_blocked = self._scene.blockSignals(True)
+        tree_logger.debug("Selection synchronizer entered - signals blocked")
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Restore signals at exit."""
+        self._tree_view.selectionModel().blockSignals(self._tree_signals_blocked)
+        self._scene.blockSignals(self._scene_signals_blocked)
+        tree_logger.debug("Selection synchronizer exited - signals restored")
+        return False
+
+
 def _unlock_column_resize(table: QTableView):
     """Switch from *Stretch* to *Interactive*, preserving the current widths.
 
@@ -932,9 +1060,146 @@ def _unlock_column_resize(table: QTableView):
         header.resizeSection(i, w)
 
 
+
+class _PortListSelectorDialog(QDialog):
+    """Independent dialog window for selecting a port from a searchable list.
+
+    Features:
+    • Search bar for filtering items
+    • Scrollable list view (independent of parent widget)
+    • Display parameter ports in italics
+    • Can be displayed anywhere on screen
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Select Port")
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setGeometry(100, 100, 400, 400)
+
+        self._items: List[str] = []
+        self._causalities: Dict[str, str] = {}
+        self._selected_text = ""
+
+        # -- Search bar --
+        self._search_input = QLineEdit()
+        self._search_input.setObjectName("PortListSearchBar")
+        self._search_input.setPlaceholderText("Search ports...")
+        self._search_input.textChanged.connect(self._on_search_text_changed)
+        self._search_input.setMaximumHeight(24)
+
+        # -- Separator --
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        separator.setMaximumHeight(1)
+        separator.setStyleSheet("QFrame { color: #3a3a44; }")
+
+        # -- List widget --
+        self._list_widget = QListWidget()
+        self._list_widget.setObjectName("PortListView")
+        self._list_widget.setAlternatingRowColors(True)
+        self._list_widget.itemSelectionChanged.connect(self._on_item_selected)
+        self._list_widget.itemDoubleClicked.connect(self._on_item_double_clicked)
+
+        # -- Buttons --
+        self._ok_btn = QPushButton("OK")
+        self._cancel_btn = QPushButton("Cancel")
+        self._ok_btn.clicked.connect(self.accept)
+        self._cancel_btn.clicked.connect(self.reject)
+
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        btn_layout.addWidget(self._ok_btn)
+        btn_layout.addWidget(self._cancel_btn)
+
+        # -- Main layout --
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(4)
+        lay.addWidget(self._search_input)
+        lay.addWidget(separator)
+        lay.addWidget(self._list_widget, 1)
+        lay.addLayout(btn_layout)
+
+        # -- Apply stylesheet --
+        self.setStyleSheet(port_list_selector_dialog_style)
+
+    def set_items(self, items: List[str]):
+        """Set the list of available items."""
+        self._items = list(items)
+        self._update_list_widget()
+
+    def set_causalities(self, causalities: Dict[str, str]):
+        """Set causality info for displaying parameter ports in italics."""
+        self._causalities = causalities
+        self._update_list_widget()
+
+    def set_selected(self, text: str):
+        """Set the currently selected item."""
+        self._selected_text = text
+        if text:
+            self._search_input.setText(text)
+            for i in range(self._list_widget.count()):
+                item = self._list_widget.item(i)
+                if item.text() == text:
+                    self._list_widget.setCurrentItem(item)
+                    break
+
+    def get_selected(self) -> str:
+        """Get the currently selected item text."""
+        current = self._list_widget.currentItem()
+        if current:
+            return current.text()
+        return self._selected_text
+
+    def _on_search_text_changed(self, text: str):
+        """Filter the list based on search text."""
+        self._update_list_widget(text)
+
+    def _on_item_selected(self):
+        """When user selects an item in the list."""
+        current = self._list_widget.currentItem()
+        if current:
+            self._selected_text = current.text()
+
+    def _on_item_double_clicked(self, item: QListWidgetItem):
+        """When user double-clicks an item, accept and close."""
+        self._selected_text = item.text()
+        self.accept()
+
+    def _update_list_widget(self, search_text: str = ""):
+        """Repopulate the list widget with filtered items."""
+        self._list_widget.clear()
+
+        search_lower = search_text.lower()
+        for port_name in self._items:
+            if search_lower and search_lower not in port_name.lower():
+                continue
+
+            item = QListWidgetItem(port_name)
+
+            # Apply italic formatting for parameter ports
+            if port_name in self._causalities and self._causalities[port_name] == "parameter":
+                font = item.font()
+                font.setItalic(True)
+                item.setFont(font)
+
+            self._list_widget.addItem(item)
+
+        # Select first item if available
+        if self._list_widget.count() > 0:
+            self._list_widget.setCurrentRow(0)
+
+
 class _PortComboDelegate(QStyledItemDelegate):
-    """Delegate that presents a QComboBox populated with port names
-    and displays parameter ports in italics."""
+    """Delegate that presents a searchable port list instead of a simple combo box.
+    
+    Opens an independent dialog with _PortListSelectorDialog to provide:
+    • Search bar for filtering ports
+    • Scrollable list
+    • Parameter ports displayed in italics
+    """
 
     ROLE_PORT_CAUSALITIES = Qt.ItemDataRole.UserRole + 200
 
@@ -951,25 +1216,71 @@ class _PortComboDelegate(QStyledItemDelegate):
         self._causalities = causalities
 
     def createEditor(self, parent, option, index):
-        combo = QComboBox(parent)
-        combo.addItems(self._items)
-        return combo
+        """Create a non-visible dummy editor; the actual dialog will be shown separately."""
+        # Create a completely invisible dummy widget to satisfy Qt's delegate contract
+        # We use QWidget instead of QLineEdit to avoid any rendering issues
+        dummy_editor = QWidget(parent)
+        dummy_editor.setVisible(False)
+        dummy_editor.setMaximumSize(0, 0)
+
+        # Show the dialog immediately
+        current_value = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        self._show_port_selector_dialog(current_value, parent, option, index, dummy_editor)
+
+        return dummy_editor
+
+    def _show_port_selector_dialog(self, current_value, parent, option, index, editor):
+        """Show the port selector dialog and handle selection."""
+        dialog = _PortListSelectorDialog(parent)
+        dialog.set_items(self._items)
+        dialog.set_causalities(self._causalities)
+        dialog.set_selected(current_value)
+        
+        # Position dialog near the cell
+        table = self.parent()
+        if table and hasattr(table, 'mapToGlobal'):
+            cell_pos = table.mapToGlobal(option.rect.bottomLeft())
+            dialog.move(cell_pos)
+        
+        # Show dialog (blocking)
+        result = dialog.exec()
+        if result == QDialog.DialogCode.Accepted:
+            selected_value = dialog.get_selected()
+            # Store the value on the editor to retrieve in setModelData
+            editor.setProperty("selected_value", selected_value)
+            # Signal that data should be committed
+            self.commitData.emit(editor)
+            # Close the editor after commit
+            self.closeEditor.emit(editor)
+        else:
+            # Dialog was cancelled or rejected - just close without modifying data
+            self.closeEditor.emit(editor)
 
     def setEditorData(self, editor, index):
+        """Initialize editor with current value (minimal for dummy editor)."""
+        # The editor is a dummy QWidget used to store the selected value
         value = index.data(Qt.ItemDataRole.DisplayRole) or ""
-        idx = editor.findText(value)
-        if idx >= 0:
-            editor.setCurrentIndex(idx)
-        elif self._items:
-            editor.setCurrentIndex(0)
+        editor.setProperty("current_value", value)
 
     def setModelData(self, editor, model, index):
-        model.setData(index, editor.currentText(), Qt.ItemDataRole.EditRole)
+        """Commit selected value to model."""
+        # Retrieve the value stored by _show_port_selector_dialog
+        selected_value = editor.property("selected_value")
+        if selected_value:
+            model.setData(index, selected_value, Qt.ItemDataRole.EditRole)
+        else:
+            # Keep the current value if dialog was cancelled
+            current = index.data(Qt.ItemDataRole.DisplayRole) or ""
+            model.setData(index, current, Qt.ItemDataRole.EditRole)
 
     def updateEditorGeometry(self, editor, option, index):
-        editor.setGeometry(option.rect)
+        """Hide the dummy editor since we use a dialog instead."""
+        # Make absolutely sure the editor is never visible
+        editor.hide()
+        editor.setGeometry(0, 0, 0, 0)
 
     def paint(self, painter, option, index):
+        """Display parameter ports in italics."""
         # Check if this port has "parameter" causality and apply italic formatting
         text = index.data(Qt.ItemDataRole.DisplayRole)
         if text and text in self._causalities and self._causalities[text] == "parameter":
@@ -979,6 +1290,7 @@ class _PortComboDelegate(QStyledItemDelegate):
 
         # Let the default painting happen
         super().paint(painter, option, index)
+
 
 
 class _WireDirectionTab(QWidget):
@@ -1541,16 +1853,21 @@ class ContainerDetailWidget(QWidget):
         self.changed.emit()
 
 
-class NodeTreePanel(QWidget):
-    """Side panel showing nodes as a hierarchical tree.
+class NodeTreeWidget(QWidget):
+    """Manages the tree view and synchronization with the scene.
 
-    • Single column with icon (Container / FMU) and name.
-    • First level contains a root container (*Project*).
-    • Right-click -> add node, add container, rename, delete.
-    • Internal drag-and-drop to reorganize hierarchy.
-    • Synchronized with scene: nodes added/removed in graph
-      appear/disappear automatically in the tree.
-"""
+    Responsibilities:
+    • QTreeView display and interaction
+    • Scene ↔ tree synchronization
+    • Context menu for add/delete/rename
+    • Drag-and-drop hierarchy management
+    • Icon management and item builders
+
+    Signals:
+    • container_changed(ContainerParameters) - emitted when a container item is edited
+    """
+
+    container_changed = Signal(object)  # Emits ContainerParameters
 
     def __init__(self, graph_widget: NodeGraphWidget, parent=None):
         super().__init__(parent)
@@ -1568,7 +1885,6 @@ class NodeTreePanel(QWidget):
         self._model.appendRow(root_item)
         self._root: QStandardItem = root_item
 
-
         # ── View ───────────────────────────────────────────────────────────
         self._tree = QTreeView()
         self._tree.setModel(self._model)
@@ -1578,7 +1894,7 @@ class NodeTreePanel(QWidget):
         self._tree.setSelectionMode(QTreeView.SelectionMode.SingleSelection)
         self._tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
-        self._tree.setIconSize(QSize(30, 30))  # Larger icons
+        self._tree.setIconSize(QSize(30, 30))
         self._tree.setUniformRowHeights(True)
         self._tree.expandAll()
 
@@ -1586,40 +1902,19 @@ class NodeTreePanel(QWidget):
         self._model.itemChanged.connect(self._on_item_changed)
 
         # ── Scene -> tree connections ──────────────────────────────────────
-        self._syncing_selection = False
-
+        self._synchronizer = SelectionSynchronizer(self._tree, self._graph.scene)
         self._graph.scene.node_added.connect(self._on_scene_node_added)
         self._graph.scene.node_removed.connect(self._on_scene_node_removed)
         self._graph.scene.selectionChanged.connect(self._on_scene_selection_changed)
         self._tree.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
-
-        # ── Details panel ────────────────────────────────────────────
-        self._empty_widget = QWidget()                          # page 0
-        self._wire_detail = WireDetailWidget()                  # page 1
-        self._fmu_detail = FMUDetailWidget()                    # page 2
-        self._container_detail = ContainerDetailWidget()        # page 3
-
-        self._detail_stack = QStackedWidget()
-        self._detail_stack.addWidget(self._empty_widget)
-        self._detail_stack.addWidget(self._wire_detail)
-        self._detail_stack.addWidget(self._fmu_detail)
-        self._detail_stack.addWidget(self._container_detail)
-        self._detail_stack.setCurrentIndex(0)
+        tree_logger.debug("NodeTreeWidget initialized")
 
         # ── Layout ──────────────────────────────────────────────────
-        self._tree_splitter = QSplitter(Qt.Orientation.Vertical)
-        self._tree_splitter.addWidget(self._tree)
-        self._tree_splitter.addWidget(self._detail_stack)
-        self._tree_splitter.setChildrenCollapsible(False)
-        self._tree_splitter.setStretchFactor(0, 3)
-        self._tree_splitter.setStretchFactor(1, 2)
-        self._tree_splitter.setSizes([250, 250])
-
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(self._tree_splitter)
+        lay.addWidget(self._tree)
 
-    # ── Helpers ────────────────────────────────────────────────────
+    # ── Public API ──────────────────────────────────────────────────
 
     @property
     def model(self) -> '_NodeTreeModel':
@@ -1634,18 +1929,6 @@ class NodeTreePanel(QWidget):
         return self._tree
 
     @property
-    def wire_detail(self) -> WireDetailWidget:
-        return self._wire_detail
-
-    @property
-    def fmu_detail(self) -> FMUDetailWidget:
-        return self._fmu_detail
-
-    @property
-    def container_detail(self) -> ContainerDetailWidget:
-        return self._container_detail
-
-    @property
     def pending_parent(self) -> Optional[QStandardItem]:
         return self._pending_parent
 
@@ -1656,6 +1939,8 @@ class NodeTreePanel(QWidget):
     def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
         return self._make_container_item(name, is_root)
 
+    # ── Helpers ──────────────────────────────────────────────────────
+
     @staticmethod
     def _ensure_fmu_ext(name: str) -> str:
         """Ensure *name* ends with '.fmu'."""
@@ -1663,29 +1948,7 @@ class NodeTreePanel(QWidget):
             return name + ".fmu"
         return name
 
-    def _on_item_changed(self, item: QStandardItem):
-        """Called when an item is edited in-place (e.g. double-click rename)."""
-        container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
-        if not container_parameters:
-            return
-
-        fixed = self._ensure_fmu_ext(item.text().strip())
-        if fixed != item.text():
-            # Block signals to avoid recursion
-            self._model.blockSignals(True)
-            item.setText(fixed)
-            self._model.blockSignals(False)
-
-        # Keep data model in sync with the visible name.
-        container_parameters.name = fixed
-
-        # If this container is currently selected, refresh the details panel.
-        current = self._tree.currentIndex()
-        if current.isValid() and self._model.itemFromIndex(current) is item:
-            self._container_detail.set_container(container_parameters)
-            self._detail_stack.setCurrentWidget(self._container_detail)
-
-    # ── Row builders ──────────────────────────────────────────────
+    # ── Row builders ──────────────────────────────────────────────────
 
     def _make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
         item = QStandardItem(name)
@@ -1709,7 +1972,29 @@ class NodeTreePanel(QWidget):
         item.setDragEnabled(True)
         return item
 
-    # ── Scene -> tree synchronization ────────────────────────────────────
+    # ── Item changed event ───────────────────────────────────────────
+
+    def _on_item_changed(self, item: QStandardItem):
+        """Called when an item is edited in-place (e.g. double-click rename)."""
+        container_parameters = TreeItemRoles.get_container_params(item)
+        if not container_parameters:
+            return
+
+        fixed = self._ensure_fmu_ext(item.text().strip())
+        if fixed != item.text():
+            # Block signals to avoid recursion
+            self._model.blockSignals(True)
+            item.setText(fixed)
+            self._model.blockSignals(False)
+
+        # Keep data model in sync with the visible name.
+        container_parameters.name = fixed
+        tree_logger.debug(f"Container renamed: {fixed}")
+
+        # Signal that container has been changed
+        self.container_changed.emit(container_parameters)
+
+    # ── Scene -> tree synchronization ────────────────────────────────────────
 
     def _select_tree_item(self, item: QStandardItem):
         """Select *item* in the tree view and scroll to it."""
@@ -1763,60 +2048,65 @@ class NodeTreePanel(QWidget):
 
     def _on_scene_selection_changed(self):
         """Scene -> tree: select in tree when node is selected in graph.
-        Also updates the details panel."""
-        if self._syncing_selection:
-            return
-        self._syncing_selection = True
+        
+        Only sync NodeItems to tree. WireItems are not represented in tree,
+        so tree selection is cleared when only a Wire is selected.
+        """
+        # Suppress scene signals while modifying tree (but allow tree signals to process normally)
         try:
-            # Flush any pending edits from detail panels
-            self._wire_detail.sync_to_wire()
-            self._fmu_detail.sync_to_node()
-
-            sel = self._tree.selectionModel()
-            sel.clearSelection()
-
+            scene = self._graph.scene
+            scene.blockSignals(True)
+            
             try:
-                selected = self._graph.scene.selectedItems()
+                selected = scene.selectedItems()
             except RuntimeError:
-                # C++ scene already deleted (e.g. during shutdown)
+                # C++ scene already deleted
+                scene.blockSignals(False)
                 return
-
-            # Find a NodeItem
+            
+            # Find if a NodeItem is selected
+            tree_node_found = False
+            node_to_select = None
             for scene_item in selected:
                 if isinstance(scene_item, NodeItem):
                     tree_item = self._find_tree_item_by_uid(
                         self._model.invisibleRootItem(), scene_item.uid
                     )
                     if tree_item is not None:
-                        idx = self._model.indexFromItem(tree_item)
-                        sel.select(
-                            idx,
-                            QItemSelectionModel.SelectionFlag.Select
-                            | QItemSelectionModel.SelectionFlag.Rows,
-                        )
-                        self._tree.scrollTo(idx)
-                    self._fmu_detail.set_node(scene_item)
-                    self._detail_stack.setCurrentWidget(self._fmu_detail)
-                    return  # handled
-            # Find a WireItem
-            for scene_item in selected:
-                if isinstance(scene_item, WireItem):
-                    self._wire_detail.set_wire(scene_item)
-                    self._detail_stack.setCurrentWidget(self._wire_detail)
-                    return  # handled
-            # Nothing relevant
-            self._detail_stack.setCurrentWidget(self._empty_widget)
-        finally:
-            self._syncing_selection = False
+                        node_to_select = tree_item
+                        tree_node_found = True
+                        break  # Only one node can be selected
+            
+            # Allow scene signals again before updating tree
+            scene.blockSignals(False)
+            
+            # Now update tree with normal signal processing
+            sel = self._tree.selectionModel()
+            sel.clearSelection()
+            
+            if tree_node_found and node_to_select is not None:
+                idx = self._model.indexFromItem(node_to_select)
+                self._tree.setCurrentIndex(idx)
+                self._tree.scrollTo(idx, QAbstractItemView.ScrollHint.EnsureVisible)
+                tree_logger.debug(f"Tree item highlighted from scene (NodeItem: {node_to_select.text()})")
+            else:
+                if selected:
+                    # There are items but not NodeItems (likely a WireItem)
+                    tree_logger.debug(f"Scene selection is WireItem, tree selection cleared")
+                else:
+                    # No items selected in scene
+                    tree_logger.debug("Scene selection cleared")
+                    
+        except Exception as e:
+            tree_logger.error(f"Error during scene selection sync: {e}")
 
     def _on_tree_selection_changed(self, _selected, _deselected):
         """Tree -> scene: select in graph when node is selected in tree.
-        Also updates the details panel.
-        Highlights first-level FMU nodes of the selected container."""
-        if self._syncing_selection:
-            return
-        self._syncing_selection = True
-        try:
+        Highlights first-level FMU nodes of the selected container.
+        
+        NOTE: Tree uses SingleSelection mode, so only one item can be selected.
+        """
+        with self._synchronizer:
             try:
                 self._graph.scene.clearSelection()
             except RuntimeError:
@@ -1824,44 +2114,52 @@ class NodeTreePanel(QWidget):
 
             # First, remove highlight from all nodes
             for node in self._graph.scene.nodes():
-                    node.set_title_highlighted(False)
+                node.set_title_highlighted(False)
 
-            for index in self._tree.selectionModel().selectedRows(0):
-                item = self._model.itemFromIndex(index)
-                if item is None:
-                    continue
+            selected_rows = list(self._tree.selectionModel().selectedRows(0))
+            
+            # Validate single selection (should always be ≤1 due to SingleSelection mode)
+            if len(selected_rows) > 1:
+                tree_logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
+                return
+            
+            if not selected_rows:
+                tree_logger.debug("Tree selection cleared")
+                return
+            
+            # Process the single selected item
+            index = selected_rows[0]
+            item = self._model.itemFromIndex(index)
+            if item is None:
+                return
 
-                container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
-                if container_parameters is not None:
-                    # Container selected: highlight immediate FMU child nodes
-                    # 1. Iterate over the container's children in the tree
-                    for r in range(item.rowCount()):
-                        child = item.child(r, 0)
-                        if child is not None and not child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS):
-                            uid = child.data(_NodeTreeModel.ROLE_NODE_UID)
-                            if uid:
-                                for node in self._graph.scene.nodes():
-                                    if node.uid == uid:
-                                        node.set_title_highlighted(True)
-                    self._container_detail.set_container(container_parameters)
-                    self._detail_stack.setCurrentWidget(self._container_detail)
+            # Check if container
+            container_parameters = TreeItemRoles.get_container_params(item)
+            if container_parameters is not None:
+                tree_logger.debug(f"Container selected in tree: {container_parameters.name}")
+                # Container selected: highlight immediate FMU child nodes
+                for r in range(item.rowCount()):
+                    child = item.child(r, 0)
+                    if child is not None and TreeItemRoles.is_fmu_node(child):
+                        uid = TreeItemRoles.get_node_uid(child)
+                        if uid:
+                            for node in self._graph.scene.nodes():
+                                if node.uid == uid:
+                                    node.set_title_highlighted(True)
+                return
+
+            # Check if FMU node
+            uid = TreeItemRoles.get_node_uid(item)
+            if uid:
+                tree_logger.debug(f"FMU node selected in tree: {uid}")
+                try:
+                    scene_nodes = self._graph.scene.nodes()
+                except RuntimeError:
                     return
-                uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
-                if uid:
-                    try:
-                        scene_nodes = self._graph.scene.nodes()
-                    except RuntimeError:
+                for node in scene_nodes:
+                    if node.uid == uid:
+                        node.setSelected(True)
                         return
-                    for node in scene_nodes:
-                        if node.uid == uid:
-                            node.setSelected(True)
-                            self._fmu_detail.set_node(node)
-                            self._detail_stack.setCurrentWidget(self._fmu_detail)
-                            return
-            # Nothing relevant
-            self._detail_stack.setCurrentWidget(self._empty_widget)
-        finally:
-            self._syncing_selection = False
 
     # ── Context menu ──────────────────────────────────────────────────
 
@@ -1870,8 +2168,8 @@ class NodeTreePanel(QWidget):
         target, item = self._resolve_target(index)
 
         menu = QMenu(self)
-        act_add_fmu  = menu.addAction("Add FMU…")
-        act_add_ctn  = menu.addAction("Add Container")
+        act_add_fmu = menu.addAction("Add FMU…")
+        act_add_ctn = menu.addAction("Add Container")
 
         act_rename = act_delete = None
         if item is not None:
@@ -1957,6 +2255,277 @@ class NodeTreePanel(QWidget):
                 node.remove_wires()
                 self._graph.scene.removeItem(node)
                 return
+
+
+class DetailPanelStack(QWidget):
+    """Manages the detail panels (WireDetail, FMUDetail, ContainerDetail).
+
+    Responsibilities:
+    • Stack widget containing all detail panel types
+    • Switching between panels based on selection
+    • Coordinating detail panel updates
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        # ── Detail panels ────────────────────────────────────────────
+        self._empty_widget = QWidget()  # page 0
+        self._wire_detail = WireDetailWidget()  # page 1
+        self._fmu_detail = FMUDetailWidget()  # page 2
+        self._container_detail = ContainerDetailWidget()  # page 3
+
+        self._stack = QStackedWidget()
+        self._stack.addWidget(self._empty_widget)
+        self._stack.addWidget(self._wire_detail)
+        self._stack.addWidget(self._fmu_detail)
+        self._stack.addWidget(self._container_detail)
+        self._stack.setCurrentIndex(0)
+
+        # ── Layout ──────────────────────────────────────────────────
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self._stack)
+
+    # ── Public API ──────────────────────────────────────────────────
+
+    @property
+    def wire_detail(self) -> WireDetailWidget:
+        return self._wire_detail
+
+    @property
+    def fmu_detail(self) -> FMUDetailWidget:
+        return self._fmu_detail
+
+    @property
+    def container_detail(self) -> ContainerDetailWidget:
+        return self._container_detail
+
+    def sync_edits(self):
+        """Flush any pending edits from detail panels."""
+        self._wire_detail.sync_to_wire()
+        self._fmu_detail.sync_to_node()
+
+    def show_empty(self):
+        """Show empty panel."""
+        self._stack.setCurrentWidget(self._empty_widget)
+
+    def show_wire(self, wire: WireItem):
+        """Show wire detail panel."""
+        self._wire_detail.set_wire(wire)
+        self._stack.setCurrentWidget(self._wire_detail)
+
+    def show_fmu(self, node: NodeItem):
+        """Show FMU detail panel."""
+        self._fmu_detail.set_node(node)
+        self._stack.setCurrentWidget(self._fmu_detail)
+
+    def show_container(self, container_parameters: ContainerParameters):
+        """Show container detail panel."""
+        self._container_detail.set_container(container_parameters)
+        self._stack.setCurrentWidget(self._container_detail)
+
+
+class NodeTreePanel(QWidget):
+    """Side panel showing nodes as a hierarchical tree.
+
+    Combines NodeTreeWidget and DetailPanelStack to provide a complete
+    tree-based interface for managing the FMU container structure.
+
+    • Single column with icon (Container / FMU) and name.
+    • First level contains a root container (*Project*).
+    • Right-click -> add node, add container, rename, delete.
+    • Internal drag-and-drop to reorganize hierarchy.
+    • Synchronized with scene: nodes added/removed in graph
+      appear/disappear automatically in the tree.
+    • Detail panels show information about selected items.
+"""
+
+    def __init__(self, graph_widget: NodeGraphWidget, parent=None):
+        super().__init__(parent)
+        self._graph = graph_widget
+
+        # ── Create sub-components ───────────────────────────────────
+        self._tree_widget = NodeTreeWidget(graph_widget)
+        self._detail_panel = DetailPanelStack()
+
+        # ── Connect tree widget to detail panel ──────────────────────
+        self._graph.scene.selectionChanged.connect(self._on_scene_selection_changed)
+        self._tree_widget.tree_view.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
+        self._tree_widget.container_changed.connect(self._on_container_changed)
+
+        # ── Layout ──────────────────────────────────────────────────
+        self._splitter = QSplitter(Qt.Orientation.Vertical)
+        self._splitter.addWidget(self._tree_widget)
+        self._splitter.addWidget(self._detail_panel)
+        self._splitter.setChildrenCollapsible(False)
+        self._splitter.setStretchFactor(0, 3)
+        self._splitter.setStretchFactor(1, 2)
+        self._splitter.setSizes([250, 250])
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self._splitter)
+
+    # ── Helpers ────────────────────────────────────────────────────
+
+    @property
+    def model(self) -> '_NodeTreeModel':
+        return self._tree_widget.model
+
+    @property
+    def root(self) -> QStandardItem:
+        return self._tree_widget.root
+
+    @property
+    def tree_view(self) -> QTreeView:
+        return self._tree_widget.tree_view
+
+    @property
+    def wire_detail(self) -> WireDetailWidget:
+        return self._detail_panel.wire_detail
+
+    @property
+    def fmu_detail(self) -> FMUDetailWidget:
+        return self._detail_panel.fmu_detail
+
+    @property
+    def container_detail(self) -> ContainerDetailWidget:
+        return self._detail_panel.container_detail
+
+    @property
+    def pending_parent(self) -> Optional[QStandardItem]:
+        return self._tree_widget.pending_parent
+
+    @pending_parent.setter
+    def pending_parent(self, value: Optional[QStandardItem]):
+        self._tree_widget.pending_parent = value
+
+    def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
+        return self._tree_widget.make_container_item(name, is_root)
+
+    # ── Selection synchronization ──────────────────────────────────
+
+    def _on_scene_selection_changed(self):
+        """Scene -> tree: select in tree when node is selected in graph.
+        Also updates the details panel.
+
+        NOTE: Expected behavior is SINGLE selection only.
+        """
+        tree_logger.debug("Panel: scene selection changed event received")
+        # Flush any pending edits from detail panels
+        self._detail_panel.sync_edits()
+
+        # Let the tree widget sync its selection
+        self._tree_widget._on_scene_selection_changed()
+
+        # Show appropriate detail panel
+        try:
+            selected = self._graph.scene.selectedItems()
+        except RuntimeError:
+            # C++ scene already deleted
+            tree_logger.warning("Scene already deleted during selection change")
+            self._detail_panel.show_empty()
+            return
+
+        # Validate single selection
+        if len(selected) > 1:
+            tree_logger.warning(f"Multiple scene selections detected ({len(selected)}), expected max 1")
+            # This shouldn't happen as _enforce_single_selection() should correct it
+            return
+
+        if not selected:
+            tree_logger.debug("Scene selection cleared")
+            self._detail_panel.show_empty()
+            return
+
+        # Process the single selected item
+        scene_item = selected[0]
+        if isinstance(scene_item, NodeItem):
+            tree_logger.debug(f"Scene selection: Node '{scene_item.title}'")
+            self._detail_panel.show_fmu(scene_item)
+            return
+        elif isinstance(scene_item, WireItem):
+            tree_logger.debug(f"Scene selection: Wire (between nodes)")
+            self._detail_panel.show_wire(scene_item)
+            return
+
+        # Unknown selection type
+        tree_logger.debug(f"Unknown selection type: {type(scene_item)}")
+        self._detail_panel.show_empty()
+
+    def _on_tree_selection_changed(self, _selected, _deselected):
+        """Tree -> scene: select in graph when node is selected in tree.
+
+        NOTE: Tree uses SingleSelection mode, so only one item can be selected.
+        """
+        tree_logger.debug("Panel: tree selection changed event received")
+        # Let the tree widget sync its selection
+        self._tree_widget._on_tree_selection_changed(_selected, _deselected)
+
+        # Show appropriate detail panel
+        try:
+            selected_rows = list(self._tree_widget.tree_view.selectionModel().selectedRows(0))
+        except RuntimeError as e:
+            tree_logger.error(f"Error getting tree selection: {e}")
+            self._detail_panel.show_empty()
+            return
+
+        # Validate single selection (should always be ≤1 due to SingleSelection mode)
+        if len(selected_rows) > 1:
+            tree_logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
+            return
+
+        if not selected_rows:
+            tree_logger.debug("Tree selection cleared")
+            self._detail_panel.show_empty()
+            return
+
+        # Process the single selected item
+        index = selected_rows[0]
+        item = self._tree_widget.model.itemFromIndex(index)
+        if item is None:
+            tree_logger.error("Tree item is None for selected index")
+            self._detail_panel.show_empty()
+            return
+
+        container_parameters = TreeItemRoles.get_container_params(item)
+        if container_parameters is not None:
+            tree_logger.debug(f"Tree selection: Container '{container_parameters.name}'")
+            self._detail_panel.show_container(container_parameters)
+            return
+
+        # Check if it's a node item
+        uid = TreeItemRoles.get_node_uid(item)
+        if uid:
+            try:
+                scene_nodes = self._graph.scene.nodes()
+            except RuntimeError as e:
+                tree_logger.error(f"Error getting scene nodes: {e}")
+                return
+            for node in scene_nodes:
+                if node.uid == uid:
+                    tree_logger.debug(f"Tree selection: FMU Node '{node.title}'")
+                    self._detail_panel.show_fmu(node)
+                    return
+
+        # No matching item found
+        tree_logger.warning(f"Tree item selected but no matching scene node found (uid={uid})")
+        self._detail_panel.show_empty()
+
+    def _on_container_changed(self, container_parameters: ContainerParameters):
+        """Called when a container item is edited (e.g. renamed).
+        Refresh the detail panel if this container is currently selected."""
+        tree_logger.debug(f"Container changed event: {container_parameters.name}")
+        try:
+            current = self._tree_widget.tree_view.currentIndex()
+            if current.isValid():
+                item = self._tree_widget.model.itemFromIndex(current)
+                if item and TreeItemRoles.get_container_params(item) is container_parameters:
+                    tree_logger.debug(f"Refreshing detail panel for changed container: {container_parameters.name}")
+                    self._detail_panel.show_container(container_parameters)
+        except RuntimeError as e:
+            tree_logger.error(f"Error refreshing container detail panel: {e}")
 
 
 class MainWindow(QMainWindow):
