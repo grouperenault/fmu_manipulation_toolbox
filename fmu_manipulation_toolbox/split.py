@@ -42,7 +42,6 @@ class FMUSplitter:
     def __init__(self, fmu_filename: str):
         self.fmu_filename = Path(fmu_filename)
         self.directory = self.fmu_filename.with_suffix(".dir")
-        self.zip = None # to handle error
         self.zip = zipfile.ZipFile(self.fmu_filename)
         self.filenames_list = self.zip.namelist()
         self.dir_set = self.get_dir_set()
@@ -73,7 +72,7 @@ class FMUSplitter:
             json.dump(config, file, indent=2)
         logger.info(f"Container definition saved to '{config_filename}'")
 
-    def _split_fmu(self, fmu_filename: str, relative_path: str) -> Dict[str, Any]:
+    def _split_fmu(self, fmu_filename: str, relative_path: str) -> Union[Dict[str, Any], str]:
         txt_filename = f"{relative_path}resources/container.txt"
 
         if txt_filename in self.filenames_list:
@@ -106,7 +105,7 @@ class FMUSplitter:
         logger.debug(f"Extracting {directory} to {filename}")
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as fmu_file:
             for file in self.zip.namelist():
-                if file.startswith(directory):
+                if file.startswith(directory) and len(file) > len(directory):
                     data = self.zip.read(file)
                     fmu_file.writestr(file[len(directory):], data)
         logger.info(f"FMU Extraction of '{filename}'")

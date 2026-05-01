@@ -1403,9 +1403,9 @@ class FMUContainer:
                 cport = ContainerPort(fmu, port_name)
                 if cport not in self.rules:
                     if cport.port.causality == 'input':
-                        logger.error(f"{cport} is not connected")
+                        logger.error(f"Input '{cport}' is not connected")
                     if cport.port.causality == 'output':
-                        logger.warning(f"{cport} is not connected")
+                        logger.warning(f"Output '{cport}' is not connected")
 
     def make_fmu(self, fmu_filename: Union[str, Path], step_size: Optional[float] = None, debug=False, mt=False,
                  profiling=False, sequential=False, ts_multiplier=False, datalog=False):
