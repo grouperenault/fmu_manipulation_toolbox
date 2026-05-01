@@ -144,6 +144,14 @@ Each row in the start values table shows:
 | **Input Port** | Port name (read-only) |
 | **Start Value** | User-defined start value (editable). A gray placeholder shows the FMU's default value. |
 
+!!! note "Port Causality Indicator"
+    Ports are displayed with different text styles to indicate their causality type:
+    
+    - **Parameter ports** are shown in *italics* — these are configuration values or tuning parameters
+    - Other port types (standard inputs) appear in regular text
+    
+    This visual distinction helps you quickly identify parameter ports in the interface.
+
 !!! tip "Start Values"
     Leave the start value empty to use the FMU's built-in default. Enter a value to override it
     in the container.
@@ -168,6 +176,14 @@ Each tab contains a 2-column table:
 |---|---|
 | **Output Port** | Output variable of the source FMU (combo-box) |
 | **Input Port** | Input variable of the destination FMU (combo-box) |
+
+!!! note "Port Causality Indicator"
+    Ports are displayed with different text styles to indicate their causality type:
+    
+    - **Parameter ports** are shown in *italics* — these are typically tuning parameters or configuration values
+    - Other ports (inputs, outputs) appear in regular text
+    
+    This visual distinction helps quickly identify parameter ports when configuring mappings.
 
 Each tab has its own **Add link** / **Remove link** buttons to manage mappings for that direction.
 

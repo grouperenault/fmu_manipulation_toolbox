@@ -211,6 +211,41 @@ _COMMON_STYLE = """
     QToolButton.launcher:pressed {{
         border: 3px solid #b5bab9;
     }}
+    QDialog {{
+        background-color: #4b4e51;
+    }}
+    QLineEdit#PortListSearchBar {{
+        background-color: #282830;
+        color: #b5bab9;
+        border: 1px solid #3a3a44;
+        border-radius: 3px;
+        padding: 2px 4px;
+    }}
+    QLineEdit#PortListSearchBar:focus {{
+        border: 1px solid #4571a4;
+    }}
+    QListWidget#PortListView {{
+        background-color: #282830;
+        color: #b5bab9;
+        gridline-color: #3a3a44;
+        border: 1px solid #3a3a44;
+        border-radius: 3px;
+    }}
+    QListWidget#PortListView::item {{
+        padding: 4px;
+        background-color: #282830;
+        color: #b5bab9;
+    }}
+    QListWidget#PortListView::item:selected {{
+        background-color: #4571a4;
+        color: #ffffff;
+    }}
+    QListWidget#PortListView::item:hover {{
+        background-color: #35353d;
+    }}
+    QListWidget#PortListView::item:alternate {{
+        background-color: #35353d;
+    }}
 """
 
 # ─── Build final stylesheet with OS-specific values ───
@@ -262,56 +297,4 @@ log_color = {
     "CRITICAL": "#FF00FF",
 }
 
-# ─── Port List Selector Dialog Styles (matching WireDetail table theme) ───
-port_list_selector_dialog_style = """
-    QDialog {
-        background-color: #4b4e51;
-    }
-    QLineEdit#PortListSearchBar {
-        background-color: #282830;
-        color: #b5bab9;
-        border: 1px solid #3a3a44;
-        border-radius: 3px;
-        padding: 2px 4px;
-    }
-    QLineEdit#PortListSearchBar:focus {
-        border: 1px solid #4571a4;
-    }
-    QListWidget#PortListView {
-        background-color: #282830;
-        color: #b5bab9;
-        gridline-color: #3a3a44;
-        border: 1px solid #3a3a44;
-        border-radius: 3px;
-    }
-    QListWidget#PortListView::item {
-        padding: 4px;
-        background-color: #282830;
-        color: #b5bab9;
-    }
-    QListWidget#PortListView::item:selected {
-        background-color: #4571a4;
-        color: #ffffff;
-    }
-    QListWidget#PortListView::item:hover {
-        background-color: #35353d;
-    }
-    QListWidget#PortListView::item:alternate {
-        background-color: #35353d;
-    }
-    QPushButton {
-        min-height: 26px;
-        padding: 1px 1px 0.2em 0.2em;
-        border: 1px solid #282830;
-        border-radius: 3px;
-        background-color: #3a3a44;
-        color: #b5bab9;
-    }
-    QPushButton:hover {
-        background-color: #4571a4;
-    }
-    QPushButton:pressed {
-        border: 2px solid #282830;
-    }
-"""
 

@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, RunTask
-from fmu_manipulation_toolbox.gui.style import placeholder_color, port_list_selector_dialog_style
+from fmu_manipulation_toolbox.gui.style import placeholder_color
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.container import FMUContainerError
@@ -1122,8 +1122,8 @@ class _PortListSelectorDialog(QDialog):
         lay.addWidget(self._list_widget, 1)
         lay.addLayout(btn_layout)
 
-        # -- Apply stylesheet --
-        self.setStyleSheet(port_list_selector_dialog_style)
+        # Dialog styling is now provided by gui_style from style.py
+
 
     def set_items(self, items: List[str]):
         """Set the list of available items."""
@@ -1248,13 +1248,14 @@ class _PortComboDelegate(QStyledItemDelegate):
             selected_value = dialog.get_selected()
             # Store the value on the editor to retrieve in setModelData
             editor.setProperty("selected_value", selected_value)
-            # Signal that data should be committed
-            self.commitData.emit(editor)
-            # Close the editor after commit
-            self.closeEditor.emit(editor)
-        else:
-            # Dialog was cancelled or rejected - just close without modifying data
-            self.closeEditor.emit(editor)
+            # Get the model from the table's proxy
+            if table and hasattr(table, 'model'):
+                model = table.model()
+                # Call setModelData directly with the proxy model
+                self.setModelData(editor, model, index)
+
+        # Always close the editor when done
+        self.closeEditor.emit(editor)
 
     def setEditorData(self, editor, index):
         """Initialize editor with current value (minimal for dummy editor)."""
@@ -1272,6 +1273,12 @@ class _PortComboDelegate(QStyledItemDelegate):
             # Keep the current value if dialog was cancelled
             current = index.data(Qt.ItemDataRole.DisplayRole) or ""
             model.setData(index, current, Qt.ItemDataRole.EditRole)
+        
+        # Refresh table view after data change
+        table = self.parent()
+        if table:
+            # Mark the table for repaint to reflect the data change
+            table.update()
 
     def updateEditorGeometry(self, editor, option, index):
         """Hide the dummy editor since we use a dialog instead."""
@@ -1451,6 +1458,13 @@ class _WireDirectionTab(QWidget):
         out_item.setData(out_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
         in_item.setData(in_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
         self._model.appendRow([out_item, in_item])
+
+        # Select and display the newly created row
+        new_row_index = self._model.rowCount() - 1
+        proxy_index = self._proxy.mapFromSource(self._model.index(new_row_index, 0))
+        self._table.setCurrentIndex(proxy_index)
+        self._table.scrollTo(proxy_index, QAbstractItemView.ScrollHint.EnsureVisible)
+
         self.changed.emit()
 
     def _on_remove(self):

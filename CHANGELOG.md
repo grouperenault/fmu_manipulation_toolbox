@@ -2,8 +2,9 @@
 This package was formerly known as `fmutool`.
 
 # Version 1.9.3.1
-* ADDED: Highlight FMUs nested in selected container
-* ADDED: Tooltips for the parameters of containers
+* ADDED: GUI: Highlight FMUs nested in selected container
+* ADDED: GUI: Tooltips for the parameters of containers
+* ADDED: GUI: Add link is easier when FMU contains lot of variable. The parameters are displayed in italic.
 * FIXED: FMU extraction of a container
 
 # Version 1.9.3
