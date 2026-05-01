@@ -5,24 +5,19 @@ Contains classes for displaying and managing the container hierarchy.
 """
 
 import logging
-from typing import Optional, List
 
-from PySide6.QtCore import Qt, QModelIndex, Signal, QItemSelectionModel, QSize
+from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSize
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QIcon
-from PySide6.QtWidgets import (
-    QWidget, QTreeView, QVBoxLayout,
-    QStyledItemDelegate, QInputDialog, QFileDialog,
-    QMenu, QMessageBox, QAbstractItemView,
-)
+from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog, QFileDialog,
+                               QMenu, QAbstractItemView)
+from pathlib import Path
+from typing import *
 
-from fmu_manipulation_toolbox.gui.helper import Application
+from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
-
-# Import from sibling modules
-from pathlib import Path
 
 
 class _NodeTreeModel(QStandardItemModel):
@@ -55,7 +50,7 @@ class TreeItemRoles:
     IS_ROOT = _NodeTreeModel.ROLE_IS_ROOT
 
     @staticmethod
-    def get_container_params(item: Optional[QStandardItem]) -> Optional["ContainerParameters"]:
+    def get_container_params(item: Optional[QStandardItem]) -> Optional[ContainerParameters]:
         """Get ContainerParameters from item (type-safe)."""
         if item is None:
             return None
@@ -108,14 +103,14 @@ class SelectionSynchronizer:
         self._tree_signals_blocked = False
         self._scene_signals_blocked = False
 
-    def __enter__(self) -> "SelectionSynchronizer":
+    def __enter__(self):
         """Block signals at entry."""
         self._tree_signals_blocked = self._tree_view.selectionModel().blockSignals(True)
         self._scene_signals_blocked = self._scene.blockSignals(True)
         tree_logger.debug("Selection synchronizer entered - signals blocked")
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
         """Restore signals at exit."""
         self._tree_view.selectionModel().blockSignals(self._tree_signals_blocked)
         self._scene.blockSignals(self._scene_signals_blocked)
@@ -175,8 +170,8 @@ class NodeTreeWidget(QWidget):
         self._synchronizer = SelectionSynchronizer(self._tree, self._graph.scene)
         self._graph.scene.node_added.connect(self._on_scene_node_added)
         self._graph.scene.node_removed.connect(self._on_scene_node_removed)
-        self._graph.scene.selectionChanged.connect(self._on_scene_selection_changed)
-        self._tree.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
+        self._graph.scene.selectionChanged.connect(self.on_scene_selection_changed)
+        self._tree.selectionModel().selectionChanged.connect(self.on_tree_selection_changed)
         tree_logger.debug("NodeTreeWidget initialized")
 
         # ── Layout ──────────────────────────────────────────────────
@@ -317,7 +312,7 @@ class NodeTreeWidget(QWidget):
 
     # ── Selection synchronization ──────────────────────────────────────
 
-    def _on_scene_selection_changed(self):
+    def on_scene_selection_changed(self):
         """Scene -> tree: select in tree when node is selected in graph.
 
         Only sync NodeItems to tree. WireItems are not represented in tree,
@@ -372,13 +367,12 @@ class NodeTreeWidget(QWidget):
         except Exception as e:
             tree_logger.error(f"Error during scene selection sync: {e}")
 
-    def _on_tree_selection_changed(self, _selected, _deselected):
+    def on_tree_selection_changed(self, _selected, _deselected):
         """Tree -> scene: select in graph when node is selected in tree.
         Highlights first-level FMU nodes of the selected container.
 
         NOTE: Tree uses SingleSelection mode, so only one item can be selected.
         """
-        from .graph import NodeItem
         with self._synchronizer:
             try:
                 self._graph.scene.clearSelection()
@@ -624,7 +618,7 @@ class NodeTreePanel(QWidget):
         self._detail_panel.sync_edits()
 
         # Let the tree widget sync its selection
-        self._tree_widget._on_scene_selection_changed()
+        self._tree_widget.on_scene_selection_changed()
 
         # Show appropriate detail panel
         try:
@@ -670,7 +664,7 @@ class NodeTreePanel(QWidget):
         """
         tree_logger.debug("Panel: tree selection changed event received")
         # Let the tree widget sync its selection
-        self._tree_widget._on_tree_selection_changed(_selected, _deselected)
+        self._tree_widget.on_tree_selection_changed(_selected, _deselected)
 
         # Show appropriate detail panel
         try:

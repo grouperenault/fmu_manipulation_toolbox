@@ -686,10 +686,10 @@ class Assembly:
             filename (str | Path): Output filename, relative to `fmu_directory`.
         """
         with open(self.fmu_directory / filename, "wt") as file:
-            data = self._json_encode_node(self.root)
+            data = self.json_encode_node(self.root)
             json.dump(data, file, indent=2)
 
-    def _json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
+    def json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
         json_node = dict()
         json_node["name"] = node.name                      # 1
         json_node["mt"] = node.mt                          # 2
@@ -708,7 +708,7 @@ class Assembly:
             json_node["ts_multiplier"] = node.ts_multiplier # 7b
 
         if node.children:
-            json_node["container"] = [self._json_encode_node(child) for child in node.children.values()]  # 8
+            json_node["container"] = [self.json_encode_node(child) for child in node.children.values()]  # 8
 
         if node.fmu_names_list:
             json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]          # 9

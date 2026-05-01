@@ -11,12 +11,10 @@ import tempfile
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
     QPushButton, QCheckBox, QRadioButton, QButtonGroup, QFrame,
-    QMessageBox, QFileDialog, QInputDialog, QMenu, QWidgetAction,
+    QMessageBox, QFileDialog, QMenu, QWidgetAction,
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, RunTask
@@ -24,7 +22,7 @@ from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyEr
 from fmu_manipulation_toolbox.container import FMUContainerError
 from fmu_manipulation_toolbox.split import FMUSplitter, FMUSplitterError
 
-from .graph import NodeGraphWidget, NodeItem, WireItem
+from .graph import NodeGraphWidget, NodeItem
 from .tree import NodeTreePanel
 from .details import ContainerParameters
 
@@ -170,7 +168,8 @@ class MainWindow(QMainWindow):
     def _mark_dirty(self):
         self._dirty = True
 
-    def _setup_tree_logger(self):
+    @staticmethod
+    def _setup_tree_logger():
         """Configure tree logger with stdout handler."""
         # Create a stdout handler
         handler = logging.StreamHandler(sys.stdout)
@@ -185,7 +184,8 @@ class MainWindow(QMainWindow):
         tree_logger.setLevel(logging.INFO)
         tree_logger.propagate = False  # Don't propagate to parent logger
 
-    def _on_debug_mode_changed(self, state):
+    @staticmethod
+    def _on_debug_mode_changed(state):
         """Update tree logger level when debug checkbox changes."""
         if state:  # Qt.CheckState.Checked
             tree_logger.setLevel(logging.DEBUG)
@@ -325,8 +325,6 @@ class MainWindow(QMainWindow):
             if node:
                 node.user_exposed_outputs[port_name] = True
                 logger.debug(f"Exposed output: {Path(fmu_name).name}/{port_name}")
-            else:
-                logger.warning(f"Cannot apply exposed output: node not found for {fmu_name}")
 
         # Reset the detail panels so that the next sync_to_node/sync_to_wire
         # does not overwrite the just-loaded data with stale empty table content.
@@ -391,7 +389,7 @@ class MainWindow(QMainWindow):
             logger.fatal("Failed to read assembly: no root node.")
             return
 
-        data = assembly._json_encode_node(assembly.root)
+        data = assembly.json_encode_node(assembly.root)
         self._import_data(data, fmu_directory)
 
     def _on_import_clicked(self):
@@ -459,7 +457,7 @@ class MainWindow(QMainWindow):
         # Flush any in-progress edits from detail panels
         self._tree.wire_detail.sync_to_wire()
         self._tree.fmu_detail.sync_to_node()
-        nodes_by_uid = {node.uid: node for node in self._graph.scene.nodes()}
+        nodes_by_uid: Dict[str, NodeItem] = {node.uid: node for node in self._graph.scene.nodes()}
 
         def _item_to_assembly_node(parent_assembly_node: Optional[AssemblyNode], item) -> Optional[AssemblyNode]:
             from .tree import _NodeTreeModel

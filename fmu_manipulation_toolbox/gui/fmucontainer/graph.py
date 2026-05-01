@@ -6,14 +6,13 @@ Contains classes for rendering nodes (FMU), wires (connections), and the interac
 
 import math
 import uuid
-from pathlib import Path
-from typing import List, Optional, Dict, Tuple
 
-from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal, QSize
-from PySide6.QtGui import (
-    QPainter, QPen, QBrush, QColor, QPainterPath, QPainterPathStroker, QFont,
-    QFontMetrics, QKeyEvent, QIcon,
-)
+from pathlib import Path
+from typing import *
+
+from PySide6.QtCore import Qt, QRectF, QPointF, QLineF, Signal
+from PySide6.QtGui import ( QPainter, QPen, QBrush, QColor, QPainterPath, QPainterPathStroker,
+                            QFont, QFontMetrics, QKeyEvent)
 from PySide6.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsItem,
     QGraphicsRectItem, QGraphicsTextItem, QGraphicsPathItem,
@@ -277,7 +276,7 @@ class _WaypointHandle(QGraphicsEllipseItem):
             change == QGraphicsItem.GraphicsItemChange.ItemPositionHasChanged
             and not self._updating
         ):
-            self._wire._on_handle_moved(self._index, value)
+            self._wire.on_handle_moved(self._index, value)
         return super().itemChange(change, value)
 
     def hoverEnterEvent(self, event):
@@ -368,7 +367,7 @@ class WireItem(QGraphicsPathItem):
             handle.setPos(self._waypoints[i])
             handle._updating = False
 
-    def _on_handle_moved(self, index: int, new_pos: QPointF):
+    def on_handle_moved(self, index: int, new_pos: QPointF):
         if 0 <= index < len(self._waypoints):
             self._waypoints[index] = QPointF(new_pos)
             points = self._all_points()
@@ -914,7 +913,7 @@ class NodeGraphWidget(QWidget):
         self,
         x: float = 0,
         y: float = 0,
-        fmu_path: str = "",
+        fmu_path: Path = Path(""),
     ) -> Optional[NodeItem]:
         return self.scene.add_node(fmu_path, x, y)
 

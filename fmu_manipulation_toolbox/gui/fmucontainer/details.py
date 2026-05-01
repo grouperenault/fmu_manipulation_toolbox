@@ -4,7 +4,7 @@ Detail panels for FMU container builder.
 Contains classes for displaying and editing details of nodes, wires, and containers.
 """
 
-from typing import List, Dict, Optional
+from typing import *
 
 from PySide6.QtCore import Qt, Signal, QModelIndex, QSortFilterProxyModel
 from PySide6.QtGui import (
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QFrame, QListWidget, QListWidgetItem, QTabWidget,
 )
 
+from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem
 from fmu_manipulation_toolbox.gui.style import placeholder_color
 from fmu_manipulation_toolbox.help import Help
 
@@ -244,7 +245,7 @@ class _PortComboDelegate(QStyledItemDelegate):
         if selected_value:
             model.setData(index, selected_value, Qt.ItemDataRole.EditRole)
         else:
-            # Keep the current value if dialog was cancelled
+            # Keep the current value if dialog was canceled
             current = index.data(Qt.ItemDataRole.DisplayRole) or ""
             model.setData(index, current, Qt.ItemDataRole.EditRole)
 
@@ -283,8 +284,8 @@ class _WireDirectionTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._from_node: Optional[object] = None
-        self._to_node: Optional[object] = None
+        self._from_node: Optional[NodeItem] = None
+        self._to_node: Optional[NodeItem] = None
 
         # -- Table model (2 columns) --
         self._model = QStandardItemModel(0, 2)
@@ -463,7 +464,7 @@ class WireDetailWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._wire: Optional[object] = None
+        self._wire: Optional[WireItem] = None
 
         # -- Title --
         self._name_label = QLabel()
@@ -599,7 +600,7 @@ class FMUDetailWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._current_node: Optional[object] = None
+        self._current_node: Optional[NodeItem] = None
 
         self._name_label = QLabel()
         font = self._name_label.font()
