@@ -52,6 +52,7 @@ class _PortListSelectorDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Select Port")
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
+        self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self.setGeometry(100, 100, 400, 400)
 
         self._items: List[str] = []
@@ -75,7 +76,7 @@ class _PortListSelectorDialog(QDialog):
         # -- List widget --
         self._list_widget = QListWidget()
         self._list_widget.setObjectName("PortListView")
-        self._list_widget.setAlternatingRowColors(True)
+        self._list_widget.setAlternatingRowColors(False)
         self._list_widget.itemSelectionChanged.connect(self._on_item_selected)
         self._list_widget.itemDoubleClicked.connect(self._on_item_double_clicked)
 
@@ -87,8 +88,12 @@ class _PortListSelectorDialog(QDialog):
 
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        btn_layout.addWidget(self._ok_btn)
         btn_layout.addWidget(self._cancel_btn)
+        btn_layout.addWidget(self._ok_btn)
+        btn_width = max(self._ok_btn.sizeHint().width(), self._cancel_btn.sizeHint().width(), 150)
+        self._ok_btn.setMinimumWidth(btn_width)
+        self._cancel_btn.setMinimumWidth(btn_width)
+
 
         # -- Main layout --
         lay = QVBoxLayout(self)
@@ -299,7 +304,7 @@ class _WireDirectionTab(QWidget):
         self._table.setSortingEnabled(True)
         self._table.setModel(self._proxy)
         self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self._table.setEditTriggers(QAbstractItemView.EditTrigger.CurrentChanged)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
         self._table.horizontalHeader().setStretchLastSection(True)
         self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self._table.setAlternatingRowColors(True)

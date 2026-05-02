@@ -285,7 +285,8 @@ port_list_selector_style = """
         color: #ffffff;
     }
     QListWidget#PortListView::item:hover {
-        background-color: #E8E8D0;
+        background-color: #4571a4;
+        color: #ffffff;
     }
 """
 
