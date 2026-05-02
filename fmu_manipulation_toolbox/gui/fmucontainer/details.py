@@ -13,7 +13,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout, QHBoxLayout,
     QStyledItemDelegate, QAbstractItemView, QPushButton, QDialog, QLineEdit,
-    QFrame, QListWidget, QListWidgetItem, QTabWidget,
+    QFrame, QListWidget, QListWidgetItem, QTabWidget, QFileDialog,
 )
 
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem
@@ -398,6 +398,11 @@ class _WireDirectionTab(QWidget):
     def row_count(self) -> int:
         return self._model.rowCount()
 
+    def remove_all(self):
+        """Remove all rows from this direction tab."""
+        self._close_editor()
+        self._model.removeRows(0, self._model.rowCount())
+
     # ── Auto-connect ────────────────────────────────────────────
 
     def auto_connect(self, existing: set):
@@ -489,14 +494,41 @@ class WireDetailWidget(QWidget):
         self._tabs.addTab(self._tab_ab, "A → B")
         self._tabs.addTab(self._tab_ba, "B → A")
 
-        # -- Auto-Connect button --
+        # -- Buttons --
         self._auto_btn = QPushButton("Auto-Connect")
         self._auto_btn.setProperty("class", "info")
         self._auto_btn.clicked.connect(self._on_auto_connect)
 
+        self._remove_all_btn = QPushButton("Remove All")
+        self._remove_all_btn.setProperty("class", "removal")
+        self._remove_all_btn.clicked.connect(self._on_remove_all)
+
+        self._export_btn = QPushButton("Export")
+        self._export_btn.setProperty("class", "save")
+        self._export_btn.clicked.connect(self._on_export)
+
+        self._import_btn = QPushButton("Import")
+        self._import_btn.setProperty("class", "removal")
+        self._import_btn.clicked.connect(self._on_import)
+
+        # Equal width for all 4 buttons
+        btn_width = max(
+            self._auto_btn.sizeHint().width(),
+            self._remove_all_btn.sizeHint().width(),
+            self._export_btn.sizeHint().width(),
+            self._import_btn.sizeHint().width(),
+            100,
+        )
+        for btn in (self._auto_btn, self._remove_all_btn, self._export_btn, self._import_btn):
+            btn.setMinimumWidth(btn_width)
+
         btn_lay = QHBoxLayout()
         btn_lay.setContentsMargins(0, 0, 0, 0)
         btn_lay.addWidget(self._auto_btn)
+        btn_lay.addWidget(self._remove_all_btn)
+        btn_lay.addWidget(self._import_btn)
+        btn_lay.addWidget(self._export_btn)
+
         btn_lay.addStretch()
 
         # -- Layout --
@@ -542,6 +574,61 @@ class WireDetailWidget(QWidget):
         self._tab_ab.auto_connect(existing)
         self._tab_ba.auto_connect(existing)
         self.sync_to_wire()
+        self.changed.emit()
+
+    def _on_remove_all(self):
+        if self._wire is None:
+            return
+        self._tab_ab.remove_all()
+        self._tab_ba.remove_all()
+        self.sync_to_wire()
+        self.changed.emit()
+
+    def _on_export(self):
+        if self._wire is None:
+            return
+        self.sync_to_wire()
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export connections", "", "CSV Files (*.csv);;All Files (*)"
+        )
+        if not path:
+            return
+        import csv
+        all_mappings = list(self._wire.mappings)
+        with open(path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["FMU From", "Port From", "FMU To", "Port To"])
+            for m in all_mappings:
+                if len(m) >= 4:
+                    writer.writerow([m[0], m[1], m[2], m[3]])
+
+    def _on_import(self):
+        if self._wire is None:
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import connections", "", "CSV Files (*.csv);;All Files (*)"
+        )
+        if not path:
+            return
+        import csv
+        mappings = []
+        with open(path, "r", newline="", encoding="utf-8") as f:
+            reader = csv.reader(f)
+            header = next(reader, None)  # skip header row
+            if not header or len(header) < 4:
+                return
+            for row in reader:
+                if len(row) < 4:
+                    continue
+                fmu_from = row[0].strip()
+                port_from = row[1].strip()
+                fmu_to = row[2].strip()
+                port_to = row[3].strip()
+                if not fmu_from or not port_from or not fmu_to or not port_to:
+                    continue
+                mappings.append((fmu_from, port_from, fmu_to, port_to))
+        self._wire.mappings = mappings
+        self._load_from_wire()
         self.changed.emit()
 
     def _on_tab_changed(self):
