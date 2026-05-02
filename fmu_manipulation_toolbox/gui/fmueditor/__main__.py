@@ -14,11 +14,11 @@ from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen
 from PySide6.QtWidgets import (
     QMainWindow, QTableView, QHeaderView, QPushButton,
     QVBoxLayout, QHBoxLayout, QWidget, QLabel, QFileDialog,
-    QLineEdit, QGridLayout, QMessageBox,
+    QLineEdit, QGridLayout,
 )
 
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
-from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget, StatusBar
+from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget, StatusBar, UnsavedChangesWindowMixin
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -278,9 +278,10 @@ class FMUVariableModel(QAbstractTableModel):
         return self._variables
 
 
-class MainWindow(QMainWindow):
+class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
     def __init__(self):
         super().__init__()
+        self._check_unsaved_changes = self._has_unsaved_changes
         self.setWindowTitle("FMU Variable Editor")
         self.resize(1000, 650)
 
@@ -456,31 +457,6 @@ class MainWindow(QMainWindow):
             return True
         return False
 
-    def closeEvent(self, event):
-        if self._has_unsaved_changes():
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Icon.Warning)
-            msg.setWindowTitle("Unsaved changes")
-            msg.setText("Some changes have not been saved.\nDo you really want to quit?")
-            msg.setStandardButtons(
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            msg.setDefaultButton(QMessageBox.StandardButton.No)
-
-            btn_yes = msg.button(QMessageBox.StandardButton.Yes)
-            btn_no = msg.button(QMessageBox.StandardButton.No)
-
-            btn_yes.setProperty("class", "removal")
-            btn_no.setProperty("class", "info")
-
-            btn_width = max(btn_yes.sizeHint().width(), btn_no.sizeHint().width(), 150)
-            btn_yes.setMinimumWidth(btn_width)
-            btn_no.setMinimumWidth(btn_width)
-
-            if msg.exec() == QMessageBox.StandardButton.No:
-                event.ignore()
-                return
-        event.accept()
 
     # -- Slot: FMU loaded ------------------------------------------------------
 

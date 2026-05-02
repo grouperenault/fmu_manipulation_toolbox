@@ -12,12 +12,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
+    QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
     QPushButton, QCheckBox, QRadioButton, QButtonGroup, QFrame,
-    QMessageBox, QFileDialog, QMenu, QWidgetAction,
+    QFileDialog, QMenu, QWidgetAction, QMainWindow
 )
 
-from fmu_manipulation_toolbox.gui.helper import Application, RunTask
+from fmu_manipulation_toolbox.gui.helper import Application, RunTask, UnsavedChangesWindowMixin
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
 from fmu_manipulation_toolbox.container import FMUContainerError
 from fmu_manipulation_toolbox.split import FMUSplitter, FMUSplitterError
@@ -31,11 +31,13 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
 
 
-class MainWindow(QMainWindow):
+class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
     def __init__(self):
         super().__init__()
 
         self._last_directory: Optional[Path] = None
+        self._dirty = False
+        self._check_unsaved_changes = lambda: self._dirty  # Use the mixin
 
         # Setup tree logger with stdout handler
         self._setup_tree_logger()
@@ -145,7 +147,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("FMU Container Builder")
         self.resize(1600, 900)
 
-        self._dirty = False
         self._graph.scene.node_added.connect(self._on_node_added_update_dir)
         self._graph.scene.node_added.connect(lambda _: self._mark_dirty())
         self._graph.scene.node_removed.connect(lambda _: self._mark_dirty())
@@ -571,31 +572,6 @@ class MainWindow(QMainWindow):
         RunTask(self.save_as_fmu, output_path, fmi_version, datalog,
                 parent=self, title="Saving as FMU", level=log_level)
 
-    def closeEvent(self, event):
-        if self._dirty:
-            msg = QMessageBox(self)
-            msg.setIcon(QMessageBox.Icon.Warning)
-            msg.setWindowTitle("Unsaved changes")
-            msg.setText("You have unsaved changes. Are you sure you want to quit?")
-            msg.setStandardButtons(
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            msg.setDefaultButton(QMessageBox.StandardButton.No)
-
-            btn_yes = msg.button(QMessageBox.StandardButton.Yes)
-            btn_no = msg.button(QMessageBox.StandardButton.No)
-
-            btn_yes.setProperty("class", "removal")
-            btn_no.setProperty("class", "info")
-
-            btn_width = max(btn_yes.sizeHint().width(), btn_no.sizeHint().width(), 150)
-            btn_yes.setMinimumWidth(btn_width)
-            btn_no.setMinimumWidth(btn_width)
-
-            if msg.exec() == QMessageBox.StandardButton.No:
-                event.ignore()
-                return
-        super().closeEvent(event)
 
 
 def main():
