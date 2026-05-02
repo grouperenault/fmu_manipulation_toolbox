@@ -445,6 +445,9 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
 
         self.show()
 
+        # Set initial focus to drop zone
+        self._drop_zone.setFocus()
+
     # -- Unsaved changes detection -----------------------------------------------
 
     def _has_unsaved_changes(self) -> bool:
@@ -500,6 +503,9 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         self._model.set_variables(variables)
         self._table.sortByColumn(FMUVariableModel.COL_NAME, Qt.SortOrder.AscendingOrder)
         self._save_button.setEnabled(True)
+
+        # Set focus to search field after FMU is loaded
+        self._search_edit.setFocus()
 
     # -- Slot: Save as… --------------------------------------------------------
 
