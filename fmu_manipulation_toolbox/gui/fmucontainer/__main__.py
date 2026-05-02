@@ -174,9 +174,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         """Configure tree logger with stdout handler."""
         # Create a stdout handler
         handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-        ))
+        handler.setFormatter(logging.Formatter("%(levelname)-8s | %(message)s"))
 
         # Add handler to tree logger
         tree_logger.addHandler(handler)
@@ -204,7 +202,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         from .tree import _NodeTreeModel
         self._tree.pending_parent = parent
         for fmu in data_node["fmu"]:
-            logger.debug(f"ADD FMU: {fmu}")
+            logger.debug(f"ADD FMU: {folder} / {fmu}")
             self._graph.add_node(fmu_path=folder / fmu, x=x, y=y)
             x = x + 100
             y = y + 100
@@ -399,7 +397,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             self,
             "Import Assembly",
             default_dir,
-            "Assembly files (*.json *.csv);;JSON (*.json);;CSV (*.csv)",
+            "Assembly files (*.json *.csv *.ssp);;JSON (*.json);;CSV (*.csv);;SSP (*.ssp)",
         )
         if not input_path:
             logger.info("Import cancelled")
@@ -408,7 +406,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         self._last_directory = Path(input_path).parent
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly", level=log_level)
-        self._dirty = False
+        self._dirty = True
 
     def _on_export_clicked(self):
         root_name = Path(self._tree.root.text()).with_suffix(".json").name

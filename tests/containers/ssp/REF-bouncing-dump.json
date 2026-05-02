@@ -5,24 +5,31 @@
   "sequential": false,
   "auto_link": false,
   "auto_input": false,
-  "auto_output": false,
-  "auto_parameter": false,
+  "auto_output": true,
+  "auto_parameter": true,
   "auto_local": false,
   "fmu": [
-    "resources/bb_position.fmu",
-    "resources/bb_velocity.fmu"
+    "bb_position.fmu",
+    "bb_velocity.fmu"
+  ],
+  "output": [
+    [
+      "bb_position.fmu",
+      "position1",
+      "position1"
+    ]
   ],
   "link": [
     [
-      "resources/bb_velocity.fmu",
+      "bb_velocity.fmu",
       "velocity",
-      "resources/bb_position.fmu",
+      "bb_position.fmu",
       "velocity"
     ],
     [
-      "resources/bb_position.fmu",
+      "bb_position.fmu",
       "is_ground",
-      "resources/bb_velocity.fmu",
+      "bb_velocity.fmu",
       "reset"
     ]
   ]

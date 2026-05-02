@@ -749,15 +749,21 @@ class Assembly:
         with zipfile.ZipFile(self.fmu_directory / self.filename) as zin:
             for file in zin.filelist:
                 if file.filename.endswith(".fmu") or file.filename.endswith(".ssd"):
+
+                    if file.filename.endswith(".fmu"):
+                        file.filename = str(Path(file.filename).name)
+                    else:
+                        self.add_transient_file(file.filename)
+
                     zin.extract(file, path=self.fmu_directory)
                     logger.debug(f"Extracted: {file.filename}")
-                    self.add_transient_file(file.filename)
+
 
         self.description_pathname = self.fmu_directory / "SystemStructure.ssd"
         if self.description_pathname.is_file():
             sdd = SSDParser(step_size=self.default_step_size, auto_link=False,
                             mt=self.default_mt, profiling=self.default_profiling,
-                            auto_input=False, auto_output=False)
+                            auto_input=False, auto_output=True, auto_parameter=True)
             self.root = sdd.parse(self.description_pathname)
             self.root.name = str(self.filename.with_suffix(".fmu"))
 
@@ -847,7 +853,7 @@ class SSDParser:
             self.node_stack.append(node)
 
         elif tag_name == 'ssd:Component':
-            filename = attrs['source']
+            filename = Path(attrs['source']).name
             name = attrs['name']
             self.fmu_filenames[name] = filename
             self.node_stack[-1].add_fmu(filename)

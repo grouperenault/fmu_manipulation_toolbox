@@ -8,6 +8,13 @@
   "profiling": false,
   "sequential": false,
   "step_size": 0.001,
+  "output": [
+    [
+      "bb_position.fmu",
+      "position1",
+      "position1"
+    ]
+  ],
   "link": [
     [
       "bb_velocity.fmu",
