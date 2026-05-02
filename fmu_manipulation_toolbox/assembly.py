@@ -763,7 +763,7 @@ class Assembly:
         if self.description_pathname.is_file():
             sdd = SSDParser(step_size=self.default_step_size, auto_link=False,
                             mt=self.default_mt, profiling=self.default_profiling,
-                            auto_input=False, auto_output=True, auto_parameter=True)
+                            auto_input=False, auto_output=False, auto_parameter=False)
             self.root = sdd.parse(self.description_pathname)
             self.root.name = str(self.filename.with_suffix(".fmu"))
 
