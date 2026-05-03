@@ -82,7 +82,7 @@ class AssemblyNode:
         links (list[Connection]): List of connections between embedded FMUs.
     """
 
-    def __init__(self, name: Optional[str], step_size: float = None, mt=False, profiling=False, sequential=False,
+    def __init__(self, name: str, step_size: float = None, mt=False, profiling=False, sequential=False,
                  auto_link=True, auto_input=True, auto_output=True, auto_parameter=False, auto_local=False,
                  ts_multiplier=False):
         self.name = name
@@ -134,8 +134,6 @@ class AssemblyNode:
             raise AssemblyError(f"Internal Error: AssemblyNode {sub_node.name} is already child of {self.name}")
 
         sub_node.parent = self
-        if sub_node.name not in self.fmu_names_list:
-            self.fmu_names_list.append(sub_node.name)
         self.children[sub_node.name] = sub_node
 
     def add_fmu(self, fmu_name: str):
@@ -225,6 +223,9 @@ class AssemblyNode:
         container = FMUContainer(identifier, fmu_directory, description_pathname=description_pathname,
                                  fmi_version=fmi_version)
 
+        for node in self.children.values():
+            container.get_fmu(node.name)
+
         for fmu_name in self.fmu_names_list:
             container.get_fmu(fmu_name)
 
@@ -286,13 +287,12 @@ class AssemblyNode:
             else:
                 return ancestor  # TOPLEVEL input port
         elif port.fmu_name in self.fmu_names_list:
-            if port.fmu_name in self.children:
+            return port  # embedded FMU
+        elif port.fmu_name in self.children:
                 child = self.children[port.fmu_name]
                 ancestors = [key for key, val in child.output_ports.items() if val == port.port_name]
                 if len(ancestors) == 1:
                     return child.get_final_from(ancestors[0])  # child output port
-            else:
-                return port  # embedded FMU
 
         raise AssemblyError(f"{self.name}: Port {port} is not connected upstream.")
 
@@ -316,13 +316,12 @@ class AssemblyNode:
             else:
                 return successor  # TOLEVEL output port
         elif port.fmu_name in self.fmu_names_list:
-            if port.fmu_name in self.children:
+            return port  # embedded FMU
+        elif port.fmu_name in self.children:
                 child = self.children[port.fmu_name]
                 successors = [key for key, val in child.input_ports.items() if val == port.port_name]
                 if len(successors) == 1:
                     return child.get_final_to(successors[0])  # Child input port
-            else:
-                return port  # embedded FMU
 
         raise AssemblyError(f"Node {self.name}: Port {port} is not connected downstream.")
 
@@ -445,19 +444,18 @@ class Assembly:
         self.transient_dirnames.add(Path(filename).parent)
 
     def __del__(self):
-        if not self.debug:
-            for filename in self.transient_filenames:
+        for filename in self.transient_filenames:
+            try:
+                filename.unlink()
+            except FileNotFoundError:
+                pass
+        for dirname in self.transient_dirnames:
+            while not str(dirname) == ".":
                 try:
-                    filename.unlink()
+                    (self.fmu_directory / dirname).rmdir()
                 except FileNotFoundError:
                     pass
-            for dirname in self.transient_dirnames:
-                while not str(dirname) == ".":
-                    try:
-                        (self.fmu_directory / dirname).rmdir()
-                    except FileNotFoundError:
-                        pass
-                    dirname = dirname.parent
+                dirname = dirname.parent
 
     def read(self):
         """Read and parse the description file.
@@ -467,15 +465,18 @@ class Assembly:
         Raises:
             AssemblyError: If the file format is not supported.
         """
-        logger.info(f"Reading '{self.filename}'")
-        if self.filename.suffix == ".json":
-            self.read_json()
-        elif self.filename.suffix == ".ssp":
-            self.read_ssp()
-        elif self.filename.suffix == ".csv":
-            self.read_csv()
+        if self.filename:
+            logger.info(f"Reading '{self.filename}'")
+            if self.filename.suffix == ".json":
+                self.read_json()
+            elif self.filename.suffix == ".ssp":
+                self.read_ssp()
+            elif self.filename.suffix == ".csv":
+                self.read_csv()
+            else:
+                raise AssemblyError(f"Not supported file format '{self.filename}")
         else:
-            raise AssemblyError(f"Not supported file format '{self.filename}")
+            raise AssemblyError(f"Filename should be specified for reading.")
 
     def write(self, filename: str):
         """Export the assembly to a file.
@@ -686,10 +687,17 @@ class Assembly:
             filename (str | Path): Output filename, relative to `fmu_directory`.
         """
         with open(self.fmu_directory / filename, "wt") as file:
-            data = self.json_encode_node(self.root)
+            data = self.json_encode()
             json.dump(data, file, indent=2)
 
-    def json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
+    def json_encode(self) -> Dict[str, Any]:
+        """Export the assembly as a JSON file."""
+        if self.root:
+            return self._json_encode_node(self.root)
+        else:
+            return {}
+
+    def _json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
         json_node = dict()
         json_node["name"] = node.name                      # 1
         json_node["mt"] = node.mt                          # 2
@@ -708,7 +716,7 @@ class Assembly:
             json_node["ts_multiplier"] = node.ts_multiplier # 7b
 
         if node.children:
-            json_node["container"] = [self.json_encode_node(child) for child in node.children.values()]  # 8
+            json_node["container"] = [self._json_encode_node(child) for child in node.children.values()]  # 8
 
         if node.fmu_names_list:
             json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]          # 9
@@ -749,15 +757,19 @@ class Assembly:
         with zipfile.ZipFile(self.fmu_directory / self.filename) as zin:
             for file in zin.filelist:
                 if file.filename.endswith(".fmu") or file.filename.endswith(".ssd"):
+                    if file.filename.endswith(".fmu"):
+                        # FMU are all stored in extract_folder without hierarchy
+                        file.filename = str(Path(file.filename).name)
+                    self.add_transient_file(file.filename)
+
                     zin.extract(file, path=self.fmu_directory)
                     logger.debug(f"Extracted: {file.filename}")
-                    self.add_transient_file(file.filename)
 
         self.description_pathname = self.fmu_directory / "SystemStructure.ssd"
         if self.description_pathname.is_file():
             sdd = SSDParser(step_size=self.default_step_size, auto_link=False,
                             mt=self.default_mt, profiling=self.default_profiling,
-                            auto_input=False, auto_output=False)
+                            auto_input=False, auto_output=False, auto_parameter=False)
             self.root = sdd.parse(self.description_pathname)
             self.root.name = str(self.filename.with_suffix(".fmu"))
 
@@ -847,7 +859,7 @@ class SSDParser:
             self.node_stack.append(node)
 
         elif tag_name == 'ssd:Component':
-            filename = attrs['source']
+            filename = Path(attrs['source']).name
             name = attrs['name']
             self.fmu_filenames[name] = filename
             self.node_stack[-1].add_fmu(filename)

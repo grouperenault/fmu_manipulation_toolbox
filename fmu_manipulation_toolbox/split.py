@@ -154,7 +154,7 @@ class FMUSplitterDescription:
         elif tag == "ScalarVariable":
             self.current_name = attrs["name"]
             self.current_vr = int(attrs["valueReference"])
-            self.current_causality = attrs["causality"]
+            self.current_causality = attrs.get("causality", "local")
         elif self.current_fmi_version == "2.0" and tag in EmbeddedFMUPort.FMI_TO_CONTAINER[2]:
             fmi_type = EmbeddedFMUPort.FMI_TO_CONTAINER[2][tag]
             self.vr_to_name[self.current_fmu_filename][fmi_type][self.current_vr] = {
