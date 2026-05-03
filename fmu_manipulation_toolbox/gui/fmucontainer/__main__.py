@@ -279,14 +279,14 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         # A wire between two nodes can carry mappings in both directions.
         wire_key_mappings: Dict[Tuple[str, str], List[Tuple[str, str, str, str]]] = {}
         for link in links_list:
-            fmu_from = str((fmu_directory / link[0]).resolve())
+            fmu_from = fmu_directory / link[0]
             port_from = link[1]
-            fmu_to = str((fmu_directory / link[2]).resolve())
+            fmu_to = fmu_directory / link[2]
             port_to = link[3]
 
             # Canonical key: sorted pair so A→B and B→A end up on the same wire
-            key = tuple(sorted([fmu_from, fmu_to]))
-            wire_key_mappings.setdefault(key, []).append((fmu_from, port_from, fmu_to, port_to))
+            key = tuple(sorted([str(fmu_from), str(fmu_to)]))
+            wire_key_mappings.setdefault(key, []).append((fmu_from.name, port_from, fmu_to.name, port_to))
 
         # Create wires with their port-level mappings
         self._graph.scene.blockSignals(True)
