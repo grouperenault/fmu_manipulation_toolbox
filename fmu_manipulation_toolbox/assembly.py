@@ -63,7 +63,7 @@ class AssemblyNode:
         name (str | None): Output filename for the container (e.g. `"container.fmu"`).
         step_size (float | None): Internal fixed time step in seconds, or `None` to deduce
             from embedded FMUs.
-        mt (bool): Whether multi-threaded mode is enabled.
+        mt (bool): Whether multithreaded mode is enabled.
         profiling (bool): Whether profiling mode is enabled.
         sequential (bool): Whether sequential scheduling is used.
         auto_link (bool): Automatically link ports with matching names and types.
@@ -314,7 +314,7 @@ class AssemblyNode:
             if self.parent:
                 return self.parent.get_final_to(successor)  # Output port
             else:
-                return successor  # TOLEVEL output port
+                return successor  # TOPLEVEL output port
         elif port.fmu_name in self.fmu_names_list:
             return port  # embedded FMU
         elif port.fmu_name in self.children:
@@ -407,7 +407,7 @@ class Assembly:
         root (AssemblyNode | None): Root node of the assembly tree.
     """
 
-    def __init__(self, filename: Optional[str]=None, default_step_size=None, default_auto_link=True,
+    def __init__(self, filename: Union[str, Path], default_step_size=None, default_auto_link=True,
                  default_auto_input=True, debug=False, default_sequential=False, default_auto_output=True,
                  default_mt=False, default_profiling=False, fmu_directory: Path = Path("."),
                  default_auto_parameter=False, default_auto_local=False, default_ts_multiplier=False):
@@ -424,8 +424,6 @@ class Assembly:
         self.default_profiling = default_profiling
         self.default_ts_multiplier = default_ts_multiplier
         self.fmu_directory = fmu_directory
-        self.transient_filenames: List[Path] = []
-        self.transient_dirnames: Set[Path] = set()
 
         if not fmu_directory.is_dir():
             raise AssemblyError(f"FMU directory is not valid: '{fmu_directory.resolve()}'")
@@ -438,24 +436,6 @@ class Assembly:
             self.read()
         else:
             self.description_pathname = None
-
-    def add_transient_file(self, filename: str):
-        self.transient_filenames.append(self.fmu_directory / filename)
-        self.transient_dirnames.add(Path(filename).parent)
-
-    def __del__(self):
-        for filename in self.transient_filenames:
-            try:
-                filename.unlink()
-            except FileNotFoundError:
-                pass
-        for dirname in self.transient_dirnames:
-            while not str(dirname) == ".":
-                try:
-                    (self.fmu_directory / dirname).rmdir()
-                except FileNotFoundError:
-                    pass
-                dirname = dirname.parent
 
     def read(self):
         """Read and parse the description file.
@@ -489,9 +469,9 @@ class Assembly:
             AssemblyError: If the format is not supported.
         """
         if filename.endswith(".csv"):
-            return self.write_csv(filename)
+            self.write_csv(filename)
         elif filename.endswith(".json"):
-            return self.write_json(filename)
+            self.write_json(filename)
         else:
             raise AssemblyError(f"Unable to write to '{filename}': format unsupported.")
 
@@ -754,24 +734,27 @@ class Assembly:
         """
         logger.warning("This feature is ALPHA stage.")
 
+
         with zipfile.ZipFile(self.fmu_directory / self.filename) as zin:
+            extract_folder = self.fmu_directory / self.filename.with_suffix(".dir")
+            extract_folder.mkdir(exist_ok=True)
+
             for file in zin.filelist:
-                if file.filename.endswith(".fmu") or file.filename.endswith(".ssd"):
-                    if file.filename.endswith(".fmu"):
-                        # FMU are all stored in extract_folder without hierarchy
-                        file.filename = str(Path(file.filename).name)
-                    self.add_transient_file(file.filename)
+                if file.filename.endswith(".fmu"):
+                    # FMU are all stored in extract_folder without hierarchy
+                    file.filename = str(Path(file.filename).name)
+                    zin.extract(file, path=extract_folder)
+                    logger.debug(f"Extracted: {file.filename} (into {extract_folder})")
 
-                    zin.extract(file, path=self.fmu_directory)
-                    logger.debug(f"Extracted: {file.filename}")
-
-        self.description_pathname = self.fmu_directory / "SystemStructure.ssd"
-        if self.description_pathname.is_file():
-            sdd = SSDParser(step_size=self.default_step_size, auto_link=False,
-                            mt=self.default_mt, profiling=self.default_profiling,
-                            auto_input=False, auto_output=False, auto_parameter=False)
-            self.root = sdd.parse(self.description_pathname)
-            self.root.name = str(self.filename.with_suffix(".fmu"))
+            self.description_pathname = None
+            if "SystemStructure.ssd" in zin.namelist():
+                sdd = SSDParser(zin, Path(extract_folder.name), step_size=self.default_step_size, auto_link=False,
+                                mt=self.default_mt, profiling=self.default_profiling,
+                                auto_input=False, auto_output=False, auto_parameter=False)
+                self.root = sdd.parse("SystemStructure.ssd")
+                self.root.name = str(self.filename.with_suffix(".fmu"))
+            else:
+                raise AssemblyError(f"'SystemStructure.ssd' file not found in '{self.fmu_directory / self.filename}'")
 
     def make_fmu(self, dump_json=False, fmi_version=2, datalog=False, filename=None):
         """Build the FMU Container from the loaded assembly.
@@ -805,23 +788,26 @@ class SSDParser:
             FMU filenames.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, zin: zipfile.ZipFile, extract_folder: Path, **kwargs):
+        self.zin = zin
+        self.extract_folder = extract_folder
+
         self.node_stack: List[AssemblyNode] = []
         self.root = None
         self.fmu_filenames: Dict[str, str] = {}  # Component name => FMU filename
         self.node_attrs = kwargs
 
-    def parse(self, ssd_filepath: Path) -> AssemblyNode:
+    def parse(self, ssd_filename: str) -> AssemblyNode:
         """Parse an SSD file and return the root assembly node.
 
         Args:
-            ssd_filepath (Path): Path to the `.ssd` file.
+            ssd_filename (str): filename to the `.ssd` file.
 
         Returns:
             AssemblyNode: The root node representing the parsed system structure.
         """
-        logger.debug(f"Analysing {ssd_filepath}")
-        with open(ssd_filepath, "rb") as file:
+        logger.debug(f"Analysing {ssd_filename}")
+        with self.zin.open(ssd_filename) as file:
             parser = xml.parsers.expat.ParserCreate()
             parser.StartElementHandler = self.start_element
             parser.EndElementHandler = self.end_element
@@ -859,7 +845,7 @@ class SSDParser:
             self.node_stack.append(node)
 
         elif tag_name == 'ssd:Component':
-            filename = Path(attrs['source']).name
+            filename = str(self.extract_folder / Path(attrs['source']).name)
             name = attrs['name']
             self.fmu_filenames[name] = filename
             self.node_stack[-1].add_fmu(filename)

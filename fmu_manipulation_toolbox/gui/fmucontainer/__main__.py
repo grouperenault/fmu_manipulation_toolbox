@@ -35,7 +35,6 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self.assembly = None
         self._last_directory: Optional[Path] = None
         self._dirty = False
         self._check_unsaved_changes = lambda: self._dirty  # Use the mixin
@@ -91,7 +90,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
 
         # Datalog checkbox
         self._datalog_checkbox = QCheckBox("Enable Datalog")
-        self._datalog_checkbox.setToolTip("Generate datalog.txt in the FMU resources")
+        self._datalog_checkbox.setToolTip("Generate Containers with DATALOG support")
 
         # FMI version radio buttons
         self._fmi2_radio = QRadioButton("Generate FMI-2")
@@ -274,13 +273,17 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         # Build a map from FMU filename to its NodeItem
         nodes_by_name: Dict[str, NodeItem] = {}
         for node in self._graph.scene.nodes():
-            nodes_by_name[node.fmu_path.name] = node
+            nodes_by_name[str(node.fmu_path.resolve())] = node
 
         # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
         # A wire between two nodes can carry mappings in both directions.
         wire_key_mappings: Dict[Tuple[str, str], List[Tuple[str, str, str, str]]] = {}
         for link in links_list:
-            fmu_from, port_from, fmu_to, port_to = link[0], link[1], link[2], link[3]
+            fmu_from = str((fmu_directory / link[0]).resolve())
+            port_from = link[1]
+            fmu_to = str((fmu_directory / link[2]).resolve())
+            port_to = link[3]
+
             # Canonical key: sorted pair so A→B and B→A end up on the same wire
             key = tuple(sorted([fmu_from, fmu_to]))
             wire_key_mappings.setdefault(key, []).append((fmu_from, port_from, fmu_to, port_to))
@@ -377,7 +380,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         fmu_directory = file_path.parent
 
         try:
-            self.assembly = Assembly(filename=file_path.name, fmu_directory=fmu_directory)
+            assembly = Assembly(filename=file_path.name, fmu_directory=fmu_directory)
         except AssemblyError as e:
             logger.fatal(f"{e}")
             return
@@ -385,11 +388,11 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             logger.fatal(f"Cannot read file: {e}")
             return
 
-        if self.assembly.root is None:
+        if assembly.root is None:
             logger.fatal("Failed to read assembly: no root node.")
             return
 
-        data = self.assembly.json_encode()
+        data = assembly.json_encode()
         self._import_data(data, fmu_directory)
 
     def _on_import_clicked(self):
