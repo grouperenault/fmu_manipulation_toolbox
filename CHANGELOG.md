@@ -5,6 +5,7 @@ This package was formerly known as `fmutool`.
 * ADDED: GUI: Highlight FMUs nested in selected container
 * ADDED: GUI: Tooltips for the parameters of containers
 * ADDED: GUI: Add link is easier when FMU contains lot of variable. The parameters are displayed in italic.
+* ADDED: GUI: Import is able to load SSP file
 * FIXED: FMU extraction of a container
 
 # Version 1.9.3

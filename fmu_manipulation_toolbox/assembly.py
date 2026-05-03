@@ -134,8 +134,6 @@ class AssemblyNode:
             raise AssemblyError(f"Internal Error: AssemblyNode {sub_node.name} is already child of {self.name}")
 
         sub_node.parent = self
-        if sub_node.name not in self.fmu_names_list:
-            self.fmu_names_list.append(sub_node.name)
         self.children[sub_node.name] = sub_node
 
     def add_fmu(self, fmu_name: str):
@@ -225,6 +223,9 @@ class AssemblyNode:
         container = FMUContainer(identifier, fmu_directory, description_pathname=description_pathname,
                                  fmi_version=fmi_version)
 
+        for node in self.children.values():
+            container.get_fmu(node.name)
+
         for fmu_name in self.fmu_names_list:
             container.get_fmu(fmu_name)
 
@@ -286,13 +287,12 @@ class AssemblyNode:
             else:
                 return ancestor  # TOPLEVEL input port
         elif port.fmu_name in self.fmu_names_list:
-            if port.fmu_name in self.children:
+            return port  # embedded FMU
+        elif port.fmu_name in self.children:
                 child = self.children[port.fmu_name]
                 ancestors = [key for key, val in child.output_ports.items() if val == port.port_name]
                 if len(ancestors) == 1:
                     return child.get_final_from(ancestors[0])  # child output port
-            else:
-                return port  # embedded FMU
 
         raise AssemblyError(f"{self.name}: Port {port} is not connected upstream.")
 
@@ -316,13 +316,12 @@ class AssemblyNode:
             else:
                 return successor  # TOLEVEL output port
         elif port.fmu_name in self.fmu_names_list:
-            if port.fmu_name in self.children:
+            return port  # embedded FMU
+        elif port.fmu_name in self.children:
                 child = self.children[port.fmu_name]
                 successors = [key for key, val in child.input_ports.items() if val == port.port_name]
                 if len(successors) == 1:
                     return child.get_final_to(successors[0])  # Child input port
-            else:
-                return port  # embedded FMU
 
         raise AssemblyError(f"Node {self.name}: Port {port} is not connected downstream.")
 
@@ -445,19 +444,18 @@ class Assembly:
         self.transient_dirnames.add(Path(filename).parent)
 
     def __del__(self):
-        if not self.debug:
-            for filename in self.transient_filenames:
+        for filename in self.transient_filenames:
+            try:
+                filename.unlink()
+            except FileNotFoundError:
+                pass
+        for dirname in self.transient_dirnames:
+            while not str(dirname) == ".":
                 try:
-                    filename.unlink()
+                    (self.fmu_directory / dirname).rmdir()
                 except FileNotFoundError:
                     pass
-            for dirname in self.transient_dirnames:
-                while not str(dirname) == ".":
-                    try:
-                        (self.fmu_directory / dirname).rmdir()
-                    except FileNotFoundError:
-                        pass
-                    dirname = dirname.parent
+                dirname = dirname.parent
 
     def read(self):
         """Read and parse the description file.
@@ -749,15 +747,13 @@ class Assembly:
         with zipfile.ZipFile(self.fmu_directory / self.filename) as zin:
             for file in zin.filelist:
                 if file.filename.endswith(".fmu") or file.filename.endswith(".ssd"):
-
                     if file.filename.endswith(".fmu"):
+                        # FMU are all stored in extract_folder without hierarchy
                         file.filename = str(Path(file.filename).name)
-                    else:
-                        self.add_transient_file(file.filename)
+                    self.add_transient_file(file.filename)
 
                     zin.extract(file, path=self.fmu_directory)
                     logger.debug(f"Extracted: {file.filename}")
-
 
         self.description_pathname = self.fmu_directory / "SystemStructure.ssd"
         if self.description_pathname.is_file():

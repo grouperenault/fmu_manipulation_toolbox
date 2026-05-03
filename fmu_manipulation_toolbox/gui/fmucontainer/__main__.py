@@ -202,10 +202,10 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         from .tree import _NodeTreeModel
         self._tree.pending_parent = parent
         for fmu in data_node["fmu"]:
-            logger.debug(f"ADD FMU: {folder} / {fmu}")
-            self._graph.add_node(fmu_path=folder / fmu, x=x, y=y)
-            x = x + 100
-            y = y + 100
+                logger.debug(f"ADD FMU: {folder} / {fmu}")
+                self._graph.add_node(fmu_path=folder / fmu, x=x, y=y)
+                x = x + 100
+                y = y + 100
         self._tree.pending_parent = None
 
 
@@ -371,7 +371,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         self._dirty = False
 
     def import_assembly_file(self, input_path: str):
-        """Read a JSON or CSV assembly file and populate the graph."""
+        """Read a JSON, CSV or SSP assembly file and populate the graph."""
         file_path = Path(input_path)
         fmu_directory = file_path.parent
 

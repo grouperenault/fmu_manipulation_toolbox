@@ -1230,7 +1230,6 @@ class FMUContainer:
             self.mark_ruled(cport_from, 'LINK')
             self.mark_ruled(cport_to, 'LINK')
 
-
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
         """Set a start value for a port of an embedded FMU.
 

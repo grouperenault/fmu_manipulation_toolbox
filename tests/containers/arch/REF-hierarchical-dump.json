@@ -43,8 +43,7 @@
     }
   ],
   "fmu": [
-    "gain.fmu",
-    "level1.fmu"
+    "gain.fmu"
   ],
   "output": [
     [
