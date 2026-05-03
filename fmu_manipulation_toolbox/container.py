@@ -160,7 +160,10 @@ class EmbeddedFMUPort:
             if start is None and self.type_name == "binary" and self.initial == "exact":
                 start = ""
         if self.variability is None:
-            self.variability = "continuous" if "real" in self.type_name else "discrete"
+            if self.causality == "parameter":
+                self.variability = "fixed"
+            else:
+                self.variability = "continuous" if "real" in self.type_name else "discrete"
 
         try:
             fmi_type = self.CONTAINER_TO_FMI[fmi_version][self.type_name]
