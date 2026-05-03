@@ -35,6 +35,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
     def __init__(self):
         super().__init__()
 
+        self.assembly = None
         self._last_directory: Optional[Path] = None
         self._dirty = False
         self._check_unsaved_changes = lambda: self._dirty  # Use the mixin
@@ -376,7 +377,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         fmu_directory = file_path.parent
 
         try:
-            assembly = Assembly(filename=file_path.name, fmu_directory=fmu_directory)
+            self.assembly = Assembly(filename=file_path.name, fmu_directory=fmu_directory)
         except AssemblyError as e:
             logger.fatal(f"{e}")
             return
@@ -384,11 +385,11 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             logger.fatal(f"Cannot read file: {e}")
             return
 
-        if assembly.root is None:
+        if self.assembly.root is None:
             logger.fatal("Failed to read assembly: no root node.")
             return
 
-        data = assembly.json_encode_node(assembly.root)
+        data = self.assembly.json_encode()
         self._import_data(data, fmu_directory)
 
     def _on_import_clicked(self):
