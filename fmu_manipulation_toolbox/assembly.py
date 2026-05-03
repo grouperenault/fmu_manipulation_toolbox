@@ -82,7 +82,7 @@ class AssemblyNode:
         links (list[Connection]): List of connections between embedded FMUs.
     """
 
-    def __init__(self, name: Optional[str], step_size: float = None, mt=False, profiling=False, sequential=False,
+    def __init__(self, name: str, step_size: float = None, mt=False, profiling=False, sequential=False,
                  auto_link=True, auto_input=True, auto_output=True, auto_parameter=False, auto_local=False,
                  ts_multiplier=False):
         self.name = name
@@ -465,15 +465,18 @@ class Assembly:
         Raises:
             AssemblyError: If the file format is not supported.
         """
-        logger.info(f"Reading '{self.filename}'")
-        if self.filename.suffix == ".json":
-            self.read_json()
-        elif self.filename.suffix == ".ssp":
-            self.read_ssp()
-        elif self.filename.suffix == ".csv":
-            self.read_csv()
+        if self.filename:
+            logger.info(f"Reading '{self.filename}'")
+            if self.filename.suffix == ".json":
+                self.read_json()
+            elif self.filename.suffix == ".ssp":
+                self.read_ssp()
+            elif self.filename.suffix == ".csv":
+                self.read_csv()
+            else:
+                raise AssemblyError(f"Not supported file format '{self.filename}")
         else:
-            raise AssemblyError(f"Not supported file format '{self.filename}")
+            raise AssemblyError(f"Filename should be specified for reading.")
 
     def write(self, filename: str):
         """Export the assembly to a file.
@@ -684,10 +687,17 @@ class Assembly:
             filename (str | Path): Output filename, relative to `fmu_directory`.
         """
         with open(self.fmu_directory / filename, "wt") as file:
-            data = self.json_encode_node(self.root)
+            data = self.json_encode()
             json.dump(data, file, indent=2)
 
-    def json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
+    def json_encode(self) -> Dict[str, Any]:
+        """Export the assembly as a JSON file."""
+        if self.root:
+            return self._json_encode_node(self.root)
+        else:
+            return {}
+
+    def _json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
         json_node = dict()
         json_node["name"] = node.name                      # 1
         json_node["mt"] = node.mt                          # 2
@@ -706,7 +716,7 @@ class Assembly:
             json_node["ts_multiplier"] = node.ts_multiplier # 7b
 
         if node.children:
-            json_node["container"] = [self.json_encode_node(child) for child in node.children.values()]  # 8
+            json_node["container"] = [self._json_encode_node(child) for child in node.children.values()]  # 8
 
         if node.fmu_names_list:
             json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]          # 9
