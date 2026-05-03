@@ -426,7 +426,7 @@ class Assembly:
         self.fmu_directory = fmu_directory
 
         if not fmu_directory.is_dir():
-            raise AssemblyError(f"FMU directory is not valid: '{fmu_directory.resolve()}'")
+            raise AssemblyError(f"FMU directory is not valid: '{fmu_directory}'")
 
         self.root: Optional[AssemblyNode] = None
 
@@ -748,7 +748,7 @@ class Assembly:
 
             self.description_pathname = None
             if "SystemStructure.ssd" in zin.namelist():
-                sdd = SSDParser(zin, Path(extract_folder.name), step_size=self.default_step_size, auto_link=False,
+                sdd = SSDParser(zin, extract_folder.name, step_size=self.default_step_size, auto_link=False,
                                 mt=self.default_mt, profiling=self.default_profiling,
                                 auto_input=False, auto_output=False, auto_parameter=False)
                 self.root = sdd.parse("SystemStructure.ssd")
@@ -788,9 +788,9 @@ class SSDParser:
             FMU filenames.
     """
 
-    def __init__(self, zin: zipfile.ZipFile, extract_folder: Path, **kwargs):
+    def __init__(self, zin: zipfile.ZipFile, extract_folder_name: str, **kwargs):
         self.zin = zin
-        self.extract_folder = extract_folder
+        self.extract_folder_name = extract_folder_name
 
         self.node_stack: List[AssemblyNode] = []
         self.root = None
@@ -845,7 +845,7 @@ class SSDParser:
             self.node_stack.append(node)
 
         elif tag_name == 'ssd:Component':
-            filename = str(self.extract_folder / Path(attrs['source']).name)
+            filename = f"{self.extract_folder_name}/{str(Path(attrs['source']).name)}"
             name = attrs['name']
             self.fmu_filenames[name] = filename
             self.node_stack[-1].add_fmu(filename)
