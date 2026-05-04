@@ -407,7 +407,7 @@ class Assembly:
         root (AssemblyNode | None): Root node of the assembly tree.
     """
 
-    def __init__(self, filename: Union[str, Path], default_step_size=None, default_auto_link=True,
+    def __init__(self, filename: Union[str, Path] = None, default_step_size=None, default_auto_link=True,
                  default_auto_input=True, debug=False, default_sequential=False, default_auto_output=True,
                  default_mt=False, default_profiling=False, fmu_directory: Path = Path("."),
                  default_auto_parameter=False, default_auto_local=False, default_ts_multiplier=False):

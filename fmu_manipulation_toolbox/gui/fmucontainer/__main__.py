@@ -505,6 +505,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             logger.fatal(f"Cannot read file: {e}")
         except (FMUContainerError, AssemblyError) as e:
             logger.fatal(f"{e}")
+            return
 
         links_list: List[Tuple[str, str, str, str]] = []
         # Build fmu_path lookup by fmu_path.name
@@ -528,7 +529,8 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
                 logger.info(f"{Path(fmu_from_path).name}/{port_from} → {Path(fmu_to_path).name}/{port_to}")
                 links_list.append((fmu_from_path, port_from, fmu_to_path, port_to))
 
-        self._apply_links_on_assembly_node(assembly.root, links_list)
+        if assembly.root:
+            self._apply_links_on_assembly_node(assembly.root, links_list)
 
 
         return assembly
