@@ -14,7 +14,7 @@ from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen
 from PySide6.QtWidgets import (
     QMainWindow, QTableView, QHeaderView, QPushButton,
     QVBoxLayout, QHBoxLayout, QWidget, QLabel, QFileDialog,
-    QLineEdit, QGridLayout,
+    QLineEdit, QGridLayout, QPlainTextEdit, QSizePolicy,
 )
 
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
@@ -63,6 +63,7 @@ class OperationCollectPorts(OperationAbstract):
         self.model_name: str = ""
         self.generation_tool: str = ""
         self.generation_date: str = ""
+        self.fmu_description: str = ""
         # DefaultExperiment
         self.start_time: str = ""
         self.stop_time: str = ""
@@ -75,6 +76,7 @@ class OperationCollectPorts(OperationAbstract):
         self.model_name = attrs.get("modelName", "")
         self.generation_tool = attrs.get("generationTool", "")
         self.generation_date = attrs.get("generationDateAndTime", "")
+        self.fmu_description = attrs.get("description", "")
 
     def experiment_attrs(self, attrs):
         self.start_time = attrs.get("startTime", "")
@@ -103,19 +105,29 @@ class OperationApplyEdits(OperationAbstract):
 
     def __init__(self, edits: Dict[str, FMUVariable],
                  start_time: Optional[str] = None,
-                 stop_time: Optional[str] = None):
+                 stop_time: Optional[str] = None,
+                 fmu_description: Optional[str] = None):
         """
         Args:
             edits: dictionary {original_name: modified FMUVariable}
             start_time: new startTime value (None = no change)
             stop_time: new stopTime value (None = no change)
+            fmu_description: new description value (None = no change)
         """
         self.edits = edits
         self.start_time = start_time
         self.stop_time = stop_time
+        self.fmu_description = fmu_description
 
     def __repr__(self):
         return f"Apply {len(self.edits)} edit(s)"
+
+    def fmi_attrs(self, attrs):
+        if self.fmu_description is not None:
+            if self.fmu_description:
+                attrs["description"] = self.fmu_description
+            else:
+                attrs.pop("description", None)
 
     def experiment_attrs(self, attrs):
         if self.start_time:
@@ -304,6 +316,12 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         self._step_size_label = QLabel()
         self._step_size_label.setProperty("class", "info")
 
+        # FMU description (editable, 2 lines)
+        self._fmu_description_edit = QPlainTextEdit()
+        self._fmu_description_edit.setPlaceholderText("FMU description")
+        self._fmu_description_edit.setFixedHeight(self._fmu_description_edit.fontMetrics().lineSpacing() * 2 + 12)
+        self._fmu_description_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
         # DefaultExperiment (editable)
         self._start_time_edit = QLineEdit()
         self._start_time_edit.setPlaceholderText("startTime")
@@ -377,6 +395,10 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         # Spacer column between col 1 and col 3
         info_grid.setColumnMinimumWidth(2, 100)
 
+        # Make the value columns stretch, not the label columns
+        info_grid.setColumnStretch(1, 1)
+        info_grid.setColumnStretch(4, 1)
+
         # Row 1: spacer
         info_grid.setRowMinimumHeight(1, 10)
 
@@ -408,14 +430,14 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         info_grid.addWidget(step_caption, 4, 0)
         info_grid.addWidget(self._step_size_label, 4, 1)
 
-        # Row 5: spacer
-        info_grid.setRowMinimumHeight(5, 10)
+        # Row 5: FMU description (editable, spans full width)
+        info_grid.addWidget(self._fmu_description_edit, 5, 0, 1, 5)
 
-        # Row 6: variable count
-        info_grid.addWidget(self._info_label, 6, 0, 1, 5)
+        # Row 6: spacer
+        info_grid.setRowMinimumHeight(6, 10)
 
-        # Stretch to push content upward
-        info_grid.setRowStretch(7, 1)
+        # Row 7: variable count
+        info_grid.addWidget(self._info_label, 7, 0, 1, 5)
 
         top_bar.addLayout(info_grid, 1)
 
@@ -442,6 +464,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         # Initial values to detect experiment changes
         self._original_start_time: str = ""
         self._original_stop_time: str = ""
+        self._original_fmu_description: str = ""
 
         self.show()
 
@@ -463,6 +486,8 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             return True
         if self._stop_time_edit.text().strip() != self._original_stop_time:
             return True
+        if self._fmu_description_edit.toPlainText().strip() != self._original_fmu_description:
+            return True
         return False
 
 
@@ -475,6 +500,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             self._generation_date_label.setText("")
             self._start_time_edit.clear()
             self._stop_time_edit.clear()
+            self._fmu_description_edit.clear()
             self._step_size_label.setText("")
             self._info_label.setText("")
             self._model.set_variables([])
@@ -495,6 +521,10 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         self._stop_time_edit.setText(collector.stop_time)
         self._original_start_time = collector.start_time
         self._original_stop_time = collector.stop_time
+
+        # FMU description
+        self._fmu_description_edit.setPlainText(collector.fmu_description)
+        self._original_fmu_description = collector.fmu_description
 
         # Step size (read-only)
         if collector.step_size:
@@ -535,16 +565,19 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         # DefaultExperiment modifications
         new_start = self._start_time_edit.text().strip()
         new_stop = self._stop_time_edit.text().strip()
+        new_desc = self._fmu_description_edit.toPlainText().strip()
         start_changed = new_start != self._original_start_time
         stop_changed = new_stop != self._original_stop_time
+        desc_changed = new_desc != self._original_fmu_description
 
-        has_changes = bool(edits) or start_changed or stop_changed
+        has_changes = bool(edits) or start_changed or stop_changed or desc_changed
 
         if has_changes:
             operation = OperationApplyEdits(
                 edits,
                 start_time=new_start if start_changed else None,
                 stop_time=new_stop if stop_changed else None,
+                fmu_description=new_desc if desc_changed else None,
             )
             fmu.apply_operation(operation)
             if edits:
@@ -552,6 +585,8 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             if start_changed or stop_changed:
                 logger.info(f"DefaultExperiment updated"
                             f" (startTime={new_start}, stopTime={new_stop}).")
+            if desc_changed:
+                logger.info(f"FMU description updated.")
 
         fmu.repack(filename)
         logger.info(f"FMU saved as '{filename}'.")
@@ -562,6 +597,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             var._original_description = var.description
         self._original_start_time = self._start_time_edit.text().strip()
         self._original_stop_time = self._stop_time_edit.text().strip()
+        self._original_fmu_description = self._fmu_description_edit.toPlainText().strip()
 
 
 def main():
