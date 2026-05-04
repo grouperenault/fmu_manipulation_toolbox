@@ -24,6 +24,13 @@ from PySide6.QtWidgets import (
 
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 
+# Try to import FMPy GUI
+try:
+    from fmpy.gui.MainWindow import MainWindow as FMPyMainWindow
+    FMPY_AVAILABLE = True
+except ImportError:
+    FMPY_AVAILABLE = False
+
 
 # ─────────────────────────── Visual constants ──────────────────────────
 
@@ -862,8 +869,15 @@ class NodeGraphView(QGraphicsView):
 
         add_fmu_action = menu.addAction("Add FMU…")
         delete_action = None
-        if self._scene.selectedItems():
+        simulate_action = None
+
+        selected_items = self._scene.selectedItems()
+        if selected_items:
             delete_action = menu.addAction("Delete Selection")
+            # Check if a single NodeItem is selected for simulation
+            if len(selected_items) == 1 and isinstance(selected_items[0], NodeItem) and FMPY_AVAILABLE:
+                simulate_action = menu.addAction("Simulate (with FMPy)")
+
         menu.addSeparator()
         fit_action = menu.addAction("Fit View")
 
@@ -877,6 +891,8 @@ class NodeGraphView(QGraphicsView):
                 scene_pos += QPointF(20, 20)  # offset subsequent nodes
         elif chosen == delete_action:
             self._scene.remove_selected()
+        elif chosen == simulate_action:
+            self._launch_fmpy_simulation(selected_items[0])
         elif chosen == fit_action:
             self.fit_all()
 
@@ -885,6 +901,26 @@ class NodeGraphView(QGraphicsView):
         if not rect.isNull():
             rect.adjust(-40, -40, 40, 40)
             self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
+
+    def _launch_fmpy_simulation(self, node: NodeItem):
+        """Launch FMPy GUI with the selected FMU."""
+        if not FMPY_AVAILABLE:
+            return
+        try:
+            fmu_path = str(node.fmu_path.resolve())
+            window = FMPyMainWindow()
+            window.show()
+            window.load(fmu_path)
+            # Keep a reference so the window is not garbage-collected
+            if not hasattr(self, '_fmpy_windows'):
+                self._fmpy_windows = []
+            self._fmpy_windows.append(window)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "FMPy Simulation Error",
+                f"Failed to launch FMPy simulation:\n{str(e)}"
+            )
 
 
 class NodeGraphWidget(QWidget):
