@@ -24,6 +24,17 @@ from PySide6.QtWidgets import (
 
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 
+# Try to import FMPy GUI
+try:
+    from fmpy.gui.MainWindow import MainWindow as FMPyMainWindow
+    FMPY_AVAILABLE = True
+except ImportError:
+    FMPY_AVAILABLE = False
+
+# Internal tool windows
+from fmu_manipulation_toolbox.gui.fmueditor.__main__ import MainWindow as FMUEditorMainWindow
+from fmu_manipulation_toolbox.gui.fmutool.__main__ import MainWindow as FMUToolMainWindow
+
 
 # ─────────────────────────── Visual constants ──────────────────────────
 
@@ -862,8 +873,21 @@ class NodeGraphView(QGraphicsView):
 
         add_fmu_action = menu.addAction("Add FMU…")
         delete_action = None
-        if self._scene.selectedItems():
+        simulate_action = None
+        fmueditor_action = None
+        fmutool_action = None
+
+        selected_items = self._scene.selectedItems()
+        if selected_items:
             delete_action = menu.addAction("Delete Selection")
+            # Check if a single NodeItem is selected for external tools
+            if len(selected_items) == 1 and isinstance(selected_items[0], NodeItem):
+                menu.addSeparator()
+                fmueditor_action = menu.addAction("Open in FMU Editor")
+                fmutool_action = menu.addAction("Open in FMU Tool")
+                if FMPY_AVAILABLE:
+                    simulate_action = menu.addAction("Simulate (with FMPy)")
+
         menu.addSeparator()
         fit_action = menu.addAction("Fit View")
 
@@ -877,6 +901,12 @@ class NodeGraphView(QGraphicsView):
                 scene_pos += QPointF(20, 20)  # offset subsequent nodes
         elif chosen == delete_action:
             self._scene.remove_selected()
+        elif chosen == simulate_action:
+            self._launch_fmpy_simulation(selected_items[0])
+        elif chosen == fmueditor_action:
+            self._launch_tool_window(selected_items[0], FMUEditorMainWindow)
+        elif chosen == fmutool_action:
+            self._launch_tool_window(selected_items[0], FMUToolMainWindow)
         elif chosen == fit_action:
             self.fit_all()
 
@@ -885,6 +915,43 @@ class NodeGraphView(QGraphicsView):
         if not rect.isNull():
             rect.adjust(-40, -40, 40, 40)
             self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
+
+    def _launch_fmpy_simulation(self, node: NodeItem):
+        """Launch FMPy GUI with the selected FMU."""
+        if not FMPY_AVAILABLE:
+            return
+        try:
+            fmu_path = str(node.fmu_path.resolve())
+            window = FMPyMainWindow()
+            window.show()
+            window.load(fmu_path)
+            self._keep_window_ref(window)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "FMPy Simulation Error",
+                f"Failed to launch FMPy simulation:\n{str(e)}"
+            )
+
+    def _launch_tool_window(self, node: NodeItem, window_class):
+        """Launch an internal tool window (FMU Editor or FMU Tool) with the selected FMU."""
+        try:
+            fmu_path = str(node.fmu_path.resolve())
+            window = window_class()
+            window.load(fmu_path)
+            self._keep_window_ref(window)
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to open tool:\n{str(e)}"
+            )
+
+    def _keep_window_ref(self, window):
+        """Keep a reference to prevent garbage collection."""
+        if not hasattr(self, '_tool_windows'):
+            self._tool_windows = []
+        self._tool_windows.append(window)
 
 
 class NodeGraphWidget(QWidget):

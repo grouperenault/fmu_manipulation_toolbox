@@ -193,6 +193,16 @@ _COMMON_STYLE = """
     QLineEdit:focus {{
         border: 1px solid #4571a4;
     }}
+    QPlainTextEdit {{
+        background-color: #282830;
+        color: #b5bab9;
+        border: 1px solid #3a3a44;
+        border-radius: 3px;
+        padding: 2px 4px;
+    }}
+    QPlainTextEdit:focus {{
+        border: 1px solid #4571a4;
+    }}
     QToolButton.launcher {{
         min-width: 180px;
         max-width: 180px;
