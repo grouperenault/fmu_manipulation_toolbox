@@ -174,6 +174,11 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         logger.info(" " * 80 + f"Version {version}")
         logger.info(self.__doc__)
 
+    def load(self, fmu_path: str):
+        """Load an FMU file programmatically."""
+        from pathlib import Path
+        self.dropped_fmu.set_fmu(Path(fmu_path))
+
     def closeEvent(self, event):
         event.accept()
 

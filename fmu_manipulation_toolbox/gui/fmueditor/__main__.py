@@ -448,6 +448,11 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         # Set initial focus to drop zone
         self._drop_zone.setFocus()
 
+    def load(self, fmu_path: str):
+        """Load an FMU file programmatically."""
+        from pathlib import Path
+        self._drop_zone.set_fmu(Path(fmu_path))
+
     # -- Unsaved changes detection -----------------------------------------------
 
     def _has_unsaved_changes(self) -> bool:
