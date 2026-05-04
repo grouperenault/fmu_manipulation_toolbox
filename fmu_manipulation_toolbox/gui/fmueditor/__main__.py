@@ -366,10 +366,9 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         # --- Buttons ---
         self._save_button = QPushButton("Save modified FMU as…")
         self._save_button.setProperty("class", "save")
-        self._save_button.setEnabled(False)
         self._save_button.clicked.connect(self._save_fmu_as)
 
-        self._quit_button = QPushButton("Quit")
+        self._quit_button = QPushButton("Exit")
         self._quit_button.setProperty("class", "quit")
         self._quit_button.clicked.connect(self.close)
 
@@ -447,8 +446,8 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
 
         button_bar = QHBoxLayout()
         button_bar.addWidget(self._status_bar, 1)
-        button_bar.addWidget(self._save_button)
         button_bar.addWidget(self._quit_button)
+        button_bar.addWidget(self._save_button)
 
         main_layout = QVBoxLayout()
         main_layout.setContentsMargins(8, 8, 8, 8)
@@ -504,7 +503,6 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             self._step_size_label.setText("")
             self._info_label.setText("")
             self._model.set_variables([])
-            self._save_button.setEnabled(False)
             return
 
         # Collect variables and metadata
@@ -537,7 +535,6 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         self._info_label.setText(f"{len(variables)} variable(s)")
         self._model.set_variables(variables)
         self._table.sortByColumn(FMUVariableModel.COL_NAME, Qt.SortOrder.AscendingOrder)
-        self._save_button.setEnabled(True)
 
         # Set focus to search field after FMU is loaded
         self._search_edit.setFocus()
