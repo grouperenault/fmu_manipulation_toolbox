@@ -772,6 +772,45 @@ class Assembly:
             logger.info(f"Dump Json '{dump_file}'")
             self.write_json(dump_file)
 
+    def get_flat_links(self) -> List[List[str]]:
+        links_list = []
+
+        if self.root:
+            self._get_flat_links_recursive(self.root, links_list)
+
+        return links_list
+
+    def _get_flat_links_recursive(self, node: AssemblyNode, links_list, left_candidates = [], right_candidates = []):
+        # internal links
+        for connection in node.links:
+            links_list.append([connection.from_port.fmu_name, connection.from_port.port_name,
+                               connection.to_port.fmu_name, connection.to_port.port_name])
+
+        # boundary links
+        right_candidates = []
+        for port, output_name, in node.output_ports.items():
+            right_candidates.append([port.fmu_name, port.port_name, node.name, output_name])
+
+        left_candidates = []
+        for port, input_name, in node.input_ports.items():
+            left_candidates.append([node.name, input_name, port.fmu_name, port.port_name])
+
+        # proceed the sub nodes
+        for child in node.children.values():
+            self._get_flat_links_recursive(child, links_list,
+                                           left_candidates=left_candidates, right_candidates=right_candidates)
+        # Resolve candidate links
+        for candidate in right_candidates:
+            #TODO
+            if candidate[2] == node.name:
+                links_list.append([candidate[0], candidate[1], node.name, candidate[3]])
+
+        for candidate in left_candidates:
+            #TODO
+            if candidate[0] == node.name:
+                links_list.append([candidate[0], candidate[1], node.name, candidate[3]])
+
+
 
 class SSDParser:
     """SAX-based parser for SSD (System Structure Description) files.
