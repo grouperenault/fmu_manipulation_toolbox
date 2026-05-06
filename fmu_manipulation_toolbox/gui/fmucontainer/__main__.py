@@ -482,6 +482,25 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
 
         return remaining_links_list
 
+    def _propagate_exposed_outputs(self, assembly_node: AssemblyNode):
+        """Propagate user-exposed output ports from child nodes up to the root.
+
+        For each child container that has output_ports, expose those ports
+        at the current level as well, then recurse upward (called bottom-up).
+        This must be called BEFORE _apply_links_on_assembly_node so that only
+        user-exposed outputs are propagated (not routing outputs from links).
+        """
+        # First, recurse into children so their outputs are fully resolved
+        for child in assembly_node.children.values():
+            self._propagate_exposed_outputs(child)
+
+        # Now, for each child container, if it has exposed output ports,
+        # also expose them at this level (so they bubble up to root)
+        for child in assembly_node.children.values():
+            for port, exposed_name in child.output_ports.items():
+                assembly_node.add_output(child.name, exposed_name, exposed_name)
+                logger.debug(f"PROPAGATE OUTPUT: {child.name}/{exposed_name} → {assembly_node.name}")
+
     def create_assembly(self) -> Optional[Assembly]:
         # Flush any in-progress edits from detail panels
         self._tree.wire_detail.sync_to_wire()
@@ -489,7 +508,6 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         nodes_by_uid: Dict[str, NodeItem] = {node.uid: node for node in self._graph.scene.nodes()}
 
         def _item_to_assembly_node(parent_assembly_node: Optional[AssemblyNode], item) -> Optional[AssemblyNode]:
-            from .tree import _NodeTreeModel
             container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
             if container_parameters:
                 logger.debug(f"ADD Container: {container_parameters.name}")
@@ -556,6 +574,10 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
                 links_list.append((fmu_from_path, port_from, fmu_to_path, port_to))
 
         if assembly.root:
+            # First propagate user-exposed outputs up through nested containers
+            # (must be done BEFORE link routing, which also adds outputs)
+            self._propagate_exposed_outputs(assembly.root)
+            # Then distribute links into the correct assembly nodes
             self._apply_links_on_assembly_node(assembly.root, links_list)
 
 
