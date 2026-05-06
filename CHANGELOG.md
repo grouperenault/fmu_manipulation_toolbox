@@ -3,11 +3,12 @@ This package was formerly known as `fmutool`.
 
 # Version 1.9.3.1
 * ADDED: GUI: contextual menu of FMUs let the user to launch fmueditor, fmutool or FMPy (if installed)
-* ADDED: GUI: Highlight FMUs nested in selected container
+* ADDED: GUI: Highlight the  FMUs nested in selected container
 * ADDED: GUI: Tooltips for the parameters of containers
-* ADDED: GUI: Add link is easier when FMU contains lot of variable. The parameters are displayed in italic.
+* ADDED: GUI: Add link is easier when FMU contains lot of variables. The parameters are displayed in italic.
 * ADDED: GUI: Import is able to load SSP file
-* FIXED: FMU extraction of a container
+* FIXED: FMU extraction of a container (when using relative paths)
+* FIXED: GUI: import of Container with multiple levels of nesting (FMU inside FMU) was not working
 
 # Version 1.9.3
 * ADDED: Graphical User Interfaces for quick FMU variable edition and build FMU Container

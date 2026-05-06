@@ -4,7 +4,6 @@ FMU Container Builder – Main window.
 Main application interface for building FMU containers composing multiple FMUs.
 """
 
-import json
 import logging
 import sys
 import tempfile
@@ -23,9 +22,8 @@ from fmu_manipulation_toolbox.container import FMUContainerError
 from fmu_manipulation_toolbox.split import FMUSplitter, FMUSplitterError
 
 from .graph import NodeGraphWidget, NodeItem
-from .tree import NodeTreePanel
+from .tree import NodeTreePanel, _NodeTreeModel
 from .details import ContainerParameters
-
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
@@ -198,64 +196,77 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         if node.fmu_path and node.fmu_path.parent.exists():
             self._last_directory = node.fmu_path.parent
 
-    def _data_to_items(self, parent, data_node, folder, links_list: List[List[str]], start_values_list: List[List[str]], output_ports_list: List[List[str]], x=0, y=0):
-        from .tree import _NodeTreeModel
+    def _assembly_node_to_items(self, parent, assembly_node: AssemblyNode, folder: Path,
+                                links_list: List[List[str]], start_values_list: List[List[str]],
+                                output_ports_list: List[List[str]], x=0, y=0):
+        # Add FMU nodes
         self._tree.pending_parent = parent
-        for fmu in data_node["fmu"]:
+        for fmu in assembly_node.fmu_names_list:
                 logger.debug(f"ADD FMU: {folder} / {fmu}")
                 self._graph.add_node(fmu_path=folder / fmu, x=x, y=y)
                 x = x + 100
                 y = y + 100
         self._tree.pending_parent = None
 
-
-        container_name = data_node["name"]
-        container_parameters = ContainerParameters(**data_node)
+        # Add Container in tree View
+        container_name = assembly_node.name
+        container_parameters = ContainerParameters(
+            name=assembly_node.name,
+            step_size=assembly_node.step_size or "",
+            mt=assembly_node.mt,
+            profiling=assembly_node.profiling,
+            sequential=assembly_node.sequential,
+            auto_link=assembly_node.auto_link,
+            auto_input=assembly_node.auto_input,
+            auto_output=assembly_node.auto_output,
+            auto_parameter=assembly_node.auto_parameter,
+            auto_local=assembly_node.auto_local,
+            ts_multiplier=assembly_node.ts_multiplier,
+        )
         logger.debug(f"SET CONTAINER: {container_name}: {container_parameters}")
         parent.setData(container_parameters, _NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
         parent.setText(container_name)
 
-        if "link" in data_node:
-            for link in data_node["link"]:
-                logger.debug(f"ADD LINK: {link}")
-                links_list.append(link)
+        for connection in assembly_node.links:
+            link = [connection.from_port.fmu_name, connection.from_port.port_name,
+                    connection.to_port.fmu_name, connection.to_port.port_name]
+            logger.debug(f"ADD LINK: {link}")
+            links_list.append(link)
 
-        if "start" in data_node:
-            for start in data_node["start"]:
-                logger.debug(f"ADD START VALUE: {start}")
-                start_values_list.append(start)
+        for port, value in assembly_node.start_values.items():
+            start = [port.fmu_name, port.port_name, value]
+            logger.debug(f"ADD START VALUE: {start}")
+            start_values_list.append(start)
 
-        if "output" in data_node:
-            for output in data_node["output"]:
-                # output format: [fmu_name, port_name, exposed_name]
-                logger.debug(f"ADD OUTPUT PORT: {output}")
-                output_ports_list.append(output)
+        for port, target in assembly_node.output_ports.items():
+            output = [port.fmu_name, port.port_name, target]
+            logger.debug(f"ADD OUTPUT PORT: {output}")
+            output_ports_list.append(output)
 
-        if "container" in data_node:
-            for container_fmu in data_node["container"]:
-                logger.debug(f"ADD CONTAINER: {container_fmu['name']}")
-                child = self._tree.make_container_item(container_fmu["name"])
-                parent.appendRow(child)
-                self._data_to_items(child, container_fmu, folder, links_list, start_values_list, output_ports_list, x=x, y=y)
+        for child_node in assembly_node.children.values():
+            logger.debug(f"ADD CONTAINER: {child_node.name}")
+            child = self._tree.make_container_item(child_node.name)
+            parent.appendRow(child)
+            self._assembly_node_to_items(child, child_node, folder, links_list, start_values_list, output_ports_list, x=x, y=y)
 
         for link in links_list:
             if link[2] == container_name:
-                for input_container in data_node["input"]:
-                    if link[3] == input_container[0]:
-                        link[2] = input_container[1]
-                        link[3] = input_container[2]
+                for port, input_name in assembly_node.input_ports.items():
+                    if link[3] == input_name:
+                        link[2] = port.fmu_name
+                        link[3] = port.port_name
+                        logger.debug(f"MODIFIED LINK: {link}")
                         break
-
-        for link in links_list:
             if link[0] == container_name:
-                for output_container in data_node["output"]:
-                    if link[1] == output_container[2]:
-                        link[0] = output_container[0]
-                        link[1] = output_container[1]
+                for port, output_name in assembly_node.output_ports.items():
+                    if link[1] == output_name:
+                        link[0] = port.fmu_name
+                        link[1] = port.port_name
+                        logger.debug(f"MODIFIED LINK: {link}")
                         break
 
-    def _import_data(self, data: dict, fmu_directory: Path):
-        """Populate the scene and tree from a JSON-style dict.
+    def _import_data(self, assembly: Assembly, fmu_directory: Path):
+        """Populate the scene and tree from an Assembly object.
 
         Shared by *load_container_fmu* (from a split FMU) and
         *import_assembly_file* (from a raw JSON / CSV).
@@ -264,11 +275,15 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         self._graph.scene.clear_all()
         self._tree.root.removeRows(0, self._tree.root.rowCount())
 
+        if assembly.root is None:
+            logger.warning("Assembly has no root node, nothing to import.")
+            return
+
         links_list: List[List[str]] = []
         start_values_list: List[List[str]] = []
         output_ports_list: List[List[str]] = []
-        self._data_to_items(self._tree.root, data, fmu_directory,
-                            links_list, start_values_list, output_ports_list)
+        self._assembly_node_to_items(self._tree.root, assembly.root, fmu_directory,
+                                     links_list, start_values_list, output_ports_list)
 
         # Build a map from FMU filename to its NodeItem
         nodes_by_name: Dict[str, NodeItem] = {}
@@ -352,10 +367,14 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
 
         folder = Path(input_path).with_suffix(".dir")
         json_filename = folder / Path(input_path).with_suffix(".json").name
-        with open(json_filename, "rt") as file:
-            data = json.load(file)
 
-        self._import_data(data, folder)
+        try:
+            assembly = Assembly(filename=json_filename.name, fmu_directory=folder)
+        except AssemblyError as e:
+            logger.fatal(f"{e}")
+            return
+
+        self._import_data(assembly, folder)
 
     def _on_load_clicked(self):
         default_dir = str(self._last_directory) if self._last_directory else ""
@@ -392,8 +411,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             logger.fatal("Failed to read assembly: no root node.")
             return
 
-        data = assembly.json_encode()
-        self._import_data(data, fmu_directory)
+        self._import_data(assembly, fmu_directory)
 
     def _on_import_clicked(self):
         default_dir = str(self._last_directory) if self._last_directory else ""
@@ -438,23 +456,50 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         logger.debug(f"Assembly node: {assembly_node.name}")
         logger.debug(f"{assembly_node.fmu_names_list}")
 
+        # An FMU "belongs" to this node if it is either a direct FMU or a child container
+        known_names = set(assembly_node.fmu_names_list) | set(assembly_node.children.keys())
+
         remaining_links_list = []
         for link in links_list:
             logger.debug(f"{link}")
-            if link[0] in assembly_node.fmu_names_list:
-                if link[2] in assembly_node.fmu_names_list:
-                    assembly_node.add_link(link[0], link[1], link[2], link[3])
-                else:
-                    assembly_node.add_output(link[0], link[1], link[1])
-                    remaining_links_list.append((assembly_node.name, link[1], link[2], link[3]))
+            from_is_local = link[0] in known_names
+            to_is_local = link[2] in known_names
+
+            if from_is_local and to_is_local:
+                # Both ends are inside this node → internal link
+                assembly_node.add_link(link[0], link[1], link[2], link[3])
+            elif from_is_local and not to_is_local:
+                # Source is local, destination is outside → expose as output
+                assembly_node.add_output(link[0], link[1], link[1])
+                remaining_links_list.append((assembly_node.name, link[1], link[2], link[3]))
+            elif not from_is_local and to_is_local:
+                # Source is outside, destination is local → expose as input
+                assembly_node.add_input(link[3], link[2], link[3])
+                remaining_links_list.append((link[0], link[1], assembly_node.name, link[3]))
             else:
-                if link[2] in assembly_node.fmu_names_list:
-                    assembly_node.add_input(link[3], link[2], link[3])
-                    remaining_links_list.append((link[0], link[1], assembly_node.name, link[3]))
-                else:
-                    remaining_links_list.append(link)
+                # Neither end belongs to this node → pass through
+                remaining_links_list.append(link)
 
         return remaining_links_list
+
+    def _propagate_exposed_outputs(self, assembly_node: AssemblyNode):
+        """Propagate user-exposed output ports from child nodes up to the root.
+
+        For each child container that has output_ports, expose those ports
+        at the current level as well, then recurse upward (called bottom-up).
+        This must be called BEFORE _apply_links_on_assembly_node so that only
+        user-exposed outputs are propagated (not routing outputs from links).
+        """
+        # First, recurse into children so their outputs are fully resolved
+        for child in assembly_node.children.values():
+            self._propagate_exposed_outputs(child)
+
+        # Now, for each child container, if it has exposed output ports,
+        # also expose them at this level (so they bubble up to root)
+        for child in assembly_node.children.values():
+            for port, exposed_name in child.output_ports.items():
+                assembly_node.add_output(child.name, exposed_name, exposed_name)
+                logger.debug(f"PROPAGATE OUTPUT: {child.name}/{exposed_name} → {assembly_node.name}")
 
     def create_assembly(self) -> Optional[Assembly]:
         # Flush any in-progress edits from detail panels
@@ -463,7 +508,6 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         nodes_by_uid: Dict[str, NodeItem] = {node.uid: node for node in self._graph.scene.nodes()}
 
         def _item_to_assembly_node(parent_assembly_node: Optional[AssemblyNode], item) -> Optional[AssemblyNode]:
-            from .tree import _NodeTreeModel
             container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
             if container_parameters:
                 logger.debug(f"ADD Container: {container_parameters.name}")
@@ -505,7 +549,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             logger.fatal(f"Cannot read file: {e}")
         except (FMUContainerError, AssemblyError) as e:
             logger.fatal(f"{e}")
-            return
+            return None
 
         links_list: List[Tuple[str, str, str, str]] = []
         # Build fmu_path lookup by fmu_path.name
@@ -530,6 +574,10 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
                 links_list.append((fmu_from_path, port_from, fmu_to_path, port_to))
 
         if assembly.root:
+            # First propagate user-exposed outputs up through nested containers
+            # (must be done BEFORE link routing, which also adds outputs)
+            self._propagate_exposed_outputs(assembly.root)
+            # Then distribute links into the correct assembly nodes
             self._apply_links_on_assembly_node(assembly.root, links_list)
 
 
