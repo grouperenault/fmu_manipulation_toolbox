@@ -255,14 +255,14 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
                     if link[3] == input_name:
                         link[2] = port.fmu_name
                         link[3] = port.port_name
+                        logger.debug(f"MODIFIED LINK: {link}")
                         break
-
-        for link in links_list:
             if link[0] == container_name:
                 for port, output_name in assembly_node.output_ports.items():
                     if link[1] == output_name:
                         link[0] = port.fmu_name
                         link[1] = port.port_name
+                        logger.debug(f"MODIFIED LINK: {link}")
                         break
 
     def _import_data(self, assembly: Assembly, fmu_directory: Path):
@@ -456,21 +456,29 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         logger.debug(f"Assembly node: {assembly_node.name}")
         logger.debug(f"{assembly_node.fmu_names_list}")
 
+        # An FMU "belongs" to this node if it is either a direct FMU or a child container
+        known_names = set(assembly_node.fmu_names_list) | set(assembly_node.children.keys())
+
         remaining_links_list = []
         for link in links_list:
             logger.debug(f"{link}")
-            if link[0] in assembly_node.fmu_names_list:
-                if link[2] in assembly_node.fmu_names_list:
-                    assembly_node.add_link(link[0], link[1], link[2], link[3])
-                else:
-                    assembly_node.add_output(link[0], link[1], link[1])
-                    remaining_links_list.append((assembly_node.name, link[1], link[2], link[3]))
+            from_is_local = link[0] in known_names
+            to_is_local = link[2] in known_names
+
+            if from_is_local and to_is_local:
+                # Both ends are inside this node → internal link
+                assembly_node.add_link(link[0], link[1], link[2], link[3])
+            elif from_is_local and not to_is_local:
+                # Source is local, destination is outside → expose as output
+                assembly_node.add_output(link[0], link[1], link[1])
+                remaining_links_list.append((assembly_node.name, link[1], link[2], link[3]))
+            elif not from_is_local and to_is_local:
+                # Source is outside, destination is local → expose as input
+                assembly_node.add_input(link[3], link[2], link[3])
+                remaining_links_list.append((link[0], link[1], assembly_node.name, link[3]))
             else:
-                if link[2] in assembly_node.fmu_names_list:
-                    assembly_node.add_input(link[3], link[2], link[3])
-                    remaining_links_list.append((link[0], link[1], assembly_node.name, link[3]))
-                else:
-                    remaining_links_list.append(link)
+                # Neither end belongs to this node → pass through
+                remaining_links_list.append(link)
 
         return remaining_links_list
 
