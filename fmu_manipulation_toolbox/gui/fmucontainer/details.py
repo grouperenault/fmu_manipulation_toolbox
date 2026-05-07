@@ -8,8 +8,6 @@ The actual implementations live in separate modules:
 - container_detail.py: ContainerDetailWidget and ContainerParameters
 """
 
-from typing import *
-
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget
 
 from fmu_manipulation_toolbox.gui.fmucontainer.wire_detail import WireDetailWidget

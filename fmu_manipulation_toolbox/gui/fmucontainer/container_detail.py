@@ -98,6 +98,8 @@ class ContainerDetailWidget(QWidget):
         self._container_parameters = container_parameters
 
     def _on_table_data_changed(self):
+        if self._container_parameters is None:
+            return
         for r in range(self._model.rowCount()):
             key = self._model.item(r, 0).text()
             value_item = self._model.item(r, 1)
