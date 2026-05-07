@@ -286,6 +286,11 @@ class _WireDirectionTab(QWidget):
         self._remove_btn.setProperty("class", "removal")
         self._add_btn.clicked.connect(self._on_add)
         self._remove_btn.clicked.connect(self._on_remove)
+        btn_width = max(self._add_btn.sizeHint().width(),
+                        self._remove_btn.sizeHint().width(),
+                        150)
+        self._add_btn.setMinimumWidth(btn_width)
+        self._remove_btn.setMinimumWidth(btn_width)
 
         btn_lay = QHBoxLayout()
         btn_lay.setContentsMargins(0, 0, 0, 0)
@@ -522,12 +527,18 @@ class _WireTerminalsTab(QWidget):
         self._model.dataChanged.connect(lambda *_: self.changed.emit())
 
         # -- Buttons --
-        self._add_btn = QPushButton("Add terminal link")
-        self._remove_btn = QPushButton("Remove terminal link")
+        self._add_btn = QPushButton("Add link")
+        self._remove_btn = QPushButton("Remove link")
         self._add_btn.setProperty("class", "info")
         self._remove_btn.setProperty("class", "removal")
         self._add_btn.clicked.connect(self._on_add)
         self._remove_btn.clicked.connect(self._on_remove)
+
+        btn_width = max(self._add_btn.sizeHint().width(),
+                        self._remove_btn.sizeHint().width(),
+                        150)
+        self._add_btn.setMinimumWidth(btn_width)
+        self._remove_btn.setMinimumWidth(btn_width)
 
         btn_lay = QHBoxLayout()
         btn_lay.setContentsMargins(0, 0, 0, 0)
@@ -679,7 +690,7 @@ class WireDetailWidget(QWidget):
             self._remove_all_btn.sizeHint().width(),
             self._export_btn.sizeHint().width(),
             self._import_btn.sizeHint().width(),
-            100,
+            150,
         )
         for btn in (self._auto_btn, self._remove_all_btn, self._export_btn, self._import_btn):
             btn.setMinimumWidth(btn_width)
@@ -799,4 +810,3 @@ class WireDetailWidget(QWidget):
     def _on_tab_changed(self):
         self.sync_to_wire()
         self.changed.emit()
-
