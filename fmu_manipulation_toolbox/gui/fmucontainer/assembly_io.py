@@ -384,6 +384,15 @@ class AssemblyIOMixin:
                 logger.info(f"{Path(fmu_from_path).name}/{port_from} → {Path(fmu_to_path).name}/{port_to}")
                 links_list.append((fmu_from_path, port_from, fmu_to_path, port_to))
 
+            # Terminal mappings are treated as regular links (terminals behave as ports)
+            for tm in wire.terminal_mappings:
+                if len(tm) == 4:
+                    fmu_a_name, terminal_a, fmu_b_name, terminal_b = tm
+                    fmu_a_path = path_by_name[fmu_a_name]
+                    fmu_b_path = path_by_name[fmu_b_name]
+                    logger.info(f"{fmu_a_name}/{terminal_a} ↔ {fmu_b_name}/{terminal_b} (terminal)")
+                    links_list.append((fmu_a_path, terminal_a, fmu_b_path, terminal_b))
+
         if assembly.root:
             # First propagate user-exposed outputs up through nested containers
             self._propagate_exposed_outputs(assembly.root)

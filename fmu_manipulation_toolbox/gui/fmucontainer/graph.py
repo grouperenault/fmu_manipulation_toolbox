@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
+from fmu_manipulation_toolbox.terminals import Terminals
 
 # Try to import FMPy GUI
 try:
@@ -87,6 +88,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         # -- Read FMU ports ---------------------------------------------------
         self.fmu_input_names: List[str] = []
         self.fmu_output_names: List[str] = []
+        self.fmu_terminal_names: List[str] = []
         self.fmu_port_causality: Dict[str, str] = {}  # Maps port name to causality
         self.fmu_start_values: Dict[str, str] = {}
         self.user_start_values: Dict[str, str] = {}
@@ -155,6 +157,10 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         if start is not None:
             self.fmu_start_values[name] = start
         return 0
+
+    def closure(self):
+        for terminal in Terminals(self.fmu.tmp_directory):
+            self.fmu_terminal_names.append(terminal.name)
 
     # -- Title -----------------------------------------------------------------
 
@@ -334,6 +340,7 @@ class WireItem(QGraphicsPathItem):
         self._waypoints: List[QPointF] = []
         self._handles: List[_WaypointHandle] = []
         self.mappings: List[tuple] = []
+        self.terminal_mappings: List[tuple] = []
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -480,9 +487,30 @@ class WireItem(QGraphicsPathItem):
         pen = QPen(color, 2.5 if self.isSelected() else 2.0)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        painter.setPen(pen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(self.path())
+
+        if self.terminal_mappings:
+            # Double line for terminal connections
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+
+            # Outer line (thicker)
+            outer_pen = QPen(color, 5.0 if self.isSelected() else 4.0)
+            outer_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            outer_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(outer_pen)
+            painter.drawPath(self.path())
+
+            # Inner line (background color to create double-line effect)
+            inner_pen = QPen(COLOR_BACKGROUND, 2.0 if self.isSelected() else 1.5)
+            inner_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            inner_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+            painter.setPen(inner_pen)
+            painter.drawPath(self.path())
+        else:
+            # Single line for regular connections
+            painter.setPen(pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPath(self.path())
 
         # -- Arrowheads --------------------------------------------------------
         a_to_b, b_to_a = self._directions()

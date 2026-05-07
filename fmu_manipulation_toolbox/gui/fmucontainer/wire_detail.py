@@ -419,6 +419,210 @@ class _WireDirectionTab(QWidget):
         self.changed.emit()
 
 
+class _TerminalComboDelegate(QStyledItemDelegate):
+    """Delegate that opens a _PortListSelectorDialog for terminal selection."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._items: List[str] = []
+
+    def set_items(self, items: List[str]):
+        self._items = list(items)
+
+    def createEditor(self, parent, option, index):
+        dummy_editor = QWidget(parent)
+        dummy_editor.setVisible(False)
+        dummy_editor.setMaximumSize(0, 0)
+
+        current_value = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        self._show_selector_dialog(current_value, parent, option, index, dummy_editor)
+
+        return dummy_editor
+
+    def _show_selector_dialog(self, current_value, parent, option, index, editor):
+        dialog = _PortListSelectorDialog(parent)
+        dialog.setWindowTitle("Select Terminal")
+        dialog.set_items(self._items)
+        dialog.set_selected(current_value)
+
+        table = self.parent()
+        if table and hasattr(table, 'mapToGlobal'):
+            cell_pos = table.mapToGlobal(option.rect.bottomLeft())
+            dialog.move(cell_pos)
+
+        result = dialog.exec()
+        if result == QDialog.DialogCode.Accepted:
+            selected_value = dialog.get_selected()
+            editor.setProperty("selected_value", selected_value)
+            if table and hasattr(table, 'model'):
+                model = table.model()
+                self.setModelData(editor, model, index)
+
+        self.closeEditor.emit(editor)
+
+    def setEditorData(self, editor, index):
+        value = index.data(Qt.ItemDataRole.DisplayRole) or ""
+        editor.setProperty("current_value", value)
+
+    def setModelData(self, editor, model, index):
+        selected_value = editor.property("selected_value")
+        if selected_value:
+            model.setData(index, selected_value, Qt.ItemDataRole.EditRole)
+        else:
+            current = index.data(Qt.ItemDataRole.DisplayRole) or ""
+            model.setData(index, current, Qt.ItemDataRole.EditRole)
+
+        table = self.parent()
+        if table:
+            table.update()
+
+    def updateEditorGeometry(self, editor, option, index):
+        editor.hide()
+        editor.setGeometry(0, 0, 0, 0)
+
+
+class _WireTerminalsTab(QWidget):
+    """Tab for connecting two FMUs via their declared Terminals.
+
+    Shows a 2-column table (Terminal A, Terminal B) where each cell
+    allows selecting a terminal from the respective node.
+    """
+
+    changed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._node_a: Optional[NodeItem] = None
+        self._node_b: Optional[NodeItem] = None
+
+        # -- Table model (2 columns) --
+        self._model = QStandardItemModel(0, 2)
+        self._model.setHorizontalHeaderLabels(["Terminal A", "Terminal B"])
+
+        self._proxy = QSortFilterProxyModel(self)
+        self._proxy.setDynamicSortFilter(False)
+        self._proxy.setSourceModel(self._model)
+
+        self._table = QTableView()
+        self._table.setSortingEnabled(True)
+        self._table.setModel(self._proxy)
+        self._table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked)
+        self._table.horizontalHeader().setStretchLastSection(True)
+        self._table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._table.setAlternatingRowColors(True)
+        self._table.verticalHeader().setVisible(False)
+
+        # -- Delegates --
+        self._delegate_a = _TerminalComboDelegate(self._table)
+        self._delegate_b = _TerminalComboDelegate(self._table)
+        self._table.setItemDelegateForColumn(0, self._delegate_a)
+        self._table.setItemDelegateForColumn(1, self._delegate_b)
+
+        self._model.dataChanged.connect(lambda *_: self.changed.emit())
+
+        # -- Buttons --
+        self._add_btn = QPushButton("Add terminal link")
+        self._remove_btn = QPushButton("Remove terminal link")
+        self._add_btn.setProperty("class", "info")
+        self._remove_btn.setProperty("class", "removal")
+        self._add_btn.clicked.connect(self._on_add)
+        self._remove_btn.clicked.connect(self._on_remove)
+
+        btn_lay = QHBoxLayout()
+        btn_lay.setContentsMargins(0, 0, 0, 0)
+        btn_lay.addWidget(self._add_btn)
+        btn_lay.addWidget(self._remove_btn)
+        btn_lay.addStretch()
+
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self._table, 1)
+        lay.addLayout(btn_lay)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        unlock_column_resize(self._table)
+
+    # ── Configuration ───────────────────────────────────────────
+
+    def set_nodes(self, node_a: NodeItem, node_b: NodeItem):
+        self._node_a = node_a
+        self._node_b = node_b
+        terminal_names_a = list(node_a.fmu_terminal_names)
+        terminal_names_b = list(node_b.fmu_terminal_names)
+        self._delegate_a.set_items(terminal_names_a)
+        self._delegate_b.set_items(terminal_names_b)
+
+    # ── Data access ─────────────────────────────────────────────
+
+    def _close_editor(self):
+        self._table.setCurrentIndex(QModelIndex())
+
+    def terminal_mappings(self) -> List[tuple]:
+        """Return list of 4-tuples (fmu_a_name, terminal_a, fmu_b_name, terminal_b)."""
+        if not self._node_a or not self._node_b:
+            return []
+        result = []
+        a_name = self._node_a.fmu_path.name
+        b_name = self._node_b.fmu_path.name
+        for r in range(self._model.rowCount()):
+            item_a = self._model.item(r, 0)
+            item_b = self._model.item(r, 1)
+            if item_a and item_b and item_a.text() and item_b.text():
+                result.append((a_name, item_a.text(), b_name, item_b.text()))
+        return result
+
+    def load_terminal_mappings(self, mappings: List[tuple]):
+        """Populate from 4-tuples (fmu_a, terminal_a, fmu_b, terminal_b)."""
+        self._close_editor()
+        self._model.removeRows(0, self._model.rowCount())
+        if not self._node_a or not self._node_b:
+            return
+        a_name = self._node_a.fmu_path.name
+        b_name = self._node_b.fmu_path.name
+        for m in mappings:
+            if len(m) >= 4 and m[0] == a_name and m[2] == b_name:
+                self._model.appendRow([QStandardItem(m[1]), QStandardItem(m[3])])
+
+    def row_count(self) -> int:
+        return self._model.rowCount()
+
+    def remove_all(self):
+        self._close_editor()
+        self._model.removeRows(0, self._model.rowCount())
+
+    # ── Slots ───────────────────────────────────────────────────
+
+    def _on_add(self):
+        if not self._node_a or not self._node_b:
+            return
+        terminal_names_a = self._node_a.fmu_terminal_names
+        terminal_names_b = self._node_b.fmu_terminal_names
+        default_a = terminal_names_a[0] if terminal_names_a else ""
+        default_b = terminal_names_b[0] if terminal_names_b else ""
+        self._model.appendRow([QStandardItem(default_a),
+                               QStandardItem(default_b)])
+
+        new_row_index = self._model.rowCount() - 1
+        proxy_index = self._proxy.mapFromSource(self._model.index(new_row_index, 0))
+        self._table.setCurrentIndex(proxy_index)
+        self._table.scrollTo(proxy_index, QAbstractItemView.ScrollHint.EnsureVisible)
+
+        self.changed.emit()
+
+    def _on_remove(self):
+        source_rows = sorted(
+            {self._proxy.mapToSource(idx).row()
+             for idx in self._table.selectionModel().selectedRows()},
+            reverse=True,
+        )
+        self._table.setCurrentIndex(QModelIndex())
+        for r in source_rows:
+            self._model.removeRow(r)
+        self.changed.emit()
+
+
 class WireDetailWidget(QWidget):
     """WireItem details with two tabs – one per direction (A → B and B → A).
 
@@ -440,15 +644,18 @@ class WireDetailWidget(QWidget):
         self._name_label.setWordWrap(True)
         self._name_label.setMinimumWidth(0)
 
-        # -- Tabs (one per direction) --
+        # -- Tabs (one per direction + terminals) --
         self._tab_ab = _WireDirectionTab()
         self._tab_ba = _WireDirectionTab()
+        self._tab_terminals = _WireTerminalsTab()
         self._tab_ab.changed.connect(self._on_tab_changed)
         self._tab_ba.changed.connect(self._on_tab_changed)
+        self._tab_terminals.changed.connect(self._on_tab_changed)
 
         self._tabs = QTabWidget()
         self._tabs.addTab(self._tab_ab, "A → B")
         self._tabs.addTab(self._tab_ba, "B → A")
+        self._tabs.addTab(self._tab_terminals, "Terminals")
 
         # -- Buttons --
         self._auto_btn = QPushButton("Auto-Connect")
@@ -502,6 +709,7 @@ class WireDetailWidget(QWidget):
 
         self._tab_ab.set_nodes(na, nb)
         self._tab_ba.set_nodes(nb, na)
+        self._tab_terminals.set_nodes(na, nb)
 
         self._load_from_wire()
 
@@ -511,6 +719,7 @@ class WireDetailWidget(QWidget):
         if self._wire is None:
             return
         self._wire.mappings = self._tab_ab.mappings() + self._tab_ba.mappings()
+        self._wire.terminal_mappings = self._tab_terminals.terminal_mappings()
 
     def _load_from_wire(self):
         if self._wire is None:
@@ -518,6 +727,7 @@ class WireDetailWidget(QWidget):
         all_mappings = list(self._wire.mappings)
         self._tab_ab.load_mappings(all_mappings)
         self._tab_ba.load_mappings(all_mappings)
+        self._tab_terminals.load_terminal_mappings(list(self._wire.terminal_mappings))
 
     # ── Slots ────────────────────────────────────────────────────
 
@@ -535,6 +745,7 @@ class WireDetailWidget(QWidget):
             return
         self._tab_ab.remove_all()
         self._tab_ba.remove_all()
+        self._tab_terminals.remove_all()
         self.sync_to_wire()
         self.changed.emit()
 
