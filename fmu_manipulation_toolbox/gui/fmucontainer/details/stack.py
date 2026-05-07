@@ -1,21 +1,14 @@
 """
-Detail panels for FMU container builder.
+Detail panel stack for FMU container builder.
 
-This module re-exports all detail panel classes for backward compatibility.
-The actual implementations live in separate modules:
-- wire_detail.py: WireDetailWidget and related classes
-- fmu_detail.py: FMUDetailWidget and related classes
-- container_detail.py: ContainerDetailWidget and ContainerParameters
+Manages the switching between different detail panel types.
 """
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget
 
-from fmu_manipulation_toolbox.gui.fmucontainer.wire_detail import WireDetailWidget
-from fmu_manipulation_toolbox.gui.fmucontainer.fmu_detail import FMUDetailWidget
-from fmu_manipulation_toolbox.gui.fmucontainer.container_detail import (
-    ContainerParameters,
-    ContainerDetailWidget,
-)
+from .wire_detail import WireDetailWidget
+from .fmu_detail import FMUDetailWidget
+from .container_detail import ContainerParameters, ContainerDetailWidget
 
 
 class DetailPanelStack(QWidget):

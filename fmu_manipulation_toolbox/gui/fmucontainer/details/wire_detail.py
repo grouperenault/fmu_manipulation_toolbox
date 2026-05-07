@@ -4,6 +4,7 @@ Wire detail panel for FMU container builder.
 Contains classes for displaying and editing wire connection mappings.
 """
 
+import csv
 from typing import *
 
 from PySide6.QtCore import Qt, Signal, QModelIndex, QSortFilterProxyModel
@@ -769,7 +770,7 @@ class WireDetailWidget(QWidget):
         )
         if not path:
             return
-        import csv
+
         all_mappings = list(self._wire.mappings)
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
@@ -786,7 +787,6 @@ class WireDetailWidget(QWidget):
         )
         if not path:
             return
-        import csv
         mappings = []
         with open(path, "r", newline="", encoding="utf-8") as f:
             reader = csv.reader(f)
