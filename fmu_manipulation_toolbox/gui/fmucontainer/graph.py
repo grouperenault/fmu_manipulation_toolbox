@@ -90,6 +90,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_output_names: List[str] = []
         self.fmu_terminal_names: List[str] = []
         self.fmu_port_causality: Dict[str, str] = {}  # Maps port name to causality
+        self.fmu_port_type: Dict[str, str] = {}  # Maps port name to FMI type (e.g. "Real", "Clock", "Binary")
         self.fmu_start_values: Dict[str, str] = {}
         self.user_start_values: Dict[str, str] = {}
         self.user_exposed_outputs: Dict[str, bool] = {}
@@ -151,8 +152,9 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
             self.fmu_input_names.append(name)
         elif causality == "output":
             self.fmu_output_names.append(name)
-        # Store causality for later use
+        # Store causality and type for later use
         self.fmu_port_causality[name] = causality
+        self.fmu_port_type[name] = fmu_port.fmi_type or ""
         start = fmu_port.get("start", None)
         if start is not None:
             self.fmu_start_values[name] = start

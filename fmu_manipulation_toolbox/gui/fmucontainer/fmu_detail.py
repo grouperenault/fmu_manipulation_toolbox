@@ -173,6 +173,11 @@ class FMUDetailWidget(QWidget):
         # ── Populate Start Values tab ─────────────────────────────
         self._sv_model.removeRows(0, self._sv_model.rowCount())
         for port_name in node.fmu_input_names:
+            # Skip clock and binary ports – they don't have meaningful start values
+            port_type = node.fmu_port_type.get(port_name, "").lower()
+            if port_type in ("clock", "binary"):
+                continue
+
             name_item = QStandardItem(port_name)
             name_item.setEditable(False)
             causality = node.fmu_port_causality.get(port_name, "input")
