@@ -3,7 +3,7 @@ import os
 
 from typing import *
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
-                               QPushButton, QMessageBox, QMainWindow)
+                               QPushButton, QMessageBox, QMainWindow, QTableView, QHeaderView)
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage
@@ -14,6 +14,23 @@ from fmu_manipulation_toolbox.gui.style import gui_style, log_color
 from fmu_manipulation_toolbox.operations import FMU
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+
+
+def unlock_column_resize(table: QTableView):
+    """Switch from *Stretch* to *Interactive*, preserving the current widths.
+
+    Call from ``showEvent`` so the columns start stretched (50 / 50) and
+    then become user-resizable.  Runs only once (no-op after the switch).
+    """
+    header = table.horizontalHeader()
+    if header.sectionResizeMode(0) != QHeaderView.ResizeMode.Stretch:
+        return
+    widths = [header.sectionSize(i) for i in range(header.count())]
+    if not any(widths):
+        return
+    header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+    for i, w in enumerate(widths):
+        header.resizeSection(i, w)
 
 
 class Application(QApplication):
