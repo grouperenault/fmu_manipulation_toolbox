@@ -40,7 +40,6 @@ class LauncherButton(QToolButton):
         self.setIcon(QIcon(QPixmap(str(icon_path))))
 
 
-
 class LauncherWindow(QWidget):
     """Main launcher window."""
 
@@ -147,19 +146,19 @@ class LauncherWindow(QWidget):
     # ── Actions ──────────────────────────────────────────────────────────
 
     def _launch_fmutool(self):
-        from fmu_manipulation_toolbox.gui.fmutool import MainWindow
+        from fmu_manipulation_toolbox.gui.fmutool.__main__ import MainWindow
         window = MainWindow()
         window.show()
         self._keep_ref(window)
 
     def _launch_editor(self):
-        from fmu_manipulation_toolbox.gui.fmueditor import MainWindow
+        from fmu_manipulation_toolbox.gui.fmueditor.__main__ import MainWindow
         window = MainWindow()
         window.show()
         self._keep_ref(window)
 
     def _launch_builder(self):
-        from fmu_manipulation_toolbox.gui.fmucontainer import MainWindow
+        from fmu_manipulation_toolbox.gui.fmucontainer.__main__ import MainWindow
         window = MainWindow()
         window.show()
         self._keep_ref(window)
@@ -194,4 +193,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

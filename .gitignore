@@ -121,3 +121,6 @@ tests/split/container-V2.dir
 tests/split/container-V3.dir
 tests/split/container-V4.dir
 tests/split/container-V5.dir
+tests/containers/ssp/bb_position.fmu
+tests/containers/ssp/bb_velocity.fmu
+tests/bouncing.dir

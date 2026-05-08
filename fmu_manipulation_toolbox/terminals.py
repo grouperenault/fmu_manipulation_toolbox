@@ -131,10 +131,10 @@ class Terminals:
 
         return terminal
 
-    def add_member_from_terminal(self, terminal, element):
+    def add_member_from_terminal(self, terminal: Terminal, element):
             for child in element:
                 if child.tag == "TerminalMemberVariable":
                     terminal.add_member(child.get("memberName"), child.get("variableName"))
                 elif child.tag == "Terminal":
                     sub_terminal = self.add_terminal(child)
-                    terminal.subterminals[sub_terminal.name] = sub_terminal
+                    terminal.sub_terminals[sub_terminal.name] = sub_terminal

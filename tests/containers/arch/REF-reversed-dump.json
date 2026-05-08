@@ -42,7 +42,6 @@
   ],
   "fmu": [
     "integrate.fmu",
-    "level1.fmu",
     "sine.fmu"
   ],
   "output": [

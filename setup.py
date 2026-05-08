@@ -47,9 +47,9 @@ setup(
                                       "fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit",
                                       "datalog2pcap = fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap",
                                       ],
-                  "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.fmutool:main",
-                                  "fmucontainer-gui = fmu_manipulation_toolbox.gui.fmucontainer:main",
-                                  "fmueditor = fmu_manipulation_toolbox.gui.fmueditor:main",
+                  "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.fmutool.__main__:main",
+                                  "fmucontainer-gui = fmu_manipulation_toolbox.gui.fmucontainer.__main__:main",
+                                  "fmueditor = fmu_manipulation_toolbox.gui.fmueditor.__main__:main",
                                   "fmutoolbox = fmu_manipulation_toolbox.gui.__main__:main",
                                   ]
                   },

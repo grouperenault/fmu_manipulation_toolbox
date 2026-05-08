@@ -1,10 +1,9 @@
 import logging
 import os
-import traceback
 
 from typing import *
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
-                               QPushButton, QMainWindow)
+                               QPushButton, QMessageBox, QMainWindow)
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage
@@ -238,7 +237,7 @@ class LogWidget(QTextBrowser):
 
         self.setMinimumWidth(width)
         self.setMinimumHeight(height)
-        self.setSearchPaths([os.path.join(os.path.dirname(__file__), "../resources")])
+        self.setSearchPaths([str(Path(__file__).parent.parent / "resources")])
         self.log_handler = LogWidget.LogHandler(self, level)
 
     def loadResource(self, _, name):
@@ -270,9 +269,101 @@ class RunTask(QDialog):
         logger.debug(f"Starting {title}...")
         try:
             task(*args, **kwargs)
-            logger.info(f"{title} finished.")
+            logger.info(f"✅ {title} finished.")
         except Exception as e:
             logger.critical(f"Unexpected error: {e}")
             logger.critical(f"Operation aborted.")
         QApplication.restoreOverrideCursor()
         self.text.stop_logging()
+
+
+class UnsavedChangesWindowMixin:
+    """Mixin to add unsaved changes detection to main windows.
+
+    This mixin intercepts the closeEvent of QMainWindow subclasses and displays
+    a confirmation dialog when unsaved changes are detected. The user can choose
+    to save/discard changes or cancel the close operation.
+
+    IMPORTANT: The mixin MUST be listed FIRST in the inheritance order to properly
+    intercept closeEvent via Python's MRO (Method Resolution Order).
+
+    Attributes (to be set in __init__):
+        _check_unsaved_changes: Callable[[], bool]
+            A callable (function, method, or lambda) that returns True if there
+            are unsaved changes. This is mandatory.
+        _unsaved_changes_message: str (optional)
+            Custom message to display in the confirmation dialog.
+            If not set, uses the default message.
+
+    Example 1 - With method:
+        class MyMainWindow(UnsavedChangesWindowMixin, QMainWindow):
+            def __init__(self):
+                super().__init__()
+                self._dirty = False
+                self._check_unsaved_changes = self._has_unsaved_changes
+                self._unsaved_changes_message = "My custom message"
+
+            def _has_unsaved_changes(self) -> bool:
+                return self._dirty
+
+    Example 2 - With lambda:
+        class MyMainWindow(UnsavedChangesWindowMixin, QMainWindow):
+            def __init__(self):
+                super().__init__()
+                self._dirty = False
+                # Simple check using lambda
+                self._check_unsaved_changes = lambda: self._dirty
+
+    Behavior:
+        - When user clicks X button to close:
+            1. Mixin's closeEvent() is called first (due to MRO).
+            2. Checks if _check_unsaved_changes() returns True.
+            3. If True: displays dialog with Yes/No/Cancel options.
+               - Yes: closes the window normally.
+               - No: cancels the close operation.
+            4. If False: closes the window immediately.
+        - The dialog uses class styling with "removal" (Yes) and "info" (No) classes.
+    """
+
+    def closeEvent(self, event):
+        """Check for unsaved changes and display a confirmation dialog if necessary."""
+        # Check if there is a verification callable and call it
+        check_unsaved = getattr(self, '_check_unsaved_changes', None)
+        if check_unsaved and callable(check_unsaved):
+            if check_unsaved():
+                # Display the confirmation dialog
+                msg = QMessageBox(self)
+                msg.setIcon(QMessageBox.Icon.Warning)
+                msg.setWindowTitle("Unsaved changes")
+
+                # Use a custom message if available, otherwise use the default message
+                custom_message = getattr(self, '_unsaved_changes_message', None)
+                if custom_message:
+                    msg.setText(custom_message)
+                else:
+                    msg.setText("You have unsaved changes. Are you sure you want to quit?")
+
+                msg.setStandardButtons(
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                msg.setDefaultButton(QMessageBox.StandardButton.No)
+
+                # Style the buttons
+                btn_yes = msg.button(QMessageBox.StandardButton.Yes)
+                btn_no = msg.button(QMessageBox.StandardButton.No)
+
+                btn_yes.setProperty("class", "removal")
+                btn_no.setProperty("class", "info")
+
+                btn_width = max(btn_yes.sizeHint().width(), btn_no.sizeHint().width(), 150)
+                btn_yes.setMinimumWidth(btn_width)
+                btn_no.setMinimumWidth(btn_width)
+
+                # If the user clicks "No", cancel the close event
+                if msg.exec() == QMessageBox.StandardButton.No:
+                    event.ignore()
+                    return
+
+        # Accept the close event (default or if the user clicked "Yes")
+        super().closeEvent(event)
+

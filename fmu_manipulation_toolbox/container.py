@@ -160,7 +160,10 @@ class EmbeddedFMUPort:
             if start is None and self.type_name == "binary" and self.initial == "exact":
                 start = ""
         if self.variability is None:
-            self.variability = "continuous" if "real" in self.type_name else "discrete"
+            if self.causality == "parameter":
+                self.variability = "fixed"
+            else:
+                self.variability = "continuous" if "real" in self.type_name else "discrete"
 
         try:
             fmi_type = self.CONTAINER_TO_FMI[fmi_version][self.type_name]
@@ -1227,7 +1230,6 @@ class FMUContainer:
             self.mark_ruled(cport_from, 'LINK')
             self.mark_ruled(cport_to, 'LINK')
 
-
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
         """Set a start value for a port of an embedded FMU.
 
@@ -1359,6 +1361,7 @@ class FMUContainer:
         Returns:
             float: Computed step size in seconds.
         """
+        default_step_size = 0.1
         freq_set = set()
         for fmu in self.involved_fmu.values():
             if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
@@ -1366,18 +1369,23 @@ class FMUContainer:
 
         if not freq_set:
             # all involved FMUs can Handle Variable Communication StepSize
-            step_size_max = 0
-            for fmu in self.involved_fmu.values():
-                if fmu.step_size > step_size_max:
-                    step_size_max = fmu.step_size
-            return step_size_max
-
-        common_freq = math.gcd(*freq_set)
-        try:
-            step_size = 1.0 / float(common_freq)
-        except ZeroDivisionError:
-            step_size = 0.1
-            logger.warning(f"Defaulting to step_size={step_size}")
+            try:
+                step_size_max = 0
+                for fmu in self.involved_fmu.values():
+                    if fmu.step_size > step_size_max:
+                        step_size_max = fmu.step_size
+                return step_size_max
+            except TypeError:
+                # all involved FMUs do not specify step_size
+                logger.warning(f"Defaulting to step_size={default_step_size}")
+                step_size = default_step_size
+        else:
+            common_freq = math.gcd(*freq_set)
+            try:
+                step_size = 1.0 / float(common_freq)
+            except ZeroDivisionError:
+                logger.warning(f"Defaulting to step_size={default_step_size}")
+                step_size = default_step_size
 
         return step_size
 
