@@ -1,121 +1,22 @@
 """
-Tree view and hierarchy management for FMU container builder.
-
-Contains classes for displaying and managing the container hierarchy.
+NodeTreeWidget: tree view and scene synchronization for FMU container builder.
 """
 
 import logging
 
 from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSize
-from PySide6.QtGui import QStandardItemModel, QStandardItem, QIcon
+from PySide6.QtGui import QStandardItem, QIcon
 from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog, QFileDialog,
                                QMenu, QAbstractItemView)
 from pathlib import Path
 from typing import *
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
+from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem
+from .model import _NodeTreeModel, TreeItemRoles
+from .sync import SelectionSynchronizer
 
-
-logger = logging.getLogger("fmu_manipulation_toolbox")
 tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
-
-
-class _NodeTreeModel(QStandardItemModel):
-    """Model that only allows drop on "Container" items."""
-    # Custom data roles stored on column 0 items
-    ROLE_CONTAINER_PARAMETERS = Qt.ItemDataRole.UserRole + 1
-    ROLE_NODE_UID = Qt.ItemDataRole.UserRole + 2
-    ROLE_IS_ROOT = Qt.ItemDataRole.UserRole + 3
-
-    def canDropMimeData(self, data, action, row, column, parent):
-        if not parent.isValid():
-            return False                        # not at invisible root level
-        item = self.itemFromIndex(parent)
-        if item is None or not item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS):
-            return False                        # only on a Container
-        return super().canDropMimeData(data, action, row, column, parent)
-
-
-class TreeItemRoles:
-    """Centralizes tree item roles and provides type-safe accessors.
-
-    This class provides:
-    • Centralized role constants
-    • Type-safe getters for item data
-    • Reduced risk of typos and inconsistencies
-    """
-
-    CONTAINER_PARAMETERS = _NodeTreeModel.ROLE_CONTAINER_PARAMETERS
-    NODE_UID = _NodeTreeModel.ROLE_NODE_UID
-    IS_ROOT = _NodeTreeModel.ROLE_IS_ROOT
-
-    @staticmethod
-    def get_container_params(item: Optional[QStandardItem]) -> Optional[ContainerParameters]:
-        """Get ContainerParameters from item (type-safe)."""
-        if item is None:
-            return None
-        return item.data(TreeItemRoles.CONTAINER_PARAMETERS)
-
-    @staticmethod
-    def get_node_uid(item: Optional[QStandardItem]) -> Optional[str]:
-        """Get NODE_UID from item (type-safe)."""
-        if item is None:
-            return None
-        return item.data(TreeItemRoles.NODE_UID)
-
-    @staticmethod
-    def is_root(item: Optional[QStandardItem]) -> bool:
-        """Check if item is a root node (type-safe)."""
-        if item is None:
-            return False
-        return bool(item.data(TreeItemRoles.IS_ROOT))
-
-    @staticmethod
-    def is_container(item: Optional[QStandardItem]) -> bool:
-        """Check if item is a container (type-safe)."""
-        return TreeItemRoles.get_container_params(item) is not None
-
-    @staticmethod
-    def is_fmu_node(item: Optional[QStandardItem]) -> bool:
-        """Check if item is an FMU node (type-safe)."""
-        return (
-            TreeItemRoles.get_node_uid(item) is not None
-            and TreeItemRoles.get_container_params(item) is None
-        )
-
-
-class SelectionSynchronizer:
-    """Context manager for safe cross-widget selection synchronization.
-
-    Prevents circular updates when synchronizing selection between
-    scene and tree views by temporarily blocking signals.
-
-    Usage:
-    ```
-    with SelectionSynchronizer(tree, scene):
-        tree.setCurrentIndex(index)  # Won't trigger scene selection
-    ```
-    """
-
-    def __init__(self, tree_view: QTreeView, scene):
-        self._tree_view = tree_view
-        self._scene = scene
-        self._tree_signals_blocked = False
-        self._scene_signals_blocked = False
-
-    def __enter__(self):
-        """Block signals at entry."""
-        self._tree_signals_blocked = self._tree_view.selectionModel().blockSignals(True)
-        self._scene_signals_blocked = self._scene.blockSignals(True)
-        tree_logger.debug("Selection synchronizer entered - signals blocked")
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
-        """Restore signals at exit."""
-        self._tree_view.selectionModel().blockSignals(self._tree_signals_blocked)
-        self._scene.blockSignals(self._scene_signals_blocked)
-        tree_logger.debug("Selection synchronizer exited - signals restored")
-        return False
 
 
 class NodeTreeWidget(QWidget):
@@ -138,7 +39,7 @@ class NodeTreeWidget(QWidget):
         super().__init__(parent)
         self._graph = graph_widget
         self._pending_parent: Optional[QStandardItem] = None
-        resources_dir = Path(__file__).resolve().parent.parent.parent / "resources"
+        resources_dir = Path(__file__).resolve().parent.parent.parent.parent / "resources"
         self._icon_container = QIcon(str(resources_dir / "container.png"))
         self._icon_fmu = QIcon(str(resources_dir / "icon_fmu.png"))
 
@@ -219,7 +120,6 @@ class NodeTreeWidget(QWidget):
         item = QStandardItem(name)
         item.setIcon(self._icon_container)
         item.setToolTip("Container")
-        from .details import ContainerParameters
         item.setData(ContainerParameters(name), _NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
         item.setData(is_root, _NodeTreeModel.ROLE_IS_ROOT)
         item.setEditable(True)
@@ -318,7 +218,7 @@ class NodeTreeWidget(QWidget):
         Only sync NodeItems to tree. WireItems are not represented in tree,
         so tree selection is cleared when only a Wire is selected.
         """
-        from .graph import NodeItem
+
         # Suppress scene signals while modifying tree (but allow tree signals to process normally)
         try:
             scene = self._graph.scene
@@ -428,7 +328,7 @@ class NodeTreeWidget(QWidget):
                         node.setSelected(True)
                         return
 
-    # ── Context menu ──────────────────────────────────────────────────
+    # ── Context menu ────────────────────────────��─────────────────────
 
     def _on_context_menu(self, pos):
         index = self._tree.indexAt(pos)
@@ -522,212 +422,4 @@ class NodeTreeWidget(QWidget):
                 node.remove_wires()
                 self._graph.scene.removeItem(node)
                 return
-
-
-class NodeTreePanel(QWidget):
-    """Side panel showing nodes as a hierarchical tree.
-
-    Combines NodeTreeWidget and DetailPanelStack to provide a complete
-    tree-based interface for managing the FMU container structure.
-
-    • Single column with icon (Container / FMU) and name.
-    • First level contains a root container (*Project*).
-    • Right-click -> add node, add container, rename, delete.
-    • Internal drag-and-drop to reorganize hierarchy.
-    • Synchronized with scene: nodes added/removed in graph
-      appear/disappear automatically in the tree.
-    • Detail panels show information about selected items.
-"""
-
-    def __init__(self, graph_widget, parent=None):
-        super().__init__(parent)
-        from .details import DetailPanelStack
-        self._graph = graph_widget
-
-        # ── Create sub-components ───────────────────────────────────
-        self._tree_widget = NodeTreeWidget(graph_widget)
-        self._detail_panel = DetailPanelStack()
-
-        # ── Connect tree widget to detail panel ──────────────────────
-        self._graph.scene.selectionChanged.connect(self._on_scene_selection_changed)
-        self._tree_widget.tree_view.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
-        self._tree_widget.container_changed.connect(self._on_container_changed)
-
-        # ── Layout ──────────────────────────────────────────────────
-        from PySide6.QtWidgets import QSplitter
-        self._splitter = QSplitter(Qt.Orientation.Vertical)
-        self._splitter.addWidget(self._tree_widget)
-        self._splitter.addWidget(self._detail_panel)
-        self._splitter.setChildrenCollapsible(False)
-        self._splitter.setStretchFactor(0, 3)
-        self._splitter.setStretchFactor(1, 2)
-        self._splitter.setSizes([250, 250])
-
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(self._splitter)
-
-    # ── Helpers ────────────────────────────────────────────────────
-
-    @property
-    def model(self) -> '_NodeTreeModel':
-        return self._tree_widget.model
-
-    @property
-    def root(self) -> QStandardItem:
-        return self._tree_widget.root
-
-    @property
-    def tree_view(self) -> QTreeView:
-        return self._tree_widget.tree_view
-
-    @property
-    def wire_detail(self):
-        return self._detail_panel.wire_detail
-
-    @property
-    def fmu_detail(self):
-        return self._detail_panel.fmu_detail
-
-    @property
-    def container_detail(self):
-        return self._detail_panel.container_detail
-
-    @property
-    def pending_parent(self) -> Optional[QStandardItem]:
-        return self._tree_widget.pending_parent
-
-    @pending_parent.setter
-    def pending_parent(self, value: Optional[QStandardItem]):
-        self._tree_widget.pending_parent = value
-
-    def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
-        return self._tree_widget.make_container_item(name, is_root)
-
-    # ── Selection synchronization ──────────────────────────────────
-
-    def _on_scene_selection_changed(self):
-        """Scene -> tree: select in tree when node is selected in graph.
-        Also updates the details panel.
-
-        NOTE: Expected behavior is SINGLE selection only.
-        """
-        from .graph import NodeItem
-        tree_logger.debug("Panel: scene selection changed event received")
-        # Flush any pending edits from detail panels
-        self._detail_panel.sync_edits()
-
-        # Let the tree widget sync its selection
-        self._tree_widget.on_scene_selection_changed()
-
-        # Show appropriate detail panel
-        try:
-            selected = self._graph.scene.selectedItems()
-        except RuntimeError:
-            # C++ scene already deleted
-            tree_logger.warning("Scene already deleted during selection change")
-            self._detail_panel.show_empty()
-            return
-
-        # Validate single selection
-        if len(selected) > 1:
-            tree_logger.warning(f"Multiple scene selections detected ({len(selected)}), expected max 1")
-            # This shouldn't happen as _enforce_single_selection() should correct it
-            return
-
-        if not selected:
-            tree_logger.debug("Scene selection cleared")
-            self._detail_panel.show_empty()
-            return
-
-        # Process the single selected item
-        scene_item = selected[0]
-        if isinstance(scene_item, NodeItem):
-            tree_logger.debug(f"Scene selection: Node '{scene_item.title}'")
-            self._detail_panel.show_fmu(scene_item)
-            return
-
-        from .graph import WireItem
-        if isinstance(scene_item, WireItem):
-            tree_logger.debug(f"Scene selection: Wire (between nodes)")
-            self._detail_panel.show_wire(scene_item)
-            return
-
-        # Unknown selection type
-        tree_logger.debug(f"Unknown selection type: {type(scene_item)}")
-        self._detail_panel.show_empty()
-
-    def _on_tree_selection_changed(self, _selected, _deselected):
-        """Tree -> scene: select in graph when node is selected in tree.
-
-        NOTE: Tree uses SingleSelection mode, so only one item can be selected.
-        """
-        tree_logger.debug("Panel: tree selection changed event received")
-        # Let the tree widget sync its selection
-        self._tree_widget.on_tree_selection_changed(_selected, _deselected)
-
-        # Show appropriate detail panel
-        try:
-            selected_rows = list(self._tree_widget.tree_view.selectionModel().selectedRows(0))
-        except RuntimeError as e:
-            tree_logger.error(f"Error getting tree selection: {e}")
-            self._detail_panel.show_empty()
-            return
-
-        # Validate single selection (should always be ≤1 due to SingleSelection mode)
-        if len(selected_rows) > 1:
-            tree_logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
-            return
-
-        if not selected_rows:
-            tree_logger.debug("Tree selection cleared")
-            self._detail_panel.show_empty()
-            return
-
-        # Process the single selected item
-        index = selected_rows[0]
-
-        item = self._tree_widget.model.itemFromIndex(index)
-        if item is None:
-            tree_logger.error("Tree item is None for selected index")
-            self._detail_panel.show_empty()
-            return
-
-        container_parameters = TreeItemRoles.get_container_params(item)
-        if container_parameters is not None:
-            tree_logger.debug(f"Tree selection: Container '{container_parameters.name}'")
-            self._detail_panel.show_container(container_parameters)
-            return
-
-        # Check if it's a node item
-        uid = TreeItemRoles.get_node_uid(item)
-        if uid:
-            try:
-                scene_nodes = self._graph.scene.nodes()
-            except RuntimeError as e:
-                tree_logger.error(f"Error getting scene nodes: {e}")
-                return
-            for node in scene_nodes:
-                if node.uid == uid:
-                    tree_logger.debug(f"Tree selection: FMU Node '{node.title}'")
-                    self._detail_panel.show_fmu(node)
-                    return
-
-        # No matching item found
-        tree_logger.warning(f"Tree item selected but no matching scene node found (uid={uid})")
-        self._detail_panel.show_empty()
-
-    def _on_container_changed(self, container_parameters):
-        """Called when a container item is edited (e.g. renamed).
-        Refresh the detail panel if this container is currently selected."""
-        tree_logger.debug(f"Container changed event: {container_parameters.name}")
-        try:
-            current = self._tree_widget.tree_view.currentIndex()
-            if current.isValid():
-                item = self._tree_widget.model.itemFromIndex(current)
-                if item and TreeItemRoles.get_container_params(item) is container_parameters:
-                    tree_logger.debug(f"Refreshing detail panel for changed container: {container_parameters.name}")
-                    self._detail_panel.show_container(container_parameters)
-        except RuntimeError as e:
-            tree_logger.error(f"Error refreshing container detail panel: {e}")
 

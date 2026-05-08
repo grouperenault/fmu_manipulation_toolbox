@@ -526,13 +526,17 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
 
         # Step size (read-only)
         if collector.step_size:
-            self._step_size_label.setText(f"{float(collector.step_size):f} s")
+            self._step_size_label.setText(f"{float(collector.step_size):g} s")
         else:
             self._step_size_label.setText("—")
 
         # Variables
         variables = collector.variables
-        self._info_label.setText(f"{len(variables)} variable(s)")
+        if len(variables) > 1:
+            plural = "s"
+        else:
+            plural = ""
+        self._info_label.setText(f"{len(variables)} variable{plural}")
         self._model.set_variables(variables)
         self._table.sortByColumn(FMUVariableModel.COL_NAME, Qt.SortOrder.AscendingOrder)
 
