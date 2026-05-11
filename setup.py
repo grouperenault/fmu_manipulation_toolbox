@@ -24,7 +24,15 @@ except Exception as e:
 setup(
     name="fmu_manipulation_toolbox",
     version=version,
-    packages=["fmu_manipulation_toolbox", "fmu_manipulation_toolbox.cli", "fmu_manipulation_toolbox.gui"],
+    packages=[ "fmu_manipulation_toolbox",
+               "fmu_manipulation_toolbox.cli",
+               "fmu_manipulation_toolbox.gui",
+               "fmu_manipulation_toolbox.gui.fmucontainer",
+               "fmu_manipulation_toolbox.gui.fmucontainer.details",
+               "fmu_manipulation_toolbox.gui.fmucontainer.graph",
+               "fmu_manipulation_toolbox.gui.fmucontainer.tree",
+               "fmu_manipulation_toolbox.gui.fmueditor",
+               "fmu_manipulation_toolbox.gui.fmutool"],
     package_data={"fmu_manipulation_toolbox": [
         "resources/win32/client_sm.dll",
         "resources/win32/server_sm.exe",
@@ -77,12 +85,22 @@ FMI versions 2.0, 3.0 and LS-BUS are supported.
     """,
     long_description_content_type="text/markdown",
     install_requires=[
-        "PySide6 >= 6.10.0",
+        "PySide6 >= 6.8.0",
         "xmlschema >= 3.3.1",
         "elementpath >= 4.4.0",
         "colorama >= 0.4.6",
         "importlib_metadata >= 8.7.0; python_version<'3.10'"
     ],
+    extras_require={
+        "test": [
+            "pytest >= 9.0.3",
+            "pytest-qt >= 4.4.0",
+            "pytest-cov >= 7.0.0",
+            "coverage-badge >= 1.1.2",
+            "fmpy >= 0.3.20",
+            "numpy",
+        ],
+    },
     license="BSD-2-Clause",
     python_requires=">=3.9",
 )
