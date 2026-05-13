@@ -2,6 +2,7 @@ import hashlib
 import numpy as np
 import pytest
 import sys
+import os
 
 from pathlib import Path
 from fmpy.simulation import simulate_fmu
@@ -20,7 +21,15 @@ from fmu_manipulation_toolbox.cli.datalog2pcap import datalog2pcap
 
 # GUI imports (guarded – tests are skipped if display is unavailable)
 try:
+    # Ensure the offscreen plugin is active before any Qt import
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
     from PySide6.QtWidgets import QApplication
+    # Quick sanity check: try to instantiate QApplication to catch platform-plugin
+    # segfaults early.  If QT_QPA_PLATFORM=offscreen is not set and no display is
+    # available, this would crash with a segfault instead of raising an exception.
+    _app = QApplication.instance()
+    if _app is None:
+        _app = QApplication([])
     from fmu_manipulation_toolbox.gui.fmutool.__main__ import MainWindow as FMUToolWindow
     from fmu_manipulation_toolbox.gui.fmueditor.__main__ import MainWindow as FMUEditorWindow
     from fmu_manipulation_toolbox.gui.fmucontainer.__main__ import MainWindow as FMUContainerWindow
