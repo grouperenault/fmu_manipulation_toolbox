@@ -2,11 +2,13 @@
 This package was formerly known as `fmutool`.
 
 # Version 1.9.3.1
+* ADDED: GUI: Ability to replace a FMU in a Container
+RC2:
 * FIXED: GUI: Remove annoying Qt Runtime error message appearing during shutdown
 RC1:
 * ADDED: GUI: Terminals are supported in link definitions
 * ADDED: GUI: Contextual menu of FMUs to launch fmueditor, fmutool or FMPy (if installed)
-* ADDED: GUI: Highlight FMUs nested in selected container
+* ADDED: GUI: Highlight FMUs nested in the selected container
 * ADDED: GUI: Display tooltips for container parameters
 * ADDED: GUI: Easier link creation when FMU contains many variables (parameters displayed in italic)
 * ADDED: GUI: Import process now able to load SSP files

@@ -34,7 +34,7 @@ class NodeTreePanel(QWidget):
         self._splitter.setChildrenCollapsible(False)
         self._splitter.setStretchFactor(0, 3)
         self._splitter.setStretchFactor(1, 2)
-        self._splitter.setSizes([250, 250])
+        self._splitter.setSizes([200, 300])
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.addWidget(self._splitter)
