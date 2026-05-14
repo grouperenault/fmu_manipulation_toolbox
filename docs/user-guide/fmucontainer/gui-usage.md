@@ -194,11 +194,20 @@ Below the tabs, a global button is available:
 | Button | Description |
 |---|---|
 | **Auto-Connect** | Automatically map ports that share the same name — in **both** directions at once |
+| **Remove All** | Remove all link definitions between A and B (both directions) |
+| **Import** | Import link definitions from a CSV file |
+| **Export** | Export link definitions to a CSV file |
 
 !!! tip "Auto-Connect"
     The **Auto-Connect** button matches output and input ports by name in both directions —
     it will create A → B mappings where A has an output matching a B input, and B → A mappings
     where B has an output matching an A input.
+
+!!! info "CSV Format for Import/Export"
+    The CSV file uses 4 columns: `FMU From`, `Port From`, `FMU To`, `Port To`.
+    Each row represents a single port-to-port connection, and both directions (A → B and B → A) 
+    are included in the same file. This makes it easy to edit link definitions in a spreadsheet
+    and re-import them.
 
 ### Container Details
 
@@ -267,6 +276,39 @@ Select individual FMU nodes and override input port start values as needed.
 
 Click **Save as FMU Container** to build the final `.fmu` file, or **Export as JSON** to save
 the assembly description for later use with the `fmucontainer` CLI.
+
+## Auto-Wiring Workflow
+
+If your FMUs share matching port names (e.g. the outputs of one FMU have the same names as the 
+inputs of another), you can let the container build the connections automatically using the 
+**auto_link** feature — without manually creating wires.
+
+### Step 1: Import your FMUs
+
+Drag and drop your `.fmu` files onto the canvas, or use the right-click menu to add them.
+There is **no need** to draw wires manually between the FMUs.
+
+### Step 2: Enable `auto_link`
+
+Select the container in the tree view (the root item or a sub-container). In the **Container Details**
+panel, make sure the `auto_link` checkbox is **checked** (it is enabled by default).
+
+This tells the container to automatically connect ports with matching names when the FMU is built.
+
+### Step 3: Save the FMU Container
+
+Click **Save as FMU Container** to build the `.fmu` file. The auto-linking is performed during the
+build process: matching output and input ports are connected automatically.
+
+### Step 4: Reload to verify
+
+Click **Load FMU Container** and open the `.fmu` file you just created. The tool will split the
+container and reconstruct the graph — this time with all the **automatically created wires** visible 
+on the canvas. You can select any wire to inspect the port mappings in the detail panel.
+
+!!! tip "Combining manual and automatic wiring"
+    Auto-linking and manual wires can coexist. Any explicit wire you create takes priority.
+    The `auto_link` option will only fill in the remaining unconnected matching ports.
 
 ## Loading an Existing Container
 
