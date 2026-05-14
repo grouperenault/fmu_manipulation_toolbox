@@ -57,8 +57,12 @@ class DetailPanelStack(QWidget):
 
     def sync_edits(self):
         """Flush any pending edits from detail panels."""
-        self._wire_detail.sync_to_wire()
-        self._fmu_detail.sync_to_node()
+        try:
+            self._wire_detail.sync_to_wire()
+            self._fmu_detail.sync_to_node()
+        except RuntimeError:
+            # Qt objects may be deleted during application shutdown
+            pass
 
     def show_empty(self):
         """Show empty panel."""

@@ -2,13 +2,17 @@
 This package was formerly known as `fmutool`.
 
 # Version 1.9.3.1
-* ADDED: GUI: contextual menu of FMUs let the user to launch fmueditor, fmutool or FMPy (if installed)
-* ADDED: GUI: Highlight the  FMUs nested in selected container
-* ADDED: GUI: Tooltips for the parameters of containers
-* ADDED: GUI: Add link is easier when FMU contains lot of variables. The parameters are displayed in italic.
-* ADDED: GUI: Import is able to load SSP file
-* FIXED: FMU extraction of a container (when using relative paths)
-* FIXED: GUI: import of Container with multiple levels of nesting (FMU inside FMU) was not working
+* FIXED: GUI: Remove annoying Qt Runtime error message appearing during shutdown
+RC1:
+* ADDED: GUI: Terminals are supported in link definitions
+* ADDED: GUI: Contextual menu of FMUs to launch fmueditor, fmutool or FMPy (if installed)
+* ADDED: GUI: Highlight FMUs nested in selected container
+* ADDED: GUI: Display tooltips for container parameters
+* ADDED: GUI: Easier link creation when FMU contains many variables (parameters displayed in italic)
+* ADDED: GUI: Import process now able to load SSP files
+* ADDED: GUI: Import/Export link definitions as CSV files (4-column format: FMU From, Port From, FMU To, Port To)
+* FIXED: FMU extraction of a container when using relative paths
+* FIXED: GUI: Import of containers with multiple levels of nesting (FMU inside FMU)
 
 # Version 1.9.3
 * ADDED: Graphical User Interfaces for quick FMU variable edition and build FMU Container

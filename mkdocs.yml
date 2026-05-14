@@ -154,11 +154,11 @@ nav:
       - Datalog: user-guide/fmucontainer/datalog.md
       - LS-BUS Support: user-guide/fmucontainer/ls-bus.md
   - API documentation:
-      - API/assembly.md
-      - API/checker.md
-      - API/container.md
-      - API/operations.md
-      - API/remoting.md
+      - Assembly: API/assembly.md
+      - Checker: API/checker.md
+      - Container: API/container.md
+      - Operations: API/operations.md
+      - Remoting: API/remoting.md
   - Examples: examples/examples.md
   - Help:
       - Troubleshooting: help/troubleshooting.md

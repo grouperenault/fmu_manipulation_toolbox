@@ -135,26 +135,43 @@ The detail panel shows the properties of the currently selected element.
 When an FMU node is selected, the detail panel shows:
 
 - **FMU name**, generator tool, and step size
-- **Start Values table**: lists all input ports with their start values
+- Two tabs: **Start Values** and **Output Ports**
 
-Each row in the start values table shows:
+#### Start Values tab
+
+Lists all input and parameter ports with their start values.
 
 | Column | Description |
 |---|---|
-| **Input Port** | Port name (read-only) |
+| **Input Port** | Port name (read-only). Clock and binary ports are excluded. |
 | **Start Value** | User-defined start value (editable). A gray placeholder shows the FMU's default value. |
+
+!!! tip "Start Values"
+    Leave the start value empty to use the FMU's built-in default. Enter a value to override it
+    in the container.
+
+#### Output Ports tab
+
+Lists all output ports with a checkbox to explicitly expose them at the container level.
+
+| Column | Description |
+|---|---|
+| **Output Port** | Port name (read-only) |
+| **Exposed** | Checkbox — when checked, the port is exposed as an output of the container |
+
+!!! tip "When to expose outputs"
+    By default, `auto_output` automatically exposes unconnected output ports.
+    Use this tab to explicitly select which outputs to expose — useful when `auto_output`
+    is disabled or when you need fine-grained control.
 
 !!! note "Port Causality Indicator"
     Ports are displayed with different text styles to indicate their causality type:
     
     - **Parameter ports** are shown in *italics* — these are configuration values or tuning parameters
-    - Other port types (standard inputs) appear in regular text
+    - Other port types (standard inputs/outputs) appear in regular text
     
     This visual distinction helps you quickly identify parameter ports in the interface.
 
-!!! tip "Start Values"
-    Leave the start value empty to use the FMU's built-in default. Enter a value to override it
-    in the container.
 
 ### Wire Details
 
@@ -163,12 +180,13 @@ two connected FMUs.
 
 A header label identifies the two nodes: **A = *first FMU*,  B = *second FMU***.
 
-The mappings are split into **two tabs**, one per direction:
+The mappings are split into **three tabs**:
 
 | Tab | Description |
 |---|---|
 | **A → B** | Output ports of A connected to input ports of B |
 | **B → A** | Output ports of B connected to input ports of A |
+| **Terminals** | Terminal-to-terminal connections (e.g. for [LS-BUS](ls-bus.md) enabled FMUs) |
 
 Each tab contains a 2-column table:
 
@@ -187,6 +205,19 @@ Each tab contains a 2-column table:
 
 Each tab has its own **Add link** / **Remove link** buttons to manage mappings for that direction.
 
+#### Terminals tab
+
+The **Terminals** tab allows connecting FMU terminals (as defined in the FMI LS-BUS standard).
+Each row maps a terminal from FMU A to a terminal from FMU B:
+
+| Column | Description |
+|---|---|
+| **Terminal A** | Terminal name from FMU A (combo-box) |
+| **Terminal B** | Terminal name from FMU B (combo-box) |
+
+This tab is useful when working with [LS-BUS enabled FMUs](ls-bus.md) where communication
+occurs through terminal connections rather than individual variable ports.
+
 The arrowheads on the wire update automatically to reflect the configured directions.
 
 Below the tabs, a global button is available:
@@ -194,11 +225,20 @@ Below the tabs, a global button is available:
 | Button | Description |
 |---|---|
 | **Auto-Connect** | Automatically map ports that share the same name — in **both** directions at once |
+| **Remove All** | Remove all link definitions between A and B (both directions) |
+| **Import** | Import link definitions from a CSV file |
+| **Export** | Export link definitions to a CSV file |
 
 !!! tip "Auto-Connect"
     The **Auto-Connect** button matches output and input ports by name in both directions —
     it will create A → B mappings where A has an output matching a B input, and B → A mappings
     where B has an output matching an A input.
+
+!!! info "CSV Format for Import/Export"
+    The CSV file uses 4 columns: `FMU From`, `Port From`, `FMU To`, `Port To`.
+    Each row represents a single port-to-port connection, and both directions (A → B and B → A) 
+    are included in the same file. This makes it easy to edit link definitions in a spreadsheet
+    and re-import them.
 
 ### Container Details
 
@@ -259,14 +299,48 @@ Select the root container in the tree view to set the time step and other option
 
 Create sub-containers and drag FMUs into them to build nested assemblies.
 
-### Step 5: Set Start Values (Optional)
+### Step 5: Set Start Values and Expose Outputs (Optional)
 
 Select individual FMU nodes and override input port start values as needed.
+Use the **Output Ports** tab to explicitly expose specific output ports at the container level.
 
 ### Step 6: Save
 
 Click **Save as FMU Container** to build the final `.fmu` file, or **Export as JSON** to save
 the assembly description for later use with the `fmucontainer` CLI.
+
+## Auto-Wiring Workflow
+
+If your FMUs share matching port names (e.g. the outputs of one FMU have the same names as the 
+inputs of another), you can let the container build the connections automatically using the 
+**auto_link** feature — without manually creating wires.
+
+### Step 1: Import your FMUs
+
+Drag and drop your `.fmu` files onto the canvas, or use the right-click menu to add them.
+There is **no need** to draw wires manually between the FMUs.
+
+### Step 2: Enable `auto_link`
+
+Select the container in the tree view (the root item or a sub-container). In the **Container Details**
+panel, make sure the `auto_link` checkbox is **checked** (it is enabled by default).
+
+This tells the container to automatically connect ports with matching names when the FMU is built.
+
+### Step 3: Save the FMU Container
+
+Click **Save as FMU Container** to build the `.fmu` file. The auto-linking is performed during the
+build process: matching output and input ports are connected automatically.
+
+### Step 4: Reload to verify
+
+Click **Load FMU Container** and open the `.fmu` file you just created. The tool will split the
+container and reconstruct the graph — this time with all the **automatically created wires** visible 
+on the canvas. You can select any wire to inspect the port mappings in the detail panel.
+
+!!! tip "Combining manual and automatic wiring"
+    Auto-linking and manual wires can coexist. Any explicit wire you create takes priority.
+    The `auto_link` option will only fill in the remaining unconnected matching ports.
 
 ## Loading an Existing Container
 

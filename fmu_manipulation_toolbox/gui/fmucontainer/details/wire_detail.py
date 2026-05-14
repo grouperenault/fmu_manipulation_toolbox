@@ -730,8 +730,12 @@ class WireDetailWidget(QWidget):
     def sync_to_wire(self):
         if self._wire is None:
             return
-        self._wire.mappings = self._tab_ab.mappings() + self._tab_ba.mappings()
-        self._wire.terminal_mappings = self._tab_terminals.terminal_mappings()
+        try:
+            self._wire.mappings = self._tab_ab.mappings() + self._tab_ba.mappings()
+            self._wire.terminal_mappings = self._tab_terminals.terminal_mappings()
+        except RuntimeError:
+            # Qt objects may be deleted during application shutdown
+            pass
 
     def _load_from_wire(self):
         if self._wire is None:

@@ -77,7 +77,10 @@ class NodeTreePanel(QWidget):
     def _on_scene_selection_changed(self):
         """Scene -> tree: select in tree when node is selected in graph."""
         tree_logger.debug("Panel: scene selection changed event received")
-        self._detail_panel.sync_edits()
+        try:
+            self._detail_panel.sync_edits()
+        except RuntimeError:
+            tree_logger.debug("Detail panel sync failed during shutdown")
         self._tree_widget.on_scene_selection_changed()
         try:
             selected = self._graph.scene.selectedItems()

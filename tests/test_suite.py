@@ -2,6 +2,7 @@ import hashlib
 import numpy as np
 import pytest
 import sys
+import os
 
 from pathlib import Path
 from fmpy.simulation import simulate_fmu
@@ -17,6 +18,24 @@ from fmu_manipulation_toolbox.cli.fmusplit import fmusplit
 from fmu_manipulation_toolbox.cli.fmucontainer import fmucontainer
 from fmu_manipulation_toolbox.cli.fmutool import fmutool
 from fmu_manipulation_toolbox.cli.datalog2pcap import datalog2pcap
+
+# GUI imports (guarded – tests are skipped if display is unavailable)
+try:
+    # Ensure the offscreen plugin is active before any Qt import
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    from PySide6.QtWidgets import QApplication
+    # Quick sanity check: try to instantiate QApplication to catch platform-plugin
+    # segfaults early.  If QT_QPA_PLATFORM=offscreen is not set and no display is
+    # available, this would crash with a segfault instead of raising an exception.
+    _app = QApplication.instance()
+    if _app is None:
+        _app = QApplication([])
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import MainWindow as FMUToolWindow
+    from fmu_manipulation_toolbox.gui.fmueditor.__main__ import MainWindow as FMUEditorWindow
+    from fmu_manipulation_toolbox.gui.fmucontainer.__main__ import MainWindow as FMUContainerWindow
+    HAS_GUI = True
+except Exception:
+    HAS_GUI = False
 
 
 class TestSuite:
@@ -376,3 +395,85 @@ class TestSuite:
         self.assert_identical_files_but_guid("array/REF-container-modelDescription.xml", "array/array/modelDescription.xml")
         if os.name == 'nt':
             self.assert_simulation("array/array.fmu", 0.1)
+
+
+@pytest.mark.skipif(not HAS_GUI, reason="GUI dependencies not available")
+class TestGUI:
+    """Tests for the 3 GUI interfaces (FMU Tool, FMU Editor, FMU Container Builder).
+
+    These tests verify that the windows can be instantiated and that basic
+    programmatic interactions work correctly.  They require pytest-qt.
+    """
+
+    # ── FMU Tool GUI ──────────────────────────────────────────────────────
+
+    def test_fmutool_window_opens(self, qtbot):
+        """FMU Tool window can be created and shown."""
+        window = FMUToolWindow()
+        qtbot.addWidget(window)
+        assert window.isVisible()
+        assert window.windowTitle() == "FMU Manipulation Toolbox"
+
+    def test_fmutool_load_fmu(self, qtbot):
+        """FMU Tool can load an FMU programmatically and display summary."""
+        window = FMUToolWindow()
+        qtbot.addWidget(window)
+        window.load("operations/bouncing_ball.fmu")
+        # After loading, the title label should contain the filename
+        assert "bouncing_ball.fmu" in window.fmu_title.text()
+
+    def test_fmutool_operations_buttons_exist(self, qtbot):
+        """FMU Tool has the expected operation buttons."""
+        window = FMUToolWindow()
+        qtbot.addWidget(window)
+        assert len(window.operations_button_list) == 15
+
+    # ── FMU Editor GUI ────────────────────────────────────────────────────
+
+    def test_fmueditor_window_opens(self, qtbot):
+        """FMU Editor window can be created and shown."""
+        window = FMUEditorWindow()
+        qtbot.addWidget(window)
+        assert window.isVisible()
+        assert window.windowTitle() == "FMU Variable Editor"
+
+    def test_fmueditor_load_fmu(self, qtbot):
+        """FMU Editor can load an FMU and populate the variable table."""
+        window = FMUEditorWindow()
+        qtbot.addWidget(window)
+        window.load("operations/bouncing_ball.fmu")
+        # The model should contain variables after loading
+        assert window._model.rowCount() > 0
+
+    def test_fmueditor_no_unsaved_changes_initially(self, qtbot):
+        """FMU Editor reports no unsaved changes right after loading."""
+        window = FMUEditorWindow()
+        qtbot.addWidget(window)
+        window.load("operations/bouncing_ball.fmu")
+        assert not window._has_unsaved_changes()
+
+    # ── FMU Container Builder GUI ─────────────────────────────────────────
+
+    def test_fmucontainer_window_opens(self, qtbot):
+        """FMU Container Builder window can be created and shown."""
+        window = FMUContainerWindow()
+        qtbot.addWidget(window)
+        assert window.isVisible()
+        assert window.windowTitle() == "FMU Container Builder"
+
+    def test_fmucontainer_initially_clean(self, qtbot):
+        """FMU Container Builder starts with no unsaved changes."""
+        window = FMUContainerWindow()
+        qtbot.addWidget(window)
+        assert not window._dirty
+
+    def test_fmucontainer_buttons_exist(self, qtbot):
+        """FMU Container Builder has the expected buttons."""
+        window = FMUContainerWindow()
+        qtbot.addWidget(window)
+        assert window._load_button is not None
+        assert window._import_button is not None
+        assert window._export_button is not None
+        assert window._save_button is not None
+        assert window._exit_button is not None
+
