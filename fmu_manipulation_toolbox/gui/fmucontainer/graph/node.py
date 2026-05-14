@@ -194,6 +194,58 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     # -- Helpers ---------------------------------------------------------------
 
+    def replace_fmu(self, new_fmu_path: Path):
+        """Replace the underlying FMU file while keeping wires, start values and exposed outputs."""
+        old_name = self.fmu_path.name
+        new_name = new_fmu_path.name
+
+        self.fmu_path = new_fmu_path
+        self._title = new_name
+
+        # Re-read ports from the new FMU
+        self.fmu_input_names.clear()
+        self.fmu_output_names.clear()
+        self.fmu_terminal_names.clear()
+        self.fmu_port_causality.clear()
+        self.fmu_port_type.clear()
+        self.fmu_start_values.clear()
+        self.fmu_step_size = None
+        self.fmu_generator = ""
+
+        fmu = FMU(new_fmu_path)
+        fmu.apply_operation(self)
+        del fmu
+
+
+        # Update FMU name in wire mappings
+        if old_name != new_name:
+            for wire in self.wires:
+                wire.mappings = [
+                    (new_name if m[0] == old_name else m[0], m[1],
+                     new_name if m[2] == old_name else m[2], m[3])
+                    for m in wire.mappings
+                ]
+                wire.terminal_mappings = [
+                    (new_name if t[0] == old_name else t[0], t[1],
+                     new_name if t[2] == old_name else t[2], t[3])
+                    for t in wire.terminal_mappings
+                ]
+
+        # Update visual: title text and node width
+        self._title_item.setPlainText(self._title)
+        fm_title = QFontMetrics(FONT_TITLE)
+        width = max(NODE_MIN_WIDTH, fm_title.horizontalAdvance(self._title) + 20)
+        height = self.rect().height()
+        self.setRect(0, 0, width, height)
+        tbr = self._title_item.boundingRect()
+        self._title_item.setPos((width - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
+
+        # Refresh wires paths (node size may have changed)
+        for wire in self.wires:
+            wire.update_path()
+
+        self.update()
+
     def remove_wires(self):
         """Remove all wires connected to this node."""
         for wire in list(self.wires):

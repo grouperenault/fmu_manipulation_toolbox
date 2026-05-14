@@ -24,6 +24,7 @@ class NodeGraphScene(QGraphicsScene):
 
     node_added = Signal(object)
     node_removed = Signal(object)
+    node_replaced = Signal(object)
     wire_added = Signal(object)
     wire_removed = Signal(object)
 

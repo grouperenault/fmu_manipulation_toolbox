@@ -282,7 +282,6 @@ class AssemblyIOMixin:
 
         logger.debug(f"Links applied: {len(links_list)}")
         logger.debug(f"Assembly node: {assembly_node.name}")
-        logger.debug(f"{assembly_node.fmu_names_list}")
 
         # An FMU "belongs" to this node if it is either a direct FMU or a child container
         known_names = set(assembly_node.fmu_names_list) | set(assembly_node.children.keys())

@@ -146,6 +146,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._graph.scene.node_removed.connect(lambda _: self._mark_dirty())
         self._graph.scene.wire_added.connect(lambda _: self._mark_dirty())
         self._graph.scene.wire_removed.connect(lambda _: self._mark_dirty())
+        self._graph.scene.node_replaced.connect(self._on_node_replaced)
 
         # Detail panels edits
         self._tree.wire_detail.changed.connect(self._mark_dirty)
@@ -162,6 +163,12 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
     def _mark_dirty(self):
         self._dirty = True
+
+    def _on_node_replaced(self, node):
+        """Refresh the detail panel after an in-place FMU replacement."""
+        self._tree.fmu_detail._current_node = None
+        self._tree.fmu_detail.set_node(node)
+        self._mark_dirty()
 
     @staticmethod
     def _setup_tree_logger():
