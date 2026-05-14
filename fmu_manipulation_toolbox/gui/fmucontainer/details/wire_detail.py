@@ -401,8 +401,8 @@ class _WireDirectionTab(QWidget):
             return
         if not self._from_node.fmu_output_names or not self._to_node.fmu_input_names:
             return
-        out_item = QStandardItem(self._from_node.fmu_output_names[0])
-        in_item = QStandardItem(self._to_node.fmu_input_names[0])
+        out_item = QStandardItem("")
+        in_item = QStandardItem("")
         out_causality = self._from_node.fmu_port_causality.get(self._from_node.fmu_output_names[0], "output")
         in_causality = self._to_node.fmu_port_causality.get(self._to_node.fmu_input_names[0], "input")
         out_item.setData(out_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
@@ -413,6 +413,7 @@ class _WireDirectionTab(QWidget):
         proxy_index = self._proxy.mapFromSource(self._model.index(new_row_index, 0))
         self._table.setCurrentIndex(proxy_index)
         self._table.scrollTo(proxy_index, QAbstractItemView.ScrollHint.EnsureVisible)
+        self._table.edit(proxy_index)
 
         self.changed.emit()
 
@@ -619,17 +620,15 @@ class _WireTerminalsTab(QWidget):
     def _on_add(self):
         if not self._node_a or not self._node_b:
             return
-        terminal_names_a = self._node_a.fmu_terminal_names
-        terminal_names_b = self._node_b.fmu_terminal_names
-        default_a = terminal_names_a[0] if terminal_names_a else ""
-        default_b = terminal_names_b[0] if terminal_names_b else ""
-        self._model.appendRow([QStandardItem(default_a),
-                               QStandardItem(default_b)])
+
+        self._model.appendRow([QStandardItem(""),
+                               QStandardItem("")])
 
         new_row_index = self._model.rowCount() - 1
         proxy_index = self._proxy.mapFromSource(self._model.index(new_row_index, 0))
         self._table.setCurrentIndex(proxy_index)
         self._table.scrollTo(proxy_index, QAbstractItemView.ScrollHint.EnsureVisible)
+        self._table.edit(proxy_index)
 
         self.changed.emit()
 
