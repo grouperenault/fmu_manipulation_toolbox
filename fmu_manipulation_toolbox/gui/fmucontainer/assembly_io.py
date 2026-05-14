@@ -143,9 +143,9 @@ class AssemblyIOMixin:
         # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
         wire_key_mappings: Dict[Tuple[str, str], List[Tuple[str, str, str, str]]] = {}
         for link in links_list:
-            fmu_from = fmu_directory / link[0]
+            fmu_from = (fmu_directory / link[0]).resolve()
             port_from = link[1]
-            fmu_to = fmu_directory / link[2]
+            fmu_to = (fmu_directory / link[2]).resolve()
             port_to = link[3]
 
             # Canonical key: sorted pair so A→B and B→A end up on the same wire
@@ -180,7 +180,8 @@ class AssemblyIOMixin:
 
         # Apply start values to scene nodes
         for fmu_name, port_name, value in start_values_list:
-            node = nodes_by_name.get(fmu_name)
+            resolved_key = str((fmu_directory / fmu_name).resolve())
+            node = nodes_by_name.get(resolved_key)
             if node:
                 node.user_start_values[port_name] = value
                 logger.debug(f"Start value: {Path(fmu_name).name}/{port_name} = {value}")
@@ -189,7 +190,8 @@ class AssemblyIOMixin:
 
         # Apply exposed output ports to scene nodes
         for fmu_name, port_name, _exposed_name in output_ports_list:
-            node = nodes_by_name.get(fmu_name)
+            resolved_key = str((fmu_directory / fmu_name).resolve())
+            node = nodes_by_name.get(resolved_key)
             if node:
                 node.user_exposed_outputs[port_name] = True
                 logger.debug(f"Exposed output: {Path(fmu_name).name}/{port_name}")
