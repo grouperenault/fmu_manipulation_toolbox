@@ -1240,7 +1240,7 @@ class FMUContainer:
                 cport_from = ContainerPort(fmu_from, from_port_name)
                 cport_to = ContainerPort(fmu_to, to_port_name)
             except FMUContainerError as e:
-                logger.error(f"Cannot link {from_port_name} -> {fmu_to}: {e}")
+                logger.error(f"Cannot link {from_port_name} -> {to_port_name}: {e}")
                 return
 
             if cport_to.port.causality == "output" and cport_from.port.causality == "input":
