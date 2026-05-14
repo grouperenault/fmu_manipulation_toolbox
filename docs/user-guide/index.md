@@ -40,8 +40,8 @@ FMU Manipulation Toolbox offers five main capabilities:
 
     Combine multiple FMUs into a single container with automatic or explicit routing, multi-threading, and profiling.
 
-    [:octicons-arrow-right-24: CLI Reference](fmutool/cli-usage.md) · 
-    [:octicons-arrow-right-24: Python API](fmutool/python-api.md) · 
+    [:octicons-arrow-right-24: CLI Reference](fmucontainer/container.md) · 
+    [:octicons-arrow-right-24: Python API](fmucontainer/container.md#python-api) · 
     [:octicons-arrow-right-24: GUI](fmucontainer/gui-usage.md)
 
 -   :material-chip:{ .lg .middle } __Remoting__
@@ -50,8 +50,8 @@ FMU Manipulation Toolbox offers five main capabilities:
 
     Add cross-bitness interfaces (32 ↔ 64-bit) or run an FMU in a separate process via a frontend wrapper.
 
-    [:octicons-arrow-right-24: CLI Reference](fmutool/cli-usage.md) · 
-    [:octicons-arrow-right-24: Python API](fmutool/python-api.md) · 
+    [:octicons-arrow-right-24: Remoting Guide](fmutool/remoting.md) · 
+    [:octicons-arrow-right-24: CLI Reference](fmutool/cli-usage.md#add-binary-interface-windows) · 
     [:octicons-arrow-right-24: GUI](fmutool/gui-usage.md)
 
 -   :material-check-decagram:{ .lg .middle } __Checker__

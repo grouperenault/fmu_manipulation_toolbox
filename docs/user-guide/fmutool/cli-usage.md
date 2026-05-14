@@ -4,13 +4,14 @@ The command line offers complete and precise control over FMU Manipulation Toolb
 
 ## Available Commands
 
-FMU Manipulation Toolbox provides three main commands:
+FMU Manipulation Toolbox provides four main commands:
 
-| Command        | Usage                         |
-|----------------|-------------------------------|
-| `fmutool`      | FMU analysis and manipulation |
-| `fmucontainer` | FMU container creation        |
-| `fmusplit`     | Extract FMUs from a container |
+| Command        | Usage                                        |
+|----------------|----------------------------------------------|
+| `fmutool`      | FMU analysis and manipulation                |
+| `fmucontainer` | FMU container creation                       |
+| `fmusplit`     | Extract FMUs from a container                |
+| `datalog2pcap` | Convert CAN datalog CSV to PCAP (experimental) |
 
 ## fmutool: Main Command
 
@@ -239,6 +240,16 @@ fmutool -input module.fmu -only-outputs -dump-csv outputs.csv
 fmutool -input module.fmu -only-outputs -keep-only-regexp "^Result\." -output module.fmu
 ```
 
+### Operations on Local Variables Only
+
+```bash
+# List local variables
+fmutool -input module.fmu -only-locals -dump-csv locals.csv
+
+# Remove all local variables
+fmutool -input module.fmu -only-locals -remove-all -output module-no-locals.fmu
+```
+
 ## Binary Operations
 
 ### Remove Sources
@@ -248,6 +259,14 @@ fmutool -input module.fmu -remove-sources -output module-no-src.fmu
 ```
 
 **Effect:** The `sources/` folder is removed from the FMU.
+
+### Extract Model Descriptor
+
+```bash
+fmutool -input module.fmu -extract-descriptor modelDescription.xml
+```
+
+**Effect:** Saves the `modelDescription.xml` file to the specified path. This can be combined with other operations.
 
 ### Add Binary Interface (Windows)
 
@@ -286,45 +305,75 @@ fmutool -input module.fmu \
 
 ## fmucontainer: Create Containers
 
+For full documentation of the `fmucontainer` command (options, CSV/JSON/SSP formats, Python API),
+see the dedicated [FMU Container](../fmucontainer/container.md) page.
+
+### Quick Reference
+
+```bash
+# Build container from CSV with 0.1s step size
+fmucontainer -container container.csv:0.1
+
+# Build from JSON with FMUs in a specific directory
+fmucontainer -container assembly.json -fmu-directory ./my_fmus
+
+# FMI 3.0 with multi-threading and profiling
+fmucontainer -container assembly.json -fmi 3 -mt -profile
+```
+
+## fmusplit: Extract FMUs from a Container
+
+The `fmusplit` command extracts the embedded FMUs and the assembly description from a container FMU.
+
 ### Basic Syntax
 
 ```bash
-fmucontainer -container config.csv -fmu-directory ./fmus
+fmusplit -fmu container.fmu
 ```
 
-### Main Options
+This creates a directory `container.dir/` containing:
+
+- All embedded `.fmu` files
+- The JSON assembly description (`container.json`)
+
+### Options
+
+| Option | Description |
+|---|---|
+| `-fmu filename.fmu` | FMU container to split. Can be specified multiple times. |
+| `-debug` | Enable verbose logging during the split process. |
+
+### Example
 
 ```bash
--container filename.csv          # Configuration file
--fmu-directory path/to/fmus      # Directory containing FMUs
--fmi {2|3}                       # FMI version (default: 2)
--output container.fmu            # Container name (optional)
+# Split a single container
+fmusplit -fmu my_container.fmu
+
+# Split multiple containers
+fmusplit -fmu container1.fmu -fmu container2.fmu
 ```
 
-### Configuration CSV Format
+## datalog2pcap: Convert Datalog to PCAP
 
-```csv
-fmu;input;output
-motor.fmu;controller.command;sensor.speed
-controller.fmu;sensor.speed;motor.command
-sensor.fmu;motor.torque;controller.feedback
-```
+!!! warning "Experimental"
+    This tool is still experimental. The interface may change in future versions.
 
-### Advanced Options
+The `datalog2pcap` command converts CAN bus datalog CSV files (produced by FMU containers with
+the `-datalog` option and LS-BUS enabled FMUs) into PCAP files for analysis in tools like
+Wireshark.
+
+### Basic Syntax
 
 ```bash
-# Enable multi-threading
-fmucontainer -container system.csv -fmu-directory ./fmus -mt
-
-# Enable profiling
-fmucontainer -container system.csv -fmu-directory ./fmus -profile
-
-# Expose parameters
-fmucontainer -container system.csv -fmu-directory ./fmus -auto-parameter
-
-# Debug mode
-fmucontainer -container system.csv -fmu-directory ./fmus -debug
+datalog2pcap -can datalog.csv
 ```
+
+### Options
+
+| Option | Description |
+|---|---|
+| `-can filename.csv` | Datalog CSV file with CAN data and clocks. |
+| `-debug` | Enable verbose logging. |
 
 ## Automation and Scripts
 
@@ -379,13 +428,19 @@ fmutool -input X.fmu -remove-regexp "PATTERN" -output Y.fmu
 fmutool -input X.fmu -only-parameters -dump-csv params.csv
 fmutool -input X.fmu -only-inputs -dump-csv inputs.csv
 fmutool -input X.fmu -only-outputs -dump-csv outputs.csv
+fmutool -input X.fmu -only-locals -dump-csv locals.csv
 
-# Binaries (Windows)
+# Extraction / Binaries (Windows)
+fmutool -input X.fmu -extract-descriptor modelDescription.xml
 fmutool -input X.fmu -add-remoting-win64 -output Y.fmu
 fmutool -input X.fmu -remove-sources -output Y.fmu
 
 # Containers
-fmucontainer -container config.csv -fmu-directory ./fmus
+fmucontainer -container config.json -fmu-directory ./fmus
+fmusplit -fmu container.fmu
+
+# Datalog conversion (experimental)
+datalog2pcap -can datalog.csv
 ```
 
 ## Next Steps
