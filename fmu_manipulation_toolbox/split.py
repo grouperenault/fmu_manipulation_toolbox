@@ -111,6 +111,37 @@ class FMUSplitter:
         logger.info(f"FMU Extraction of '{filename}'")
 
 class FMUSplitterDescription:
+    # Reverse mapping from conversion function name to (source_type, target_type)
+    REVERSE_CONVERSION = {
+        "F32_F64": ("real32", "real64"),
+        "D8_D16": ("integer8", "integer16"),
+        "D8_U16": ("integer8", "uinteger16"),
+        "D8_D32": ("integer8", "integer32"),
+        "D8_U32": ("integer8", "uinteger32"),
+        "D8_D64": ("integer8", "integer64"),
+        "D8_U64": ("integer8", "uinteger64"),
+        "U8_D16": ("uinteger8", "integer16"),
+        "U8_U16": ("uinteger8", "uinteger16"),
+        "U8_D32": ("uinteger8", "integer32"),
+        "U8_U32": ("uinteger8", "uinteger32"),
+        "U8_D64": ("uinteger8", "integer64"),
+        "U8_U64": ("uinteger8", "uinteger64"),
+        "D16_D32": ("integer16", "integer32"),
+        "D16_U32": ("integer16", "uinteger32"),
+        "D16_D64": ("integer16", "integer64"),
+        "D16_U64": ("integer16", "uinteger64"),
+        "U16_D32": ("uinteger16", "integer32"),
+        "U16_U32": ("uinteger16", "uinteger32"),
+        "U16_D64": ("uinteger16", "integer64"),
+        "U16_U64": ("uinteger16", "uinteger64"),
+        "D32_D64": ("integer32", "integer64"),
+        "D32_U64": ("integer32", "uinteger64"),
+        "U32_D64": ("uinteger32", "integer64"),
+        "U32_U64": ("uinteger32", "uinteger64"),
+        "B_B1": ("boolean", "boolean1"),
+        "B1_B": ("boolean1", "boolean"),
+    }
+
     def __init__(self, handle):
         self.zip = handle
         self.links: Dict[str, Dict[int, FMUSplitterLink]] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
@@ -124,6 +155,7 @@ class FMUSplitterDescription:
         }
         self.file_format = 1
         self.fmu_filename_list = []
+        self.pending_conversions: List[tuple] = []  # (vr_from, vr_to, conversion_name)
 
         # used for modelDescription.xml parsing
         self.current_fmu_filename: Optional[str] = None
@@ -275,7 +307,15 @@ class FMUSplitterDescription:
             fmu_filename = self.config["candidate_fmu"][fmu_id]
             causality = self.vr_to_name[fmu_filename][fmi_type][fmu_vr]["causality"]
             fmu_port_name = self.vr_to_name[fmu_filename][fmi_type][fmu_vr]["name"]
-            container_port = self.vr_to_name["."][fmi_type][container_vr]["name"]
+            try:
+                container_port = self.vr_to_name["."][fmi_type][container_vr]["name"]
+            except KeyError:
+                # This container VR is not in the container's modelDescription.xml
+                # (e.g. FMI3-only types in an FMI2 container). It's an internal link
+                # variable, not an exposed container port — skip it.
+                logger.debug(f"Skipping container I/O entry: VR {container_vr} not found "
+                             f"in container's modelDescription.xml for type {fmi_type}")
+                return
             if not causality == "output":
                 causality = "input"
                 definition = [container_port, fmu_filename, fmu_port_name]
@@ -440,9 +480,32 @@ class FMUSplitterDescription:
                 if self.file_format > 1:
                     nb_conversion = int(self.get_line(file))
                     for i in range(nb_conversion):
-                        self.get_line(file)
+                        tokens = self.get_line(file).split(" ")
+                        vr_from = tokens[0]
+                        vr_to = tokens[1]
+                        conversion_name = tokens[2]
+                        self.pending_conversions.append((vr_from, vr_to, conversion_name))
 
             logger.debug("End of parsing.")
+
+        # Apply pending conversions now that all FMU inputs/outputs have been parsed
+        for vr_from, vr_to, conversion_name in self.pending_conversions:
+            if conversion_name in self.REVERSE_CONVERSION:
+                source_type, target_type = self.REVERSE_CONVERSION[conversion_name]
+                # The output was stored in links[source_type][vr_from]
+                # The input was stored in links[target_type][vr_to]
+                # Merge: move to_port entries from vr_to link into vr_from link
+                if vr_to in self.links[target_type]:
+                    target_link = self.links[target_type][vr_to]
+                    try:
+                        source_link = self.links[source_type][vr_from]
+                    except KeyError:
+                        source_link = FMUSplitterLink()
+                        self.links[source_type][vr_from] = source_link
+                    source_link.to_port.extend(target_link.to_port)
+                    del self.links[target_type][vr_to]
+            else:
+                logger.warning(f"Unknown conversion function: {conversion_name}")
 
         for fmi_type, links in self.links.items():
             for link in links.values():
