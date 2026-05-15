@@ -3,6 +3,8 @@ This package was formerly known as `fmutool`.
 
 # Version 1.9.3.1
 * ADDED: GUI: Ability to replace a FMU in a Container
+* FIXED: fmuplit is able to parse conversion table
+* ADDED: FMI-3: support next event time
 RC2:
 * FIXED: GUI: Remove annoying Qt Runtime error message appearing during shutdown
 RC1:
