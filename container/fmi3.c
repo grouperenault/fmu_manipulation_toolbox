@@ -316,7 +316,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                          \
                                                                                                     \
             if (fmu_id < 0) {                                                                       \
-                for(size_t k = 0; j < port->dimension; k += 1)                                      \
+                for(size_t k = 0; k < port->dimension; k += 1)                                      \
                     container-> type [fmu_vr + k] = value[value_index + k];                         \
             } else {                                                                                \
                 const fmu_t *fmu = &container->fmu[fmu_id];                                         \
