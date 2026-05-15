@@ -450,17 +450,20 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
         const container_port_t *port = &container->port_clocks[vr];
-        const int fmu_id = port->links[0].fmu_id;
 
-        if (fmu_id < 0) {
-            container->clocks[vr] = values[i];
-        } else {
-            const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
-            const fmu_t *fmu = &container->fmu[fmu_id];
+        for (int j = 0; j < port->nb; j += 1) {
+            const int fmu_id = port->links[j].fmu_id;
 
-            status = fmuSetClock(fmu, &fmu_vr, 1, &values[i]);
-            if (status != FMU_STATUS_OK)
-                return fmi3Error;
+            if (fmu_id < 0) {
+                container->clocks[vr] = values[i];
+            } else {
+                const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
+                const fmu_t *fmu = &container->fmu[fmu_id];
+
+                status = fmuSetClock(fmu, &fmu_vr, 1, &values[i]);
+                if (status != FMU_STATUS_OK)
+                    return fmi3Error;
+            }
         }
     }
 
