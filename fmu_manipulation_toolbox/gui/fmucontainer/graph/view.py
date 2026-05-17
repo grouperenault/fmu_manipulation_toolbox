@@ -14,6 +14,7 @@ from .constants import (
     NODE_TITLE_HEIGHT, NODE_PORT_SPACING, GRID_SIZE, GRID_SQUARES,
 )
 from .node import NodeItem
+from .node_info_dialog import NodeInfoDialog
 from .scene import NodeGraphScene
 
 # Try to import FMPy GUI
@@ -188,12 +189,14 @@ class NodeGraphView(QGraphicsView):
         simulate_action = None
         fmueditor_action = None
         fmutool_action = None
+        info_action = None
 
         selected_items = self._scene.selectedItems()
         if selected_items:
             delete_action = menu.addAction("Delete Selection")
             if len(selected_items) == 1 and isinstance(selected_items[0], NodeItem):
                 menu.addSeparator()
+                info_action = menu.addAction("Info")
                 fmueditor_action = menu.addAction("Open in FMU Editor")
                 fmutool_action = menu.addAction("Open in FMU Tool")
                 if FMPY_AVAILABLE:
@@ -212,6 +215,8 @@ class NodeGraphView(QGraphicsView):
                 scene_pos += QPointF(20, 20)
         elif chosen == delete_action:
             self._scene.remove_selected()
+        elif chosen == info_action:
+            self._show_node_info(selected_items[0])
         elif chosen == simulate_action:
             self._launch_fmpy_simulation(selected_items[0])
         elif chosen == fmueditor_action:
@@ -226,6 +231,18 @@ class NodeGraphView(QGraphicsView):
         if not rect.isNull():
             rect.adjust(-40, -40, 40, 40)
             self.fitInView(rect, Qt.AspectRatioMode.KeepAspectRatio)
+
+    def _show_node_info(self, node: NodeItem):
+        """Show the info dialog for *node* and replace the FMU in-place if changed."""
+        dialog = NodeInfoDialog(node, self)
+        if dialog.exec() != NodeInfoDialog.DialogCode.Accepted:
+            return
+        new_path = Path(dialog.selected_path)
+        if new_path.resolve() == node.fmu_path.resolve():
+            return  # nothing changed
+
+        node.replace_fmu(new_path)
+        self._scene.node_replaced.emit(node)
 
     def _launch_fmpy_simulation(self, node: NodeItem):
         """Launch FMPy GUI with the selected FMU."""

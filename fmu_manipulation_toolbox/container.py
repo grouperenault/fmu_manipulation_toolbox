@@ -1092,7 +1092,16 @@ class FMUContainer:
         self.rules[cport] = rule
 
     def get_all_cports(self):
-        return [ContainerPort(fmu, port_name) for fmu in self.involved_fmu.values() for port_name in fmu.ports]
+        cport_list = []
+        for fmu in self.involved_fmu.values():
+            for port_name in fmu.ports:
+                try:
+                    cport = ContainerPort(fmu, port_name)
+                    cport_list.append(cport)
+                except FMUContainerError:
+                    pass
+
+        return cport_list
 
     def add_input(self, container_port_name: str, to_fmu_filename: str, to_port_name: str):
         """Expose a port of an embedded FMU as a container input.
@@ -1113,7 +1122,13 @@ class FMUContainer:
         """
         if not container_port_name:
             container_port_name = to_port_name
-        cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
+
+        try:
+            cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
+        except FMUContainerError as e:
+            logger.error(f"Cannot add input: {e}")
+            return
+
         if cport_to.port.causality not in ("input", "parameter"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
                                     f"'{cport_to.port.causality}'.")
@@ -1143,7 +1158,12 @@ class FMUContainer:
         if not container_port_name:  # empty is allowed
             container_port_name = from_port_name
 
-        cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
+        try:
+            cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
+        except FMUContainerError as e:
+            logger.error(f"Cannot add output: {e}")
+            return
+
         if cport_from.port.causality not in ("output", "local"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_from}' as OUTPUT of the container but FMU causality is "
                                     f"'{cport_from.port.causality}'.")
@@ -1167,7 +1187,13 @@ class FMUContainer:
         Raises:
             FMUContainerError: If the port causality is not `"output"`.
         """
-        cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
+
+        try:
+            cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
+        except FMUContainerError as e:
+            logger.error(f"Cannot drop port: {e}")
+            return
+
         if not cport_from.port.causality == "output":  # check causality
             raise FMUContainerError(f"{cport_from}: trying to DROP {cport_from.port.causality}")
 
@@ -1209,8 +1235,13 @@ class FMUContainer:
             self.add_link_regular(fmu_from, from_port_name, fmu_to, to_port_name)
 
     def add_link_regular(self, fmu_from: EmbeddedFMU, from_port_name: str, fmu_to: EmbeddedFMU, to_port_name: str):
-            cport_from = ContainerPort(fmu_from, from_port_name)
-            cport_to = ContainerPort(fmu_to, to_port_name)
+
+            try:
+                cport_from = ContainerPort(fmu_from, from_port_name)
+                cport_to = ContainerPort(fmu_to, to_port_name)
+            except FMUContainerError as e:
+                logger.error(f"Cannot link {from_port_name} -> {to_port_name}: {e}")
+                return
 
             if cport_to.port.causality == "output" and cport_from.port.causality == "input":
                 logger.debug("Invert link orientation")
@@ -1245,7 +1276,12 @@ class FMUContainer:
             FMUContainerError: If the value cannot be converted to the
                 port's type.
         """
-        cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
+
+        try:
+            cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
+        except FMUContainerError as e:
+            logger.error(f"Cannot set start value: {e}")
+            return
 
         # Check dimensions
         value_tokens = str(value).split(' ')

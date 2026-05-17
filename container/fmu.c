@@ -901,8 +901,14 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, int *more_event) {
             *more_event = 0;
 
         if (nextEventTimeDefined) { 
-            logger(LOGGER_ERROR, "%s: UpdateDiscreteStates defined next event which is not supported.", fmu->name);
-            return FMU_STATUS_ERROR;
+            // support next event time (requires to change the way the master computes the next step time)
+            if (nextEventTime < fmu->container->time) {
+                logger(LOGGER_ERROR, "%s: UpdateDiscreteStates defined next event time %g in the past (current time is %g).", fmu->name, nextEventTime, fmu->container->time);
+                return FMU_STATUS_ERROR;
+            } else if (nextEventTime + fmu->container->tolerance < fmu->container->time + fmu->container->next_step) {
+                fmu->container->next_step = nextEventTime - fmu->container->time;
+                logger(LOGGER_DEBUG, "%s: UpdateDiscreteStates defined next event time %g, updating next step to %g.", fmu->name, nextEventTime, fmu->container->next_step);
+            }
         }
     }
 

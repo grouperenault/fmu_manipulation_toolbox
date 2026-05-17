@@ -96,7 +96,28 @@ waypoint in order.
 |---|---|
 | **Add FMU…** | Open file dialog to add FMU nodes |
 | **Delete Selection** | Remove selected nodes and wires |
+| **Info** | Show node information and optionally replace the FMU file (single node only) |
+| **Open in FMU Editor** | Open the selected FMU in the Variable Editor (single node only) |
+| **Open in FMU Tool** | Open the selected FMU in FMU Tool (single node only) |
 | **Fit View** | Zoom to fit all nodes in the viewport |
+
+### Replacing an FMU
+
+To replace an FMU with a different version or an alternative file:
+
+1. Select the node, right-click and choose **Info**
+2. The dialog shows the node name and current FMU file path
+3. Click **Browse…** to select a new `.fmu` file
+4. Click **OK** to apply the replacement
+
+The replacement is done **in place**: all wires, start values, and exposed output ports are
+preserved. If a port name referenced by a start value, a wire mapping, or an exposed output
+no longer exists in the new FMU, it appears in **red** in the detail panels — allowing you to
+review and correct invalid references.
+
+!!! tip "Typical use case"
+    Use this feature when a new version of an FMU is available: replace the file and instantly
+    see which connections or start values need updating.
 
 ## Tree View
 

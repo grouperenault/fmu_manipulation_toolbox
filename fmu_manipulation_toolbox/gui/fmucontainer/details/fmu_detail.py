@@ -20,10 +20,12 @@ from fmu_manipulation_toolbox.gui.style import placeholder_color
 
 class _StartValueDelegate(QStyledItemDelegate):
     """Delegate that shows the FMU default start value as a gray placeholder
-    when the user has not entered a value. Also displays parameter ports in italics."""
+    when the user has not entered a value. Also displays parameter ports in italics
+    and invalid (orphan) ports in red."""
 
     ROLE_PLACEHOLDER = Qt.ItemDataRole.UserRole + 100
     ROLE_CAUSALITY = Qt.ItemDataRole.UserRole + 101
+    ROLE_INVALID = Qt.ItemDataRole.UserRole + 102
 
     def displayText(self, value, locale):
         if value:
@@ -36,6 +38,10 @@ class _StartValueDelegate(QStyledItemDelegate):
             font = option.font
             font.setItalic(True)
             option.font = font
+
+        invalid = index.data(self.ROLE_INVALID)
+        if invalid:
+            option.palette.setColor(option.palette.ColorRole.Text, QColor("#F54927"))
 
         super().paint(painter, option, index)
         value = index.data(Qt.ItemDataRole.DisplayRole)
@@ -172,12 +178,14 @@ class FMUDetailWidget(QWidget):
 
         # ── Populate Start Values tab ─────────────────────────────
         self._sv_model.removeRows(0, self._sv_model.rowCount())
+        shown_ports = set()
         for port_name in node.fmu_input_names:
             # Skip clock and binary ports – they don't have meaningful start values
             port_type = node.fmu_port_type.get(port_name, "").lower()
             if port_type in ("clock", "binary"):
                 continue
 
+            shown_ports.add(port_name)
             name_item = QStandardItem(port_name)
             name_item.setEditable(False)
             causality = node.fmu_port_causality.get(port_name, "input")
@@ -193,9 +201,24 @@ class FMUDetailWidget(QWidget):
 
             self._sv_model.appendRow([name_item, value_item])
 
+        # Orphan start values: ports with user values that no longer exist in the FMU
+        for port_name, value in node.user_start_values.items():
+            if port_name not in shown_ports:
+                name_item = QStandardItem(port_name)
+                name_item.setEditable(False)
+                name_item.setData(True, _StartValueDelegate.ROLE_INVALID)
+                name_item.setToolTip("Port no longer exists in this FMU")
+
+                value_item = QStandardItem(value)
+                value_item.setData(True, _StartValueDelegate.ROLE_INVALID)
+
+                self._sv_model.appendRow([name_item, value_item])
+
         # ── Populate Output Ports tab ─────────────────────────────
         self._out_model.removeRows(0, self._out_model.rowCount())
+        shown_outputs = set()
         for port_name in node.fmu_output_names:
+            shown_outputs.add(port_name)
             name_item = QStandardItem(port_name)
             name_item.setEditable(False)
             causality = node.fmu_port_causality.get(port_name, "output")
@@ -209,4 +232,20 @@ class FMUDetailWidget(QWidget):
             check_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
 
             self._out_model.appendRow([name_item, check_item])
+
+        # Orphan exposed outputs: ports that no longer exist in the FMU
+        for port_name, exposed in node.user_exposed_outputs.items():
+            if exposed and port_name not in shown_outputs:
+                name_item = QStandardItem(port_name)
+                name_item.setEditable(False)
+                name_item.setData(True, _StartValueDelegate.ROLE_INVALID)
+                name_item.setToolTip("Port no longer exists in this FMU")
+
+                check_item = QStandardItem("")
+                check_item.setEditable(False)
+                check_item.setCheckable(True)
+                check_item.setCheckState(Qt.CheckState.Checked)
+                check_item.setData(True, _StartValueDelegate.ROLE_INVALID)
+
+                self._out_model.appendRow([name_item, check_item])
 

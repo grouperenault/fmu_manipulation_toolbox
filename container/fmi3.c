@@ -316,7 +316,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                          \
                                                                                                     \
             if (fmu_id < 0) {                                                                       \
-                for(size_t k = 0; j < port->dimension; k += 1)                                      \
+                for(size_t k = 0; k < port->dimension; k += 1)                                      \
                     container-> type [fmu_vr + k] = value[value_index + k];                         \
             } else {                                                                                \
                 const fmu_t *fmu = &container->fmu[fmu_id];                                         \
@@ -350,7 +350,7 @@ FMI_SETTER(uintegers64, UInt64, UInteger64);
 FMI_SETTER(booleans1, Boolean, Boolean1);
 
 fmi3Status fmi3SetString(fmi3Instance instance, const fmi2ValueReference valueReferences[],
-    size_t nvr, const fmi2String value[], size_t nValues) {
+    size_t nvr, const fmi3String value[], size_t nValues) {
     container_t* container = (container_t*)instance;
     fmu_status_t status;
     size_t value_index = 0;
@@ -450,17 +450,20 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
         const container_port_t *port = &container->port_clocks[vr];
-        const int fmu_id = port->links[0].fmu_id;
 
-        if (fmu_id < 0) {
-            container->clocks[vr] = values[i];
-        } else {
-            const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
-            const fmu_t *fmu = &container->fmu[fmu_id];
+        for (int j = 0; j < port->nb; j += 1) {
+            const int fmu_id = port->links[j].fmu_id;
 
-            status = fmuSetClock(fmu, &fmu_vr, 1, &values[i]);
-            if (status != FMU_STATUS_OK)
-                return fmi3Error;
+            if (fmu_id < 0) {
+                container->clocks[vr] = values[i];
+            } else {
+                const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
+                const fmu_t *fmu = &container->fmu[fmu_id];
+
+                status = fmuSetClock(fmu, &fmu_vr, 1, &values[i]);
+                if (status != FMU_STATUS_OK)
+                    return fmi3Error;
+            }
         }
     }
 
