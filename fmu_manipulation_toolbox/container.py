@@ -795,6 +795,8 @@ class FMUIOList:
             value (str): The start value.
         """
         reset = 1 if cport.port.causality == "input" else 0
+        if cport.port.type_name.startswith("boolean"):
+            value = str(int(bool(value)))
         self.start_values[cport.port.type_name][cport.fmu.name].append((cport.port.vr, cport.port.size(), reset, value))
 
     def write_txt(self, fmu_name: str, txt_file: IO) -> None:
