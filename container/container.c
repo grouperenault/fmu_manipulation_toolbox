@@ -12,7 +12,7 @@
 #include "fmu.h"
 #include "version.h"
 
-//#define DEBUG
+#define DEBUG
 
 
 /*
@@ -26,7 +26,7 @@
 
 fmu_status_t container_enter_event_mode(container_t *container) {
 #ifdef DEBUG
-    logger(LOGGER_ERROR, "[DEBUG] time=%e: Container entering in EVENT mode", container->time);
+    logger(LOGGER_ERROR, "[DEBUG] time=%e| Container entering in EVENT mode", container->time);
 #endif
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t *fmu = &container->fmu[i];
@@ -195,7 +195,11 @@ static fmu_status_t container_proceed_event(container_t *container) {
 
 static fmu_status_t container_update_discrete_state(container_t *container) {
     bool more_event = container->need_event_update || container->clocks_list.nb_next_clocks;
-    
+
+#ifdef DEBUG
+    logger(LOGGER_ERROR, "[DEBUG] time=%e | container_update_discrete_state()", container->time);
+#endif
+
     while(more_event) {
         more_event = false;
         for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -467,6 +471,9 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
 
 
 fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
+#ifdef DEBUG
+    logger(LOGGER_ERROR, "[DEBUG] time=%e | container_do_step(%e, %e)", container->time, currentCommunicationPoint, communicationStepSize);
+#endif
     fmu_status_t status = FMU_STATUS_OK;
     const double end_time = currentCommunicationPoint + communicationStepSize;
     int ts_multiplier = container->integers32[0];
