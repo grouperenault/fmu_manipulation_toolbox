@@ -233,17 +233,14 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
 static fmu_status_t container_handle_events(container_t *container) {
     fmu_status_t status;
 
-    
-    status = container_proceed_event(container);
-    if (status != FMU_STATUS_OK)
-        return status;
-
     /* Event loop */
     status = container_enter_event_mode(container);
     if (status != FMU_STATUS_OK)
         return status;
 
-
+    status = container_proceed_event(container);
+    if (status != FMU_STATUS_OK)
+        return status;
     
     datalog_log(container);
     status = container_update_discrete_state(container);
