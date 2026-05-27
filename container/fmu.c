@@ -8,7 +8,7 @@
 #include "logger.h"
 #include "profile.h"
 
-#define DEBUG
+//#define DEBUG
 
 /*
  * FMI-importer supporting FMI-2.0 and FMI-3.0. FMUs are handled through fmu_t pointers.
@@ -38,7 +38,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 #ifdef DEBUG
-        logger(LOGGER_ERROR, "[DEBUG] Time=%e | fmu_set_inputs(%s)", fmu->container->time, fmu->name);
+        logger(LOGGER_DEBUG, "[DEBUG] Time=%e | fmu_set_inputs(%s)", fmu->container->time, fmu->name);
 #endif
 
 #define SET_INPUT(variable, fmi_type)                                                               \
@@ -80,15 +80,11 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     return status;
 }
 
-
-fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
+fmu_status_t fmu_set_clocks(const fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
-#ifdef DEBUG
-    logger(LOGGER_ERROR, "[DEBUG] time=%e | fmu_set_clocked_inputs(fmu=%s)", fmu->container->time, fmu->name);
-#endif
     /* clocks: set active clocks only */
     for (int i = 0; i < fmu_io->clocks.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
@@ -99,6 +95,20 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
                 return status;
         }
     }
+
+    return FMU_STATUS_OK;
+}
+
+
+fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
+    fmu_status_t status = FMU_STATUS_OK;
+    const container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+
+#ifdef DEBUG
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmu_set_clocked_inputs(fmu=%s)", fmu->container->time, fmu->name);
+#endif
+
 
 #define SET_CLOCKED_INPUT(variable, fmi_type)                                                               \
     for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) {                            \
@@ -162,7 +172,7 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
 
 #ifdef DEBUG
-    logger(LOGGER_ERROR, "[DEBUG] time=%e | fmu_get_outputs(fmu=%s)", fmu->container->time, fmu->name);
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmu_get_outputs(fmu=%s)", fmu->container->time, fmu->name);
 #endif
 
 #define GET_OUTPUT(variable, fmi_type)                                                              \
@@ -232,7 +242,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
 
 #ifdef DEBUG
-    logger(LOGGER_ERROR, "[DEBUG] time=%e | fmu_get_clocked_outputs(fmu=%s)", fmu->container->time, fmu->name);
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmu_get_clocked_outputs(fmu=%s)", fmu->container->time, fmu->name);
 #endif
 
     for (size_t i = 0; i < fmu_io->clocks.out.nb; i += 1) {
@@ -872,7 +882,7 @@ fmu_status_t fmuSetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, cons
 
 #ifdef DEBUG
     for(int i = 0; i<nvr; i += 1)
-        logger(LOGGER_ERROR, "[DEBUG] time=%e | fmuSetClock(fmu=%s, vr=%d, value=%d)", fmu->container->time, fmu->name, vr[i], value[i]);
+        logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmuSetClock(fmu=%s, vr=%d, value=%d)", fmu->container->time, fmu->name, vr[i], value[i]);
 #endif
     if (fmu->fmi_version == FMU_2) {
         logger(LOGGER_ERROR, "%s: fmuSetClock not supported.", fmu->name);
@@ -898,7 +908,7 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, bool *discreteStatesNeedU
         fmi3Status status;
         
 #ifdef DEBUG
-        logger(LOGGER_ERROR, "[DEBUG] time=%e | fmi3UpdateDiscreteStates(%s)", fmu->container->time, fmu->name);
+        logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmi3UpdateDiscreteStates(%s)", fmu->container->time, fmu->name);
 #endif
         status = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(fmu->component,
                 discreteStatesNeedUpdate,
@@ -909,7 +919,7 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, bool *discreteStatesNeedU
                 &nextEventTime);
 
 #ifdef DEBUG
-        logger(LOGGER_ERROR, "[DEBUG] time=%e | fmuUpdateDiscreteStates(%s): discreteStatesNeedUpdate=%d, terminateSimulation=%d, nominalsOfContinuousStatesChanged=%d, valuesOfContinuousStatesChanged=%d nextEventTimeDefined=%d", 
+        logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmuUpdateDiscreteStates(%s): discreteStatesNeedUpdate=%d, terminateSimulation=%d, nominalsOfContinuousStatesChanged=%d, valuesOfContinuousStatesChanged=%d nextEventTimeDefined=%d", 
             fmu->container->time, fmu->name,
             *discreteStatesNeedUpdate, terminateSimulation, nominalsOfContinuousStatesChanged, valuesOfContinuousStatesChanged, nextEventTimeDefined);
 #endif
