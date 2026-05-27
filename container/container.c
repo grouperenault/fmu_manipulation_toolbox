@@ -12,7 +12,7 @@
 #include "fmu.h"
 #include "version.h"
 
-#define DEBUG
+//#define DEBUG
 
 
 /*
@@ -168,6 +168,13 @@ static void container_clocks_desactivate(container_t *container) {
 
 
 static fmu_status_t container_proceed_event(container_t *container) {
+    /* Update container variable */
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_t *fmu = &container->fmu[i];
+        if (fmu_get_clocked_outputs(fmu) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;   
+    }
+
     if (container->clocks_list.nb_next_clocks) {
         /* Activate clocks of next event and notify FMU */
         for(unsigned long i = 0; i < container->clocks_list.nb_next_clocks; i += 1) {
@@ -180,13 +187,6 @@ static fmu_status_t container_proceed_event(container_t *container) {
             container->clocks[container_clock->local_vr] = true;
             fmuSetClock(&container->fmu[container_clock->fmu_id], &container_clock->fmu_vr, 1, &value);
         }
-    }
-
-    /* Update container variable */
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t *fmu = &container->fmu[i];
-        if (fmu_get_clocked_outputs(fmu) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;   
     }
 
     return FMU_STATUS_OK;

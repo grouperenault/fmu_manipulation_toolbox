@@ -8,6 +8,7 @@
 #include "logger.h"
 #include "profile.h"
 
+//#define DEBUG
 
 /*
  * FMI-importer supporting FMI-2.0 and FMI-3.0. FMUs are handled through fmu_t pointers.
