@@ -12,7 +12,7 @@
 #include "fmu.h"
 #include "version.h"
 
-//#define DEBUG
+#define DEBUG
 
 
 /*
@@ -168,12 +168,6 @@ static void container_clocks_desactivate(container_t *container) {
 
 
 static fmu_status_t container_proceed_event(container_t *container) {
-    /* Update container variable */
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t *fmu = &container->fmu[i];
-        if (fmu_get_clocked_outputs(fmu) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;   
-    }
 
     if (container->clocks_list.nb_next_clocks) {
         /* Activate clocks of next event and notify FMU */
@@ -189,19 +183,24 @@ static fmu_status_t container_proceed_event(container_t *container) {
         }
     }
 
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_t *fmu = &container->fmu[i];
+
+        if (fmu_get_clocked_outputs(fmu) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+
     return FMU_STATUS_OK;
 }
 
 
 static fmu_status_t container_update_discrete_state(container_t *container) {
-    bool more_event = container->need_event_update || container->clocks_list.nb_next_clocks;
+    bool more_event; // = container->need_event_update || container->clocks_list.nb_next_clocks;
 
 #ifdef DEBUG
     logger(LOGGER_ERROR, "[DEBUG] time=%e | container_update_discrete_state()", container->time);
 #endif
-
-    while(more_event) {
-        more_event = false;
+    do {
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t *fmu = &container->fmu[i];
             if (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK)
@@ -210,24 +209,25 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
         
         /* reset internal clocks */
         container_clocks_desactivate(container);
-
-        for (int i = 0; i < container->nb_fmu; i += 1) {
-            fmu_t *fmu = &container->fmu[i];
-            int fmu_more_event = 0;
-            if (fmuUpdateDiscreteStates(fmu, &fmu_more_event) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-
-            more_event |= fmu_more_event;
-        }
-
+        
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t *fmu = &container->fmu[i];
 
             if (fmu_get_clocked_outputs(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
         }
-    }
 
+        more_event = false;
+        for (int i = 0; i < container->nb_fmu; i += 1) {
+            fmu_t *fmu = &container->fmu[i];
+            bool fmu_more_event = false;
+            if (fmuUpdateDiscreteStates(fmu, &fmu_more_event) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
+
+            more_event |= fmu_more_event;
+        }
+    } while(more_event);
+        
     container->next_step = container_get_next_clock_time(container);
 
     return FMU_STATUS_OK;
