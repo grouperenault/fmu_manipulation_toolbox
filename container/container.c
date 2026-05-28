@@ -57,15 +57,14 @@ static inline int is_close (const container_t *container, double r1, double r2) 
 }
 
 
-static double container_get_next_clock_time(container_t *container) {
+static void container_set_next_event_time(container_t *container) {
     double *event_interval = container->clocks_list.buffer_interval;
     int *event_qualifier = container->clocks_list.buffer_qualifier;
     fmu_vr_t *fmu_vr = container->clocks_list.fmu_vr;
-    const int ts_multiplier = container->integers32[0];
-    double next_interval = container->time_step * ts_multiplier;
+    double next_interval = container->next_step;
 
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | Get next scheduled ticks...", container->time);
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | Get next scheduled ticks (nb_fmu=%d)", container->time, container->clocks_list.nb_fmu);
 #endif
     /* Get all clocks intervals */
     for(unsigned long i = 0; i < container->clocks_list.nb_fmu; i += 1) {
@@ -74,7 +73,7 @@ static double container_get_next_clock_time(container_t *container) {
 
         if (fmuGetIntervalDecimal(fmu, fmu_vr, counter->nb, event_interval, event_qualifier) != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "FMU '%s' Cannot get next event interval", fmu->name);
-            return next_interval;
+            return;
         }
 
         fmu_vr += counter->nb;
@@ -97,7 +96,7 @@ static double container_get_next_clock_time(container_t *container) {
             if (interval < container->tolerance) {
                 logger(LOGGER_ERROR, "Clock '%s' vr=%u has no previous interval and fmi3IntervalUnchanged was set.",
                     container->fmu[container->clocks_list.fmu_id[i]].name, container->clocks_list.fmu_vr[i]);
-                return next_interval;
+                return;
             }
         } else {
             interval = event_interval[i];
@@ -152,7 +151,9 @@ static double container_get_next_clock_time(container_t *container) {
     }
 #endif
 
-    return next_interval;
+    container->next_step = next_interval;
+    
+    return;
 }
 
 
@@ -208,8 +209,10 @@ static fmu_status_t container_proceed_event(container_t *container) {
 
 
 static fmu_status_t container_update_discrete_state(container_t *container) {
+    const int ts_multiplier = container->integers32[0];
     bool more_event;
 
+    container->next_step = container->time_step * ts_multiplier;
 #ifdef DEBUG
     logger(LOGGER_DEBUG, "[DEBUG] time=%e | container_update_discrete_state()", container->time);
 #endif
@@ -244,8 +247,15 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
             more_event |= fmu_more_event;
         }
     } while(more_event);
-        
-    container->next_step = container_get_next_clock_time(container);
+
+    /* All clock have been transmitted by now
+       The following code is not necessary but could be used if paranoid
+
+    for(unsigned long i=0; i < container->nb_local_clocks; i += 1)
+        container->clocks[i] = false;
+    */
+
+    container_set_next_event_time(container);
 
     return FMU_STATUS_OK;
 }
