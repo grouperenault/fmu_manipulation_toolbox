@@ -378,10 +378,11 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 extern fmu_status_t fmu_set_inputs(const fmu_t *fmu);
+extern fmu_status_t fmu_set_clocks(const fmu_t* fmu);
 extern fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu);
-extern fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, int *more_event);
+extern fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, bool *discreteStatesNeedUpdate);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,

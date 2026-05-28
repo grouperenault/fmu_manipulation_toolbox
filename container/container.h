@@ -187,6 +187,10 @@ extern fmu_status_t container_enter_event_mode(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);
 
+/* for datalog facilities. */
+extern void container_clocks_activate(container_t *container);
+extern void container_clocks_deactivate(container_t *container);
+
 #	ifdef __cplusplus
 }
 #	endif

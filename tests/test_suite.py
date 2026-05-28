@@ -348,13 +348,15 @@ class TestSuite:
 
     def test_ls_bus_nodes_and_bus(self):
         assembly = Assembly("bus+nodes.json", fmu_directory=Path("ls-bus"))
-        assembly.make_fmu(fmi_version=3)
+        assembly.make_fmu(fmi_version=3, datalog=True)
         self.assert_simulation_log("ls-bus/bus+nodes.fmu", 0.1)
+        self.assert_identical_files("bus+nodes-datalog.csv", "ls-bus/REF-bus+nodes-datalog.csv")
 
     def test_ls_bus_nodes_only(self):
         assembly = Assembly("nodes-only.json", fmu_directory=Path("ls-bus"))
         assembly.make_fmu(fmi_version=3, datalog=True)
         self.assert_simulation_log("ls-bus/nodes-only.fmu", 0.1)
+        self.assert_identical_files("nodes-only-datalog.csv", "ls-bus/REF-nodes-only-datalog.csv")
 
     def test_datalog(self):
         assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), default_mt=True, debug=True)
