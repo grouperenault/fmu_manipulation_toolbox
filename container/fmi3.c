@@ -414,6 +414,7 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
                     if (container->binaries[fmu_vr + k].max_size < valueSizes[value_index + k]) {
                         container->binaries[fmu_vr + k].data = realloc(container->binaries[fmu_vr + k].data, valueSizes[value_index + k]);
                         if (! container->binaries[fmu_vr + k].data) {
+                            container->binaries[fmu_vr + k].max_size = 0;
                             logger(LOGGER_ERROR, "Cannot allocate memory for SetBinary");
                             return fmi3Error;
                         }
