@@ -22,17 +22,17 @@ void datalog_log(container_t *container) {
         /* write a row in datalog */
         fprintf(datalog->file, "%e", container->time);
 
-#define LOG3(type, fmi_type, format) \
-        if (datalog->nb_ ## type > 0) { \
-            fmi3Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type, datalog->values_ ## type, datalog->nb_ ## type); \
-            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1) \
-                fprintf(datalog->file, "," format, datalog->values_ ## type [i]); \
+#define LOG3(type, fmi_type, format)                                                                                                        \
+        if (datalog->nb_ ## type > 0) {                                                                                                     \
+            fmi3Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type, datalog->values_ ## type, datalog->nb_ ## type);    \
+            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1)                                                                      \
+                fprintf(datalog->file, "," format, datalog->values_ ## type [i]);                                                           \
         }
-#define LOG2(type, fmi_type, format) \
-        if (datalog->nb_ ## type > 0) { \
-            fmi2Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type, datalog->values_ ## type); \
-            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1) \
-                fprintf(datalog->file, "," format, datalog->values_ ## type [i]); \
+#define LOG2(type, fmi_type, format)                                                                                                        \
+        if (datalog->nb_ ## type > 0) {                                                                                                     \
+            fmi2Get ## fmi_type (container, datalog->vr_ ## type, datalog->nb_ ## type, datalog->values_ ## type);                          \
+            for(unsigned long i = 0; i < datalog->nb_ ## type; i += 1)                                                                      \
+                fprintf(datalog->file, "," format, datalog->values_ ## type [i]);                                                           \
         }
 
         LOG3(reals64, Float64, "%lf");
@@ -130,35 +130,35 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
     fprintf(datalog->file, "time");
 
 
-#define READ(type) \
-    if (get_line(config)) { \
-        logger(LOGGER_ERROR, "Cannot determine datalog for " "real64"); \
-        datalog_free(datalog); \
-        return -3; \
-    } \
-    if (sscanf(config->line, "%lu", &datalog->nb_ ## type) < 1) { \
-        logger(LOGGER_ERROR, "Cannot get datalog definition of " #type); \
-        return -4; \
-    } \
-    if (datalog->nb_ ## type) { \
-        datalog->vr_ ## type = malloc(datalog->nb_ ## type * sizeof(*datalog->vr_ ## type)); \
-        datalog->values_ ## type = malloc(datalog->nb_ ## type * sizeof(*datalog->values_ ## type)); \
-        if (!datalog->vr_ ## type || !datalog->values_## type) { \
-            logger(LOGGER_ERROR, "Cannot allocate memory for definition of " #type); \
-            return -5; \
-        } \
-        for(unsigned long i=0; i < datalog->nb_ ## type; i += 1) { \
-            int offset = 0; \
-            if (get_line(config)) { \
-                logger(LOGGER_ERROR, "Cannot get definition of " #type); \
-                return -6; \
-            } \
-            if (sscanf(config->line, "%d %n", &datalog->vr_ ## type [i], &offset) < 1) { \
-                logger(LOGGER_ERROR, "Cannot read definition of " #type); \
-                return -7; \
-            } \
-            fprintf(datalog->file, ",%s", config->line+offset); \
-        } \
+#define READ(type)                                                                                      \
+    if (get_line(config)) {                                                                             \
+        logger(LOGGER_ERROR, "Cannot determine datalog for " #type);                                    \
+        datalog_free(datalog);                                                                          \
+        return -3;                                                                                      \
+    }                                                                                                   \
+    if (sscanf(config->line, "%lu", &datalog->nb_ ## type) < 1) {                                       \
+        logger(LOGGER_ERROR, "Cannot get datalog definition of " #type);                                \
+        return -4;                                                                                      \
+    }                                                                                                   \
+    if (datalog->nb_ ## type) {                                                                         \
+        datalog->vr_ ## type = malloc(datalog->nb_ ## type * sizeof(*datalog->vr_ ## type));            \
+        datalog->values_ ## type = malloc(datalog->nb_ ## type * sizeof(*datalog->values_ ## type));    \
+        if (!datalog->vr_ ## type || !datalog->values_## type) {                                        \
+            logger(LOGGER_ERROR, "Cannot allocate memory for definition of " #type);                    \
+            return -5;                                                                                  \
+        }                                                                                               \
+        for(unsigned long i=0; i < datalog->nb_ ## type; i += 1) {                                      \
+            int offset = 0;                                                                             \
+            if (get_line(config)) {                                                                     \
+                logger(LOGGER_ERROR, "Cannot get definition of " #type);                                \
+                return -6;                                                                              \
+            }                                                                                           \
+            if (sscanf(config->line, "%d %n", &datalog->vr_ ## type [i], &offset) < 1) {                \
+                logger(LOGGER_ERROR, "Cannot read definition of " #type);                               \
+                return -7;                                                                              \
+            }                                                                                           \
+            fprintf(datalog->file, ",%s", config->line+offset);                                         \
+        }                                                                                               \
     }
 
     READ(reals64);
