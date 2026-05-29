@@ -10,7 +10,7 @@ option(CONTAINER_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"      OFF
 option(CONTAINER_STRICT_CONVERSION  "Enable -Wconversion / -Wsign-conversion" ON)
 option(CONTAINER_ENABLE_SANITIZERS  "Enable AddressSanitizer (+UBSan on GCC/Clang)" OFF)
 
-# Default to Debug if the user didn't pick a build type (single-config generators only)
+# Default to Release if the user didn't pick a build type (single-config generators only)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
@@ -150,10 +150,10 @@ target_include_directories(container PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
 )
 if (UNIX AND NOT APPLE)
-        target_link_libraries(container Threads::Threads)
+        target_link_libraries(container PRIVATE Threads::Threads)
 endif()
 if (WIN32)
-    target_link_libraries(container Imagehlp.lib)
+    target_link_libraries(container PRIVATE Imagehlp.lib)
 endif()
 set_target_properties(container PROPERTIES
 					  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}"
