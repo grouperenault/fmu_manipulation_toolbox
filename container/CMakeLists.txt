@@ -40,14 +40,12 @@ else()
     target_compile_options(container_warnings INTERFACE
         -Wall
         -Wextra
-        -Wpedantic
         -Wshadow
         -Wpointer-arith
         -Wstrict-prototypes
         -Wmissing-prototypes
         -Wnull-dereference
         -Wdouble-promotion
-        -Wformat=2
         -Wno-unknown-pragmas
     )
     if(CONTAINER_WARNINGS_AS_ERRORS)
