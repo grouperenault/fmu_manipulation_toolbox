@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "logger.h"
 #include "profile.h"
 
 /*
@@ -14,9 +15,13 @@
 
 profile_t *profile_new(void) {
     profile_t *profile = malloc(sizeof(*profile));
-    
-	profile->current_tic = 0;
-	profile->total_elapsed = 0.0;
+
+    if (profile) {
+        profile->current_tic = 0;
+        profile->total_elapsed = 0.0;
+    } else {
+        logger(LOGGER_ERROR, "Cannot allocate profiling structure.");
+    }
 
     return profile;
 }
