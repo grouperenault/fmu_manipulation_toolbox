@@ -157,6 +157,8 @@ fmi2Status fmi2ExitInitializationMode(fmi2Component c) {
 fmi2Status fmi2Terminate(fmi2Component c) {
     container_t* container = (container_t*)c;
 
+    container->state = CONTAINER_STATE_TERMINATED;
+
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_status_t status = fmuTerminate(&container->fmu[i]);
 
@@ -177,7 +179,9 @@ fmi2Status fmi2Reset(fmi2Component c) {
         if (status != FMU_STATUS_OK)
             return fmi2Error;
     }
- 
+    
+    container->state = CONTAINER_STATE_INSTANTIATED;
+
     return fmi2OK;
 }
 
@@ -342,6 +346,8 @@ fmi2Status fmi2DoStep(fmi2Component c,
     fmi2Real communicationStepSize,
     fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
     container_t *container = (container_t*)c;
+
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_STEP_MODE);
 
     if (container_do_step(container, currentCommunicationPoint, communicationStepSize) != FMU_STATUS_OK)
         return fmi2Error;

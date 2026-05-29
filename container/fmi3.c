@@ -150,6 +150,8 @@ fmi3Status fmi3EnterEventMode(fmi3Instance instance) {
 fmi3Status fmi3Terminate(fmi3Instance instance) {
     container_t* container = (container_t*)instance;
 
+    container->state = CONTAINER_STATE_TERMINATED;
+
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_status_t status = fmuTerminate(&container->fmu[i]);
 
@@ -173,6 +175,8 @@ fmi3Status fmi3Reset(fmi3Instance instance) {
             return fmi3Error;
     }
  
+    container->state = CONTAINER_STATE_INSTANTIATED;
+
     return fmi3OK;
 }
 
@@ -734,6 +738,8 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
     *earlyReturn = false;
     *eventHandlingNeeded = false;   /* Events cannot pass through container boundary */
     *terminateSimulation = false;
+
+    ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_STEP_MODE);
 
     if (container_do_step(container, currentCommunicationPoint, communicationStepSize) != FMU_STATUS_OK)
         return fmi3Error;
