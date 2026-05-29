@@ -7,7 +7,7 @@ set (CMAKE_C_STANDARD 23)
 # Build options (cross-platform: Windows / Linux / macOS)
 # -----------------------------------------------------------------------------
 option(CONTAINER_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"      OFF)
-option(CONTAINER_STRICT_CONVERSION  "Enable -Wconversion / -Wsign-conversion" ON)
+option(CONTAINER_STRICT_CONVERSION  "Enable -Wconversion / -Wsign-conversion" OFF)
 option(CONTAINER_ENABLE_SANITIZERS  "Enable AddressSanitizer (+UBSan on GCC/Clang)" OFF)
 
 # Default to Release if the user didn't pick a build type (single-config generators only)
