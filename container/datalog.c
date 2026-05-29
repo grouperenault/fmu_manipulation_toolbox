@@ -36,7 +36,14 @@ void datalog_log(container_t *container) {
         }
 
         LOG3(reals64, Float64, "%lf");
-        LOG3(reals32, Float32, "%f");
+        /* reals32: explicit cast to double to silence -Wdouble-promotion
+           (printf promotes float -> double anyway via varargs). */
+        if (datalog->nb_reals32 > 0) {
+            fmi3GetFloat32(container, datalog->vr_reals32, datalog->nb_reals32,
+                           datalog->values_reals32, datalog->nb_reals32);
+            for (unsigned long i = 0; i < datalog->nb_reals32; i += 1)
+                fprintf(datalog->file, ",%f", (double)datalog->values_reals32[i]);
+        }
         LOG3(integers8, Int8, "%" PRId8);
         LOG3(uintegers8, UInt8, "%" PRIu8);
         LOG3(integers16, Int16, "%" PRId16);
