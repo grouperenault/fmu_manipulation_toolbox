@@ -349,7 +349,7 @@ FMI_SETTER(integers64, Int64, Integer64);
 FMI_SETTER(uintegers64, UInt64, UInteger64);
 FMI_SETTER(booleans1, Boolean, Boolean1);
 
-fmi3Status fmi3SetString(fmi3Instance instance, const fmi2ValueReference valueReferences[],
+fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueReferences[],
     size_t nvr, const fmi3String value[], size_t nValues) {
     container_t* container = (container_t*)instance;
     fmu_status_t status;
