@@ -365,7 +365,7 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi2ValueReference valueRe
             if (fmu_id < 0) {
                 for(size_t k = 0; k < port->dimension; k += 1) {
                     free(container->strings[fmu_vr + k]);
-                    container->strings[fmu_vr + k] = strdup(value[value_index + j]);
+                    container->strings[fmu_vr + k] = strdup(value[value_index + k]);
                 }
             }
             else {
