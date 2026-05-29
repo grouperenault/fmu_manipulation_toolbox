@@ -19,7 +19,7 @@ typedef pthread_t       thread_t;
 typedef pthread_mutex_t mutex_t;
 #   endif
 
-typedef void (*thread_function_t)(void *);
+typedef void *(*thread_function_t)(void *);
 
 /*----------------------------------------------------------------------------
                             P R O T O T Y P E S

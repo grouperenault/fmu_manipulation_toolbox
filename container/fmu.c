@@ -329,7 +329,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
 }
 
 
-static void fmu_do_step_thread(fmu_t* fmu) {
+static void *fmu_do_step_thread(fmu_t* fmu) {
     const container_t* container =fmu->container;
 
     while (!fmu->cancel) {
@@ -352,7 +352,7 @@ static void fmu_do_step_thread(fmu_t* fmu) {
 
     thread_mutex_unlock(&fmu->mutex_fmu);
 
-    return;
+    return NULL;
 }
 
 
