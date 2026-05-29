@@ -671,6 +671,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
             if (name[i] == ' ') {
                 name[i] = '\0';
                 if (sscanf(name+i+1, "%d %d", &fmi_version, &support_event) < 2) {
+                    free(name);
                     CONFIG_ERROR("Cannot read FMU flags from '%s'.", name + i + 1);
                     return -2;
                 }
