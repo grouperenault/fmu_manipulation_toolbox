@@ -409,7 +409,7 @@ fmi2Status fmi2GetBooleanStatus(fmi2Component c, const fmi2StatusKind s, fmi2Boo
     if (s == fmi2Terminated) {
         for(int i = 0; i < container->nb_fmu; i += 1) {
             fmuGetBooleanStatus(&container->fmu[i], s, value);
-            if (value)
+            if (*value != fmi2True)
                 break;
         }
         return fmi2OK;
