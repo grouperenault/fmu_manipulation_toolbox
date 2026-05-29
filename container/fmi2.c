@@ -44,6 +44,10 @@ fmi2Status  fmi2SetDebugLogging(fmi2Component c,
     size_t nCategories,
     const fmi2String categories[]) {
 
+    (void)c; /* unused parameter */
+    (void)nCategories; /* unused parameter */
+    (void)categories; /* unused parameter */
+
     logger_set_debug(loggingOn);
 
     return fmi2OK;
@@ -58,6 +62,8 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
     fmi2Boolean visible,
     fmi2Boolean loggingOn) {
     container_t* container;
+
+    (void)visible; /* unused parameter */
 
     container = container_new(instanceName, fmuGUID);
 
@@ -213,10 +219,10 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 }
 
 
-FMI_GETTER(reals64,     Real,       Real64);
-FMI_GETTER(integers32,  Integer,    Integer32);
-FMI_GETTER(booleans,    Boolean,    Boolean);
-FMI_GETTER(strings,     String,     String);
+FMI_GETTER(reals64,     Real,       Real64)
+FMI_GETTER(integers32,  Integer,    Integer32)
+FMI_GETTER(booleans,    Boolean,    Boolean)
+FMI_GETTER(strings,     String,     String)
 #undef FMI_GETTER
 
 #define FMI_SETTER(type, fmi_type, name) \
@@ -227,12 +233,12 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
     for (size_t i = 0; i < nvr; i += 1) {                                                                                       \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                             \
         const container_port_t *port = &container->port_ ##type [local_vr];                                                     \
-        for(int j = 0; j < port->nb; j += 1) {                                                                                  \
+        for(unsigned long j = 0; j < port->nb; j += 1) {                                                                        \
             const int fmu_id = port->links[j].fmu_id;                                                                           \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                                      \
                                                                                                                                 \
             if (fmu_id < 0) {                                                                                                   \
-                container-> type [fmu_vr] = value[i];                                                                    \
+                container-> type [fmu_vr] = value[i];                                                                           \
             } else {                                                                                                            \
                 const fmu_t* fmu = &container->fmu[fmu_id];                                                                     \
                                                                                                                                 \
@@ -247,9 +253,9 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 }
 
 
-FMI_SETTER(reals64, Real, Real64);
-FMI_SETTER(integers32, Integer, Integer32);
-FMI_SETTER(booleans, Boolean, Boolean);
+FMI_SETTER(reals64, Real, Real64)
+FMI_SETTER(integers32, Integer, Integer32)
+FMI_SETTER(booleans, Boolean, Boolean)
 
 fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[]) {
     container_t* container = (container_t*)c;
@@ -258,7 +264,7 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
     for(size_t i = 0; i < nvr; i += 1) {
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
         const container_port_t* port = &container->port_strings[local_vr];
-        for(int j = 0; j < port->nb; j += 1) {
+        for(unsigned long j = 0; j < port->nb; j += 1) {
             const int fmu_id = port->links[j].fmu_id;
 
             if (fmu_id < 0) {
@@ -282,31 +288,54 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
 
 /* Getting and setting the internal FMU state */
 fmi2Status fmi2GetFMUstate(fmi2Component c, fmi2FMUstate* FMUstate) {
+    (void)c; /* unused parameter */
+    (void)FMUstate; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2SetFMUstate(fmi2Component c, fmi2FMUstate  FMUstate) {
+    (void)c; /* unused parameter */
+    (void)FMUstate; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2FreeFMUstate(fmi2Component c, fmi2FMUstate* FMUstate) {
+    (void)c; /* unused parameter */
+    (void)FMUstate; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2SerializedFMUstateSize(fmi2Component c, fmi2FMUstate  FMUstate, size_t* size) {
+    (void)c; /* unused parameter */
+    (void)FMUstate; /* unused parameter */
+    (void)size; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2SerializeFMUstate(fmi2Component c, fmi2FMUstate  FMUstate, fmi2Byte serializedState[], size_t size) {
+    (void)c; /* unused parameter */
+    (void)FMUstate; /* unused parameter */
+    (void)serializedState; /* unused parameter */
+    (void)size; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
 
 fmi2Status fmi2DeSerializeFMUstate(fmi2Component c, const fmi2Byte serializedState[], size_t size, fmi2FMUstate* FMUstate) {
+    (void)c; /* unused parameter */
+    (void)serializedState; /* unused parameter */
+    (void)size; /* unused parameter */
+    (void)FMUstate; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -317,6 +346,14 @@ fmi2Status fmi2GetDirectionalDerivative(fmi2Component c,
     const fmi2ValueReference vKnown_ref[], size_t nKnown,
     const fmi2Real dvKnown[],
     fmi2Real dvUnknown[]) {
+    (void)c; /* unused parameter */
+    (void)vUnknown_ref; /* unused parameter */
+    (void)nUnknown; /* unused parameter */
+    (void)vKnown_ref; /* unused parameter */
+    (void)nKnown; /* unused parameter */
+    (void)dvKnown; /* unused parameter */
+    (void)dvUnknown; /* unused parameter */
+    
     __NOT_IMPLEMENTED__
 }
 
@@ -325,6 +362,12 @@ fmi2Status fmi2SetRealInputDerivatives(fmi2Component c,
     const fmi2ValueReference vr[], size_t nvr,
     const fmi2Integer order[],
     const fmi2Real value[]) {
+    (void)c; /* unused parameter */
+    (void)vr; /* unused parameter */
+    (void)nvr; /* unused parameter */
+    (void)order; /* unused parameter */
+    (void)value; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -333,7 +376,13 @@ fmi2Status fmi2GetRealOutputDerivatives(fmi2Component c,
     const fmi2ValueReference vr[], size_t nvr,
     const fmi2Integer order[],
     fmi2Real value[]) {
-    __NOT_IMPLEMENTED__
+    (void)c; /* unused parameter */
+    (void)vr; /* unused parameter */
+    (void)nvr; /* unused parameter */
+    (void)order; /* unused parameter */
+    (void)value; /* unused parameter */
+
+        __NOT_IMPLEMENTED__
 }
 
 
@@ -345,7 +394,11 @@ fmi2Status fmi2DoStep(fmi2Component c,
     fmi2Real currentCommunicationPoint,
     fmi2Real communicationStepSize,
     fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
+    
+    (void)noSetFMUStatePriorToCurrentPoint; /* unused parameter */
+    
     container_t *container = (container_t*)c;
+
 
     ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_STEP_MODE);
 
@@ -357,6 +410,8 @@ fmi2Status fmi2DoStep(fmi2Component c,
 
 
 fmi2Status fmi2CancelStep(fmi2Component c) {
+    (void)c; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -369,6 +424,10 @@ fmi2Status fmi2CancelStep(fmi2Component c) {
  * fmi2DoStep call.
  */
 fmi2Status fmi2GetStatus(fmi2Component c, const fmi2StatusKind s, fmi2Status* value) {
+    (void)c; /* unused parameter */
+    (void)s; /* unused parameter */
+    (void)value; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -397,6 +456,10 @@ fmi2Status fmi2GetRealStatus(fmi2Component c, const fmi2StatusKind s, fmi2Real* 
 
 
 fmi2Status fmi2GetIntegerStatus(fmi2Component c, const fmi2StatusKind s, fmi2Integer* value) {
+    (void)c; /* unused parameter */
+    (void)s; /* unused parameter */
+    (void)value; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -432,5 +495,9 @@ fmi2Status fmi2GetBooleanStatus(fmi2Component c, const fmi2StatusKind s, fmi2Boo
  * asynchronous fmi2DoStep computation.
  */
 fmi2Status fmi2GetStringStatus(fmi2Component c, const fmi2StatusKind s, fmi2String* value) {
+    (void)c; /* unused parameter */
+    (void)s; /* unused parameter */
+    (void)value; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }

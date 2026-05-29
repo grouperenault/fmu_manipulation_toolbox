@@ -42,7 +42,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
 #endif
 
 #define SET_INPUT(variable, fmi_type)                                                               \
-    for (int i = 0; i < fmu_io-> variable .in.nb; i += 1) {                                         \
+    for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                                         \
         const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                   \
         const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr;                     \
         const unsigned int dimension = fmu_io->variable .in.translations[i].dimension;                \
@@ -55,7 +55,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     FOR_ALL_NUMERIC_TYPES(SET_INPUT)
 
     /* strings: Need to add a (cast) to avoid a warning */
-    for (int i = 0; i < fmu_io->strings.in.nb; i += 1) {
+    for (unsigned long i = 0; i < fmu_io->strings.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->strings.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->strings.in.translations[i].vr;
         const unsigned int dimension = fmu_io->strings.in.translations[i].dimension;
@@ -65,7 +65,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
     }
 
     /* binaries: Need to add size parameter */
-    for (int i = 0; i < fmu_io->binaries.in.nb; i += 1) {
+    for (unsigned long i = 0; i < fmu_io->binaries.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->binaries.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->binaries.in.translations[i].vr;
         const unsigned int dimension = fmu_io->binaries.in.translations[i].dimension;
@@ -86,7 +86,7 @@ fmu_status_t fmu_set_clocks(const fmu_t* fmu) {
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
     /* clocks: set active clocks only */
-    for (int i = 0; i < fmu_io->clocks.in.nb; i += 1) {
+    for (unsigned long i = 0; i < fmu_io->clocks.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
         if (container->clocks[local_vr]) {
@@ -329,7 +329,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
 }
 
 
-static int fmu_do_step_thread(fmu_t* fmu) {
+static void fmu_do_step_thread(fmu_t* fmu) {
     const container_t* container =fmu->container;
 
     while (!fmu->cancel) {
@@ -351,7 +351,8 @@ static int fmu_do_step_thread(fmu_t* fmu) {
     }
 
     thread_mutex_unlock(&fmu->mutex_fmu);
-    return 0;
+
+    return;
 }
 
 
@@ -633,7 +634,7 @@ void fmu_unload(fmu_t *fmu) {
     FREE_FMU_DATA(booleans1);
 
     /* strings: free each strdup'd value then the struct and flat array */
-    for (int i = 0; i < fmu->fmu_io.start_strings.nb; i += 1)
+    for (unsigned long i = 0; i < fmu->fmu_io.start_strings.nb; i += 1)
         free((char*)*fmu->fmu_io.start_strings.start_values[i].value);
     FREE_FMU_DATA(strings);
 
@@ -708,6 +709,7 @@ fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
 
 #define GETTER_2(type, fmi_type, fmi2_function)                                                                     \
 fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, type value[], size_t nvalues) {  \
+    (void)nvalues; /* unused parameter */                                                                           \
     fmu_status_t status = FMU_STATUS_OK;                                                                            \
                                                                                                                     \
     if (fmu->fmi_version == FMU_2) {                                                                                \
@@ -725,20 +727,20 @@ fmu_status_t fmuGet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
 }
 
 
-GETTER_BOTH(double,        Real64,      fmi2GetReal,    fmi3GetFloat64);
+GETTER_BOTH(double,        Real64,      fmi2GetReal,    fmi3GetFloat64)
 
-GETTER_3   (float,         Real32,                      fmi3GetFloat32);
-GETTER_3   (int8_t,        Integer8,                    fmi3GetInt8);
-GETTER_3   (uint8_t,       UInteger8,                   fmi3GetUInt8);
-GETTER_3   (int16_t,       Integer16,                   fmi3GetInt16);
-GETTER_3   (uint16_t,      UInteger16,                  fmi3GetUInt16);
-GETTER_BOTH(int32_t,       Integer32,  fmi2GetInteger,  fmi3GetInt32);
-GETTER_3   (uint32_t,      UInteger32,                  fmi3GetUInt32);
-GETTER_3   (int64_t,       Integer64,                   fmi3GetInt64);
-GETTER_3   (uint64_t,      UInteger64,                  fmi3GetUInt64);
-GETTER_2   (int,           Boolean,    fmi2GetBoolean);
-GETTER_3   (bool,          Boolean1,                    fmi3GetBoolean);
-GETTER_BOTH(const char *,  String,     fmi2GetString,   fmi3GetString);
+GETTER_3   (float,         Real32,                      fmi3GetFloat32)
+GETTER_3   (int8_t,        Integer8,                    fmi3GetInt8)
+GETTER_3   (uint8_t,       UInteger8,                   fmi3GetUInt8)
+GETTER_3   (int16_t,       Integer16,                   fmi3GetInt16)
+GETTER_3   (uint16_t,      UInteger16,                  fmi3GetUInt16)
+GETTER_BOTH(int32_t,       Integer32,  fmi2GetInteger,  fmi3GetInt32)
+GETTER_3   (uint32_t,      UInteger32,                  fmi3GetUInt32)
+GETTER_3   (int64_t,       Integer64,                   fmi3GetInt64)
+GETTER_3   (uint64_t,      UInteger64,                  fmi3GetUInt64)
+GETTER_2   (int,           Boolean,    fmi2GetBoolean)
+GETTER_3   (bool,          Boolean1,                    fmi3GetBoolean)
+GETTER_BOTH(const char *,  String,     fmi2GetString,   fmi3GetString)
 
 #undef GETTER_BOTH
 #undef GETTER_3
@@ -823,6 +825,7 @@ fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
 
 #define SETTER_2(type, fmi_type, fmi2_function)                                                                             \
 fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, const type value[], size_t nvalues) {    \
+    (void)nvalues; /* unused parameter */                                                                                   \
     fmu_status_t status = FMU_STATUS_OK;                                                                                    \
                                                                                                                             \
     if (fmu->fmi_version == FMU_2) {                                                                                        \
@@ -840,19 +843,19 @@ fmu_status_t fmuSet ## fmi_type(const fmu_t *fmu, const fmu_vr_t vr[], size_t nv
 }
 
 
-SETTER_BOTH(double,        Real64,      fmi2SetReal,    fmi3SetFloat64);
-SETTER_3   (float,         Real32,                      fmi3SetFloat32);
-SETTER_3   (int8_t,        Integer8,                    fmi3SetInt8);
-SETTER_3   (uint8_t,       UInteger8,                   fmi3SetUInt8);
-SETTER_3   (int16_t,       Integer16,                   fmi3SetInt16);
-SETTER_3   (uint16_t,      UInteger16,                  fmi3SetUInt16);
-SETTER_BOTH(int32_t,       Integer32,  fmi2SetInteger,  fmi3SetInt32);
-SETTER_3   (uint32_t,      UInteger32,                  fmi3SetUInt32);
-SETTER_3   (int64_t,       Integer64,                   fmi3SetInt64);
-SETTER_3   (uint64_t,      UInteger64,                  fmi3SetUInt64);
-SETTER_2   (int,           Boolean,                     fmi2SetBoolean);
+SETTER_BOTH(double,        Real64,      fmi2SetReal,    fmi3SetFloat64)
+SETTER_3   (float,         Real32,                      fmi3SetFloat32)
+SETTER_3   (int8_t,        Integer8,                    fmi3SetInt8)
+SETTER_3   (uint8_t,       UInteger8,                   fmi3SetUInt8)
+SETTER_3   (int16_t,       Integer16,                   fmi3SetInt16)
+SETTER_3   (uint16_t,      UInteger16,                  fmi3SetUInt16)
+SETTER_BOTH(int32_t,       Integer32,  fmi2SetInteger,  fmi3SetInt32)
+SETTER_3   (uint32_t,      UInteger32,                  fmi3SetUInt32)
+SETTER_3   (int64_t,       Integer64,                   fmi3SetInt64)
+SETTER_3   (uint64_t,      UInteger64,                  fmi3SetUInt64)
+SETTER_2   (int,           Boolean,                     fmi2SetBoolean)
 SETTER_3   (bool,          Boolean1,                    fmi3SetBoolean)
-SETTER_BOTH(char * const,  String,     fmi2SetString,   fmi3SetString);
+SETTER_BOTH(char * const,  String,     fmi2SetString,   fmi3SetString)
 
 #undef SETTER_BOTH
 #undef SETTER_3

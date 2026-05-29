@@ -46,7 +46,7 @@ void convert_proceed(const container_t *container, const convert_table_t *table)
 
 
 static void convert_F32_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = container->reals32[from];
+    container->reals64[to] = (double)container->reals32[from];
 }
 
 

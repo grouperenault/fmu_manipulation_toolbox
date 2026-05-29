@@ -326,6 +326,8 @@ static void container_set_start_values(container_t* container, int early_set) {
 
 fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
                                         double startTime, bool stopTimeDefined, double stopTime) {
+    (void)stopTimeDefined; /* unused parameter */
+
     container->tolerance_defined = toleranceDefined;
     if (toleranceDefined)
         container->tolerance = tolerance;
@@ -338,6 +340,7 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
             return FMU_STATUS_ERROR;
     }
 
+    container->time = container->start_time;
     container_set_start_values(container, 1);
     
     return FMU_STATUS_OK;
@@ -432,14 +435,14 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
     fmu_status_t status = FMU_STATUS_OK;
 
     container->need_event_update = false;
-    for(size_t i = 0; i < container->nb_fmu; i += 1) {
+    for(int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
         fmu->status = FMU_STATUS_ERROR;
         thread_mutex_unlock(&fmu->mutex_container);
     }
 
     /* Consolidate results */
-    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
 
         thread_mutex_lock(&fmu->mutex_fmu);
@@ -448,7 +451,7 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
         container->need_event_update |= fmu->need_event_udpate;
     }
 
-    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
         status = fmu_get_outputs(&container->fmu[i]);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", container->fmu[i].name);
@@ -465,7 +468,7 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
 
     /* STEP MODE */
     container->need_event_update = false;
-    for (size_t i = 0; i < container->nb_fmu; i += 1) {          
+    for (int i = 0; i < container->nb_fmu; i += 1) {          
         status = fmu_set_inputs(&container->fmu[i]);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", container->fmu[i].name);
@@ -473,7 +476,7 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
         }
     }
 
-    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
         /* COMPUTATION */
         status = fmuDoStep(fmu, container->time, container->next_step);
@@ -484,7 +487,7 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
         container->need_event_update |= fmu->need_event_udpate;
     }
 
-    for (size_t i = 0; i < container->nb_fmu; i += 1) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
         status = fmu_get_outputs(&container->fmu[i]);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU '%s' failed get outputs.", container->fmu[i].name);
@@ -667,12 +670,13 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
         char* name = strdup(file->line);
         int fmi_version = 2;
         int support_event = 0;
-        for(int i=0; i < strlen(name); i += 1) {
-            if (name[i] == ' ') {
-                name[i] = '\0';
-                if (sscanf(name+i+1, "%d %d", &fmi_version, &support_event) < 2) {
+
+        for(size_t j=0; j < strlen(name); j += 1) {
+            if (name[j] == ' ') {
+                name[j] = '\0';
+                if (sscanf(name+j+1, "%d %d", &fmi_version, &support_event) < 2) {
                     free(name);
-                    CONFIG_ERROR("Cannot read FMU flags from '%s'.", name + i + 1);
+                    CONFIG_ERROR("Cannot read FMU flags from '%s'.", name + j + 1);
                     return -2;
                 }
                 break;
@@ -1022,7 +1026,6 @@ static int read_conf_fmu_start_values_booleans1(fmu_io_t* fmu_io, config_file_t*
     CONFIG_ALLOC(fmu_io->start_values_booleans1, nb);
  
     for (unsigned long i = 0; i < fmu_io->start_booleans1.nb; i += 1) {
-        int boolean;
         int dimension;
         int offset;
 
@@ -1036,7 +1039,7 @@ static int read_conf_fmu_start_values_booleans1(fmu_io_t* fmu_io, config_file_t*
             return -4;
         }
         fmu_io->start_booleans1.start_values[i].value = &fmu_io->start_values_booleans1[pos];
-        for(unsigned long j = 0; j < dimension; j += 1) {
+        for(int j = 0; j < dimension; j += 1) {
             int read;
             int boolean;
 

@@ -87,6 +87,9 @@ void logger(int status, const char *message, ...) {
  */
 void logger_embedded_fmu2(void *fmu, fmi2String instanceName, fmi2Status status,
                           fmi2String category, fmi2String message, ...) {
+    (void)instanceName; /* unused parameter */
+    (void)category; /* unused parameter */
+
     if ((status != 0) || (logger_config.debug)) {
         char buffer[4096];
         va_list ap;
@@ -102,6 +105,8 @@ void logger_embedded_fmu2(void *fmu, fmi2String instanceName, fmi2Status status,
 
 
 void logger_embedded_fmu3(void * fmu, fmi3Status status, fmi3String category, fmi3String message) {
+    (void)category; /* unused parameter */
+    
     if ((status != 0) || (logger_config.debug)) {
         char buffer[4096];
         snprintf(buffer, sizeof(buffer), "%s: %s", ((fmu_t *)fmu)->name, message);

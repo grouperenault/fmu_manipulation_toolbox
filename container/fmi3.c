@@ -39,6 +39,10 @@ fmi3Status fmi3SetDebugLogging(fmi3Instance instance,
                               fmi3Boolean loggingOn,
                               size_t nCategories,
                               const fmi3String categories[]) {
+    
+    (void)instance; /* unused parameter */
+    (void)nCategories; /* unused parameter */
+    (void)categories; /* unused parameter */
 
     logger_set_debug(loggingOn);
 
@@ -58,6 +62,16 @@ fmi3Instance fmi3InstantiateCoSimulation(
     fmi3InstanceEnvironment        instanceEnvironment,
     fmi3LogMessageCallback         logMessage,
     fmi3IntermediateUpdateCallback intermediateUpdate) {
+    
+    (void)instantiationToken; /* unused parameter */
+    (void)visible; /* unused parameter */
+    (void)eventModeUsed; /* unused parameter */
+    (void)earlyReturnAllowed; /* unused parameter */
+    (void)requiredIntermediateVariables; /* unused parameter */
+    (void)nRequiredIntermediateVariables; /* unused parameter */
+    (void)instanceEnvironment; /* unused parameter */
+    (void)intermediateUpdate; /* unused parameter */    
+
     container_t* container;
     container = container_new(instanceName, instantiationToken);
 
@@ -218,18 +232,18 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
 }
 
 
-FMI_GETTER(reals64, Float64, Real64);
-FMI_GETTER(reals32, Float32, Real32);
-FMI_GETTER(integers8, Int8, Integer8);
-FMI_GETTER(uintegers8, UInt8, UInteger8);
-FMI_GETTER(integers16, Int16, Integer16);
-FMI_GETTER(uintegers16, UInt16, UInteger16);
-FMI_GETTER(integers32, Int32, Integer32);
-FMI_GETTER(uintegers32, UInt32, UInteger32);
-FMI_GETTER(integers64, Int64, Integer64);
-FMI_GETTER(uintegers64, UInt64, UInteger64);
-FMI_GETTER(booleans1, Boolean, Boolean1);
-FMI_GETTER(strings, String, String);
+FMI_GETTER(reals64, Float64, Real64)
+FMI_GETTER(reals32, Float32, Real32)
+FMI_GETTER(integers8, Int8, Integer8)
+FMI_GETTER(uintegers8, UInt8, UInteger8)
+FMI_GETTER(integers16, Int16, Integer16)
+FMI_GETTER(uintegers16, UInt16, UInteger16)
+FMI_GETTER(integers32, Int32, Integer32)
+FMI_GETTER(uintegers32, UInt32, UInteger32)
+FMI_GETTER(integers64, Int64, Integer64)
+FMI_GETTER(uintegers64, UInt64, UInteger64)
+FMI_GETTER(booleans1, Boolean, Boolean1)
+FMI_GETTER(strings, String, String)
 
 
 fmi3Status fmi3GetBinary(fmi3Instance instance,
@@ -315,7 +329,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     for (size_t i = 0; i < nValueReferences; i += 1) {                                              \
         const uint32_t local_vr = valueReferences[i] & 0xFFFFFF;                                    \
         const container_port_t *port = &container->port_ ##type [local_vr];                         \
-        for(int j = 0; j < port->nb; j += 1) {                                                      \
+        for(unsigned int j = 0; j < port->nb; j += 1) {                                             \
             const int fmu_id = port->links[j].fmu_id;                                               \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                          \
                                                                                                     \
@@ -341,17 +355,17 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     return fmi3OK;                                                                                  \
 }
 
-FMI_SETTER(reals64, Float64, Real64);
-FMI_SETTER(reals32, Float32, Real32);
-FMI_SETTER(integers8, Int8, Integer8);
-FMI_SETTER(uintegers8, UInt8, UInteger8);
-FMI_SETTER(integers16, Int16, Integer16);
-FMI_SETTER(uintegers16, UInt16, UInteger16);
-FMI_SETTER(integers32, Int32, Integer32);
-FMI_SETTER(uintegers32, UInt32, UInteger32);
-FMI_SETTER(integers64, Int64, Integer64);
-FMI_SETTER(uintegers64, UInt64, UInteger64);
-FMI_SETTER(booleans1, Boolean, Boolean1);
+FMI_SETTER(reals64, Float64, Real64)
+FMI_SETTER(reals32, Float32, Real32)
+FMI_SETTER(integers8, Int8, Integer8)
+FMI_SETTER(uintegers8, UInt8, UInteger8)
+FMI_SETTER(integers16, Int16, Integer16)
+FMI_SETTER(uintegers16, UInt16, UInteger16)
+FMI_SETTER(integers32, Int32, Integer32)
+FMI_SETTER(uintegers32, UInt32, UInteger32)
+FMI_SETTER(integers64, Int64, Integer64)
+FMI_SETTER(uintegers64, UInt64, UInteger64)
+FMI_SETTER(booleans1, Boolean, Boolean1)
 
 fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueReferences[],
     size_t nvr, const fmi3String value[], size_t nValues) {
@@ -362,7 +376,7 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
     for (size_t i = 0; i < nvr; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
         const container_port_t* port = &container->port_strings[vr];
-        for (int j = 0; j < port->nb; j += 1) {
+        for (unsigned int j = 0; j < port->nb; j += 1) {
             const int fmu_id = port->links[j].fmu_id;
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
 
@@ -405,7 +419,7 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
         const container_port_t *port = &container->port_binaries[vr];
-        for (int j = 0; j < port->nb; j += 1) {
+        for (unsigned int j = 0; j < port->nb; j += 1) {
             const int fmu_id = port->links[j].fmu_id;
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
 
@@ -456,7 +470,7 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
         const container_port_t *port = &container->port_clocks[vr];
 
-        for (int j = 0; j < port->nb; j += 1) {
+        for (unsigned int j = 0; j < port->nb; j += 1) {
             const int fmu_id = port->links[j].fmu_id;
 
             if (fmu_id < 0) {
@@ -481,6 +495,10 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
 fmi3Status fmi3GetNumberOfVariableDependencies(fmi3Instance instance,
                                                fmi3ValueReference valueReference,
                                                size_t* nDependencies) {
+    (void)instance; /* unused parameter */
+    (void)valueReference; /* unused parameter */
+    (void)nDependencies; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -492,20 +510,37 @@ fmi3Status fmi3GetVariableDependencies(fmi3Instance instance,
                                        size_t elementIndicesOfIndependents[],
                                        fmi3DependencyKind dependencyKinds[],
                                        size_t nDependencies) {
+    (void)instance; /* unused parameter */
+    (void)dependent; /* unused parameter */
+    (void)elementIndicesOfDependent; /* unused parameter */
+    (void)independents; /* unused parameter */
+    (void)elementIndicesOfIndependents; /* unused parameter */
+    (void)dependencyKinds; /* unused parameter */
+    (void)nDependencies; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3GetFMUState(fmi3Instance instance, fmi3FMUState* FMUState) {
+    (void)instance; /* unused parameter */
+    (void)FMUState; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3SetFMUState(fmi3Instance instance, fmi3FMUState  FMUState) {
+    (void)instance; /* unused parameter */
+    (void)FMUState; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
 fmi3Status fmi3FreeFMUState(fmi3Instance instance, fmi3FMUState* FMUState) {
+    (void)instance; /* unused parameter */
+    (void)FMUState; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -513,6 +548,10 @@ fmi3Status fmi3FreeFMUState(fmi3Instance instance, fmi3FMUState* FMUState) {
 fmi3Status fmi3SerializedFMUStateSize(fmi3Instance instance,
                                       fmi3FMUState FMUState,
                                       size_t* size) {
+    (void)instance; /* unused parameter */
+    (void)FMUState; /* unused parameter */
+    (void)size; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -521,6 +560,11 @@ fmi3Status fmi3SerializeFMUState(fmi3Instance instance,
                                  fmi3FMUState FMUState,
                                  fmi3Byte serializedState[],
                                  size_t size) {
+    (void)instance; /* unused parameter */
+    (void)FMUState; /* unused parameter */
+    (void)serializedState; /* unused parameter */
+    (void)size; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -529,6 +573,11 @@ fmi3Status fmi3DeserializeFMUState(fmi3Instance instance,
                                    const fmi3Byte serializedState[],
                                    size_t size,
                                    fmi3FMUState* FMUState) {
+    (void)instance; /* unused parameter */
+    (void)serializedState; /* unused parameter */
+    (void)size; /* unused parameter */
+    (void)FMUState; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -542,6 +591,16 @@ fmi3Status fmi3GetDirectionalDerivative(fmi3Instance instance,
                                         size_t nSeed,
                                         fmi3Float64 sensitivity[],
                                         size_t nSensitivity) {
+    (void)instance; /* unused parameter */
+    (void)unknowns; /* unused parameter */
+    (void)nUnknowns; /* unused parameter */
+    (void)knowns; /* unused parameter */
+    (void)nKnowns; /* unused parameter */
+    (void)seed; /* unused parameter */
+    (void)nSeed; /* unused parameter */
+    (void)sensitivity; /* unused parameter */
+    (void)nSensitivity; /* unused parameter */  
+    
     __NOT_IMPLEMENTED__
 }
 
@@ -555,6 +614,16 @@ fmi3Status fmi3GetAdjointDerivative(fmi3Instance instance,
                                     size_t nSeed,
                                     fmi3Float64 sensitivity[],
                                     size_t nSensitivity) {
+    (void)instance; /* unused parameter */
+    (void)unknowns; /* unused parameter */
+    (void)nUnknowns; /* unused parameter */
+    (void)knowns; /* unused parameter */
+    (void)nKnowns; /* unused parameter */
+    (void)seed; /* unused parameter */
+    (void)nSeed; /* unused parameter */
+    (void)sensitivity; /* unused parameter */
+    (void)nSensitivity; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -618,6 +687,13 @@ fmi3Status fmi3GetIntervalFraction(fmi3Instance instance,
                                    fmi3UInt64 counters[],
                                    fmi3UInt64 resolutions[],
                                    fmi3IntervalQualifier qualifiers[]) {
+    (void)instance; /* unused parameter */
+    (void)valueReferences; /* unused parameter */
+    (void)nValueReferences; /* unused parameter */
+    (void)counters; /* unused parameter */
+    (void)resolutions; /* unused parameter */
+    (void)qualifiers; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -626,6 +702,10 @@ fmi3Status fmi3GetShiftDecimal(fmi3Instance instance,
                                const fmi3ValueReference valueReferences[],
                                size_t nValueReferences,
                                fmi3Float64 shifts[]) {
+    (void)instance; /* unused parameter */
+    (void)valueReferences; /* unused parameter */
+    (void)nValueReferences; /* unused parameter */
+    (void)shifts; /* unused parameter */
     __NOT_IMPLEMENTED__
 }
 
@@ -635,6 +715,12 @@ fmi3Status fmi3GetShiftFraction(fmi3Instance instance,
                                 size_t nValueReferences,
                                 fmi3UInt64 counters[],
                                 fmi3UInt64 resolutions[]) {
+    (void)instance; /* unused parameter */
+    (void)valueReferences; /* unused parameter */
+    (void)nValueReferences; /* unused parameter */
+    (void)counters; /* unused parameter */
+    (void)resolutions; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -643,6 +729,11 @@ fmi3Status fmi3SetIntervalDecimal(fmi3Instance instance,
                                   const fmi3ValueReference valueReferences[],
                                   size_t nValueReferences,
                                   const fmi3Float64 intervals[]) {
+    (void)instance; /* unused parameter */
+    (void)valueReferences; /* unused parameter */
+    (void)nValueReferences; /* unused parameter */
+    (void)intervals; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -652,6 +743,12 @@ fmi3Status fmi3SetIntervalFraction(fmi3Instance instance,
                                    size_t nValueReferences,
                                    const fmi3UInt64 counters[],
                                    const fmi3UInt64 resolutions[]) {
+    (void)instance; /* unused parameter */
+    (void)valueReferences; /* unused parameter */
+    (void)nValueReferences; /* unused parameter */
+    (void)counters; /* unused parameter */
+    (void)resolutions; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -660,6 +757,11 @@ fmi3Status fmi3SetShiftDecimal(fmi3Instance instance,
                                const fmi3ValueReference valueReferences[],
                                size_t nValueReferences,
                                const fmi3Float64 shifts[]) {
+    (void)instance; /* unused parameter */
+    (void)valueReferences; /* unused parameter */
+    (void)nValueReferences; /* unused parameter */
+    (void)shifts; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -669,11 +771,19 @@ fmi3Status fmi3SetShiftFraction(fmi3Instance instance,
                                 size_t nValueReferences,
                                 const fmi3UInt64 counters[],
                                 const fmi3UInt64 resolutions[]) {
+    (void)instance; /* unused parameter */
+    (void)valueReferences; /* unused parameter */
+    (void)nValueReferences; /* unused parameter */
+    (void)counters; /* unused parameter */
+    (void)resolutions; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3EvaluateDiscreteStates(fmi3Instance instance) {
+    (void)instance; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -685,6 +795,13 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
                                     fmi3Boolean* valuesOfContinuousStatesChanged,
                                     fmi3Boolean* nextEventTimeDefined,
                                     fmi3Float64* nextEventTime) {
+    (void)instance; /* unused parameter */
+    (void)discreteStatesNeedUpdate; /* unused parameter */
+    (void)terminateSimulation; /* unused parameter */
+    (void)nominalsOfContinuousStatesChanged; /* unused parameter */
+    (void)valuesOfContinuousStatesChanged; /* unused parameter */
+    (void)nextEventTimeDefined; /* unused parameter */
+    (void)nextEventTime; /* unused parameter */
     
     /* Container has no discrete mode */
     *discreteStatesNeedUpdate = false;
@@ -721,6 +838,13 @@ fmi3Status fmi3GetOutputDerivatives(fmi3Instance instance,
                                     const fmi3Int32 orders[],
                                     fmi3Float64 values[],
                                     size_t nValues)  {
+    (void)instance; /* unused parameter */
+    (void)valueReferences; /* unused parameter */
+    (void)nValueReferences; /* unused parameter */
+    (void)orders; /* unused parameter */
+    (void)values; /* unused parameter */
+    (void)nValues; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -733,6 +857,8 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
                       fmi3Boolean* terminateSimulation,
                       fmi3Boolean* earlyReturn,
                       fmi3Float64* lastSuccessfulTime) {
+    (void)noSetFMUStatePriorToCurrentPoint; /* unused parameter */
+
     container_t* container = (container_t*)instance;
 
 
@@ -763,11 +889,21 @@ fmi3Instance fmi3InstantiateModelExchange(
     fmi3Boolean                loggingOn,
     fmi3InstanceEnvironment    instanceEnvironment,
     fmi3LogMessageCallback     logMessage) {
-        return NULL;
-    }
+    (void)instanceName; /* unused parameter */
+    (void)instantiationToken; /* unused parameter */
+    (void)resourcePath; /* unused parameter */
+    (void)visible; /* unused parameter */
+    (void)loggingOn; /* unused parameter */
+    (void)instanceEnvironment; /* unused parameter */
+    (void)logMessage; /* unused parameter */
+
+    return NULL;
+}
 
 
 fmi3Status fmi3EnterContinuousTimeMode(fmi3Instance instance) {
+    (void)instance; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -776,11 +912,19 @@ fmi3Status fmi3CompletedIntegratorStep(fmi3Instance instance,
                                        fmi3Boolean  noSetFMUStatePriorToCurrentPoint,
                                        fmi3Boolean* enterEventMode,
                                        fmi3Boolean* terminateSimulation) {
+    (void)instance; /* unused parameter */
+    (void)noSetFMUStatePriorToCurrentPoint; /* unused parameter */
+    (void)enterEventMode; /* unused parameter */
+    (void)terminateSimulation; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
 
 fmi3Status fmi3SetTime(fmi3Instance instance, fmi3Float64 time) {
+    (void)instance; /* unused parameter */
+    (void)time; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -788,6 +932,10 @@ fmi3Status fmi3SetTime(fmi3Instance instance, fmi3Float64 time) {
 fmi3Status fmi3SetContinuousStates(fmi3Instance instance,
                                    const fmi3Float64 continuousStates[],
                                    size_t nContinuousStates) {
+    (void)instance; /* unused parameter */
+    (void)continuousStates; /* unused parameter */
+    (void)nContinuousStates; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -795,6 +943,10 @@ fmi3Status fmi3SetContinuousStates(fmi3Instance instance,
 fmi3Status fmi3GetContinuousStateDerivatives(fmi3Instance instance,
                                              fmi3Float64 derivatives[],
                                             size_t nContinuousStates) {
+    (void)instance; /* unused parameter */
+    (void)derivatives; /* unused parameter */
+    (void)nContinuousStates; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -802,6 +954,10 @@ fmi3Status fmi3GetContinuousStateDerivatives(fmi3Instance instance,
 fmi3Status fmi3GetEventIndicators(fmi3Instance instance,
                                   fmi3Float64 eventIndicators[],
                                   size_t nEventIndicators) {
+    (void)instance; /* unused parameter */
+    (void)eventIndicators; /* unused parameter */
+    (void)nEventIndicators; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -809,6 +965,10 @@ fmi3Status fmi3GetEventIndicators(fmi3Instance instance,
 fmi3Status fmi3GetContinuousStates(fmi3Instance instance,
                                    fmi3Float64 continuousStates[],
                                    size_t nContinuousStates)  {
+    (void)instance; /* unused parameter */
+    (void)continuousStates; /* unused parameter */
+    (void)nContinuousStates; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -816,6 +976,10 @@ fmi3Status fmi3GetContinuousStates(fmi3Instance instance,
 fmi3Status fmi3GetNominalsOfContinuousStates(fmi3Instance instance,
                                              fmi3Float64 nominals[],
                                              size_t nContinuousStates) {
+    (void)instance; /* unused parameter */
+    (void)nominals; /* unused parameter */
+    (void)nContinuousStates; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -823,6 +987,9 @@ fmi3Status fmi3GetNominalsOfContinuousStates(fmi3Instance instance,
 
 fmi3Status fmi3GetNumberOfEventIndicators(fmi3Instance instance,
                                           size_t* nEventIndicators)  {
+    (void)instance; /* unused parameter */
+    (void)nEventIndicators; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -830,6 +997,9 @@ fmi3Status fmi3GetNumberOfEventIndicators(fmi3Instance instance,
 
 fmi3Status fmi3GetNumberOfContinuousStates(fmi3Instance instance,
                                            size_t* nContinuousStates) {
+    (void)instance; /* unused parameter */
+    (void)nContinuousStates; /* unused parameter */
+
     __NOT_IMPLEMENTED__
 }
 
@@ -849,11 +1019,25 @@ fmi3Instance fmi3InstantiateScheduledExecution(
     fmi3ClockUpdateCallback        clockUpdate,
     fmi3LockPreemptionCallback     lockPreemption,
     fmi3UnlockPreemptionCallback   unlockPreemption) {
+    (void)instanceName; /* unused parameter */
+    (void)instantiationToken; /* unused parameter */
+    (void)resourcePath; /* unused parameter */
+    (void)visible; /* unused parameter */
+    (void)loggingOn; /* unused parameter */
+    (void)instanceEnvironment; /* unused parameter */
+    (void)logMessage; /* unused parameter */
+    (void)clockUpdate; /* unused parameter */
+    (void)lockPreemption; /* unused parameter */
+    (void)unlockPreemption; /* unused parameter */
     return NULL;
 }
 
 fmi3Status fmi3ActivateModelPartition(fmi3Instance instance,
                                       fmi3ValueReference clockReference,
                                       fmi3Float64 activationTime) {
+    (void)instance; /* unused parameter */
+    (void)clockReference; /* unused parameter */
+    (void)activationTime; /* unused parameter */
+    
     __NOT_IMPLEMENTED__
 }

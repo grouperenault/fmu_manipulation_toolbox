@@ -44,6 +44,7 @@ typedef struct datalog_s {
 
 extern void datalog_log(container_t* container);
 extern datalog_t *datalog_new(const char *dirname);
+extern int datalog_configure(config_file_t *config, datalog_t *datalog);
 extern void datalog_free(datalog_t *datalog);
 
 #	ifdef __cplusplus

@@ -84,7 +84,7 @@ typedef struct {                        \
         int                     reset;  \
         type                    *value; \
     } *start_values;                    \
-} fmu_start_ ## name ## _t;
+} fmu_start_ ## name ## _t
 
 DECLARE_START_TYPE(reals64,     double);
 DECLARE_START_TYPE(reals32,     float);
