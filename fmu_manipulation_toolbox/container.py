@@ -122,7 +122,6 @@ class EmbeddedFMUPort:
         self.start_value = attrs.get("start", None)
         self.initial = attrs.get("initial", None)
         self.clock = attrs.get("clocks", None)
-        self.interval_variability = attrs.get("intervalVariability", None)
 
     def size(self) -> int:
         size = 1
@@ -478,35 +477,35 @@ class Link:
     CONVERSION_FUNCTION = {
         "real32/real64": "F32_F64",
 
-        "Int8/Int16": "D8_D16",
-        "Int8/UInt16": "D8_U16",
-        "Int8/Int32": "D8_D32",
-        "Int8/UInt32": "D8_U32",
-        "Int8/Int64": "D8_D64",
-        "Int8/UInt64": "D8_U64",
+        "integer8/integer16": "D8_D16",
+        "integer8/Uinteger16": "D8_U16",
+        "integer8/integer32": "D8_D32",
+        "integer8/Uinteger32": "D8_U32",
+        "integer8/integer64": "D8_D64",
+        "integer8/Uinteger64": "D8_U64",
 
-        "UInt8/Int16": "U8_D16",
-        "UInt8/UInt16": "U8_U16",
-        "UInt8/Int32": "U8_D32",
-        "UInt8/UInt32": "U8_U32",
-        "UInt8/Int64": "U8_D64",
-        "UInt8/UInt64": "U8_U64",
+        "uinteger8/integer16": "U8_D16",
+        "uinteger8/uinteger16": "U8_U16",
+        "uinteger8/integer32": "U8_D32",
+        "uinteger8/uinteger32": "U8_U32",
+        "uinteger8/integer64": "U8_D64",
+        "uinteger8/uinteger64": "U8_U64",
 
-        "Int16/Int32": "D16_D32",
-        "Int16/UInt32": "D16_U32",
-        "Int16/Int64": "D16_D64",
-        "Int16/UInt64": "D16_U64",
+        "integer16/integer32": "D16_D32",
+        "integer16/uinteger32": "D16_U32",
+        "integer16/integer64": "D16_D64",
+        "integer16/uinteger64": "D16_U64",
 
-        "UInt16/Int32": "U16_D32",
-        "UInt16/UInt32": "U16_U32",
-        "UInt16/Int64": "U16_D64",
-        "UInt16/UInt64": "U16_U64",
+        "uinteger16/integer32": "U16_D32",
+        "uinteger16/uinteger32": "U16_U32",
+        "uinteger16/integer64": "U16_D64",
+        "uinteger16/uinteger64": "U16_U64",
 
-        "Int32/Int64": "D32_D64",
-        "Int32/UInt64": "D32_U64",
+        "integer32/integer64": "D32_D64",
+        "integer32/uinteger64": "D32_U64",
 
-        "UInt32/Int64": "U32_D64",
-        "UInt32/UInt64": "U32_U64",
+        "uinteger32/integer64": "U32_D64",
+        "uinteger32/uinteger64": "U32_U64",
 
         "boolean/boolean1": "B_B1",
         "boolean1/boolean": "B1_B",
@@ -796,7 +795,10 @@ class FMUIOList:
         """
         reset = 1 if cport.port.causality == "input" else 0
         if cport.port.type_name.startswith("boolean"):
-            value = str(int(bool(value)))
+            if value == "true" or value == "1":
+                value = "1"
+            else:
+                value = "0"
         self.start_values[cport.port.type_name][cport.fmu.name].append((cport.port.vr, cport.port.size(), reset, value))
 
     def write_txt(self, fmu_name: str, txt_file: IO) -> None:
@@ -1299,7 +1301,7 @@ class FMUContainer:
                     int(token)
                 elif cport.port.type_name.startswith('boolean'):
                     int(bool(token))
-                elif cport.port.type_name == 'String':
+                elif cport.port.type_name == 'string':
                     pass
                 else:
                     logger.error(f"Start value cannot be set on '{cport.port.type_name}'")
@@ -1755,7 +1757,7 @@ class FMUContainer:
             offset_storage = 0
             for local_variable in local_per_type[type_name]:
                 print(f"{local_variable.vr} {local_variable.dimension} 1 -1 "
-                      f"{local_variable.vr & 0xFFFFFF + offset_storage}", file=txt_file)
+                      f"{(local_variable.vr & 0xFFFFFF) + offset_storage}", file=txt_file)
                 offset_storage += local_variable.dimension - 1
         # LINKS
         for fmu in self.involved_fmu.values():
@@ -1902,7 +1904,7 @@ class FMUContainer:
                 for entry in directory.iterdir():
                     if entry.is_dir():
                         add_file(directory / entry)
-                    elif entry.is_file:
+                    elif entry.is_file():
                         zip_file.write(str(entry), str(entry)[offset:])
 
             add_file(Path(zip_directory))
