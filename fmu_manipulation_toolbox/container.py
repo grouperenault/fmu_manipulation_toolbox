@@ -1300,7 +1300,8 @@ class FMUContainer:
                 elif cport.port.type_name.startswith('integer') or  cport.port.type_name.startswith('uinteger'):
                     int(token)
                 elif cport.port.type_name.startswith('boolean'):
-                    int(bool(token))
+                    if token not in ("true", "false", "0", "1"):
+                        raise ValueError(f"Invalid boolean value: '{token}'")
                 elif cport.port.type_name == 'string':
                     pass
                 else:
