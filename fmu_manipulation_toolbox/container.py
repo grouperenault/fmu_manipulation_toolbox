@@ -478,11 +478,11 @@ class Link:
         "real32/real64": "F32_F64",
 
         "integer8/integer16": "D8_D16",
-        "integer8/Uinteger16": "D8_U16",
+        "integer8/uinteger16": "D8_U16",
         "integer8/integer32": "D8_D32",
-        "integer8/Uinteger32": "D8_U32",
+        "integer8/uinteger32": "D8_U32",
         "integer8/integer64": "D8_D64",
-        "integer8/Uinteger64": "D8_U64",
+        "integer8/uinteger64": "D8_U64",
 
         "uinteger8/integer16": "U8_D16",
         "uinteger8/uinteger16": "U8_U16",
@@ -1310,7 +1310,7 @@ class FMUContainer:
                 raise FMUContainerError(f"Start value is not conforming to {cport.port.type_name} format.")
 
         # Format is different for string
-        if cport.port.type_name == 'String':
+        if cport.port.type_name == 'string':
             value = "\n" + "\n".join(value_tokens)
 
         self.start_values[cport] = value
