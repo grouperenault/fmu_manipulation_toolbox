@@ -2,9 +2,12 @@
 This package was formerly known as `fmutool`.
 
 # Version 1.9.3.1
-* FIXED: fmucontainer: Clocks and Clocked variables management is made in Event Mode only
+* FIXED: `fmucontainer`: correct `fmi3SetString` for array variables (dimension > 1) and `fmi2GetBooleanStatus`
+* FIXED: `fmucontainer`: memory leaks and crashes under memory pressure; state machine improvements
+* FIXED: `fmucontainer`: `auto_parameter` works even if `auto_input` is not set. 
+* FIXED: `fmucontainer`: Clocks and Clocked variables management is made in Event Mode only
 * ADDED: GUI: Ability to replace a FMU in a Container
-* FIXED: fmuplit is able to parse conversion table
+* FIXED: `fmuplit` is able to parse conversion table
 * ADDED: FMI-3: support next event time
 * FIXED: GUI: Remove annoying Qt Runtime error message appearing during shutdown
 * ADDED: GUI: Terminals are supported in link definitions

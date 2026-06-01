@@ -1374,19 +1374,18 @@ class FMUContainer:
                     self.add_output(cport.fmu.name, cport.port.name, local_portname)
                     auto_wired.add_output(cport.fmu.name, cport.port.name, local_portname)
 
-        if auto_input:
-            # Auto link inputs
-            for cport in self.get_all_cports():
-                if cport not in self.rules:
-                    if cport.port.causality == 'parameter' and auto_parameter:
-                        parameter_name = cport.fmu.id + "." + cport.port.name
-                        logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
-                        self.add_input(parameter_name, cport.fmu.name, cport.port.name)
-                        auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
-                    elif cport.port.causality == 'input':
-                        logger.info(f"AUTO INPUT: Expose {cport}")
-                        self.add_input(cport.port.name, cport.fmu.name, cport.port.name)
-                        auto_wired.add_input(cport.port.name, cport.fmu.name, cport.port.name)
+        # Auto link inputs
+        for cport in self.get_all_cports():
+            if cport not in self.rules:
+                if auto_parameter and cport.port.causality == 'parameter':
+                    parameter_name = cport.fmu.id + "." + cport.port.name
+                    logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
+                    self.add_input(parameter_name, cport.fmu.name, cport.port.name)
+                    auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
+                elif auto_input and cport.port.causality == 'input' :
+                    logger.info(f"AUTO INPUT: Expose {cport}")
+                    self.add_input(cport.port.name, cport.fmu.name, cport.port.name)
+                    auto_wired.add_input(cport.port.name, cport.fmu.name, cport.port.name)
 
         logger.info(f"Auto-wiring: {auto_wired}")
 
