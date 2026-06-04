@@ -11,97 +11,106 @@ The Python API of **FMU Manipulation Toolbox** allows you to fully automate your
 # Import
 from fmu_manipulation_toolbox.operations import (
     FMU,
+    FMUError,
+    OperationSummary,
     OperationStripTopLevel,
+    OperationMergeTopLevel,
+    OperationTrimUntil,
     OperationRenameFromCSV,
     OperationSaveNamesToCSV,
     OperationRemoveRegexp,
-    OperationKeepOnlyRegexp
+    OperationKeepOnlyRegexp,
+    OperationRemoveSources,
 )
 ```
 
 ## FMU Class: Fundamentals
 
+The `FMU` class is a wrapper around an FMU archive (`.fmu` zip file). It extracts the archive
+into a temporary directory and allows you to apply operations to its `modelDescription.xml`
+descriptor.
+
+!!! note "Architecture"
+    The `FMU` class does **not** expose variables or metadata directly as properties.
+    All inspection and modification is done through **operations** — objects that implement
+    the visitor pattern and are applied via `fmu.apply_operation(operation)`.
+
 ### Load an FMU
 
 ```python
-from fmu_manipulation_toolbox.operations import FMU
+from fmu_manipulation_toolbox.operations import FMU, FMUError
 
-# Load the FMU
-fmu = FMU("path/to/module.fmu")
+try:
+    fmu = FMU("path/to/module.fmu")
+except FMUError as e:
+    print(f"Cannot load FMU: {e}")
+```
 
-# Display summary
-fmu.summary()
+### Apply an Operation
 
-# List variables
-for var in fmu.variables:
-    print(f"{var.name}: {var.causality} - {var.variability}")
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationSummary
+
+fmu = FMU("module.fmu")
+
+# Create an operation instance
+operation = OperationSummary()
+
+# Apply it — this parses modelDescription.xml and invokes the operation's callbacks
+fmu.apply_operation(operation)
 ```
 
 ### Save a Modified FMU
 
 ```python
-# After modifications
+# After modifications, create a new FMU file
 fmu.repack("path/to/module-modified.fmu")
 ```
 
-⚠️ **Important:** The original FMU is never modified. `repack()` creates a new copy.
+⚠️ **Important:** The original FMU is never modified. `repack()` creates a new archive.
 
-### FMU Properties
+### Extract the Model Descriptor
 
 ```python
-# General information
-print(f"Name: {fmu.name}")
-print(f"GUID: {fmu.guid}")
-print(f"FMI Version: {fmu.fmi_version}")
-print(f"Description: {fmu.description}")
-
-# Counters
-print(f"Number of variables: {len(fmu.variables)}")
-print(f"Number of parameters: {fmu.count_parameters()}")
-print(f"Number of inputs: {fmu.count_inputs()}")
-print(f"Number of outputs: {fmu.count_outputs()}")
+# Save a copy of the (possibly modified) modelDescription.xml
+fmu.save_descriptor("path/to/modelDescription.xml")
 ```
 
-### Access Variables
+### Filter Operations by Causality
+
+You can restrict an operation to specific port types using the `apply_on` parameter:
 
 ```python
-# All variables
-all_vars = fmu.variables
+from fmu_manipulation_toolbox.operations import FMU, OperationRemoveRegexp
 
-# Filter by causality
-parameters = [v for v in fmu.variables if v.causality == "parameter"]
-inputs = [v for v in fmu.variables if v.causality == "input"]
-outputs = [v for v in fmu.variables if v.causality == "output"]
-
-# Search for specific variable
-motor_speed = fmu.get_variable("Motor.Speed")
-if motor_speed:
-    print(f"Found: {motor_speed.name}")
-    print(f"  Type: {motor_speed.type}")
-    print(f"  Causality: {motor_speed.causality}")
-```
-
-## Basic Operations
-
-### Remove Top-Level Hierarchy
-
-```python
-from fmu_manipulation_toolbox.operations import FMU, OperationStripTopLevel
-
-# Load FMU
 fmu = FMU("module.fmu")
 
-# Create and apply operation
-operation = OperationStripTopLevel()
-fmu.apply_operation(operation)
+# Remove matching ports, but only among inputs
+operation = OperationRemoveRegexp(r"^debug_.*")
+fmu.apply_operation(operation, apply_on=["input"])
 
-# Save
-fmu.repack("module-flat.fmu")
+fmu.repack("module-clean.fmu")
 ```
 
-**Effect:**
-- Before: `System.Motor.Speed`
-- After: `Motor.Speed`
+Valid values for `apply_on`: `"parameter"`, `"input"`, `"output"`, `"local"`.
+
+## Available Operations
+
+### Display FMU Summary
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationSummary
+
+fmu = FMU("module.fmu")
+operation = OperationSummary()
+fmu.apply_operation(operation)
+
+# After apply, you can access the port counts:
+print(operation.nb_port_per_causality)
+# e.g. {'input': 10, 'output': 15, 'parameter': 5, 'local': 12}
+```
+
+The summary is logged via the `fmu_manipulation_toolbox` logger.
 
 ### Export Names to CSV
 
@@ -110,15 +119,13 @@ from fmu_manipulation_toolbox.operations import FMU, OperationSaveNamesToCSV
 
 fmu = FMU("module.fmu")
 
-# Create operation
-operation = OperationSaveNamesToCSV()
-
-# Apply (collect names)
+# The filename is passed at construction time
+operation = OperationSaveNamesToCSV("ports_list.csv")
 fmu.apply_operation(operation)
-
-# Write CSV
-operation.write_csv("ports_list.csv")
+# The CSV file is written during apply_operation and closed automatically.
 ```
+
+The generated CSV has columns: `name;newName;valueReference;causality;variability;scalarType;startValue`.
 
 ### Rename from CSV
 
@@ -127,52 +134,143 @@ from fmu_manipulation_toolbox.operations import FMU, OperationRenameFromCSV
 
 fmu = FMU("module.fmu")
 
-# Load and apply renamings
+# Load the CSV mapping and apply renamings
 operation = OperationRenameFromCSV("renaming.csv")
 fmu.apply_operation(operation)
 
-# Save
 fmu.repack("module-renamed.fmu")
 ```
 
+The CSV must be semicolon-delimited with at least two columns: original name and new name.
+If the new name is empty, the port is removed.
+
+### Remove Top-Level Hierarchy
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationStripTopLevel
+
+fmu = FMU("module.fmu")
+operation = OperationStripTopLevel()
+fmu.apply_operation(operation)
+fmu.repack("module-flat.fmu")
+```
+
+**Effect:**
+
+- Before: `System.Motor.Speed`
+- After: `Motor.Speed`
+
+### Merge Top-Level Hierarchy
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationMergeTopLevel
+
+fmu = FMU("module.fmu")
+operation = OperationMergeTopLevel()
+fmu.apply_operation(operation)
+fmu.repack("module-merged.fmu")
+```
+
+**Effect:**
+
+- Before: `System.Motor.Speed`
+- After: `System_Motor.Speed`
+
+### Trim Until Separator
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationTrimUntil
+
+fmu = FMU("module.fmu")
+operation = OperationTrimUntil("_")
+fmu.apply_operation(operation)
+fmu.repack("module-trimmed.fmu")
+```
+
+**Effect:**
+
+- Before: `_internal_Motor_Speed`
+- After: `internal_Motor_Speed`
+
 ### Filter by Regular Expression
+
+**Keep only matching ports:**
 
 ```python
 from fmu_manipulation_toolbox.operations import FMU, OperationKeepOnlyRegexp
 
 fmu = FMU("module.fmu")
-
-# Keep only Motor.* ports
 operation = OperationKeepOnlyRegexp(r"^Motor\..*")
 fmu.apply_operation(operation)
-
 fmu.repack("module-motor-only.fmu")
 ```
 
-**Remove by regexp:**
+**Remove matching ports:**
 
 ```python
 from fmu_manipulation_toolbox.operations import FMU, OperationRemoveRegexp
 
 fmu = FMU("module.fmu")
-
-# Remove all Internal.* ports
 operation = OperationRemoveRegexp(r"^Internal\..*")
 fmu.apply_operation(operation)
-
 fmu.repack("module-clean.fmu")
 ```
 
-## Advanced Operations
+### Remove Sources
 
-### Chain Multiple Operations
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationRemoveSources
+
+fmu = FMU("module.fmu")
+operation = OperationRemoveSources()
+fmu.apply_operation(operation)
+fmu.repack("module-no-src.fmu")
+```
+
+## Remoting Operations
+
+```python
+from fmu_manipulation_toolbox.operations import FMU
+from fmu_manipulation_toolbox.remoting import (
+    OperationAddRemotingWin32,
+    OperationAddRemotingWin64,
+    OperationAddFrontendWin32,
+    OperationAddFrontendWin64,
+)
+
+fmu = FMU("module32.fmu")
+
+# Add 64-bit remoting interface to a 32-bit FMU
+operation = OperationAddRemotingWin64()
+fmu.apply_operation(operation)
+fmu.repack("module-dual.fmu")
+```
+
+!!! note
+    Remoting operations are only supported for FMI 2.0 FMUs on Windows.
+
+## Checker Operations
+
+```python
+from fmu_manipulation_toolbox.operations import FMU
+from fmu_manipulation_toolbox.checker import get_checkers
+
+fmu = FMU("module.fmu")
+
+# Run all registered checkers (XSD validation, etc.)
+for checker_class in get_checkers():
+    checker = checker_class()
+    fmu.apply_operation(checker)
+```
+
+## Chain Multiple Operations
 
 ```python
 from fmu_manipulation_toolbox.operations import (
     FMU,
     OperationRemoveRegexp,
     OperationStripTopLevel,
-    OperationRenameFromCSV
+    OperationRenameFromCSV,
 )
 
 fmu = FMU("module.fmu")
@@ -185,7 +283,7 @@ fmu.apply_operation(op1)
 op2 = OperationStripTopLevel()
 fmu.apply_operation(op2)
 
-# Operation 3: Rename
+# Operation 3: Rename from CSV
 op3 = OperationRenameFromCSV("new_names.csv")
 fmu.apply_operation(op3)
 
@@ -193,34 +291,52 @@ fmu.apply_operation(op3)
 fmu.repack("module-transformed.fmu")
 ```
 
-### Conditional Manipulation
+## Writing Custom Operations
+
+You can create your own operation by subclassing `OperationAbstract`:
 
 ```python
-from fmu_manipulation_toolbox.operations import FMU
+from fmu_manipulation_toolbox.operations import FMU, OperationAbstract, FMUPort
 
-fmu = FMU("module.fmu")
+class OperationCountPorts(OperationAbstract):
+    """Count ports by type."""
 
-# Create renaming dictionary
-renaming_map = {}
+    def __init__(self):
+        self.counts = {}
 
-for var in fmu.variables:
-    # Rename only parameters
-    if var.causality == "parameter":
-        new_name = f"param_{var.name}"
-        renaming_map[var.name] = new_name
-    
-    # Add prefix to outputs
-    elif var.causality == "output":
-        new_name = f"out_{var.name}"
-        renaming_map[var.name] = new_name
+    def port_attrs(self, fmu_port: FMUPort) -> int:
+        fmi_type = fmu_port.fmi_type
+        self.counts[fmi_type] = self.counts.get(fmi_type, 0) + 1
+        return 0  # 0 = keep port, non-zero = remove port
 
-# Apply renamings
-for old_name, new_name in renaming_map.items():
-    var = fmu.get_variable(old_name)
-    if var:
-        var.name = new_name
+    def closure(self):
+        """Called after all ports have been processed."""
+        print(f"Port type counts: {self.counts}")
+```
 
-fmu.repack("module-prefixed.fmu")
+### Available Callbacks
+
+| Method | Called When |
+|--------|------------|
+| `fmi_attrs(attrs)` | `<fmiModelDescription>` element is parsed |
+| `cosimulation_attrs(attrs)` | `<CoSimulation>` element is parsed |
+| `experiment_attrs(attrs)` | `<DefaultExperiment>` element is parsed |
+| `port_attrs(fmu_port) -> int` | Each port/variable. Return `0` to keep, non-zero to remove |
+| `closure()` | After the full descriptor has been parsed |
+
+The `fmu_port` argument is an `FMUPort` object that supports dict-like access to attributes:
+
+```python
+def port_attrs(self, fmu_port: FMUPort) -> int:
+    name = fmu_port["name"]
+    causality = fmu_port.get("causality", "local")
+    value_ref = fmu_port["valueReference"]
+    fmi_type = fmu_port.fmi_type  # e.g. "Real", "Float64", "Integer"
+
+    # Modify in place
+    fmu_port["name"] = "new_" + name
+
+    return 0
 ```
 
 ## Automation and Scripts
@@ -228,35 +344,30 @@ fmu.repack("module-prefixed.fmu")
 ### Batch Processing Script
 
 ```python
-import os
 from pathlib import Path
 from fmu_manipulation_toolbox.operations import (
     FMU,
+    FMUError,
     OperationStripTopLevel,
-    OperationRemoveRegexp
+    OperationRemoveRegexp,
 )
 
 def process_fmu(input_path, output_path):
     """Process a single FMU."""
     try:
-        # Load
-        fmu = FMU(input_path)
-        
-        # Clean
+        fmu = FMU(str(input_path))
+
         op1 = OperationRemoveRegexp(r"^_internal.*")
         fmu.apply_operation(op1)
-        
-        # Simplify
+
         op2 = OperationStripTopLevel()
         fmu.apply_operation(op2)
-        
-        # Save
-        fmu.repack(output_path)
-        
+
+        fmu.repack(str(output_path))
         print(f"✓ Processed: {input_path}")
         return True
-        
-    except Exception as e:
+
+    except FMUError as e:
         print(f"✗ Error with {input_path}: {e}")
         return False
 
@@ -264,27 +375,22 @@ def process_directory(input_dir, output_dir):
     """Process all FMUs in a directory."""
     input_path = Path(input_dir)
     output_path = Path(output_dir)
-    
-    # Create output directory
     output_path.mkdir(parents=True, exist_ok=True)
-    
-    # Process each FMU
+
     success_count = 0
     fail_count = 0
-    
+
     for fmu_file in input_path.glob("*.fmu"):
         output_file = output_path / f"processed_{fmu_file.name}"
-        
-        if process_fmu(str(fmu_file), str(output_file)):
+        if process_fmu(fmu_file, output_file):
             success_count += 1
         else:
             fail_count += 1
-    
+
     print(f"\n=== Summary ===")
     print(f"Successful: {success_count}")
     print(f"Failed: {fail_count}")
 
-# Usage
 if __name__ == "__main__":
     process_directory("./input_fmus", "./output_fmus")
 ```
@@ -294,19 +400,19 @@ if __name__ == "__main__":
 ```python
 from multiprocessing import Pool
 from pathlib import Path
-from fmu_manipulation_toolbox.operations import FMU, OperationStripTopLevel
+from fmu_manipulation_toolbox.operations import FMU, FMUError, OperationStripTopLevel
 
 def process_single_fmu(args):
     """Function to process one FMU (for multiprocessing)."""
     input_path, output_path = args
-    
+
     try:
         fmu = FMU(input_path)
         operation = OperationStripTopLevel()
         fmu.apply_operation(operation)
         fmu.repack(output_path)
         return (input_path, True, None)
-    except Exception as e:
+    except FMUError as e:
         return (input_path, False, str(e))
 
 def parallel_processing(input_dir, output_dir, num_workers=4):
@@ -314,18 +420,15 @@ def parallel_processing(input_dir, output_dir, num_workers=4):
     input_path = Path(input_dir)
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    
-    # Prepare arguments
+
     tasks = []
     for fmu_file in input_path.glob("*.fmu"):
         output_file = output_path / f"processed_{fmu_file.name}"
         tasks.append((str(fmu_file), str(output_file)))
-    
-    # Process in parallel
+
     with Pool(num_workers) as pool:
         results = pool.map(process_single_fmu, tasks)
-    
-    # Display results
+
     for fmu_path, success, error in results:
         if success:
             print(f"✓ {fmu_path}")
@@ -336,88 +439,43 @@ def parallel_processing(input_dir, output_dir, num_workers=4):
 parallel_processing("./input_fmus", "./output_fmus", num_workers=4)
 ```
 
-### Validation in CI/CD Pipeline
-
-```python
-from fmu_manipulation_toolbox.operations import FMU
-import sys
-
-def validate_fmu(fmu_path):
-    """Validate an FMU and return exit code."""
-    try:
-        fmu = FMU(fmu_path)
-        
-        # Checks
-        is_valid = fmu.validate_model_description()
-        
-        if not is_valid:
-            print(f"✗ ERROR: {fmu_path} is not valid")
-            print(fmu.get_validation_errors())
-            return 1
-        
-        # Additional checks
-        if len(fmu.variables) == 0:
-            print(f"⚠ WARNING: {fmu_path} has no variables")
-            return 1
-        
-        print(f"✓ SUCCESS: {fmu_path} is valid")
-        print(f"  - {len(fmu.variables)} variables")
-        print(f"  - {fmu.count_parameters()} parameters")
-        
-        return 0
-        
-    except Exception as e:
-        print(f"✗ ERROR: Cannot load {fmu_path}")
-        print(f"  {e}")
-        return 1
-
-# Usage in CI/CD
-if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python validate.py <fmu_file>")
-        sys.exit(1)
-    
-    exit_code = validate_fmu(sys.argv[1])
-    sys.exit(exit_code)
-```
-
 ## Best Practices
 
 ### ✅ Do
 
 ```python
-# Always verify loading
+# Always handle loading errors
+from fmu_manipulation_toolbox.operations import FMU, FMUError
+
 try:
     fmu = FMU("module.fmu")
-except Exception as e:
+except FMUError as e:
     print(f"Loading error: {e}")
     sys.exit(1)
-
-# Validate after important modifications
-fmu.apply_operation(operation)
-if not fmu.validate_model_description():
-    print("Warning: Invalid FMU after modification")
 
 # Use absolute paths to avoid issues
 from pathlib import Path
 fmu_path = Path("module.fmu").resolve()
 fmu = FMU(str(fmu_path))
+
+# Chain operations in the correct order
+# (remove first, then rename the remaining ports)
 ```
 
 ### ❌ Avoid
 
 ```python
-# ❌ Forgetting to apply operation
+# ❌ Forgetting to apply the operation
 operation = OperationStripTopLevel()
 # fmu.apply_operation(operation)  # FORGOTTEN!
-fmu.repack("output.fmu")  # No changes!
+fmu.repack("output.fmu")  # No changes applied!
 
-# ❌ Modifying original FMU
+# ❌ Overwriting the original FMU
 fmu = FMU("original.fmu")
 fmu.apply_operation(operation)
-fmu.repack("original.fmu")  # DANGER! Never overwrite original
+fmu.repack("original.fmu")  # DANGER! Never overwrite the source file
 
-# ✅ Always create new file
+# ✅ Always create a new file
 fmu.repack("original_modified.fmu")
 ```
 
