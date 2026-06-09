@@ -70,7 +70,7 @@ sequenceDiagram
         F2-->>C: nextEventTime, more_event
     end
 
-    Note over C: Prepare next scheduled event
+    Note over C, F2: Prepare next scheduled event
     C->>F1: fmi3GetIntervalDecimal()
     C->>F2: fmi3GetIntervalDecimal()
     C->>C: compute next_step
