@@ -5,6 +5,11 @@
 This page documents the sequence of [FMI API](https://www.fmi-standard.org) calls that the
 container performs on each embedded FMU during a single call to `container_do_step()`.
 
+!!! info "Prerequisite"
+    This page covers the **simulation loop**. For the sequence that brings the container up to
+    `STEP_MODE` (instantiation and initialization), see the
+    [Initialization FMI Sequence](init-fmi-sequence.md).
+
 The container alternates between **STEP MODE** (continuous-time advancement via `fmi*DoStep`)
 and **EVENT MODE** (discrete state updates and clock handling). The diagram below illustrates
 the sequence for the **sequential** execution mode; the parallel modes (mono-thread and

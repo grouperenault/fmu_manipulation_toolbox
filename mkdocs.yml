@@ -162,6 +162,7 @@ nav:
   - Examples: examples/examples.md
   - Developer:
       - container.txt Format: developer/container-txt-format.md
+      - Initialization FMI Sequence: developer/init-fmi-sequence.md
       - DoStep FMI Sequence: developer/dostep-fmi-sequence.md
   - Help:
       - Troubleshooting: help/troubleshooting.md
