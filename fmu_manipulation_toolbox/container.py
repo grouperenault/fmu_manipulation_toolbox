@@ -1017,7 +1017,7 @@ class FMUContainer:
     providesAdjointDerivatives="false"
     providesPerElementDependencies="false"
     providesEvaluateDiscreteStates="false"
-    hasEventMode="true"
+    hasEventMode="false"
     needsExecutionTool="{execution_tool}">
   </CoSimulation>
 
