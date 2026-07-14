@@ -2,6 +2,7 @@ import logging
 import getpass
 import math
 import os
+import re
 import shutil
 import uuid
 import zipfile
@@ -114,6 +115,12 @@ class EmbeddedFMUPort:
         else:
             self.dimensions = []
 
+        # For FMI-2 aggregated arrays: value references of each underlying
+        # scalar element, in order. When set, this port behaves as a virtual
+        # array with `dimensions = [("start", len(element_vrs))]` so it can
+        # be connected to an FMI-3 array port.
+        self.element_vrs: List[int] = []
+
         if fmi_version > 0:
             self.type_name = self.FMI_TO_CONTAINER[fmi_version][fmi_type]
         else:
@@ -124,6 +131,8 @@ class EmbeddedFMUPort:
         self.clock = attrs.get("clocks", None)
 
     def size(self) -> int:
+        if self.element_vrs:
+            return len(self.element_vrs)
         size = 1
         for dimension in self.dimensions:
             if dimension[0] == "start":
@@ -169,6 +178,11 @@ class EmbeddedFMUPort:
         except KeyError:
             logger.error(f"Cannot expose ({causality}) '{name}' because type '{self.type_name}' is not compatible "
                          f"with FMI-{fmi_version}.0")
+            return ""
+
+        if fmi_version == 2 and self.element_vrs:
+            logger.error(f"Cannot expose FMI-2 array aggregate '{name}' in an FMI-2 container "
+                         f"(use the scalar elements '{name}[k]' individually).")
             return ""
 
         if fmi_version == 2:
@@ -294,6 +308,64 @@ class EmbeddedFMU(OperationAbstract):
         self.fmu.apply_operation(self)  # Should be the last command in constructor!
         if self.model_identifier is None:
             raise FMUContainerError(f"FMU '{self.name}' does not implement Co-Simulation mode.")
+
+        if self.fmi_version == 2:
+            self._detect_array_aggregates()
+
+    _ARRAY_ELEMENT_RE = re.compile(r"^(.+?)\[(\d+)]$")
+
+    def _detect_array_aggregates(self):
+        """Detect FMI-2 array elements notated as `basename[k]` and expose
+        them as a virtual aggregated port named `basename`.
+
+        The aggregate port carries `dimensions=[("start", N)]` and stores the
+        underlying scalar element VRs in `element_vrs`, allowing it to be
+        connected to an FMI-3 array port of dimension `N`.
+        """
+        groups: Dict[str, List[Tuple[int, "EmbeddedFMUPort"]]] = defaultdict(list)
+        for port in self.ports.values():
+            m = self._ARRAY_ELEMENT_RE.match(port.name)
+            if m:
+                basename, idx = m.group(1), int(m.group(2))
+                groups[basename].append((idx, port))
+
+        for basename, elements in groups.items():
+            if basename in self.ports:
+                continue  # collision with a scalar port
+            elements.sort(key=lambda e: e[0])
+            indices = [idx for idx, _ in elements]
+            # Accept contiguous ranges starting at 0 or 1.
+            start = indices[0]
+            if start not in (0, 1):
+                continue
+            if indices != list(range(start, start + len(indices))):
+                logger.debug(f"'{self.name}': non-contiguous array elements for '{basename}', "
+                             f"aggregate not created.")
+                continue
+            # All elements must share the same type/causality/variability/clock.
+            first = elements[0][1]
+            if not all(p.type_name == first.type_name
+                       and p.causality == first.causality
+                       and p.variability == first.variability
+                       and p.clock == first.clock
+                       for _, p in elements):
+                logger.debug(f"'{self.name}': array elements for '{basename}' have "
+                             f"heterogeneous attributes, aggregate not created.")
+                continue
+
+            aggregate = EmbeddedFMUPort(first.type_name, {
+                "name": basename,
+                "valueReference": first.vr,   # informational; not used for I/O
+                "causality": first.causality,
+                "variability": first.variability if first.variability else "continuous",
+                "description": f"FMI-2 array aggregate of {len(elements)} elements '{basename}[]'",
+            })
+            aggregate.dimensions = [("start", len(elements))]
+            aggregate.element_vrs = [p.vr for _, p in elements]
+            aggregate.clock = first.clock
+            self.ports[basename] = aggregate
+            logger.debug(f"'{self.name}': aggregated FMI-2 array '{basename}' "
+                         f"(dim={len(elements)}, elements start at index {start}).")
 
     def fmi_attrs(self, attrs):
         fmi_version = attrs['fmiVersion']
@@ -908,7 +980,15 @@ class FMUIOList:
                 logger.error(f"Cannot expose clocked input: {cport}")
                 return
             self.nb_clocked_inputs[cport.port.type_name][cport.fmu.name] += 1
-        self.inputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, cport.port.size(), local_vr))
+        if cport.port.element_vrs:
+            # FMI-2 array aggregate: emit one scalar translation per element.
+            # Each element reads from a consecutive local storage slot.
+            for k, fmu_vr in enumerate(cport.port.element_vrs):
+                self.inputs[cport.port.type_name][cport.fmu.name][clock].append(
+                    (fmu_vr, 1, local_vr + k))
+        else:
+            self.inputs[cport.port.type_name][cport.fmu.name][clock].append(
+                (cport.port.vr, cport.port.size(), local_vr))
 
     def add_output(self, cport: ContainerPort, local_vr: int):
         """Register an output mapping for an embedded FMU port.
@@ -926,7 +1006,14 @@ class FMUIOList:
                 logger.error(f"Cannot expose clocked output: {cport}")
                 return
             self.nb_clocked_outputs[cport.port.type_name][cport.fmu.name] += 1
-        self.outputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, cport.port.size(), local_vr))
+        if cport.port.element_vrs:
+            # FMI-2 array aggregate: emit one scalar translation per element.
+            for k, fmu_vr in enumerate(cport.port.element_vrs):
+                self.outputs[cport.port.type_name][cport.fmu.name][clock].append(
+                    (fmu_vr, 1, local_vr + k))
+        else:
+            self.outputs[cport.port.type_name][cport.fmu.name][clock].append(
+                (cport.port.vr, cport.port.size(), local_vr))
 
     def add_start_value(self, cport: ContainerPort, value: str):
         """Register a start value for an embedded FMU port.
@@ -941,7 +1028,17 @@ class FMUIOList:
                 value = "1"
             else:
                 value = "0"
-        self.start_values[cport.port.type_name][cport.fmu.name].append((cport.port.vr, cport.port.size(), reset, value))
+        if cport.port.element_vrs:
+            # FMI-2 array aggregate: split the value across each element.
+            tokens = str(value).split(' ')
+            if len(tokens) == 1:
+                tokens = tokens * len(cport.port.element_vrs)
+            for fmu_vr, tok in zip(cport.port.element_vrs, tokens):
+                self.start_values[cport.port.type_name][cport.fmu.name].append(
+                    (fmu_vr, 1, reset, tok))
+        else:
+            self.start_values[cport.port.type_name][cport.fmu.name].append(
+                (cport.port.vr, cport.port.size(), reset, value))
 
     def write_txt(self, fmu_name: str, txt_file: IO) -> None:
         """Write the I/O mapping for one FMU to the `container.txt` file.

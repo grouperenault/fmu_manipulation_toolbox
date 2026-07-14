@@ -398,6 +398,10 @@ class TestSuite:
         if os.name == 'nt':
             self.assert_simulation("array/array.fmu", 0.1)
 
+    def test_array_multi_container(self):
+        assembly = Assembly("multi2.json", fmu_directory=Path("array/multi"), debug=True)
+        assembly.make_fmu(fmi_version=2)
+        validate_fmu("array/multi2.fmu")
 
 @pytest.mark.skipif(not HAS_GUI, reason="GUI dependencies not available")
 class TestGUI:
