@@ -1,6 +1,10 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Upstream
+* ADDED: `fmucontainer`: extended type conversions between all numeric types and booleans. 
+         Lossy conversions (narrowing, sign change, real↔integer, numeric→boolean) are applied with a warning.
+
 # Version 1.9.3.1
 * FIXED: `fmucontainer`: correct `fmi3SetString` for array variables (dimension > 1) and `fmi2GetBooleanStatus`
 * FIXED: `fmucontainer`: memory leaks and crashes under memory pressure; state machine improvements
