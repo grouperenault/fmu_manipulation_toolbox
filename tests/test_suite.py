@@ -400,7 +400,7 @@ class TestSuite:
 
     def test_array_multi_container(self):
         assembly = Assembly("multi2.json", fmu_directory=Path("array/multi"), debug=True)
-        assembly.make_fmu(fmi_version=2)
+        assembly.make_fmu(fmi_version=3)
         validate_fmu("array/multi2.fmu")
 
 @pytest.mark.skipif(not HAS_GUI, reason="GUI dependencies not available")

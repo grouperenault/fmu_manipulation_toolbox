@@ -263,6 +263,80 @@ Those containers may embed
   - Arrays are not supported
 
 
+## Connecting FMI-2 and FMI-3 arrays
+
+FMI-2 has no native array concept: vectors and matrices are conventionally exposed as a set
+of scalar ports using either the Modelica-style notation `name[i,j,...]` or the C-style
+notation `name[i][j]...`. FMI-3 defines arrays as first-class variables carrying one or
+more `<Dimension>` elements.
+
+`fmucontainer` bridges the two, for 1D **and** multi-dimensional arrays:
+
+- When an embedded FMI-2 FMU exposes a set of ports sharing a common `basename` and covering
+  a full N-dimensional hyperrectangle (e.g. `M[1,1]`, `M[1,2]`, `M[2,1]`, `M[2,2]`, or the
+  equivalent `M[1][1]` ... `M[2][2]`), a **virtual aggregated port** named `basename` is
+  automatically created with dimensions matching the detected shape.
+  Both notations (`[i,j]` and `[i][j]`) are accepted and may even be mixed within a single
+  bracket chain (e.g. `M[1,2][3]`).
+- Elements are flattened in **row-major** order (last index varies fastest), matching the
+  FMI-3 array memory layout, so the aggregate can be linked directly to an FMI-3 array
+  port of matching type and shape, in either direction (FMI-2 → FMI-3 or FMI-3 → FMI-2).
+- The individual scalar ports remain available and can still be used element-by-element
+  if desired.
+- When the aggregate is linked, each underlying scalar element port is also marked as
+  connected (rule `LINK`), so it will not be picked up by `auto_input` / `auto_output`.
+
+**Example — 1D vector.** Connect a 3-element vector produced by an FMI-2 FMU to a
+3-dimensional array consumed by an FMI-3 FMU:
+
+```csv
+rule;from_fmu;from_port;to_fmu;to_port
+FMU;fmi2_producer.fmu;;;
+FMU;fmi3_consumer.fmu;;;
+LINK;fmi2_producer.fmu;myVector;fmi3_consumer.fmu;myArray
+```
+
+The scalar ports `myVector[1]`, `myVector[2]`, `myVector[3]` of `fmi2_producer.fmu` are
+transparently mapped onto the single `myArray` array port (dimension 3) of `fmi3_consumer.fmu`.
+
+**Example — 2D matrix.** Connect a 2×3 matrix exposed as 6 scalar ports in FMI-2 to a
+2×3 FMI-3 array:
+
+```csv
+rule;from_fmu;from_port;to_fmu;to_port
+FMU;fmi2_producer.fmu;;;
+FMU;fmi3_consumer.fmu;;;
+LINK;fmi2_producer.fmu;M;fmi3_consumer.fmu;M
+```
+
+with `fmi2_producer.fmu` declaring `M[1,1]`, `M[1,2]`, `M[1,3]`, `M[2,1]`, `M[2,2]`, `M[2,3]`
+(or the C-style equivalent `M[1][1]` ... `M[2][3]`), and `fmi3_consumer.fmu` declaring
+`M` with `<Dimension start="2"/><Dimension start="3"/>`.
+
+Element-by-element linking remains fully supported:
+
+```csv
+LINK;fmi2_producer.fmu;M[1,1];fmi3_consumer.fmu;M[1,1]
+LINK;fmi2_producer.fmu;M[1,2];fmi3_consumer.fmu;M[1,2]
+...
+```
+
+Notes and limitations:
+
+- The aggregate is only created when indices form a complete, contiguous
+  N-dimensional hyperrectangle starting at `0` or `1` on **every** axis. Missing
+  elements, duplicates, or heterogeneous ranks abort the aggregation (scalar
+  elements remain usable individually).
+- All aggregated elements must share the same type, causality, variability and clock.
+- If a scalar port with the same name as the would-be aggregate already exists, the
+  aggregate is not created (no ambiguity).
+- Elements are always flattened in row-major order to match FMI-3. If the FMI-2 FMU
+  documents its 2D array in column-major, transpose the FMI-3 side accordingly.
+- Aggregated FMI-2 array ports can only be *linked* between embedded FMUs — they
+  cannot be exposed as container inputs/outputs in an FMI-2 container (an FMI-2
+  container has no way to expose a native array).
+
+
 # Multi-Threading
 If enabled through `MT` flag, each FMU will be run using its own thread which
 1. fetch its inputs from container buffer which is shared with all FMUs.

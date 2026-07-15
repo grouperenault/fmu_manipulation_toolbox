@@ -1,5 +1,6 @@
 import logging
 import getpass
+import itertools
 import math
 import os
 import re
@@ -120,6 +121,10 @@ class EmbeddedFMUPort:
         # array with `dimensions = [("start", len(element_vrs))]` so it can
         # be connected to an FMI-3 array port.
         self.element_vrs: List[int] = []
+        # Names of the underlying scalar element ports (e.g. `basename[1]`, ...),
+        # kept alongside `element_vrs` so that connecting the aggregate can also
+        # mark each individual scalar port as ruled (LINK).
+        self.element_names: List[str] = []
 
         if fmi_version > 0:
             self.type_name = self.FMI_TO_CONTAINER[fmi_version][fmi_type]
@@ -312,36 +317,83 @@ class EmbeddedFMU(OperationAbstract):
         if self.fmi_version == 2:
             self._detect_array_aggregates()
 
-    _ARRAY_ELEMENT_RE = re.compile(r"^(.+?)\[(\d+)]$")
+    # Trailing bracket group(s), e.g. `[3]`, `[1,2]`, `[1][2][3]` at the end of a name.
+    # Two conventions are accepted and can be mixed within a single group sequence:
+    #   - Modelica-style comma-separated: `M[i,j,k]`
+    #   - C-style stacked brackets:      `M[i][j][k]`
+    _TRAILING_BRACKETS_RE = re.compile(r"^(.+?)((?:\[\d+(?:,\d+)*])+)$")
+    _BRACKET_GROUP_RE = re.compile(r"\[(\d+(?:,\d+)*)]")
+
+    @classmethod
+    def _parse_array_name(cls, name: str) -> Optional[Tuple[str, Tuple[int, ...]]]:
+        """Return `(basename, indices)` if `name` has the form `basename<brackets>`
+        where `<brackets>` is any concatenation of `[i]`, `[i,j,...]` groups.
+        Returns `None` otherwise.
+        """
+        m = cls._TRAILING_BRACKETS_RE.match(name)
+        if not m:
+            return None
+        basename = m.group(1)
+        indices: List[int] = []
+        for grp in cls._BRACKET_GROUP_RE.findall(m.group(2)):
+            for tok in grp.split(","):
+                indices.append(int(tok))
+        return basename, tuple(indices)
 
     def _detect_array_aggregates(self):
-        """Detect FMI-2 array elements notated as `basename[k]` and expose
-        them as a virtual aggregated port named `basename`.
+        """Detect FMI-2 array elements notated as `basename[k]` (1D) or
+        `basename[i,j,...]` / `basename[i][j]...` (N-D) and expose them as a
+        virtual aggregated port named `basename`.
 
-        The aggregate port carries `dimensions=[("start", N)]` and stores the
-        underlying scalar element VRs in `element_vrs`, allowing it to be
-        connected to an FMI-3 array port of dimension `N`.
+        The aggregate port carries `dimensions=[("start", N0), ("start", N1), ...]`
+        and stores the underlying scalar element VRs in `element_vrs`, flattened
+        in **row-major** order (last index varies fastest), matching the FMI-3
+        array memory layout. This allows the aggregate to be connected to an
+        FMI-3 array port of matching shape.
         """
-        groups: Dict[str, List[Tuple[int, "EmbeddedFMUPort"]]] = defaultdict(list)
+        groups: Dict[str, List[Tuple[Tuple[int, ...], "EmbeddedFMUPort"]]] = defaultdict(list)
         for port in self.ports.values():
-            m = self._ARRAY_ELEMENT_RE.match(port.name)
-            if m:
-                basename, idx = m.group(1), int(m.group(2))
-                groups[basename].append((idx, port))
+            parsed = self._parse_array_name(port.name)
+            if parsed is None:
+                continue
+            basename, indices = parsed
+            groups[basename].append((indices, port))
 
         for basename, elements in groups.items():
             if basename in self.ports:
-                continue  # collision with a scalar port
-            elements.sort(key=lambda e: e[0])
-            indices = [idx for idx, _ in elements]
-            # Accept contiguous ranges starting at 0 or 1.
-            start = indices[0]
-            if start not in (0, 1):
+                continue  # collision with a scalar (or already-created) port
+
+            # All elements must share the same rank.
+            rank = len(elements[0][0])
+            if not all(len(idx) == rank for idx, _ in elements):
+                logger.debug(f"'{self.name}': mixed ranks for array '{basename}', "
+                             f"aggregate not created.")
                 continue
-            if indices != list(range(start, start + len(indices))):
+
+            # Per-axis bounds; each axis must start at index 0 or 1.
+            mins = [min(idx[a] for idx, _ in elements) for a in range(rank)]
+            maxs = [max(idx[a] for idx, _ in elements) for a in range(rank)]
+            if not all(s in (0, 1) for s in mins):
+                continue
+            dims = [maxs[a] - mins[a] + 1 for a in range(rank)]
+
+            # The element set must exactly cover the hyperrectangle (no hole,
+            # no duplicate, no out-of-range point).
+            expected_count = 1
+            for d in dims:
+                expected_count *= d
+            actual_set = {idx for idx, _ in elements}
+            if len(actual_set) != len(elements) or expected_count != len(elements):
+                logger.debug(f"'{self.name}': non-contiguous / duplicated array elements "
+                             f"for '{basename}', aggregate not created.")
+                continue
+            expected_set = set(itertools.product(
+                *(range(mins[a], mins[a] + dims[a]) for a in range(rank))))
+            if expected_set != actual_set:
                 logger.debug(f"'{self.name}': non-contiguous array elements for '{basename}', "
                              f"aggregate not created.")
                 continue
+
             # All elements must share the same type/causality/variability/clock.
             first = elements[0][1]
             if not all(p.type_name == first.type_name
@@ -353,6 +405,10 @@ class EmbeddedFMU(OperationAbstract):
                              f"heterogeneous attributes, aggregate not created.")
                 continue
 
+            # Row-major flatten: sort by index tuple lexicographically so that
+            # the last axis varies fastest.
+            elements.sort(key=lambda e: e[0])
+
             aggregate = EmbeddedFMUPort(first.type_name, {
                 "name": basename,
                 "valueReference": first.vr,   # informational; not used for I/O
@@ -360,12 +416,15 @@ class EmbeddedFMU(OperationAbstract):
                 "variability": first.variability if first.variability else "continuous",
                 "description": f"FMI-2 array aggregate of {len(elements)} elements '{basename}[]'",
             })
-            aggregate.dimensions = [("start", len(elements))]
+            aggregate.dimensions = [("start", d) for d in dims]
             aggregate.element_vrs = [p.vr for _, p in elements]
+            aggregate.element_names = [p.name for _, p in elements]
             aggregate.clock = first.clock
             self.ports[basename] = aggregate
+            shape = "x".join(str(d) for d in dims)
             logger.debug(f"'{self.name}': aggregated FMI-2 array '{basename}' "
-                         f"(dim={len(elements)}, elements start at index {start}).")
+                         f"(shape={shape}, {len(elements)} elements, "
+                         f"indices start at {tuple(mins)}).")
 
     def fmi_attrs(self, attrs):
         fmi_version = attrs['fmiVersion']
@@ -1503,6 +1562,16 @@ class FMUContainer:
             logger.debug(f"LINK: {cport_from} -> {cport_to}")
             self.mark_ruled(cport_from, 'LINK')
             self.mark_ruled(cport_to, 'LINK')
+
+            # If either side is an FMI-2 array aggregate, also mark each
+            # underlying scalar element port as LINK so it is not reported
+            # as unconnected.
+            for cport in (cport_from, cport_to):
+                for elt_name in cport.port.element_names:
+                    try:
+                        self.mark_ruled(ContainerPort(cport.fmu, elt_name), 'LINK')
+                    except FMUContainerError:
+                        pass
 
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
         """Set a start value for a port of an embedded FMU.
