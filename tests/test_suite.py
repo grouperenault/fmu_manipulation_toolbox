@@ -399,9 +399,11 @@ class TestSuite:
             self.assert_simulation("array/array.fmu", 0.1)
 
     def test_array_multi_container(self):
-        assembly = Assembly("multi2.json", fmu_directory=Path("array/multi"), debug=True)
+        assembly = Assembly("multi3.json", fmu_directory=Path("array/multi"), debug=True)
         assembly.make_fmu(fmi_version=3)
-        validate_fmu("array/multi2.fmu")
+        self.assert_identical_files("array/multi/REF-container3.txt",
+                                    "array/multi/multi3/resources/container.txt")
+
 
 @pytest.mark.skipif(not HAS_GUI, reason="GUI dependencies not available")
 class TestGUI:
