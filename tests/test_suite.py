@@ -390,20 +390,37 @@ class TestSuite:
         validate_fmu("array/StateSpace-copy.fmu")
         self.assert_identical_files("array/REF-modelDescription.xml", "array/modelDescription.xml")
 
-    def test_array_container(self):
-        assembly = Assembly("array.json", fmu_directory=Path("array"), debug=True)
+    def test_array3_container(self):
+        assembly = Assembly("array-3.json", fmu_directory=Path("array"), debug=True)
         assembly.make_fmu(fmi_version=3)
-        validate_fmu("array/array.fmu")
-        self.assert_identical_files_but_guid("array/REF-container-modelDescription.xml", "array/array/modelDescription.xml")
+        validate_fmu("array/array-3.fmu")
+        self.assert_identical_files_but_guid("array/REF-container-modelDescription-3.xml", "array/array-3/modelDescription.xml")
         if os.name == 'nt':
-            self.assert_simulation("array/array.fmu", 0.1)
+            self.assert_simulation("array/array-3.fmu", 0.1)
 
-    def test_array_multi_container(self):
-        assembly = Assembly("multi3.json", fmu_directory=Path("array/multi"), debug=True)
+    def test_array2_container(self):
+        assembly = Assembly("array-2.json", fmu_directory=Path("array"), debug=True)
+        assembly.make_fmu(fmi_version=2)
+        validate_fmu("array/array-2.fmu")
+        self.assert_identical_files_but_guid("array/REF-container-modelDescription-2.xml", "array/array-2/modelDescription.xml")
+        if os.name == 'nt':
+            self.assert_simulation("array/array-2.fmu", 0.1)
+
+    def test_array23_container(self):
+        assembly = Assembly("array-23.json", fmu_directory=Path("array"), debug=True)
         assembly.make_fmu(fmi_version=3)
-        self.assert_identical_files("array/multi/REF-container3.txt",
-                                    "array/multi/multi3/resources/container.txt")
+        self.assert_identical_files("array/REF-container-23.txt",
+                                    "array/array-23/resources/container.txt")
+        if os.name == 'nt':
+            self.assert_simulation("array/array-23.fmu", 0.1)
 
+    def test_array32_container(self):
+        assembly = Assembly("array-32.json", fmu_directory=Path("array"), debug=True)
+        assembly.make_fmu(fmi_version=3)
+        self.assert_identical_files("array/REF-container-32.txt",
+                                    "array/array-32/resources/container.txt")
+        if os.name == 'nt':
+            self.assert_simulation("array/array-32.fmu", 0.1)
 
 @pytest.mark.skipif(not HAS_GUI, reason="GUI dependencies not available")
 class TestGUI:

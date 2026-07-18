@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<fmiModelDescription
+  fmiVersion="2.0"
+  modelName="array-2"
+  generationTool="FMUContainer-0.0.dev0"
+  generationDateAndTime="2026-07-18T15:26:30Z"
+  guid="cd3b1d50-636c-43f0-ab1b-b9d56a82ff72"
+  description="FMUContainer with scalar2array-2.fmu, array2scalar-2.fmu"
+  author="a067220"
+  license="Proprietary"
+  copyright="See Embedded FMU's copyrights."
+  variableNamingConvention="structured">
+
+  <CoSimulation
+    modelIdentifier="array-2"
+    canHandleVariableCommunicationStepSize="true"
+    canBeInstantiatedOnlyOncePerProcess="true"
+    canNotUseMemoryManagementFunctions="true"
+    canGetAndSetFMUstate="false"
+    canSerializeFMUstate="false"
+    providesDirectionalDerivative="false"
+    needsExecutionTool="false">
+  </CoSimulation>
+
+  <LogCategories>
+    <Category name="Info"
+              description="Info log messages." />
+    <Category name="Error"
+              description="Error log messages." />
+  </LogCategories>
+
+  <DefaultExperiment stepSize="0.1" startTime="0.0" stopTime="10.0"/>
+
+  <ModelVariables>
+    <ScalarVariable valueReference="0" name="time" causality="independent"><Real /></ScalarVariable>
+    <ScalarVariable name="In1" valueReference="2" causality="input" variability="continuous" description="In1"><Real start="1"/></ScalarVariable>
+    <ScalarVariable name="Out1" valueReference="3" causality="output" variability="continuous" initial="calculated" description="Out1"><Real /></ScalarVariable>
+  </ModelVariables>
+
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="3"/>
+    </Outputs>
+    <InitialUnknowns>
+      <Unknown index="3"/>
+    </InitialUnknowns>
+  </ModelStructure>
+
+</fmiModelDescription>
