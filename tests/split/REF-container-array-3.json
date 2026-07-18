@@ -1,0 +1,45 @@
+{
+  "auto_input": false,
+  "auto_output": false,
+  "auto_parameter": false,
+  "auto_local": false,
+  "auto_link": false,
+  "mt": false,
+  "profiling": false,
+  "sequential": false,
+  "step_size": 0.1,
+  "input": [
+    [
+      "In1",
+      "scalar2array-3.fmu",
+      "In1"
+    ]
+  ],
+  "output": [
+    [
+      "array2scalar-3.fmu",
+      "Out1",
+      "Out1"
+    ]
+  ],
+  "start": [
+    [
+      "scalar2array-3.fmu",
+      "In1",
+      "1"
+    ]
+  ],
+  "link": [
+    [
+      "scalar2array-3.fmu",
+      "Out1",
+      "array2scalar-3.fmu",
+      "In1"
+    ]
+  ],
+  "name": "container-array-3.fmu",
+  "fmu": [
+    "scalar2array-3.fmu",
+    "array2scalar-3.fmu"
+  ]
+}

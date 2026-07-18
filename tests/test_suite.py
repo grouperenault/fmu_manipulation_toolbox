@@ -346,6 +346,20 @@ class TestSuite:
     def test_fmusplit_5(self):
         self.fmusplit_n(5)
 
+    def test_fmusplit_array_3(self):
+        sys.argv = ['fmusplit',
+                    "-fmu", f"split/container-array-3.fmu"]
+        fmusplit()
+        self.assert_identical_files(f"split/container-array-3.dir/container-array-3.json",
+                                    f"split/REF-container-array-3.json")
+
+    def test_fmusplit_array_32(self):
+        sys.argv = ['fmusplit',
+                    "-fmu", f"split/container-array-32.fmu"]
+        fmusplit()
+        self.assert_identical_files(f"split/container-array-32.dir/container-array-32.json",
+                                    f"split/REF-container-array-32.json")
+
     def test_ls_bus_nodes_and_bus(self):
         assembly = Assembly("bus+nodes.json", fmu_directory=Path("ls-bus"))
         assembly.make_fmu(fmi_version=3, datalog=True)
@@ -446,13 +460,6 @@ class TestSuite:
             ["scalar2array-2.fmu", "Out1", "array2scalar-3.fmu", "In1"],
         )
 
-    def test_fmusplit_array_32(self):
-        """FMI-3 array Out1 → FMI-2 scalar family (In1[1], In1[2]) must be
-        reconstructed as a single aggregate link on the FMI-2 side."""
-        self._fmusplit_array_link(
-            "array-32",
-            ["scalar2array-3.fmu", "Out1", "array2scalar-2.fmu", "In1"],
-        )
 
 @pytest.mark.skipif(not HAS_GUI, reason="GUI dependencies not available")
 class TestGUI:

@@ -135,3 +135,7 @@ tests/array/results-array-23.csv
 tests/array/array-32
 tests/array/array-32.fmu
 tests/array/results-array-32.csv
+tests/array/array-23.dir
+tests/array/array-32.dir
+tests/split/container-array-3.dir
+tests/split/container-array-32.dir
