@@ -38,6 +38,7 @@ class _PortListSelectorDialog(QDialog):
 
         self._items: List[str] = []
         self._causalities: Dict[str, str] = {}
+        self._aggregates: Set[str] = set()
         self._selected_text = ""
 
         # -- Search bar --
@@ -94,6 +95,11 @@ class _PortListSelectorDialog(QDialog):
         self._causalities = causalities
         self._update_list_widget()
 
+    def set_aggregates(self, aggregates: Iterable[str]):
+        """Set the set of port names that are array aggregates (displayed in bold)."""
+        self._aggregates = set(aggregates)
+        self._update_list_widget()
+
     def set_selected(self, text: str):
         """Set the currently selected item."""
         self._selected_text = text
@@ -138,10 +144,16 @@ class _PortListSelectorDialog(QDialog):
 
             item = QListWidgetItem(port_name)
 
-            # Apply italic formatting for parameter ports
-            if port_name in self._causalities and self._causalities[port_name] == "parameter":
-                font = item.font()
+            # Apply bold formatting for array aggregate ports, italic for parameters
+            font = item.font()
+            changed = False
+            if port_name in self._aggregates:
+                font.setBold(True)
+                changed = True
+            if self._causalities.get(port_name) == "parameter":
                 font.setItalic(True)
+                changed = True
+            if changed:
                 item.setFont(font)
 
             self._list_widget.addItem(item)
@@ -166,6 +178,7 @@ class _PortComboDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self._items: List[str] = []
         self._causalities: Dict[str, str] = {}
+        self._aggregates: Set[str] = set()
 
     def set_items(self, items: List[str]):
         self._items = list(items)
@@ -173,6 +186,10 @@ class _PortComboDelegate(QStyledItemDelegate):
     def set_causalities(self, causalities: Dict[str, str]):
         """Set the causality info for ports."""
         self._causalities = causalities
+
+    def set_aggregates(self, aggregates: Iterable[str]):
+        """Set the set of port names that are array aggregates (rendered in bold)."""
+        self._aggregates = set(aggregates)
 
     def createEditor(self, parent, option, index):
         """Create a non-visible dummy editor; the actual dialog will be shown separately."""
@@ -190,6 +207,7 @@ class _PortComboDelegate(QStyledItemDelegate):
         dialog = _PortListSelectorDialog(parent)
         dialog.set_items(self._items)
         dialog.set_causalities(self._causalities)
+        dialog.set_aggregates(self._aggregates)
         dialog.set_selected(current_value)
 
         table = self.parent()
@@ -231,13 +249,15 @@ class _PortComboDelegate(QStyledItemDelegate):
         editor.setGeometry(0, 0, 0, 0)
 
     def paint(self, painter, option, index):
-        """Display parameter ports in italics and invalid ports in red."""
+        """Display parameter ports in italics, array aggregates in bold, and invalid ports in red."""
         text = index.data(Qt.ItemDataRole.DisplayRole)
         if text:
-            if text in self._causalities and self._causalities[text] == "parameter":
-                font = option.font
+            font = option.font
+            if text in self._aggregates:
+                font.setBold(True)
+            if self._causalities.get(text) == "parameter":
                 font.setItalic(True)
-                option.font = font
+            option.font = font
             if self._items and text not in self._items:
                 option.palette.setColor(option.palette.ColorRole.Text, QColor("#F54927"))
 
@@ -318,8 +338,10 @@ class _WireDirectionTab(QWidget):
         self._to_node = to_node
         self._output_delegate.set_items(from_node.fmu_output_names)
         self._output_delegate.set_causalities(from_node.fmu_port_causality)
+        self._output_delegate.set_aggregates(from_node.fmu_array_aggregate_elements.keys())
         self._input_delegate.set_items(to_node.fmu_input_names)
         self._input_delegate.set_causalities(to_node.fmu_port_causality)
+        self._input_delegate.set_aggregates(to_node.fmu_array_aggregate_elements.keys())
 
     # ── Data access ─────────────────────────────────────────────
 
