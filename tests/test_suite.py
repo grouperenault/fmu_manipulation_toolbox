@@ -422,6 +422,38 @@ class TestSuite:
         if os.name == 'nt':
             self.assert_simulation("array/array-32.fmu", 0.1)
 
+    def _fmusplit_array_link(self, container_stem, expected_link):
+        """Build `<container_stem>.fmu` (if missing), split it, and assert that
+        the reconstructed JSON contains the expected aggregate link."""
+        import json
+        fmu_path = Path("array") / f"{container_stem}.fmu"
+        if not fmu_path.exists():
+            assembly = Assembly(f"{container_stem}.json", fmu_directory=Path("array"), debug=True)
+            assembly.make_fmu(fmi_version=3)
+        sys.argv = ['fmusplit', "-fmu", str(fmu_path)]
+        fmusplit()
+        json_path = Path("array") / f"{container_stem}.dir" / f"{container_stem}.json"
+        with open(json_path) as f:
+            config = json.load(f)
+        assert expected_link in config["link"], \
+            f"Expected aggregate link {expected_link} not found in {config['link']}"
+
+    def test_fmusplit_array_23(self):
+        """FMI-2 scalar family (Out1[1], Out1[2]) → FMI-3 array In1 must be
+        reconstructed as a single aggregate link on the FMI-2 side."""
+        self._fmusplit_array_link(
+            "array-23",
+            ["scalar2array-2.fmu", "Out1", "array2scalar-3.fmu", "In1"],
+        )
+
+    def test_fmusplit_array_32(self):
+        """FMI-3 array Out1 → FMI-2 scalar family (In1[1], In1[2]) must be
+        reconstructed as a single aggregate link on the FMI-2 side."""
+        self._fmusplit_array_link(
+            "array-32",
+            ["scalar2array-3.fmu", "Out1", "array2scalar-2.fmu", "In1"],
+        )
+
 @pytest.mark.skipif(not HAS_GUI, reason="GUI dependencies not available")
 class TestGUI:
     """Tests for the 3 GUI interfaces (FMU Tool, FMU Editor, FMU Container Builder).
