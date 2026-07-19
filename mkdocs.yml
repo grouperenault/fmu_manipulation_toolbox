@@ -160,6 +160,9 @@ nav:
       - Operations: API/operations.md
       - Remoting: API/remoting.md
   - Examples: examples/examples.md
+  - Developer:
+      - container.txt Format: developer/container-txt-format.md
+      - DoStep FMI Sequence: developer/dostep-fmi-sequence.md
   - Help:
       - Troubleshooting: help/troubleshooting.md
       - Contributing: help/contributing.md

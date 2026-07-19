@@ -1,6 +1,17 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Upstream
+* ADDED: `fmucontainer`: extended type conversions between all numeric types and booleans. 
+         Lossy conversions (narrowing, sign change, real↔integer, numeric→boolean) are applied with a warning.
+* ADDED: `fmucontainer`: support links between FMI-2 array-like ports (notation `name[k]`) and
+         FMI-3 array ports. FMI-2 element ports sharing a common `basename[]` are automatically
+         aggregated into a virtual array port named `basename` (dimension = number of elements),
+         which can be linked to an FMI-3 array port of the same dimension.
+         Multi-dimensional arrays are also supported: both `name[i,j,...]` (Modelica-style)
+         and `name[i][j]...` (C-style) notations are recognized; elements are flattened in
+         row-major order to match the FMI-3 array layout.
+
 # Version 1.9.3.1
 * FIXED: `fmucontainer`: correct `fmi3SetString` for array variables (dimension > 1) and `fmi2GetBooleanStatus`
 * FIXED: `fmucontainer`: memory leaks and crashes under memory pressure; state machine improvements

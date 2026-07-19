@@ -3,10 +3,11 @@ import logging
 import xml.parsers.expat
 import zipfile
 
+from collections import defaultdict
 from typing import *
 from pathlib import Path
 
-from .container import EmbeddedFMUPort
+from .container import EmbeddedFMUPort, ArrayAggregate
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -20,9 +21,13 @@ class FMUSplitterError(Exception):
 
 
 class FMUSplitterPort:
-    def __init__(self, fmu_filename: str, port_name):
+    def __init__(self, fmu_filename: str, port_name, dim: int = 1):
         self.fmu_filename = fmu_filename
         self.port_name = port_name
+        # Number of scalar elements represented by this port. `dim > 1` means
+        # the port is a native FMI-3 array. `dim == 1` is a plain scalar
+        # port (which may be part of an FMI-2 array-element family).
+        self.dim = dim
 
     def __str__(self):
         return f"{self.fmu_filename}/{self.port_name}"
@@ -385,6 +390,36 @@ class FMUSplitterDescription:
         link.from_port = FMUSplitterPort(fmu_filename,
                                          self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"])
 
+    def add_input_slots(self, fmi_type, fmu_filename, local, dim, vr):
+        """Register an input port that spans `dim` consecutive local slots
+        starting at `local` (format 4)."""
+        port_name = self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]
+        port = FMUSplitterPort(fmu_filename, port_name, dim=int(dim))
+        base = int(local)
+        for k in range(int(dim)):
+            slot = base + k
+            try:
+                link = self.links[fmi_type][slot]
+            except KeyError:
+                link = FMUSplitterLink()
+                self.links[fmi_type][slot] = link
+            link.to_port.append(port)
+
+    def add_output_slots(self, fmi_type, fmu_filename, local, dim, vr):
+        """Register an output port that spans `dim` consecutive local slots
+        starting at `local` (format 4)."""
+        port_name = self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]
+        port = FMUSplitterPort(fmu_filename, port_name, dim=int(dim))
+        base = int(local)
+        for k in range(int(dim)):
+            slot = base + k
+            try:
+                link = self.links[fmi_type][slot]
+            except KeyError:
+                link = FMUSplitterLink()
+                self.links[fmi_type][slot] = link
+            link.from_port = port
+
     def parse_txt_file(self, txt_filename: str):
         self.parse_model_description(str(Path(txt_filename).parent.parent).replace("\\", "/"), ".")
         logger.debug(f"Parsing container file '{txt_filename}'")
@@ -403,15 +438,16 @@ class FMUSplitterDescription:
                     for i in range(nb_input):
                         if self.file_format == 4:
                             local, dim, vr = self.get_line(file).split(" ")
+                            self.add_input_slots(fmi_type, fmu_filename, local, dim, vr)
                         else:
                             local, vr = self.get_line(file).split(" ")
-                        try:
-                            link = self.links[fmi_type][local]
-                        except KeyError:
-                            link = FMUSplitterLink()
-                            self.links[fmi_type][local] = link
-                        link.to_port.append(FMUSplitterPort(fmu_filename,
-                                                            self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]))
+                            try:
+                                link = self.links[fmi_type][local]
+                            except KeyError:
+                                link = FMUSplitterLink()
+                                self.links[fmi_type][local] = link
+                            link.to_port.append(FMUSplitterPort(fmu_filename,
+                                                                self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]))
 
                     #clocked
                     if self.file_format >= 3 and not fmi_type == "clock":
@@ -451,15 +487,16 @@ class FMUSplitterDescription:
                     for i in range(nb_output):
                         if self.file_format == 4:
                             local, dim, vr = self.get_line(file).split(" ")
+                            self.add_output_slots(fmi_type, fmu_filename, local, dim, vr)
                         else:
                             local, vr = self.get_line(file).split(" ")
-                        try:
-                            link = self.links[fmi_type][local]
-                        except KeyError:
-                            link = FMUSplitterLink()
-                            self.links[fmi_type][local] = link
-                        link.from_port = FMUSplitterPort(fmu_filename,
-                                                         self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"])
+                            try:
+                                link = self.links[fmi_type][local]
+                            except KeyError:
+                                link = FMUSplitterLink()
+                                self.links[fmi_type][local] = link
+                            link.from_port = FMUSplitterPort(fmu_filename,
+                                                             self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"])
 
                     if self.file_format >=3 and not fmi_type == "clock":
                         nb_output = self.get_nb(self.get_line(file))
@@ -508,19 +545,124 @@ class FMUSplitterDescription:
                 logger.warning(f"Unknown conversion function: {conversion_name}")
 
         for fmi_type, links in self.links.items():
+            # Collect unique (from_port, to_port) pairs. Ports registered by
+            # `add_{input,output}_slots` may span several local slots but are
+            # the *same* object across those slots, so identity-based dedup
+            # is what we need here.
+            pair_set: Set[Tuple[int, int]] = set()
+            unique_pairs: List[Tuple[FMUSplitterPort, FMUSplitterPort]] = []
+            orphan_to_ports: List[FMUSplitterPort] = []
             for link in links.values():
+                if link.from_port is None:
+                    # Reader slot with no writer. Two known causes:
+                    #  * LS-BUS clock-to-clock connections (fmi_type == "clock")
+                    #    – not representable in the JSON assembly format.
+                    #  * A container slot from an FMI-2 array-element family
+                    #    that is fully covered by an aggregate link emitted
+                    #    below (silently ignored after the aggregation pass).
+                    orphan_to_ports.extend(link.to_port)
+                    continue
                 for to_port in link.to_port:
-                    try:
-                        definition = [ link.from_port.fmu_filename, link.from_port.port_name,
-                                       to_port.fmu_filename, to_port.port_name]
-                    except AttributeError:
-                        # LS-Bus allow connection between 2 input clocks
-                        logger.error(f"LS-BUS clocks connection are not supported in GUI. "
-                                     f"{to_port.fmu_filename}/{to_port.port_name} is skipped")
+                    key = (id(link.from_port), id(to_port))
+                    if key in pair_set:
                         continue
-                    try:
-                        self.config["link"].append(definition)
-                    except KeyError:
-                        self.config["link"] = [definition]
+                    pair_set.add(key)
+                    unique_pairs.append((link.from_port, to_port))
+
+            # Detect FMI-2 array-element families used as aggregates:
+            # - array target port (dim > 1) fed by N scalar sources whose
+            #   names form a contiguous `basename[k]` family → emit a single
+            #   link using the aggregate basename.
+            # - array source port fanning out to N scalar targets that form
+            #   an aggregate family → same, in the other direction.
+            sources_by_target: Dict[int, List[FMUSplitterPort]] = defaultdict(list)
+            targets_by_source: Dict[int, List[FMUSplitterPort]] = defaultdict(list)
+            port_by_id: Dict[int, FMUSplitterPort] = {}
+            for from_p, to_p in unique_pairs:
+                port_by_id[id(from_p)] = from_p
+                port_by_id[id(to_p)] = to_p
+                if to_p.dim > 1 and from_p.dim == 1:
+                    sources_by_target[id(to_p)].append(from_p)
+                if from_p.dim > 1 and to_p.dim == 1:
+                    targets_by_source[id(from_p)].append(to_p)
+
+            aggregated_target_ids: Set[int] = set()
+            aggregated_source_ids: Set[int] = set()
+            aggregate_definitions: List[List[str]] = []
+            # Names covered by an aggregate emitted below, used to silence
+            # spurious "orphan" warnings for element ports already grouped.
+            covered_names: Set[Tuple[str, str]] = set()  # (fmu_filename, port_name)
+
+            for tid, sources in sources_by_target.items():
+                to_p = port_by_id[tid]
+                if len(sources) != to_p.dim:
+                    continue
+                fmus = {s.fmu_filename for s in sources}
+                if len(fmus) != 1:
+                    continue
+                names = [s.port_name for s in sources]
+                aggs = ArrayAggregate.detect_all(names)
+                if len(aggs) == 1 and aggs[0].size == to_p.dim:
+                    src_fmu = next(iter(fmus))
+                    aggregate_definitions.append(
+                        [src_fmu, aggs[0].basename,
+                         to_p.fmu_filename, to_p.port_name])
+                    aggregated_target_ids.add(tid)
+                    for n in aggs[0].ordered_element_names:
+                        covered_names.add((src_fmu, n))
+
+            for sid, targets in targets_by_source.items():
+                from_p = port_by_id[sid]
+                if len(targets) != from_p.dim:
+                    continue
+                fmus = {t.fmu_filename for t in targets}
+                if len(fmus) != 1:
+                    continue
+                names = [t.port_name for t in targets]
+                aggs = ArrayAggregate.detect_all(names)
+                if len(aggs) == 1 and aggs[0].size == from_p.dim:
+                    dst_fmu = next(iter(fmus))
+                    aggregate_definitions.append(
+                        [from_p.fmu_filename, from_p.port_name,
+                         dst_fmu, aggs[0].basename])
+                    aggregated_source_ids.add(sid)
+                    for n in aggs[0].ordered_element_names:
+                        covered_names.add((dst_fmu, n))
+
+            for definition in aggregate_definitions:
+                try:
+                    self.config["link"].append(definition)
+                except KeyError:
+                    self.config["link"] = [definition]
+
+            for from_p, to_p in unique_pairs:
+                # Skip individual scalar links already covered by an aggregate.
+                if to_p.dim > 1 and from_p.dim == 1 and id(to_p) in aggregated_target_ids:
+                    continue
+                if from_p.dim > 1 and to_p.dim == 1 and id(from_p) in aggregated_source_ids:
+                    continue
+                definition = [from_p.fmu_filename, from_p.port_name,
+                              to_p.fmu_filename, to_p.port_name]
+                try:
+                    self.config["link"].append(definition)
+                except KeyError:
+                    self.config["link"] = [definition]
+
+            # Report remaining truly-orphan readers (no matching writer and
+            # not covered by an aggregate). LS-BUS clock-to-clock connections
+            # are the historical reason for this branch; other unresolved
+            # readers are logged as generic warnings.
+            for to_port in orphan_to_ports:
+                if (to_port.fmu_filename, to_port.port_name) in covered_names:
+                    logger.debug(f"Orphan reader silenced (covered by aggregate): "
+                                 f"{to_port.fmu_filename}/{to_port.port_name}")
+                    continue
+                if fmi_type == "clock":
+                    logger.error(f"LS-BUS clocks connection are not supported in GUI. "
+                                 f"{to_port.fmu_filename}/{to_port.port_name} is skipped")
+                else:
+                    logger.warning(f"Unresolved {fmi_type} input port "
+                                   f"{to_port.fmu_filename}/{to_port.port_name} "
+                                   f"(no matching writer); skipped")
 
         return self.config

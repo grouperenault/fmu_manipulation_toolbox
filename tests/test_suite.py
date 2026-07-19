@@ -346,6 +346,20 @@ class TestSuite:
     def test_fmusplit_5(self):
         self.fmusplit_n(5)
 
+    def test_fmusplit_array_3(self):
+        sys.argv = ['fmusplit',
+                    "-fmu", f"split/container-array-3.fmu"]
+        fmusplit()
+        self.assert_identical_files(f"split/container-array-3.dir/container-array-3.json",
+                                    f"split/REF-container-array-3.json")
+
+    def test_fmusplit_array_32(self):
+        sys.argv = ['fmusplit',
+                    "-fmu", f"split/container-array-32.fmu"]
+        fmusplit()
+        self.assert_identical_files(f"split/container-array-32.dir/container-array-32.json",
+                                    f"split/REF-container-array-32.json")
+
     def test_ls_bus_nodes_and_bus(self):
         assembly = Assembly("bus+nodes.json", fmu_directory=Path("ls-bus"))
         assembly.make_fmu(fmi_version=3, datalog=True)
@@ -390,13 +404,61 @@ class TestSuite:
         validate_fmu("array/StateSpace-copy.fmu")
         self.assert_identical_files("array/REF-modelDescription.xml", "array/modelDescription.xml")
 
-    def test_array_container(self):
-        assembly = Assembly("array.json", fmu_directory=Path("array"), debug=True)
+    def test_array3_container(self):
+        assembly = Assembly("array-3.json", fmu_directory=Path("array"), debug=True)
         assembly.make_fmu(fmi_version=3)
-        validate_fmu("array/array.fmu")
-        self.assert_identical_files_but_guid("array/REF-container-modelDescription.xml", "array/array/modelDescription.xml")
+        validate_fmu("array/array-3.fmu")
+        self.assert_identical_files_but_guid("array/REF-container-modelDescription-3.xml", "array/array-3/modelDescription.xml")
         if os.name == 'nt':
-            self.assert_simulation("array/array.fmu", 0.1)
+            self.assert_simulation("array/array-3.fmu", 0.1)
+
+    def test_array2_container(self):
+        assembly = Assembly("array-2.json", fmu_directory=Path("array"), debug=True)
+        assembly.make_fmu(fmi_version=2)
+        validate_fmu("array/array-2.fmu")
+        self.assert_identical_files_but_guid("array/REF-container-modelDescription-2.xml", "array/array-2/modelDescription.xml")
+        if os.name == 'nt':
+            self.assert_simulation("array/array-2.fmu", 0.1)
+
+    def test_array23_container(self):
+        assembly = Assembly("array-23.json", fmu_directory=Path("array"), debug=True)
+        assembly.make_fmu(fmi_version=3)
+        self.assert_identical_files("array/REF-container-23.txt",
+                                    "array/array-23/resources/container.txt")
+        if os.name == 'nt':
+            self.assert_simulation("array/array-23.fmu", 0.1)
+
+    def test_array32_container(self):
+        assembly = Assembly("array-32.json", fmu_directory=Path("array"), debug=True)
+        assembly.make_fmu(fmi_version=3)
+        self.assert_identical_files("array/REF-container-32.txt",
+                                    "array/array-32/resources/container.txt")
+        if os.name == 'nt':
+            self.assert_simulation("array/array-32.fmu", 0.1)
+
+    def _fmusplit_array_link(self, container_stem, expected_link):
+        """Build `<container_stem>.fmu` (if missing), split it, and assert that
+        the reconstructed JSON contains the expected aggregate link."""
+        import json
+        fmu_path = Path("array") / f"{container_stem}.fmu"
+        if not fmu_path.exists():
+            assembly = Assembly(f"{container_stem}.json", fmu_directory=Path("array"), debug=True)
+            assembly.make_fmu(fmi_version=3)
+        sys.argv = ['fmusplit', "-fmu", str(fmu_path)]
+        fmusplit()
+        json_path = Path("array") / f"{container_stem}.dir" / f"{container_stem}.json"
+        with open(json_path) as f:
+            config = json.load(f)
+        assert expected_link in config["link"], \
+            f"Expected aggregate link {expected_link} not found in {config['link']}"
+
+    def test_fmusplit_array_23(self):
+        """FMI-2 scalar family (Out1[1], Out1[2]) → FMI-3 array In1 must be
+        reconstructed as a single aggregate link on the FMI-2 side."""
+        self._fmusplit_array_link(
+            "array-23",
+            ["scalar2array-2.fmu", "Out1", "array2scalar-3.fmu", "In1"],
+        )
 
 
 @pytest.mark.skipif(not HAS_GUI, reason="GUI dependencies not available")

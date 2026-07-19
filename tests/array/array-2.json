@@ -1,0 +1,9 @@
+{
+  "name": "array-2.fmu",
+  "link": [
+    ["scalar2array-2.fmu", "Out1", "array2scalar-2.fmu", "In1"]
+  ],
+  "start": [
+    [ "scalar2array-2.fmu", "In1", 1]
+  ]
+}

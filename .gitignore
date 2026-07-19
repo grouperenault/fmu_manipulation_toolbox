@@ -78,7 +78,6 @@ tests/containers/bouncing_ball/cli-bouncing.fmu
 tests/containers/arch/cli-flat-dump.json
 tests/containers/arch/cli-flat.fmu
 tests/operations/cli-bouncing_ball.csv
-tests/operations/cli-bouncing_ball.csv
 tests/containers/VanDerPol/VanDerPol-vr2.fmu
 tests/containers/VanDerPol/results-VanDerPol-vr2.csv
 tests/ls-bus/bus+nodes.fmu
@@ -124,3 +123,19 @@ tests/split/container-V5.dir
 tests/containers/ssp/bb_position.fmu
 tests/containers/ssp/bb_velocity.fmu
 tests/bouncing.dir
+tests/array/array-2
+tests/array/array-2.fmu
+tests/array/results-array-2.csv
+tests/array/array-3
+tests/array/array-3.fmu
+tests/array/results-array-3.csv
+tests/array/array-23
+tests/array/array-23.fmu
+tests/array/results-array-23.csv
+tests/array/array-32
+tests/array/array-32.fmu
+tests/array/results-array-32.csv
+tests/array/array-23.dir
+tests/array/array-32.dir
+tests/split/container-array-3.dir
+tests/split/container-array-32.dir

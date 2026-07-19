@@ -164,12 +164,17 @@ Lists all input and parameter ports with their start values.
 
 | Column | Description |
 |---|---|
-| **Input Port** | Port name (read-only). Clock and binary ports are excluded. |
+| **Input Port** | Port name (read-only). Clock and binary ports, as well as FMI-2 array aggregates, are excluded. |
 | **Start Value** | User-defined start value (editable). A gray placeholder shows the FMU's default value. |
 
 !!! tip "Start Values"
     Leave the start value empty to use the FMU's built-in default. Enter a value to override it
     in the container.
+
+!!! note "FMI-2 array aggregates"
+    Virtual array aggregates (see [Port Style Indicators](#port-style-indicators)) are **not**
+    listed in this tab. Start values must be defined on the individual scalar elements
+    (`myVector[1]`, `myVector[2]`, …), which appear as regular input ports.
 
 #### Output Ports tab
 
@@ -185,13 +190,18 @@ Lists all output ports with a checkbox to explicitly expose them at the containe
     Use this tab to explicitly select which outputs to expose — useful when `auto_output`
     is disabled or when you need fine-grained control.
 
-!!! note "Port Causality Indicator"
-    Ports are displayed with different text styles to indicate their causality type:
-    
-    - **Parameter ports** are shown in *italics* — these are configuration values or tuning parameters
-    - Other port types (standard inputs/outputs) appear in regular text
-    
-    This visual distinction helps you quickly identify parameter ports in the interface.
+!!! note "Port Style Indicators"
+    Ports are displayed with different text styles to indicate their nature:
+
+    - **Parameter ports** are shown in *italics* — these are configuration values or tuning parameters.
+    - **FMI-2 array aggregates** are shown in **bold** — these are virtual ports representing a
+      family of scalar variables named `basename[k]`, `basename[i,j,...]` or `basename[i][j]…`
+      that the toolbox groups together so they can be connected as a single array to an FMI-3
+      array port.
+    - When an aggregate is also a parameter, it is displayed in ***bold italics***.
+    - Other port types (standard inputs/outputs) appear in regular text.
+
+    This visual distinction helps you quickly identify parameters and array aggregates in the interface.
 
 
 ### Wire Details
@@ -216,13 +226,20 @@ Each tab contains a 2-column table:
 | **Output Port** | Output variable of the source FMU (combo-box) |
 | **Input Port** | Input variable of the destination FMU (combo-box) |
 
-!!! note "Port Causality Indicator"
-    Ports are displayed with different text styles to indicate their causality type:
-    
-    - **Parameter ports** are shown in *italics* — these are typically tuning parameters or configuration values
-    - Other ports (inputs, outputs) appear in regular text
-    
-    This visual distinction helps quickly identify parameter ports when configuring mappings.
+!!! note "Port Style Indicators"
+    Ports are displayed with different text styles to indicate their nature:
+
+    - **Parameter ports** are shown in *italics* — these are typically tuning parameters or configuration values.
+    - **FMI-2 array aggregates** are shown in **bold** — virtual ports that group a family
+      of scalar variables (e.g. `myVector[1]`, `myVector[2]`, `myVector[3]`) into a single
+      array port. Selecting an aggregate on one side of a wire connects **all** its elements
+      at once, which is especially useful for wiring FMI-2 arrays to FMI-3 array ports of
+      matching shape.
+    - When an aggregate is also a parameter, it is displayed in ***bold italics***.
+    - Other ports (standard inputs, outputs) appear in regular text.
+
+    This visual distinction helps you quickly identify parameters and array aggregates when
+    configuring mappings.
 
 Each tab has its own **Add link** / **Remove link** buttons to manage mappings for that direction.
 

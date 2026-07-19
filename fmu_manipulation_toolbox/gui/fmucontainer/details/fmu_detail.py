@@ -26,6 +26,7 @@ class _StartValueDelegate(QStyledItemDelegate):
     ROLE_PLACEHOLDER = Qt.ItemDataRole.UserRole + 100
     ROLE_CAUSALITY = Qt.ItemDataRole.UserRole + 101
     ROLE_INVALID = Qt.ItemDataRole.UserRole + 102
+    ROLE_AGGREGATE = Qt.ItemDataRole.UserRole + 103
 
     def displayText(self, value, locale):
         if value:
@@ -34,9 +35,13 @@ class _StartValueDelegate(QStyledItemDelegate):
 
     def paint(self, painter, option, index):
         causality = index.data(self.ROLE_CAUSALITY)
-        if causality == "parameter":
+        aggregate = index.data(self.ROLE_AGGREGATE)
+        if causality == "parameter" or aggregate:
             font = option.font
-            font.setItalic(True)
+            if causality == "parameter":
+                font.setItalic(True)
+            if aggregate:
+                font.setBold(True)
             option.font = font
 
         invalid = index.data(self.ROLE_INVALID)
@@ -184,12 +189,19 @@ class FMUDetailWidget(QWidget):
             port_type = node.fmu_port_type.get(port_name, "").lower()
             if port_type in ("clock", "binary"):
                 continue
+            # Skip virtual FMI-2 array aggregates – start values are set on
+            # their individual scalar elements, not on the aggregate itself.
+            if port_name in node.fmu_array_aggregate_elements:
+                continue
 
             shown_ports.add(port_name)
             name_item = QStandardItem(port_name)
             name_item.setEditable(False)
             causality = node.fmu_port_causality.get(port_name, "input")
             name_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
+            is_aggregate = port_name in node.fmu_array_aggregate_elements
+            if is_aggregate:
+                name_item.setData(True, _StartValueDelegate.ROLE_AGGREGATE)
 
             user_val = node.user_start_values.get(port_name, "")
             value_item = QStandardItem(user_val)
@@ -198,6 +210,8 @@ class FMUDetailWidget(QWidget):
                 value_item.setData(str(default), _StartValueDelegate.ROLE_PLACEHOLDER)
                 value_item.setToolTip(f"FMU default: {default}")
             value_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
+            if is_aggregate:
+                value_item.setData(True, _StartValueDelegate.ROLE_AGGREGATE)
 
             self._sv_model.appendRow([name_item, value_item])
 
@@ -223,6 +237,9 @@ class FMUDetailWidget(QWidget):
             name_item.setEditable(False)
             causality = node.fmu_port_causality.get(port_name, "output")
             name_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
+            is_aggregate = port_name in node.fmu_array_aggregate_elements
+            if is_aggregate:
+                name_item.setData(True, _StartValueDelegate.ROLE_AGGREGATE)
 
             check_item = QStandardItem("")
             check_item.setEditable(False)
@@ -230,6 +247,8 @@ class FMUDetailWidget(QWidget):
             exposed = node.user_exposed_outputs.get(port_name, False)
             check_item.setCheckState(Qt.CheckState.Checked if exposed else Qt.CheckState.Unchecked)
             check_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
+            if is_aggregate:
+                check_item.setData(True, _StartValueDelegate.ROLE_AGGREGATE)
 
             self._out_model.appendRow([name_item, check_item])
 

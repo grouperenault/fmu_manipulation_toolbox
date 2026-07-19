@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsIte
 
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.terminals import Terminals
+from fmu_manipulation_toolbox.container import ArrayAggregate
 
 from .constants import (
     NODE_MIN_WIDTH, NODE_TITLE_HEIGHT, NODE_PORT_SPACING, NODE_CORNER_RADIUS,
@@ -43,6 +44,12 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.user_exposed_outputs: Dict[str, bool] = {}
         self.fmu_step_size: Optional[str] = None
         self.fmu_generator: str = ""
+        self.fmu_fmi_version: Optional[int] = None
+        # Names of the underlying scalar element ports for each FMI-2 array
+        # aggregate detected on this node (e.g. `myVector` -> `[myVector[1],
+        # myVector[2], myVector[3]]`). Used to hide/mark the elements when
+        # the aggregate is used in a wire.
+        self.fmu_array_aggregate_elements: Dict[str, List[str]] = {}
 
         fmu = FMU(fmu_path)
         fmu.apply_operation(self)
@@ -88,6 +95,11 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     def fmi_attrs(self, attrs):
         self.fmu_generator = attrs.get("generationTool", "-")
+        version = attrs.get("fmiVersion", "")
+        if version == "2.0":
+            self.fmu_fmi_version = 2
+        elif version.startswith("3."):
+            self.fmu_fmi_version = 3
 
     def experiment_attrs(self, attrs):
         self.fmu_step_size = attrs.get("stepSize", "")
@@ -109,6 +121,38 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
     def closure(self):
         for terminal in Terminals(self.fmu.tmp_directory):
             self.fmu_terminal_names.append(terminal.name)
+
+        # For FMI-2 FMUs, expose contiguous families of scalar ports named
+        # `basename[k]`, `basename[i,j,...]` or `basename[i][j]...` as virtual
+        # aggregated ports named `basename`, so the user can select them in
+        # wires and connect them to FMI-3 array ports of matching shape.
+        if self.fmu_fmi_version == 2:
+            self._add_array_aggregates()
+
+    def _add_array_aggregates(self):
+        existing = set(self.fmu_port_causality.keys())
+        for agg in ArrayAggregate.detect_all(
+                list(self.fmu_port_causality.keys()),
+                existing_names=existing,
+                log_prefix=self.title,
+        ):
+            first = agg.ordered_element_names[0]
+            causality = self.fmu_port_causality.get(first, "local")
+            type_name = self.fmu_port_type.get(first, "")
+
+            # All elements must share the same type and causality.
+            if not all(self.fmu_port_causality.get(n) == causality
+                       and self.fmu_port_type.get(n) == type_name
+                       for n in agg.ordered_element_names):
+                continue
+
+            self.fmu_port_causality[agg.basename] = causality
+            self.fmu_port_type[agg.basename] = type_name
+            self.fmu_array_aggregate_elements[agg.basename] = list(agg.ordered_element_names)
+            if causality in ("input", "parameter"):
+                self.fmu_input_names.append(agg.basename)
+            elif causality == "output":
+                self.fmu_output_names.append(agg.basename)
 
     # -- Title -----------------------------------------------------------------
 
@@ -209,8 +253,10 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_port_causality.clear()
         self.fmu_port_type.clear()
         self.fmu_start_values.clear()
+        self.fmu_array_aggregate_elements.clear()
         self.fmu_step_size = None
         self.fmu_generator = ""
+        self.fmu_fmi_version = None
 
         fmu = FMU(new_fmu_path)
         fmu.apply_operation(self)

@@ -22,7 +22,7 @@
     providesAdjointDerivatives="false"
     providesPerElementDependencies="false"
     providesEvaluateDiscreteStates="false"
-    hasEventMode="true"
+    hasEventMode="false"
     needsExecutionTool="false">
   </CoSimulation>
 

@@ -1,7 +1,9 @@
 import logging
 import getpass
+import itertools
 import math
 import os
+import re
 import shutil
 import uuid
 import zipfile
@@ -17,6 +19,152 @@ from .version import __version__ as tool_version
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+
+
+# ---------------------------------------------------------------------------
+# FMI-2 array-aggregate helpers
+#
+# FMI-2 has no native array concept: vectors and matrices are conventionally
+# exposed as a set of scalar ports named `basename[i]`, `basename[i,j,...]`
+# or `basename[i][j]...`. The `ArrayAggregate` class below detects such
+# families and represents them as virtual N-D aggregates so they can be
+# connected to FMI-3 array ports of matching shape.
+# ---------------------------------------------------------------------------
+
+
+class ArrayAggregate:
+    """Represents an FMI-2 array-element family (`basename[i]`, `basename[i,j]`,
+    ...) aggregated as a virtual N-D array so it can be linked to an FMI-3
+    array port of matching shape.
+
+    Attributes:
+        basename: Name of the virtual aggregate (without brackets).
+        dims: Shape as a tuple of positive integers, e.g. `(3,)` for a 1D
+            vector of length 3, `(2, 3)` for a 2×3 matrix.
+        ordered_element_names: Original scalar port names sorted in
+            **row-major** order (last index varies fastest), matching the
+            FMI-3 array memory layout.
+    """
+
+    __slots__ = ("basename", "dims", "ordered_element_names")
+
+    # Trailing bracket group(s): `[3]`, `[1,2]`, `[1][2][3]` at the end of a name.
+    _TRAILING_BRACKETS_RE = re.compile(r"^(.+?)((?:\[\d+(?:,\d+)*])+)$")
+    _BRACKET_GROUP_RE = re.compile(r"\[(\d+(?:,\d+)*)]")
+
+    def __init__(self, basename: str, dims: Tuple[int, ...], ordered_element_names: List[str]):
+        self.basename = basename
+        self.dims = dims
+        self.ordered_element_names = ordered_element_names
+
+    @property
+    def size(self) -> int:
+        """Total number of scalar elements (product of `dims`)."""
+        return len(self.ordered_element_names)
+
+    @property
+    def rank(self) -> int:
+        """Number of axes (`len(dims)`)."""
+        return len(self.dims)
+
+    @property
+    def shape_str(self) -> str:
+        """Human-readable shape, e.g. `"2x3"` for a 2×3 matrix."""
+        return "x".join(str(d) for d in self.dims)
+
+    def __repr__(self):
+        return f"ArrayAggregate({self.basename!r}, shape={self.shape_str}, size={self.size})"
+
+    # -- Alternative constructors / parsers ------------------------------------
+
+    @classmethod
+    def parse_element_name(cls, name: str) -> Optional[Tuple[str, Tuple[int, ...]]]:
+        """Return `(basename, indices)` if `name` has the form `basename<brackets>`
+        where `<brackets>` is any concatenation of `[i]`, `[i,j,...]` groups
+        (both Modelica-style commas and C-style stacked brackets are accepted,
+        and may be mixed). Returns `None` if `name` is not a recognized array
+        element name.
+        """
+        m = cls._TRAILING_BRACKETS_RE.match(name)
+        if not m:
+            return None
+        basename = m.group(1)
+        indices: List[int] = []
+        for grp in cls._BRACKET_GROUP_RE.findall(m.group(2)):
+            for tok in grp.split(","):
+                indices.append(int(tok))
+        return basename, tuple(indices)
+
+    @classmethod
+    def detect_all(
+            cls,
+            port_names: Iterable[str],
+            existing_names: Optional[Set[str]] = None,
+            log_prefix: str = "",
+    ) -> List["ArrayAggregate"]:
+        """Detect FMI-2 array-element families among `port_names` and return the
+        valid N-D aggregates as `ArrayAggregate` instances.
+
+        Only aggregates whose indices form a complete, contiguous hyperrectangle
+        starting at 0 or 1 on every axis are returned. Attribute homogeneity
+        (type, causality, ...) is **not** checked here; callers must filter
+        further if needed.
+
+        `existing_names` avoids emitting an aggregate whose basename collides
+        with an already-existing (scalar) port.
+        """
+        if existing_names is None:
+            existing_names = set()
+
+        groups: Dict[str, List[Tuple[Tuple[int, ...], str]]] = defaultdict(list)
+        for name in port_names:
+            parsed = cls.parse_element_name(name)
+            if parsed is None:
+                continue
+            basename, indices = parsed
+            groups[basename].append((indices, name))
+
+        aggregates: List[ArrayAggregate] = []
+        for basename, elements in groups.items():
+            if basename in existing_names:
+                continue
+
+            rank = len(elements[0][0])
+            if not all(len(idx) == rank for idx, _ in elements):
+                if log_prefix:
+                    logger.debug(f"'{log_prefix}': mixed ranks for array '{basename}', "
+                                 f"aggregate not created.")
+                continue
+
+            mins = [min(idx[a] for idx, _ in elements) for a in range(rank)]
+            maxs = [max(idx[a] for idx, _ in elements) for a in range(rank)]
+            if not all(s in (0, 1) for s in mins):
+                continue
+            dims = tuple(maxs[a] - mins[a] + 1 for a in range(rank))
+
+            expected_count = 1
+            for d in dims:
+                expected_count *= d
+            actual_set = {idx for idx, _ in elements}
+            if len(actual_set) != len(elements) or expected_count != len(elements):
+                if log_prefix:
+                    logger.debug(f"'{log_prefix}': non-contiguous / duplicated array elements "
+                                 f"for '{basename}', aggregate not created.")
+                continue
+            expected_set = set(itertools.product(
+                *(range(mins[a], mins[a] + dims[a]) for a in range(rank))))
+            if expected_set != actual_set:
+                if log_prefix:
+                    logger.debug(f"'{log_prefix}': non-contiguous array elements for '{basename}', "
+                                 f"aggregate not created.")
+                continue
+
+            # Row-major sort: last index varies fastest.
+            elements.sort(key=lambda e: e[0])
+            ordered_names = [n for _, n in elements]
+            aggregates.append(cls(basename, dims, ordered_names))
+
+        return aggregates
 
 
 class EmbeddedFMUPort:
@@ -114,6 +262,16 @@ class EmbeddedFMUPort:
         else:
             self.dimensions = []
 
+        # For FMI-2 aggregated arrays: value references of each underlying
+        # scalar element, in order. When set, this port behaves as a virtual
+        # array with `dimensions = [("start", len(element_vrs))]` so it can
+        # be connected to an FMI-3 array port.
+        self.element_vrs: List[int] = []
+        # Names of the underlying scalar element ports (e.g. `basename[1]`, ...),
+        # kept alongside `element_vrs` so that connecting the aggregate can also
+        # mark each individual scalar port as ruled (LINK).
+        self.element_names: List[str] = []
+
         if fmi_version > 0:
             self.type_name = self.FMI_TO_CONTAINER[fmi_version][fmi_type]
         else:
@@ -124,6 +282,8 @@ class EmbeddedFMUPort:
         self.clock = attrs.get("clocks", None)
 
     def size(self) -> int:
+        if self.element_vrs:
+            return len(self.element_vrs)
         size = 1
         for dimension in self.dimensions:
             if dimension[0] == "start":
@@ -169,6 +329,11 @@ class EmbeddedFMUPort:
         except KeyError:
             logger.error(f"Cannot expose ({causality}) '{name}' because type '{self.type_name}' is not compatible "
                          f"with FMI-{fmi_version}.0")
+            return ""
+
+        if fmi_version == 2 and self.element_vrs:
+            logger.error(f"Cannot expose FMI-2 array aggregate '{name}' in an FMI-2 container "
+                         f"(use the scalar elements '{name}[k]' individually).")
             return ""
 
         if fmi_version == 2:
@@ -294,6 +459,56 @@ class EmbeddedFMU(OperationAbstract):
         self.fmu.apply_operation(self)  # Should be the last command in constructor!
         if self.model_identifier is None:
             raise FMUContainerError(f"FMU '{self.name}' does not implement Co-Simulation mode.")
+
+        if self.fmi_version == 2:
+            self._detect_array_aggregates()
+
+
+    def _detect_array_aggregates(self):
+        """Detect FMI-2 array elements notated as `basename[k]` (1D) or
+        `basename[i,j,...]` / `basename[i][j]...` (N-D) and expose them as a
+        virtual aggregated port named `basename`.
+
+        The aggregate port carries `dimensions=[("start", N0), ("start", N1), ...]`
+        and stores the underlying scalar element VRs in `element_vrs`, flattened
+        in **row-major** order (last index varies fastest), matching the FMI-3
+        array memory layout. This allows the aggregate to be connected to an
+        FMI-3 array port of matching shape.
+        """
+        candidates = ArrayAggregate.detect_all(
+            [p.name for p in self.ports.values()],
+            existing_names=set(self.ports.keys()),
+            log_prefix=self.name,
+        )
+
+        for agg in candidates:
+            elements = [self.ports[n] for n in agg.ordered_element_names]
+            first = elements[0]
+
+            # All elements must share the same type/causality/variability/clock.
+            if not all(p.type_name == first.type_name
+                       and p.causality == first.causality
+                       and p.variability == first.variability
+                       and p.clock == first.clock
+                       for p in elements):
+                logger.debug(f"'{self.name}': array elements for '{agg.basename}' have "
+                             f"heterogeneous attributes, aggregate not created.")
+                continue
+
+            aggregate = EmbeddedFMUPort(first.type_name, {
+                "name": agg.basename,
+                "valueReference": first.vr,   # informational; not used for I/O
+                "causality": first.causality,
+                "variability": first.variability if first.variability else "continuous",
+                "description": f"FMI-2 array aggregate of {agg.size} elements '{agg.basename}[]'",
+            })
+            aggregate.dimensions = [("start", d) for d in agg.dims]
+            aggregate.element_vrs = [p.vr for p in elements]
+            aggregate.element_names = [p.name for p in elements]
+            aggregate.clock = first.clock
+            self.ports[agg.basename] = aggregate
+            logger.debug(f"'{self.name}': aggregated FMI-2 array '{agg.basename}' "
+                         f"(shape={agg.shape_str}, {agg.size} elements).")
 
     def fmi_attrs(self, attrs):
         fmi_version = attrs['fmiVersion']
@@ -475,6 +690,10 @@ class Link:
     """
 
     CONVERSION_FUNCTION = {
+        # ------------------------------------------------------------------
+        # Lossless conversions (widening integers, F32 -> F64, boolean/int
+        # normalisation, boolean -> numeric which yields 0 or 1).
+        # ------------------------------------------------------------------
         "real32/real64": "F32_F64",
 
         "integer8/integer16": "D8_D16",
@@ -509,6 +728,139 @@ class Link:
 
         "boolean/boolean1": "B_B1",
         "boolean1/boolean": "B1_B",
+
+        # Boolean -> numeric: result is 0 or 1, lossless.
+        "boolean/real32":    "B_F32",
+        "boolean/real64":    "B_F64",
+        "boolean/integer8":  "B_D8",
+        "boolean/uinteger8": "B_U8",
+        "boolean/integer16": "B_D16",
+        "boolean/uinteger16":"B_U16",
+        "boolean/integer32": "B_D32",
+        "boolean/uinteger32":"B_U32",
+        "boolean/integer64": "B_D64",
+        "boolean/uinteger64":"B_U64",
+
+        "boolean1/real32":    "B1_F32",
+        "boolean1/real64":    "B1_F64",
+        "boolean1/integer8":  "B1_D8",
+        "boolean1/uinteger8": "B1_U8",
+        "boolean1/integer16": "B1_D16",
+        "boolean1/uinteger16":"B1_U16",
+        "boolean1/integer32": "B1_D32",
+        "boolean1/uinteger32":"B1_U32",
+        "boolean1/integer64": "B1_D64",
+        "boolean1/uinteger64":"B1_U64",
+
+        # ------------------------------------------------------------------
+        # Lossy conversions (prefixed with '_' so the C side and the Python
+        # side both flag them). A warning is emitted when such a conversion
+        # is instantiated (see Link.add_target).
+        # ------------------------------------------------------------------
+
+        # From F32
+        "real32/integer8":   "_F32_D8",
+        "real32/uinteger8":  "_F32_U8",
+        "real32/integer16":  "_F32_D16",
+        "real32/uinteger16": "_F32_U16",
+        "real32/integer32":  "_F32_D32",
+        "real32/uinteger32": "_F32_U32",
+        "real32/integer64":  "_F32_D64",
+        "real32/uinteger64": "_F32_U64",
+
+        # From F64
+        "real64/real32":     "_F64_F32",
+        "real64/integer8":   "_F64_D8",
+        "real64/uinteger8":  "_F64_U8",
+        "real64/integer16":  "_F64_D16",
+        "real64/uinteger16": "_F64_U16",
+        "real64/integer32":  "_F64_D32",
+        "real64/uinteger32": "_F64_U32",
+        "real64/integer64":  "_F64_D64",
+        "real64/uinteger64": "_F64_U64",
+
+        # From D8 / U8
+        "integer8/real32":   "_D8_F32",
+        "integer8/real64":   "_D8_F64",
+        "integer8/uinteger8": "_D8_U8",
+
+        "uinteger8/real32":  "_U8_F32",
+        "uinteger8/real64":  "_U8_F64",
+        "uinteger8/integer8": "_U8_D8",
+
+        # From D16 / U16
+        "integer16/real32":   "_D16_F32",
+        "integer16/real64":   "_D16_F64",
+        "integer16/integer8": "_D16_D8",
+        "integer16/uinteger8":"_D16_U8",
+        "integer16/uinteger16":"_D16_U16",
+
+        "uinteger16/real32":   "_U16_F32",
+        "uinteger16/real64":   "_U16_F64",
+        "uinteger16/integer8": "_U16_D8",
+        "uinteger16/uinteger8":"_U16_U8",
+        "uinteger16/integer16":"_U16_D16",
+
+        # From D32 / U32
+        "integer32/real32":    "_D32_F32",
+        "integer32/real64":    "_D32_F64",
+        "integer32/integer8":  "_D32_D8",
+        "integer32/uinteger8": "_D32_U8",
+        "integer32/integer16": "_D32_D16",
+        "integer32/uinteger16":"_D32_U16",
+        "integer32/uinteger32":"_D32_U32",
+
+        "uinteger32/real32":    "_U32_F32",
+        "uinteger32/real64":    "_U32_F64",
+        "uinteger32/integer8":  "_U32_D8",
+        "uinteger32/uinteger8": "_U32_U8",
+        "uinteger32/integer16": "_U32_D16",
+        "uinteger32/uinteger16":"_U32_U16",
+        "uinteger32/integer32": "_U32_D32",
+
+        # From D64 / U64
+        "integer64/real32":    "_D64_F32",
+        "integer64/real64":    "_D64_F64",
+        "integer64/integer8":  "_D64_D8",
+        "integer64/uinteger8": "_D64_U8",
+        "integer64/integer16": "_D64_D16",
+        "integer64/uinteger16":"_D64_U16",
+        "integer64/integer32": "_D64_D32",
+        "integer64/uinteger32":"_D64_U32",
+        "integer64/uinteger64":"_D64_U64",
+
+        "uinteger64/real32":    "_U64_F32",
+        "uinteger64/real64":    "_U64_F64",
+        "uinteger64/integer8":  "_U64_D8",
+        "uinteger64/uinteger8": "_U64_U8",
+        "uinteger64/integer16": "_U64_D16",
+        "uinteger64/uinteger16":"_U64_U16",
+        "uinteger64/integer32": "_U64_D32",
+        "uinteger64/uinteger32":"_U64_U32",
+        "uinteger64/integer64": "_U64_D64",
+
+        # Numeric -> boolean: non-zero is considered true.
+        "real32/boolean":     "_F32_B",
+        "real64/boolean":     "_F64_B",
+        "integer8/boolean":   "_D8_B",
+        "uinteger8/boolean":  "_U8_B",
+        "integer16/boolean":  "_D16_B",
+        "uinteger16/boolean": "_U16_B",
+        "integer32/boolean":  "_D32_B",
+        "uinteger32/boolean": "_U32_B",
+        "integer64/boolean":  "_D64_B",
+        "uinteger64/boolean": "_U64_B",
+
+        "real32/boolean1":     "_F32_B1",
+        "real64/boolean1":     "_F64_B1",
+        "integer8/boolean1":   "_D8_B1",
+        "uinteger8/boolean1":  "_U8_B1",
+        "integer16/boolean1":  "_D16_B1",
+        "uinteger16/boolean1": "_U16_B1",
+        "integer32/boolean1":  "_D32_B1",
+        "uinteger32/boolean1": "_U32_B1",
+        "integer64/boolean1":  "_D64_B1",
+        "uinteger64/boolean1": "_U64_B1",
     }
 
     def __init__(self, cport_from: ContainerPort):
@@ -547,11 +899,16 @@ class Link:
                 self.cport_to_list.append(cport_to)
             else:
                 raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due dimensions mismatch.")
-        elif self.get_conversion(cport_to):
-            self.cport_to_list.append(cport_to)
-            self.vr_converted[cport_to.port.type_name] = None
         else:
-            raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
+            conversion = self.get_conversion(cport_to)
+            if conversion:
+                if conversion.startswith("_"):
+                    logger.warning(f"Lossy conversion {conversion.lstrip('_')} applied "
+                                   f"from {self.cport_from} to {cport_to}.")
+                self.cport_to_list.append(cport_to)
+                self.vr_converted[cport_to.port.type_name] = None
+            else:
+                raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
 
     def get_conversion(self, cport_to: ContainerPort) -> Optional[str]:
         """Look up the conversion function for connecting to a different type.
@@ -766,7 +1123,15 @@ class FMUIOList:
                 logger.error(f"Cannot expose clocked input: {cport}")
                 return
             self.nb_clocked_inputs[cport.port.type_name][cport.fmu.name] += 1
-        self.inputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, cport.port.size(), local_vr))
+        if cport.port.element_vrs:
+            # FMI-2 array aggregate: emit one scalar translation per element.
+            # Each element reads from a consecutive local storage slot.
+            for k, fmu_vr in enumerate(cport.port.element_vrs):
+                self.inputs[cport.port.type_name][cport.fmu.name][clock].append(
+                    (fmu_vr, 1, local_vr + k))
+        else:
+            self.inputs[cport.port.type_name][cport.fmu.name][clock].append(
+                (cport.port.vr, cport.port.size(), local_vr))
 
     def add_output(self, cport: ContainerPort, local_vr: int):
         """Register an output mapping for an embedded FMU port.
@@ -784,7 +1149,14 @@ class FMUIOList:
                 logger.error(f"Cannot expose clocked output: {cport}")
                 return
             self.nb_clocked_outputs[cport.port.type_name][cport.fmu.name] += 1
-        self.outputs[cport.port.type_name][cport.fmu.name][clock].append((cport.port.vr, cport.port.size(), local_vr))
+        if cport.port.element_vrs:
+            # FMI-2 array aggregate: emit one scalar translation per element.
+            for k, fmu_vr in enumerate(cport.port.element_vrs):
+                self.outputs[cport.port.type_name][cport.fmu.name][clock].append(
+                    (fmu_vr, 1, local_vr + k))
+        else:
+            self.outputs[cport.port.type_name][cport.fmu.name][clock].append(
+                (cport.port.vr, cport.port.size(), local_vr))
 
     def add_start_value(self, cport: ContainerPort, value: str):
         """Register a start value for an embedded FMU port.
@@ -799,7 +1171,17 @@ class FMUIOList:
                 value = "1"
             else:
                 value = "0"
-        self.start_values[cport.port.type_name][cport.fmu.name].append((cport.port.vr, cport.port.size(), reset, value))
+        if cport.port.element_vrs:
+            # FMI-2 array aggregate: split the value across each element.
+            tokens = str(value).split(' ')
+            if len(tokens) == 1:
+                tokens = tokens * len(cport.port.element_vrs)
+            for fmu_vr, tok in zip(cport.port.element_vrs, tokens):
+                self.start_values[cport.port.type_name][cport.fmu.name].append(
+                    (fmu_vr, 1, reset, tok))
+        else:
+            self.start_values[cport.port.type_name][cport.fmu.name].append(
+                (cport.port.vr, cport.port.size(), reset, value))
 
     def write_txt(self, fmu_name: str, txt_file: IO) -> None:
         """Write the I/O mapping for one FMU to the `container.txt` file.
@@ -1017,7 +1399,7 @@ class FMUContainer:
     providesAdjointDerivatives="false"
     providesPerElementDependencies="false"
     providesEvaluateDiscreteStates="false"
-    hasEventMode="true"
+    hasEventMode="false"
     needsExecutionTool="{execution_tool}">
   </CoSimulation>
 
@@ -1264,6 +1646,16 @@ class FMUContainer:
             logger.debug(f"LINK: {cport_from} -> {cport_to}")
             self.mark_ruled(cport_from, 'LINK')
             self.mark_ruled(cport_to, 'LINK')
+
+            # If either side is an FMI-2 array aggregate, also mark each
+            # underlying scalar element port as LINK so it is not reported
+            # as unconnected.
+            for cport in (cport_from, cport_to):
+                for elt_name in cport.port.element_names:
+                    try:
+                        self.mark_ruled(ContainerPort(cport.fmu, elt_name), 'LINK')
+                    except FMUContainerError:
+                        pass
 
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
         """Set a start value for a port of an embedded FMU.
