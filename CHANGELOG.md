@@ -2,6 +2,15 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* ADDED: `fmusplit`: detect terminal-to-terminal connections. Groups of port-to-port links whose
+         endpoints belong to two compatible terminals (same `terminalKind` / `matchingRule`) are
+         collapsed into a single terminal-level link in the produced JSON assembly. This lifts the
+         previous "LS-BUS clocks connection are not supported in GUI" limitation for FMU containers
+         where the peer FMU does not emit clocks (typical LS-BUS bus/node setups).
+* FIXED: `fmusplit`: correct parsing of clocked inputs/outputs in container.txt file format 4
+         (indexing bug that produced spurious cross-links between FMUs sharing a bus).
+* ADDED: GUI: on import, links between terminals declared in an assembly JSON are correctly
+         detected and routed to the wire's terminal mappings (visible in the `WireDetail` panel).
 * ADDED: `fmucontainer`: extended type conversions between all numeric types and booleans. 
          Lossy conversions (narrowing, sign change, real↔integer, numeric→boolean) are applied with a warning.
 * ADDED: `fmucontainer`: support links between FMI-2 array-like ports (notation `name[k]`) and

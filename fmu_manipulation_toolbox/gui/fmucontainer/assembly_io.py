@@ -163,16 +163,39 @@ class AssemblyIOMixin:
                     logger.warning(f"Cannot create wire: node not found for {name1} ↔ {name2}")
                     continue
 
+                # Split mappings into port-links and terminal-links. A link is
+                # considered a terminal-link when *both* endpoints are declared
+                # as terminals on their respective FMUs (see terminalsAndIcons).
+                port_mappings: List[Tuple[str, str, str, str]] = []
+                terminal_mappings: List[Tuple[str, str, str, str]] = []
+                for m in mappings:
+                    fmu_a, name_a, fmu_b, name_b = m
+                    # Resolve which node hosts which endpoint (mappings preserve
+                    # the original from→to direction, independent of node_a/b).
+                    node_a = nodes_by_name.get(str((fmu_directory / fmu_a).resolve()))
+                    node_b = nodes_by_name.get(str((fmu_directory / fmu_b).resolve()))
+                    is_term_a = node_a is not None and name_a in node_a.fmu_terminal_names
+                    is_term_b = node_b is not None and name_b in node_b.fmu_terminal_names
+                    if is_term_a and is_term_b:
+                        terminal_mappings.append(m)
+                        logger.debug(f"TERMINAL LINK detected: {fmu_a}/{name_a} ↔ {fmu_b}/{name_b}")
+                    else:
+                        port_mappings.append(m)
+
                 wire = self._graph.scene.add_wire(node1, node2)
                 if wire:
-                    wire.mappings = mappings
-                    logger.debug(f"Wire created: {name1} ↔ {name2} with {len(mappings)} mapping(s)")
+                    wire.mappings = port_mappings
+                    wire.terminal_mappings = terminal_mappings
+                    logger.debug(f"Wire created: {name1} ↔ {name2} with "
+                                 f"{len(port_mappings)} port mapping(s), "
+                                 f"{len(terminal_mappings)} terminal mapping(s)")
                 else:
                     # Wire already exists — append mappings
                     for w in node1.wires:
                         other = w.node_b if w.node_a is node1 else w.node_a
                         if other is node2:
-                            w.mappings.extend(mappings)
+                            w.mappings.extend(port_mappings)
+                            w.terminal_mappings.extend(terminal_mappings)
                             break
         finally:
             self._graph.scene.blockSignals(False)
