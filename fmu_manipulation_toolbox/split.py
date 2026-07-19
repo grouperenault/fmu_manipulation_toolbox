@@ -8,6 +8,7 @@ from typing import *
 from pathlib import Path
 
 from .container import EmbeddedFMUPort, ArrayAggregate
+from .terminals import Terminals, Terminal
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -151,6 +152,10 @@ class FMUSplitterDescription:
         self.zip = handle
         self.links: Dict[str, Dict[int, FMUSplitterLink]] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
         self.vr_to_name: Dict[str, Dict[str, Dict[int, Dict[str, str]]]] = {} # name, fmi_type, vr <-> {name, causality}
+        # Terminals declared by each candidate FMU (loaded from its
+        # embedded terminalsAndIcons.xml inside the outer container zip).
+        # `None` means no such file was present.
+        self.terminals_by_fmu: Dict[str, Optional[Terminals]] = {}
         self.config: Dict[str, Any] = {
             "auto_input": False,
             "auto_output": False,
@@ -225,6 +230,19 @@ class FMUSplitterDescription:
         with (self.zip.open(filename) as file):
             logger.debug(f"Parsing '{filename}' ({fmu_filename})")
             parser.ParseFile(file)
+
+        # Also load terminalsAndIcons.xml, if any, so that later we can
+        # aggregate multiple port-to-port links into a single terminal link.
+        if directory == ".":
+            term_filename = "terminalsAndIcons/terminalsAndIcons.xml"
+        else:
+            term_filename = f"{directory}/terminalsAndIcons/terminalsAndIcons.xml"
+        if term_filename in self.zip.namelist():
+            with self.zip.open(term_filename) as term_file:
+                self.terminals_by_fmu[fmu_filename] = Terminals.from_xml_source(
+                    term_file, label=term_filename)
+        else:
+            self.terminals_by_fmu[fmu_filename] = None
 
     @property
     def supported_fmi_types(self) -> Tuple[str]:
@@ -455,11 +473,15 @@ class FMUSplitterDescription:
                         logger.debug(f"INPUT of {fmu_filename} {fmi_type} : CLOCKED {nb_input}")
                         for i in range(nb_input):
                             if self.file_format == 4:
+                                # Line format:
+                                #   <FMU_VR_CLOCK> <n> [<VR> <DIM> <FMU_VR>] × n
                                 tokens = self.get_line(file).split(" ")
-                                local, n = tokens[0], int(tokens[1])
+                                _clock, n = tokens[0], int(tokens[1])
                                 for j in range(n):
-                                    vr = int(tokens[3 + 2 * j])
-                                    self.add_input(fmi_type, fmu_filename, local, vr)
+                                    local = tokens[2 + 3 * j]
+                                    dim = tokens[3 + 3 * j]
+                                    vr = tokens[4 + 3 * j]
+                                    self.add_input_slots(fmi_type, fmu_filename, local, dim, vr)
                             else:
                                 local, _clock, vr = self.get_line(file).split(" ")
                                 self.add_input(fmi_type, fmu_filename, local, vr)
@@ -504,11 +526,15 @@ class FMUSplitterDescription:
 
                         for i in range(nb_output):
                             if self.file_format == 4:
+                                # Line format:
+                                #   <FMU_VR_CLOCK> <n> [<VR> <DIM> <FMU_VR>] × n
                                 tokens = self.get_line(file).split(" ")
-                                local, n = tokens[0], int(tokens[1])
+                                _clock, n = tokens[0], int(tokens[1])
                                 for j in range(n):
-                                    vr = int(tokens[3 + 2 * j])
-                                    self.add_output(fmi_type, fmu_filename, local, vr)
+                                    local = tokens[2 + 3 * j]
+                                    dim = tokens[3 + 3 * j]
+                                    vr = tokens[4 + 3 * j]
+                                    self.add_output_slots(fmi_type, fmu_filename, local, dim, vr)
                             else:
                                 local, _clock, vr = self.get_line(file).split(" ")
                                 self.add_output(fmi_type, fmu_filename, local, vr)
@@ -651,10 +677,18 @@ class FMUSplitterDescription:
             # Report remaining truly-orphan readers (no matching writer and
             # not covered by an aggregate). LS-BUS clock-to-clock connections
             # are the historical reason for this branch; other unresolved
-            # readers are logged as generic warnings.
+            # readers are logged as generic warnings. Readers whose variable
+            # belongs to a declared terminal are silently skipped: the
+            # terminal-level link emitted by `_aggregate_terminal_links`
+            # already carries the connection at a higher level of abstraction.
+            covered_by_terminal = self._terminal_variables()
             for to_port in orphan_to_ports:
                 if (to_port.fmu_filename, to_port.port_name) in covered_names:
                     logger.debug(f"Orphan reader silenced (covered by aggregate): "
+                                 f"{to_port.fmu_filename}/{to_port.port_name}")
+                    continue
+                if (to_port.fmu_filename, to_port.port_name) in covered_by_terminal:
+                    logger.debug(f"Orphan reader silenced (covered by terminal): "
                                  f"{to_port.fmu_filename}/{to_port.port_name}")
                     continue
                 if fmi_type == "clock":
@@ -665,4 +699,100 @@ class FMUSplitterDescription:
                                    f"{to_port.fmu_filename}/{to_port.port_name} "
                                    f"(no matching writer); skipped")
 
+        # Collapse groups of port-to-port links that together realise a
+        # complete terminal-to-terminal connection into a single link entry.
+        self._aggregate_terminal_links()
+
         return self.config
+
+    def _aggregate_terminal_links(self):
+        """Detect groups of port-to-port links between two FMUs that
+        realise a terminal-to-terminal connection, and replace them by a
+        single link entry referring to the terminals.
+
+        Strategy: for each link whose *both* endpoints are member
+        variables of two compatible terminals (same ``kind`` and
+        ``matchingRule``) on their respective FMUs, group it under the
+        unordered terminal-pair. All grouped links are then removed and
+        replaced by a single ``[fmu_a, term_a, fmu_b, term_b]`` entry.
+
+        This is deliberately permissive: it does not require every
+        variable pair returned by ``Terminal.connect`` to be present,
+        because some FMU containers omit half-duplex members (typical
+        LS-BUS setups where the bus does not emit clocks). The presence
+        of at least one qualifying link between two compatible terminals
+        is enough to conclude that the two terminals are wired together.
+        """
+        if not self.config.get("link"):
+            return
+
+        # Map (fmu_filename, variable_name) → owning terminal object.
+        var_to_terminal: Dict[Tuple[str, str], Terminal] = {}
+        for fmu_filename, terms in self.terminals_by_fmu.items():
+            if not terms:
+                continue
+            for term in terms:
+                for var in self._terminal_variable_names(term):
+                    var_to_terminal[(fmu_filename, var)] = term
+
+        if not var_to_terminal:
+            return
+
+        links: List[List[str]] = self.config["link"]
+        # Group link indices by unordered (fmu, terminal_name) pair.
+        # Keep the canonical order stable for deterministic output.
+        grouped: Dict[Tuple[str, str, str, str], List[int]] = {}
+        for idx, link in enumerate(links):
+            fmu_from, port_from, fmu_to, port_to = link
+            if fmu_from == fmu_to:
+                continue
+            term_a = var_to_terminal.get((fmu_from, port_from))
+            term_b = var_to_terminal.get((fmu_to, port_to))
+            if term_a is None or term_b is None:
+                continue
+            # `Terminal.__eq__` compares kind and matchingRule.
+            if term_a != term_b:
+                continue
+            a = (fmu_from, term_a.name)
+            b = (fmu_to, term_b.name)
+            key = (a[0], a[1], b[0], b[1]) if a <= b else (b[0], b[1], a[0], a[1])
+            grouped.setdefault(key, []).append(idx)
+
+        if not grouped:
+            return
+
+        removed: Set[int] = set()
+        added: List[List[str]] = []
+        for key, idx_list in grouped.items():
+            for idx in idx_list:
+                removed.add(idx)
+            added.append([key[0], key[1], key[2], key[3]])
+            logger.info(
+                f"Aggregated {len(idx_list)} port-links into terminal "
+                f"connection: {key[0]}/{key[1]} ↔ {key[2]}/{key[3]}")
+
+        self.config["link"] = [l for i, l in enumerate(links) if i not in removed]
+        self.config["link"].extend(added)
+
+    def _terminal_variables(self) -> Set[Tuple[str, str]]:
+        """Return the set of ``(fmu_filename, variable_name)`` pairs that
+        are declared as members (direct or through sub-terminals) of some
+        terminal in any candidate FMU."""
+        result: Set[Tuple[str, str]] = set()
+        for fmu_filename, terms in self.terminals_by_fmu.items():
+            if not terms:
+                continue
+            for term in terms:
+                for var in self._terminal_variable_names(term):
+                    result.add((fmu_filename, var))
+        return result
+
+    @staticmethod
+    def _terminal_variable_names(term: Terminal) -> Iterator[str]:
+        """Yield every leaf variable name reachable from ``term`` (direct
+        members and members of sub-terminals, recursively)."""
+        for var in term.members.values():
+            yield var
+        for sub in term.sub_terminals.values():
+            yield from FMUSplitterDescription._terminal_variable_names(sub)
+
