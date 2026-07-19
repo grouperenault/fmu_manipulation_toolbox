@@ -51,3 +51,13 @@ connects `node1.fmu` to `bus.fmu` through their terminals and the same for `node
                  output_interval=0.1, validate=True, use_event_mode=True,
                  logger=log, debug_logging=True, relative_tolerance=1e-6)
     ```
+
+## Round-trip with `fmusplit`
+
+Running [`fmusplit`](../fmutool/cli-usage.md#fmusplit-extract-fmus-from-a-container)
+on the container `bus+nodes.fmu` produced above regenerates exactly the same
+JSON assembly, with terminal-level `link` entries (e.g.
+`[ "node1.fmu", "CanChannel", "bus.fmu", "Node1" ]`) rather than the underlying
+per-signal port links. The extracted assembly can therefore be re-imported into
+the GUI or rebuilt with `fmucontainer` without further editing.
+
