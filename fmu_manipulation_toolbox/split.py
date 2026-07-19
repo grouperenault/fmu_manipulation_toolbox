@@ -433,6 +433,8 @@ class FMUSplitterDescription:
             slot = base + k
             try:
                 link = self.links[fmi_type][slot]
+                if link.from_port:
+                    logger.critical(f"add_output_slots({slot}): from={port}, previously={link.from_port}")
             except KeyError:
                 link = FMUSplitterLink()
                 self.links[fmi_type][slot] = link
@@ -454,25 +456,19 @@ class FMUSplitterDescription:
                     logger.debug(f"INPUT of {fmu_filename} {fmi_type} : {nb_input}")
 
                     for i in range(nb_input):
-                        if self.file_format == 4:
+                        if self.file_format >= 4:
                             local, dim, vr = self.get_line(file).split(" ")
-                            self.add_input_slots(fmi_type, fmu_filename, local, dim, vr)
                         else:
                             local, vr = self.get_line(file).split(" ")
-                            try:
-                                link = self.links[fmi_type][local]
-                            except KeyError:
-                                link = FMUSplitterLink()
-                                self.links[fmi_type][local] = link
-                            link.to_port.append(FMUSplitterPort(fmu_filename,
-                                                                self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"]))
+                            dim = 1
+                        self.add_input_slots(fmi_type, fmu_filename, local, dim, vr)
 
                     #clocked
                     if self.file_format >= 3 and not fmi_type == "clock":
                         nb_input = self.get_nb(self.get_line(file))
                         logger.debug(f"INPUT of {fmu_filename} {fmi_type} : CLOCKED {nb_input}")
                         for i in range(nb_input):
-                            if self.file_format == 4:
+                            if self.file_format >= 4:
                                 # Line format:
                                 #   <FMU_VR_CLOCK> <n> [<VR> <DIM> <FMU_VR>] × n
                                 tokens = self.get_line(file).split(" ")
@@ -507,25 +503,19 @@ class FMUSplitterDescription:
                     logger.debug(f"OUTPUT of {fmu_filename} {fmi_type} : {nb_output}")
 
                     for i in range(nb_output):
-                        if self.file_format == 4:
+                        if self.file_format >= 4:
                             local, dim, vr = self.get_line(file).split(" ")
-                            self.add_output_slots(fmi_type, fmu_filename, local, dim, vr)
                         else:
                             local, vr = self.get_line(file).split(" ")
-                            try:
-                                link = self.links[fmi_type][local]
-                            except KeyError:
-                                link = FMUSplitterLink()
-                                self.links[fmi_type][local] = link
-                            link.from_port = FMUSplitterPort(fmu_filename,
-                                                             self.vr_to_name[fmu_filename][fmi_type][int(vr)]["name"])
+                            dim = 1
+                        self.add_output_slots(fmi_type, fmu_filename, local, dim, vr)
 
                     if self.file_format >=3 and not fmi_type == "clock":
                         nb_output = self.get_nb(self.get_line(file))
                         logger.debug(f"OUTPUT {fmi_type} : CLOCKED {nb_output}")
 
                         for i in range(nb_output):
-                            if self.file_format == 4:
+                            if self.file_format >= 4:
                                 # Line format:
                                 #   <FMU_VR_CLOCK> <n> [<VR> <DIM> <FMU_VR>] × n
                                 tokens = self.get_line(file).split(" ")
