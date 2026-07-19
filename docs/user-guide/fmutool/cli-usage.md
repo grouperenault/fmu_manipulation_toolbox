@@ -353,6 +353,16 @@ fmusplit -fmu my_container.fmu
 fmusplit -fmu container1.fmu -fmu container2.fmu
 ```
 
+!!! note "Terminal-level connections"
+    When two FMUs are wired together through compatible terminals (same
+    `terminalKind` and `matchingRule`, as declared in each FMU's
+    `terminalsAndIcons.xml`), `fmusplit` groups the underlying port-to-port
+    links into a single terminal-to-terminal entry in the produced JSON,
+    e.g. `[ "node1.fmu", "CanChannel", "bus.fmu", "Node1" ]`. This applies
+    in particular to [LS-BUS enabled FMUs](../fmucontainer/ls-bus.md), even
+    when the peer FMU does not emit clocks. The result can be re-imported
+    into the GUI or fed back into `fmucontainer` unchanged.
+
 ## datalog2pcap: Convert Datalog to PCAP
 
 !!! warning "Experimental"
