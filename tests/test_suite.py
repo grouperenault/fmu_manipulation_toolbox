@@ -360,6 +360,13 @@ class TestSuite:
         self.assert_identical_files(f"split/container-array-32.dir/container-array-32.json",
                                     f"split/REF-container-array-32.json")
 
+    def test_fmusplit_lsbus(self):
+        sys.argv = ['fmusplit',
+                    "-fmu", f"split/container-ls-bus.fmu"]
+        fmusplit()
+        self.assert_identical_files(f"split/container-ls-bus.dir/container-ls-bus.json",
+                                    f"split/REF-container-ls-bus.json")
+
     def test_ls_bus_nodes_and_bus(self):
         assembly = Assembly("bus+nodes.json", fmu_directory=Path("ls-bus"))
         assembly.make_fmu(fmi_version=3, datalog=True)
