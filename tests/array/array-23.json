@@ -1,9 +1,13 @@
 {
   "name": "array-23.fmu",
   "link": [
-    ["scalar2array-2.fmu", "Out1", "array2scalar-3.fmu", "In1"]
+    ["scalar2array-2.fmu", "Out1", "array2scalar-3.fmu", "In1"],
+    ["scalar2array-2.fmu", "Out2", "array2scalar-3.fmu", "In2"],
+    ["scalar2array-2.fmu", "Out3", "array2scalar-3.fmu", "In3"]
   ],
   "start": [
-    [ "scalar2array-2.fmu", "In1", 1]
+    [ "scalar2array-2.fmu", "In1", 1],
+    [ "scalar2array-2.fmu", "In2", 2],
+    [ "scalar2array-2.fmu", "In3", 3]
   ]
 }

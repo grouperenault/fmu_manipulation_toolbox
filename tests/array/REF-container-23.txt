@@ -7,19 +7,25 @@
 2
 scalar2array-2.fmu 2 0
 scalar2array
-{31de50e2-5498-f07a-1ac2-aea216b4b8e8}
+{76866743-3c10-17cb-6414-0a543d314dc7}
 array2scalar-3.fmu 3 1
 array2scalar
-{98833ffb-ff3c-43f0-b7db-add838f23dac}
+{b0dc56e6-3937-919f-c90e-c51ec10bd67e}
 # NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
-3 0 0 0 0 0 1 0 0 0 0 0 0 0 0
+7 0 0 0 0 0 1 0 0 0 0 0 0 0 0
 # CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
 # real64
-4 4
+10 10
 0 1 1 -1 0
-2 1 1 0 0
-3 1 1 1 1
+4 1 1 0 0
+5 1 1 0 1
+6 1 1 0 2
+7 1 1 1 3
+8 1 1 1 4
+9 1 1 1 5
 1 2 1 -1 1
+2 3 1 -1 3
+3 1 1 -1 6
 # real32
 0 0
 # integer8
@@ -49,67 +55,69 @@ array2scalar
 0 0
 # clock
 0 0
-# Inputs of scalar2array-2.fmu - real64: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - real64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - real32: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - real32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - real32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - integer8: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - integer8: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - integer8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - uinteger8: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - uinteger8: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - uinteger8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - integer16: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - integer16: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - integer16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - uinteger16: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - uinteger16: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - uinteger16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - integer32: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - integer32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - integer32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - uinteger32: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - uinteger32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - uinteger32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - integer64: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - integer64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - integer64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - uinteger64: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - uinteger64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - uinteger64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - boolean: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - boolean: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - boolean1: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - boolean1: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - boolean1: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - string: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - string: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - string: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - string: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - binary: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - binary: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of scalar2array-2.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of scalar2array-2.fmu - binary: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of scalar2array-2.fmu - clock: <VR> <DIM> <FMU_VR>
+# Inputs of scalar2array-2.fmu - clock: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
 # Start values of scalar2array-2.fmu - real64: <FMU_VR> <DIM> <RESET> <VALUE>
-1 1
+3 3
 0 1 1 1
+1 1 1 2
+2 1 1 3
 # Start values of scalar2array-2.fmu - real32: <FMU_VR> <DIM> <RESET> <VALUE>
 0 0
 # Start values of scalar2array-2.fmu - integer8: <FMU_VR> <DIM> <RESET> <VALUE>
@@ -134,126 +142,132 @@ array2scalar
 0 0
 # Start values of scalar2array-2.fmu - string: <FMU_VR> <DIM> <RESET> <VALUE>
 0 0
-# Outputs of scalar2array-2.fmu - real64: <VR> <DIM> <FMU_VR>
-2
-1 1 1
-2 1 2
-# Clocked Outputs of scalar2array-2.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+6
+1 1 3
+2 1 4
+3 1 5
+4 1 6
+5 1 7
+6 1 8
+# Clocked Outputs of scalar2array-2.fmu - real64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - real32: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - real32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - real32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - integer8: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - integer8: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - integer8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - uinteger8: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - uinteger8: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - uinteger8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - integer16: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - integer16: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - integer16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - uinteger16: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - uinteger16: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - uinteger16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - integer32: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - integer32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - integer32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - uinteger32: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - uinteger32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - uinteger32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - integer64: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - integer64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - integer64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - uinteger64: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - uinteger64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - uinteger64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - boolean: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - boolean: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - boolean1: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - boolean1: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - boolean1: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - string: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - string: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - string: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - string: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - binary: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - binary: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of scalar2array-2.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of scalar2array-2.fmu - binary: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of scalar2array-2.fmu - clock: <VR> <DIM> <FMU_VR>
+# Outputs of scalar2array-2.fmu - clock: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
 # Conversion table of scalar2array-2.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
-# Inputs of array2scalar-3.fmu - real64: <VR> <DIM> <FMU_VR>
-1
+# Inputs of array2scalar-3.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+3
 1 2 0
-# Clocked Inputs of array2scalar-3.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+3 3 1
+6 1 2
+# Clocked Inputs of array2scalar-3.fmu - real64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - real32: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - real32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - real32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - integer8: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - integer8: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - integer8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - uinteger8: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - uinteger8: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - uinteger8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - integer16: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - integer16: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - integer16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - uinteger16: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - uinteger16: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - uinteger16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - integer32: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - integer32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - integer32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - uinteger32: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - uinteger32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - uinteger32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - integer64: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - integer64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - integer64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - uinteger64: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - uinteger64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - uinteger64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - boolean: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - boolean: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - boolean1: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - boolean1: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - boolean1: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - string: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - string: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - string: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - string: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - binary: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - binary: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Inputs of array2scalar-3.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Inputs of array2scalar-3.fmu - binary: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Inputs of array2scalar-3.fmu - clock: <VR> <DIM> <FMU_VR>
+# Inputs of array2scalar-3.fmu - clock: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
 # Start values of array2scalar-3.fmu - real64: <FMU_VR> <DIM> <RESET> <VALUE>
 0 0
@@ -281,63 +295,63 @@ array2scalar
 0 0
 # Start values of array2scalar-3.fmu - string: <FMU_VR> <DIM> <RESET> <VALUE>
 0 0
-# Outputs of array2scalar-3.fmu - real64: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - real64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - real64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - real32: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - real32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - real32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - real32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - integer8: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - integer8: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - integer8: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - integer8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - uinteger8: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - uinteger8: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - uinteger8: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - uinteger8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - integer16: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - integer16: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - integer16: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - integer16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - uinteger16: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - uinteger16: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - uinteger16: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - uinteger16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - integer32: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - integer32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - integer32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - integer32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - uinteger32: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - uinteger32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - uinteger32: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - uinteger32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - integer64: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - integer64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - integer64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - integer64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - uinteger64: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - uinteger64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - uinteger64: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - uinteger64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - boolean: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - boolean: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - boolean: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - boolean1: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - boolean1: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - boolean1: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - boolean1: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - string: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - string: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - string: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - string: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - binary: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - binary: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
-# Clocked Outputs of array2scalar-3.fmu - binary: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>
+# Clocked Outputs of array2scalar-3.fmu - binary: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
-# Outputs of array2scalar-3.fmu - clock: <VR> <DIM> <FMU_VR>
+# Outputs of array2scalar-3.fmu - clock: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
 # Conversion table of array2scalar-3.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
