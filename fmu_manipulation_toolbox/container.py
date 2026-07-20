@@ -262,14 +262,14 @@ class EmbeddedFMUPort:
         else:
             self.dimensions = []
 
-        # For FMI-2 aggregated arrays: value references of each underlying
-        # scalar element, in order. When set, this port behaves as a virtual
-        # array with `dimensions = [("start", len(element_vrs))]` so it can
-        # be connected to an FMI-3 array port.
-        self.element_vrs: List[int] = []
+        # For FMI-2 aggregated arrays: flag marking this port as a virtual
+        # array built from scalar element ports (vs a native FMI-3 array port).
+        # Used by `xml()` to prevent incorrectly exposing such an aggregate as a
+        # container port in an FMI-2 container.
+        self.is_fmi2_aggregate: bool = False
         # Names of the underlying scalar element ports (e.g. `basename[1]`, ...),
-        # kept alongside `element_vrs` so that connecting the aggregate can also
-        # mark each individual scalar port as ruled (LINK).
+        # used to mark each individual scalar port as LINK when the aggregate is
+        # connected, so the checker does not report them as unconnected.
         self.element_names: List[str] = []
 
         if fmi_version > 0:
@@ -282,8 +282,6 @@ class EmbeddedFMUPort:
         self.clock = attrs.get("clocks", None)
 
     def size(self) -> int:
-        if self.element_vrs:
-            return len(self.element_vrs)
         size = 1
         for dimension in self.dimensions:
             if dimension[0] == "start":
@@ -331,7 +329,7 @@ class EmbeddedFMUPort:
                          f"with FMI-{fmi_version}.0")
             return ""
 
-        if fmi_version == 2 and self.element_vrs:
+        if fmi_version == 2 and self.is_fmi2_aggregate:
             logger.error(f"Cannot expose FMI-2 array aggregate '{name}' in an FMI-2 container "
                          f"(use the scalar elements '{name}[k]' individually).")
             return ""
@@ -503,7 +501,7 @@ class EmbeddedFMU(OperationAbstract):
                 "description": f"FMI-2 array aggregate of {agg.size} elements '{agg.basename}[]'",
             })
             aggregate.dimensions = [("start", d) for d in agg.dims]
-            aggregate.element_vrs = [p.vr for p in elements]
+            aggregate.is_fmi2_aggregate = True
             aggregate.element_names = [p.name for p in elements]
             aggregate.clock = first.clock
             self.ports[agg.basename] = aggregate
