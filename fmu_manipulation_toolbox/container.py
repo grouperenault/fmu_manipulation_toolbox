@@ -1188,17 +1188,19 @@ class FMUIOList:
                 value = "1"
             else:
                 value = "0"
-        if cport.port.element_vrs:
-            # FMI-2 array aggregate: split the value across each element.
+
+        fmu_vr = cport.port.vr
+        dim = cport.port.size()
+        if dim > 1 and cport.fmu.fmi_version == 2:
             tokens = str(value).split(' ')
             if len(tokens) == 1:
-                tokens = tokens * len(cport.port.element_vrs)
-            for fmu_vr, tok in zip(cport.port.element_vrs, tokens):
+                tokens = tokens * dim
+            for k, token in zip(range(dim), tokens):
                 self.start_values[cport.port.type_name][cport.fmu.name].append(
-                    (fmu_vr, 1, reset, tok))
+                    (fmu_vr + k, 1, reset, token))
         else:
             self.start_values[cport.port.type_name][cport.fmu.name].append(
-                (cport.port.vr, cport.port.size(), reset, value))
+                (fmu_vr, cport.port.size(), reset, value))
 
     def write_txt(self, fmu_name: str, txt_file: IO) -> None:
         """Write the I/O mapping for one FMU to the `container.txt` file.
