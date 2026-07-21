@@ -2,6 +2,8 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* FIXED: `fmusplit`: correct handling of FMI-3 array port connections (arrays are now properly
+         detected and linked in the generated assembly).
 * ADDED: GUI: when a wire is selected, a yellow direction indicator is drawn on the wire to
          reflect the currently active tab of the *Wire Details* panel (A→B / B→A arrowhead at
          the corresponding extremity, or a divergent ◀▶ marker at the middle for *Terminals*).
