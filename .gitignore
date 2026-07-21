@@ -140,3 +140,4 @@ tests/array/array-32.dir
 tests/split/container-array-3.dir
 tests/split/container-array-32.dir
 tests/split/container-ls-bus.dir
+tests/split/container-array-23.dir
