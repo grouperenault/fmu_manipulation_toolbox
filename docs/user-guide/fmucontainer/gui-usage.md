@@ -243,6 +243,17 @@ Each tab contains a 2-column table:
 
 Each tab has its own **Add link** / **Remove link** buttons to manage mappings for that direction.
 
+!!! tip "Direction indicator on the wire"
+    While the *Wire Details* panel is open, a yellow indicator is overlaid on the selected wire
+    to reflect the currently active tab:
+
+    - **A → B** — an enlarged yellow arrowhead at the B extremity, pointing outward.
+    - **B → A** — an enlarged yellow arrowhead at the A extremity, pointing outward.
+    - **Terminals** — a divergent ◀▶ marker (two triangles pointing outward) at the middle of the wire.
+
+    Switching tabs updates the indicator immediately, making it easy to see which side of the
+    connection you are currently editing.
+
 #### Terminals tab
 
 The **Terminals** tab allows connecting FMU terminals (as defined in the FMI LS-BUS standard).

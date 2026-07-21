@@ -66,6 +66,7 @@ class DetailPanelStack(QWidget):
 
     def show_empty(self):
         """Show empty panel."""
+        self._wire_detail.clear_highlight()
         self._stack.setCurrentWidget(self._empty_widget)
 
     def show_wire(self, wire):
@@ -75,11 +76,13 @@ class DetailPanelStack(QWidget):
 
     def show_fmu(self, node):
         """Show FMU detail panel."""
+        self._wire_detail.clear_highlight()
         self._fmu_detail.set_node(node)
         self._stack.setCurrentWidget(self._fmu_detail)
 
     def show_container(self, container_parameters: ContainerParameters):
         """Show container detail panel."""
+        self._wire_detail.clear_highlight()
         self._container_detail.set_container(container_parameters)
         self._stack.setCurrentWidget(self._container_detail)
 

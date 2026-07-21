@@ -1,7 +1,7 @@
 """WireItem and helpers — connections between nodes in the graph."""
 
 import math
-from typing import List
+from typing import List, Optional
 
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QPainterPath, QPainterPathStroker
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from .constants import (
     COLOR_WIRE, COLOR_WIRE_SELECTED, COLOR_WIRE_DRAGGING,
     COLOR_BACKGROUND, ARROW_SIZE, WAYPOINT_RADIUS,
+    COLOR_WIRE_HIGHLIGHT, HIGHLIGHT_ARROW_SIZE,
 )
 from .node import NodeItem
 
@@ -95,6 +96,8 @@ class WireItem(QGraphicsPathItem):
         self._handles: List[_WaypointHandle] = []
         self.mappings: List[tuple] = []
         self.terminal_mappings: List[tuple] = []
+        # Direction highlight from WireDetails tab: None, 'a_to_b', 'b_to_a', 'terminals'
+        self._highlight_mode: Optional[str] = None
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -112,6 +115,45 @@ class WireItem(QGraphicsPathItem):
         a_to_b = any(m[0] == a_name and m[2] == b_name for m in self.mappings)
         b_to_a = any(m[0] == b_name and m[2] == a_name for m in self.mappings)
         return a_to_b, b_to_a
+
+    # -- Highlight (from WireDetails tab selection) ---------------------------
+
+    def set_highlight_mode(self, mode: Optional[str]):
+        """Set direction indicator shown on the wire.
+
+        *mode* is one of: None, 'a_to_b', 'b_to_a', 'terminals'.
+        """
+        if mode not in (None, "a_to_b", "b_to_a", "terminals"):
+            mode = None
+        if self._highlight_mode != mode:
+            self._highlight_mode = mode
+            self.update()
+
+    def _midpoint_and_tangent(self) -> tuple:
+        """Return (mid_point, tangent_a_to_b) along the polyline (halfway by length)."""
+        points = self._all_points()
+        seg_lens = []
+        total = 0.0
+        for i in range(len(points) - 1):
+            dl = math.hypot(points[i + 1].x() - points[i].x(),
+                            points[i + 1].y() - points[i].y())
+            seg_lens.append(dl)
+            total += dl
+        if total < 1e-6:
+            return points[0], QPointF(1.0, 0.0)
+        target = total / 2.0
+        acc = 0.0
+        for i, dl in enumerate(seg_lens):
+            if acc + dl >= target:
+                t = (target - acc) / dl if dl > 1e-9 else 0.0
+                a, b = points[i], points[i + 1]
+                mid = QPointF(a.x() + t * (b.x() - a.x()),
+                              a.y() + t * (b.y() - a.y()))
+                tangent = QPointF(b.x() - a.x(), b.y() - a.y())
+                return mid, tangent
+            acc += dl
+        a, b = points[-2], points[-1]
+        return b, QPointF(b.x() - a.x(), b.y() - a.y())
 
     # -- All points of the polyline -------------------------------------------
 
@@ -265,21 +307,64 @@ class WireItem(QGraphicsPathItem):
 
         # -- Arrowheads --------------------------------------------------------
         a_to_b, b_to_a = self._directions()
-        if not a_to_b and not b_to_a and not self.mappings:
-            return
-
         points = self._all_points()
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(color))
 
-        if a_to_b or (not a_to_b and not b_to_a):
-            tip = points[-1]
-            prev = points[-2] if len(points) >= 2 else points[0]
-            self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
-        if b_to_a:
-            tip = points[0]
-            prev = points[1] if len(points) >= 2 else points[-1]
-            self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
+        has_dir = a_to_b or b_to_a or bool(self.mappings)
+        if has_dir:
+            if a_to_b or (not a_to_b and not b_to_a):
+                tip = points[-1]
+                prev = points[-2] if len(points) >= 2 else points[0]
+                self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
+            if b_to_a:
+                tip = points[0]
+                prev = points[1] if len(points) >= 2 else points[-1]
+                self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
+
+        # -- Direction highlight from WireDetails tab -----------------------
+        if self._highlight_mode is not None:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(COLOR_WIRE_HIGHLIGHT))
+            if self._highlight_mode == "a_to_b":
+                # Arrow at the B extremity, pointing outward (A → B)
+                tip = points[-1]
+                prev = points[-2] if len(points) >= 2 else points[0]
+                self._draw_arrow(
+                    painter, tip,
+                    QPointF(tip.x() - prev.x(), tip.y() - prev.y()),
+                    HIGHLIGHT_ARROW_SIZE,
+                )
+            elif self._highlight_mode == "b_to_a":
+                # Arrow at the A extremity, pointing outward (B → A)
+                tip = points[0]
+                prev = points[1] if len(points) >= 2 else points[-1]
+                self._draw_arrow(
+                    painter, tip,
+                    QPointF(tip.x() - prev.x(), tip.y() - prev.y()),
+                    HIGHLIGHT_ARROW_SIZE,
+                )
+            elif self._highlight_mode == "terminals":
+                # Two triangles forming a divergent pattern ◀▶ at midpoint:
+                # bases near the middle (with a small gap), tips pointing
+                # outward towards A and B.
+                mid, tangent = self._midpoint_and_tangent()
+                length = math.hypot(tangent.x(), tangent.y())
+                if length > 1e-6:
+                    ux, uy = tangent.x() / length, tangent.y() / length
+                    gap = HIGHLIGHT_ARROW_SIZE * 0.1
+                    # Tip on the B side (base is at mid + gap*u, tip at base + size*u)
+                    tip_b = QPointF(mid.x() + ux * (gap + HIGHLIGHT_ARROW_SIZE),
+                                    mid.y() + uy * (gap + HIGHLIGHT_ARROW_SIZE))
+                    # Tip on the A side (base at mid - gap*u, tip at base - size*u)
+                    tip_a = QPointF(mid.x() - ux * (gap + HIGHLIGHT_ARROW_SIZE),
+                                    mid.y() - uy * (gap + HIGHLIGHT_ARROW_SIZE))
+                    self._draw_arrow(painter, tip_b, tangent, HIGHLIGHT_ARROW_SIZE)
+                    self._draw_arrow(
+                        painter, tip_a,
+                        QPointF(-tangent.x(), -tangent.y()),
+                        HIGHLIGHT_ARROW_SIZE,
+                    )
 
     # -- Deletion -----------------------------------------------------------
 

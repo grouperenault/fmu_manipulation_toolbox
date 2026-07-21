@@ -13,6 +13,21 @@
       "In1",
       "scalar2array-3.fmu",
       "In1"
+    ],
+    [
+      "In2",
+      "scalar2array-3.fmu",
+      "In2"
+    ],
+    [
+      "In3",
+      "scalar2array-3.fmu",
+      "In3"
+    ],
+    [
+      "In4",
+      "scalar2array-3.fmu",
+      "In4"
     ]
   ],
   "output": [
@@ -20,6 +35,21 @@
       "array2scalar-3.fmu",
       "Out1",
       "Out1"
+    ],
+    [
+      "array2scalar-3.fmu",
+      "Out2",
+      "Out2"
+    ],
+    [
+      "array2scalar-3.fmu",
+      "Out3",
+      "Out3"
+    ],
+    [
+      "array2scalar-3.fmu",
+      "Out4",
+      "Out4"
     ]
   ],
   "start": [
@@ -27,6 +57,21 @@
       "scalar2array-3.fmu",
       "In1",
       "1"
+    ],
+    [
+      "scalar2array-3.fmu",
+      "In2",
+      "2"
+    ],
+    [
+      "scalar2array-3.fmu",
+      "In3",
+      "3"
+    ],
+    [
+      "scalar2array-3.fmu",
+      "In4",
+      "4"
     ]
   ],
   "link": [
@@ -35,6 +80,24 @@
       "Out1",
       "array2scalar-3.fmu",
       "In1"
+    ],
+    [
+      "scalar2array-3.fmu",
+      "Out2",
+      "array2scalar-3.fmu",
+      "In2"
+    ],
+    [
+      "scalar2array-3.fmu",
+      "Out3",
+      "array2scalar-3.fmu",
+      "In3"
+    ],
+    [
+      "scalar2array-3.fmu",
+      "Out4",
+      "array2scalar-3.fmu",
+      "In4"
     ]
   ],
   "name": "container-array-3.fmu",

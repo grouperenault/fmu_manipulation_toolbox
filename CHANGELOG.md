@@ -2,6 +2,11 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* FIXED: `fmusplit`: correct handling of FMI-3 array port connections (arrays are now properly
+         detected and linked in the generated assembly).
+* ADDED: GUI: when a wire is selected, a yellow direction indicator is drawn on the wire to
+         reflect the currently active tab of the *Wire Details* panel (A→B / B→A arrowhead at
+         the corresponding extremity, or a divergent ◀▶ marker at the middle for *Terminals*).
 * ADDED: `fmusplit`: detect terminal-to-terminal connections. Groups of port-to-port links whose
          endpoints belong to two compatible terminals (same `terminalKind` / `matchingRule`) are
          collapsed into a single terminal-level link in the produced JSON assembly. This lifts the

@@ -699,6 +699,7 @@ class WireDetailWidget(QWidget):
         self._tabs.addTab(self._tab_ab, "A → B")
         self._tabs.addTab(self._tab_ba, "B → A")
         self._tabs.addTab(self._tab_terminals, "Terminals")
+        self._tabs.currentChanged.connect(self._on_current_tab_changed)
 
         # -- Buttons --
         self._auto_btn = QPushButton("Auto-Connect")
@@ -746,6 +747,12 @@ class WireDetailWidget(QWidget):
 
     def set_wire(self, wire):
         self.sync_to_wire()
+        # Clear highlight on the previously displayed wire
+        if self._wire is not None and self._wire is not wire:
+            try:
+                self._wire.set_highlight_mode(None)
+            except RuntimeError:
+                pass
         self._wire = wire
         na, nb = wire.node_a, wire.node_b
         self._name_label.setText(f"{na.title} (A) ↔ {nb.title} (B)")
@@ -755,6 +762,7 @@ class WireDetailWidget(QWidget):
         self._tab_terminals.set_nodes(na, nb)
 
         self._load_from_wire()
+        self._apply_highlight_to_wire()
 
     # ── Internal sync helpers ─────────────────────────────────────
 
@@ -845,3 +853,33 @@ class WireDetailWidget(QWidget):
     def _on_tab_changed(self):
         self.sync_to_wire()
         self.changed.emit()
+
+    def _on_current_tab_changed(self, _index: int):
+        self._apply_highlight_to_wire()
+
+    def _apply_highlight_to_wire(self):
+        if self._wire is None:
+            return
+        widget = self._tabs.currentWidget()
+        if widget is self._tab_ab:
+            mode = "a_to_b"
+        elif widget is self._tab_ba:
+            mode = "b_to_a"
+        elif widget is self._tab_terminals:
+            mode = "terminals"
+        else:
+            mode = None
+        try:
+            self._wire.set_highlight_mode(mode)
+        except RuntimeError:
+            pass
+
+    def clear_highlight(self):
+        """Clear the direction indicator on the currently displayed wire."""
+        if self._wire is None:
+            return
+        try:
+            self._wire.set_highlight_mode(None)
+        except RuntimeError:
+            pass
+

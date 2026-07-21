@@ -353,6 +353,13 @@ class TestSuite:
         self.assert_identical_files(f"split/container-array-3.dir/container-array-3.json",
                                     f"split/REF-container-array-3.json")
 
+    def test_fmusplit_array_23(self):
+        sys.argv = ['fmusplit',
+                    "-fmu", f"split/container-array-23.fmu"]
+        fmusplit()
+        self.assert_identical_files(f"split/container-array-23.dir/container-array-23.json",
+                                    f"split/REF-container-array-23.json")
+
     def test_fmusplit_array_32(self):
         sys.argv = ['fmusplit',
                     "-fmu", f"split/container-array-32.fmu"]
@@ -458,14 +465,6 @@ class TestSuite:
             config = json.load(f)
         assert expected_link in config["link"], \
             f"Expected aggregate link {expected_link} not found in {config['link']}"
-
-    def test_fmusplit_array_23(self):
-        """FMI-2 scalar family (Out1[1], Out1[2]) → FMI-3 array In1 must be
-        reconstructed as a single aggregate link on the FMI-2 side."""
-        self._fmusplit_array_link(
-            "array-23",
-            ["scalar2array-2.fmu", "Out1", "array2scalar-3.fmu", "In1"],
-        )
 
 
 @pytest.mark.skipif(not HAS_GUI, reason="GUI dependencies not available")

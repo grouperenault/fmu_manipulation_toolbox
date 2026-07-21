@@ -262,14 +262,14 @@ class EmbeddedFMUPort:
         else:
             self.dimensions = []
 
-        # For FMI-2 aggregated arrays: value references of each underlying
-        # scalar element, in order. When set, this port behaves as a virtual
-        # array with `dimensions = [("start", len(element_vrs))]` so it can
-        # be connected to an FMI-3 array port.
-        self.element_vrs: List[int] = []
+        # For FMI-2 aggregated arrays: flag marking this port as a virtual
+        # array built from scalar element ports (vs a native FMI-3 array port).
+        # Used by `xml()` to prevent incorrectly exposing such an aggregate as a
+        # container port in an FMI-2 container.
+        self.is_fmi2_aggregate: bool = False
         # Names of the underlying scalar element ports (e.g. `basename[1]`, ...),
-        # kept alongside `element_vrs` so that connecting the aggregate can also
-        # mark each individual scalar port as ruled (LINK).
+        # used to mark each individual scalar port as LINK when the aggregate is
+        # connected, so the checker does not report them as unconnected.
         self.element_names: List[str] = []
 
         if fmi_version > 0:
@@ -282,8 +282,6 @@ class EmbeddedFMUPort:
         self.clock = attrs.get("clocks", None)
 
     def size(self) -> int:
-        if self.element_vrs:
-            return len(self.element_vrs)
         size = 1
         for dimension in self.dimensions:
             if dimension[0] == "start":
@@ -331,7 +329,7 @@ class EmbeddedFMUPort:
                          f"with FMI-{fmi_version}.0")
             return ""
 
-        if fmi_version == 2 and self.element_vrs:
+        if fmi_version == 2 and self.is_fmi2_aggregate:
             logger.error(f"Cannot expose FMI-2 array aggregate '{name}' in an FMI-2 container "
                          f"(use the scalar elements '{name}[k]' individually).")
             return ""
@@ -503,7 +501,7 @@ class EmbeddedFMU(OperationAbstract):
                 "description": f"FMI-2 array aggregate of {agg.size} elements '{agg.basename}[]'",
             })
             aggregate.dimensions = [("start", d) for d in agg.dims]
-            aggregate.element_vrs = [p.vr for p in elements]
+            aggregate.is_fmi2_aggregate = True
             aggregate.element_names = [p.name for p in elements]
             aggregate.clock = first.clock
             self.ports[agg.basename] = aggregate
@@ -955,6 +953,7 @@ class ValueReferenceTable:
         self.masks: Dict[str, int] = {}
         self.nb_local_variable:Dict[str, int] = {}
         self.nb_local_storage: Dict[str, int] = {}
+        self.vr_to_local:Dict[int, int] = {}
 
         self.local_clock = {}
         for i, type_name in enumerate(EmbeddedFMUPort.ALL_TYPES):
@@ -963,7 +962,7 @@ class ValueReferenceTable:
             self.nb_local_variable[type_name] = 0
             self.nb_local_storage[type_name] = 0
 
-    def add_vr(self, port_or_type_name: Union[ContainerPort, str], local: bool = False) -> int:
+    def add_vr(self, port_or_type_name: Union[ContainerPort, str], local: bool = False, port_size=1) -> int:
         """Allocate a new value reference.
 
         Args:
@@ -982,16 +981,17 @@ class ValueReferenceTable:
         if isinstance(port_or_type_name, ContainerPort):
             size = port_or_type_name.port.size()
         else:
-            size = 1
+            size = port_size
+
+        vr = self.vr_table[type_name] | self.masks[type_name]
+        self.vr_table[type_name] += 1
 
         if local:
+            self.vr_to_local[vr] = self.nb_local_storage[type_name]
             self.nb_local_variable[type_name] += 1
             self.nb_local_storage[type_name] += size
 
-        vr = self.vr_table[type_name]
-        self.vr_table[type_name] += 1
-
-        return vr | self.masks[type_name]
+        return vr
 
     def set_link_vr(self, link: Link):
         """Allocate value references for a link and its type-converted copies.
@@ -1011,7 +1011,8 @@ class ValueReferenceTable:
                 self.local_clock[(cport_to.fmu, cport_to.port.vr)] = link.vr
 
         for type_name in link.vr_converted.keys():
-            link.vr_converted[type_name] = self.add_vr(type_name, local=True)
+            link.vr_converted[type_name] = self.add_vr(type_name, local=True,
+                                                       port_size=link.cport_from.port.size())
 
     def get_local_clock(self, cport: ContainerPort) -> int:
         """Get the local VR for a clock associated with a clocked port.
@@ -1082,6 +1083,13 @@ class AutoWired:
         self.rule_link.append([from_fmu, from_port, to_fmu, to_port])
 
 
+class IOReference:
+    def __init__(self, local_offset: int, dim: int, fmu_vr: int):
+        self.local_offset = local_offset
+        self.dim = dim
+        self.fmu_vr = fmu_vr
+
+
 class FMUIOList:
     """Tracks the I/O mapping between the container and its embedded FMUs.
 
@@ -1123,15 +1131,18 @@ class FMUIOList:
                 logger.error(f"Cannot expose clocked input: {cport}")
                 return
             self.nb_clocked_inputs[cport.port.type_name][cport.fmu.name] += 1
-        if cport.port.element_vrs:
-            # FMI-2 array aggregate: emit one scalar translation per element.
-            # Each element reads from a consecutive local storage slot.
-            for k, fmu_vr in enumerate(cport.port.element_vrs):
+
+        dim = cport.port.size()
+        local_offset = self.vr_table.vr_to_local[local_vr]
+        fmu_vr = cport.port.vr
+
+        if dim > 1 and cport.fmu.fmi_version == 2:
+            for k in range(dim):
                 self.inputs[cport.port.type_name][cport.fmu.name][clock].append(
-                    (fmu_vr, 1, local_vr + k))
+                    IOReference(local_offset + k, 1, fmu_vr + k))
         else:
             self.inputs[cport.port.type_name][cport.fmu.name][clock].append(
-                (cport.port.vr, cport.port.size(), local_vr))
+                IOReference(local_offset, dim, fmu_vr))
 
     def add_output(self, cport: ContainerPort, local_vr: int):
         """Register an output mapping for an embedded FMU port.
@@ -1149,14 +1160,19 @@ class FMUIOList:
                 logger.error(f"Cannot expose clocked output: {cport}")
                 return
             self.nb_clocked_outputs[cport.port.type_name][cport.fmu.name] += 1
-        if cport.port.element_vrs:
-            # FMI-2 array aggregate: emit one scalar translation per element.
-            for k, fmu_vr in enumerate(cport.port.element_vrs):
+
+        dim = cport.port.size()
+        local_offset = self.vr_table.vr_to_local[local_vr]
+        fmu_vr = cport.port.vr
+
+        if dim > 1 and cport.fmu.fmi_version == 2:
+            for k in range(dim):
                 self.outputs[cport.port.type_name][cport.fmu.name][clock].append(
-                    (fmu_vr, 1, local_vr + k))
+                    IOReference(local_offset + k, 1, fmu_vr + k))
         else:
             self.outputs[cport.port.type_name][cport.fmu.name][clock].append(
-                (cport.port.vr, cport.port.size(), local_vr))
+                IOReference(local_offset, dim, fmu_vr))
+
 
     def add_start_value(self, cport: ContainerPort, value: str):
         """Register a start value for an embedded FMU port.
@@ -1171,17 +1187,19 @@ class FMUIOList:
                 value = "1"
             else:
                 value = "0"
-        if cport.port.element_vrs:
-            # FMI-2 array aggregate: split the value across each element.
+
+        fmu_vr = cport.port.vr
+        dim = cport.port.size()
+        if dim > 1 and cport.fmu.fmi_version == 2:
             tokens = str(value).split(' ')
             if len(tokens) == 1:
-                tokens = tokens * len(cport.port.element_vrs)
-            for fmu_vr, tok in zip(cport.port.element_vrs, tokens):
+                tokens = tokens * dim
+            for k, token in zip(range(dim), tokens):
                 self.start_values[cport.port.type_name][cport.fmu.name].append(
-                    (fmu_vr, 1, reset, tok))
+                    (fmu_vr + k, 1, reset, token))
         else:
             self.start_values[cport.port.type_name][cport.fmu.name].append(
-                (cport.port.vr, cport.port.size(), reset, value))
+                (fmu_vr, cport.port.size(), reset, value))
 
     def write_txt(self, fmu_name: str, txt_file: IO) -> None:
         """Write the I/O mapping for one FMU to the `container.txt` file.
@@ -1191,18 +1209,18 @@ class FMUIOList:
             txt_file (IO): Writable text file handle.
         """
         for type_name in EmbeddedFMUPort.ALL_TYPES:
-            print(f"# Inputs of {fmu_name} - {type_name}: <VR> <DIM> <FMU_VR>", file=txt_file)
+            print(f"# Inputs of {fmu_name} - {type_name}: <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
             print(len(self.inputs[type_name][fmu_name][None]), file=txt_file)
-            for fmu_vr, dim, vr in self.inputs[type_name][fmu_name][None]:
-                print(f"{vr} {dim} {fmu_vr}", file=txt_file)
+            for io_ref in self.inputs[type_name][fmu_name][None]:
+                print(f"{io_ref.local_offset} {io_ref.dim} {io_ref.fmu_vr}", file=txt_file)
             if not type_name == "clock":
-                print(f"# Clocked Inputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>", file=txt_file)
+                print(f"# Clocked Inputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
                 print(f"{len(self.inputs[type_name][fmu_name])-1} {self.nb_clocked_inputs[type_name][fmu_name]}",
                       file=txt_file)
-                for clock, table in self.inputs[type_name][fmu_name].items():
+                for clock, translation in self.inputs[type_name][fmu_name].items():
                     if not clock is None:
-                        s = " ".join([f"{vr} {dim} {fmu_vr}" for fmu_vr, dim, vr in table])
-                        print(f"{clock} {len(table)} {s}", file=txt_file)
+                        s = " ".join([f"{io_ref.local_offset} {io_ref.dim} {io_ref.fmu_vr}" for io_ref in translation])
+                        print(f"{clock} {len(translation)} {s}", file=txt_file)
 
         for type_name in EmbeddedFMUPort.ALL_TYPES[:-2]:  # No start values for binary or clock
             print(f"# Start values of {fmu_name} - {type_name}: <FMU_VR> <DIM> <RESET> <VALUE>", file=txt_file)
@@ -1215,18 +1233,17 @@ class FMUIOList:
                 print(f"{vr} {dim} {reset} {value}", file=txt_file)
 
         for type_name in EmbeddedFMUPort.ALL_TYPES:
-            print(f"# Outputs of {fmu_name} - {type_name}: <VR> <DIM> <FMU_VR>", file=txt_file)
+            print(f"# Outputs of {fmu_name} - {type_name}: <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
             print(len(self.outputs[type_name][fmu_name][None]), file=txt_file)
-            for fmu_vr, dim, vr in self.outputs[type_name][fmu_name][None]:
-                print(f"{vr} {dim} {fmu_vr}", file=txt_file)
-
+            for io_ref in self.outputs[type_name][fmu_name][None]:
+                print(f"{io_ref.local_offset} {io_ref.dim} {io_ref.fmu_vr}", file=txt_file)
             if not type_name == "clock":
-                print(f"# Clocked Outputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <VR> <DIM> <FMU_VR>", file=txt_file)
+                print(f"# Clocked Outputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
                 print(f"{len(self.outputs[type_name][fmu_name])-1} {self.nb_clocked_outputs[type_name][fmu_name]}",
                       file=txt_file)
                 for clock, translation in self.outputs[type_name][fmu_name].items():
                     if clock is not None:
-                        s = " ".join([f"{vr} {dim} {fmu_vr}" for fmu_vr, dim, vr in translation])
+                        s = " ".join([f"{io_ref.local_offset} {io_ref.dim} {io_ref.fmu_vr}" for io_ref in translation])
                         print(f"{clock} {len(translation)} {s}", file=txt_file)
 
 
@@ -2050,7 +2067,7 @@ class FMUContainer:
                        "</fmiModelDescription>")
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
-        print("# Version 4", file=txt_file)
+        print("# Version 5", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
         flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)

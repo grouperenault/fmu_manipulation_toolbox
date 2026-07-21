@@ -3,10 +3,10 @@
   fmiVersion="3.0"
   modelName="array-3"
   generationTool="FMUContainer-0.0.dev0"
-  generationDateAndTime="2026-03-22T13:45:29Z"
-  instantiationToken="be97e97c-be7c-4277-a7ac-c6f52742cd52"
+  generationDateAndTime="2026-07-21T14:20:25Z"
+  instantiationToken="b2f338ba-2981-4cb9-9a7b-baa5844af018"
   description="FMUContainer with scalar2array-3.fmu, array2scalar-3.fmu"
-  author="nl"
+  author="a067220"
   license="Proprietary"
   copyright="See Embedded FMU's copyrights."
   variableNamingConvention="structured">
@@ -38,13 +38,28 @@
   <ModelVariables>
     <Float64 valueReference="0" name="time" causality="independent"/>
     <Float64 name="scalar2array-3.Out1" valueReference="1" causality="local" variability="continuous" initial="calculated" description="Out1"><Dimension start="2"/></Float64>
-    <Float64 name="In1" valueReference="2" causality="input" variability="continuous" initial="exact" description="In1" start="1"/>
-    <Float64 name="Out1" valueReference="3" causality="output" variability="continuous" initial="calculated" description="Out1"/>
+    <Float64 name="scalar2array-3.Out2" valueReference="2" causality="local" variability="continuous" initial="calculated" description="Out2"><Dimension start="3"/></Float64>
+    <Float64 name="scalar2array-3.Out3" valueReference="3" causality="local" variability="continuous" initial="calculated" description="Out3"/>
+    <Int32 name="scalar2array-3.Out4" valueReference="100663297" causality="local" variability="discrete" initial="calculated" description="Out4"><Dimension start="2"/><Dimension start="3"/></Int32>
+    <Float64 name="In1" valueReference="5" causality="input" variability="continuous" initial="exact" description="In1" start="1"/>
+    <Float64 name="In2" valueReference="6" causality="input" variability="continuous" initial="exact" description="In2" start="2"/>
+    <Float64 name="In3" valueReference="7" causality="input" variability="continuous" initial="exact" description="In3" start="3"/>
+    <Int32 name="In4" valueReference="100663298" causality="input" variability="discrete" initial="exact" description="In4" start="4"/>
+    <Float64 name="Out1" valueReference="8" causality="output" variability="continuous" initial="calculated" description="Out1"/>
+    <Float64 name="Out2" valueReference="9" causality="output" variability="continuous" initial="calculated" description="Out2"/>
+    <Float64 name="Out3" valueReference="10" causality="output" variability="continuous" initial="calculated" description="Out3"/>
+    <Float64 name="Out4" valueReference="11" causality="output" variability="continuous" initial="calculated" description="Out4"/>
   </ModelVariables>
 
   <ModelStructure>
-      <Output valueReference="3"/>
-      <InitialUnknown valueReference="3"/>
+      <Output valueReference="8"/>
+      <Output valueReference="9"/>
+      <Output valueReference="10"/>
+      <Output valueReference="11"/>
+      <InitialUnknown valueReference="8"/>
+      <InitialUnknown valueReference="9"/>
+      <InitialUnknown valueReference="10"/>
+      <InitialUnknown valueReference="11"/>
   </ModelStructure>
 
 </fmiModelDescription>
