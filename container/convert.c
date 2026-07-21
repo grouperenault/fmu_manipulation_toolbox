@@ -62,7 +62,14 @@ void convert_proceed(const container_t *container, const convert_table_t *table)
 
 
 static void convert_F32_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = (double)container->reals32[from];
+    unsigned long dimension = container->port_reals32[from].dimension;
+    float *from_value = container->reals32 + container->port_reals32[from].links[0].fmu_vr;
+    double *to_value = container->reals64 + container->port_reals64[from].links[0].fmu_vr;
+
+    for(unsigned long i = 0; i < dimension; i += 1)
+        to_value[i] = (double)from_value[i];
+
+    //container->reals64[to] = (double)container->reals32[from];
 }
 
 
@@ -314,9 +321,29 @@ static void convert__U16_D16(const container_t *container, fmu_vr_t from, fmu_vr
 static void convert__D32_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
     container->reals32[to] = (float)container->integers32[from];
 }
-static void convert__D32_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = (double)container->integers32[from];
+
+
+#define CONVERSION_FUNCTION(name, from_type, from_c_type, to_type, to_c_type)                                       \
+static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
+    unsigned long dimension = container->port_ ## from_type [from].dimension;                                       \
+    const from_c_type *from_value = container-> from_type + container->port_ ## from_type [from].links[0].fmu_vr;   \
+    to_c_type         *to_value   = container-> to_type   + container->port_ ## to_type [to].links[0].fmu_vr;       \
+                                                                                                                    \
+    for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
+        to_value[i] = (to_c_type)from_value[i];                                                                     \
 }
+
+CONVERSION_FUNCTION(_D32_F64, integers32, int32_t, reals64, double)
+
+static void convert__D32_F64_old(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
+    unsigned long dimension = container->port_integers32[from].dimension;
+    int32_t *from_value = container->integers32 + container->port_integers32[from].links[0].fmu_vr;
+    double *to_value = container->reals64 + container->port_reals64[to].links[0].fmu_vr;
+
+    for(unsigned long i = 0; i < dimension; i += 1)
+        to_value[i] = (double)from_value[i];
+}
+
 static void convert__D32_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
     container->integers8[to] = (int8_t)container->integers32[from];
 }
