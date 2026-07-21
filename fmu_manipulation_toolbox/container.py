@@ -962,7 +962,7 @@ class ValueReferenceTable:
             self.nb_local_variable[type_name] = 0
             self.nb_local_storage[type_name] = 0
 
-    def add_vr(self, port_or_type_name: Union[ContainerPort, str], local: bool = False) -> int:
+    def add_vr(self, port_or_type_name: Union[ContainerPort, str], local: bool = False, port_size=1) -> int:
         """Allocate a new value reference.
 
         Args:
@@ -981,7 +981,7 @@ class ValueReferenceTable:
         if isinstance(port_or_type_name, ContainerPort):
             size = port_or_type_name.port.size()
         else:
-            size = 1
+            size = port_size
 
         vr = self.vr_table[type_name] | self.masks[type_name]
         self.vr_table[type_name] += 1
@@ -1011,7 +1011,8 @@ class ValueReferenceTable:
                 self.local_clock[(cport_to.fmu, cport_to.port.vr)] = link.vr
 
         for type_name in link.vr_converted.keys():
-            link.vr_converted[type_name] = self.add_vr(type_name, local=True)
+            link.vr_converted[type_name] = self.add_vr(type_name, local=True,
+                                                       port_size=link.cport_from.port.size())
 
     def get_local_clock(self, cport: ContainerPort) -> int:
         """Get the local VR for a clock associated with a clocked port.
