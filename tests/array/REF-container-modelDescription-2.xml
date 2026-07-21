@@ -3,8 +3,8 @@
   fmiVersion="2.0"
   modelName="array-2"
   generationTool="FMUContainer-0.0.dev0"
-  generationDateAndTime="2026-07-20T14:29:19Z"
-  guid="b28817a3-ade7-40bc-8d47-0287fec590b2"
+  generationDateAndTime="2026-07-21T15:43:11Z"
+  guid="205640a8-f55c-4ca0-97a4-c270dbfa3910"
   description="FMUContainer with scalar2array-2.fmu, array2scalar-2.fmu"
   author="a067220"
   license="Proprietary"
@@ -34,24 +34,28 @@
   <ModelVariables>
     <ScalarVariable valueReference="0" name="time" causality="independent"><Real /></ScalarVariable>
     <ScalarVariable name="scalar2array-2.Out3" valueReference="3" causality="local" variability="continuous" initial="calculated" description="Out3"><Real /></ScalarVariable>
-    <ScalarVariable name="In1" valueReference="4" causality="input" variability="continuous" description="In1"><Real start="1"/></ScalarVariable>
-    <ScalarVariable name="In2" valueReference="5" causality="input" variability="continuous" description="In2"><Real start="2"/></ScalarVariable>
-    <ScalarVariable name="In3" valueReference="6" causality="input" variability="continuous" description="In3"><Real start="3"/></ScalarVariable>
-    <ScalarVariable name="Out1" valueReference="7" causality="output" variability="continuous" initial="calculated" description="Out1"><Real /></ScalarVariable>
-    <ScalarVariable name="Out2" valueReference="8" causality="output" variability="continuous" initial="calculated" description="Out2"><Real /></ScalarVariable>
-    <ScalarVariable name="Out3" valueReference="9" causality="output" variability="continuous" initial="calculated" description="Out3"><Real /></ScalarVariable>
+    <ScalarVariable name="In1" valueReference="5" causality="input" variability="continuous" description="In1"><Real start="1"/></ScalarVariable>
+    <ScalarVariable name="In2" valueReference="6" causality="input" variability="continuous" description="In2"><Real start="2"/></ScalarVariable>
+    <ScalarVariable name="In3" valueReference="7" causality="input" variability="continuous" description="In3"><Real start="3"/></ScalarVariable>
+    <ScalarVariable name="In4" valueReference="100663298" causality="input" variability="discrete" description="In4"><Integer start="4"/></ScalarVariable>
+    <ScalarVariable name="Out1" valueReference="8" causality="output" variability="continuous" initial="calculated" description="Out1"><Real /></ScalarVariable>
+    <ScalarVariable name="Out2" valueReference="9" causality="output" variability="continuous" initial="calculated" description="Out2"><Real /></ScalarVariable>
+    <ScalarVariable name="Out3" valueReference="10" causality="output" variability="continuous" initial="calculated" description="Out3"><Real /></ScalarVariable>
+    <ScalarVariable name="Out4" valueReference="11" causality="output" variability="continuous" initial="calculated" description="Out4"><Real /></ScalarVariable>
   </ModelVariables>
 
   <ModelStructure>
     <Outputs>
-      <Unknown index="6"/>
       <Unknown index="7"/>
       <Unknown index="8"/>
+      <Unknown index="9"/>
+      <Unknown index="10"/>
     </Outputs>
     <InitialUnknowns>
-      <Unknown index="6"/>
       <Unknown index="7"/>
       <Unknown index="8"/>
+      <Unknown index="9"/>
+      <Unknown index="10"/>
     </InitialUnknowns>
   </ModelStructure>
 
