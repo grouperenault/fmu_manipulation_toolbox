@@ -2067,7 +2067,7 @@ class FMUContainer:
                        "</fmiModelDescription>")
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
-        print("# Version 4", file=txt_file)
+        print("# Version 5", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
         flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)
