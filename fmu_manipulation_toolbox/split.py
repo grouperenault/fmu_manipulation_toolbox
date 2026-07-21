@@ -43,8 +43,26 @@ class FMUSplitterPort:
 
 class FMUSplitterLink:
     def __init__(self):
-        self.writers: Set[FMUSplitterPort] = set()
-        self.readers: Set[FMUSplitterPort] = set()
+        # Ordered lists (with insertion-order deduplication) rather than sets:
+        # this keeps the emitted JSON deterministic and reproducible, matching
+        # the order in which ports are declared in container.txt.
+        self.writers: List[FMUSplitterPort] = []
+        self.readers: List[FMUSplitterPort] = []
+
+    @staticmethod
+    def _append_unique(dst: List["FMUSplitterPort"], port: "FMUSplitterPort") -> None:
+        if port not in dst:
+            dst.append(port)
+
+    def add_writer(self, port: "FMUSplitterPort") -> None:
+        self._append_unique(self.writers, port)
+
+    def add_reader(self, port: "FMUSplitterPort") -> None:
+        self._append_unique(self.readers, port)
+
+    def extend_readers(self, ports: Iterable["FMUSplitterPort"]) -> None:
+        for p in ports:
+            self._append_unique(self.readers, p)
 
     def __str__(self):
         w = ", ".join(str(p) for p in self.writers)
@@ -123,6 +141,7 @@ class FMUSplitter:
                     data = self.zip.read(file)
                     fmu_file.writestr(file[len(directory):], data)
         logger.info(f"FMU Extraction of '{filename}'")
+
 
 class FMUSplitterDescription:
     # Reverse mapping from conversion function name to (source_type, target_type).
@@ -360,7 +379,7 @@ class FMUSplitterDescription:
                 tokens = self.get_line(file).split(" ")
                 if len(tokens) == 3:
                     self.file_format = 0
-                if self.file_format == 4:
+                if self.file_format >= 4:
                     container_vr = int(tokens[0])
                     dim = int(tokens[1])
                     nb = int(tokens[2])
@@ -391,29 +410,28 @@ class FMUSplitterDescription:
 
         return nb
 
-    def add_input(self, fmi_type, fmu_filename, local, fmu_vr):
-        try:
-            local_int = self.local_to_vr[fmi_type][int(local) & 0xFFFFFF]
-        except KeyError:
-            logger.error(f"KeyError: INPUT {fmu_filename} {fmi_type} local={local} ({int(local) & 0xFFFFFF}) fmu_vr={fmu_vr} not found")
-            return
-        link = self.links[fmi_type].setdefault(local_int, FMUSplitterLink())
-        name = self.vr_to_name[fmu_filename][fmi_type][int(fmu_vr)]["name"]
-        link.readers.add(FMUSplitterPort(fmu_filename, name))
-        logger.info(f"add_input: {fmi_type} local={local_int} : {name} ")
+    def get_pivot(self, fmi_type, local: str):
+        if self.file_format == 5:
+            try:
+                return self.local_to_vr[fmi_type][int(local) & 0xFFFFFF]
+            except KeyError:
+                logger.critical(
+                    f"KeyError: PIVOT {fmu_filename} {fmi_type} local={local} ({int(local) & 0xFFFFFF}) fmu_vr={fmu_vr} not found")
+                raise
+        else:
+            return int(local)
 
+    def add_input(self, fmi_type, fmu_filename, local, fmu_vr):
+        pivot = self.get_pivot(fmi_type, local)
+        link = self.links[fmi_type].setdefault(pivot, FMUSplitterLink())
+        name = self.vr_to_name[fmu_filename][fmi_type][int(fmu_vr)]["name"]
+        link.add_reader(FMUSplitterPort(fmu_filename, name))
 
     def add_output(self, fmi_type, fmu_filename, local, fmu_vr):
-
-        try:
-            local_int = self.local_to_vr[fmi_type][int(local) & 0xFFFFFF]
-        except KeyError:
-            logger.error(f"KeyError: OUTPUT {fmu_filename} {fmi_type} local={local} ({int(local) & 0xFFFFFF}) fmu_vr={fmu_vr} not found")
-            return
-        link = self.links[fmi_type].setdefault(local_int, FMUSplitterLink())
+        pivot = self.get_pivot(fmi_type, local)
+        link = self.links[fmi_type].setdefault(pivot, FMUSplitterLink())
         name = self.vr_to_name[fmu_filename][fmi_type][int(fmu_vr)]["name"]
-        link.writers.add(FMUSplitterPort(fmu_filename, name))
-        logger.info(f"add_output: {fmi_type} local={local_int} : {name} ")
+        link.add_writer(FMUSplitterPort(fmu_filename, name))
 
     def parse_txt_file(self, txt_filename: str):
         self.parse_model_description(str(Path(txt_filename).parent.parent).replace("\\", "/"), ".")
@@ -524,7 +542,7 @@ class FMUSplitterDescription:
                 if vr_to_int in self.links.get(target_type, {}):
                     target_link = self.links[target_type][vr_to_int]
                     source_link = self.links[source_type].setdefault(vr_from_int, FMUSplitterLink())
-                    source_link.readers.update(target_link.readers)
+                    source_link.extend_readers(target_link.readers)
                     del self.links[target_type][vr_to_int]
             else:
                 logger.warning(f"Unknown conversion function: {conversion_name}")
@@ -584,11 +602,11 @@ class FMUSplitterDescription:
         self.basename_map[fmu_filename] = bmap
 
     def _try_aggregate(self, fmi_type: str,
-                       ports: Set['FMUSplitterPort']) -> Set['FMUSplitterPort']:
+                       ports: List['FMUSplitterPort']) -> List['FMUSplitterPort']:
         """If all ports in *ports* belong to the same FMU and their names
         exactly match the element-name set of a known array basename for that
-        FMU, return a singleton set containing the basename port.  Otherwise
-        return the original set unchanged.
+        FMU, return a singleton list containing the basename port.  Otherwise
+        return the original list unchanged.
 
         Note: *fmi_type* refers to the type of the link the ports belong to.
         After a type conversion the ports on one side may have a different
@@ -607,7 +625,7 @@ class FMUSplitterDescription:
                 if names == elem_set:
                     logger.debug(
                         f"Aggregated {len(ports)} ports into '{base}' ({fmu})")
-                    return {FMUSplitterPort(fmu, base)}
+                    return [FMUSplitterPort(fmu, base)]
         return ports
 
     def _aggregate_terminal_links(self):
