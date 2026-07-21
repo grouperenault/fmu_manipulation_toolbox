@@ -61,268 +61,6 @@ void convert_proceed(const container_t *container, const convert_table_t *table)
 }
 
 
-static void convert_F32_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    unsigned long dimension = container->port_reals32[from].dimension;
-    float *from_value = container->reals32 + container->port_reals32[from].links[0].fmu_vr;
-    double *to_value = container->reals64 + container->port_reals64[from].links[0].fmu_vr;
-
-    for(unsigned long i = 0; i < dimension; i += 1)
-        to_value[i] = (double)from_value[i];
-
-    //container->reals64[to] = (double)container->reals32[from];
-}
-
-
-static void convert_D8_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = container->integers8[from];
-}
-
-
-static void convert_D8_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = container->integers8[from];
-}
-
-
-static void convert_D8_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = container->integers8[from];
-}
-
-
-static void convert_D8_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = container->integers8[from];
-}
-
-
-static void convert_D8_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = container->integers8[from];
-}
-
-
-static void convert_D8_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = container->integers8[from];
-}
-
-
-static void convert_U8_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = container->uintegers8[from];
-}
-
-
-static void convert_U8_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = container->uintegers8[from];
-}
-
-
-static void convert_U8_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = container->uintegers8[from];
-}
-
-
-static void convert_U8_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = container->uintegers8[from];
-}
-
-
-static void convert_U8_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = container->uintegers8[from];
-}
-
-
-static void convert_U8_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = container->uintegers8[from];
-}
-
-
-static void convert_D16_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = container->integers16[from];
-}
-
-
-static void convert_D16_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = container->integers16[from];
-}
-
-
-static void convert_D16_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = container->integers16[from];
-}
-
-
-static void convert_D16_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = container->integers16[from];
-}
-
-
-static void convert_U16_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = container->uintegers16[from];
-}
-
-
-static void convert_U16_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = container->uintegers16[from];
-}
-
-
-static void convert_U16_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = container->uintegers16[from];
-}
-
-
-static void convert_U16_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = container->uintegers16[from];
-}
-
-
-static void convert_D32_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = container->integers32[from];
-}
-
-
-static void convert_D32_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = container->integers32[from];
-}
-
-
-static void convert_U32_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = container->uintegers32[from];
-}
-
-
-static void convert_U32_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = container->uintegers32[from];
-}
-
-static void convert_B1_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = container->booleans1[from];
-}
-
-static void convert_B_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = container->booleans[from];
-}
-
-
-/*
- * Conversions with potential precision loss.
- * The routine name is prefixed with an underscore.
- */
-
-/* From F32 (float) */
-static void convert__F32_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = (int8_t)container->reals32[from];
-}
-static void convert__F32_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = (uint8_t)container->reals32[from];
-}
-static void convert__F32_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = (int16_t)container->reals32[from];
-}
-static void convert__F32_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = (uint16_t)container->reals32[from];
-}
-static void convert__F32_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = (int32_t)container->reals32[from];
-}
-static void convert__F32_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = (uint32_t)container->reals32[from];
-}
-static void convert__F32_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = (int64_t)container->reals32[from];
-}
-static void convert__F32_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = (uint64_t)container->reals32[from];
-}
-
-/* From F64 (double) */
-static void convert__F64_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = (float)container->reals64[from];
-}
-static void convert__F64_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = (int8_t)container->reals64[from];
-}
-static void convert__F64_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = (uint8_t)container->reals64[from];
-}
-static void convert__F64_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = (int16_t)container->reals64[from];
-}
-static void convert__F64_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = (uint16_t)container->reals64[from];
-}
-static void convert__F64_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = (int32_t)container->reals64[from];
-}
-static void convert__F64_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = (uint32_t)container->reals64[from];
-}
-static void convert__F64_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = (int64_t)container->reals64[from];
-}
-static void convert__F64_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = (uint64_t)container->reals64[from];
-}
-
-/* From D8 (int8_t) */
-static void convert__D8_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = (float)container->integers8[from];
-}
-static void convert__D8_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = (double)container->integers8[from];
-}
-static void convert__D8_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = (uint8_t)container->integers8[from];
-}
-
-/* From U8 (uint8_t) */
-static void convert__U8_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = (float)container->uintegers8[from];
-}
-static void convert__U8_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = (double)container->uintegers8[from];
-}
-static void convert__U8_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = (int8_t)container->uintegers8[from];
-}
-
-/* From D16 (int16_t) */
-static void convert__D16_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = (float)container->integers16[from];
-}
-static void convert__D16_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = (double)container->integers16[from];
-}
-static void convert__D16_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = (int8_t)container->integers16[from];
-}
-static void convert__D16_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = (uint8_t)container->integers16[from];
-}
-static void convert__D16_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = (uint16_t)container->integers16[from];
-}
-
-/* From U16 (uint16_t) */
-static void convert__U16_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = (float)container->uintegers16[from];
-}
-static void convert__U16_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = (double)container->uintegers16[from];
-}
-static void convert__U16_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = (int8_t)container->uintegers16[from];
-}
-static void convert__U16_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = (uint8_t)container->uintegers16[from];
-}
-static void convert__U16_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = (int16_t)container->uintegers16[from];
-}
-
-/* From D32 (int32_t) */
-static void convert__D32_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = (float)container->integers32[from];
-}
-
-
 #define CONVERSION_FUNCTION(name, from_type, from_c_type, to_type, to_c_type)                                       \
 static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
     unsigned long dimension = container->port_ ## from_type [from].dimension;                                       \
@@ -333,113 +71,168 @@ static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr
         to_value[i] = (to_c_type)from_value[i];                                                                     \
 }
 
-CONVERSION_FUNCTION(_D32_F64, integers32, int32_t, reals64, double)
 
-static void convert__D32_F64_old(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    unsigned long dimension = container->port_integers32[from].dimension;
-    int32_t *from_value = container->integers32 + container->port_integers32[from].links[0].fmu_vr;
-    double *to_value = container->reals64 + container->port_reals64[to].links[0].fmu_vr;
-
-    for(unsigned long i = 0; i < dimension; i += 1)
-        to_value[i] = (double)from_value[i];
+#define CONVERSION_FUNCTION_F_B(name, from_type, from_c_type, to_type, to_c_type)                                   \
+static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
+    unsigned long dimension = container->port_ ## from_type [from].dimension;                                       \
+    const from_c_type *from_value = container-> from_type + container->port_ ## from_type [from].links[0].fmu_vr;   \
+    to_c_type         *to_value   = container-> to_type   + container->port_ ## to_type [to].links[0].fmu_vr;       \
+                                                                                                                    \
+    for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
+        to_value[i] = (to_c_type)(fabs(from_value[i]) > container->tolerance);                                      \
 }
 
-static void convert__D32_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = (int8_t)container->integers32[from];
+
+#define CONVERSION_FUNCTION_D_B(name, from_type, from_c_type, to_type, to_c_type)                                   \
+static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
+    unsigned long dimension = container->port_ ## from_type [from].dimension;                                       \
+    const from_c_type *from_value = container-> from_type + container->port_ ## from_type [from].links[0].fmu_vr;   \
+    to_c_type         *to_value   = container-> to_type   + container->port_ ## to_type [to].links[0].fmu_vr;       \
+                                                                                                                    \
+    for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
+        to_value[i] = (to_c_type)(from_value[i] != 0);                                                              \
 }
-static void convert__D32_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = (uint8_t)container->integers32[from];
+
+
+#define CONVERSION_FUNCTION_B(name, from_type, from_c_type, to_type, to_c_type)                                     \
+static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
+    unsigned long dimension = container->port_ ## from_type [from].dimension;                                       \
+    const from_c_type *from_value = container-> from_type + container->port_ ## from_type [from].links[0].fmu_vr;   \
+    to_c_type         *to_value   = container-> to_type   + container->port_ ## to_type [to].links[0].fmu_vr;       \
+                                                                                                                    \
+    for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
+        to_value[i] = (to_c_type)(from_value[i]?1:0);                                                               \
 }
-static void convert__D32_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = (int16_t)container->integers32[from];
-}
-static void convert__D32_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = (uint16_t)container->integers32[from];
-}
-static void convert__D32_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = (uint32_t)container->integers32[from];
-}
+
+
+/*
+ * Lossless conversions (widening, same size, F32 -> F64, B <-> B1).
+ */
+CONVERSION_FUNCTION(F32_F64, reals32, float, reals64, double)
+
+CONVERSION_FUNCTION(D8_D16, integers8, int8_t, integers16,  int16_t)
+CONVERSION_FUNCTION(D8_U16, integers8, int8_t, uintegers16, uint16_t)
+CONVERSION_FUNCTION(D8_D32, integers8, int8_t, integers32,  int32_t)
+CONVERSION_FUNCTION(D8_U32, integers8, int8_t, uintegers32, uint32_t)
+CONVERSION_FUNCTION(D8_D64, integers8, int8_t, integers64,  int64_t)
+CONVERSION_FUNCTION(D8_U64, integers8, int8_t, uintegers64, uint64_t)
+
+CONVERSION_FUNCTION(U8_D16, uintegers8, uint8_t, integers16,  int16_t)
+CONVERSION_FUNCTION(U8_U16, uintegers8, uint8_t, uintegers16, uint16_t)
+CONVERSION_FUNCTION(U8_D32, uintegers8, uint8_t, integers32,  int32_t)
+CONVERSION_FUNCTION(U8_U32, uintegers8, uint8_t, uintegers32, uint32_t)
+CONVERSION_FUNCTION(U8_D64, uintegers8, uint8_t, integers64,  int64_t)
+CONVERSION_FUNCTION(U8_U64, uintegers8, uint8_t, uintegers64, uint64_t)
+
+CONVERSION_FUNCTION(D16_D32, integers16, int16_t, integers32,  int32_t)
+CONVERSION_FUNCTION(D16_U32, integers16, int16_t, uintegers32, uint32_t)
+CONVERSION_FUNCTION(D16_D64, integers16, int16_t, integers64,  int64_t)
+CONVERSION_FUNCTION(D16_U64, integers16, int16_t, uintegers64, uint64_t)
+
+CONVERSION_FUNCTION(U16_D32, uintegers16, uint16_t, integers32,  int32_t)
+CONVERSION_FUNCTION(U16_U32, uintegers16, uint16_t, uintegers32, uint32_t)
+CONVERSION_FUNCTION(U16_D64, uintegers16, uint16_t, integers64,  int64_t)
+CONVERSION_FUNCTION(U16_U64, uintegers16, uint16_t, uintegers64, uint64_t)
+
+CONVERSION_FUNCTION(D32_D64, integers32, int32_t, integers64,  int64_t)
+CONVERSION_FUNCTION(D32_U64, integers32, int32_t, uintegers64, uint64_t)
+
+CONVERSION_FUNCTION(U32_D64, uintegers32, uint32_t, integers64,  int64_t)
+CONVERSION_FUNCTION(U32_U64, uintegers32, uint32_t, uintegers64, uint64_t)
+
+CONVERSION_FUNCTION(B1_B, booleans1, bool, booleans,  int)
+CONVERSION_FUNCTION(B_B1, booleans,  int,  booleans1, bool)
+
+
+/*
+ * Conversions with potential precision loss.
+ * The routine name is prefixed with an underscore.
+ */
+
+/* From F32 (float) */
+CONVERSION_FUNCTION(_F32_D8,  reals32, float, integers8,   int8_t)
+CONVERSION_FUNCTION(_F32_U8,  reals32, float, uintegers8,  uint8_t)
+CONVERSION_FUNCTION(_F32_D16, reals32, float, integers16,  int16_t)
+CONVERSION_FUNCTION(_F32_U16, reals32, float, uintegers16, uint16_t)
+CONVERSION_FUNCTION(_F32_D32, reals32, float, integers32,  int32_t)
+CONVERSION_FUNCTION(_F32_U32, reals32, float, uintegers32, uint32_t)
+CONVERSION_FUNCTION(_F32_D64, reals32, float, integers64,  int64_t)
+CONVERSION_FUNCTION(_F32_U64, reals32, float, uintegers64, uint64_t)
+
+/* From F64 (double) */
+CONVERSION_FUNCTION(_F64_F32, reals64, double, reals32,     float)
+CONVERSION_FUNCTION(_F64_D8,  reals64, double, integers8,   int8_t)
+CONVERSION_FUNCTION(_F64_U8,  reals64, double, uintegers8,  uint8_t)
+CONVERSION_FUNCTION(_F64_D16, reals64, double, integers16,  int16_t)
+CONVERSION_FUNCTION(_F64_U16, reals64, double, uintegers16, uint16_t)
+CONVERSION_FUNCTION(_F64_D32, reals64, double, integers32,  int32_t)
+CONVERSION_FUNCTION(_F64_U32, reals64, double, uintegers32, uint32_t)
+CONVERSION_FUNCTION(_F64_D64, reals64, double, integers64,  int64_t)
+CONVERSION_FUNCTION(_F64_U64, reals64, double, uintegers64, uint64_t)
+
+/* From D8 (int8_t) */
+CONVERSION_FUNCTION(_D8_F32, integers8, int8_t, reals32,    float)
+CONVERSION_FUNCTION(_D8_F64, integers8, int8_t, reals64,    double)
+CONVERSION_FUNCTION(_D8_U8,  integers8, int8_t, uintegers8, uint8_t)
+
+/* From U8 (uint8_t) */
+CONVERSION_FUNCTION(_U8_F32, uintegers8, uint8_t, reals32,   float)
+CONVERSION_FUNCTION(_U8_F64, uintegers8, uint8_t, reals64,   double)
+CONVERSION_FUNCTION(_U8_D8,  uintegers8, uint8_t, integers8, int8_t)
+
+/* From D16 (int16_t) */
+CONVERSION_FUNCTION(_D16_F32, integers16, int16_t, reals32,     float)
+CONVERSION_FUNCTION(_D16_F64, integers16, int16_t, reals64,     double)
+CONVERSION_FUNCTION(_D16_D8,  integers16, int16_t, integers8,   int8_t)
+CONVERSION_FUNCTION(_D16_U8,  integers16, int16_t, uintegers8,  uint8_t)
+CONVERSION_FUNCTION(_D16_U16, integers16, int16_t, uintegers16, uint16_t)
+
+/* From U16 (uint16_t) */
+CONVERSION_FUNCTION(_U16_F32, uintegers16, uint16_t, reals32,    float)
+CONVERSION_FUNCTION(_U16_F64, uintegers16, uint16_t, reals64,    double)
+CONVERSION_FUNCTION(_U16_D8,  uintegers16, uint16_t, integers8,  int8_t)
+CONVERSION_FUNCTION(_U16_U8,  uintegers16, uint16_t, uintegers8, uint8_t)
+CONVERSION_FUNCTION(_U16_D16, uintegers16, uint16_t, integers16, int16_t)
+
+/* From D32 (int32_t) */
+CONVERSION_FUNCTION(_D32_F32, integers32, int32_t, reals32,     float)
+CONVERSION_FUNCTION(_D32_F64, integers32, int32_t, reals64,     double)
+CONVERSION_FUNCTION(_D32_D8,  integers32, int32_t, integers8,   int8_t)
+CONVERSION_FUNCTION(_D32_U8,  integers32, int32_t, uintegers8,  uint8_t)
+CONVERSION_FUNCTION(_D32_D16, integers32, int32_t, integers16,  int16_t)
+CONVERSION_FUNCTION(_D32_U16, integers32, int32_t, uintegers16, uint16_t)
+CONVERSION_FUNCTION(_D32_U32, integers32, int32_t, uintegers32, uint32_t)
 
 /* From U32 (uint32_t) */
-static void convert__U32_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = (float)container->uintegers32[from];
-}
-static void convert__U32_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = (double)container->uintegers32[from];
-}
-static void convert__U32_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = (int8_t)container->uintegers32[from];
-}
-static void convert__U32_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = (uint8_t)container->uintegers32[from];
-}
-static void convert__U32_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = (int16_t)container->uintegers32[from];
-}
-static void convert__U32_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = (uint16_t)container->uintegers32[from];
-}
-static void convert__U32_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = (int32_t)container->uintegers32[from];
-}
+CONVERSION_FUNCTION(_U32_F32, uintegers32, uint32_t, reals32,    float)
+CONVERSION_FUNCTION(_U32_F64, uintegers32, uint32_t, reals64,    double)
+CONVERSION_FUNCTION(_U32_D8,  uintegers32, uint32_t, integers8,  int8_t)
+CONVERSION_FUNCTION(_U32_U8,  uintegers32, uint32_t, uintegers8, uint8_t)
+CONVERSION_FUNCTION(_U32_D16, uintegers32, uint32_t, integers16, int16_t)
+CONVERSION_FUNCTION(_U32_U16, uintegers32, uint32_t, uintegers16, uint16_t)
+CONVERSION_FUNCTION(_U32_D32, uintegers32, uint32_t, integers32, int32_t)
 
 /* From D64 (int64_t) */
-static void convert__D64_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = (float)container->integers64[from];
-}
-static void convert__D64_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = (double)container->integers64[from];
-}
-static void convert__D64_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = (int8_t)container->integers64[from];
-}
-static void convert__D64_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = (uint8_t)container->integers64[from];
-}
-static void convert__D64_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = (int16_t)container->integers64[from];
-}
-static void convert__D64_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = (uint16_t)container->integers64[from];
-}
-static void convert__D64_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = (int32_t)container->integers64[from];
-}
-static void convert__D64_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = (uint32_t)container->integers64[from];
-}
-static void convert__D64_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = (uint64_t)container->integers64[from];
-}
+CONVERSION_FUNCTION(_D64_F32, integers64, int64_t, reals32,     float)
+CONVERSION_FUNCTION(_D64_F64, integers64, int64_t, reals64,     double)
+CONVERSION_FUNCTION(_D64_D8,  integers64, int64_t, integers8,   int8_t)
+CONVERSION_FUNCTION(_D64_U8,  integers64, int64_t, uintegers8,  uint8_t)
+CONVERSION_FUNCTION(_D64_D16, integers64, int64_t, integers16,  int16_t)
+CONVERSION_FUNCTION(_D64_U16, integers64, int64_t, uintegers16, uint16_t)
+CONVERSION_FUNCTION(_D64_D32, integers64, int64_t, integers32,  int32_t)
+CONVERSION_FUNCTION(_D64_U32, integers64, int64_t, uintegers32, uint32_t)
+CONVERSION_FUNCTION(_D64_U64, integers64, int64_t, uintegers64, uint64_t)
 
 /* From U64 (uint64_t) */
-static void convert__U64_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = (float)container->uintegers64[from];
-}
-static void convert__U64_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = (double)container->uintegers64[from];
-}
-static void convert__U64_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = (int8_t)container->uintegers64[from];
-}
-static void convert__U64_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = (uint8_t)container->uintegers64[from];
-}
-static void convert__U64_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = (int16_t)container->uintegers64[from];
-}
-static void convert__U64_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = (uint16_t)container->uintegers64[from];
-}
-static void convert__U64_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = (int32_t)container->uintegers64[from];
-}
-static void convert__U64_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = (uint32_t)container->uintegers64[from];
-}
-static void convert__U64_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = (int64_t)container->uintegers64[from];
-}
+CONVERSION_FUNCTION(_U64_F32, uintegers64, uint64_t, reals32,    float)
+CONVERSION_FUNCTION(_U64_F64, uintegers64, uint64_t, reals64,    double)
+CONVERSION_FUNCTION(_U64_D8,  uintegers64, uint64_t, integers8,  int8_t)
+CONVERSION_FUNCTION(_U64_U8,  uintegers64, uint64_t, uintegers8, uint8_t)
+CONVERSION_FUNCTION(_U64_D16, uintegers64, uint64_t, integers16, int16_t)
+CONVERSION_FUNCTION(_U64_U16, uintegers64, uint64_t, uintegers16, uint16_t)
+CONVERSION_FUNCTION(_U64_D32, uintegers64, uint64_t, integers32, int32_t)
+CONVERSION_FUNCTION(_U64_U32, uintegers64, uint64_t, uintegers32, uint32_t)
+CONVERSION_FUNCTION(_U64_D64, uintegers64, uint64_t, integers64, int64_t)
 
 
 /*
@@ -452,132 +245,54 @@ static void convert__U64_D64(const container_t *container, fmu_vr_t from, fmu_vr
  */
 
 /* Numeric -> B (int) */
-static void convert__F32_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = (fabsf(container->reals32[from]) > (float)container->tolerance);
-}
-static void convert__F64_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = (fabs(container->reals64[from]) > container->tolerance);
-}
-static void convert__D8_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = (container->integers8[from] != 0);
-}
-static void convert__U8_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = (container->uintegers8[from] != 0);
-}
-static void convert__D16_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = (container->integers16[from] != 0);
-}
-static void convert__U16_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = (container->uintegers16[from] != 0);
-}
-static void convert__D32_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = (container->integers32[from] != 0);
-}
-static void convert__U32_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = (container->uintegers32[from] != 0);
-}
-static void convert__D64_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = (container->integers64[from] != 0);
-}
-static void convert__U64_B(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans[to] = (container->uintegers64[from] != 0);
-}
+CONVERSION_FUNCTION_F_B(_F32_B, reals32, float,  booleans, int)
+CONVERSION_FUNCTION_F_B(_F64_B, reals64, double, booleans, int)
+
+CONVERSION_FUNCTION_D_B(_D8_B,  integers8,   int8_t,   booleans, int)
+CONVERSION_FUNCTION_D_B(_U8_B,  uintegers8,  uint8_t,  booleans, int)
+CONVERSION_FUNCTION_D_B(_D16_B, integers16,  int16_t,  booleans, int)
+CONVERSION_FUNCTION_D_B(_U16_B, uintegers16, uint16_t, booleans, int)
+CONVERSION_FUNCTION_D_B(_D32_B, integers32,  int32_t,  booleans, int)
+CONVERSION_FUNCTION_D_B(_U32_B, uintegers32, uint32_t, booleans, int)
+CONVERSION_FUNCTION_D_B(_D64_B, integers64,  int64_t,  booleans, int)
+CONVERSION_FUNCTION_D_B(_U64_B, uintegers64, uint64_t, booleans, int)
 
 /* Numeric -> B1 (bool) */
-static void convert__F32_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = (fabsf(container->reals32[from]) > (float)container->tolerance);
-}
-static void convert__F64_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = (fabs(container->reals64[from]) > container->tolerance);
-}
-static void convert__D8_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = (container->integers8[from] != 0);
-}
-static void convert__U8_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = (container->uintegers8[from] != 0);
-}
-static void convert__D16_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = (container->integers16[from] != 0);
-}
-static void convert__U16_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = (container->uintegers16[from] != 0);
-}
-static void convert__D32_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = (container->integers32[from] != 0);
-}
-static void convert__U32_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = (container->uintegers32[from] != 0);
-}
-static void convert__D64_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = (container->integers64[from] != 0);
-}
-static void convert__U64_B1(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->booleans1[to] = (container->uintegers64[from] != 0);
-}
+CONVERSION_FUNCTION_F_B(_F32_B1, reals32, float,  booleans1, bool)
+CONVERSION_FUNCTION_F_B(_F64_B1, reals64, double, booleans1, bool)
+
+CONVERSION_FUNCTION_D_B(_D8_B1,  integers8,   int8_t,   booleans1, bool)
+CONVERSION_FUNCTION_D_B(_U8_B1,  uintegers8,  uint8_t,  booleans1, bool)
+CONVERSION_FUNCTION_D_B(_D16_B1, integers16,  int16_t,  booleans1, bool)
+CONVERSION_FUNCTION_D_B(_U16_B1, uintegers16, uint16_t, booleans1, bool)
+CONVERSION_FUNCTION_D_B(_D32_B1, integers32,  int32_t,  booleans1, bool)
+CONVERSION_FUNCTION_D_B(_U32_B1, uintegers32, uint32_t, booleans1, bool)
+CONVERSION_FUNCTION_D_B(_D64_B1, integers64,  int64_t,  booleans1, bool)
+CONVERSION_FUNCTION_D_B(_U64_B1, uintegers64, uint64_t, booleans1, bool)
 
 /* B (int) -> Numeric (result is 0 or 1, lossless) */
-static void convert_B_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = container->booleans[from] ? 1.0f : 0.0f;
-}
-static void convert_B_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = container->booleans[from] ? 1.0 : 0.0;
-}
-static void convert_B_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = container->booleans[from] ? 1 : 0;
-}
-static void convert_B_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = container->booleans[from] ? 1 : 0;
-}
-static void convert_B_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = container->booleans[from] ? 1 : 0;
-}
-static void convert_B_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = container->booleans[from] ? 1 : 0;
-}
-static void convert_B_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = container->booleans[from] ? 1 : 0;
-}
-static void convert_B_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = container->booleans[from] ? 1 : 0;
-}
-static void convert_B_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = container->booleans[from] ? 1 : 0;
-}
-static void convert_B_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = container->booleans[from] ? 1 : 0;
-}
+CONVERSION_FUNCTION_B(B_F32, booleans, int, reals32,     float)
+CONVERSION_FUNCTION_B(B_F64, booleans, int, reals64,     double)
+CONVERSION_FUNCTION_B(B_D8,  booleans, int, integers8,   int8_t)
+CONVERSION_FUNCTION_B(B_U8,  booleans, int, uintegers8,  uint8_t)
+CONVERSION_FUNCTION_B(B_D16, booleans, int, integers16,  int16_t)
+CONVERSION_FUNCTION_B(B_U16, booleans, int, uintegers16, uint16_t)
+CONVERSION_FUNCTION_B(B_D32, booleans, int, integers32,  int32_t)
+CONVERSION_FUNCTION_B(B_U32, booleans, int, uintegers32, uint32_t)
+CONVERSION_FUNCTION_B(B_D64, booleans, int, integers64,  int64_t)
+CONVERSION_FUNCTION_B(B_U64, booleans, int, uintegers64, uint64_t)
 
 /* B1 (bool) -> Numeric (result is 0 or 1, lossless) */
-static void convert_B1_F32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals32[to] = container->booleans1[from] ? 1.0f : 0.0f;
-}
-static void convert_B1_F64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->reals64[to] = container->booleans1[from] ? 1.0 : 0.0;
-}
-static void convert_B1_D8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers8[to] = container->booleans1[from] ? 1 : 0;
-}
-static void convert_B1_U8(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers8[to] = container->booleans1[from] ? 1 : 0;
-}
-static void convert_B1_D16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers16[to] = container->booleans1[from] ? 1 : 0;
-}
-static void convert_B1_U16(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers16[to] = container->booleans1[from] ? 1 : 0;
-}
-static void convert_B1_D32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers32[to] = container->booleans1[from] ? 1 : 0;
-}
-static void convert_B1_U32(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers32[to] = container->booleans1[from] ? 1 : 0;
-}
-static void convert_B1_D64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->integers64[to] = container->booleans1[from] ? 1 : 0;
-}
-static void convert_B1_U64(const container_t *container, fmu_vr_t from, fmu_vr_t to) {
-    container->uintegers64[to] = container->booleans1[from] ? 1 : 0;
-}
+CONVERSION_FUNCTION_B(B1_F32, booleans1, bool, reals32,     float)
+CONVERSION_FUNCTION_B(B1_F64, booleans1, bool, reals64,     double)
+CONVERSION_FUNCTION_B(B1_D8,  booleans1, bool, integers8,   int8_t)
+CONVERSION_FUNCTION_B(B1_U8,  booleans1, bool, uintegers8,  uint8_t)
+CONVERSION_FUNCTION_B(B1_D16, booleans1, bool, integers16,  int16_t)
+CONVERSION_FUNCTION_B(B1_U16, booleans1, bool, uintegers16, uint16_t)
+CONVERSION_FUNCTION_B(B1_D32, booleans1, bool, integers32,  int32_t)
+CONVERSION_FUNCTION_B(B1_U32, booleans1, bool, uintegers32, uint32_t)
+CONVERSION_FUNCTION_B(B1_D64, booleans1, bool, integers64,  int64_t)
+CONVERSION_FUNCTION_B(B1_U64, booleans1, bool, uintegers64, uint64_t)
 
 
 convert_function_t convert_function_get(const char *function_name) {
