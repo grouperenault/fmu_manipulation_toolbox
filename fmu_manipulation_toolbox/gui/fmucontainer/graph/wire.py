@@ -278,11 +278,54 @@ class WireItem(QGraphicsPathItem):
         arrow.closeSubpath()
         painter.drawPath(arrow)
 
+    @staticmethod
+    def _shorten_point(tip: QPointF, prev: QPointF, amount: float) -> QPointF:
+        """Return a point moved back from *tip* towards *prev* by *amount* pixels."""
+        dx = tip.x() - prev.x()
+        dy = tip.y() - prev.y()
+        length = math.hypot(dx, dy)
+        if length < 1e-6:
+            return QPointF(tip)
+        return QPointF(tip.x() - dx / length * amount, tip.y() - dy / length * amount)
+
     def paint(self, painter: QPainter, option, widget=None):
         color = COLOR_WIRE_SELECTED if self.isSelected() else COLOR_WIRE
         pen = QPen(color, 2.5 if self.isSelected() else 2.0)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+
+        # -- Determine arrow presence to shorten the path ----------------------
+        a_to_b, b_to_a = self._directions()
+        points = self._all_points()
+        has_dir = a_to_b or b_to_a or bool(self.mappings)
+        arrow_at_b = has_dir and (a_to_b or (not a_to_b and not b_to_a))
+        arrow_at_a = has_dir and b_to_a
+
+        # Compute shorten amount: use the largest arrow drawn at each end
+        shorten_b = 0.0
+        shorten_a = 0.0
+        if arrow_at_b:
+            shorten_b = ARROW_SIZE * 0.7
+        if arrow_at_a:
+            shorten_a = ARROW_SIZE * 0.7
+        # Highlight arrows are larger — use their size if active
+        if self._highlight_mode == "a_to_b":
+            shorten_b = max(shorten_b, HIGHLIGHT_ARROW_SIZE * 0.7)
+        elif self._highlight_mode == "b_to_a":
+            shorten_a = max(shorten_a, HIGHLIGHT_ARROW_SIZE * 0.7)
+
+        # Build a draw path shortened at ends where arrows will be drawn
+        draw_points = list(points)
+        if shorten_b > 0 and len(draw_points) >= 2:
+            draw_points[-1] = self._shorten_point(
+                draw_points[-1], draw_points[-2], shorten_b)
+        if shorten_a > 0 and len(draw_points) >= 2:
+            draw_points[0] = self._shorten_point(
+                draw_points[0], draw_points[1], shorten_a)
+
+        draw_path = QPainterPath(draw_points[0])
+        for pt in draw_points[1:]:
+            draw_path.lineTo(pt)
 
         if self.terminal_mappings:
             # Double line for terminal connections
@@ -293,31 +336,28 @@ class WireItem(QGraphicsPathItem):
             outer_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             outer_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(outer_pen)
-            painter.drawPath(self.path())
+            painter.drawPath(draw_path)
 
             inner_pen = QPen(COLOR_BACKGROUND, 2.0 if self.isSelected() else 1.5)
             inner_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             inner_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(inner_pen)
-            painter.drawPath(self.path())
+            painter.drawPath(draw_path)
         else:
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawPath(self.path())
+            painter.drawPath(draw_path)
 
         # -- Arrowheads --------------------------------------------------------
-        a_to_b, b_to_a = self._directions()
-        points = self._all_points()
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(color))
 
-        has_dir = a_to_b or b_to_a or bool(self.mappings)
         if has_dir:
-            if a_to_b or (not a_to_b and not b_to_a):
+            if arrow_at_b:
                 tip = points[-1]
                 prev = points[-2] if len(points) >= 2 else points[0]
                 self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
-            if b_to_a:
+            if arrow_at_a:
                 tip = points[0]
                 prev = points[1] if len(points) >= 2 else points[-1]
                 self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
