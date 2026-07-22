@@ -42,6 +42,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_start_values: Dict[str, str] = {}
         self.user_start_values: Dict[str, str] = {}
         self.user_exposed_outputs: Dict[str, bool] = {}
+        self.user_exposed_inputs: Dict[str, bool] = {}
         self.fmu_step_size: Optional[str] = None
         self.fmu_generator: str = ""
         self.fmu_fmi_version: Optional[int] = None
@@ -239,7 +240,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
     # -- Helpers ---------------------------------------------------------------
 
     def replace_fmu(self, new_fmu_path: Path):
-        """Replace the underlying FMU file while keeping wires, start values and exposed outputs."""
+        """Replace the underlying FMU file while keeping wires, start values and exposed ports."""
         old_name = self.fmu_path.name
         new_name = new_fmu_path.name
 

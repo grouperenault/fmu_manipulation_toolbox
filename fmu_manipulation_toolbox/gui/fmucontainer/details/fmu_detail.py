@@ -73,7 +73,7 @@ class _CheckableSortProxy(QSortFilterProxyModel):
 
 
 class FMUDetailWidget(QWidget):
-    """NodeItem (FMU) details with tabs for start values and output port exposure."""
+    """NodeItem (FMU) details with tabs for start values, input and output port exposure."""
 
     changed = Signal()
 
@@ -113,7 +113,29 @@ class FMUDetailWidget(QWidget):
 
         self._tabs.addTab(self._sv_table, "Start Values")
 
-        # ── Tab 2: Output Ports ───────────────────────────────────
+        # ── Tab 2: Input Ports ────────────────────────────────────
+        self._in_model = QStandardItemModel(0, 2)
+        self._in_model.setHorizontalHeaderLabels(["Input Port", "Exposed"])
+        self._in_model.dataChanged.connect(lambda *_: self.changed.emit())
+
+        self._in_proxy = _CheckableSortProxy(self)
+        self._in_proxy.setSourceModel(self._in_model)
+
+        self._in_table = QTableView()
+        self._in_table.setModel(self._in_proxy)
+        self._in_table.setSortingEnabled(True)
+        self._in_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self._in_table.horizontalHeader().setStretchLastSection(True)
+        self._in_table.setAlternatingRowColors(True)
+        self._in_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._in_table.verticalHeader().setVisible(False)
+
+        self._in_delegate = _StartValueDelegate(self._in_table)
+        self._in_table.setItemDelegateForColumn(0, self._in_delegate)
+
+        self._tabs.addTab(self._in_table, "Input Ports")
+
+        # ── Tab 3: Output Ports ───────────────────────────────────
         self._out_model = QStandardItemModel(0, 2)
         self._out_model.setHorizontalHeaderLabels(["Output Port", "Exposed"])
         self._out_model.dataChanged.connect(lambda *_: self.changed.emit())
@@ -142,11 +164,12 @@ class FMUDetailWidget(QWidget):
         lay.addWidget(self._tabs, 1)
 
         self._sv_table.installEventFilter(self)
+        self._in_table.installEventFilter(self)
         self._out_table.installEventFilter(self)
 
     def eventFilter(self, obj, event):
         if event.type() == event.Type.Resize:
-            if obj is self._sv_table or obj is self._out_table:
+            if obj is self._sv_table or obj is self._in_table or obj is self._out_table:
                 unlock_column_resize(obj)
         return super().eventFilter(obj, event)
 
@@ -170,6 +193,13 @@ class FMUDetailWidget(QWidget):
             check_item = self._out_model.item(row, 1)
             exposed = check_item.checkState() == Qt.CheckState.Checked
             self._current_node.user_exposed_outputs[port_name] = exposed
+
+        self._current_node.user_exposed_inputs.clear()
+        for row in range(self._in_model.rowCount()):
+            port_name = self._in_model.item(row, 0).text()
+            check_item = self._in_model.item(row, 1)
+            exposed = check_item.checkState() == Qt.CheckState.Checked
+            self._current_node.user_exposed_inputs[port_name] = exposed
 
     def set_node(self, node):
         """Persist edits on the previous node, then populate with *node*."""
@@ -227,6 +257,46 @@ class FMUDetailWidget(QWidget):
                 value_item.setData(True, _StartValueDelegate.ROLE_INVALID)
 
                 self._sv_model.appendRow([name_item, value_item])
+
+        # ── Populate Input Ports tab ───────────────────────────────
+        self._in_model.removeRows(0, self._in_model.rowCount())
+        shown_inputs = set()
+        for port_name in node.fmu_input_names:
+            shown_inputs.add(port_name)
+            name_item = QStandardItem(port_name)
+            name_item.setEditable(False)
+            causality = node.fmu_port_causality.get(port_name, "input")
+            name_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
+            is_aggregate = port_name in node.fmu_array_aggregate_elements
+            if is_aggregate:
+                name_item.setData(True, _StartValueDelegate.ROLE_AGGREGATE)
+
+            check_item = QStandardItem("")
+            check_item.setEditable(False)
+            check_item.setCheckable(True)
+            exposed = node.user_exposed_inputs.get(port_name, False)
+            check_item.setCheckState(Qt.CheckState.Checked if exposed else Qt.CheckState.Unchecked)
+            check_item.setData(causality, _StartValueDelegate.ROLE_CAUSALITY)
+            if is_aggregate:
+                check_item.setData(True, _StartValueDelegate.ROLE_AGGREGATE)
+
+            self._in_model.appendRow([name_item, check_item])
+
+        # Orphan exposed inputs: ports that no longer exist in the FMU
+        for port_name, exposed in node.user_exposed_inputs.items():
+            if exposed and port_name not in shown_inputs:
+                name_item = QStandardItem(port_name)
+                name_item.setEditable(False)
+                name_item.setData(True, _StartValueDelegate.ROLE_INVALID)
+                name_item.setToolTip("Port no longer exists in this FMU")
+
+                check_item = QStandardItem("")
+                check_item.setEditable(False)
+                check_item.setCheckable(True)
+                check_item.setCheckState(Qt.CheckState.Checked)
+                check_item.setData(True, _StartValueDelegate.ROLE_INVALID)
+
+                self._in_model.appendRow([name_item, check_item])
 
         # ── Populate Output Ports tab ─────────────────────────────
         self._out_model.removeRows(0, self._out_model.rowCount())

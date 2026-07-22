@@ -46,7 +46,8 @@ class AssemblyIOMixin:
 
     def _assembly_node_to_items(self, parent, assembly_node: AssemblyNode, folder: Path,
                                 links_list: List[List[str]], start_values_list: List[List[str]],
-                                output_ports_list: List[List[str]], x=0, y=0):
+                                output_ports_list: List[List[str]], input_ports_list: List[List[str]],
+                                x=0, y=0):
         """Recursively convert an AssemblyNode into tree items and graph nodes."""
         # Add FMU nodes
         self._tree.pending_parent = parent
@@ -92,12 +93,17 @@ class AssemblyIOMixin:
             logger.debug(f"ADD OUTPUT PORT: {output}")
             output_ports_list.append(output)
 
+        for port, source in assembly_node.input_ports.items():
+            input_port = [port.fmu_name, port.port_name, source]
+            logger.debug(f"ADD INPUT PORT: {input_port}")
+            input_ports_list.append(input_port)
+
         for child_node in assembly_node.children.values():
             logger.debug(f"ADD CONTAINER: {child_node.name}")
             child = self._tree.make_container_item(child_node.name)
             parent.appendRow(child)
             self._assembly_node_to_items(child, child_node, folder, links_list,
-                                         start_values_list, output_ports_list, x=x, y=y)
+                                         start_values_list, output_ports_list, input_ports_list, x=x, y=y)
 
         for link in links_list:
             if link[2] == container_name:
@@ -132,8 +138,9 @@ class AssemblyIOMixin:
         links_list: List[List[str]] = []
         start_values_list: List[List[str]] = []
         output_ports_list: List[List[str]] = []
+        input_ports_list: List[List[str]] = []
         self._assembly_node_to_items(self._tree.root, assembly.root, fmu_directory,
-                                     links_list, start_values_list, output_ports_list)
+                                     links_list, start_values_list, output_ports_list, input_ports_list)
 
         # Build a map from FMU filename to its NodeItem
         nodes_by_name: Dict[str, NodeItem] = {}
@@ -219,6 +226,14 @@ class AssemblyIOMixin:
                 node.user_exposed_outputs[port_name] = True
                 logger.debug(f"Exposed output: {Path(fmu_name).name}/{port_name}")
 
+        # Apply exposed input ports to scene nodes
+        for fmu_name, port_name, _exposed_name in input_ports_list:
+            resolved_key = str((fmu_directory / fmu_name).resolve())
+            node = nodes_by_name.get(resolved_key)
+            if node:
+                node.user_exposed_inputs[port_name] = True
+                logger.debug(f"Exposed input: {Path(fmu_name).name}/{port_name}")
+
         # Reset the detail panels so that the next sync_to_node/sync_to_wire
         # does not overwrite the just-loaded data with stale empty table content.
         self._tree.fmu_detail._current_node = None
@@ -294,6 +309,26 @@ class AssemblyIOMixin:
             for port, exposed_name in child.output_ports.items():
                 assembly_node.add_output(child.name, exposed_name, exposed_name)
                 logger.debug(f"PROPAGATE OUTPUT: {child.name}/{exposed_name} → {assembly_node.name}")
+
+    @staticmethod
+    def _propagate_exposed_inputs(assembly_node: AssemblyNode):
+        """Propagate user-exposed input ports from child nodes up to the root.
+
+        For each child container that has input_ports, expose those ports
+        at the current level as well, then recurse upward (called bottom-up).
+        This must be called BEFORE _apply_links_on_assembly_node so that only
+        user-exposed inputs are propagated (not routing inputs from links).
+        """
+        # First, recurse into children so their inputs are fully resolved
+        for child in assembly_node.children.values():
+            AssemblyIOMixin._propagate_exposed_inputs(child)
+
+        # Now, for each child container, if it has exposed input ports,
+        # also expose them at this level (so they bubble up to root)
+        for child in assembly_node.children.values():
+            for port, exposed_name in child.input_ports.items():
+                assembly_node.add_input(exposed_name, child.name, exposed_name)
+                logger.debug(f"PROPAGATE INPUT: {assembly_node.name} → {child.name}/{exposed_name}")
 
     @staticmethod
     def _apply_links_on_assembly_node(assembly_node: AssemblyNode,
@@ -373,6 +408,11 @@ class AssemblyIOMixin:
                     if exposed:
                         logger.debug(f"EXPOSE OUTPUT: {fmu_path.name}/{port_name}")
                         parent_assembly_node.add_output(str(fmu_path), port_name, port_name)
+                # Apply user-exposed input ports
+                for port_name, exposed in node.user_exposed_inputs.items():
+                    if exposed:
+                        logger.debug(f"EXPOSE INPUT: {fmu_path.name}/{port_name}")
+                        parent_assembly_node.add_input(port_name, str(fmu_path), port_name)
                 return None
 
         root_item = self._tree.root
@@ -418,8 +458,9 @@ class AssemblyIOMixin:
                     links_list.append((fmu_a_path, terminal_a, fmu_b_path, terminal_b))
 
         if assembly.root:
-            # First propagate user-exposed outputs up through nested containers
+            # First propagate user-exposed outputs/inputs up through nested containers
             self._propagate_exposed_outputs(assembly.root)
+            self._propagate_exposed_inputs(assembly.root)
             # Then distribute links into the correct assembly nodes
             self._apply_links_on_assembly_node(assembly.root, links_list)
 

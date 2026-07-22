@@ -110,8 +110,8 @@ To replace an FMU with a different version or an alternative file:
 3. Click **Browse…** to select a new `.fmu` file
 4. Click **OK** to apply the replacement
 
-The replacement is done **in place**: all wires, start values, and exposed output ports are
-preserved. If a port name referenced by a start value, a wire mapping, or an exposed output
+The replacement is done **in place**: all wires, start values, and exposed input/output ports are
+preserved. If a port name referenced by a start value, a wire mapping, or an exposed input/output
 no longer exists in the new FMU, it appears in **red** in the detail panels — allowing you to
 review and correct invalid references.
 
@@ -156,7 +156,7 @@ The detail panel shows the properties of the currently selected element.
 When an FMU node is selected, the detail panel shows:
 
 - **FMU name**, generator tool, and step size
-- Two tabs: **Start Values** and **Output Ports**
+- Three tabs: **Start Values**, **Input Ports**, and **Output Ports**
 
 #### Start Values tab
 
@@ -176,6 +176,27 @@ Lists all input and parameter ports with their start values.
     listed in this tab. Start values must be defined on the individual scalar elements
     (`myVector[1]`, `myVector[2]`, …), which appear as regular input ports.
 
+#### Input Ports tab
+
+Lists all input ports with a checkbox to explicitly expose them at the container level.
+
+| Column | Description |
+|---|---|
+| **Input Port** | Port name (read-only) |
+| **Exposed** | Checkbox — when checked, the port is exposed as an input of the container |
+
+!!! tip "When to expose inputs"
+    By default, `auto_input` automatically exposes unconnected input ports.
+    Use this tab to explicitly select which inputs to expose — useful when `auto_input`
+    is disabled, when the port is also driven by a wire but should remain overridable from
+    outside the container, or when you need fine-grained control and want the assembly
+    description to declare the input explicitly rather than relying on auto-wiring.
+
+!!! note "Nested containers"
+    When an FMU with an exposed input is nested inside a sub-container, the input is
+    automatically propagated up through each parent container so that it remains reachable
+    from the root container.
+
 #### Output Ports tab
 
 Lists all output ports with a checkbox to explicitly expose them at the container level.
@@ -189,6 +210,11 @@ Lists all output ports with a checkbox to explicitly expose them at the containe
     By default, `auto_output` automatically exposes unconnected output ports.
     Use this tab to explicitly select which outputs to expose — useful when `auto_output`
     is disabled or when you need fine-grained control.
+
+!!! note "Nested containers"
+    When an FMU with an exposed output is nested inside a sub-container, the output is
+    automatically propagated up through each parent container so that it remains reachable
+    from the root container.
 
 !!! note "Port Style Indicators"
     Ports are displayed with different text styles to indicate their nature:
@@ -348,10 +374,11 @@ Select the root container in the tree view to set the time step and other option
 
 Create sub-containers and drag FMUs into them to build nested assemblies.
 
-### Step 5: Set Start Values and Expose Outputs (Optional)
+### Step 5: Set Start Values and Expose Ports (Optional)
 
 Select individual FMU nodes and override input port start values as needed.
-Use the **Output Ports** tab to explicitly expose specific output ports at the container level.
+Use the **Input Ports** tab to explicitly expose specific input ports, and the **Output Ports**
+tab to explicitly expose specific output ports, at the container level.
 
 ### Step 6: Save
 

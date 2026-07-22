@@ -2,6 +2,11 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* ADDED: GUI: new **Input Ports** tab in the FMU detail panel, symmetric to the existing
+         **Output Ports** tab. Each input port can be explicitly marked as *exposed*, causing
+         the generated assembly to declare it explicitly as a container input (via `add_input`)
+         instead of relying solely on `auto_input`. Exposed inputs on FMUs nested inside
+         sub-containers are automatically propagated up through parent containers.
 * FIXED: `fmusplit`: correct handling of FMI-3 array port connections (arrays are now properly
          detected and linked in the generated assembly).
 * ADDED: GUI: when a wire is selected, a yellow direction indicator is drawn on the wire to
