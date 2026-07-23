@@ -124,9 +124,9 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
             self.fmu_terminal_names.append(terminal.name)
 
         # For FMI-2 FMUs, expose contiguous families of scalar ports named
-        # `basename[k]`, `basename[i,j,...]` or `basename[i][j]...` as virtual
-        # aggregated ports named `basename`, so the user can select them in
-        # wires and connect them to FMI-3 array ports of matching shape.
+        # `basename[k]` or `basename[i,j,...]` (Modelica-style comma notation)
+        # as virtual aggregated ports named `basename`, so the user can select
+        # them in wires and connect them to FMI-3 array ports of matching shape.
         if self.fmu_fmi_version == 2:
             self._add_array_aggregates()
 

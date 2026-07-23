@@ -12,8 +12,6 @@ from .terminals import Terminals, Terminal
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
-# Matches variable names of the form  "SomeName[k]"  (FMI-2 array elements).
-_ARRAY_ELEM_RE = re.compile(r"^(.+)\[\d+(?:,\d+)*]$")
 
 
 class FMUSplitterError(Exception):
@@ -153,6 +151,10 @@ class FMUSplitterDescription:
         conversion_name: tuple(type_pair.split("/"))
         for type_pair, conversion_name in Link.CONVERSION_FUNCTION.items()
     }
+
+    # Matches variable names of the form "SomeName[k]" or "SomeName[i,j,...]"
+    # (FMI-2 array elements, Modelica-style comma notation).
+    _ARRAY_ELEM_RE = re.compile(r"^(.+)\[\d+(?:,\d+)*]$")
 
     def __init__(self, handle):
         self.zip = handle
@@ -595,7 +597,7 @@ class FMUSplitterDescription:
         for fmi_type, vr_dict in self.vr_to_name[fmu_filename].items():
             type_map: Dict[str, Set[str]] = {}
             for vr, info in vr_dict.items():
-                m = _ARRAY_ELEM_RE.match(info["name"])
+                m = self._ARRAY_ELEM_RE.match(info["name"])
                 if m:
                     type_map.setdefault(m.group(1), set()).add(info["name"])
             bmap[fmi_type] = {base: frozenset(elems) for base, elems in type_map.items()}

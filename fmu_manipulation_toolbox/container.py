@@ -25,8 +25,9 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 # FMI-2 array-aggregate helpers
 #
 # FMI-2 has no native array concept: vectors and matrices are conventionally
-# exposed as a set of scalar ports named `basename[i]`, `basename[i,j,...]`
-# or `basename[i][j]...`. The `ArrayAggregate` class below detects such
+# exposed as a set of scalar ports named `basename[i]` or `basename[i,j,...]`
+# (Modelica-style comma notation, conforming to how FMI-2.0 exporters
+# typically flatten arrays). The `ArrayAggregate` class below detects such
 # families and represents them as virtual N-D aggregates so they can be
 # connected to FMI-3 array ports of matching shape.
 # ---------------------------------------------------------------------------
@@ -48,9 +49,9 @@ class ArrayAggregate:
 
     __slots__ = ("basename", "dims", "ordered_element_names")
 
-    # Trailing bracket group(s): `[3]`, `[1,2]`, `[1][2][3]` at the end of a name.
-    _TRAILING_BRACKETS_RE = re.compile(r"^(.+?)((?:\[\d+(?:,\d+)*])+)$")
-    _BRACKET_GROUP_RE = re.compile(r"\[(\d+(?:,\d+)*)]")
+    # Trailing bracket group: `[3]`, `[1,2]`, ... (Modelica-style, single
+    # bracket with comma-separated indices) at the end of a name.
+    _ARRAY_ELEM_RE = re.compile(r"^(.+)\[(\d+(?:,\d+)*)]$")
 
     def __init__(self, basename: str, dims: Tuple[int, ...], ordered_element_names: List[str]):
         self.basename = basename
@@ -79,21 +80,17 @@ class ArrayAggregate:
 
     @classmethod
     def parse_element_name(cls, name: str) -> Optional[Tuple[str, Tuple[int, ...]]]:
-        """Return `(basename, indices)` if `name` has the form `basename<brackets>`
-        where `<brackets>` is any concatenation of `[i]`, `[i,j,...]` groups
-        (both Modelica-style commas and C-style stacked brackets are accepted,
-        and may be mixed). Returns `None` if `name` is not a recognized array
-        element name.
+        """Return `(basename, indices)` if `name` has the form `basename[i,j,...]`
+        (Modelica-style comma notation, conforming to FMI-2.0 array-element
+        naming). Returns `None` if `name` is not a recognized array element
+        name.
         """
-        m = cls._TRAILING_BRACKETS_RE.match(name)
+        m = cls._ARRAY_ELEM_RE.match(name)
         if not m:
             return None
         basename = m.group(1)
-        indices: List[int] = []
-        for grp in cls._BRACKET_GROUP_RE.findall(m.group(2)):
-            for tok in grp.split(","):
-                indices.append(int(tok))
-        return basename, tuple(indices)
+        indices = tuple(int(tok) for tok in m.group(2).split(","))
+        return basename, indices
 
     @classmethod
     def detect_all(
@@ -464,8 +461,8 @@ class EmbeddedFMU(OperationAbstract):
 
     def _detect_array_aggregates(self):
         """Detect FMI-2 array elements notated as `basename[k]` (1D) or
-        `basename[i,j,...]` / `basename[i][j]...` (N-D) and expose them as a
-        virtual aggregated port named `basename`.
+        `basename[i,j,...]` (N-D, Modelica-style comma notation) and expose
+        them as a virtual aggregated port named `basename`.
 
         The aggregate port carries `dimensions=[("start", N0), ("start", N1), ...]`
         and stores the underlying scalar element VRs in `element_vrs`, flattened

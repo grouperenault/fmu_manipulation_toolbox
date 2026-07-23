@@ -221,9 +221,9 @@ Lists all output ports with a checkbox to explicitly expose them at the containe
 
     - **Parameter ports** are shown in *italics* — these are configuration values or tuning parameters.
     - **FMI-2 array aggregates** are shown in **bold** — these are virtual ports representing a
-      family of scalar variables named `basename[k]`, `basename[i,j,...]` or `basename[i][j]…`
-      that the toolbox groups together so they can be connected as a single array to an FMI-3
-      array port.
+      family of scalar variables named `basename[k]` or `basename[i,j,...]` (Modelica-style
+      comma notation) that the toolbox groups together so they can be connected as a single
+      array to an FMI-3 array port.
     - When an aggregate is also a parameter, it is displayed in ***bold italics***.
     - Other port types (standard inputs/outputs) appear in regular text.
 

@@ -266,18 +266,15 @@ Those containers may embed
 ## Connecting FMI-2 and FMI-3 arrays
 
 FMI-2 has no native array concept: vectors and matrices are conventionally exposed as a set
-of scalar ports using either the Modelica-style notation `name[i,j,...]` or the C-style
-notation `name[i][j]...`. FMI-3 defines arrays as first-class variables carrying one or
-more `<Dimension>` elements.
+of scalar ports using the Modelica-style notation `name[i,j,...]`. FMI-3 defines arrays as
+first-class variables carrying one or more `<Dimension>` elements.
 
 `fmucontainer` bridges the two, for 1D **and** multi-dimensional arrays:
 
 - When an embedded FMI-2 FMU exposes a set of ports sharing a common `basename` and covering
-  a full N-dimensional hyperrectangle (e.g. `M[1,1]`, `M[1,2]`, `M[2,1]`, `M[2,2]`, or the
-  equivalent `M[1][1]` ... `M[2][2]`), a **virtual aggregated port** named `basename` is
-  automatically created with dimensions matching the detected shape.
-  Both notations (`[i,j]` and `[i][j]`) are accepted and may even be mixed within a single
-  bracket chain (e.g. `M[1,2][3]`).
+  a full N-dimensional hyperrectangle (e.g. `M[1,1]`, `M[1,2]`, `M[2,1]`, `M[2,2]`), a
+  **virtual aggregated port** named `basename` is automatically created with dimensions
+  matching the detected shape.
 - Elements are flattened in **row-major** order (last index varies fastest), matching the
   FMI-3 array memory layout, so the aggregate can be linked directly to an FMI-3 array
   port of matching type and shape, in either direction (FMI-2 → FMI-3 or FMI-3 → FMI-2).
@@ -309,9 +306,8 @@ FMU;fmi3_consumer.fmu;;;
 LINK;fmi2_producer.fmu;M;fmi3_consumer.fmu;M
 ```
 
-with `fmi2_producer.fmu` declaring `M[1,1]`, `M[1,2]`, `M[1,3]`, `M[2,1]`, `M[2,2]`, `M[2,3]`
-(or the C-style equivalent `M[1][1]` ... `M[2][3]`), and `fmi3_consumer.fmu` declaring
-`M` with `<Dimension start="2"/><Dimension start="3"/>`.
+with `fmi2_producer.fmu` declaring `M[1,1]`, `M[1,2]`, `M[1,3]`, `M[2,1]`, `M[2,2]`, `M[2,3]`,
+and `fmi3_consumer.fmu` declaring `M` with `<Dimension start="2"/><Dimension start="3"/>`.
 
 Element-by-element linking remains fully supported:
 
