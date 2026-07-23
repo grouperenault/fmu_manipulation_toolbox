@@ -246,8 +246,8 @@ class AssemblyIOMixin:
     def load_container_fmu(self, input_path: str):
         """Split a container FMU and import its contents."""
         try:
-            splitter = FMUSplitter(input_path)
-            splitter.split_fmu()
+            with FMUSplitter(input_path) as splitter:
+                splitter.split_fmu()
         except FMUSplitterError as e:
             logger.fatal(f"{e}")
             return

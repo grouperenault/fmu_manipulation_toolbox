@@ -13,9 +13,9 @@ from .terminals import Terminals, Terminal
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
-
 class FMUSplitterError(Exception):
     def __init__(self, message: str):
+        super().__init__(message)
         self.message = message
 
     def __str__(self):
@@ -90,9 +90,20 @@ class FMUSplitter:
         return dir_set
 
     def __del__(self):
+        self.close()
+
+    def __enter__(self) -> "FMUSplitter":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Close the underlying zip file. Safe to call multiple times."""
         if self.zip is not None:
             logger.debug("Closing zip file")
             self.zip.close()
+            self.zip = None
 
     def split_fmu(self):
         logger.info(f"Splitting...")
@@ -109,13 +120,13 @@ class FMUSplitter:
             description = FMUSplitterDescription(self.zip)
             config = description.parse_txt_file(txt_filename)
             config["name"] = Path(fmu_filename).name
-            for i, fmu_filename in enumerate(config["candidate_fmu"]):
+            for i, fmu_candidate_filename in enumerate(config["candidate_fmu"]):
                 directory = f"{relative_path}resources/{i:02x}/"
                 if directory not in self.dir_set:
-                    directory = f"{relative_path}resources/{fmu_filename}/"
+                    directory = f"{relative_path}resources/{fmu_candidate_filename}/"
                     if directory not in self.dir_set:
                         raise FMUSplitterError(f"{directory} not found in FMU")
-                sub_config = self._split_fmu(fmu_filename=fmu_filename, relative_path=directory)
+                sub_config = self._split_fmu(fmu_filename=fmu_candidate_filename, relative_path=directory)
                 if isinstance(sub_config, str):
                     key = "fmu"
                 else:
@@ -172,7 +183,6 @@ class FMUSplitterDescription:
             "auto_link": False,
         }
         self.file_format = 1
-        self.fmu_filename_list = []
         self.pending_conversions: List[tuple] = []  # (vr_from, vr_to, conversion_name)
         self.local_to_vr: Dict[str, Dict[int, int]] = {}  # fmi_type → (local_slot → container_vr)
         # fmu_filename → fmi_type → basename → frozenset of element names
@@ -192,7 +202,7 @@ class FMUSplitterDescription:
             logger.debug(f"Read: {line}")
             if not line.startswith("#"):
                 return line
-        raise StopIteration
+        raise FMUSplitterError("This file seems to be truncated")
 
     def start_element(self, tag, attrs):
         if tag == "Enumeration":
@@ -417,9 +427,7 @@ class FMUSplitterDescription:
             try:
                 return self.local_to_vr[fmi_type][int(local) & 0xFFFFFF]
             except KeyError:
-                logger.critical(
-                    f"KeyError: PIVOT {fmu_filename} {fmi_type} local={local} ({int(local) & 0xFFFFFF}) fmu_vr={fmu_vr} not found")
-                raise
+                raise FMUSplitterError(f"Cannot get pivot for {fmi_type} local={int(local) & 0xFFFFFF} ({local})")
         else:
             return int(local)
 
@@ -446,8 +454,7 @@ class FMUSplitterDescription:
                 # Inputs per FMUs
 
                 for fmi_type in self.supported_fmi_types:
-                    tokens = self.get_line(file).split(" ")
-                    nb_input = int(tokens[0])
+                    nb_input = int(self.get_line(file))
                     logger.debug(f"INPUT of {fmu_filename} {fmi_type} : {nb_input}")
 
                     for i in range(nb_input):
