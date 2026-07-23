@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from .constants import (
     COLOR_WIRE, COLOR_WIRE_SELECTED, COLOR_WIRE_DRAGGING,
     COLOR_BACKGROUND, ARROW_SIZE, WAYPOINT_RADIUS,
-    COLOR_WIRE_HIGHLIGHT, HIGHLIGHT_ARROW_SIZE,
+    COLOR_WIRE_HIGHLIGHT, HIGHLIGHT_ARROW_SIZE, COLOR_WIRE_INVALID,
 )
 from .node import NodeItem
 
@@ -115,6 +115,14 @@ class WireItem(QGraphicsPathItem):
         a_to_b = any(m[0] == a_name and m[2] == b_name for m in self.mappings)
         b_to_a = any(m[0] == b_name and m[2] == a_name for m in self.mappings)
         return a_to_b, b_to_a
+
+    def is_invalid(self) -> bool:
+        """True if this wire connects to a ContainerSignalNode whose owning
+        container currently has `ts_multiplier` unchecked (GUI-only signal)."""
+        for node in (self.node_a, self.node_b):
+            if getattr(node, "is_container_signal", False) and not getattr(node, "active", True):
+                return True
+        return False
 
     # -- Highlight (from WireDetails tab selection) ---------------------------
 
@@ -289,7 +297,8 @@ class WireItem(QGraphicsPathItem):
         return QPointF(tip.x() - dx / length * amount, tip.y() - dy / length * amount)
 
     def paint(self, painter: QPainter, option, widget=None):
-        color = COLOR_WIRE_SELECTED if self.isSelected() else COLOR_WIRE
+        color = COLOR_WIRE_SELECTED if self.isSelected() else (
+            COLOR_WIRE_INVALID if self.is_invalid() else COLOR_WIRE)
         pen = QPen(color, 2.5 if self.isSelected() else 2.0)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)

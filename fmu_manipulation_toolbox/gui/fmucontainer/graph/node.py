@@ -14,8 +14,8 @@ from fmu_manipulation_toolbox.container import ArrayAggregate
 
 from .constants import (
     NODE_MIN_WIDTH, NODE_TITLE_HEIGHT, NODE_PORT_SPACING, NODE_CORNER_RADIUS,
-    COLOR_NODE_BG, COLOR_NODE_TITLE_BG, COLOR_NODE_BORDER, COLOR_NODE_SELECTED,
-    COLOR_TEXT, FONT_TITLE,
+    COLOR_NODE_BG, COLOR_NODE_TITLE_BG, COLOR_NODE_SIGNAL_TITLE_BG, COLOR_NODE_BORDER,
+    COLOR_NODE_SELECTED, COLOR_TEXT, FONT_TITLE,
 )
 
 
@@ -32,6 +32,13 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
         # Title bar highlight (for selected container)
         self._title_highlighted = False
+        self._title_bg_color = COLOR_NODE_TITLE_BG
+
+        # Whether this node can be removed by the user (regular FMU nodes: yes;
+        # virtual ContainerSignalNode: no, as long as it is still relevant).
+        self.deletable = True
+        # True only for the virtual ContainerSignalNode subclass below.
+        self.is_container_signal = False
 
         # -- Read FMU ports ---------------------------------------------------
         self.fmu_input_names: List[str] = []
@@ -203,7 +210,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         path_title.addRect(w - NODE_CORNER_RADIUS, NODE_TITLE_HEIGHT - NODE_CORNER_RADIUS,
                            NODE_CORNER_RADIUS, NODE_CORNER_RADIUS)
 
-        color = QColor(COLOR_NODE_TITLE_BG)
+        color = QColor(self._title_bg_color)
         if self._title_highlighted:
             color = color.lighter(150)
         painter.setBrush(QBrush(color))
@@ -297,4 +304,106 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         """Remove all wires connected to this node."""
         for wire in list(self.wires):
             wire.remove()
+
+
+class ContainerSignalNode(NodeItem):
+    """Virtual node representing a container's `container.ts_multiplier` input signal.
+
+    This node is *not* backed by a real FMU file: it is a purely graphical
+    (GUI-only) representation, never exported to the `Assembly`/`AssemblyNode`
+    model. It exposes a single virtual input port, named statically
+    `SIGNAL_PORT_NAME` ("container.ts_multiplier"), that a sibling FMU (i.e. a
+    FMU embedded directly in the same container) can be wired to, in order to
+    visually document that this FMU drives the `TS_MULTIPLIER` step-size
+    logic of the container.
+
+    It behaves like a regular node (movable, selectable) but cannot be
+    deleted while it is still relevant (see `deletable`).
+    """
+
+    SIGNAL_PORT_NAME = "container.ts_multiplier"
+
+    def __init__(self, container_name: str, x: float = 0, y: float = 0):
+        # Do NOT call NodeItem.__init__ (it loads a real FMU file from disk).
+        QGraphicsRectItem.__init__(self)
+
+        self.uid = str(uuid.uuid4())
+        self._title = container_name
+        self.fmu_path = Path(container_name)
+
+        self._title_highlighted = False
+        self._title_bg_color = COLOR_NODE_SIGNAL_TITLE_BG
+
+        self.fmu_input_names: List[str] = [self.SIGNAL_PORT_NAME]
+        self.fmu_output_names: List[str] = []
+        self.fmu_terminal_names: List[str] = []
+        self.fmu_port_causality: Dict[str, str] = {self.SIGNAL_PORT_NAME: "input"}
+        self.fmu_port_type: Dict[str, str] = {self.SIGNAL_PORT_NAME: "Integer"}
+        self.fmu_start_values: Dict[str, str] = {}
+        self.user_start_values: Dict[str, str] = {}
+        self.user_exposed_outputs: Dict[str, bool] = {}
+        self.user_exposed_inputs: Dict[str, bool] = {}
+        self.fmu_step_size: Optional[str] = None
+        self.fmu_generator: str = ""
+        self.fmu_fmi_version: Optional[int] = None
+        self.fmu_array_aggregate_elements: Dict[str, List[str]] = {}
+
+        self.wires: List = []
+        self.deletable = False
+        self.is_container_signal = True
+        # True while the owning container's `ts_multiplier` checkbox is checked.
+        # When False, wires attached to this node are painted in red (invalid).
+        self.active = True
+        # Back-reference to the QStandardItem of the owning container (set by
+        # NodeTreeWidget). Used to restrict wiring to sibling FMUs only.
+        self.owner_container_item = None
+
+        self.setFlags(
+            QGraphicsItem.GraphicsItemFlag.ItemIsMovable
+            | QGraphicsItem.GraphicsItemFlag.ItemIsSelectable
+            | QGraphicsItem.GraphicsItemFlag.ItemSendsGeometryChanges
+        )
+        self.setAcceptHoverEvents(True)
+        self.setZValue(1)
+
+        height = NODE_TITLE_HEIGHT + NODE_PORT_SPACING + 10
+        fm_title = QFontMetrics(FONT_TITLE)
+        width = max(NODE_MIN_WIDTH, fm_title.horizontalAdvance(self.title) + 20)
+        self.setRect(0, 0, width, height)
+        self.setPos(x, y)
+
+        self._title_item = QGraphicsTextItem(self.title, self)
+        self._title_item.setDefaultTextColor(COLOR_TEXT)
+        self._title_item.setFont(FONT_TITLE)
+        self._title_item.setAcceptHoverEvents(False)
+        self._title_item.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        tbr = self._title_item.boundingRect()
+        self._title_item.setPos((width - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
+
+    def __repr__(self):
+        return f"ContainerSignalNode({self._title})"
+
+    def rename(self, container_name: str):
+        """Update title when the owning container is renamed.
+
+        NOTE: the virtual port name (SIGNAL_PORT_NAME) is static and does
+        NOT depend on the container name.
+        """
+        self._title = container_name
+        self.fmu_path = Path(container_name)
+
+        self._title_item.setPlainText(self._title)
+        fm_title = QFontMetrics(FONT_TITLE)
+        width = max(NODE_MIN_WIDTH, fm_title.horizontalAdvance(self._title) + 20)
+        height = self.rect().height()
+        self.setRect(0, 0, width, height)
+        tbr = self._title_item.boundingRect()
+        self._title_item.setPos((width - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
+        for wire in self.wires:
+            wire.update_path()
+        self.update()
+
+    def replace_fmu(self, new_fmu_path: Path):
+        raise NotImplementedError("ContainerSignalNode is virtual and cannot be replaced.")
+
 

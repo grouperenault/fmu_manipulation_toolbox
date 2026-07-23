@@ -77,6 +77,12 @@ class AssemblyIOMixin:
         parent.setData(container_parameters, _NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
         parent.setText(container_name)
 
+        # GUI-only virtual node representing `container.ts_multiplier`. Never
+        # persisted in the Assembly model; only recreated here when already
+        # enabled on import, so the user can (re)wire it visually.
+        if assembly_node.ts_multiplier:
+            self._tree.set_ts_multiplier(parent, True)
+
         for connection in assembly_node.links:
             link = [connection.from_port.fmu_name, connection.from_port.port_name,
                     connection.to_port.fmu_name, connection.to_port.port_name]
@@ -142,9 +148,10 @@ class AssemblyIOMixin:
         self._assembly_node_to_items(self._tree.root, assembly.root, fmu_directory,
                                      links_list, start_values_list, output_ports_list, input_ports_list)
 
-        # Build a map from FMU filename to its NodeItem
+        # Build a map from FMU filename to its NodeItem (real FMUs only, excludes
+        # virtual ContainerSignalNode which is never part of the Assembly model)
         nodes_by_name: Dict[str, NodeItem] = {}
-        for node in self._graph.scene.nodes():
+        for node in self._graph.scene.fmu_nodes():
             nodes_by_name[str(node.fmu_path.resolve())] = node
 
         # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
@@ -372,12 +379,14 @@ class AssemblyIOMixin:
         # Flush any in-progress edits from detail panels
         self._tree.wire_detail.sync_to_wire()
         self._tree.fmu_detail.sync_to_node()
+        # Only real FMU nodes are eligible: the virtual ContainerSignalNode
+        # (ts_multiplier, GUI-only) is never part of the Assembly model.
         nodes_by_uid: Dict[str, NodeItem] = {
-            node.uid: node for node in self._graph.scene.nodes()
+            node.uid: node for node in self._graph.scene.fmu_nodes()
         }
 
         def _item_to_assembly_node(parent_assembly_node: Optional[AssemblyNode],
-                                   item) -> Optional[AssemblyNode]:
+                                    item) -> Optional[AssemblyNode]:
             container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
             if container_parameters:
                 logger.debug(f"ADD Container: {container_parameters.name}")
@@ -427,12 +436,17 @@ class AssemblyIOMixin:
             return None
 
         links_list: List[Tuple[str, str, str, str]] = []
-        # Build fmu_path lookup by fmu_path.name
+        # Build fmu_path lookup by fmu_path.name (real FMUs only)
         path_by_name: Dict[str, str] = {}
-        for node in self._graph.scene.nodes():
+        for node in self._graph.scene.fmu_nodes():
             path_by_name[node.fmu_path.name] = str(node.fmu_path)
 
         for wire in self._graph.scene.wires():
+            # Wires attached to the virtual ContainerSignalNode (ts_multiplier)
+            # are GUI-only decorations and must never be exported to the Assembly.
+            if getattr(wire.node_a, "is_container_signal", False) or \
+                    getattr(wire.node_b, "is_container_signal", False):
+                continue
             for link in wire.mappings:
                 if len(link) == 4:
                     fmu_from_name, port_from, fmu_to_name, port_to = link

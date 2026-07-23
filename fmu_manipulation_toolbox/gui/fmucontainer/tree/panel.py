@@ -28,6 +28,7 @@ class NodeTreePanel(QWidget):
         self._graph.scene.selectionChanged.connect(self._on_scene_selection_changed)
         self._tree_widget.tree_view.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
         self._tree_widget.container_changed.connect(self._on_container_changed)
+        self._detail_panel.container_detail.changed.connect(self._on_container_detail_changed)
         self._splitter = QSplitter(Qt.Orientation.Vertical)
         self._splitter.addWidget(self._tree_widget)
         self._splitter.addWidget(self._detail_panel)
@@ -73,6 +74,10 @@ class NodeTreePanel(QWidget):
 
     def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
         return self._tree_widget.make_container_item(name, is_root)
+
+    def set_ts_multiplier(self, container_item: QStandardItem, active: bool, x: float = 0, y: float = 0):
+        """Create/activate or deactivate the virtual `ts_multiplier` signal node (GUI-only)."""
+        self._tree_widget.set_ts_multiplier(container_item, active, x=x, y=y)
 
     def _on_scene_selection_changed(self):
         """Scene -> tree: select in tree when node is selected in graph."""
@@ -163,3 +168,25 @@ class NodeTreePanel(QWidget):
                     self._detail_panel.show_container(container_parameters)
         except RuntimeError as e:
             tree_logger.error(f"Error refreshing container detail panel: {e}")
+
+    def _on_container_detail_changed(self):
+        """Called when the container detail panel parameters are edited.
+
+        Keeps the virtual `ts_multiplier` signal node (GUI-only) in sync with
+        the checkbox state of the currently displayed container.
+        """
+        try:
+            current = self._tree_widget.tree_view.currentIndex()
+            if not current.isValid():
+                return
+            item = self._tree_widget.model.itemFromIndex(current)
+            if item is None:
+                return
+            container_parameters = TreeItemRoles.get_container_params(item)
+            if container_parameters is None:
+                return
+            active = bool(container_parameters.parameters.get("ts_multiplier", False))
+            self._tree_widget.set_ts_multiplier(item, active)
+        except RuntimeError as e:
+            tree_logger.error(f"Error syncing ts_multiplier signal node: {e}")
+
