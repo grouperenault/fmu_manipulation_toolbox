@@ -33,7 +33,7 @@ class FMUSplitterPort:
     def __hash__(self):
         return hash((self.fmu_filename, self.port_name))
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         return (isinstance(other, FMUSplitterPort) and
                 self.fmu_filename == other.fmu_filename and
                 self.port_name == other.port_name)
@@ -155,7 +155,7 @@ class FMUSplitter:
 class FMUSplitterDescription:
     # Reverse mapping from conversion function name to (source_type, target_type).
     # Built dynamically from Link.CONVERSION_FUNCTION so that any conversion
-    # supported by the container side is automatically recognised here. Lossy
+    # supported by the container side is automatically recognized here. Lossy
     # conversions (prefixed with '_' in Link.CONVERSION_FUNCTION) are kept as-is
     # since the C side writes the identifier including the leading underscore.
     REVERSE_CONVERSION = {
@@ -205,6 +205,7 @@ class FMUSplitterDescription:
         raise FMUSplitterError("This file seems to be truncated")
 
     def start_element(self, tag, attrs):
+        assert self.current_fmu_filename is not None, "current_fmu_filename must be set before parsing"
         if tag == "Enumeration":
             if self.current_fmi_version == "2.0":
                 tag = "Integer"
@@ -220,10 +221,13 @@ class FMUSplitterDescription:
         elif self.current_fmi_version == "2.0" and tag in EmbeddedFMUPort.FMI_TO_CONTAINER[2]:
             fmi_type = EmbeddedFMUPort.FMI_TO_CONTAINER[2][tag]
             if self.current_name: # in case of enumeration definition
+                assert self.current_vr is not None
+                assert self.current_causality is not None
                 self.vr_to_name[self.current_fmu_filename][fmi_type][self.current_vr] = {
                     "name": self.current_name,
                     "causality": self.current_causality}
-        elif self.current_fmi_version.startswith("3") and tag in EmbeddedFMUPort.FMI_TO_CONTAINER[3]:
+        elif (self.current_fmi_version is not None and self.current_fmi_version.startswith("3")
+              and tag in EmbeddedFMUPort.FMI_TO_CONTAINER[3]):
             fmi_type = EmbeddedFMUPort.FMI_TO_CONTAINER[3][tag]
             self.vr_to_name[self.current_fmu_filename][fmi_type][int(attrs["valueReference"])] = {
                 "name": attrs["name"],
@@ -577,8 +581,8 @@ class FMUSplitterDescription:
                                 f"(no matching writer); skipped")
                     continue
 
-                writers = self._try_aggregate(fmi_type, link.writers)
-                readers = self._try_aggregate(fmi_type, link.readers)
+                writers = self._try_aggregate(link.writers)
+                readers = self._try_aggregate(link.readers)
 
                 for writer in writers:
                     for reader in readers:
@@ -590,7 +594,7 @@ class FMUSplitterDescription:
                             self.config["link"] = [definition]
 
 
-        # Collapse groups of port-to-port links that together realise a
+        # Collapse groups of port-to-port links that together realize a
         # complete terminal-to-terminal connection into a single link entry.
         self._aggregate_terminal_links()
 
@@ -610,11 +614,10 @@ class FMUSplitterDescription:
             bmap[fmi_type] = {base: frozenset(elems) for base, elems in type_map.items()}
         self.basename_map[fmu_filename] = bmap
 
-    def _try_aggregate(self, fmi_type: str,
-                       ports: List['FMUSplitterPort']) -> List['FMUSplitterPort']:
+    def _try_aggregate(self, ports: List['FMUSplitterPort']) -> List['FMUSplitterPort']:
         """If all ports in *ports* belong to the same FMU and their names
         exactly match the element-name set of a known array basename for that
-        FMU, return a singleton list containing the basename port.  Otherwise
+        FMU, return a singleton list containing the basename port. Otherwise,
         return the original list unchanged.
 
         Note: *fmi_type* refers to the type of the link the ports belong to.
@@ -639,7 +642,7 @@ class FMUSplitterDescription:
 
     def _aggregate_terminal_links(self):
         """Detect groups of port-to-port links between two FMUs that
-        realise a terminal-to-terminal connection, and replace them by a
+        realize a terminal-to-terminal connection, and replace them by a
         single link entry referring to the terminals.
 
         Strategy: for each link whose *both* endpoints are member
@@ -682,6 +685,7 @@ class FMUSplitterDescription:
             term_b = var_to_terminal.get((fmu_to, port_to))
             if term_a is None or term_b is None:
                 continue
+            assert term_a is not None and term_b is not None
             # `Terminal.__eq__` compares kind and matchingRule.
             if term_a != term_b:
                 continue

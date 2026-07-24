@@ -1,8 +1,6 @@
-import hashlib
 import numpy as np
 import pytest
 import sys
-import os
 
 from pathlib import Path
 from fmpy.simulation import simulate_fmu
