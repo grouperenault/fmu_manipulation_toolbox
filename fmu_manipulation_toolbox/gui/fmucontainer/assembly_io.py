@@ -481,7 +481,7 @@ class AssemblyIOMixin:
             try:
                 with tempfile.TemporaryDirectory() as tmp_dir:
                     json_file_path = Path(tmp_dir) / "container.json"
-                    assembly.write_json(json_file_path)
+                    assembly.write_json(json_file_path, basenames_only=True)
                     assembly.description_pathname = json_file_path
                     assembly.make_fmu(filename=output_path, fmi_version=fmi_version, datalog=datalog)
                     self._dirty = False

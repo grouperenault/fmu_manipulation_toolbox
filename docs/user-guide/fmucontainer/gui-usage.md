@@ -354,6 +354,12 @@ Click **Configuration** to open a popup menu with:
 
 During **Load**, **Import**, **Export**, and **Save** operations, a progress dialog shows execution logs in real time.
 
+!!! tip "Relative FMU paths"
+    When exporting with **Export as JSON**, the FMU paths written in the `fmu` and `link` blocks
+    are automatically made relative to the directory where the JSON file is saved. This keeps the
+    exported assembly portable as long as the FMU files stay in the same relative layout — see
+    also the [FMU location](#importing-an-assembly-file) requirement when re-importing.
+
 ## Typical Workflow
 
 ### Step 1: Add FMUs

@@ -158,11 +158,19 @@ You can also export the assembly to a different format:
 
 ```python
 # Export the assembly as JSON (useful for review or version control)
+# FMU paths (fmu, link, input, output, start, drop blocks) are automatically
+# made relative to the directory of "bouncing.json".
 assembly.write_json("bouncing.json")
 
 # Export back to CSV
 assembly.write_csv("bouncing-export.csv")
 ```
+
+!!! tip "Basename-only export"
+    Pass `basenames_only=True` to `write_json()` to reference embedded FMUs only by their
+    filename (no directory) instead of a path relative to the JSON's location. This is useful
+    when the JSON's own physical location has no lasting meaning (e.g. a documentation copy
+    written to a temporary directory before being embedded inside a built FMU).
 
 ## Building a Container Programmatically
 

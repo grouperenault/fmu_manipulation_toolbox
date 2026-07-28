@@ -2,6 +2,11 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* ADDED: `Assembly.write_json()`: FMU paths referenced in the `fmu`, `link`, `input`, `output`,
+         `start` and `drop` blocks are now made relative to the directory of the produced JSON
+         file, so exported assemblies stay portable (e.g. GUI **Export as JSON**). A new
+         `basenames_only` option references embedded FMUs by their bare filename instead
+         (used for the documentation copy embedded inside built FMU containers).
 * ADDED: GUI: new **Input Ports** tab in the FMU detail panel, symmetric to the existing
          **Output Ports** tab. Each input port can be explicitly marked as *exposed*, causing
          the generated assembly to declare it explicitly as a container input (via `add_input`)
