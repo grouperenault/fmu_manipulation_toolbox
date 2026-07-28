@@ -46,7 +46,7 @@ class LauncherWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setObjectName("launcher_window")
-        self.setWindowTitle(f"FMU Manipulation Toolbox  v{version}")
+        self.setWindowTitle(f"FMU Manipulation Toolbox version {version}")
 
         # References to opened windows (prevents garbage collection)
         self._child_windows = []
@@ -77,7 +77,7 @@ class LauncherWindow(QWidget):
 
         root_layout.addLayout(top_bar)
 
-        subtitle = QLabel(f"v{version}")
+        subtitle = QLabel(f"version {version}")
         subtitle.setProperty("class", "info")
         subtitle.setStyleSheet("background: transparent;")
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
