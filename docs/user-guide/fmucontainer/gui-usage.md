@@ -113,7 +113,8 @@ To replace an FMU with a different version or an alternative file:
 The replacement is done **in place**: all wires, start values, and exposed input/output ports are
 preserved. If a port name referenced by a start value, a wire mapping, or an exposed input/output
 no longer exists in the new FMU, it appears in **red** in the detail panels — allowing you to
-review and correct invalid references.
+review and correct invalid references. The affected wire itself is also drawn in **red** on the
+canvas, so broken connections are immediately visible without having to open every wire's details.
 
 !!! tip "Typical use case"
     Use this feature when a new version of an FMU is available: replace the file and instantly
@@ -269,6 +270,14 @@ Each tab contains a 2-column table:
 
 Each tab has its own **Add link** / **Remove link** buttons to manage mappings for that direction.
 
+!!! warning "Invalid connections shown in red"
+    A wire is drawn in **red** on the canvas whenever at least one of its port mappings is
+    invalid: either because the referenced port no longer exists on the FMU (e.g. after
+    [Replace FMU](#replacing-an-fmu)), or because it targets an inactive
+    [`configuration` node port](#the-configuration-node-ts_multiplier) (`ts_multiplier` unchecked).
+    In both cases, the invalid port name is also shown in red inside the *Wire Details* table
+    so you can quickly locate and fix (or simply understand) the broken mapping.
+
 !!! tip "Direction indicator on the wire"
     While the *Wire Details* panel is open, a yellow indicator is overlaid on the selected wire
     to reflect the currently active tab:
@@ -331,6 +340,36 @@ When a container is selected in the tree view, the detail panel shows its config
 | `auto_parameter` | checkbox | Automatically expose parameter ports |
 | `auto_local` | checkbox | Automatically expose local variables |
 | `ts_multiplier` | checkbox | Add a `TS_MULTIPLIER` input for dynamic step size control |
+
+### The `configuration` Node (`ts_multiplier`)
+
+As soon as at least one **sub-container** (not the root container) has its `ts_multiplier`
+parameter checked, a virtual node titled **configuration** automatically appears on the canvas.
+This node is a **visual, GUI-only aid**: it is never written to the exported assembly (JSON or
+FMU container) — it exists purely to help you keep track of which FMU is meant to drive the
+`TS_MULTIPLIER` input of which sub-container.
+
+- The node exposes **one input port per checked sub-container**, named
+  `<container_name>.ts_multiplier` (the `.fmu` suffix of the container name is stripped).
+- It can be wired from **any FMU** in the assembly, like a regular node — drag from the FMU's
+  body onto the `configuration` node body to create the wire.
+- It can be **moved** freely but **cannot be deleted** manually while it is still relevant.
+- Selecting the `configuration` node shows an empty detail panel (there is nothing to configure
+  on the node itself).
+- Checking `ts_multiplier` on the **root** container has **no effect**: the root container is
+  never added to the `configuration` node.
+
+!!! note "Unchecking `ts_multiplier`"
+    Unchecking `ts_multiplier` on a sub-container does **not** delete its port nor an existing
+    wire connected to it. Instead, the port becomes inactive and any wire referencing it is drawn
+    in **red** (both on the canvas and in the *Wire Details* panel, see [Wire Details](#wire-details)),
+    to flag the now-invalid connection. Re-checking `ts_multiplier` automatically restores the
+    wire to a valid (non-red) state — no need to rewire.
+
+!!! tip "Automatic cleanup"
+    The `configuration` node is only removed from the canvas once **all** its ports are inactive
+    **and** no wire (valid or invalid) references it anymore. This avoids losing your wiring setup
+    when temporarily unchecking `ts_multiplier` on a container.
 
 ## Button Bar
 

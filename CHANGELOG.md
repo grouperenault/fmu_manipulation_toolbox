@@ -2,6 +2,17 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* ADDED: GUI: `ts_multiplier` on a sub-container now materializes a GUI-only virtual `configuration`
+         node on the canvas, exposing one input port per checked sub-container
+         (`<container>.ts_multiplier`), wireable from any FMU. This node is purely a visual aid and
+         is never exported to the assembly (JSON/FMU). Unchecking `ts_multiplier` keeps the wire but
+         turns it (and the port) red until re-checked; the node is removed automatically once all
+         its ports are inactive and no wire (including red ones) references it anymore. Checking
+         `ts_multiplier` on the root container has no effect.
+* ADDED: GUI: a wire is now drawn in **red** on the canvas as soon as one of its port mappings is
+         invalid (broken port after "Replace FMU", or inactive `ts_multiplier` port on the
+         `configuration` node) — matching the red text already shown for invalid ports in the
+         *Wire Details* panel.
 * ADDED: `Assembly.write_json()`: FMU paths referenced in the `fmu`, `link`, `input`, `output`,
          `start` and `drop` blocks are now made relative to the directory of the produced JSON
          file, so exported assemblies stay portable (e.g. GUI **Export as JSON**). A new
