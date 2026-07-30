@@ -6,9 +6,10 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QRectF, QPointF, QLineF
 from PySide6.QtGui import QPainter, QPen, QKeyEvent
 from PySide6.QtWidgets import (
-    QGraphicsView, QMenu, QFileDialog, QMessageBox,
+    QGraphicsView, QMenu, QMessageBox,
 )
 
+from fmu_manipulation_toolbox.gui.helper import LastDirectory
 from .constants import (
     COLOR_GRID_LIGHT, COLOR_GRID_DARK,
     NODE_TITLE_HEIGHT, NODE_PORT_SPACING, GRID_SIZE, GRID_SQUARES,
@@ -207,9 +208,7 @@ class NodeGraphView(QGraphicsView):
 
         chosen = menu.exec(event.globalPos())
         if chosen == add_fmu_action:
-            paths, _ = QFileDialog.getOpenFileNames(
-                self, "Select FMU files", "", "FMU (*.fmu)"
-            )
+            paths = LastDirectory.get_open_file_names(self, "Select FMU files", "FMU (*.fmu)")
             for path in paths:
                 self._scene.add_node(fmu_path=Path(path), x=scene_pos.x(), y=scene_pos.y())
                 scene_pos += QPointF(20, 20)

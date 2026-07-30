@@ -12,11 +12,11 @@ from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor
 from PySide6.QtWidgets import (
     QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout, QHBoxLayout,
     QStyledItemDelegate, QAbstractItemView, QPushButton, QDialog, QLineEdit,
-    QFrame, QListWidget, QListWidgetItem, QTabWidget, QFileDialog,
+    QFrame, QListWidget, QListWidgetItem, QTabWidget,
 )
 
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem
-from fmu_manipulation_toolbox.gui.helper import unlock_column_resize
+from fmu_manipulation_toolbox.gui.helper import unlock_column_resize, LastDirectory
 
 
 class _PortListSelectorDialog(QDialog):
@@ -808,9 +808,8 @@ class WireDetailWidget(QWidget):
         if self._wire is None:
             return
         self.sync_to_wire()
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export connections", "", "CSV Files (*.csv);;All Files (*)"
-        )
+        path = LastDirectory.get_save_file_name(self, "Export connections", "CSV Files (*.csv);;All Files (*)",
+                                                default_name="connections.csv")
         if not path:
             return
 
@@ -825,9 +824,7 @@ class WireDetailWidget(QWidget):
     def _on_import(self):
         if self._wire is None:
             return
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import connections", "", "CSV Files (*.csv);;All Files (*)"
-        )
+        path = LastDirectory.get_open_file_name(self, "Import connections", "CSV Files (*.csv);;All Files (*)")
         if not path:
             return
         mappings = []

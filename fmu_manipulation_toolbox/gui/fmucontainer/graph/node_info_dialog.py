@@ -1,13 +1,11 @@
 """Dialog showing FMU node information with the option to select an alternative FMU file."""
 
-from pathlib import Path
-
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog, QLabel, QLineEdit, QPushButton,
-    QHBoxLayout, QVBoxLayout, QFileDialog,
+    QHBoxLayout, QVBoxLayout,
 )
 
+from fmu_manipulation_toolbox.gui.helper import LastDirectory
 from .node import NodeItem
 
 
@@ -81,10 +79,7 @@ class NodeInfoDialog(QDialog):
     # -- Slots ----------------------------------------------------------------
 
     def _on_browse(self):
-        start_dir = str(Path(self._selected_path).parent)
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select alternative FMU", start_dir, "FMU (*.fmu)"
-        )
+        path = LastDirectory.get_open_file_name(self, "Select alternative FMU", "FMU (*.fmu)")
         if path:
             self._selected_path = path
             self._path_edit.setText(path)

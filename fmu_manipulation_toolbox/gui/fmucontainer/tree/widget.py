@@ -6,13 +6,14 @@ import logging
 
 from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSize
 from PySide6.QtGui import QStandardItem, QIcon
-from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog, QFileDialog,
+from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog,
                                QMenu, QAbstractItemView)
 from pathlib import Path
 from typing import *
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem
+from fmu_manipulation_toolbox.gui.helper import LastDirectory
 from .model import _NodeTreeModel, TreeItemRoles
 from .sync import SelectionSynchronizer
 
@@ -351,9 +352,7 @@ class NodeTreeWidget(QWidget):
             return
 
         if chosen is act_add_fmu:
-            paths, _ = QFileDialog.getOpenFileNames(
-                self, "Select FMU files", "", "FMU (*.fmu)"
-            )
+            paths = LastDirectory.get_open_file_names(self, "Select FMU files", "FMU (*.fmu)")
             center = self._graph.view.mapToScene(
                 self._graph.view.viewport().rect().center()
             )

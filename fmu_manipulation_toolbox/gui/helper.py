@@ -3,7 +3,7 @@ import os
 
 from typing import *
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
-                               QPushButton, QMessageBox, QMainWindow, QTableView, QHeaderView)
+                               QHBoxLayout, QPushButton, QMessageBox, QMainWindow, QTableView, QHeaderView)
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage
@@ -14,6 +14,66 @@ from fmu_manipulation_toolbox.gui.style import gui_style, log_color
 from fmu_manipulation_toolbox.operations import FMU
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+
+
+class LastDirectory:
+    """Remembers the last directory used in any file dialog across the whole application.
+
+    The first file dialog opened during the application lifetime defaults to the
+    current working directory. Every subsequent file dialog defaults to the
+    directory used in the previous file dialog (whatever window it was opened from).
+
+    Also provides wrappers around QFileDialog static methods that automatically use
+    and update this remembered directory.
+    """
+
+    _directory: str = os.getcwd()
+
+    @classmethod
+    def get(cls) -> str:
+        return cls._directory
+
+    @classmethod
+    def update(cls, path: Optional[Union[str, "Path"]]) -> None:
+        """Update the remembered directory from a file (or directory) path."""
+        if not path:
+            return
+        p = Path(path)
+        if not p.is_dir():
+            p = p.parent
+        if str(p):
+            cls._directory = str(p)
+
+    @classmethod
+    def get_open_file_name(cls, parent=None, caption: str = "", filter: str = "") -> str:
+        """Wrapper around QFileDialog.getOpenFileName using/updating the last directory."""
+        filename, _ = QFileDialog.getOpenFileName(parent, caption, cls.get(), filter)
+        if filename:
+            cls.update(filename)
+        return filename
+
+    @classmethod
+    def get_open_file_names(cls, parent=None, caption: str = "", filter: str = "") -> List[str]:
+        """Wrapper around QFileDialog.getOpenFileNames using/updating the last directory."""
+        filenames, _ = QFileDialog.getOpenFileNames(parent, caption, cls.get(), filter)
+        if filenames:
+            cls.update(filenames[0])
+        return filenames
+
+    @classmethod
+    def get_save_file_name(cls, parent=None, caption: str = "", filter: str = "", default_name: str = "") -> str:
+        """Wrapper around QFileDialog.getSaveFileName using/updating the last directory.
+
+        ``default_name`` is the proposed file name (without directory), appended to the
+        last used directory.
+        """
+        directory = cls.get()
+        if default_name:
+            directory = str(Path(directory) / default_name)
+        filename, _ = QFileDialog.getSaveFileName(parent, caption, directory, filter)
+        if filename:
+            cls.update(filename)
+        return filename
 
 
 def unlock_column_resize(table: QTableView):
@@ -85,7 +145,6 @@ class DropZoneWidget(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.fmu = None
-        self.last_directory = None
         self.setAcceptDrops(True)
         self.setProperty("class", "dropped_fmu")
         self.setFixedSize(self.WIDTH, self.HEIGHT)
@@ -155,15 +214,9 @@ class DropZoneWidget(QLabel):
             event.ignore()
 
     def mousePressEvent(self, event):
-        if self.last_directory:
-            default_directory = self.last_directory
-        else:
-            default_directory = os.path.expanduser("~")
-
-        fmu_filename, _ = QFileDialog.getOpenFileName(
+        fmu_filename = LastDirectory.get_open_file_name(
             parent=self,
             caption="Select FMU",
-            dir=default_directory,
             filter="FMU files (*.fmu)",
         )
         if fmu_filename:
@@ -174,7 +227,7 @@ class DropZoneWidget(QLabel):
     def set_fmu(self, filename: Path):
         """Load an FMU from *filename* and emit the signals."""
         try:
-            self.last_directory = str(Path(filename).parent)
+            LastDirectory.update(filename)
             self.fmu = FMU(filename)
             self.set_image(Path(self.fmu.tmp_directory) / "model.png")
         except Exception as e:
@@ -271,14 +324,24 @@ class RunTask(QDialog):
 
         self.setWindowTitle(title)
         self.text = LogWidget(height=300, level=level)
+
+        self.save_button = QPushButton("Save Logs...")
+        self.save_button.setProperty("class", "info")
+        self.save_button.clicked.connect(self.save_logs)
+
         self.button = QPushButton("Close")
         self.button.setProperty("class", "quit")
         self.button.clicked.connect(self.close)
 
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.save_button)
+        button_layout.addStretch()
+        button_layout.addWidget(self.button)
+
         layout = QVBoxLayout()
         self.setLayout(layout)
         layout.addWidget(self.text)
-        layout.addWidget(self.button)
+        layout.addLayout(button_layout)
 
         self.show()
 
@@ -292,6 +355,23 @@ class RunTask(QDialog):
             logger.critical(f"Operation aborted.")
         QApplication.restoreOverrideCursor()
         self.text.stop_logging()
+
+    def save_logs(self):
+        """Open a file dialog to save the current log content as a .txt file."""
+        filename = LastDirectory.get_save_file_name(
+            parent=self,
+            caption="Save Logs",
+            filter="Text files (*.txt);;All files (*)",
+            default_name="logs.txt",
+        )
+        if not filename:
+            return
+
+        try:
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(self.text.toPlainText())
+        except OSError as e:
+            QMessageBox.critical(self, "Save Logs", f"Cannot save logs: {e}")
 
 
 class UnsavedChangesWindowMixin:
