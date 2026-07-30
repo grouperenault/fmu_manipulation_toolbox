@@ -18,9 +18,6 @@ class _NodeTreeModel(QStandardItemModel):
     ROLE_CONTAINER_PARAMETERS = Qt.ItemDataRole.UserRole + 1
     ROLE_NODE_UID = Qt.ItemDataRole.UserRole + 2
     ROLE_IS_ROOT = Qt.ItemDataRole.UserRole + 3
-    # Stored on a Container item: uid of its virtual ts_multiplier signal node
-    # (GUI-only, graph-only; never materialized as its own TreeView row).
-    ROLE_SIGNAL_NODE_UID = Qt.ItemDataRole.UserRole + 4
 
     def canDropMimeData(self, data, action, row, column, parent):
         if not parent.isValid():
@@ -43,7 +40,6 @@ class TreeItemRoles:
     CONTAINER_PARAMETERS = _NodeTreeModel.ROLE_CONTAINER_PARAMETERS
     NODE_UID = _NodeTreeModel.ROLE_NODE_UID
     IS_ROOT = _NodeTreeModel.ROLE_IS_ROOT
-    SIGNAL_NODE_UID = _NodeTreeModel.ROLE_SIGNAL_NODE_UID
 
     @staticmethod
     def get_container_params(item: Optional[QStandardItem]) -> Optional[ContainerParameters]:
@@ -79,10 +75,4 @@ class TreeItemRoles:
             and TreeItemRoles.get_container_params(item) is None
         )
 
-    @staticmethod
-    def get_signal_node_uid(item: Optional[QStandardItem]) -> Optional[str]:
-        """Get the uid of the virtual ts_multiplier signal node owned by a Container item, if any."""
-        if item is None:
-            return None
-        return item.data(TreeItemRoles.SIGNAL_NODE_UID)
 

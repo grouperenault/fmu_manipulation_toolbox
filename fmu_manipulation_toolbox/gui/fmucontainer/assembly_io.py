@@ -77,9 +77,10 @@ class AssemblyIOMixin:
         parent.setData(container_parameters, _NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
         parent.setText(container_name)
 
-        # GUI-only virtual node representing `container.ts_multiplier`. Never
-        # persisted in the Assembly model; only recreated here when already
-        # enabled on import, so the user can (re)wire it visually.
+        # GUI-only virtual "configuration" node port representing
+        # `<container>.ts_multiplier`. Never persisted in the Assembly model;
+        # only recreated here when already enabled on import, so the user
+        # can (re)wire it visually. No effect for the root container.
         if assembly_node.ts_multiplier:
             self._tree.set_ts_multiplier(parent, True)
 
@@ -149,7 +150,7 @@ class AssemblyIOMixin:
                                      links_list, start_values_list, output_ports_list, input_ports_list)
 
         # Build a map from FMU filename to its NodeItem (real FMUs only, excludes
-        # virtual ContainerSignalNode which is never part of the Assembly model)
+        # the virtual ConfigurationNode which is never part of the Assembly model)
         nodes_by_name: Dict[str, NodeItem] = {}
         for node in self._graph.scene.fmu_nodes():
             nodes_by_name[str(node.fmu_path.resolve())] = node
@@ -379,7 +380,7 @@ class AssemblyIOMixin:
         # Flush any in-progress edits from detail panels
         self._tree.wire_detail.sync_to_wire()
         self._tree.fmu_detail.sync_to_node()
-        # Only real FMU nodes are eligible: the virtual ContainerSignalNode
+        # Only real FMU nodes are eligible: the virtual ConfigurationNode
         # (ts_multiplier, GUI-only) is never part of the Assembly model.
         nodes_by_uid: Dict[str, NodeItem] = {
             node.uid: node for node in self._graph.scene.fmu_nodes()
@@ -442,7 +443,7 @@ class AssemblyIOMixin:
             path_by_name[node.fmu_path.name] = str(node.fmu_path)
 
         for wire in self._graph.scene.wires():
-            # Wires attached to the virtual ContainerSignalNode (ts_multiplier)
+            # Wires attached to the virtual ConfigurationNode (ts_multiplier)
             # are GUI-only decorations and must never be exported to the Assembly.
             if getattr(wire.node_a, "is_container_signal", False) or \
                     getattr(wire.node_b, "is_container_signal", False):

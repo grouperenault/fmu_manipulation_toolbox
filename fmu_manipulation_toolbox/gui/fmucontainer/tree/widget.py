@@ -12,8 +12,7 @@ from pathlib import Path
 from typing import *
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
-from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, ContainerSignalNode
-
+from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, ConfigurationNode
 from fmu_manipulation_toolbox.gui.helper import LastDirectory
 from .model import _NodeTreeModel, TreeItemRoles
 from .sync import SelectionSynchronizer
@@ -75,7 +74,7 @@ class NodeTreeWidget(QWidget):
         self._graph.scene.node_removed.connect(self._on_scene_node_removed)
         self._graph.scene.selectionChanged.connect(self.on_scene_selection_changed)
         self._tree.selectionModel().selectionChanged.connect(self.on_tree_selection_changed)
-        # Restrict ContainerSignalNode wiring to sibling FMUs (see _validate_wire)
+        # Restrict ConfigurationNode wiring (see _validate_wire)
         self._graph.scene.wire_validator = self._validate_wire
         tree_logger.debug("NodeTreeWidget initialized")
 
@@ -157,15 +156,17 @@ class NodeTreeWidget(QWidget):
             item.setText(fixed)
             self._model.blockSignals(False)
 
+        old_name = container_parameters.name
         # Keep data model in sync with the visible name.
         container_parameters.name = fixed
         tree_logger.debug(f"Container renamed: {fixed}")
 
-        # Keep the virtual ts_multiplier signal node (if any) in sync with the new name.
+        # Keep the ConfigurationNode's port (if any) in sync with the new name.
         # It is GUI/graph-only: it has no TreeView row of its own to rename.
-        signal_node = self._find_signal_node(item)
-        if signal_node is not None:
-            signal_node.rename(fixed)
+        if old_name != fixed:
+            configuration_node = self._graph.scene.configuration_node()
+            if configuration_node is not None:
+                configuration_node.rename_port(old_name, fixed)
 
         # Signal that container has been changed
         self.container_changed.emit(container_parameters)
@@ -182,13 +183,16 @@ class NodeTreeWidget(QWidget):
             QItemSelectionModel.SelectionFlag.Select
             | QItemSelectionModel.SelectionFlag.Rows,
         )
+        # Also update the "current" index (distinct from selection in Qt):
+        # some callers (e.g. NodeTreePanel._on_container_detail_changed) rely
+        # on `tree_view.currentIndex()` to know which container is displayed.
+        self._tree.setCurrentIndex(idx)
         self._tree.scrollTo(idx)
 
     def _on_scene_node_added(self, node):
-        if isinstance(node, ContainerSignalNode):
-            # GUI/graph-only virtual node: never materialized as its own
-            # TreeView row (it is tied to its owning Container item, already
-            # present in the tree, via ROLE_SIGNAL_NODE_UID).
+        if isinstance(node, ConfigurationNode):
+            # GUI/graph-only virtual singleton node: never materialized as
+            # its own TreeView row.
             return
         target = self._pending_parent or self._root
         node_item = self._make_node_item(node)
@@ -225,85 +229,51 @@ class NodeTreeWidget(QWidget):
                     return found
         return None
 
-    # ── Virtual ContainerSignalNode (ts_multiplier, GUI/graph-only) ────────
-
-    def _find_signal_node(self, container_item: QStandardItem) -> Optional[ContainerSignalNode]:
-        """Return the graph node of the signal owned by *container_item*, if any.
-
-        The association is stored directly on the Container item
-        (ROLE_SIGNAL_NODE_UID): the signal node never gets its own TreeView
-        row, it is displayed in the graph canvas only.
-        """
-        uid = TreeItemRoles.get_signal_node_uid(container_item)
-        if not uid:
-            return None
-        for node in self._graph.scene.nodes():
-            if node.uid == uid:
-                return node
-        return None
+    # ── ConfigurationNode (ts_multiplier, GUI/graph-only, singleton) ───────
 
     def set_ts_multiplier(self, container_item: QStandardItem, active: bool, x: float = 0, y: float = 0):
-        """Create/activate or deactivate the virtual ts_multiplier signal node for *container_item*.
+        """Activate/deactivate the `ts_multiplier` port owned by *container_item*
+        on the singleton ConfigurationNode (created on demand).
 
         This is purely a GUI/graph representation: the node and its wire(s)
         are never exported to the Assembly model, and the node never gets a
-        row of its own in the TreeView (only *container_item*, already
-        present, "owns" it).
+        row of its own in the TreeView. Selecting `ts_multiplier` on the
+        ROOT container has no effect.
         """
-        signal_node = self._find_signal_node(container_item)
-        if active:
-            if signal_node is None:
-                name = container_item.text()
-                signal_node = self._graph.scene.add_container_signal_node(name, x=x, y=y)
-                signal_node.owner_container_item = container_item
-                container_item.setData(signal_node.uid, _NodeTreeModel.ROLE_SIGNAL_NODE_UID)
-            signal_node.active = True
-            for wire in signal_node.wires:
-                wire.update()
-            signal_node.update()
-        else:
-            if signal_node is not None:
-                signal_node.active = False
-                for wire in signal_node.wires:
-                    wire.update()
-                signal_node.update()
-                if not signal_node.wires:
-                    # Nothing references it anymore: remove the (now useless) node.
-                    self._remove_signal(container_item)
+        if TreeItemRoles.is_root(container_item):
+            return
 
-    def _remove_signal(self, container_item: QStandardItem):
-        """Remove the virtual signal node (graph-only) owned by *container_item*."""
-        signal_node = self._find_signal_node(container_item)
-        if signal_node is not None:
-            signal_node.remove_wires()
-            if signal_node.scene():
-                signal_node.scene().removeItem(signal_node)
-        container_item.setData(None, _NodeTreeModel.ROLE_SIGNAL_NODE_UID)
+        container_name = container_item.text()
+        if active:
+            node = self._graph.scene.get_or_create_configuration_node(x=x, y=y)
+            node.set_port_active(container_name, True)
+        else:
+            node = self._graph.scene.configuration_node()
+            if node is None:
+                return
+            node.set_port_active(container_name, False)
+            if node.is_empty():
+                self._graph.scene.remove_configuration_node()
+
+    def _deactivate_ts_multiplier_for_deleted_container(self, container_item: QStandardItem):
+        """Deactivate the port owned by *container_item* (about to be deleted)
+        and remove the ConfigurationNode entirely if it becomes empty."""
+        node = self._graph.scene.configuration_node()
+        if node is None:
+            return
+        node.set_port_active(container_item.text(), False)
+        if node.is_empty():
+            self._graph.scene.remove_configuration_node()
 
     def _validate_wire(self, node_a, node_b) -> bool:
-        """Restrict wiring of a ContainerSignalNode to a sibling FMU (same container)."""
-        sig_a = isinstance(node_a, ContainerSignalNode)
-        sig_b = isinstance(node_b, ContainerSignalNode)
-        if not sig_a and not sig_b:
-            return True  # regular FMU <-> FMU wire, unrestricted
-        if sig_a and sig_b:
-            return False  # cannot connect two signal nodes together
-
-        signal_node = node_a if sig_a else node_b
-        fmu_node = node_b if sig_a else node_a
-
-        if signal_node.wires:
-            return False  # only one wire allowed (fan-in = 1)
-
-        container_item = getattr(signal_node, "owner_container_item", None)
-        if container_item is None:
+        """The ConfigurationNode can be wired to any FMU; the only forbidden
+        combination is two ConfigurationNodes together (it is a singleton
+        anyway, so this should never actually be reachable)."""
+        is_cfg_a = isinstance(node_a, ConfigurationNode)
+        is_cfg_b = isinstance(node_b, ConfigurationNode)
+        if is_cfg_a and is_cfg_b:
             return False
-
-        fmu_item = self._find_tree_item_by_uid(self._model.invisibleRootItem(), fmu_node.uid)
-        if fmu_item is None:
-            return False
-
-        return fmu_item.parent() is container_item
+        return True
 
     # ── Selection synchronization ──────────────────────────────────────
 
@@ -497,9 +467,10 @@ class NodeTreeWidget(QWidget):
 
     def _purge_container(self, ctn: QStandardItem):
         """Recursively delete scene nodes contained in *ctn*."""
-        # Remove the virtual ts_multiplier signal node owned directly by this
-        # container (graph-only: it has no row of its own to remove here).
-        self._remove_signal(ctn)
+        # Deactivate the `ts_multiplier` port owned directly by this
+        # container on the (graph-only) ConfigurationNode; the node itself
+        # is only removed once it is fully empty (see `is_empty`).
+        self._deactivate_ts_multiplier_for_deleted_container(ctn)
         for r in range(ctn.rowCount() - 1, -1, -1):
             child = ctn.child(r, 0)
             if child is None:

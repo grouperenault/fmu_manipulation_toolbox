@@ -14,7 +14,7 @@ from .constants import (
     ARROW_SIZE, WAYPOINT_RADIUS,
     FONT_TITLE, FONT_PORT, FONT_PORT_PARAMETER,
 )
-from .node import NodeItem, ContainerSignalNode
+from .node import NodeItem, ConfigurationNode
 from .wire import WireItem, _DragWireItem
 from .scene import NodeGraphScene
 from .view import NodeGraphView
@@ -32,7 +32,7 @@ __all__ = [
     "FONT_TITLE", "FONT_PORT", "FONT_PORT_PARAMETER",
     # Classes
     "NodeItem",
-    "ContainerSignalNode",
+    "ConfigurationNode",
     "WireItem",
     "NodeGraphScene",
     "NodeGraphView",

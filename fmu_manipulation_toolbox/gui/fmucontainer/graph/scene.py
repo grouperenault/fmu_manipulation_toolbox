@@ -9,7 +9,7 @@ from PySide6.QtGui import QBrush
 
 
 from .constants import NODE_TITLE_HEIGHT, COLOR_BACKGROUND
-from .node import NodeItem, ContainerSignalNode
+from .node import NodeItem, ConfigurationNode
 from .wire import WireItem, _DragWireItem
 
 
@@ -38,8 +38,9 @@ class NodeGraphScene(QGraphicsScene):
         self._drag_target_node: Optional[NodeItem] = None
 
         # Optional external validator: callable(node_a, node_b) -> bool.
-        # Used by NodeTreeWidget to restrict wiring of ContainerSignalNode
-        # to sibling FMUs only. If None, all wires are allowed.
+        # Used by NodeTreeWidget to restrict wiring of the ConfigurationNode
+        # (e.g. forbidding two ConfigurationNodes together). If None, all
+        # wires are allowed.
         self.wire_validator: Optional[Callable[[NodeItem, NodeItem], bool]] = None
 
         self.selectionChanged.connect(self._enforce_single_selection)
@@ -84,17 +85,31 @@ class NodeGraphScene(QGraphicsScene):
         self.node_added.emit(node)
         return node
 
-    def add_container_signal_node(self, container_name: str, x: float = 0, y: float = 0) -> ContainerSignalNode:
-        """Create the virtual node representing a container's `ts_multiplier` signal.
+    def configuration_node(self) -> Optional[ConfigurationNode]:
+        """Return the singleton ConfigurationNode currently in the scene, if any."""
+        for it in self.items():
+            if isinstance(it, ConfigurationNode):
+                return it
+        return None
 
-        This node is GUI-only: it is never exported to the Assembly model.
+    def get_or_create_configuration_node(self, x: float = 0, y: float = 0) -> ConfigurationNode:
+        """Return the singleton `ts_multiplier` ConfigurationNode, creating it
+        (GUI-only, never exported to the Assembly model) if it doesn't exist yet.
         """
-        node = ContainerSignalNode(container_name, x=x, y=y)
-        self.addItem(node)
-        self.clearSelection()
-        node.setSelected(True)
-        self.node_added.emit(node)
+        node = self.configuration_node()
+        if node is None:
+            node = ConfigurationNode(x=x, y=y)
+            self.addItem(node)
+            self.node_added.emit(node)
         return node
+
+    def remove_configuration_node(self):
+        """Explicitly remove the singleton ConfigurationNode (if present)."""
+        node = self.configuration_node()
+        if node is not None:
+            node.remove_wires()
+            self.node_removed.emit(node)
+            self.removeItem(node)
 
     def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> Optional[WireItem]:
         """Connect two nodes with a wire. Returns None if invalid."""
@@ -131,8 +146,8 @@ class NodeGraphScene(QGraphicsScene):
         return [it for it in self.items() if isinstance(it, NodeItem)]
 
     def fmu_nodes(self) -> List[NodeItem]:
-        """Return only nodes backed by a real FMU (excludes ContainerSignalNode)."""
-        return [it for it in self.items() if isinstance(it, NodeItem) and not isinstance(it, ContainerSignalNode)]
+        """Return only nodes backed by a real FMU (excludes ConfigurationNode)."""
+        return [it for it in self.items() if isinstance(it, NodeItem) and not isinstance(it, ConfigurationNode)]
 
     def wires(self) -> List[WireItem]:
         return [it for it in self.items() if isinstance(it, WireItem)]

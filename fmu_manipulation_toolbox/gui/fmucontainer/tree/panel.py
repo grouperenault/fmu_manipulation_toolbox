@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QWidget, QTreeView, QVBoxLayout, QSplitter
 from typing import *
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import DetailPanelStack
-from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem
+from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem, ConfigurationNode
 from .model import _NodeTreeModel, TreeItemRoles
 from .widget import NodeTreeWidget
 
@@ -101,6 +101,11 @@ class NodeTreePanel(QWidget):
             self._detail_panel.show_empty()
             return
         scene_item = selected[0]
+        if isinstance(scene_item, ConfigurationNode):
+            tree_logger.debug("Scene selection: ConfigurationNode (ts_multiplier) — no details shown")
+            self._detail_panel.show_empty()
+            return
+
         if isinstance(scene_item, NodeItem):
             tree_logger.debug(f"Scene selection: Node '{scene_item.title}'")
             self._detail_panel.show_fmu(scene_item)
@@ -172,13 +177,19 @@ class NodeTreePanel(QWidget):
     def _on_container_detail_changed(self):
         """Called when the container detail panel parameters are edited.
 
-        Keeps the virtual `ts_multiplier` signal node (GUI-only) in sync with
-        the checkbox state of the currently displayed container.
+        Keeps the container's `ts_multiplier` port on the (GUI-only)
+        ConfigurationNode in sync with the checkbox state.
         """
         try:
             current = self._tree_widget.tree_view.currentIndex()
             if not current.isValid():
-                return
+                # Fall back to the actual selection: `currentIndex()` may not
+                # have been updated yet (e.g. right after programmatically
+                # selecting a just-created container item).
+                selected_rows = list(self._tree_widget.tree_view.selectionModel().selectedRows(0))
+                if not selected_rows:
+                    return
+                current = selected_rows[0]
             item = self._tree_widget.model.itemFromIndex(current)
             if item is None:
                 return
