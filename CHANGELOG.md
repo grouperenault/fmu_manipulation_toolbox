@@ -2,13 +2,9 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
-* ADDED: GUI: on import (JSON or FMU container), a link whose destination FMU name actually refers
-         to a sub-container's reserved `container.ts_multiplier` runtime input is now recognized and
-         reconstructed as a wire to the GUI-only `configuration` node, using the dynamic port name
-         `<sub-container>.ts_multiplier`. Symmetrically, on export, such a wire is translated back
-         into the real `container.ts_multiplier` link so the round-trip (import → export) is lossless.
-         Links targeting an inactive (unchecked) `ts_multiplier` port are dropped on export, since the
-         corresponding port would not exist on the built container.
+* ADDED: GUI: the progress dialog shown during **Load**, **Import**, **Export**, and **Save**
+         operations now has a **Save Logs...** button to export the displayed execution logs
+         to a `.txt` file.
 * ADDED: GUI: `ts_multiplier` on a sub-container now materializes a GUI-only virtual `configuration`
          node on the canvas, exposing one input port per checked sub-container
          (`<container>.ts_multiplier`), wireable from any FMU. This node is purely a visual aid and
