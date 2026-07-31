@@ -195,7 +195,8 @@ class NodeGraphView(QGraphicsView):
         selected_items = self._scene.selectedItems()
         if selected_items:
             delete_action = menu.addAction("Delete Selection")
-            if len(selected_items) == 1 and isinstance(selected_items[0], NodeItem):
+            if (len(selected_items) == 1 and isinstance(selected_items[0], NodeItem)
+                    and not getattr(selected_items[0], "is_container_signal", False)):
                 menu.addSeparator()
                 info_action = menu.addAction("Info")
                 fmueditor_action = menu.addAction("Open in FMU Editor")

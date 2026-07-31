@@ -179,6 +179,9 @@ class _PortComboDelegate(QStyledItemDelegate):
         self._items: List[str] = []
         self._causalities: Dict[str, str] = {}
         self._aggregates: Set[str] = set()
+        # Ports that exist on the node but are currently invalid (e.g. an
+        # inactive `ts_multiplier` port on the ConfigurationNode, GUI-only).
+        self._invalid_ports: Set[str] = set()
 
     def set_items(self, items: List[str]):
         self._items = list(items)
@@ -190,6 +193,11 @@ class _PortComboDelegate(QStyledItemDelegate):
     def set_aggregates(self, aggregates: Iterable[str]):
         """Set the set of port names that are array aggregates (rendered in bold)."""
         self._aggregates = set(aggregates)
+
+    def set_invalid_ports(self, ports: Iterable[str]):
+        """Set the set of existing port names that must be rendered in red
+        (e.g. an inactive `ts_multiplier` port)."""
+        self._invalid_ports = set(ports)
 
     def createEditor(self, parent, option, index):
         """Create a non-visible dummy editor; the actual dialog will be shown separately."""
@@ -258,7 +266,7 @@ class _PortComboDelegate(QStyledItemDelegate):
             if self._causalities.get(text) == "parameter":
                 font.setItalic(True)
             option.font = font
-            if self._items and text not in self._items:
+            if (self._items and text not in self._items) or text in self._invalid_ports:
                 option.palette.setColor(option.palette.ColorRole.Text, QColor("#F54927"))
 
         super().paint(painter, option, index)
@@ -339,9 +347,20 @@ class _WireDirectionTab(QWidget):
         self._output_delegate.set_items(from_node.fmu_output_names)
         self._output_delegate.set_causalities(from_node.fmu_port_causality)
         self._output_delegate.set_aggregates(from_node.fmu_array_aggregate_elements.keys())
+        self._output_delegate.set_invalid_ports(self._inactive_ts_multiplier_ports(from_node))
         self._input_delegate.set_items(to_node.fmu_input_names)
         self._input_delegate.set_causalities(to_node.fmu_port_causality)
         self._input_delegate.set_aggregates(to_node.fmu_array_aggregate_elements.keys())
+        self._input_delegate.set_invalid_ports(self._inactive_ts_multiplier_ports(to_node))
+
+    @staticmethod
+    def _inactive_ts_multiplier_ports(node) -> Set[str]:
+        """Return the set of `ts_multiplier` ports on *node* (ConfigurationNode)
+        that are currently inactive (owning container's checkbox unchecked)."""
+        ports = getattr(node, "ts_multiplier_ports", None)
+        if not ports:
+            return set()
+        return {name for name, active in ports.items() if not active}
 
     # ── Data access ─────────────────────────────────────────────
 

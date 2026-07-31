@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QWidget, QTreeView, QVBoxLayout, QSplitter
 from typing import *
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import DetailPanelStack
-from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem
+from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem, ConfigurationNode
 from .model import _NodeTreeModel, TreeItemRoles
 from .widget import NodeTreeWidget
 
@@ -28,6 +28,7 @@ class NodeTreePanel(QWidget):
         self._graph.scene.selectionChanged.connect(self._on_scene_selection_changed)
         self._tree_widget.tree_view.selectionModel().selectionChanged.connect(self._on_tree_selection_changed)
         self._tree_widget.container_changed.connect(self._on_container_changed)
+        self._detail_panel.container_detail.changed.connect(self._on_container_detail_changed)
         self._splitter = QSplitter(Qt.Orientation.Vertical)
         self._splitter.addWidget(self._tree_widget)
         self._splitter.addWidget(self._detail_panel)
@@ -74,6 +75,10 @@ class NodeTreePanel(QWidget):
     def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
         return self._tree_widget.make_container_item(name, is_root)
 
+    def set_ts_multiplier(self, container_item: QStandardItem, active: bool, x: float = 0, y: float = -150):
+        """Create/activate or deactivate the virtual `ts_multiplier` signal node (GUI-only)."""
+        self._tree_widget.set_ts_multiplier(container_item, active, x=x, y=y)
+
     def _on_scene_selection_changed(self):
         """Scene -> tree: select in tree when node is selected in graph."""
         tree_logger.debug("Panel: scene selection changed event received")
@@ -96,6 +101,11 @@ class NodeTreePanel(QWidget):
             self._detail_panel.show_empty()
             return
         scene_item = selected[0]
+        if isinstance(scene_item, ConfigurationNode):
+            tree_logger.debug("Scene selection: ConfigurationNode (ts_multiplier) — no details shown")
+            self._detail_panel.show_empty()
+            return
+
         if isinstance(scene_item, NodeItem):
             tree_logger.debug(f"Scene selection: Node '{scene_item.title}'")
             self._detail_panel.show_fmu(scene_item)
@@ -163,3 +173,31 @@ class NodeTreePanel(QWidget):
                     self._detail_panel.show_container(container_parameters)
         except RuntimeError as e:
             tree_logger.error(f"Error refreshing container detail panel: {e}")
+
+    def _on_container_detail_changed(self):
+        """Called when the container detail panel parameters are edited.
+
+        Keeps the container's `ts_multiplier` port on the (GUI-only)
+        ConfigurationNode in sync with the checkbox state.
+        """
+        try:
+            current = self._tree_widget.tree_view.currentIndex()
+            if not current.isValid():
+                # Fall back to the actual selection: `currentIndex()` may not
+                # have been updated yet (e.g. right after programmatically
+                # selecting a just-created container item).
+                selected_rows = list(self._tree_widget.tree_view.selectionModel().selectedRows(0))
+                if not selected_rows:
+                    return
+                current = selected_rows[0]
+            item = self._tree_widget.model.itemFromIndex(current)
+            if item is None:
+                return
+            container_parameters = TreeItemRoles.get_container_params(item)
+            if container_parameters is None:
+                return
+            active = bool(container_parameters.parameters.get("ts_multiplier", False))
+            self._tree_widget.set_ts_multiplier(item, active)
+        except RuntimeError as e:
+            tree_logger.error(f"Error syncing ts_multiplier signal node: {e}")
+

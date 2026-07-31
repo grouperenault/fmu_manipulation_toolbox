@@ -203,6 +203,9 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=log_level)
+        # Re-assert the container's own directory: loading may have updated
+        # LastDirectory to the (extracted) FMUs' sub-directory instead.
+        LastDirectory.update(input_path)
         self._dirty = False
 
     def _on_import_clicked(self):
@@ -216,6 +219,10 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly", level=log_level)
+        # Re-assert the imported file's own directory: importing adds FMU nodes
+        # that may live in a different (sub)directory, which would otherwise
+        # overwrite LastDirectory via _on_node_added_update_dir.
+        LastDirectory.update(input_path)
         self._dirty = True
 
     def _on_export_clicked(self):

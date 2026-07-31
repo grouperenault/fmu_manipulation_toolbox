@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
 from .constants import (
     COLOR_WIRE, COLOR_WIRE_SELECTED, COLOR_WIRE_DRAGGING,
     COLOR_BACKGROUND, ARROW_SIZE, WAYPOINT_RADIUS,
-    COLOR_WIRE_HIGHLIGHT, HIGHLIGHT_ARROW_SIZE,
+    COLOR_WIRE_HIGHLIGHT, HIGHLIGHT_ARROW_SIZE, COLOR_WIRE_INVALID,
 )
 from .node import NodeItem
 
@@ -115,6 +115,64 @@ class WireItem(QGraphicsPathItem):
         a_to_b = any(m[0] == a_name and m[2] == b_name for m in self.mappings)
         b_to_a = any(m[0] == b_name and m[2] == a_name for m in self.mappings)
         return a_to_b, b_to_a
+
+    def is_invalid(self) -> bool:
+        """True if this wire has at least one invalid mapping:
+
+        * a mapping referencing an inactive `ts_multiplier` port on the
+          (GUI-only) ConfigurationNode (the owning container's checkbox is
+          currently unchecked), or
+        * a mapping (port or terminal) whose port/terminal name no longer
+          exists on the corresponding FMU — typically after "Replace FMU"
+          (same invalidity already shown in red in the WireDetails panel).
+        """
+        for node in (self.node_a, self.node_b):
+            ports = getattr(node, "ts_multiplier_ports", None)
+            if not ports:
+                continue
+            my_name = node.fmu_path.name
+            for m in self.mappings:
+                if len(m) < 4:
+                    continue
+                fmu_from, port_from, fmu_to, port_to = m
+                if fmu_from == my_name and port_from in ports and not ports[port_from]:
+                    return True
+                if fmu_to == my_name and port_to in ports and not ports[port_to]:
+                    return True
+
+        name_a = self.node_a.fmu_path.name
+        name_b = self.node_b.fmu_path.name
+
+        def _node_for(fmu_name):
+            if fmu_name == name_a:
+                return self.node_a
+            if fmu_name == name_b:
+                return self.node_b
+            return None
+
+        for m in self.mappings:
+            if len(m) < 4:
+                continue
+            fmu_from, port_from, fmu_to, port_to = m
+            from_node = _node_for(fmu_from)
+            to_node = _node_for(fmu_to)
+            if from_node is not None and port_from not in from_node.fmu_output_names:
+                return True
+            if to_node is not None and port_to not in to_node.fmu_input_names:
+                return True
+
+        for tm in self.terminal_mappings:
+            if len(tm) < 4:
+                continue
+            fmu_a, term_a, fmu_b, term_b = tm
+            node_x = _node_for(fmu_a)
+            node_y = _node_for(fmu_b)
+            if node_x is not None and term_a not in node_x.fmu_terminal_names:
+                return True
+            if node_y is not None and term_b not in node_y.fmu_terminal_names:
+                return True
+
+        return False
 
     # -- Highlight (from WireDetails tab selection) ---------------------------
 
@@ -289,7 +347,8 @@ class WireItem(QGraphicsPathItem):
         return QPointF(tip.x() - dx / length * amount, tip.y() - dy / length * amount)
 
     def paint(self, painter: QPainter, option, widget=None):
-        color = COLOR_WIRE_SELECTED if self.isSelected() else COLOR_WIRE
+        color = COLOR_WIRE_SELECTED if self.isSelected() else (
+            COLOR_WIRE_INVALID if self.is_invalid() else COLOR_WIRE)
         pen = QPen(color, 2.5 if self.isSelected() else 2.0)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -413,6 +472,12 @@ class WireItem(QGraphicsPathItem):
             self.node_a.wires.remove(self)
         if self.node_b and self in self.node_b.wires:
             self.node_b.wires.remove(self)
+        # If either endpoint is the (GUI-only) ConfigurationNode, let it
+        # prune now-orphaned inactive ports and self-destruct if empty.
+        for node in (self.node_a, self.node_b):
+            cleanup = getattr(node, "cleanup_if_empty", None)
+            if cleanup is not None:
+                cleanup()
         if self.scene():
             self.scene().removeItem(self)
 
