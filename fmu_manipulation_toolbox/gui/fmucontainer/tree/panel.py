@@ -75,7 +75,7 @@ class NodeTreePanel(QWidget):
     def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
         return self._tree_widget.make_container_item(name, is_root)
 
-    def set_ts_multiplier(self, container_item: QStandardItem, active: bool, x: float = 0, y: float = 0):
+    def set_ts_multiplier(self, container_item: QStandardItem, active: bool, x: float = 0, y: float = -150):
         """Create/activate or deactivate the virtual `ts_multiplier` signal node (GUI-only)."""
         self._tree_widget.set_ts_multiplier(container_item, active, x=x, y=y)
 

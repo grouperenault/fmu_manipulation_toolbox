@@ -231,7 +231,7 @@ class NodeTreeWidget(QWidget):
 
     # ── ConfigurationNode (ts_multiplier, GUI/graph-only, singleton) ───────
 
-    def set_ts_multiplier(self, container_item: QStandardItem, active: bool, x: float = 0, y: float = 0):
+    def set_ts_multiplier(self, container_item: QStandardItem, active: bool, x: float = 0, y: float = -150):
         """Activate/deactivate the `ts_multiplier` port owned by *container_item*
         on the singleton ConfigurationNode (created on demand).
 

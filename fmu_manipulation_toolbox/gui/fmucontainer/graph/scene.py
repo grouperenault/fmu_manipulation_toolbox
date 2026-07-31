@@ -92,7 +92,7 @@ class NodeGraphScene(QGraphicsScene):
                 return it
         return None
 
-    def get_or_create_configuration_node(self, x: float = 0, y: float = 0) -> ConfigurationNode:
+    def get_or_create_configuration_node(self, x: float = 0, y: float = -150) -> ConfigurationNode:
         """Return the singleton `ts_multiplier` ConfigurationNode, creating it
         (GUI-only, never exported to the Assembly model) if it doesn't exist yet.
         """
