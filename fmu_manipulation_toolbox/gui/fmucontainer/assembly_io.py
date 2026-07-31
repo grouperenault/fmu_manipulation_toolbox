@@ -16,7 +16,7 @@ from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyEr
 from fmu_manipulation_toolbox.container import FMUContainerError
 from fmu_manipulation_toolbox.split import FMUSplitter, FMUSplitterError
 
-from .graph import NodeItem
+from .graph import NodeItem, ConfigurationNode
 from .tree import _NodeTreeModel
 from .details import ContainerParameters
 
@@ -105,14 +105,26 @@ class AssemblyIOMixin:
             logger.debug(f"ADD INPUT PORT: {input_port}")
             input_ports_list.append(input_port)
 
+        child_items_by_name: Dict[str, object] = {}
         for child_node in assembly_node.children.values():
             logger.debug(f"ADD CONTAINER: {child_node.name}")
             child = self._tree.make_container_item(child_node.name)
             parent.appendRow(child)
+            child_items_by_name[child_node.name] = child
             self._assembly_node_to_items(child, child_node, folder, links_list,
                                          start_values_list, output_ports_list, input_ports_list, x=x, y=y)
 
         for link in links_list:
+            # First, resolve any intermediate container boundary-crossing:
+            # if this link targets *this* container's own exposed input/output
+            # (via `input_ports`/`output_ports`, i.e. `add_input`/`add_output`),
+            # rewrite it to point to the actual child (FMU or sub-container)
+            # that owns the port. This must run BEFORE the `ts_multiplier`
+            # special-case below, because a `container.ts_multiplier` link may
+            # be exposed through one or more *intermediate* containers before
+            # reaching the (grand-)child that actually has `ts_multiplier`
+            # enabled (see tests/containers/VanDerPol/VanDerPol-vr3.json for a
+            # 2-level-deep example: root -> inter.fmu -> nested.fmu).
             if link[2] == container_name:
                 for port, input_name in assembly_node.input_ports.items():
                     if link[3] == input_name:
@@ -127,6 +139,45 @@ class AssemblyIOMixin:
                         link[1] = port.port_name
                         logger.debug(f"MODIFIED LINK: {link}")
                         break
+
+            # Special case: the link's endpoint is a *child container* name
+            # (not a real FMU) referencing the reserved `container.ts_multiplier`
+            # runtime input exposed internally by that container when its
+            # `ts_multiplier` parameter is enabled (see container.py
+            # `make_fmu_xml`). Visually, this corresponds to a wire ending on
+            # the GUI-only `ConfigurationNode`'s dynamic port for that
+            # sub-container (`<child_without_.fmu>.ts_multiplier`), never to a
+            # regular FMU node. Thanks to the resolution above, `link[2]`/
+            # `link[0]` here is always a *direct* child of the container
+            # currently being processed, however many intermediate containers
+            # the link was originally propagated through.
+            if link[2] in assembly_node.children and link[3] == ConfigurationNode.RUNTIME_PORT_NAME:
+                child_name = link[2]
+                link[2] = ConfigurationNode.TITLE
+                link[3] = ConfigurationNode.port_name(child_name)
+                logger.debug(f"TS_MULTIPLIER LINK detected: -> {child_name} ({link[2]}/{link[3]})")
+                # Defensive: a real link targeting this reserved port implies
+                # the port must exist, regardless of whether the `ts_multiplier`
+                # flag was correctly restored on the child (e.g. known
+                # limitation of `fmusplit`, which does not re-emit it).
+                child_item = child_items_by_name.get(child_name)
+                if child_item is not None:
+                    self._tree.set_ts_multiplier(child_item, True)
+                    child_params = child_item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+                    if child_params is not None:
+                        child_params.parameters["ts_multiplier"] = True
+            if link[0] in assembly_node.children and link[1] == ConfigurationNode.RUNTIME_PORT_NAME:
+                child_name = link[0]
+                link[0] = ConfigurationNode.TITLE
+                link[1] = ConfigurationNode.port_name(child_name)
+                logger.debug(f"TS_MULTIPLIER LINK detected: {child_name} ({link[0]}/{link[1]}) ->")
+                child_item = child_items_by_name.get(child_name)
+                if child_item is not None:
+                    self._tree.set_ts_multiplier(child_item, True)
+                    child_params = child_item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+                    if child_params is not None:
+                        child_params.parameters["ts_multiplier"] = True
+
 
     def _import_data(self, assembly: Assembly, fmu_directory: Path):
         """Populate the scene and tree from an Assembly object.
@@ -155,25 +206,46 @@ class AssemblyIOMixin:
         for node in self._graph.scene.fmu_nodes():
             nodes_by_name[str(node.fmu_path.resolve())] = node
 
+        # The GUI-only ConfigurationNode (ts_multiplier), if already created by
+        # `_assembly_node_to_items` above (via `set_ts_multiplier`). Links may
+        # reference it by its reserved bare name (see `_assembly_node_to_items`
+        # TS_MULTIPLIER special-case) instead of a real FMU path.
+        configuration_node = self._graph.scene.configuration_node()
+
+        def _resolve_key(name: str) -> str:
+            """Return a canonical lookup key for *name*: either the reserved
+            ConfigurationNode sentinel, or the resolved FMU path string."""
+            if name == ConfigurationNode.TITLE:
+                return ConfigurationNode.TITLE
+            return str((fmu_directory / name).resolve())
+
+        def _resolve_node(name: str) -> Optional[NodeItem]:
+            """Return the NodeItem (real FMU or the singleton ConfigurationNode)
+            matching *name*."""
+            if name == ConfigurationNode.TITLE:
+                return configuration_node
+            return nodes_by_name.get(str((fmu_directory / name).resolve()))
+
         # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
         wire_key_mappings: Dict[Tuple[str, str], List[Tuple[str, str, str, str]]] = {}
         for link in links_list:
-            fmu_from = (fmu_directory / link[0]).resolve()
-            port_from = link[1]
-            fmu_to = (fmu_directory / link[2]).resolve()
-            port_to = link[3]
+            fmu_from_name, port_from, fmu_to_name, port_to = link[0], link[1], link[2], link[3]
+            key_from = _resolve_key(fmu_from_name)
+            key_to = _resolve_key(fmu_to_name)
+            basename_from = fmu_from_name if fmu_from_name == ConfigurationNode.TITLE else Path(fmu_from_name).name
+            basename_to = fmu_to_name if fmu_to_name == ConfigurationNode.TITLE else Path(fmu_to_name).name
 
             # Canonical key: sorted pair so A→B and B→A end up on the same wire
-            key = tuple(sorted([str(fmu_from), str(fmu_to)]))
+            key = tuple(sorted([key_from, key_to]))
             wire_key_mappings.setdefault(key, []).append(
-                (fmu_from.name, port_from, fmu_to.name, port_to))
+                (basename_from, port_from, basename_to, port_to))
 
         # Create wires with their port-level mappings
         self._graph.scene.blockSignals(True)
         try:
             for (name1, name2), mappings in wire_key_mappings.items():
-                node1 = nodes_by_name.get(name1)
-                node2 = nodes_by_name.get(name2)
+                node1 = configuration_node if name1 == ConfigurationNode.TITLE else nodes_by_name.get(name1)
+                node2 = configuration_node if name2 == ConfigurationNode.TITLE else nodes_by_name.get(name2)
                 if not node1 or not node2:
                     logger.warning(f"Cannot create wire: node not found for {name1} ↔ {name2}")
                     continue
@@ -187,8 +259,8 @@ class AssemblyIOMixin:
                     fmu_a, name_a, fmu_b, name_b = m
                     # Resolve which node hosts which endpoint (mappings preserve
                     # the original from→to direction, independent of node_a/b).
-                    node_a = nodes_by_name.get(str((fmu_directory / fmu_a).resolve()))
-                    node_b = nodes_by_name.get(str((fmu_directory / fmu_b).resolve()))
+                    node_a = _resolve_node(fmu_a)
+                    node_b = _resolve_node(fmu_b)
                     is_term_a = node_a is not None and name_a in node_a.fmu_terminal_names
                     is_term_b = node_b is not None and name_b in node_b.fmu_terminal_names
                     if is_term_a and is_term_b:
@@ -443,23 +515,44 @@ class AssemblyIOMixin:
             path_by_name[node.fmu_path.name] = str(node.fmu_path)
 
         for wire in self._graph.scene.wires():
-            # Wires attached to the virtual ConfigurationNode (ts_multiplier)
-            # are GUI-only decorations and must never be exported to the Assembly.
-            if getattr(wire.node_a, "is_container_signal", False) or \
-                    getattr(wire.node_b, "is_container_signal", False):
-                continue
+            is_cfg_a = isinstance(wire.node_a, ConfigurationNode)
+            is_cfg_b = isinstance(wire.node_b, ConfigurationNode)
             for link in wire.mappings:
                 if len(link) == 4:
                     fmu_from_name, port_from, fmu_to_name, port_to = link
-                    fmu_from_path = path_by_name[fmu_from_name]
-                    fmu_to_path = path_by_name[fmu_to_name]
                 elif len(link) == 2:
                     # Legacy 2-tuple: assume node_a → node_b
-                    fmu_from_path = str(wire.node_a.fmu_path)
-                    fmu_to_path = str(wire.node_b.fmu_path)
+                    fmu_from_name, fmu_to_name = wire.node_a.fmu_path.name, wire.node_b.fmu_path.name
                     port_from, port_to = link
                 else:
                     continue
+
+                # A mapping targeting the (GUI-only) ConfigurationNode's
+                # `ts_multiplier` port is, in fact, a real link driving the
+                # target sub-container's reserved `container.ts_multiplier`
+                # runtime input (see container.py `make_fmu_xml`). Reverse the
+                # visual routing back to that real link so it round-trips
+                # correctly on export. Inactive ports (checkbox unchecked,
+                # shown in red) are skipped: the target port would not even
+                # exist on the built container.
+                if is_cfg_b and fmu_to_name == ConfigurationNode.TITLE:
+                    if not wire.node_b.ts_multiplier_ports.get(port_to, False):
+                        logger.debug(f"SKIP inactive ts_multiplier link: {fmu_from_name}/{port_from} -> {port_to}")
+                        continue
+                    fmu_to_path = ConfigurationNode.container_name_from_port(port_to)
+                    port_to = ConfigurationNode.RUNTIME_PORT_NAME
+                    fmu_from_path = path_by_name[fmu_from_name]
+                elif is_cfg_a and fmu_from_name == ConfigurationNode.TITLE:
+                    if not wire.node_a.ts_multiplier_ports.get(port_from, False):
+                        logger.debug(f"SKIP inactive ts_multiplier link: {port_from} -> {fmu_to_name}/{port_to}")
+                        continue
+                    fmu_from_path = ConfigurationNode.container_name_from_port(port_from)
+                    port_from = ConfigurationNode.RUNTIME_PORT_NAME
+                    fmu_to_path = path_by_name[fmu_to_name]
+                else:
+                    fmu_from_path = path_by_name[fmu_from_name]
+                    fmu_to_path = path_by_name[fmu_to_name]
+
                 logger.info(f"{Path(fmu_from_path).name}/{port_from} → {Path(fmu_to_path).name}/{port_to}")
                 links_list.append((fmu_from_path, port_from, fmu_to_path, port_to))
 

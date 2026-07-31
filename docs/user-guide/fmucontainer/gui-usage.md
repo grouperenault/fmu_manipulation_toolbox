@@ -345,8 +345,8 @@ When a container is selected in the tree view, the detail panel shows its config
 
 As soon as at least one **sub-container** (not the root container) has its `ts_multiplier`
 parameter checked, a virtual node titled **configuration** automatically appears on the canvas.
-This node is a **visual, GUI-only aid**: it is never written to the exported assembly (JSON or
-FMU container) — it exists purely to help you keep track of which FMU is meant to drive the
+This node is a **visual aid**: it does not correspond to any real FMU file, and it never gets its
+own row in the tree view — it exists purely to help you keep track of which FMU drives the
 `TS_MULTIPLIER` input of which sub-container.
 
 - The node exposes **one input port per checked sub-container**, named
@@ -358,6 +358,15 @@ FMU container) — it exists purely to help you keep track of which FMU is meant
   on the node itself).
 - Checking `ts_multiplier` on the **root** container has **no effect**: the root container is
   never added to the `configuration` node.
+
+!!! important "This wire is a real link, not just a visual note"
+    Unlike the `configuration` node itself (a pure GUI convenience), a wire connected to it **is**
+    exported: it corresponds to a real link driving the target sub-container's reserved
+    `container.ts_multiplier` runtime input (the actual input FMI port exposed by that container
+    when `ts_multiplier` is enabled). When **importing** a JSON or FMU container, a link whose
+    destination is a sub-container name with port `container.ts_multiplier` is automatically
+    reconstructed as a wire to the `configuration` node's matching dynamic port. On **export**,
+    the reverse translation is applied, so the round-trip is lossless.
 
 !!! note "Unchecking `ts_multiplier`"
     Unchecking `ts_multiplier` on a sub-container does **not** delete its port nor an existing

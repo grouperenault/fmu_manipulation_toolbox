@@ -399,6 +399,18 @@ class ConfigurationNode(NodeItem):
         base = container_name[:-4] if container_name.lower().endswith(".fmu") else container_name
         return f"{base}.ts_multiplier"
 
+    # Reserved runtime port name statically exposed by a container FMU when
+    # its `ts_multiplier` parameter is enabled (see container.py `make_fmu_xml`).
+    RUNTIME_PORT_NAME = "container.ts_multiplier"
+
+    @staticmethod
+    def container_name_from_port(port_name: str) -> str:
+        """Reverse of `port_name`: return the container name (`.fmu` suffix
+        restored) that a `ts_multiplier` port was derived from."""
+        suffix = ".ts_multiplier"
+        base = port_name[:-len(suffix)] if port_name.endswith(suffix) else port_name
+        return f"{base}.fmu"
+
     def _port_in_use(self, port: str) -> bool:
         my_name = self.fmu_path.name
         for wire in self.wires:
