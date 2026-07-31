@@ -7,15 +7,14 @@ Main application interface for building FMU containers composing multiple FMUs.
 import logging
 import sys
 from pathlib import Path
-from typing import Optional
 
 from PySide6.QtWidgets import (
     QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
     QPushButton, QCheckBox, QRadioButton, QButtonGroup, QFrame,
-    QFileDialog, QMenu, QWidgetAction, QMainWindow
+    QMenu, QWidgetAction, QMainWindow
 )
 
-from fmu_manipulation_toolbox.gui.helper import Application, RunTask, UnsavedChangesWindowMixin
+from fmu_manipulation_toolbox.gui.helper import Application, RunTask, UnsavedChangesWindowMixin, LastDirectory
 
 from .graph import NodeGraphWidget, NodeItem
 from .tree import NodeTreePanel
@@ -30,7 +29,6 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
     def __init__(self):
         super().__init__()
 
-        self._last_directory: Optional[Path] = None
         self._dirty = False
         self._check_unsaved_changes = lambda: self._dirty  # Use the mixin
 
@@ -191,77 +189,61 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
     def _on_node_added_update_dir(self, node: NodeItem):
         """Track the directory of the last FMU added to the scene."""
         if node.fmu_path and node.fmu_path.parent.exists():
-            self._last_directory = node.fmu_path.parent
+            LastDirectory.update(node.fmu_path)
 
     # ──────────────────────────────────────────────────────────────────
     # UI event handlers
     # ──────────────────────────────────────────────────────────────────
 
     def _on_load_clicked(self):
-        default_dir = str(self._last_directory) if self._last_directory else ""
-        input_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Load FMU Container",
-            default_dir,
-            "FMU (*.fmu)",
-        )
+        input_path = LastDirectory.get_open_file_name(self, "Load FMU Container", "FMU (*.fmu)")
         if not input_path:
             logger.info("Load cancelled")
             return
 
-        self._last_directory = Path(input_path).parent
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=log_level)
+        # Re-assert the container's own directory: loading may have updated
+        # LastDirectory to the (extracted) FMUs' sub-directory instead.
+        LastDirectory.update(input_path)
         self._dirty = False
 
     def _on_import_clicked(self):
-        default_dir = str(self._last_directory) if self._last_directory else ""
-        input_path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Import Assembly",
-            default_dir,
+        input_path = LastDirectory.get_open_file_name(
+            self, "Import Assembly",
             "Assembly files (*.json *.csv *.ssp);;JSON (*.json);;CSV (*.csv);;SSP (*.ssp)",
         )
         if not input_path:
             logger.info("Import cancelled")
             return
 
-        self._last_directory = Path(input_path).parent
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly", level=log_level)
+        # Re-assert the imported file's own directory: importing adds FMU nodes
+        # that may live in a different (sub)directory, which would otherwise
+        # overwrite LastDirectory via _on_node_added_update_dir.
+        LastDirectory.update(input_path)
         self._dirty = True
 
     def _on_export_clicked(self):
         root_name = Path(self._tree.root.text()).with_suffix(".json").name
-        default_dir = str(self._last_directory / root_name) if self._last_directory else root_name
-        output_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save container configuration",
-            default_dir,
-            "JSON (*.json)",
-        )
+        output_path = LastDirectory.get_save_file_name(self, "Save container configuration", "JSON (*.json)",
+                                                        default_name=root_name)
         if not output_path:
             logger.info("Save cancelled")
             return
 
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        self._last_directory = Path(output_path).parent
         RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON", level=log_level)
 
     def _on_save_clicked(self):
         root_name = Path(self._tree.root.text()).with_suffix(".fmu").name
-        default_dir = str(self._last_directory / root_name) if self._last_directory else root_name
-        output_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Save FMU container",
-            default_dir,
-            "FMU (*.fmu)",
-        )
+        output_path = LastDirectory.get_save_file_name(self, "Save FMU container", "FMU (*.fmu)",
+                                                        default_name=root_name)
         if not output_path:
             logger.info("Save cancelled")
             return
 
-        self._last_directory = Path(output_path).parent
         fmi_version = self._fmi_group.checkedId()
         datalog = self._datalog_checkbox.isChecked()
         log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO

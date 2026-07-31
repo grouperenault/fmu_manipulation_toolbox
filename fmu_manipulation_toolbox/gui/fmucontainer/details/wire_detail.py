@@ -12,11 +12,11 @@ from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor
 from PySide6.QtWidgets import (
     QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout, QHBoxLayout,
     QStyledItemDelegate, QAbstractItemView, QPushButton, QDialog, QLineEdit,
-    QFrame, QListWidget, QListWidgetItem, QTabWidget, QFileDialog,
+    QFrame, QListWidget, QListWidgetItem, QTabWidget,
 )
 
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem
-from fmu_manipulation_toolbox.gui.helper import unlock_column_resize
+from fmu_manipulation_toolbox.gui.helper import unlock_column_resize, LastDirectory
 
 
 class _PortListSelectorDialog(QDialog):
@@ -38,6 +38,7 @@ class _PortListSelectorDialog(QDialog):
 
         self._items: List[str] = []
         self._causalities: Dict[str, str] = {}
+        self._aggregates: Set[str] = set()
         self._selected_text = ""
 
         # -- Search bar --
@@ -94,6 +95,11 @@ class _PortListSelectorDialog(QDialog):
         self._causalities = causalities
         self._update_list_widget()
 
+    def set_aggregates(self, aggregates: Iterable[str]):
+        """Set the set of port names that are array aggregates (displayed in bold)."""
+        self._aggregates = set(aggregates)
+        self._update_list_widget()
+
     def set_selected(self, text: str):
         """Set the currently selected item."""
         self._selected_text = text
@@ -138,10 +144,16 @@ class _PortListSelectorDialog(QDialog):
 
             item = QListWidgetItem(port_name)
 
-            # Apply italic formatting for parameter ports
-            if port_name in self._causalities and self._causalities[port_name] == "parameter":
-                font = item.font()
+            # Apply bold formatting for array aggregate ports, italic for parameters
+            font = item.font()
+            changed = False
+            if port_name in self._aggregates:
+                font.setBold(True)
+                changed = True
+            if self._causalities.get(port_name) == "parameter":
                 font.setItalic(True)
+                changed = True
+            if changed:
                 item.setFont(font)
 
             self._list_widget.addItem(item)
@@ -166,6 +178,10 @@ class _PortComboDelegate(QStyledItemDelegate):
         super().__init__(parent)
         self._items: List[str] = []
         self._causalities: Dict[str, str] = {}
+        self._aggregates: Set[str] = set()
+        # Ports that exist on the node but are currently invalid (e.g. an
+        # inactive `ts_multiplier` port on the ConfigurationNode, GUI-only).
+        self._invalid_ports: Set[str] = set()
 
     def set_items(self, items: List[str]):
         self._items = list(items)
@@ -173,6 +189,15 @@ class _PortComboDelegate(QStyledItemDelegate):
     def set_causalities(self, causalities: Dict[str, str]):
         """Set the causality info for ports."""
         self._causalities = causalities
+
+    def set_aggregates(self, aggregates: Iterable[str]):
+        """Set the set of port names that are array aggregates (rendered in bold)."""
+        self._aggregates = set(aggregates)
+
+    def set_invalid_ports(self, ports: Iterable[str]):
+        """Set the set of existing port names that must be rendered in red
+        (e.g. an inactive `ts_multiplier` port)."""
+        self._invalid_ports = set(ports)
 
     def createEditor(self, parent, option, index):
         """Create a non-visible dummy editor; the actual dialog will be shown separately."""
@@ -190,6 +215,7 @@ class _PortComboDelegate(QStyledItemDelegate):
         dialog = _PortListSelectorDialog(parent)
         dialog.set_items(self._items)
         dialog.set_causalities(self._causalities)
+        dialog.set_aggregates(self._aggregates)
         dialog.set_selected(current_value)
 
         table = self.parent()
@@ -231,14 +257,16 @@ class _PortComboDelegate(QStyledItemDelegate):
         editor.setGeometry(0, 0, 0, 0)
 
     def paint(self, painter, option, index):
-        """Display parameter ports in italics and invalid ports in red."""
+        """Display parameter ports in italics, array aggregates in bold, and invalid ports in red."""
         text = index.data(Qt.ItemDataRole.DisplayRole)
         if text:
-            if text in self._causalities and self._causalities[text] == "parameter":
-                font = option.font
+            font = option.font
+            if text in self._aggregates:
+                font.setBold(True)
+            if self._causalities.get(text) == "parameter":
                 font.setItalic(True)
-                option.font = font
-            if self._items and text not in self._items:
+            option.font = font
+            if (self._items and text not in self._items) or text in self._invalid_ports:
                 option.palette.setColor(option.palette.ColorRole.Text, QColor("#F54927"))
 
         super().paint(painter, option, index)
@@ -318,8 +346,21 @@ class _WireDirectionTab(QWidget):
         self._to_node = to_node
         self._output_delegate.set_items(from_node.fmu_output_names)
         self._output_delegate.set_causalities(from_node.fmu_port_causality)
+        self._output_delegate.set_aggregates(from_node.fmu_array_aggregate_elements.keys())
+        self._output_delegate.set_invalid_ports(self._inactive_ts_multiplier_ports(from_node))
         self._input_delegate.set_items(to_node.fmu_input_names)
         self._input_delegate.set_causalities(to_node.fmu_port_causality)
+        self._input_delegate.set_aggregates(to_node.fmu_array_aggregate_elements.keys())
+        self._input_delegate.set_invalid_ports(self._inactive_ts_multiplier_ports(to_node))
+
+    @staticmethod
+    def _inactive_ts_multiplier_ports(node) -> Set[str]:
+        """Return the set of `ts_multiplier` ports on *node* (ConfigurationNode)
+        that are currently inactive (owning container's checkbox unchecked)."""
+        ports = getattr(node, "ts_multiplier_ports", None)
+        if not ports:
+            return set()
+        return {name for name, active in ports.items() if not active}
 
     # ── Data access ─────────────────────────────────────────────
 
@@ -677,6 +718,7 @@ class WireDetailWidget(QWidget):
         self._tabs.addTab(self._tab_ab, "A → B")
         self._tabs.addTab(self._tab_ba, "B → A")
         self._tabs.addTab(self._tab_terminals, "Terminals")
+        self._tabs.currentChanged.connect(self._on_current_tab_changed)
 
         # -- Buttons --
         self._auto_btn = QPushButton("Auto-Connect")
@@ -724,6 +766,12 @@ class WireDetailWidget(QWidget):
 
     def set_wire(self, wire):
         self.sync_to_wire()
+        # Clear highlight on the previously displayed wire
+        if self._wire is not None and self._wire is not wire:
+            try:
+                self._wire.set_highlight_mode(None)
+            except RuntimeError:
+                pass
         self._wire = wire
         na, nb = wire.node_a, wire.node_b
         self._name_label.setText(f"{na.title} (A) ↔ {nb.title} (B)")
@@ -733,6 +781,7 @@ class WireDetailWidget(QWidget):
         self._tab_terminals.set_nodes(na, nb)
 
         self._load_from_wire()
+        self._apply_highlight_to_wire()
 
     # ── Internal sync helpers ─────────────────────────────────────
 
@@ -778,9 +827,8 @@ class WireDetailWidget(QWidget):
         if self._wire is None:
             return
         self.sync_to_wire()
-        path, _ = QFileDialog.getSaveFileName(
-            self, "Export connections", "", "CSV Files (*.csv);;All Files (*)"
-        )
+        path = LastDirectory.get_save_file_name(self, "Export connections", "CSV Files (*.csv);;All Files (*)",
+                                                default_name="connections.csv")
         if not path:
             return
 
@@ -795,9 +843,7 @@ class WireDetailWidget(QWidget):
     def _on_import(self):
         if self._wire is None:
             return
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Import connections", "", "CSV Files (*.csv);;All Files (*)"
-        )
+        path = LastDirectory.get_open_file_name(self, "Import connections", "CSV Files (*.csv);;All Files (*)")
         if not path:
             return
         mappings = []
@@ -823,3 +869,33 @@ class WireDetailWidget(QWidget):
     def _on_tab_changed(self):
         self.sync_to_wire()
         self.changed.emit()
+
+    def _on_current_tab_changed(self, _index: int):
+        self._apply_highlight_to_wire()
+
+    def _apply_highlight_to_wire(self):
+        if self._wire is None:
+            return
+        widget = self._tabs.currentWidget()
+        if widget is self._tab_ab:
+            mode = "a_to_b"
+        elif widget is self._tab_ba:
+            mode = "b_to_a"
+        elif widget is self._tab_terminals:
+            mode = "terminals"
+        else:
+            mode = None
+        try:
+            self._wire.set_highlight_mode(mode)
+        except RuntimeError:
+            pass
+
+    def clear_highlight(self):
+        """Clear the direction indicator on the currently displayed wire."""
+        if self._wire is None:
+            return
+        try:
+            self._wire.set_highlight_mode(None)
+        except RuntimeError:
+            pass
+

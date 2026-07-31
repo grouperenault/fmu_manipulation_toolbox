@@ -13,12 +13,13 @@ from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProx
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen
 from PySide6.QtWidgets import (
     QMainWindow, QTableView, QHeaderView, QPushButton,
-    QVBoxLayout, QHBoxLayout, QWidget, QLabel, QFileDialog,
+    QVBoxLayout, QHBoxLayout, QWidget, QLabel,
     QLineEdit, QGridLayout, QPlainTextEdit, QSizePolicy,
 )
 
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
-from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget, StatusBar, UnsavedChangesWindowMixin
+from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, StatusBar,
+                                                 UnsavedChangesWindowMixin, LastDirectory)
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -550,11 +551,11 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         if fmu is None:
             return
 
-        default_dir = os.path.dirname(fmu.fmu_filename)
-        filename, ok = QFileDialog.getSaveFileName(
-            self, "Save FMU as…", default_dir, "FMU files (*.fmu)",
+        filename = LastDirectory.get_save_file_name(
+            self, "Save FMU as…", "FMU files (*.fmu)",
+            default_name=os.path.basename(fmu.fmu_filename),
         )
-        if not ok or not filename:
+        if not filename:
             return
 
         # Variable modifications

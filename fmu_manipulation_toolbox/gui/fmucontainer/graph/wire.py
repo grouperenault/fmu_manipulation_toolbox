@@ -1,7 +1,7 @@
 """WireItem and helpers — connections between nodes in the graph."""
 
 import math
-from typing import List
+from typing import List, Optional
 
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QPainterPath, QPainterPathStroker
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from .constants import (
     COLOR_WIRE, COLOR_WIRE_SELECTED, COLOR_WIRE_DRAGGING,
     COLOR_BACKGROUND, ARROW_SIZE, WAYPOINT_RADIUS,
+    COLOR_WIRE_HIGHLIGHT, HIGHLIGHT_ARROW_SIZE, COLOR_WIRE_INVALID,
 )
 from .node import NodeItem
 
@@ -95,6 +96,8 @@ class WireItem(QGraphicsPathItem):
         self._handles: List[_WaypointHandle] = []
         self.mappings: List[tuple] = []
         self.terminal_mappings: List[tuple] = []
+        # Direction highlight from WireDetails tab: None, 'a_to_b', 'b_to_a', 'terminals'
+        self._highlight_mode: Optional[str] = None
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -112,6 +115,103 @@ class WireItem(QGraphicsPathItem):
         a_to_b = any(m[0] == a_name and m[2] == b_name for m in self.mappings)
         b_to_a = any(m[0] == b_name and m[2] == a_name for m in self.mappings)
         return a_to_b, b_to_a
+
+    def is_invalid(self) -> bool:
+        """True if this wire has at least one invalid mapping:
+
+        * a mapping referencing an inactive `ts_multiplier` port on the
+          (GUI-only) ConfigurationNode (the owning container's checkbox is
+          currently unchecked), or
+        * a mapping (port or terminal) whose port/terminal name no longer
+          exists on the corresponding FMU — typically after "Replace FMU"
+          (same invalidity already shown in red in the WireDetails panel).
+        """
+        for node in (self.node_a, self.node_b):
+            ports = getattr(node, "ts_multiplier_ports", None)
+            if not ports:
+                continue
+            my_name = node.fmu_path.name
+            for m in self.mappings:
+                if len(m) < 4:
+                    continue
+                fmu_from, port_from, fmu_to, port_to = m
+                if fmu_from == my_name and port_from in ports and not ports[port_from]:
+                    return True
+                if fmu_to == my_name and port_to in ports and not ports[port_to]:
+                    return True
+
+        name_a = self.node_a.fmu_path.name
+        name_b = self.node_b.fmu_path.name
+
+        def _node_for(fmu_name):
+            if fmu_name == name_a:
+                return self.node_a
+            if fmu_name == name_b:
+                return self.node_b
+            return None
+
+        for m in self.mappings:
+            if len(m) < 4:
+                continue
+            fmu_from, port_from, fmu_to, port_to = m
+            from_node = _node_for(fmu_from)
+            to_node = _node_for(fmu_to)
+            if from_node is not None and port_from not in from_node.fmu_output_names:
+                return True
+            if to_node is not None and port_to not in to_node.fmu_input_names:
+                return True
+
+        for tm in self.terminal_mappings:
+            if len(tm) < 4:
+                continue
+            fmu_a, term_a, fmu_b, term_b = tm
+            node_x = _node_for(fmu_a)
+            node_y = _node_for(fmu_b)
+            if node_x is not None and term_a not in node_x.fmu_terminal_names:
+                return True
+            if node_y is not None and term_b not in node_y.fmu_terminal_names:
+                return True
+
+        return False
+
+    # -- Highlight (from WireDetails tab selection) ---------------------------
+
+    def set_highlight_mode(self, mode: Optional[str]):
+        """Set direction indicator shown on the wire.
+
+        *mode* is one of: None, 'a_to_b', 'b_to_a', 'terminals'.
+        """
+        if mode not in (None, "a_to_b", "b_to_a", "terminals"):
+            mode = None
+        if self._highlight_mode != mode:
+            self._highlight_mode = mode
+            self.update()
+
+    def _midpoint_and_tangent(self) -> tuple:
+        """Return (mid_point, tangent_a_to_b) along the polyline (halfway by length)."""
+        points = self._all_points()
+        seg_lens = []
+        total = 0.0
+        for i in range(len(points) - 1):
+            dl = math.hypot(points[i + 1].x() - points[i].x(),
+                            points[i + 1].y() - points[i].y())
+            seg_lens.append(dl)
+            total += dl
+        if total < 1e-6:
+            return points[0], QPointF(1.0, 0.0)
+        target = total / 2.0
+        acc = 0.0
+        for i, dl in enumerate(seg_lens):
+            if acc + dl >= target:
+                t = (target - acc) / dl if dl > 1e-9 else 0.0
+                a, b = points[i], points[i + 1]
+                mid = QPointF(a.x() + t * (b.x() - a.x()),
+                              a.y() + t * (b.y() - a.y()))
+                tangent = QPointF(b.x() - a.x(), b.y() - a.y())
+                return mid, tangent
+            acc += dl
+        a, b = points[-2], points[-1]
+        return b, QPointF(b.x() - a.x(), b.y() - a.y())
 
     # -- All points of the polyline -------------------------------------------
 
@@ -236,11 +336,55 @@ class WireItem(QGraphicsPathItem):
         arrow.closeSubpath()
         painter.drawPath(arrow)
 
+    @staticmethod
+    def _shorten_point(tip: QPointF, prev: QPointF, amount: float) -> QPointF:
+        """Return a point moved back from *tip* towards *prev* by *amount* pixels."""
+        dx = tip.x() - prev.x()
+        dy = tip.y() - prev.y()
+        length = math.hypot(dx, dy)
+        if length < 1e-6:
+            return QPointF(tip)
+        return QPointF(tip.x() - dx / length * amount, tip.y() - dy / length * amount)
+
     def paint(self, painter: QPainter, option, widget=None):
-        color = COLOR_WIRE_SELECTED if self.isSelected() else COLOR_WIRE
+        color = COLOR_WIRE_SELECTED if self.isSelected() else (
+            COLOR_WIRE_INVALID if self.is_invalid() else COLOR_WIRE)
         pen = QPen(color, 2.5 if self.isSelected() else 2.0)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+
+        # -- Determine arrow presence to shorten the path ----------------------
+        a_to_b, b_to_a = self._directions()
+        points = self._all_points()
+        has_dir = a_to_b or b_to_a or bool(self.mappings)
+        arrow_at_b = has_dir and (a_to_b or (not a_to_b and not b_to_a))
+        arrow_at_a = has_dir and b_to_a
+
+        # Compute shorten amount: use the largest arrow drawn at each end
+        shorten_b = 0.0
+        shorten_a = 0.0
+        if arrow_at_b:
+            shorten_b = ARROW_SIZE * 0.7
+        if arrow_at_a:
+            shorten_a = ARROW_SIZE * 0.7
+        # Highlight arrows are larger — use their size if active
+        if self._highlight_mode == "a_to_b":
+            shorten_b = max(shorten_b, HIGHLIGHT_ARROW_SIZE * 0.7)
+        elif self._highlight_mode == "b_to_a":
+            shorten_a = max(shorten_a, HIGHLIGHT_ARROW_SIZE * 0.7)
+
+        # Build a draw path shortened at ends where arrows will be drawn
+        draw_points = list(points)
+        if shorten_b > 0 and len(draw_points) >= 2:
+            draw_points[-1] = self._shorten_point(
+                draw_points[-1], draw_points[-2], shorten_b)
+        if shorten_a > 0 and len(draw_points) >= 2:
+            draw_points[0] = self._shorten_point(
+                draw_points[0], draw_points[1], shorten_a)
+
+        draw_path = QPainterPath(draw_points[0])
+        for pt in draw_points[1:]:
+            draw_path.lineTo(pt)
 
         if self.terminal_mappings:
             # Double line for terminal connections
@@ -251,35 +395,75 @@ class WireItem(QGraphicsPathItem):
             outer_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             outer_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(outer_pen)
-            painter.drawPath(self.path())
+            painter.drawPath(draw_path)
 
             inner_pen = QPen(COLOR_BACKGROUND, 2.0 if self.isSelected() else 1.5)
             inner_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             inner_pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(inner_pen)
-            painter.drawPath(self.path())
+            painter.drawPath(draw_path)
         else:
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            painter.drawPath(self.path())
+            painter.drawPath(draw_path)
 
         # -- Arrowheads --------------------------------------------------------
-        a_to_b, b_to_a = self._directions()
-        if not a_to_b and not b_to_a and not self.mappings:
-            return
-
-        points = self._all_points()
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(color))
 
-        if a_to_b or (not a_to_b and not b_to_a):
-            tip = points[-1]
-            prev = points[-2] if len(points) >= 2 else points[0]
-            self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
-        if b_to_a:
-            tip = points[0]
-            prev = points[1] if len(points) >= 2 else points[-1]
-            self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
+        if has_dir:
+            if arrow_at_b:
+                tip = points[-1]
+                prev = points[-2] if len(points) >= 2 else points[0]
+                self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
+            if arrow_at_a:
+                tip = points[0]
+                prev = points[1] if len(points) >= 2 else points[-1]
+                self._draw_arrow(painter, tip, QPointF(tip.x() - prev.x(), tip.y() - prev.y()), ARROW_SIZE)
+
+        # -- Direction highlight from WireDetails tab -----------------------
+        if self._highlight_mode is not None:
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(COLOR_WIRE_HIGHLIGHT))
+            if self._highlight_mode == "a_to_b":
+                # Arrow at the B extremity, pointing outward (A → B)
+                tip = points[-1]
+                prev = points[-2] if len(points) >= 2 else points[0]
+                self._draw_arrow(
+                    painter, tip,
+                    QPointF(tip.x() - prev.x(), tip.y() - prev.y()),
+                    HIGHLIGHT_ARROW_SIZE,
+                )
+            elif self._highlight_mode == "b_to_a":
+                # Arrow at the A extremity, pointing outward (B → A)
+                tip = points[0]
+                prev = points[1] if len(points) >= 2 else points[-1]
+                self._draw_arrow(
+                    painter, tip,
+                    QPointF(tip.x() - prev.x(), tip.y() - prev.y()),
+                    HIGHLIGHT_ARROW_SIZE,
+                )
+            elif self._highlight_mode == "terminals":
+                # Two triangles forming a divergent pattern ◀▶ at midpoint:
+                # bases near the middle (with a small gap), tips pointing
+                # outward towards A and B.
+                mid, tangent = self._midpoint_and_tangent()
+                length = math.hypot(tangent.x(), tangent.y())
+                if length > 1e-6:
+                    ux, uy = tangent.x() / length, tangent.y() / length
+                    gap = HIGHLIGHT_ARROW_SIZE * 0.1
+                    # Tip on the B side (base is at mid + gap*u, tip at base + size*u)
+                    tip_b = QPointF(mid.x() + ux * (gap + HIGHLIGHT_ARROW_SIZE),
+                                    mid.y() + uy * (gap + HIGHLIGHT_ARROW_SIZE))
+                    # Tip on the A side (base at mid - gap*u, tip at base - size*u)
+                    tip_a = QPointF(mid.x() - ux * (gap + HIGHLIGHT_ARROW_SIZE),
+                                    mid.y() - uy * (gap + HIGHLIGHT_ARROW_SIZE))
+                    self._draw_arrow(painter, tip_b, tangent, HIGHLIGHT_ARROW_SIZE)
+                    self._draw_arrow(
+                        painter, tip_a,
+                        QPointF(-tangent.x(), -tangent.y()),
+                        HIGHLIGHT_ARROW_SIZE,
+                    )
 
     # -- Deletion -----------------------------------------------------------
 
@@ -288,6 +472,12 @@ class WireItem(QGraphicsPathItem):
             self.node_a.wires.remove(self)
         if self.node_b and self in self.node_b.wires:
             self.node_b.wires.remove(self)
+        # If either endpoint is the (GUI-only) ConfigurationNode, let it
+        # prune now-orphaned inactive ports and self-destruct if empty.
+        for node in (self.node_a, self.node_b):
+            cleanup = getattr(node, "cleanup_if_empty", None)
+            if cleanup is not None:
+                cleanup()
         if self.scene():
             self.scene().removeItem(self)
 

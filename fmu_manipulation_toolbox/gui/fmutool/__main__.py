@@ -3,12 +3,12 @@ import sys
 import textwrap
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushButton, QFileDialog,
+from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushButton,
                                QInputDialog, QMenu)
 from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
-from fmu_manipulation_toolbox.gui.helper import Application, HelpWidget, DropZoneWidget, LogWidget
+from fmu_manipulation_toolbox.gui.helper import Application, HelpWidget, DropZoneWidget, LogWidget, LastDirectory
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
@@ -194,31 +194,24 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
     def save_descriptor(self):
         if self.dropped_fmu.fmu:
             fmu = self.dropped_fmu.fmu
-            filename, ok = QFileDialog.getSaveFileName(self, "Select a file",
-                                                       os.path.dirname(fmu.fmu_filename),
-                                                       "XML files (*.xml)")
-            if ok and filename:
+            filename = LastDirectory.get_save_file_name(self, "Select a file", "XML files (*.xml)",
+                                                        default_name=os.path.basename(fmu.fmu_filename) + ".xml")
+            if filename:
                 fmu.save_descriptor(filename)
 
     def save_fmu(self):
         if self.dropped_fmu.fmu:
             fmu = self.dropped_fmu.fmu
-            filename, ok = QFileDialog.getSaveFileName(self, "Select a file",
-                                                       os.path.dirname(fmu.fmu_filename),
-                                                       "FMU files (*.fmu)")
-            if ok and filename:
+            filename = LastDirectory.get_save_file_name(self, "Select a file", "FMU files (*.fmu)",
+                                                        default_name=os.path.basename(fmu.fmu_filename))
+            if filename:
                 fmu.repack(filename)
                 logger.info(f"Modified version saved as {filename}.")
 
     def save_log(self):
-        if self.dropped_fmu.fmu:
-            default_dir = os.path.dirname(self.dropped_fmu.fmu.fmu_filename)
-        else:
-            default_dir = None
-        filename, ok = QFileDialog.getSaveFileName(self, "Select a file",
-                                                   default_dir,
-                                                   "TXT files (*.txt)")
-        if ok and filename:
+        filename = LastDirectory.get_save_file_name(self, "Select a file", "TXT files (*.txt)",
+                                                     default_name="log.txt")
+        if filename:
             try:
                 with open(filename, "wt") as file:
                     file.write(str(self.log_widget.toPlainText()))
@@ -269,16 +262,12 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 
     def prompt_file(self, access):
         if self.dropped_fmu.fmu:
-            default_dir = os.path.dirname(self.dropped_fmu.fmu.fmu_filename)
-
             if access == 'read':
-                filename, ok = QFileDialog.getOpenFileName(self, "Select a file",
-                                                           default_dir, "CSV files (*.csv)")
+                filename = LastDirectory.get_open_file_name(self, "Select a file", "CSV files (*.csv)")
             else:
-                filename, ok = QFileDialog.getSaveFileName(self, "Select a file",
-                                                           default_dir, "CSV files (*.csv)")
+                filename = LastDirectory.get_save_file_name(self, "Select a file", "CSV files (*.csv)")
 
-            if ok and filename:
+            if filename:
                 return filename
         return None
 

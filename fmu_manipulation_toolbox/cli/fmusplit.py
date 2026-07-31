@@ -32,8 +32,8 @@ def fmusplit():
 
     for fmu_filename in config.fmu_filename_list:
         try:
-            splitter = FMUSplitter(fmu_filename)
-            splitter.split_fmu()
+            with FMUSplitter(fmu_filename) as splitter:
+                splitter.split_fmu()
         except FMUSplitterError as e:
             logger.fatal(f"{fmu_filename}: {e}")
             close_logger(logger)

@@ -75,3 +75,4 @@ class TreeItemRoles:
             and TreeItemRoles.get_container_params(item) is None
         )
 
+

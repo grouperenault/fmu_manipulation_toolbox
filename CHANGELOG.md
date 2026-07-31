@@ -1,6 +1,59 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Upstream
+* ADDED: GUI: on import (JSON or FMU container), a link whose destination FMU name actually refers
+         to a sub-container's reserved `container.ts_multiplier` runtime input is now recognized and
+         reconstructed as a wire to the GUI-only `configuration` node, using the dynamic port name
+         `<sub-container>.ts_multiplier`. Symmetrically, on export, such a wire is translated back
+         into the real `container.ts_multiplier` link so the round-trip (import → export) is lossless.
+         Links targeting an inactive (unchecked) `ts_multiplier` port are dropped on export, since the
+         corresponding port would not exist on the built container.
+* ADDED: GUI: `ts_multiplier` on a sub-container now materializes a GUI-only virtual `configuration`
+         node on the canvas, exposing one input port per checked sub-container
+         (`<container>.ts_multiplier`), wireable from any FMU. This node is purely a visual aid and
+         is never exported to the assembly (JSON/FMU). Unchecking `ts_multiplier` keeps the wire but
+         turns it (and the port) red until re-checked; the node is removed automatically once all
+         its ports are inactive and no wire (including red ones) references it anymore. Checking
+         `ts_multiplier` on the root container has no effect.
+* ADDED: GUI: a wire is now drawn in **red** on the canvas as soon as one of its port mappings is
+         invalid (broken port after "Replace FMU", or inactive `ts_multiplier` port on the
+         `configuration` node) — matching the red text already shown for invalid ports in the
+         *Wire Details* panel.
+* ADDED: `Assembly.write_json()`: FMU paths referenced in the `fmu`, `link`, `input`, `output`,
+         `start` and `drop` blocks are now made relative to the directory of the produced JSON
+         file, so exported assemblies stay portable (e.g. GUI **Export as JSON**). A new
+         `basenames_only` option references embedded FMUs by their bare filename instead
+         (used for the documentation copy embedded inside built FMU containers).
+* ADDED: GUI: new **Input Ports** tab in the FMU detail panel, symmetric to the existing
+         **Output Ports** tab. Each input port can be explicitly marked as *exposed*, causing
+         the generated assembly to declare it explicitly as a container input (via `add_input`)
+         instead of relying solely on `auto_input`. Exposed inputs on FMUs nested inside
+         sub-containers are automatically propagated up through parent containers.
+* FIXED: `fmusplit`: correct handling of FMI-3 array port connections (arrays are now properly
+         detected and linked in the generated assembly).
+* ADDED: GUI: when a wire is selected, a yellow direction indicator is drawn on the wire to
+         reflect the currently active tab of the *Wire Details* panel (A→B / B→A arrowhead at
+         the corresponding extremity, or a divergent ◀▶ marker at the middle for *Terminals*).
+* ADDED: `fmusplit`: detect terminal-to-terminal connections. Groups of port-to-port links whose
+         endpoints belong to two compatible terminals (same `terminalKind` / `matchingRule`) are
+         collapsed into a single terminal-level link in the produced JSON assembly. This lifts the
+         previous "LS-BUS clocks connection are not supported in GUI" limitation for FMU containers
+         where the peer FMU does not emit clocks (typical LS-BUS bus/node setups).
+* FIXED: `fmusplit`: correct parsing of clocked inputs/outputs in container.txt file format 4
+         (indexing bug that produced spurious cross-links between FMUs sharing a bus).
+* ADDED: GUI: on import, links between terminals declared in an assembly JSON are correctly
+         detected and routed to the wire's terminal mappings (visible in the `WireDetail` panel).
+* ADDED: `fmucontainer`: extended type conversions between all numeric types and booleans. 
+         Lossy conversions (narrowing, sign change, real↔integer, numeric→boolean) are applied with a warning.
+* ADDED: `fmucontainer`: support links between FMI-2 array-like ports (notation `name[k]`) and
+         FMI-3 array ports. FMI-2 element ports sharing a common `basename[]` are automatically
+         aggregated into a virtual array port named `basename` (dimension = number of elements),
+         which can be linked to an FMI-3 array port of the same dimension.
+         Multi-dimensional arrays are also supported using the Modelica-style comma notation
+         `name[i,j,...]` (conforming to FMI-2.0); elements are flattened in row-major order to
+         match the FMI-3 array layout.
+
 # Version 1.9.3.1
 * FIXED: `fmucontainer`: correct `fmi3SetString` for array variables (dimension > 1) and `fmi2GetBooleanStatus`
 * FIXED: `fmucontainer`: memory leaks and crashes under memory pressure; state machine improvements

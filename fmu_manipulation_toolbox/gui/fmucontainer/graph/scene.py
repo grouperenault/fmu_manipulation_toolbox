@@ -1,7 +1,7 @@
 """NodeGraphScene — manages nodes and wires in the graph."""
 
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from PySide6.QtCore import Qt, QPointF, Signal
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsSceneMouseEvent, QMessageBox
@@ -9,7 +9,7 @@ from PySide6.QtGui import QBrush
 
 
 from .constants import NODE_TITLE_HEIGHT, COLOR_BACKGROUND
-from .node import NodeItem
+from .node import NodeItem, ConfigurationNode
 from .wire import WireItem, _DragWireItem
 
 
@@ -37,6 +37,12 @@ class NodeGraphScene(QGraphicsScene):
         self._drag_start_node: Optional[NodeItem] = None
         self._drag_target_node: Optional[NodeItem] = None
 
+        # Optional external validator: callable(node_a, node_b) -> bool.
+        # Used by NodeTreeWidget to restrict wiring of the ConfigurationNode
+        # (e.g. forbidding two ConfigurationNodes together). If None, all
+        # wires are allowed.
+        self.wire_validator: Optional[Callable[[NodeItem, NodeItem], bool]] = None
+
         self.selectionChanged.connect(self._enforce_single_selection)
 
     def _enforce_single_selection(self):
@@ -53,7 +59,7 @@ class NodeGraphScene(QGraphicsScene):
         fmu_path = Path(fmu_path)
         # Check for duplicate FMU (same resolved path)
         resolved = fmu_path.resolve()
-        for existing in self.nodes():
+        for existing in self.fmu_nodes():
             if existing.fmu_path.resolve() == resolved:
                 parent_widget = None
                 for view in self.views():
@@ -79,6 +85,32 @@ class NodeGraphScene(QGraphicsScene):
         self.node_added.emit(node)
         return node
 
+    def configuration_node(self) -> Optional[ConfigurationNode]:
+        """Return the singleton ConfigurationNode currently in the scene, if any."""
+        for it in self.items():
+            if isinstance(it, ConfigurationNode):
+                return it
+        return None
+
+    def get_or_create_configuration_node(self, x: float = 0, y: float = -150) -> ConfigurationNode:
+        """Return the singleton `ts_multiplier` ConfigurationNode, creating it
+        (GUI-only, never exported to the Assembly model) if it doesn't exist yet.
+        """
+        node = self.configuration_node()
+        if node is None:
+            node = ConfigurationNode(x=x, y=y)
+            self.addItem(node)
+            self.node_added.emit(node)
+        return node
+
+    def remove_configuration_node(self):
+        """Explicitly remove the singleton ConfigurationNode (if present)."""
+        node = self.configuration_node()
+        if node is not None:
+            node.remove_wires()
+            self.node_removed.emit(node)
+            self.removeItem(node)
+
     def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> Optional[WireItem]:
         """Connect two nodes with a wire. Returns None if invalid."""
         if node_a is node_b:
@@ -88,6 +120,8 @@ class NodeGraphScene(QGraphicsScene):
             other = w.node_b if w.node_a is node_a else w.node_a
             if other is node_b:
                 return None
+        if self.wire_validator is not None and not self.wire_validator(node_a, node_b):
+            return None
         wire = WireItem(node_a, node_b)
         self.addItem(wire)
         self.clearSelection()
@@ -102,12 +136,18 @@ class NodeGraphScene(QGraphicsScene):
                 item.remove()
         for item in list(self.selectedItems()):
             if isinstance(item, NodeItem):
+                if not getattr(item, "deletable", True):
+                    continue
                 self.node_removed.emit(item)
                 item.remove_wires()
                 self.removeItem(item)
 
     def nodes(self) -> List[NodeItem]:
         return [it for it in self.items() if isinstance(it, NodeItem)]
+
+    def fmu_nodes(self) -> List[NodeItem]:
+        """Return only nodes backed by a real FMU (excludes ConfigurationNode)."""
+        return [it for it in self.items() if isinstance(it, NodeItem) and not isinstance(it, ConfigurationNode)]
 
     def wires(self) -> List[WireItem]:
         return [it for it in self.items() if isinstance(it, WireItem)]

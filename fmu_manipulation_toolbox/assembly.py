@@ -1,6 +1,7 @@
 import csv
 import json
 import logging
+import os
 from typing import *
 from pathlib import Path
 import uuid
@@ -10,6 +11,95 @@ import zipfile
 from .container import FMUContainer
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+
+
+def _collect_fmu_names(data: Dict[str, Any], acc: Set[str]) -> None:
+    """Recursively collect every FMU filename referenced by `data["fmu"]`
+    (including nested containers)."""
+    for name in data.get("fmu", []):
+        acc.add(name)
+    for child in data.get("container", []):
+        _collect_fmu_names(child, acc)
+
+
+def _relativize_json(data: Dict[str, Any], base_dir: Path) -> Dict[str, Any]:
+    """Rewrite every absolute FMU path referenced in a JSON-encoded assembly
+    `data` so that it becomes relative to `base_dir`.
+
+    Only entries in `data["fmu"]` that are absolute paths are considered
+    (container/sub-container names are plain identifiers, not filesystem
+    paths, and are left untouched). All other blocks (`input`, `output`,
+    `link`, `start`, `drop`) reference the very same FMU names and are
+    rewritten using the same mapping.
+    """
+    names: Set[str] = set()
+    _collect_fmu_names(data, names)
+
+    path_map: Dict[str, str] = {}
+    for name in names:
+        if not Path(name).is_absolute():
+            continue
+        try:
+            relative = os.path.relpath(name, base_dir)
+        except ValueError:
+            # e.g. paths on different drives on Windows: cannot be made relative.
+            logger.warning(f"Cannot make FMU path relative to '{base_dir}': '{name}'. Keeping it absolute.")
+            continue
+        path_map[name] = Path(relative).as_posix()
+
+    if path_map:
+        _remap_fmu_refs(data, path_map)
+    return data
+
+
+def _basename_json(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Rewrite every FMU path referenced in a JSON-encoded assembly `data` so
+    that only its filename (basename) is kept, discarding any directory
+    information.
+
+    Useful when the JSON's own physical location is not meaningful (e.g. a
+    documentation copy written to a temporary directory before being embedded
+    in a built FMU): a relative-to-JSON path would be confusing once the
+    temporary directory is gone, whereas a bare filename always stays valid.
+    """
+    names: Set[str] = set()
+    _collect_fmu_names(data, names)
+
+    path_map = {name: Path(name).name for name in names}
+    if path_map:
+        _remap_fmu_refs(data, path_map)
+    return data
+
+
+def _remap_fmu_refs(data: Dict[str, Any], path_map: Dict[str, str]) -> None:
+    """Recursively rewrite FMU name references in a JSON-encoded assembly
+    dict, using `path_map` (old name -> new name)."""
+    if "fmu" in data:
+        data["fmu"] = [path_map.get(name, name) for name in data["fmu"]]
+
+    if "input" in data:
+        data["input"] = [[source, path_map.get(fmu_name, fmu_name), port_name]
+                         for source, fmu_name, port_name in data["input"]]
+
+    if "output" in data:
+        data["output"] = [[path_map.get(fmu_name, fmu_name), port_name, target]
+                          for fmu_name, port_name, target in data["output"]]
+
+    if "link" in data:
+        data["link"] = [[path_map.get(from_fmu, from_fmu), from_port,
+                         path_map.get(to_fmu, to_fmu), to_port]
+                        for from_fmu, from_port, to_fmu, to_port in data["link"]]
+
+    if "start" in data:
+        data["start"] = [[path_map.get(fmu_name, fmu_name), port_name, value]
+                         for fmu_name, port_name, value in data["start"]]
+
+    if "drop" in data:
+        data["drop"] = [[path_map.get(fmu_name, fmu_name), port_name]
+                        for fmu_name, port_name in data["drop"]]
+
+    for child in data.get("container", []):
+        _remap_fmu_refs(child, path_map)
 
 
 class Port:
@@ -660,14 +750,30 @@ class Assembly:
             except TypeError:
                 raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: {line}.")
 
-    def write_json(self, filename: Union[str, Path]):
+    def write_json(self, filename: Union[str, Path], basenames_only: bool = False):
         """Export the assembly as a JSON file.
+
+        FMU paths referenced in the `fmu`, `link`, `input`, `output`, `start`
+        and `drop` blocks are made relative to the directory of the produced
+        JSON file, so that the assembly stays portable (e.g. if the FMUs are
+        stored alongside the JSON file, or in a sibling directory).
 
         Args:
             filename (str | Path): Output filename, relative to `fmu_directory`.
+            basenames_only (bool): If `True`, reference embedded FMUs only by
+                their filename (no directory), instead of computing a path
+                relative to the JSON's own directory. Useful when the JSON is
+                written to a location that has no lasting meaning (e.g. a
+                temporary directory used to embed a documentation copy inside
+                a built FMU).
         """
-        with open(self.fmu_directory / filename, "wt") as file:
+        output_pathname = self.fmu_directory / filename
+        with open(output_pathname, "wt") as file:
             data = self.json_encode()
+            if basenames_only:
+                data = _basename_json(data)
+            else:
+                data = _relativize_json(data, output_pathname.resolve().parent)
             json.dump(data, file, indent=2)
 
     def json_encode(self) -> Dict[str, Any]:

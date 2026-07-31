@@ -9,6 +9,7 @@ COLOR_GRID_DARK     = QColor("#292929")
 
 COLOR_NODE_BG       = QColor("#3a3a44")
 COLOR_NODE_TITLE_BG = QColor("#4571a4")
+COLOR_NODE_SIGNAL_TITLE_BG = QColor("#8a4fae")
 COLOR_NODE_BORDER   = QColor("#222222")
 COLOR_NODE_SELECTED = QColor("#f0a030")
 COLOR_TEXT          = QColor("#dddddd")
@@ -16,6 +17,8 @@ COLOR_TEXT          = QColor("#dddddd")
 COLOR_WIRE          = QColor("#cccccc")
 COLOR_WIRE_SELECTED = QColor("#f0a030")
 COLOR_WIRE_DRAGGING = QColor("#88bbff")
+COLOR_WIRE_HIGHLIGHT = QColor("#ffd54f")
+COLOR_WIRE_INVALID  = QColor("#F54927")
 
 # Dimensions
 NODE_MIN_WIDTH      = 140
@@ -25,6 +28,7 @@ NODE_CORNER_RADIUS  = 6
 GRID_SIZE           = 20
 GRID_SQUARES        = 5
 ARROW_SIZE          = 10
+HIGHLIGHT_ARROW_SIZE = 21
 WAYPOINT_RADIUS     = 5
 
 # Fonts

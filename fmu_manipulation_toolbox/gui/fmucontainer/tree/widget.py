@@ -6,13 +6,14 @@ import logging
 
 from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSize
 from PySide6.QtGui import QStandardItem, QIcon
-from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog, QFileDialog,
+from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog,
                                QMenu, QAbstractItemView)
 from pathlib import Path
 from typing import *
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
-from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem
+from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, ConfigurationNode
+from fmu_manipulation_toolbox.gui.helper import LastDirectory
 from .model import _NodeTreeModel, TreeItemRoles
 from .sync import SelectionSynchronizer
 
@@ -73,6 +74,8 @@ class NodeTreeWidget(QWidget):
         self._graph.scene.node_removed.connect(self._on_scene_node_removed)
         self._graph.scene.selectionChanged.connect(self.on_scene_selection_changed)
         self._tree.selectionModel().selectionChanged.connect(self.on_tree_selection_changed)
+        # Restrict ConfigurationNode wiring (see _validate_wire)
+        self._graph.scene.wire_validator = self._validate_wire
         tree_logger.debug("NodeTreeWidget initialized")
 
         # ── Layout ──────────────────────────────────────────────────
@@ -153,9 +156,17 @@ class NodeTreeWidget(QWidget):
             item.setText(fixed)
             self._model.blockSignals(False)
 
+        old_name = container_parameters.name
         # Keep data model in sync with the visible name.
         container_parameters.name = fixed
         tree_logger.debug(f"Container renamed: {fixed}")
+
+        # Keep the ConfigurationNode's port (if any) in sync with the new name.
+        # It is GUI/graph-only: it has no TreeView row of its own to rename.
+        if old_name != fixed:
+            configuration_node = self._graph.scene.configuration_node()
+            if configuration_node is not None:
+                configuration_node.rename_port(old_name, fixed)
 
         # Signal that container has been changed
         self.container_changed.emit(container_parameters)
@@ -172,9 +183,17 @@ class NodeTreeWidget(QWidget):
             QItemSelectionModel.SelectionFlag.Select
             | QItemSelectionModel.SelectionFlag.Rows,
         )
+        # Also update the "current" index (distinct from selection in Qt):
+        # some callers (e.g. NodeTreePanel._on_container_detail_changed) rely
+        # on `tree_view.currentIndex()` to know which container is displayed.
+        self._tree.setCurrentIndex(idx)
         self._tree.scrollTo(idx)
 
     def _on_scene_node_added(self, node):
+        if isinstance(node, ConfigurationNode):
+            # GUI/graph-only virtual singleton node: never materialized as
+            # its own TreeView row.
+            return
         target = self._pending_parent or self._root
         node_item = self._make_node_item(node)
         target.appendRow(node_item)
@@ -209,6 +228,52 @@ class NodeTreeWidget(QWidget):
                 if found is not None:
                     return found
         return None
+
+    # ── ConfigurationNode (ts_multiplier, GUI/graph-only, singleton) ───────
+
+    def set_ts_multiplier(self, container_item: QStandardItem, active: bool, x: float = 0, y: float = -150):
+        """Activate/deactivate the `ts_multiplier` port owned by *container_item*
+        on the singleton ConfigurationNode (created on demand).
+
+        This is purely a GUI/graph representation: the node and its wire(s)
+        are never exported to the Assembly model, and the node never gets a
+        row of its own in the TreeView. Selecting `ts_multiplier` on the
+        ROOT container has no effect.
+        """
+        if TreeItemRoles.is_root(container_item):
+            return
+
+        container_name = container_item.text()
+        if active:
+            node = self._graph.scene.get_or_create_configuration_node(x=x, y=y)
+            node.set_port_active(container_name, True)
+        else:
+            node = self._graph.scene.configuration_node()
+            if node is None:
+                return
+            node.set_port_active(container_name, False)
+            if node.is_empty():
+                self._graph.scene.remove_configuration_node()
+
+    def _deactivate_ts_multiplier_for_deleted_container(self, container_item: QStandardItem):
+        """Deactivate the port owned by *container_item* (about to be deleted)
+        and remove the ConfigurationNode entirely if it becomes empty."""
+        node = self._graph.scene.configuration_node()
+        if node is None:
+            return
+        node.set_port_active(container_item.text(), False)
+        if node.is_empty():
+            self._graph.scene.remove_configuration_node()
+
+    def _validate_wire(self, node_a, node_b) -> bool:
+        """The ConfigurationNode can be wired to any FMU; the only forbidden
+        combination is two ConfigurationNodes together (it is a singleton
+        anyway, so this should never actually be reachable)."""
+        is_cfg_a = isinstance(node_a, ConfigurationNode)
+        is_cfg_b = isinstance(node_b, ConfigurationNode)
+        if is_cfg_a and is_cfg_b:
+            return False
+        return True
 
     # ── Selection synchronization ──────────────────────────────────────
 
@@ -351,9 +416,7 @@ class NodeTreeWidget(QWidget):
             return
 
         if chosen is act_add_fmu:
-            paths, _ = QFileDialog.getOpenFileNames(
-                self, "Select FMU files", "", "FMU (*.fmu)"
-            )
+            paths = LastDirectory.get_open_file_names(self, "Select FMU files", "FMU (*.fmu)")
             center = self._graph.view.mapToScene(
                 self._graph.view.viewport().rect().center()
             )
@@ -404,6 +467,10 @@ class NodeTreeWidget(QWidget):
 
     def _purge_container(self, ctn: QStandardItem):
         """Recursively delete scene nodes contained in *ctn*."""
+        # Deactivate the `ts_multiplier` port owned directly by this
+        # container on the (graph-only) ConfigurationNode; the node itself
+        # is only removed once it is fully empty (see `is_empty`).
+        self._deactivate_ts_multiplier_for_deleted_container(ctn)
         for r in range(ctn.rowCount() - 1, -1, -1):
             child = ctn.child(r, 0)
             if child is None:

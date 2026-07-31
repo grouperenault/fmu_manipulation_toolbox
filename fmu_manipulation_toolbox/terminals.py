@@ -96,16 +96,32 @@ class Terminals:
 
         filename = directory / "terminalsAndIcons" / self.FILENAME
         if filename.exists():
+            self._parse_source(filename, str(filename))
 
-            xml = ET.parse(filename)
+    @classmethod
+    def from_xml_source(cls, source, label: str = "<xml>") -> "Terminals":
+        """Build a Terminals instance from an already-open file-like object
+        (or path) containing a terminalsAndIcons.xml document.
 
-            try:
-                for element in xml.getroot()[0]:
-                    if element.tag == "Terminal":
-                        terminal = self.add_terminal(element)
-                        logger.debug(f"Terminal '{terminal.name}' defined with {len(terminal.members)} signals")
-            except IndexError:
-                logger.error(f"{filename} is wrongly formated.")
+        Useful when the XML is embedded inside a zip archive (e.g. an FMU
+        container) and cannot be resolved via a plain filesystem path.
+        """
+        instance = cls.__new__(cls)
+        instance.terminals = OrderedDict()
+        instance._parse_source(source, label)
+        return instance
+
+    def _parse_source(self, source, label: str):
+        try:
+            xml = ET.parse(source)
+            for element in xml.getroot()[0]:
+                if element.tag == "Terminal":
+                    terminal = self.add_terminal(element)
+                    logger.debug(f"Terminal '{terminal.name}' defined with {len(terminal.members)} signals")
+        except IndexError:
+            logger.error(f"{label} is wrongly formated.")
+        except ET.ParseError as e:
+            logger.error(f"Cannot parse {label}: {e}")
 
     def __iter__(self):
         return iter(self.terminals.values())
