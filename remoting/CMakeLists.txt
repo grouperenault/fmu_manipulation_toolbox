@@ -59,6 +59,19 @@ configure_file(
     ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
+# Version.h: regenerated at every build so the git
+# version is always current, not frozen at CMake configure time.
+set(VERSION_H ${CMAKE_CURRENT_BINARY_DIR}/version.h)
+add_custom_target(version_h ALL
+    BYPRODUCTS ${VERSION_H}
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC_DIR=${CMAKE_SOURCE_DIR}
+        -DIN_FILE=${CMAKE_SOURCE_DIR}/version.h.in
+        -DOUT_FILE=${VERSION_H}
+        -P ${CMAKE_SOURCE_DIR}/cmake/gen_version.cmake
+    COMMENT "Generating version.h from git"
+    VERBATIM
+)
 
 
 if (MSVC)
@@ -115,3 +128,7 @@ endif()
 set_target_properties(client_sm PROPERTIES
 					  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}"
 					  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}")
+
+# Ensure version.h is regenerated before container is compiled, so the current
+# git commit id is picked up within the same build.
+add_dependencies(client_sm version_h)

@@ -341,7 +341,7 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
     client->instance_name = strdup(instanceName);
     client->is_debug = loggingOn;
 
-    LOG_DEBUG(client, "FMU Remoting Interface version %s", VERSION_TAG);
+    LOG_DEBUG(client, "FMU Manipulation Toolbox: Remoting Interface version %s", VERSION_TAG);
     client_new_key(client, fmuResourceLocation);
 
     fp = fopen(filename, "rt");
