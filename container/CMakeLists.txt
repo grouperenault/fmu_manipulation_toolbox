@@ -93,6 +93,20 @@ else ()
 endif ()
 message("--- FMI_PLATFORM: ${FMI_PLATFORM}")
 
+# Version.h: regenerated at every build so the git
+# version is always current, not frozen at CMake configure time.
+set(VERSION_H ${CMAKE_CURRENT_BINARY_DIR}/version.h)
+add_custom_target(version_h ALL
+    BYPRODUCTS ${VERSION_H}
+    COMMAND ${CMAKE_COMMAND}
+        -DSRC_DIR=${CMAKE_SOURCE_DIR}
+        -DIN_FILE=${CMAKE_SOURCE_DIR}/version.h.in
+        -DOUT_FILE=${VERSION_H}
+        -P ${CMAKE_SOURCE_DIR}/cmake/gen_version.cmake
+    COMMENT "Generating version.h from git"
+    VERBATIM
+)
+
 
 # FMI Sanity check
 try_run(test_fmi test_fmi_compilation ${CMAKE_CURRENT_BINARY_DIR}/ ${CMAKE_CURRENT_SOURCE_DIR}/test_fmi.c
@@ -107,26 +121,6 @@ ELSE()
     MESSAGE(FATAL_ERROR "Failed check: ${test_fmi_compilation_output}")
 ENDIF()
 
-
-# Version.h creation
-find_package(Git QUIET)
-if(NOT Git_FOUND)
-    message(WARNING "Git not found")
-    set(GIT_TAG, "LOCAL Version")
-else()
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} describe --tags --always
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_TAG
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        RESULT_VARIABLE GIT_RESULT
-    )
-endif()
-message("--- Version: ${GIT_TAG}")
-configure_file(
-    ${CMAKE_SOURCE_DIR}/version.h.in
-    ${CMAKE_CURRENT_BINARY_DIR}/version.h
-)
 
 # Create CONTAINER  Shared library
 add_library(container SHARED
@@ -159,4 +153,8 @@ set_target_properties(container PROPERTIES
 
 # Apply common warning flags and (optional) sanitizers
 target_link_libraries(container PRIVATE container_warnings container_sanitizers)
+
+# Ensure version.h is regenerated before container is compiled, so the current
+# git commit id is picked up within the same build.
+add_dependencies(container version_h)
 
