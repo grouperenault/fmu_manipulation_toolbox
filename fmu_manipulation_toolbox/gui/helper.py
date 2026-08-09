@@ -5,8 +5,8 @@ from typing import *
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
                                QHBoxLayout, QPushButton, QMessageBox, QMainWindow, QTableView, QHeaderView)
 from PySide6.QtGui import QDesktopServices, QIcon
-from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl
-from PySide6.QtGui import QPixmap, QPainter, QColor, QImage
+from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl, QRect
+from PySide6.QtGui import QPixmap, QPainter, QColor, QImage, QGuiApplication
 
 from pathlib import Path
 
@@ -74,6 +74,104 @@ class LastDirectory:
         if filename:
             cls.update(filename)
         return filename
+def device_pixel_ratio() -> float:
+    """Return the device pixel ratio of the current screen (default 1.0)."""
+    screen = QGuiApplication.primaryScreen()
+    return screen.devicePixelRatio() if screen is not None else 1.0
+
+
+def crop_transparent_border(image: QImage) -> QImage:
+    """Return *image* cropped to the bounding box of its non-transparent pixels.
+
+    Fully-opaque images (or images without an alpha channel) are returned
+    unchanged. A fully-transparent image is also returned unchanged.
+    """
+    if image.isNull() or not image.hasAlphaChannel():
+        return image
+
+    img = image.convertToFormat(QImage.Format.Format_ARGB32)
+    w, h = img.width(), img.height()
+    bpl = img.bytesPerLine()
+    data = bytes(img.constBits())
+
+    min_x, min_y, max_x, max_y = w, h, -1, -1
+    for y in range(h):
+        # Alpha bytes of the row (ARGB32 little-endian -> B,G,R,A per pixel).
+        alphas = data[y * bpl: y * bpl + w * 4][3::4]
+        if alphas.count(0) == len(alphas):
+            continue  # fully transparent row
+        left = 0
+        while alphas[left] == 0:
+            left += 1
+        right = len(alphas) - 1
+        while alphas[right] == 0:
+            right -= 1
+        min_x = min(min_x, left)
+        max_x = max(max_x, right)
+        min_y = min(min_y, y)
+        max_y = max(max_y, y)
+
+    if max_x < 0:  # fully transparent image
+        return image
+    if min_x == 0 and min_y == 0 and max_x == w - 1 and max_y == h - 1:
+        return image  # nothing to crop
+
+    return img.copy(QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1))
+
+
+def load_scaled_pixmap(source: Union[Path, str, QImage], max_width: int, max_height: int,
+                       keep_aspect_ratio: bool = True,
+                       mask_path: Optional[Path] = None,
+                       trim_transparent: bool = False) -> Optional[QPixmap]:
+    """Load *source* and scale it to fit within *max_width* x *max_height*.
+
+    The pixmap is rendered at the screen device-pixel-ratio and tagged with it,
+    so it stays sharp on HiDPI/Retina displays while still occupying the
+    requested *logical* size.
+
+    Args:
+        source: image file path or an already-loaded QImage.
+        max_width, max_height: bounding box in logical pixels.
+        keep_aspect_ratio: preserve the aspect ratio when scaling.
+        mask_path: optional rounded-corners mask composited over the image.
+        trim_transparent: crop any fully-transparent border before scaling.
+
+    Returns:
+        A QPixmap, or None if the source image could not be loaded.
+    """
+    image = source if isinstance(source, QImage) else QImage(str(source))
+    if image.isNull():
+        return None
+
+    if trim_transparent:
+        image = crop_transparent_border(image)
+
+    dpr = device_pixel_ratio()
+    target_w = max(1, int(round(max_width * dpr)))
+    target_h = max(1, int(round(max_height * dpr)))
+    mode = (Qt.AspectRatioMode.KeepAspectRatio if keep_aspect_ratio
+            else Qt.AspectRatioMode.IgnoreAspectRatio)
+    image = image.scaled(target_w, target_h, mode, Qt.TransformationMode.SmoothTransformation)
+
+    if mask_path is not None:
+        mask_image = QImage(str(mask_path)).scaled(
+            image.width(), image.height(),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        composed = QImage(image.width(), image.height(), QImage.Format.Format_ARGB32)
+        composed.fill(QColor(0, 0, 0, 0))
+        painter = QPainter()
+        painter.begin(composed)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.drawImage(QPoint(0, 0), image)
+        painter.drawImage(QPoint(0, 0), mask_image)
+        painter.end()
+        image = composed
+
+    pixmap = QPixmap.fromImage(image)
+    pixmap.setDevicePixelRatio(dpr)
+    return pixmap
 
 
 def unlock_column_resize(table: QTableView):
@@ -161,30 +259,14 @@ class DropZoneWidget(QLabel):
         elif not filename.is_file():
             filename = resources / "fmu.png"
 
-        base_image = QImage(str(filename)).scaled(
-            self.WIDTH, self.HEIGHT,
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
+        pixmap = load_scaled_pixmap(
+            filename, self.WIDTH, self.HEIGHT,
+            keep_aspect_ratio=False,
+            mask_path=resources / "mask.png",
+            trim_transparent=True,
         )
-
-        mask_filename = resources / "mask.png"
-        mask_image = QImage(str(mask_filename)).scaled(
-            self.WIDTH, self.HEIGHT,
-            Qt.AspectRatioMode.IgnoreAspectRatio,
-            Qt.TransformationMode.SmoothTransformation,
-        )
-
-        rounded_image = QImage(self.WIDTH, self.HEIGHT, QImage.Format.Format_ARGB32)
-        rounded_image.fill(QColor(0, 0, 0, 0))
-
-        painter = QPainter()
-        painter.begin(rounded_image)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.drawImage(QPoint(0, 0), base_image)
-        painter.drawImage(QPoint(0, 0), mask_image)
-        painter.end()
-
-        self.setPixmap(QPixmap.fromImage(rounded_image))
+        if pixmap is not None:
+            self.setPixmap(pixmap)
 
     # -- Drag & drop events ----------------------------------------------------
 

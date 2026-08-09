@@ -4,18 +4,20 @@ import uuid
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from PySide6.QtCore import Qt, QPointF
-from PySide6.QtGui import QPainter, QPainterPath, QPen, QBrush, QColor, QFontMetrics
+from PySide6.QtCore import Qt, QPointF, QRectF
+from PySide6.QtGui import QPainter, QPainterPath, QPen, QBrush, QColor, QFontMetrics, QPixmap, QImage
 from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem, QStyleOptionGraphicsItem
 
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.terminals import Terminals
 from fmu_manipulation_toolbox.container import ArrayAggregate
+from fmu_manipulation_toolbox.gui.helper import load_scaled_pixmap, crop_transparent_border
 
 from .constants import (
     NODE_MIN_WIDTH, NODE_TITLE_HEIGHT, NODE_PORT_SPACING, NODE_CORNER_RADIUS,
-    COLOR_NODE_BG, COLOR_NODE_TITLE_BG, COLOR_NODE_SIGNAL_TITLE_BG, COLOR_NODE_BORDER,
-    COLOR_NODE_SELECTED, COLOR_TEXT, FONT_TITLE,
+    NODE_ICON_SIZE, NODE_ICON_MARGIN,
+    COLOR_NODE_BG, COLOR_NODE_TITLE_BG, COLOR_NODE_BORDER, COLOR_NODE_SELECTED,
+    COLOR_TEXT, FONT_TITLE,
 )
 
 
@@ -59,8 +61,15 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         # the aggregate is used in a wire.
         self.fmu_array_aggregate_elements: Dict[str, List[str]] = {}
 
+        # FMU icon (model.png), forced to NODE_ICON_SIZE x NODE_ICON_SIZE.
+        self._icon_pixmap: Optional[QPixmap] = None
+        # Native size (px) of the source model.png, used to cap the display size.
+        self._icon_native_width: int = 0
+        self._icon_native_height: int = 0
+
         fmu = FMU(fmu_path)
         fmu.apply_operation(self)
+        self._load_icon(fmu)
         del fmu
 
         # -- Wires attached to this node --------------------------------------
@@ -76,10 +85,8 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.setZValue(1)
 
         # -- Size calculation -------------------------------------------------
-        height = NODE_TITLE_HEIGHT + NODE_PORT_SPACING + 10
-
         fm_title = QFontMetrics(FONT_TITLE)
-        width = max(NODE_MIN_WIDTH, fm_title.horizontalAdvance(self.title) + 20)
+        width, height = self._compute_size(fm_title)
 
         self.setRect(0, 0, width, height)
         self.setPos(x, y)
@@ -95,6 +102,81 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     def __repr__(self):
         return "Collect I/O ports"
+
+    # -- Icon / size ----------------------------------------------------------
+
+    def _load_icon(self, fmu: FMU):
+        """Load the FMU icon (model.png) into self._icon_pixmap.
+
+        Any fully-transparent border around the image is cropped first, then the
+        image is scaled to fit within NODE_ICON_SIZE x NODE_ICON_SIZE while
+        preserving its aspect ratio, and stays sharp on HiDPI/Retina displays.
+        The (cropped) native size is recorded to cap the display size. Must be
+        called before the FMU temporary directory is deleted.
+        """
+        self._icon_pixmap = None
+        self._icon_native_width = 0
+        self._icon_native_height = 0
+        icon_path = Path(fmu.tmp_directory) / "model.png"
+        if not icon_path.is_file():
+            return
+
+        image = QImage(str(icon_path))
+        if image.isNull():
+            return
+
+        image = crop_transparent_border(image)
+        self._icon_native_width = image.width()
+        self._icon_native_height = image.height()
+        self._icon_pixmap = load_scaled_pixmap(
+            image, NODE_ICON_SIZE, NODE_ICON_SIZE, keep_aspect_ratio=True
+        )
+
+    def _icon_aspect_ratio(self) -> float:
+        """Return the width/height ratio of the loaded icon (default 1.0)."""
+        px = self._icon_pixmap
+        if px is None or px.height() == 0:
+            return 1.0
+        return px.width() / px.height()
+
+    def _icon_display_size(self):
+        """Return the (width, height) at which the icon is drawn.
+
+        The icon keeps its aspect ratio and fits within a box of:
+          - max width  = min(native_width,  NODE_ICON_SIZE)
+          - max height = min(native_height, NODE_ICON_SIZE)
+        so it is never upscaled beyond its native resolution nor NODE_ICON_SIZE.
+        The node is always at least this wide, so no body-width clamp is needed.
+        """
+        ratio = self._icon_aspect_ratio()
+        max_w = min(self._icon_native_width, NODE_ICON_SIZE)
+        max_h = min(self._icon_native_height, NODE_ICON_SIZE)
+        disp_w = max_w
+        disp_h = disp_w / ratio
+        if disp_h > max_h:
+            disp_h = max_h
+            disp_w = disp_h * ratio
+        return disp_w, disp_h
+
+    def _compute_size(self, fm_title: QFontMetrics):
+        """Return the (width, height) of the node.
+
+        The node width is max(title_width, min(native, NODE_ICON_SIZE) + 2*margin),
+        floored at NODE_MIN_WIDTH, so a NODE_ICON_MARGIN margin is guaranteed on
+        the left and right of the icon (the icon is centered in paint()). The
+        body height reserves the same margin above and below the icon, whose
+        aspect ratio is preserved.
+        """
+        title_width = fm_title.horizontalAdvance(self.title) + 20
+        if self._icon_pixmap is not None:
+            icon_max_w = min(self._icon_native_width, NODE_ICON_SIZE)
+            width = max(NODE_MIN_WIDTH, title_width, icon_max_w + 2 * NODE_ICON_MARGIN)
+            _, icon_h = self._icon_display_size()
+            height = NODE_TITLE_HEIGHT + NODE_ICON_MARGIN + icon_h + NODE_ICON_MARGIN
+        else:
+            width = max(NODE_MIN_WIDTH, title_width)
+            height = NODE_TITLE_HEIGHT + NODE_PORT_SPACING + 10
+        return width, height
 
     def set_title_highlighted(self, highlighted: bool):
         if self._title_highlighted != highlighted:
@@ -216,6 +298,14 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         painter.setBrush(QBrush(color))
         painter.drawPath(path_title.simplified())
 
+        # Icon (size capped at min(native, NODE_ICON_SIZE), centered in the body)
+        if self._icon_pixmap is not None:
+            disp_w, disp_h = self._icon_display_size()
+            icon_x = (w - disp_w) / 2
+            target = QRectF(icon_x, NODE_TITLE_HEIGHT + NODE_ICON_MARGIN, disp_w, disp_h)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+            painter.drawPixmap(target, self._icon_pixmap, QRectF(self._icon_pixmap.rect()))
+
         # Border
         pen_border = QPen(COLOR_NODE_SELECTED if self.isSelected() else COLOR_NODE_BORDER)
         pen_border.setWidthF(2.0 if self.isSelected() else 1.5)
@@ -268,6 +358,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
         fmu = FMU(new_fmu_path)
         fmu.apply_operation(self)
+        self._load_icon(fmu)
         del fmu
 
 
@@ -288,8 +379,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         # Update visual: title text and node width
         self._title_item.setPlainText(self._title)
         fm_title = QFontMetrics(FONT_TITLE)
-        width = max(NODE_MIN_WIDTH, fm_title.horizontalAdvance(self._title) + 20)
-        height = self.rect().height()
+        width, height = self._compute_size(fm_title)
         self.setRect(0, 0, width, height)
         tbr = self._title_item.boundingRect()
         self._title_item.setPos((width - tbr.width()) / 2, (NODE_TITLE_HEIGHT - tbr.height()) / 2)
