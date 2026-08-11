@@ -435,28 +435,22 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
     fmu_status_t status = FMU_STATUS_OK;
 
     container->need_event_update = false;
-    for(int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t* fmu = &container->fmu[i];
-        fmu->status = FMU_STATUS_ERROR;
-        thread_mutex_unlock(&fmu->mutex_container);
-    }
 
-    /* Consolidate results */
+    thread_barrier_wait(&container->barrier); /* 1st SYNC point */
+    /*
+     * Each FMU thread will set inputs, compute its step and get outputs.
+     * The main thread will wait for all FMU threads to finish.
+     */
+    thread_barrier_wait(&container->barrier); /* 2nd SYNC point */
+    
+    /* 
+     * Consolidate results
+     */
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
-
-        thread_mutex_lock(&fmu->mutex_fmu);
         if (fmu->status != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
         container->need_event_update |= fmu->need_event_udpate;
-    }
-
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        status = fmu_get_outputs(&container->fmu[i]);
-        if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", container->fmu[i].name);
-            return FMU_STATUS_ERROR;
-        }
     }
 
     return status;
@@ -597,7 +591,8 @@ static int read_flags(container_t* container, config_file_t* file) {
         CONFIG_ERROR("Cannot read container flags.");
         return -1;
     }
-
+    
+    container->mt = mt;
     if (sequential) {
         logger(LOGGER_WARNING, "Container use SEQUENTIAL mode.");
         container->do_step = container_do_one_step_sequential;
@@ -1478,6 +1473,16 @@ int container_configure(container_t* container, const char* dirname) {
         container->binaries_size_tmp = NULL;
     }
 
+    if (container->mt) {
+        logger(LOGGER_DEBUG, "Container barrier is configured with %d participants", container->nb_fmu + 1);
+        if (thread_barrier_init(&container->barrier, container->nb_fmu + 1)) {
+            logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
+            return -10;
+        }
+        for (int i = 0; i < container->nb_fmu; i += 1)
+            fmu_launch_thread(&container->fmu[i]);
+    }
+
     logger(LOGGER_DEBUG, "Container is configured.");
 
     return 0;
@@ -1598,6 +1603,9 @@ void container_free(container_t *container) {
     free(container->clocks_list.fmu_id);
     free(container->clocks_list.next_clocks);
     datalog_free(container->datalog);
+
+    if (container->mt)
+        thread_barrier_destroy(&container->barrier);
 
     free(container);
 
