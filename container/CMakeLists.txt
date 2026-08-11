@@ -61,7 +61,7 @@ else()
         target_compile_options(container_flags INTERFACE -Wconversion -Wsign-conversion)
     endif()
     target_compile_options(container_flags INTERFACE
-        $<$<CONFIG:Release,RelWithDebInfo>:-O3>
+        $<$<CONFIG:Release,RelWithDebInfo>:-O3> 
         $<$<CONFIG:Release,RelWithDebInfo>:-fno-math-errno>
         $<$<CONFIG:Release,RelWithDebInfo>:-fno-trapping-math>
     )
@@ -165,51 +165,29 @@ endif()
 
 # -----------------------------------------------------------------------------
 # Print the effective compilation flags applied to `container`.
-# Generator expressions of the form $<$<CONFIG:X,Y>:...> are manually resolved
-# against CMAKE_BUILD_TYPE so the displayed list matches what will actually be
-# passed to the compiler. For the definitive ground truth, look at
+# Generator expressions (e.g. $<$<CONFIG:Release>:...>) are shown unresolved
+# at configure time; for the fully-resolved per-config list, look at
 # build/CMakeFiles/container.dir/flags.make after generation.
 # -----------------------------------------------------------------------------
-function(_container_resolve_config_genex out_var)
-    set(_result "")
-    foreach(_opt IN LISTS ARGN)
-        # Match $<$<CONFIG:cfg1,cfg2,...>:flag1 flag2 ...>
-        if(_opt MATCHES "^\\$<\\$<CONFIG:([^>]+)>:(.+)>$")
-            string(REPLACE "," ";" _cfgs "${CMAKE_MATCH_1}")
-            if("${CMAKE_BUILD_TYPE}" IN_LIST _cfgs)
-                # Split the flags inside the genex on whitespace
-                separate_arguments(_inner NATIVE_COMMAND "${CMAKE_MATCH_2}")
-                list(APPEND _result ${_inner})
-            endif()
-        else()
-            list(APPEND _result "${_opt}")
-        endif()
-    endforeach()
-    set(${out_var} "${_result}" PARENT_SCOPE)
-endfunction()
-
-get_target_property(_raw_flags container_flags INTERFACE_COMPILE_OPTIONS)
-get_target_property(_raw_defs  container_flags INTERFACE_COMPILE_DEFINITIONS)
-if(NOT _raw_flags)
-    set(_raw_flags "")
+get_target_property(_container_flags container_flags INTERFACE_COMPILE_OPTIONS)
+get_target_property(_container_defs  container_flags INTERFACE_COMPILE_DEFINITIONS)
+if(_container_flags)
+    string(REPLACE ";" " " _container_flags "${_container_flags}")
+else()
+    set(_container_flags "")
 endif()
-if(NOT _raw_defs)
-    set(_raw_defs "")
+if(_container_defs)
+    string(REPLACE ";" " " _container_defs "${_container_defs}")
+else()
+    set(_container_defs "")
 endif()
-
-_container_resolve_config_genex(_effective_flags ${_raw_flags})
-_container_resolve_config_genex(_effective_defs  ${_raw_defs})
-
-string(REPLACE ";" " " _effective_flags "${_effective_flags}")
-string(REPLACE ";" " " _effective_defs  "${_effective_defs}")
-
 message(STATUS "--- container build summary ---")
 message(STATUS "  Build type       : ${CMAKE_BUILD_TYPE}")
 message(STATUS "  C compiler       : ${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}")
 message(STATUS "  C standard       : C${CMAKE_C_STANDARD}")
-message(STATUS "  Compile options  : ${_effective_flags}")
-if(_effective_defs)
-    message(STATUS "  Compile defines  : ${_effective_defs}")
+message(STATUS "  Compile options  : ${_container_flags}")
+if(_container_defs)
+    message(STATUS "  Compile defines  : ${_container_defs}")
 endif()
 message(STATUS "  CFLAGS (global)  : ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE}}")
 message(STATUS "-------------------------------")
