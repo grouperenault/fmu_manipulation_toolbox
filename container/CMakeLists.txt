@@ -8,7 +8,6 @@ set (CMAKE_C_STANDARD 23)
 # -----------------------------------------------------------------------------
 option(CONTAINER_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"      OFF)
 option(CONTAINER_STRICT_CONVERSION  "Enable -Wconversion / -Wsign-conversion" OFF)
-option(CONTAINER_ENABLE_SANITIZERS  "Enable AddressSanitizer (+UBSan on GCC/Clang)" OFF)
 
 # Default to Release if the user didn't pick a build type (single-config generators only)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -56,21 +55,39 @@ else()
     endif()
 endif()
 
-# Sanitizers (interface target; opt-in via CONTAINER_ENABLE_SANITIZERS)
-add_library(container_sanitizers INTERFACE)
-if(CONTAINER_ENABLE_SANITIZERS)
-    if(MSVC)
-        # MSVC: ASan only (UBSan not supported). Requires VS 2019 16.9+.
-        target_compile_options(container_sanitizers INTERFACE /fsanitize=address)
-        # MSVC ASan is incompatible with /RTC* and /INCREMENTAL
-        target_compile_options(container_sanitizers INTERFACE /Oy- /Zi)
-        message(STATUS "Sanitizers: AddressSanitizer (MSVC)")
-    else()
-        set(_san_flags -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer)
-        target_compile_options(container_sanitizers INTERFACE ${_san_flags})
-        target_link_options   (container_sanitizers INTERFACE ${_san_flags})
-        message(STATUS "Sanitizers: AddressSanitizer + UndefinedBehaviorSanitizer")
-    endif()
+# -----------------------------------------------------------------------------
+# Release-time optimization flags (LTO + fast-math + hidden visibility).
+# Applied only in Release / RelWithDebInfo.
+# -----------------------------------------------------------------------------
+add_library(container_optim INTERFACE)
+
+if(MSVC)
+    # /GL: whole-program optimization, /LTCG: link-time code generation
+    # /Oi: intrinsics, /Ot: favor speed, /fp:fast: relaxed FP model
+    target_compile_options(container_optim INTERFACE
+        $<$<CONFIG:Release,RelWithDebInfo>:/Oi /Ot /GL /fp:fast>
+    )
+    target_compile_definitions(container_optim INTERFACE
+        $<$<CONFIG:Release,RelWithDebInfo>:NDEBUG>
+    )
+    target_link_options(container_optim INTERFACE
+        $<$<CONFIG:Release,RelWithDebInfo>:/LTCG /OPT:REF /OPT:ICF>
+    )
+    message(STATUS "Optimization: /GL /LTCG /fp:fast (Release/RelWithDebInfo)")
+else()
+    # LTO / IPO: enabled via CMake's INTERPROCEDURAL_OPTIMIZATION property
+    # (see the container target below).
+    target_compile_options(container_optim INTERFACE
+        $<$<CONFIG:Release,RelWithDebInfo>:
+            -ffast-math
+            -fno-math-errno
+            -fno-trapping-math
+            -fvisibility=hidden>
+    )
+    target_compile_definitions(container_optim INTERFACE
+        $<$<CONFIG:Release,RelWithDebInfo>:NDEBUG>
+    )
+    message(STATUS "Optimization: -ffast-math -fvisibility=hidden + IPO (Release/RelWithDebInfo)")
 endif()
 
 
@@ -151,8 +168,21 @@ set_target_properties(container PROPERTIES
 					  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}"
 					  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}")
 
-# Apply common warning flags and (optional) sanitizers
-target_link_libraries(container PRIVATE container_warnings container_sanitizers)
+# Apply common warning flags and release-time optimizations
+target_link_libraries(container PRIVATE container_warnings container_optim)
+
+# Enable Link-Time Optimization (IPO) in Release/RelWithDebInfo when supported.
+include(CheckIPOSupported)
+check_ipo_supported(RESULT _ipo_supported OUTPUT _ipo_output)
+if(_ipo_supported)
+    set_property(TARGET container PROPERTY
+                 INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    set_property(TARGET container PROPERTY
+                 INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO TRUE)
+    message(STATUS "IPO/LTO enabled for container (Release/RelWithDebInfo)")
+else()
+    message(STATUS "IPO/LTO not supported: ${_ipo_output}")
+endif()
 
 # Ensure version.h is regenerated before container is compiled, so the current
 # git commit id is picked up within the same build.
