@@ -61,7 +61,9 @@ else()
         target_compile_options(container_flags INTERFACE -Wconversion -Wsign-conversion)
     endif()
     target_compile_options(container_flags INTERFACE
-        $<$<CONFIG:Release,RelWithDebInfo>:-O3 -fno-math-errno -fno-trapping-math>
+        $<$<CONFIG:Release,RelWithDebInfo>:-O3>
+        $<$<CONFIG:Release,RelWithDebInfo>:-fno-math-errno>
+        $<$<CONFIG:Release,RelWithDebInfo>:-fno-trapping-math>
     )
 endif()
 
