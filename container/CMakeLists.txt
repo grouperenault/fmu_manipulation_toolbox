@@ -12,31 +12,38 @@ option(CONTAINER_STRICT_CONVERSION  "Enable -Wconversion / -Wsign-conversion" OF
 # Default to Release if the user didn't pick a build type (single-config generators only)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    message(STATUS "CMAKE_BUILD_TYPE not set — defaulting to '${CMAKE_BUILD_TYPE}'")
 endif()
+# Expose the allowed values to cmake-gui / ccmake / VS Code CMake Tools.
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+    Debug Release RelWithDebInfo MinSizeRel)
 
 # Interface target carrying warning flags — applied to every container target.
-add_library(container_warnings INTERFACE)
+add_library(container_flags INTERFACE)
 
 if(MSVC)
-    target_compile_options(container_warnings INTERFACE
+    target_compile_options(container_flags INTERFACE
         /W4
         /permissive-
         /wd4068    # unknown pragma (harmless across compilers)
     )
     if(CONTAINER_WARNINGS_AS_ERRORS)
-        target_compile_options(container_warnings INTERFACE /WX)
+        target_compile_options(container_flags INTERFACE /WX)
     endif()
     if(CONTAINER_STRICT_CONVERSION)
-        target_compile_options(container_warnings INTERFACE /w14242 /w14254 /w14287)
+        target_compile_options(container_flags INTERFACE /w14242 /w14254 /w14287)
     endif()
     # Silence CRT "deprecation" noise for strdup/snprintf/etc.
-    target_compile_definitions(container_warnings INTERFACE
+    target_compile_definitions(container_flags INTERFACE
         _CRT_SECURE_NO_WARNINGS
         _CRT_NONSTDC_NO_DEPRECATE
     )
+    target_compile_options(container_flags INTERFACE
+        $<$<CONFIG:Release,RelWithDebInfo>:/fp:fast>
+    )
 else()
     # GCC and Clang (incl. AppleClang)
-    target_compile_options(container_warnings INTERFACE
+    target_compile_options(container_flags INTERFACE
         -Wall
         -Wextra
         -Wshadow
@@ -48,46 +55,14 @@ else()
         -Wno-unknown-pragmas
     )
     if(CONTAINER_WARNINGS_AS_ERRORS)
-        target_compile_options(container_warnings INTERFACE -Werror)
+        target_compile_options(container_flags INTERFACE -Werror)
     endif()
     if(CONTAINER_STRICT_CONVERSION)
-        target_compile_options(container_warnings INTERFACE -Wconversion -Wsign-conversion)
+        target_compile_options(container_flags INTERFACE -Wconversion -Wsign-conversion)
     endif()
-endif()
-
-# -----------------------------------------------------------------------------
-# Release-time optimization flags (LTO + fast-math + hidden visibility).
-# Applied only in Release / RelWithDebInfo.
-# -----------------------------------------------------------------------------
-add_library(container_optim INTERFACE)
-
-if(MSVC)
-    # /GL: whole-program optimization, /LTCG: link-time code generation
-    # /Oi: intrinsics, /Ot: favor speed, /fp:fast: relaxed FP model
-    target_compile_options(container_optim INTERFACE
-        $<$<CONFIG:Release,RelWithDebInfo>:/Oi /Ot /GL /fp:fast>
+    target_compile_options(container_flags INTERFACE
+        $<$<CONFIG:Release,RelWithDebInfo>:-O3 -fno-math-errno -fno-trapping-math>
     )
-    target_compile_definitions(container_optim INTERFACE
-        $<$<CONFIG:Release,RelWithDebInfo>:NDEBUG>
-    )
-    target_link_options(container_optim INTERFACE
-        $<$<CONFIG:Release,RelWithDebInfo>:/LTCG /OPT:REF /OPT:ICF>
-    )
-    message(STATUS "Optimization: /GL /LTCG /fp:fast (Release/RelWithDebInfo)")
-else()
-    # LTO / IPO: enabled via CMake's INTERPROCEDURAL_OPTIMIZATION property
-    # (see the container target below).
-    target_compile_options(container_optim INTERFACE
-        $<$<CONFIG:Release,RelWithDebInfo>:
-            -ffast-math
-            -fno-math-errno
-            -fno-trapping-math
-            -fvisibility=hidden>
-    )
-    target_compile_definitions(container_optim INTERFACE
-        $<$<CONFIG:Release,RelWithDebInfo>:NDEBUG>
-    )
-    message(STATUS "Optimization: -ffast-math -fvisibility=hidden + IPO (Release/RelWithDebInfo)")
 endif()
 
 
@@ -153,7 +128,6 @@ add_library(container SHARED
 		logger.c    logger.h
 		profile.c   profile.h
 		thread.c    thread.h)
-set_target_properties(container PROPERTIES PREFIX "")
 target_include_directories(container PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../fmi
     ${CMAKE_CURRENT_BINARY_DIR}
@@ -165,11 +139,14 @@ if (WIN32)
     target_link_libraries(container PRIVATE Imagehlp.lib)
 endif()
 set_target_properties(container PROPERTIES
+                      PREFIX ""
+                      C_VISIBILITY_PRESET hidden
+                      VISIBILITY_INLINES_HIDDEN ON
 					  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}"
 					  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}")
 
 # Apply common warning flags and release-time optimizations
-target_link_libraries(container PRIVATE container_warnings container_optim)
+target_link_libraries(container PRIVATE container_flags)
 
 # Enable Link-Time Optimization (IPO) in Release/RelWithDebInfo when supported.
 include(CheckIPOSupported)
@@ -184,7 +161,57 @@ else()
     message(STATUS "IPO/LTO not supported: ${_ipo_output}")
 endif()
 
+# -----------------------------------------------------------------------------
+# Print the effective compilation flags applied to `container`.
+# Generator expressions of the form $<$<CONFIG:X,Y>:...> are manually resolved
+# against CMAKE_BUILD_TYPE so the displayed list matches what will actually be
+# passed to the compiler. For the definitive ground truth, look at
+# build/CMakeFiles/container.dir/flags.make after generation.
+# -----------------------------------------------------------------------------
+function(_container_resolve_config_genex out_var)
+    set(_result "")
+    foreach(_opt IN LISTS ARGN)
+        # Match $<$<CONFIG:cfg1,cfg2,...>:flag1 flag2 ...>
+        if(_opt MATCHES "^\\$<\\$<CONFIG:([^>]+)>:(.+)>$")
+            string(REPLACE "," ";" _cfgs "${CMAKE_MATCH_1}")
+            if("${CMAKE_BUILD_TYPE}" IN_LIST _cfgs)
+                # Split the flags inside the genex on whitespace
+                separate_arguments(_inner NATIVE_COMMAND "${CMAKE_MATCH_2}")
+                list(APPEND _result ${_inner})
+            endif()
+        else()
+            list(APPEND _result "${_opt}")
+        endif()
+    endforeach()
+    set(${out_var} "${_result}" PARENT_SCOPE)
+endfunction()
+
+get_target_property(_raw_flags container_flags INTERFACE_COMPILE_OPTIONS)
+get_target_property(_raw_defs  container_flags INTERFACE_COMPILE_DEFINITIONS)
+if(NOT _raw_flags)
+    set(_raw_flags "")
+endif()
+if(NOT _raw_defs)
+    set(_raw_defs "")
+endif()
+
+_container_resolve_config_genex(_effective_flags ${_raw_flags})
+_container_resolve_config_genex(_effective_defs  ${_raw_defs})
+
+string(REPLACE ";" " " _effective_flags "${_effective_flags}")
+string(REPLACE ";" " " _effective_defs  "${_effective_defs}")
+
+message(STATUS "--- container build summary ---")
+message(STATUS "  Build type       : ${CMAKE_BUILD_TYPE}")
+message(STATUS "  C compiler       : ${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}")
+message(STATUS "  C standard       : C${CMAKE_C_STANDARD}")
+message(STATUS "  Compile options  : ${_effective_flags}")
+if(_effective_defs)
+    message(STATUS "  Compile defines  : ${_effective_defs}")
+endif()
+message(STATUS "  CFLAGS (global)  : ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE}}")
+message(STATUS "-------------------------------")
+
 # Ensure version.h is regenerated before container is compiled, so the current
 # git commit id is picked up within the same build.
 add_dependencies(container version_h)
-
