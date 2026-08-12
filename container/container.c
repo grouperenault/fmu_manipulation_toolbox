@@ -1310,6 +1310,38 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
 }
 
 
+static int container_start_threads(container_t *container) {
+    if (container->mt) {
+        logger(LOGGER_DEBUG, "Container barrier is configured with %d participants", container->nb_fmu + 1);
+        if (thread_barrier_init(&container->barrier, container->nb_fmu + 1)) {
+            logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
+            return -1;
+        }
+        for (int i = 0; i < container->nb_fmu; i += 1)
+            if (fmu_launch_thread(&container->fmu[i])) {
+                logger(LOGGER_ERROR, "Cannot launch FMU '%s' thread.", container->fmu[i].name);
+                return -2;
+            }
+    }
+
+    return 0;
+}
+
+
+static void container_stop_threads(container_t *container) {
+    if (container->mt && container->fmu) {
+        logger(LOGGER_DEBUG, "Stopping threads...");
+        for (int i = 0; i < container->nb_fmu; i += 1)
+            container->fmu[i].cancel = true;
+
+        thread_barrier_wait(&container->barrier);
+
+        for (int i = 0; i < container->nb_fmu; i += 1)
+            thread_join(&container->fmu[i]);
+    }
+}
+
+
 int container_configure(container_t* container, const char* dirname) {
     config_file_t file;
     char filename[CONFIG_FILE_SZ];
@@ -1487,17 +1519,9 @@ int container_configure(container_t* container, const char* dirname) {
         container->binaries_size_tmp = NULL;
     }
 
-    if (container->mt) {
-        logger(LOGGER_DEBUG, "Container barrier is configured with %d participants", container->nb_fmu + 1);
-        if (thread_barrier_init(&container->barrier, container->nb_fmu + 1)) {
-            logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
-            return -10;
-        }
-        for (int i = 0; i < container->nb_fmu; i += 1)
-            if (fmu_launch_thread(&container->fmu[i])) {
-                logger(LOGGER_ERROR, "Cannot launch FMU '%s' thread.", container->fmu[i].name);
-                return -11;
-            }
+    if (container_start_threads(container)) {
+        logger(LOGGER_ERROR, "Cannot start threads.");
+        return -10;
     }
 
     logger(LOGGER_DEBUG, "Container is configured.");
@@ -1574,6 +1598,9 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
 
 
 void container_free(container_t *container) {
+
+    container_stop_threads(container);
+
     if (container->fmu) {
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmuFreeInstance(&container->fmu[i]);

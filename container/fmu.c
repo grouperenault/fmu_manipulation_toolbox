@@ -597,16 +597,9 @@ int fmu_launch_thread(fmu_t *fmu) {
     return fmu->thread ? 0 : -1;
 }
 
-
 void fmu_unload(fmu_t *fmu) {
     logger(LOGGER_DEBUG, "Unload FMU %s", fmu->name);
 
-    /* Stop the thread */
-    if (fmu->thread) {
-        fmu->cancel = true;
-        thread_barrier_wait(&fmu->container->barrier);   /* UNLOCK fmu threads*/    
-        thread_join(fmu->thread);
-    }
     free(fmu->guid);
     free(fmu->name);
     convert_free(fmu->conversions);
