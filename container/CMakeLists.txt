@@ -14,9 +14,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
     message(STATUS "CMAKE_BUILD_TYPE not set — defaulting to '${CMAKE_BUILD_TYPE}'")
 endif()
-# Expose the allowed values to cmake-gui / ccmake / VS Code CMake Tools.
-set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-    Debug Release RelWithDebInfo MinSizeRel)
 
 # Interface target carrying warning flags — applied to every container target.
 add_library(container_flags INTERFACE)
