@@ -1335,9 +1335,6 @@ static void container_stop_threads(container_t *container) {
             container->fmu[i].cancel = true;
 
         thread_barrier_wait(&container->barrier);
-
-        for (int i = 0; i < container->nb_fmu; i += 1)
-            thread_join(&container->fmu[i]);
     }
 }
 

@@ -598,7 +598,14 @@ int fmu_launch_thread(fmu_t *fmu) {
 }
 
 void fmu_unload(fmu_t *fmu) {
+
+    if (fmu->thread) {
+        logger(LOGGER_DEBUG, "Waiting for FMU '%s' thread to finish.", fmu->name);
+        thread_join(fmu->thread);
+    }
+    
     logger(LOGGER_DEBUG, "Unload FMU %s", fmu->name);
+
 
     free(fmu->guid);
     free(fmu->name);
