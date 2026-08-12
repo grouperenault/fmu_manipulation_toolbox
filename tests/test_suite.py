@@ -43,8 +43,10 @@ class TestSuite:
         result_filename = filename.with_name("results-" + filename.with_suffix(".csv").name)
         ref_filename = result_filename.with_stem("REF-" + result_filename.stem)
 
+        def fmu_log(*args):
+            print(f"SIMU     | {args[-1].decode('utf-8')}")
         result = simulate_fmu(filename, step_size=step_size, stop_time=10,
-                              output_interval=step_size, validate=True)
+                              output_interval=step_size, validate=True, logger=fmu_log, debug_logging=True)
 
         np.savetxt(result_filename, result, delimiter=',', fmt="%.5e")
 
