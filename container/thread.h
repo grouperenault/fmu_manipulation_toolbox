@@ -16,8 +16,7 @@ typedef HANDLE          thread_t;
 typedef HANDLE          mutex_t;
 typedef SYNCHRONIZATION_BARRIER thread_barrier_t;
 #   elif defined(__APPLE__)
-typedef pthread_t       thread_t;
-typedef pthread_mutex_t mutex_t;
+typedef pthread_t       *thread_t;
 /* Darwin lacks pthread_barrier_t: hand-rolled below. */
 typedef struct {
     pthread_mutex_t     mutex;
@@ -27,8 +26,7 @@ typedef struct {
     unsigned int        generation; /* distinguishes successive barrier phases */
 } thread_barrier_t;
 #   else
-typedef pthread_t       thread_t;
-typedef pthread_mutex_t mutex_t;
+typedef pthread_t       *thread_t;
 typedef pthread_barrier_t thread_barrier_t;
 #   endif
 

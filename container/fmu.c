@@ -336,6 +336,8 @@ static void *fmu_do_step_thread(fmu_t* fmu) {
     while (true) {
         thread_barrier_wait(barrier);   /* WAIT 1st SYNC */
 
+        fmu->status = FMU_STATUS_ERROR;
+
         if (fmu->cancel)
             break;
 
@@ -346,7 +348,6 @@ static void *fmu_do_step_thread(fmu_t* fmu) {
             continue;
         }
 
-        logger(LOGGER_ERROR, "Container: FMU '%s' Do Step", fmu->name);
         fmu->status = fmuDoStep(fmu, 
                                 container->time,
                                 container->next_step);
@@ -589,9 +590,11 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     return 0;
 }
 
-void fmu_launch_thread(fmu_t *fmu) {
+int fmu_launch_thread(fmu_t *fmu) {
     logger(LOGGER_DEBUG, "FMU '%s' thread launched.", fmu->name);
     fmu->thread = thread_new((thread_function_t)fmu_do_step_thread, fmu);
+
+    return fmu->thread ? 0 : -1;
 }
 
 

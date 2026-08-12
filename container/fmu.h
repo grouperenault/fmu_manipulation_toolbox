@@ -353,8 +353,8 @@ typedef struct {
 
 	fmu_io_t					fmu_io;
 	
-	fmu_status_t		        status;
-	bool						cancel;
+	volatile fmu_status_t		status;
+	volatile bool				cancel;
     bool                        support_event;
     bool                        need_event_udpate;
 	
@@ -385,7 +385,7 @@ extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,
                                    fmu_version_t fmi_version, int support_event);
-extern void fmu_launch_thread(fmu_t *fmu);
+extern int fmu_launch_thread(fmu_t *fmu);
 extern void fmu_unload(fmu_t *fmu);
 
 extern fmu_status_t fmuGetReal64(const fmu_t *fmu, const fmu_vr_t vr[],

@@ -13,7 +13,7 @@
 #include "fmu.h"
 #include "version.h"
 
-//#define DEBUG
+// #define DEBUG
 
 
 /*
@@ -65,7 +65,7 @@ static void container_set_next_event_time(container_t *container) {
     double next_interval = container->next_step;
 
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | Get next scheduled ticks (nb_fmu=%d)", container->time, container->clocks_list.nb_fmu);
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | Get next scheduled ticks (nb_fmu=%lu)", container->time, container->clocks_list.nb_fmu);
 #endif
     /* Get all clocks intervals */
     for(unsigned long i = 0; i < container->clocks_list.nb_fmu; i += 1) {
@@ -142,10 +142,10 @@ static void container_set_next_event_time(container_t *container) {
 
 #ifdef DEBUG
     if (nb_events) {
-        logger(LOGGER_DEBUG, "[DEBUG] time=%e | Next event t=%e (interval=%e): %u clock ticks", container->time, 
+        logger(LOGGER_DEBUG, "[DEBUG] time=%e | Next event t=%e (interval=%e): %lu clock ticks", container->time, 
             container->time + next_interval, next_interval, nb_events);
         for (unsigned long i = 0; i < nb_events; i += 1) {
-            logger(LOGGER_DEBUG, "[DEBUG] > scheduled tick of clock '%s' vr = %lu",
+            logger(LOGGER_DEBUG, "[DEBUG] > scheduled tick of clock '%s' vr = %u",
                 container->fmu[container->clocks_list.next_clocks[i].fmu_id].name,
                                container->clocks_list.next_clocks[i].fmu_vr);
         }
@@ -184,7 +184,7 @@ static fmu_status_t container_proceed_event(container_t *container) {
         container_clock_t *container_clock = &container->clocks_list.next_clocks[i];
         const bool value = true;
 #ifdef DEBUG
-        logger(LOGGER_DEBUG, "[DEBUG] time=%e | Activate Clock '%s' vr=%lu", 
+        logger(LOGGER_DEBUG, "[DEBUG] time=%e | Activate Clock '%s' vr=%u", 
             container->time, container->fmu[container_clock->fmu_id].name, container_clock->fmu_vr);
 #endif
         container->clocks[container_clock->local_vr] = true;
@@ -510,7 +510,7 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
     const int local_steps = ((int)((end_time - container->time + container->tolerance) / ts));
 
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | container do_step: end_time=%e, local_steps=%d", container->time, end_time, local_steps);
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | container do_step: end_time=%e, local_steps=%d ts=%e", container->time, end_time, local_steps, ts);
 #endif
     /*
      * Early return if requested end_time is lower than next container time step.
@@ -593,7 +593,6 @@ static int read_flags(container_t* container, config_file_t* file) {
         return -1;
     }
     
-    container->mt = mt;
     if (sequential) {
         logger(LOGGER_WARNING, "Container use SEQUENTIAL mode.");
         container->do_step = container_do_one_step_sequential;
@@ -601,6 +600,7 @@ static int read_flags(container_t* container, config_file_t* file) {
         if (mt) {
             logger(LOGGER_WARNING, "Container use PARALLEL mode with MULTI thread");
             container->do_step = container_do_one_step_parallel_mt;
+            container->mt = true;
         } else {
             logger(LOGGER_WARNING, "Container use PARALLEL mode with MONO thread.");
             container->do_step = container_do_one_step_parallel;
@@ -1494,7 +1494,10 @@ int container_configure(container_t* container, const char* dirname) {
             return -10;
         }
         for (int i = 0; i < container->nb_fmu; i += 1)
-            fmu_launch_thread(&container->fmu[i]);
+            if (fmu_launch_thread(&container->fmu[i])) {
+                logger(LOGGER_ERROR, "Cannot launch FMU '%s' thread.", container->fmu[i].name);
+                return -11;
+            }
     }
 
     logger(LOGGER_DEBUG, "Container is configured.");
@@ -1563,6 +1566,8 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->datalog = NULL;
 
         container->need_event_update = false;
+
+        container->mt = false;
     }
     return container;
 }
