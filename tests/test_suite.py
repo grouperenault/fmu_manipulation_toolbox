@@ -46,7 +46,7 @@ class TestSuite:
         def fmu_log(*args):
             print(f"SIMU     | {args[-1].decode('utf-8')}")
         result = simulate_fmu(filename, step_size=step_size, stop_time=10,
-                              output_interval=step_size, validate=True, logger=fmu_log, debug_logging=True)
+                              output_interval=step_size, validate=True) # logger=fmu_log, debug_logging=True)
 
         np.savetxt(result_filename, result, delimiter=',', fmt="%.5e")
 
