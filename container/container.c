@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <locale.h>
 
 #include "config.h"
 #include "container.h"
@@ -621,6 +622,14 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
     CONFIG_GETLINE;
     if (sscanf(file->line, "%le", &container->time_step) < 1) {
         CONFIG_ERROR("Cannot read time_step.");
+        return -1;
+    }
+
+    /*
+     * paranoid check: time_step should be greater than tolerance to avoid rounding issues.
+     */
+    if (container->time_step < container->tolerance) {
+        CONFIG_ERROR("Invalid time_step value: %e", container->time_step);
         return -1;
     }
 
@@ -1306,6 +1315,11 @@ int container_configure(container_t* container, const char* dirname) {
     char filename[CONFIG_FILE_SZ];
 
     logger(LOGGER_WARNING, "FMUContainer '" VERSION_TAG "'");
+
+    /*
+     * Force C locale for numeric values, to avoid issues with decimal separator
+     */
+    setlocale(LC_NUMERIC, "C");
     if (config_file_open(&file, dirname, "container.txt")) {
         logger(LOGGER_ERROR, "Cannot open '%s': %s.", filename, strerror(errno));
         return -1;

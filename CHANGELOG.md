@@ -2,6 +2,7 @@
 This package was formerly known as `fmutool`.
 
 # Version 1.9.4
+* ADDED: force locale LC_NUMERIC="C" during container runtime to avoid (rare) issue during configuration. 
 * ADDED: GUI: `fmucontainer` builder now displays each FMU's icon (`model.png`) inside its node.
 * ADDED: GUI: the progress dialog shown during **Load**, **Import**, **Export**, and **Save**
          operations now has a **Save Logs...** button to export the displayed execution logs
