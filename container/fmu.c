@@ -341,13 +341,6 @@ static void *fmu_do_step_thread(fmu_t* fmu) {
         if (fmu->cancel)
             break;
 
-        fmu->status = fmu_set_inputs(fmu);
-        if (fmu->status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed setting inputs. %d", fmu->name, fmu->status);
-            thread_barrier_wait(barrier);   /* MARK 2nd SYNC */ 
-            continue;
-        }
-
         fmu->status = fmuDoStep(fmu, 
                                 container->time,
                                 container->next_step);
@@ -603,7 +596,7 @@ void fmu_unload(fmu_t *fmu) {
         logger(LOGGER_DEBUG, "Waiting for FMU '%s' thread to finish.", fmu->name);
         thread_join(fmu->thread);
     }
-    
+
     logger(LOGGER_DEBUG, "Unload FMU %s", fmu->name);
 
 

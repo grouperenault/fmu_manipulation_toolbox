@@ -436,6 +436,15 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
     fmu_status_t status = FMU_STATUS_OK;
 
     container->need_event_update = false;
+    
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_t* fmu = &container->fmu[i];
+        status = fmu_set_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed setting inputs. %d", fmu->name, fmu->status);
+            return status;
+        }
+    }
 
     thread_barrier_wait(&container->barrier); /* 1st SYNC point */
     /*
