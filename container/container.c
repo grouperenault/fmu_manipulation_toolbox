@@ -446,12 +446,12 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
         }
     }
 
-    thread_barrier_wait(&container->barrier); /* 1st SYNC point */
+    thread_barrier_wait(&container->barrier_start); /* 1st SYNC point */
     /*
      * Each FMU thread will set inputs, compute its step and get outputs.
      * The main thread will wait for all FMU threads to finish.
      */
-    thread_barrier_wait(&container->barrier); /* 2nd SYNC point */
+    thread_barrier_wait(&container->barrier_end); /* 2nd SYNC point */
     
     /* 
      * Consolidate results
@@ -461,8 +461,14 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
         if (fmu->status != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
         container->need_event_update |= fmu->need_event_udpate;
-    }
 
+        status = fmu_get_outputs(fmu);
+        if (fmu->status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
+            return status;
+        }
+    }
+    
     return status;
 }
 
@@ -1322,7 +1328,11 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
 static int container_start_threads(container_t *container) {
     if (container->mt) {
         logger(LOGGER_DEBUG, "Container barrier is configured with %d participants", container->nb_fmu + 1);
-        if (thread_barrier_init(&container->barrier, container->nb_fmu + 1)) {
+        if (thread_barrier_init(&container->barrier_start, container->nb_fmu + 1)) {
+            logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
+            return -1;
+        }
+        if (thread_barrier_init(&container->barrier_end, container->nb_fmu + 1)) {
             logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
             return -1;
         }
@@ -1343,7 +1353,7 @@ static void container_stop_threads(container_t *container) {
         for (int i = 0; i < container->nb_fmu; i += 1)
             container->fmu[i].cancel = true;
 
-        thread_barrier_wait(&container->barrier);
+        thread_barrier_wait(&container->barrier_start);
     }
 }
 
@@ -1656,9 +1666,10 @@ void container_free(container_t *container) {
     free(container->clocks_list.next_clocks);
     datalog_free(container->datalog);
 
-    if (container->mt)
-        thread_barrier_destroy(&container->barrier);
-
+    if (container->mt) {
+        thread_barrier_destroy(&container->barrier_start);
+        thread_barrier_destroy(&container->barrier_end);
+    }
     free(container);
 
     return;

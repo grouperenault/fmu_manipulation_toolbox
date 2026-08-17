@@ -331,10 +331,11 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
 
 static void *fmu_do_step_thread(fmu_t* fmu) {
     container_t* container =fmu->container;
-    thread_barrier_t *barrier = &container->barrier;
+    thread_barrier_t *barrier_start = &container->barrier_start;
+    thread_barrier_t *barrier_end = &container->barrier_end;
 
     while (true) {
-        thread_barrier_wait(barrier);   /* WAIT 1st SYNC */
+        thread_barrier_wait(barrier_start);   /* WAIT 1st SYNC */
 
         fmu->status = FMU_STATUS_ERROR;
 
@@ -344,18 +345,11 @@ static void *fmu_do_step_thread(fmu_t* fmu) {
         fmu->status = fmuDoStep(fmu, 
                                 container->time,
                                 container->next_step);
-        if (fmu->status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed doing step. %d", fmu->name, fmu->status);
-            thread_barrier_wait(barrier);   /* MARK 2nd SYNC */ 
-            continue;
-        }
         
-        fmu->status = fmu_get_outputs(fmu);
-        if (fmu->status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
-        }
+        if (fmu->status != FMU_STATUS_OK)
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed doing step. %d", fmu->name, fmu->status);
 
-        thread_barrier_wait(barrier);   /* MARK 2nd SYNC */ 
+        thread_barrier_wait(barrier_end);   /* WAIT 2nd SYNC */
     }
 
     return NULL;
@@ -978,9 +972,9 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
             status = FMU_STATUS_OK;
     } else {
         fmi3Status status3;
-        fmi3Boolean terminateSimulation;
-        fmi3Boolean earlyReturn;
-        fmi3Float64 lastSuccessfulTime;
+        fmi3Boolean terminateSimulation = false;
+        fmi3Boolean earlyReturn = false;
+        fmi3Float64 lastSuccessfulTime; /* not used */
         status3 = fmu->fmi_functions.version_3.fmi3DoStep(fmu->component,
                                                           currentCommunicationPoint,
                                                           communicationStepSize,

@@ -23,7 +23,7 @@ typedef struct {
     pthread_cond_t      cond;
     unsigned int        count;      /* total participants */
     unsigned int        waiting;    /* threads currently waiting */
-    unsigned int        generation; /* distinguishes successive barrier phases */
+    unsigned long       generation; /* distinguishes successive barrier phases */
 } thread_barrier_t;
 #   else
 typedef pthread_t       *thread_t;

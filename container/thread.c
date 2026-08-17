@@ -23,6 +23,8 @@ thread_t thread_new(thread_function_t function, void *data) {
             thread = NULL;
         }
     }
+    cpu_set_t cpuset;
+    pthread_setaffinity_np(*thread, sizeof(cpuset), cpuset);
 #endif
     return thread;
 }
@@ -51,12 +53,24 @@ int thread_barrier_init(thread_barrier_t *barrier, unsigned int count) {
 #ifdef WIN32
     return InitializeSynchronizationBarrier(barrier, (LONG)count, -1) ? 0 : -1;
 #elif defined(__APPLE__)
-    if (pthread_mutex_init(&barrier->mutex, NULL) != 0)
+    pthread_condattr_t cond_attr;
+    pthread_mutexattr_t mutex_attr;
+
+    pthread_condattr_init(&cond_attr);
+    pthread_condattr_setpshared(&cond_attr, PTHREAD_PROCESS_PRIVATE);
+
+    pthread_mutexattr_init(&mutex_attr);
+    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_PRIVATE);
+    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_NORMAL);
+    
+
+    if (pthread_mutex_init(&barrier->mutex, &mutex_attr) != 0)
         return -1;
-    if (pthread_cond_init(&barrier->cond, NULL) != 0) {
+    if (pthread_cond_init(&barrier->cond, &cond_attr) != 0) {
         pthread_mutex_destroy(&barrier->mutex);
         return -1;
     }
+
     barrier->count      = count;
     barrier->waiting    = 0;
     barrier->generation = 0;

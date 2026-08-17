@@ -165,7 +165,8 @@ typedef struct container_s {
 	bool						need_event_update;
 
 	bool						mt;						/* true if FMUs are executed in parallel */
-	thread_barrier_t			barrier;				/* used for parallel execution of FMUs */
+	thread_barrier_t			barrier_start;			/* used for parallel execution of FMUs */
+	thread_barrier_t			barrier_end;			/* used for parallel execution of FMUs */
 
 	struct datalog_s			*datalog;
 
