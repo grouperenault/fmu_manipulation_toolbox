@@ -12,9 +12,9 @@ extern "C" {
 #   endif
 
 #   ifdef WIN32
-typedef HANDLE          thread_t;
-typedef HANDLE          mutex_t;
-typedef SYNCHRONIZATION_BARRIER thread_barrier_t;
+typedef HANDLE                      thread_t;
+typedef HANDLE                      mutex_t;
+typedef SYNCHRONIZATION_BARRIER     thread_barrier_t;
 #   elif defined(__APPLE__)
 typedef pthread_t       *thread_t;
 /* Darwin lacks pthread_barrier_t: hand-rolled below. */

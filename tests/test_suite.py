@@ -390,10 +390,10 @@ class TestSuite:
     def test_container_mt(self):
         assembly = Assembly("bb.json", fmu_directory=Path("containers/mt"))
         assembly.make_fmu(fmi_version=3, filename="bb-3.fmu")
-        self.assert_simulation_log("containers/mt/bb-3.fmu", 0.1)
+        self.assert_simulation("containers/mt/bb-3.fmu", 0.1)
 
         assembly.make_fmu(fmi_version=2, filename="bb-2.fmu")
-        self.assert_simulation_log("containers/mt/bb-2.fmu", 0.1)
+        self.assert_simulation("containers/mt/bb-2.fmu", 0.1)
 
     def test_datalog(self):
         assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), default_mt=True, debug=True)

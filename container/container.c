@@ -1354,7 +1354,19 @@ static void container_stop_threads(container_t *container) {
             container->fmu[i].cancel = true;
 
         thread_barrier_wait(&container->barrier_start);
+
+        for (int i = 0; i < container->nb_fmu; i += 1) {
+            logger(LOGGER_DEBUG, "Waiting for FMU '%s' thread to finish.", container->fmu[i].name);
+            thread_join(container->fmu[i].thread);
+            container->fmu[i].thread = NULL;
+        }
+
+        
+        thread_barrier_destroy(&container->barrier_start);
+        thread_barrier_destroy(&container->barrier_end);
     }
+    
+    return;
 }
 
 
@@ -1666,10 +1678,6 @@ void container_free(container_t *container) {
     free(container->clocks_list.next_clocks);
     datalog_free(container->datalog);
 
-    if (container->mt) {
-        thread_barrier_destroy(&container->barrier_start);
-        thread_barrier_destroy(&container->barrier_end);
-    }
     free(container);
 
     return;

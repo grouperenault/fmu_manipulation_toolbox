@@ -146,3 +146,5 @@ tests/array/array-3.dir
 tests/containers/mt/bb-2.fmu
 tests/containers/mt/bb-3.fmu
 tests/containers/mt/log-bb-3.txt
+/tests/containers/mt/results-bb-3.csv
+/tests/containers/mt/results-bb-2.csv

@@ -331,11 +331,9 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
 
 static void *fmu_do_step_thread(fmu_t* fmu) {
     container_t* container =fmu->container;
-    thread_barrier_t *barrier_start = &container->barrier_start;
-    thread_barrier_t *barrier_end = &container->barrier_end;
 
     while (true) {
-        thread_barrier_wait(barrier_start);   /* WAIT 1st SYNC */
+        thread_barrier_wait(&container->barrier_start);   /* WAIT 1st SYNC */
 
         fmu->status = FMU_STATUS_ERROR;
 
@@ -349,7 +347,7 @@ static void *fmu_do_step_thread(fmu_t* fmu) {
         if (fmu->status != FMU_STATUS_OK)
             logger(LOGGER_ERROR, "Container: FMU '%s' failed doing step. %d", fmu->name, fmu->status);
 
-        thread_barrier_wait(barrier_end);   /* WAIT 2nd SYNC */
+        thread_barrier_wait(&container->barrier_end);   /* WAIT 2nd SYNC */
     }
 
     return NULL;
@@ -585,15 +583,7 @@ int fmu_launch_thread(fmu_t *fmu) {
 }
 
 void fmu_unload(fmu_t *fmu) {
-
-    if (fmu->thread) {
-        logger(LOGGER_DEBUG, "Waiting for FMU '%s' thread to finish.", fmu->name);
-        thread_join(fmu->thread);
-    }
-
     logger(LOGGER_DEBUG, "Unload FMU %s", fmu->name);
-
-
     free(fmu->guid);
     free(fmu->name);
     convert_free(fmu->conversions);
