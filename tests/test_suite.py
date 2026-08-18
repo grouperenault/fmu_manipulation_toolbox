@@ -386,6 +386,15 @@ class TestSuite:
         self.assert_simulation_log("ls-bus/nodes-only.fmu", 0.1)
         self.assert_identical_files("nodes-only-datalog.csv", "ls-bus/REF-nodes-only-datalog.csv")
 
+    @pytest.mark.skipif(not sys.platform == "win32", reason="does run only on windows")
+    def test_container_mt(self):
+        assembly = Assembly("bb.json", fmu_directory=Path("containers/mt"))
+        assembly.make_fmu(fmi_version=3, filename="bb-3.fmu")
+        self.assert_simulation_log("containers/mt/bb-3.fmu", 0.1)
+
+        assembly.make_fmu(fmi_version=2, filename="bb-2.fmu")
+        self.assert_simulation_log("containers/mt/bb-2.fmu", 0.1)
+
     def test_datalog(self):
         assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), default_mt=True, debug=True)
         assembly.make_fmu(filename="bouncing-datalog.fmu", datalog=True)
