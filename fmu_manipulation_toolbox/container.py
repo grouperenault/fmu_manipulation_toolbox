@@ -1887,6 +1887,10 @@ class FMUContainer:
             step_size = self.default_step_size()
         self.sanity_check(step_size)
 
+        if mt and len(self.involved_fmu) < 2:
+            logger.error(f"Requesting Multi-threaded mode with to few FMUs. Back to Mono-threaded mode.")
+            mt = False
+
         logger.info(f"Building FMU '{fmu_filename}', step_size={step_size}")
 
         base_directory = self.fmu_directory / fmu_filename.with_suffix('')
