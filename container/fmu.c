@@ -584,13 +584,16 @@ int fmu_launch_thread(fmu_t *fmu) {
 
 void fmu_unload(fmu_t *fmu) {
     logger(LOGGER_DEBUG, "Unload FMU %s", fmu->name);
+    /* and finally unload the library */
+    if (library_unload(fmu->library)) {
+        logger(LOGGER_ERROR, "Cannot unload library for FMU '%s'.", fmu->name);
+    }
     free(fmu->guid);
     free(fmu->name);
     convert_free(fmu->conversions);
     profile_free(fmu->profile);
 
-    /* and finally unload the library */
-    library_unload(fmu->library);
+
 
 /* Free a plain translation port (in + out) and the associated start values  */
 #define FREE_FMU_DATA(type)                                             \

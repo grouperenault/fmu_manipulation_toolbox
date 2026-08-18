@@ -1348,7 +1348,7 @@ static int container_start_threads(container_t *container) {
 
 
 static void container_stop_threads(container_t *container) {
-    if (container->mt && container->fmu) {
+    if (container->mt) {
         logger(LOGGER_DEBUG, "Stopping threads...");
         for (int i = 0; i < container->nb_fmu; i += 1)
             container->fmu[i].cancel = true;
@@ -1626,10 +1626,10 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
 
 
 void container_free(container_t *container) {
-
-    container_stop_threads(container);
-
     if (container->fmu) {
+        /* Stop threads before freeing FMUs */
+        container_stop_threads(container);
+
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmuFreeInstance(&container->fmu[i]);
             fmu_unload(&container->fmu[i]);
