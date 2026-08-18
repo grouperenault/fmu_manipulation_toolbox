@@ -164,6 +164,10 @@ typedef struct container_s {
 	container_clock_list_t		clocks_list;
 	bool						need_event_update;
 
+	bool						mt;						/* true if FMUs are executed in parallel */
+	thread_barrier_t			barrier_start;			/* used for parallel execution of FMUs */
+	thread_barrier_t			barrier_end;			/* used for parallel execution of FMUs */
+
 	struct datalog_s			*datalog;
 
 	fmi2CallbackAllocateMemory	allocate_memory;		/* used to embed FMU-2.0 */

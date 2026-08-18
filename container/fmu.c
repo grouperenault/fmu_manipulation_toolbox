@@ -42,10 +42,10 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
 #endif
 
 #define SET_INPUT(variable, fmi_type)                                                               \
-    for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                                         \
-        const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                   \
+    for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                               \
+        const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                 \
         const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr;                     \
-        const unsigned int dimension = fmu_io->variable .in.translations[i].dimension;                \
+        const unsigned int dimension = fmu_io->variable .in.translations[i].dimension;              \
         status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
         if (status != FMU_STATUS_OK)                                                                \
             return status;                                                                          \
@@ -330,27 +330,27 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
 
 
 static void *fmu_do_step_thread(fmu_t* fmu) {
-    const container_t* container =fmu->container;
+    container_t* container =fmu->container;
+    thread_barrier_t *barrier_start = &container->barrier_start;
+    thread_barrier_t *barrier_end = &container->barrier_end;
 
-    while (!fmu->cancel) {
-        thread_mutex_lock(&fmu->mutex_container);
+    while (true) {
+        thread_barrier_wait(barrier_start);   /* WAIT 1st SYNC */
+
+        fmu->status = FMU_STATUS_ERROR;
+
         if (fmu->cancel)
             break;
-
-        fmu->status = fmu_set_inputs(fmu);
-        if (fmu->status != FMU_STATUS_OK) {
-            thread_mutex_unlock(&fmu->mutex_fmu);
-            continue;
-        }
 
         fmu->status = fmuDoStep(fmu, 
                                 container->time,
                                 container->next_step);
+        
+        if (fmu->status != FMU_STATUS_OK)
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed doing step. %d", fmu->name, fmu->status);
 
-        thread_mutex_unlock(&fmu->mutex_fmu);
+        thread_barrier_wait(barrier_end);   /* WAIT 2nd SYNC */
     }
-
-    thread_mutex_unlock(&fmu->mutex_fmu);
 
     return NULL;
 }
@@ -572,27 +572,27 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     else
         fmu->profile = NULL;
 
-    fmu->mutex_fmu = thread_mutex_new();
-    fmu->mutex_container = thread_mutex_new();
-    fmu->thread = thread_new((thread_function_t)fmu_do_step_thread, fmu);
+    fmu->thread = NULL;
 
     return 0;
 }
 
+int fmu_launch_thread(fmu_t *fmu) {
+    logger(LOGGER_DEBUG, "FMU '%s' thread launched.", fmu->name);
+    fmu->thread = thread_new((thread_function_t)fmu_do_step_thread, fmu);
+
+    return fmu->thread ? 0 : -1;
+}
 
 void fmu_unload(fmu_t *fmu) {
+
+    if (fmu->thread) {
+        logger(LOGGER_DEBUG, "Waiting for FMU '%s' thread to finish.", fmu->name);
+        thread_join(fmu->thread);
+    }
+
     logger(LOGGER_DEBUG, "Unload FMU %s", fmu->name);
 
-    /* Stop the thread */
-    fmu->cancel = true;
-    thread_mutex_unlock(&fmu->mutex_container);
-    thread_mutex_lock(&fmu->mutex_fmu);
-    
-    thread_join(fmu->thread);
-
-    /* Free resources linked to threading */
-    thread_mutex_free(&fmu->mutex_fmu);
-    thread_mutex_free(&fmu->mutex_container);
 
     free(fmu->guid);
     free(fmu->name);
@@ -972,9 +972,9 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
             status = FMU_STATUS_OK;
     } else {
         fmi3Status status3;
-        fmi3Boolean terminateSimulation;
-        fmi3Boolean earlyReturn;
-        fmi3Float64 lastSuccessfulTime;
+        fmi3Boolean terminateSimulation = false;
+        fmi3Boolean earlyReturn = false;
+        fmi3Float64 lastSuccessfulTime; /* not used */
         status3 = fmu->fmi_functions.version_3.fmi3DoStep(fmu->component,
                                                           currentCommunicationPoint,
                                                           communicationStepSize,

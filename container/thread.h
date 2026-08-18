@@ -14,9 +14,20 @@ extern "C" {
 #   ifdef WIN32
 typedef HANDLE          thread_t;
 typedef HANDLE          mutex_t;
+typedef SYNCHRONIZATION_BARRIER thread_barrier_t;
+#   elif defined(__APPLE__)
+typedef pthread_t       *thread_t;
+/* Darwin lacks pthread_barrier_t: hand-rolled below. */
+typedef struct {
+    pthread_mutex_t     mutex;
+    pthread_cond_t      cond;
+    unsigned int        count;      /* total participants */
+    unsigned int        waiting;    /* threads currently waiting */
+    unsigned long       generation; /* distinguishes successive barrier phases */
+} thread_barrier_t;
 #   else
-typedef pthread_t       thread_t;
-typedef pthread_mutex_t mutex_t;
+typedef pthread_t       *thread_t;
+typedef pthread_barrier_t thread_barrier_t;
 #   endif
 
 typedef void *(*thread_function_t)(void *);
@@ -27,10 +38,18 @@ typedef void *(*thread_function_t)(void *);
 
 extern thread_t thread_new(thread_function_t function, void *data);
 extern void thread_join(thread_t thread);
-extern mutex_t thread_mutex_new(void);
-extern void thread_mutex_free(mutex_t *mutex);
-extern void thread_mutex_lock(mutex_t *mutex);
-extern void thread_mutex_unlock(mutex_t *mutex);
+
+/*
+ * Portable N-way barrier. All `count` threads calling thread_barrier_wait()
+ * block until the count is reached, then all are released together. The
+ * barrier is automatically reusable (subsequent phases start fresh).
+ *
+ * Provides memory synchronization: writes before a wait are visible to other
+ * threads after their matching wait.
+ */
+extern int  thread_barrier_init(thread_barrier_t *barrier, unsigned int count);
+extern void thread_barrier_wait(thread_barrier_t *barrier);
+extern void thread_barrier_destroy(thread_barrier_t *barrier);
 
 #	ifdef __cplusplus
 }

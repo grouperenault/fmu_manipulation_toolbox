@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <locale.h>
 
 #include "config.h"
 #include "container.h"
@@ -12,7 +13,7 @@
 #include "fmu.h"
 #include "version.h"
 
-//#define DEBUG
+// #define DEBUG
 
 
 /*
@@ -64,7 +65,7 @@ static void container_set_next_event_time(container_t *container) {
     double next_interval = container->next_step;
 
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | Get next scheduled ticks (nb_fmu=%d)", container->time, container->clocks_list.nb_fmu);
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | Get next scheduled ticks (nb_fmu=%lu)", container->time, container->clocks_list.nb_fmu);
 #endif
     /* Get all clocks intervals */
     for(unsigned long i = 0; i < container->clocks_list.nb_fmu; i += 1) {
@@ -141,10 +142,10 @@ static void container_set_next_event_time(container_t *container) {
 
 #ifdef DEBUG
     if (nb_events) {
-        logger(LOGGER_DEBUG, "[DEBUG] time=%e | Next event t=%e (interval=%e): %u clock ticks", container->time, 
+        logger(LOGGER_DEBUG, "[DEBUG] time=%e | Next event t=%e (interval=%e): %lu clock ticks", container->time, 
             container->time + next_interval, next_interval, nb_events);
         for (unsigned long i = 0; i < nb_events; i += 1) {
-            logger(LOGGER_DEBUG, "[DEBUG] > scheduled tick of clock '%s' vr = %lu",
+            logger(LOGGER_DEBUG, "[DEBUG] > scheduled tick of clock '%s' vr = %u",
                 container->fmu[container->clocks_list.next_clocks[i].fmu_id].name,
                                container->clocks_list.next_clocks[i].fmu_vr);
         }
@@ -183,7 +184,7 @@ static fmu_status_t container_proceed_event(container_t *container) {
         container_clock_t *container_clock = &container->clocks_list.next_clocks[i];
         const bool value = true;
 #ifdef DEBUG
-        logger(LOGGER_DEBUG, "[DEBUG] time=%e | Activate Clock '%s' vr=%lu", 
+        logger(LOGGER_DEBUG, "[DEBUG] time=%e | Activate Clock '%s' vr=%u", 
             container->time, container->fmu[container_clock->fmu_id].name, container_clock->fmu_vr);
 #endif
         container->clocks[container_clock->local_vr] = true;
@@ -435,30 +436,39 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
     fmu_status_t status = FMU_STATUS_OK;
 
     container->need_event_update = false;
-    for(int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t* fmu = &container->fmu[i];
-        fmu->status = FMU_STATUS_ERROR;
-        thread_mutex_unlock(&fmu->mutex_container);
-    }
-
-    /* Consolidate results */
+    
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t* fmu = &container->fmu[i];
-
-        thread_mutex_lock(&fmu->mutex_fmu);
-        if (fmu->status != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-        container->need_event_update |= fmu->need_event_udpate;
-    }
-
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        status = fmu_get_outputs(&container->fmu[i]);
+        status = fmu_set_inputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", container->fmu[i].name);
-            return FMU_STATUS_ERROR;
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed setting inputs. %d", fmu->name, fmu->status);
+            return status;
         }
     }
 
+    thread_barrier_wait(&container->barrier_start); /* 1st SYNC point */
+    /*
+     * Each FMU thread will set inputs, compute its step and get outputs.
+     * The main thread will wait for all FMU threads to finish.
+     */
+    thread_barrier_wait(&container->barrier_end); /* 2nd SYNC point */
+    
+    /* 
+     * Consolidate results
+     */
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_t* fmu = &container->fmu[i];
+        if (fmu->status != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+        container->need_event_update |= fmu->need_event_udpate;
+
+        status = fmu_get_outputs(fmu);
+        if (fmu->status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
+            return status;
+        }
+    }
+    
     return status;
 }
 
@@ -515,7 +525,7 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
     const int local_steps = ((int)((end_time - container->time + container->tolerance) / ts));
 
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | container do_step: end_time=%e, local_steps=%d", container->time, end_time, local_steps);
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | container do_step: end_time=%e, local_steps=%d ts=%e", container->time, end_time, local_steps, ts);
 #endif
     /*
      * Early return if requested end_time is lower than next container time step.
@@ -597,7 +607,7 @@ static int read_flags(container_t* container, config_file_t* file) {
         CONFIG_ERROR("Cannot read container flags.");
         return -1;
     }
-
+    
     if (sequential) {
         logger(LOGGER_WARNING, "Container use SEQUENTIAL mode.");
         container->do_step = container_do_one_step_sequential;
@@ -605,6 +615,7 @@ static int read_flags(container_t* container, config_file_t* file) {
         if (mt) {
             logger(LOGGER_WARNING, "Container use PARALLEL mode with MULTI thread");
             container->do_step = container_do_one_step_parallel_mt;
+            container->mt = true;
         } else {
             logger(LOGGER_WARNING, "Container use PARALLEL mode with MONO thread.");
             container->do_step = container_do_one_step_parallel;
@@ -626,6 +637,14 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
     CONFIG_GETLINE;
     if (sscanf(file->line, "%le", &container->time_step) < 1) {
         CONFIG_ERROR("Cannot read time_step.");
+        return -1;
+    }
+
+    /*
+     * paranoid check: time_step should be greater than tolerance to avoid rounding issues.
+     */
+    if (container->time_step < container->tolerance) {
+        CONFIG_ERROR("Invalid time_step value: %e", container->time_step);
         return -1;
     }
 
@@ -1306,11 +1325,49 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
 }
 
 
+static int container_start_threads(container_t *container) {
+    if (container->mt) {
+        logger(LOGGER_DEBUG, "Container barrier is configured with %d participants", container->nb_fmu + 1);
+        if (thread_barrier_init(&container->barrier_start, container->nb_fmu + 1)) {
+            logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
+            return -1;
+        }
+        if (thread_barrier_init(&container->barrier_end, container->nb_fmu + 1)) {
+            logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
+            return -1;
+        }
+        for (int i = 0; i < container->nb_fmu; i += 1)
+            if (fmu_launch_thread(&container->fmu[i])) {
+                logger(LOGGER_ERROR, "Cannot launch FMU '%s' thread.", container->fmu[i].name);
+                return -2;
+            }
+    }
+
+    return 0;
+}
+
+
+static void container_stop_threads(container_t *container) {
+    if (container->mt && container->fmu) {
+        logger(LOGGER_DEBUG, "Stopping threads...");
+        for (int i = 0; i < container->nb_fmu; i += 1)
+            container->fmu[i].cancel = true;
+
+        thread_barrier_wait(&container->barrier_start);
+    }
+}
+
+
 int container_configure(container_t* container, const char* dirname) {
     config_file_t file;
     char filename[CONFIG_FILE_SZ];
 
     logger(LOGGER_WARNING, "FMUContainer '" VERSION_TAG "'");
+
+    /*
+     * Force C locale for numeric values, to avoid issues with decimal separator
+     */
+    setlocale(LC_NUMERIC, "C");
     if (config_file_open(&file, dirname, "container.txt")) {
         logger(LOGGER_ERROR, "Cannot open '%s': %s.", filename, strerror(errno));
         return -1;
@@ -1478,6 +1535,11 @@ int container_configure(container_t* container, const char* dirname) {
         container->binaries_size_tmp = NULL;
     }
 
+    if (container_start_threads(container)) {
+        logger(LOGGER_ERROR, "Cannot start threads.");
+        return -10;
+    }
+
     logger(LOGGER_DEBUG, "Container is configured.");
 
     return 0;
@@ -1544,12 +1606,17 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->datalog = NULL;
 
         container->need_event_update = false;
+
+        container->mt = false;
     }
     return container;
 }
 
 
 void container_free(container_t *container) {
+
+    container_stop_threads(container);
+
     if (container->fmu) {
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmuFreeInstance(&container->fmu[i]);
@@ -1599,6 +1666,10 @@ void container_free(container_t *container) {
     free(container->clocks_list.next_clocks);
     datalog_free(container->datalog);
 
+    if (container->mt) {
+        thread_barrier_destroy(&container->barrier_start);
+        thread_barrier_destroy(&container->barrier_end);
+    }
     free(container);
 
     return;
