@@ -1,6 +1,6 @@
 {
   "name": "container.fmu",
-  "mt": false,
+  "mt": true,
   "profiling": false,
   "sequential": false,
   "auto_link": false,
@@ -10,10 +10,10 @@
   "auto_local": false,
   "step_size": 0.001,
   "fmu": [
-    "container.dir/1.fmu",
-    "container.dir/2.fmu",
-    "container.dir/3.fmu",
-    "container.dir/4.fmu",
-    "container.dir/5.fmu"
+    "1.fmu",
+    "2.fmu",
+    "3.fmu",
+    "4.fmu",
+    "5.fmu"
   ]
 }
