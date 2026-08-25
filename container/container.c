@@ -397,6 +397,21 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
 }
 
 
+fmu_status_t container_terminate(container_t* container) {
+    fmu_status_t status = FMU_STATUS_OK;
+
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_status_t fmu_status = fmuTerminate(&container->fmu[i]);
+        if (fmu_status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed to terminate.", container->fmu[i].name);
+            status = FMU_STATUS_ERROR;
+        }
+    }
+
+    return status;
+}
+
+
 /*----------------------------------------------------------------------------
                                 D O   S T E P
 ----------------------------------------------------------------------------*/

@@ -182,11 +182,11 @@ typedef struct container_s {
 extern container_t *container_new(const char *instance_name, const char *fmu_uuid);
 extern int container_configure(container_t* container, const char* dirname);
 extern void container_free(container_t *container);
-
-fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
-                                        double startTime, bool stopTimeDefined, double stopTime);
+extern fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
+                                               double startTime, bool stopTimeDefined, double stopTime);
 extern fmu_status_t container_enter_initialization_mode(container_t* container);
 extern fmu_status_t container_exit_initialization_mode(container_t* container);
+extern fmu_status_t container_terminate(container_t* container);
 extern fmu_status_t container_enter_event_mode(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);
