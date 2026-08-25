@@ -208,6 +208,8 @@ class NodeGraphView(QGraphicsView):
         fit_action = menu.addAction("Fit View")
 
         chosen = menu.exec(event.globalPos())
+        if chosen is None:
+            return  # menu dismissed; avoid None == None matches on optional actions
         if chosen == add_fmu_action:
             paths = LastDirectory.get_open_file_names(self, "Select FMU files", "FMU (*.fmu)")
             for path in paths:

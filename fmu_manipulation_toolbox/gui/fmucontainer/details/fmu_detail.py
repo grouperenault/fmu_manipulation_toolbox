@@ -68,7 +68,7 @@ class _CheckableSortProxy(QSortFilterProxyModel):
         left_data = self.sourceModel().itemFromIndex(left)
         right_data = self.sourceModel().itemFromIndex(right)
         if left_data and left_data.isCheckable():
-            return int(left_data.checkState()) < int(right_data.checkState())
+            return int(left_data.checkState() == Qt.CheckState.Checked) < int(right_data.checkState() == Qt.CheckState.Checked)
         return super().lessThan(left, right)
 
 

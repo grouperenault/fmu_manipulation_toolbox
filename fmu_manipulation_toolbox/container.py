@@ -247,7 +247,7 @@ class EmbeddedFMUPort:
         "binary", "clock"
     )
 
-    def __init__(self, fmi_type, attrs: Union[FMUPort, Dict[str, str]], fmi_version=0):
+    def __init__(self, fmi_type, attrs: Union[FMUPort, Dict[str, Any]], fmi_version=0):
         self.causality = attrs.get("causality", "local")
         self.variability = attrs.get("variability", None)
         self.interval_variability = attrs.get("intervalVariability", None)
@@ -1853,7 +1853,9 @@ class FMUContainer:
                 if ts_ratio != int(ts_ratio):
                     logger.warning(f"Container step_size={step_size}s should divisible by FMU '{fmu.name}' "
                                    f"step_size={fmu.step_size}s.")
-            for port_name in fmu.ports:
+            for port_name, fmu_port in fmu.ports.items():
+                if fmu_port.is_fmi2_aggregate:
+                    continue
                 cport = ContainerPort(fmu, port_name)
                 if cport not in self.rules:
                     if cport.port.causality == 'input':
@@ -1886,6 +1888,10 @@ class FMUContainer:
             logger.info(f"step_size  will be deduced from the embedded FMU's")
             step_size = self.default_step_size()
         self.sanity_check(step_size)
+
+        if mt and len(self.involved_fmu) < 2:
+            logger.error(f"Requesting Multi-threaded mode with to few FMUs. Back to Mono-threaded mode.")
+            mt = False
 
         logger.info(f"Building FMU '{fmu_filename}', step_size={step_size}")
 

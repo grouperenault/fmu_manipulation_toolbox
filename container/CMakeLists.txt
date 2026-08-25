@@ -8,36 +8,39 @@ set (CMAKE_C_STANDARD 23)
 # -----------------------------------------------------------------------------
 option(CONTAINER_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"      OFF)
 option(CONTAINER_STRICT_CONVERSION  "Enable -Wconversion / -Wsign-conversion" OFF)
-option(CONTAINER_ENABLE_SANITIZERS  "Enable AddressSanitizer (+UBSan on GCC/Clang)" OFF)
 
 # Default to Release if the user didn't pick a build type (single-config generators only)
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+    message(STATUS "CMAKE_BUILD_TYPE not set — defaulting to '${CMAKE_BUILD_TYPE}'")
 endif()
 
 # Interface target carrying warning flags — applied to every container target.
-add_library(container_warnings INTERFACE)
+add_library(container_flags INTERFACE)
 
 if(MSVC)
-    target_compile_options(container_warnings INTERFACE
+    target_compile_options(container_flags INTERFACE
         /W4
         /permissive-
         /wd4068    # unknown pragma (harmless across compilers)
     )
     if(CONTAINER_WARNINGS_AS_ERRORS)
-        target_compile_options(container_warnings INTERFACE /WX)
+        target_compile_options(container_flags INTERFACE /WX)
     endif()
     if(CONTAINER_STRICT_CONVERSION)
-        target_compile_options(container_warnings INTERFACE /w14242 /w14254 /w14287)
+        target_compile_options(container_flags INTERFACE /w14242 /w14254 /w14287)
     endif()
     # Silence CRT "deprecation" noise for strdup/snprintf/etc.
-    target_compile_definitions(container_warnings INTERFACE
+    target_compile_definitions(container_flags INTERFACE
         _CRT_SECURE_NO_WARNINGS
         _CRT_NONSTDC_NO_DEPRECATE
     )
+    target_compile_options(container_flags INTERFACE
+        $<$<CONFIG:Release,RelWithDebInfo>:/fp:fast>
+    )
 else()
     # GCC and Clang (incl. AppleClang)
-    target_compile_options(container_warnings INTERFACE
+    target_compile_options(container_flags INTERFACE
         -Wall
         -Wextra
         -Wshadow
@@ -49,28 +52,16 @@ else()
         -Wno-unknown-pragmas
     )
     if(CONTAINER_WARNINGS_AS_ERRORS)
-        target_compile_options(container_warnings INTERFACE -Werror)
+        target_compile_options(container_flags INTERFACE -Werror)
     endif()
     if(CONTAINER_STRICT_CONVERSION)
-        target_compile_options(container_warnings INTERFACE -Wconversion -Wsign-conversion)
+        target_compile_options(container_flags INTERFACE -Wconversion -Wsign-conversion)
     endif()
-endif()
-
-# Sanitizers (interface target; opt-in via CONTAINER_ENABLE_SANITIZERS)
-add_library(container_sanitizers INTERFACE)
-if(CONTAINER_ENABLE_SANITIZERS)
-    if(MSVC)
-        # MSVC: ASan only (UBSan not supported). Requires VS 2019 16.9+.
-        target_compile_options(container_sanitizers INTERFACE /fsanitize=address)
-        # MSVC ASan is incompatible with /RTC* and /INCREMENTAL
-        target_compile_options(container_sanitizers INTERFACE /Oy- /Zi)
-        message(STATUS "Sanitizers: AddressSanitizer (MSVC)")
-    else()
-        set(_san_flags -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer)
-        target_compile_options(container_sanitizers INTERFACE ${_san_flags})
-        target_link_options   (container_sanitizers INTERFACE ${_san_flags})
-        message(STATUS "Sanitizers: AddressSanitizer + UndefinedBehaviorSanitizer")
-    endif()
+    target_compile_options(container_flags INTERFACE
+        $<$<CONFIG:Release,RelWithDebInfo>:-O3> 
+        $<$<CONFIG:Release,RelWithDebInfo>:-fno-math-errno>
+        $<$<CONFIG:Release,RelWithDebInfo>:-fno-trapping-math>
+    )
 endif()
 
 
@@ -136,7 +127,6 @@ add_library(container SHARED
 		logger.c    logger.h
 		profile.c   profile.h
 		thread.c    thread.h)
-set_target_properties(container PROPERTIES PREFIX "")
 target_include_directories(container PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../fmi
     ${CMAKE_CURRENT_BINARY_DIR}
@@ -148,13 +138,57 @@ if (WIN32)
     target_link_libraries(container PRIVATE Imagehlp.lib)
 endif()
 set_target_properties(container PROPERTIES
+                      PREFIX ""
+                      C_VISIBILITY_PRESET hidden
+                      VISIBILITY_INLINES_HIDDEN ON
 					  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}"
 					  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}")
 
-# Apply common warning flags and (optional) sanitizers
-target_link_libraries(container PRIVATE container_warnings container_sanitizers)
+# Apply common warning flags and release-time optimizations
+target_link_libraries(container PRIVATE container_flags)
+
+# Enable Link-Time Optimization (IPO) in Release/RelWithDebInfo when supported.
+include(CheckIPOSupported)
+check_ipo_supported(RESULT _ipo_supported OUTPUT _ipo_output)
+if(_ipo_supported)
+    set_property(TARGET container PROPERTY
+                 INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
+    set_property(TARGET container PROPERTY
+                 INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO TRUE)
+    message(STATUS "IPO/LTO enabled for container (Release/RelWithDebInfo)")
+else()
+    message(STATUS "IPO/LTO not supported: ${_ipo_output}")
+endif()
+
+# -----------------------------------------------------------------------------
+# Print the effective compilation flags applied to `container`.
+# Generator expressions (e.g. $<$<CONFIG:Release>:...>) are shown unresolved
+# at configure time; for the fully-resolved per-config list, look at
+# build/CMakeFiles/container.dir/flags.make after generation.
+# -----------------------------------------------------------------------------
+get_target_property(_container_flags container_flags INTERFACE_COMPILE_OPTIONS)
+get_target_property(_container_defs  container_flags INTERFACE_COMPILE_DEFINITIONS)
+if(_container_flags)
+    string(REPLACE ";" " " _container_flags "${_container_flags}")
+else()
+    set(_container_flags "")
+endif()
+if(_container_defs)
+    string(REPLACE ";" " " _container_defs "${_container_defs}")
+else()
+    set(_container_defs "")
+endif()
+message(STATUS "--- container build summary ---")
+message(STATUS "  Build type       : ${CMAKE_BUILD_TYPE}")
+message(STATUS "  C compiler       : ${CMAKE_C_COMPILER_ID} ${CMAKE_C_COMPILER_VERSION}")
+message(STATUS "  C standard       : C${CMAKE_C_STANDARD}")
+message(STATUS "  Compile options  : ${_container_flags}")
+if(_container_defs)
+    message(STATUS "  Compile defines  : ${_container_defs}")
+endif()
+message(STATUS "  CFLAGS (global)  : ${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_${CMAKE_BUILD_TYPE}}")
+message(STATUS "-------------------------------")
 
 # Ensure version.h is regenerated before container is compiled, so the current
 # git commit id is picked up within the same build.
 add_dependencies(container version_h)
-

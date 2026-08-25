@@ -65,12 +65,12 @@ library_t library_load(const char* library_filename) {
 }
 
 
-void library_unload(library_t library) {
+int library_unload(library_t library) {
     if (library) {
 #ifdef WIN32
-        FreeLibrary(library);
+        return FreeLibrary(library) ? 0 : -1;
 #else
-        dlclose(library);
+        return dlclose(library);
 #endif
     }
 }

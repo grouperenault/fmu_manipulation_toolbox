@@ -409,16 +409,20 @@ class RunTask(QDialog):
 
         self.save_button = QPushButton("Save Logs...")
         self.save_button.setProperty("class", "info")
+        self.save_button.setMinimumWidth(150)
         self.save_button.clicked.connect(self.save_logs)
 
-        self.button = QPushButton("Close")
-        self.button.setProperty("class", "quit")
-        self.button.clicked.connect(self.close)
+
+
+        self.close_button = QPushButton("Close")
+        self.close_button.setProperty("class", "quit")
+        self.close_button.setMinimumWidth(150)
+        self.close_button.clicked.connect(self.close)
 
         button_layout = QHBoxLayout()
-        button_layout.addWidget(self.save_button)
         button_layout.addStretch()
-        button_layout.addWidget(self.button)
+        button_layout.addWidget(self.save_button)
+        button_layout.addWidget(self.close_button)
 
         layout = QVBoxLayout()
         self.setLayout(layout)

@@ -164,6 +164,10 @@ typedef struct container_s {
 	container_clock_list_t		clocks_list;
 	bool						need_event_update;
 
+	bool						mt;						/* true if FMUs are executed in parallel */
+	thread_barrier_t			barrier_start;			/* used for parallel execution of FMUs */
+	thread_barrier_t			barrier_end;			/* used for parallel execution of FMUs */
+
 	struct datalog_s			*datalog;
 
 	fmi2CallbackAllocateMemory	allocate_memory;		/* used to embed FMU-2.0 */
@@ -178,11 +182,11 @@ typedef struct container_s {
 extern container_t *container_new(const char *instance_name, const char *fmu_uuid);
 extern int container_configure(container_t* container, const char* dirname);
 extern void container_free(container_t *container);
-
-fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
-                                        double startTime, bool stopTimeDefined, double stopTime);
+extern fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
+                                               double startTime, bool stopTimeDefined, double stopTime);
 extern fmu_status_t container_enter_initialization_mode(container_t* container);
 extern fmu_status_t container_exit_initialization_mode(container_t* container);
+extern fmu_status_t container_terminate(container_t* container);
 extern fmu_status_t container_enter_event_mode(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);

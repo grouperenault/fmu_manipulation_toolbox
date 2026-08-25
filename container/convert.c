@@ -79,7 +79,7 @@ static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr
     to_c_type         *to_value   = container-> to_type   + container->port_ ## to_type [to].links[0].fmu_vr;       \
                                                                                                                     \
     for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
-        to_value[i] = (to_c_type)(fabs(from_value[i]) > container->tolerance);                                      \
+        to_value[i] = (to_c_type)(fabs((double)from_value[i]) > container->tolerance);                              \
 }
 
 

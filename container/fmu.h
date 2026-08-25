@@ -350,13 +350,11 @@ typedef struct {
 	fmu_interface_t				fmi_functions;
 
 	thread_t			    	thread;
-	mutex_t				    	mutex_fmu;
-	mutex_t				    	mutex_container;
 
 	fmu_io_t					fmu_io;
 	
-	fmu_status_t				status;
-	bool						cancel;
+	fmu_status_t		        status;
+	bool				        cancel;
     bool                        support_event;
     bool                        need_event_udpate;
 	
@@ -387,6 +385,7 @@ extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,
                                    fmu_version_t fmi_version, int support_event);
+extern int fmu_launch_thread(fmu_t *fmu);
 extern void fmu_unload(fmu_t *fmu);
 
 extern fmu_status_t fmuGetReal64(const fmu_t *fmu, const fmu_vr_t vr[],

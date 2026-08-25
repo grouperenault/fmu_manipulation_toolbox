@@ -43,8 +43,10 @@ class TestSuite:
         result_filename = filename.with_name("results-" + filename.with_suffix(".csv").name)
         ref_filename = result_filename.with_stem("REF-" + result_filename.stem)
 
+        def fmu_log(*args):
+            print(f"SIMU     | {args[-1].decode('utf-8')}")
         result = simulate_fmu(filename, step_size=step_size, stop_time=10,
-                              output_interval=step_size, validate=True)
+                              output_interval=step_size, validate=True, logger=fmu_log, debug_logging=False)
 
         np.savetxt(result_filename, result, delimiter=',', fmt="%.5e")
 
@@ -383,6 +385,15 @@ class TestSuite:
         assembly.make_fmu(fmi_version=3, datalog=True)
         self.assert_simulation_log("ls-bus/nodes-only.fmu", 0.1)
         self.assert_identical_files("nodes-only-datalog.csv", "ls-bus/REF-nodes-only-datalog.csv")
+
+    @pytest.mark.skipif(not sys.platform == "win32", reason="does run only on windows")
+    def test_container_mt(self):
+        assembly = Assembly("bb.json", fmu_directory=Path("containers/mt"))
+        assembly.make_fmu(fmi_version=3, filename="bb-3.fmu")
+        self.assert_simulation("containers/mt/bb-3.fmu", 0.1)
+
+        assembly.make_fmu(fmi_version=2, filename="bb-2.fmu")
+        self.assert_simulation("containers/mt/bb-2.fmu", 0.1)
 
     def test_datalog(self):
         assembly = Assembly("bouncing.csv", fmu_directory=Path("containers/bouncing_ball"), default_mt=True, debug=True)

@@ -101,7 +101,7 @@ class AssemblyIOMixin:
             output_ports_list.append(output)
 
         for port, source in assembly_node.input_ports.items():
-            input_port = [port.fmu_name, port.port_name, source]
+            input_port = [source, port.fmu_name, port.port_name]
             logger.debug(f"ADD INPUT PORT: {input_port}")
             input_ports_list.append(input_port)
 
@@ -111,8 +111,29 @@ class AssemblyIOMixin:
             child = self._tree.make_container_item(child_node.name)
             parent.appendRow(child)
             child_items_by_name[child_node.name] = child
+
+            sub_output_ports_list = []
+            sub_input_ports_list = []
             self._assembly_node_to_items(child, child_node, folder, links_list,
-                                         start_values_list, output_ports_list, input_ports_list, x=x, y=y)
+                                         start_values_list, sub_output_ports_list, sub_input_ports_list, x=x, y=y)
+
+            for input in input_ports_list:
+                if input[1] == child_node.name:
+                    for sub_input in sub_input_ports_list:
+                        if  input[2] == sub_input[0]:
+                            input[1] = sub_input[1]
+                            input[2] = sub_input[2]
+                            logger.debug(f"MODIFIED INPUT PORT: {input}")
+                            break
+
+            for output in output_ports_list:
+                if output[0] == child_node.name:
+                    for sub_output in sub_output_ports_list:
+                        if output[1] == sub_output[2]:
+                            output[0] = sub_output[0]
+                            output[1] = sub_output[2]
+                            logger.debug(f"MODIFIED OUTPUT PORT: {output}")
+                            break
 
         for link in links_list:
             # First, resolve any intermediate container boundary-crossing:
@@ -307,7 +328,7 @@ class AssemblyIOMixin:
                 logger.debug(f"Exposed output: {Path(fmu_name).name}/{port_name}")
 
         # Apply exposed input ports to scene nodes
-        for fmu_name, port_name, _exposed_name in input_ports_list:
+        for _exposed_name, fmu_name, port_name in input_ports_list:
             resolved_key = str((fmu_directory / fmu_name).resolve())
             node = nodes_by_name.get(resolved_key)
             if node:

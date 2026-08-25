@@ -1,7 +1,10 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
-# Version 1.9.4
+# Version 1.9.4 
+* INFO : Linux builds are made on Ubuntu 2024.04
+* ADDED: Change the way the threads are synchronized for container.
+* ADDED: force locale LC_NUMERIC="C" during container runtime to avoid (rare) issue during configuration. 
 * ADDED: GUI: `fmucontainer` builder now displays each FMU's icon (`model.png`) inside its node.
 * ADDED: GUI: the progress dialog shown during **Load**, **Import**, **Export**, and **Save**
          operations now has a **Save Logs...** button to export the displayed execution logs
