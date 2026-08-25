@@ -165,38 +165,22 @@ fmi2Status fmi2Terminate(fmi2Component c) {
 
     container->state = CONTAINER_STATE_TERMINATED;
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuTerminate(&container->fmu[i]);
-
-        if (status != FMU_STATUS_OK)
-            return fmi2Error;
-    }
+    if (container_terminate(container)!= FMU_STATUS_OK)
+        return fmi2Error;
  
     return fmi2OK;
 }
 
 
 fmi2Status fmi2Reset(fmi2Component c) {
-    container_t* container = (container_t*)c;
-
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_status_t status = fmuReset(&container->fmu[i]);
-
-        if (status != FMU_STATUS_OK)
-            return fmi2Error;
-    }
-    
-    container->state = CONTAINER_STATE_INSTANTIATED;
-
-    return fmi2OK;
+    __NOT_IMPLEMENTED__
 }
 
 
 /* Getting and setting variable values */
-#define FMI_GETTER(type, fmi_type, name)                                                                                \
+#define FMI_GETTER(type, fmi_type, function_name)                                                                       \
 fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2 ## fmi_type value[]) { \
     container_t* container = (container_t*)c;                                                                           \
-    fmu_status_t status;                                                                                                \
                                                                                                                         \
     for (size_t i = 0; i < nvr; i += 1) {                                                                               \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                     \
@@ -205,13 +189,19 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
         const fmu_vr_t fmu_vr = port->links[0].fmu_vr;                                                                  \
                                                                                                                         \
         if (fmu_id < 0) {                                                                                               \
+            if (fmu_vr >= container->nb_local_ ## type) {                                                               \
+                logger(LOGGER_ERROR, "Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);    \
+                return fmi2Error;                                                                                       \
+            }                                                                                                           \
             value[i] = container-> type [fmu_vr];                                                                       \
         } else {                                                                                                        \
             const fmu_t *fmu = &container->fmu[fmu_id];                                                                 \
                                                                                                                         \
-            status = fmuGet ## name (fmu, &fmu_vr, 1, &value[i], 1);                                                    \
-            if (status != FMU_STATUS_OK)                                                                                \
+            fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[i], 1);                                        \
+            if (status != FMU_STATUS_OK) {                                                                              \
+                logger(LOGGER_ERROR, "Container: FMU '%s' failed to get " #fmi_type " vr=%d.", fmu->name, fmu_vr);      \
                 return fmi2Error;                                                                                       \
+            }                                                                                                           \
         }                                                                                                               \
     }                                                                                                                   \
                                                                                                                         \
@@ -219,16 +209,15 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 }
 
 
-FMI_GETTER(reals64,     Real,       Real64)
-FMI_GETTER(integers32,  Integer,    Integer32)
-FMI_GETTER(booleans,    Boolean,    Boolean)
-FMI_GETTER(strings,     String,     String)
+FMI_GETTER(reals64,     Real,       fmuGetReal64)
+FMI_GETTER(integers32,  Integer,    fmuGetInteger32)
+FMI_GETTER(booleans,    Boolean,    fmuGetBoolean)
+FMI_GETTER(strings,     String,     fmuGetString)
 #undef FMI_GETTER
 
-#define FMI_SETTER(type, fmi_type, name) \
+#define FMI_SETTER(type, fmi_type, function_name)                                                                               \
 fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2 ## fmi_type value[]) {   \
     container_t* container = (container_t*)c;                                                                                   \
-    fmu_status_t status;                                                                                                        \
                                                                                                                                 \
     for (size_t i = 0; i < nvr; i += 1) {                                                                                       \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                             \
@@ -238,13 +227,19 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                                      \
                                                                                                                                 \
             if (fmu_id < 0) {                                                                                                   \
+                if (fmu_vr >= container->nb_local_ ## type) {                                                                   \
+                    logger(LOGGER_ERROR, "Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);        \
+                    return fmi2Error;                                                                                           \
+                }                                                                                                               \
                 container-> type [fmu_vr] = value[i];                                                                           \
             } else {                                                                                                            \
                 const fmu_t* fmu = &container->fmu[fmu_id];                                                                     \
                                                                                                                                 \
-                status = fmuSet ## name (fmu, &fmu_vr, 1, &value[i], 1);                                                        \
-                if (status != FMU_STATUS_OK)                                                                                    \
+                fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[i], 1);                                            \
+                if (status != FMU_STATUS_OK) {                                                                                  \
+                    logger(LOGGER_ERROR, "Container: FMU '%s' failed to set " #fmi_type " vr=%d.", fmu->name, fmu_vr);          \
                     return fmi2Error;                                                                                           \
+                }                                                                                                               \
             }                                                                                                                   \
         }                                                                                                                       \
     }                                                                                                                           \
@@ -253,13 +248,12 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 }
 
 
-FMI_SETTER(reals64, Real, Real64)
-FMI_SETTER(integers32, Integer, Integer32)
-FMI_SETTER(booleans, Boolean, Boolean)
+FMI_SETTER(reals64,     Real,       fmuSetReal64)
+FMI_SETTER(integers32,  Integer,    fmuSetInteger32)
+FMI_SETTER(booleans,    Boolean,    fmuSetBoolean)
 
 fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[]) {
     container_t* container = (container_t*)c;
-    fmu_status_t status;
  
     for(size_t i = 0; i < nvr; i += 1) {
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
@@ -274,9 +268,11 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
                 const fmu_t* fmu = &container->fmu[fmu_id];
                 const fmi2ValueReference fmu_vr = port->links[j].fmu_vr;
                 
-                status = fmuSetString(fmu, &fmu_vr, 1, &value[i], 1);
-                if (status != FMU_STATUS_OK)
+                fmu_status_t status = fmuSetString(fmu, &fmu_vr, 1, &value[i], 1);
+                if (status != FMU_STATUS_OK) {
+                    logger(LOGGER_ERROR, "Container: FMU '%s' failed to set string vr=%d.", fmu->name, fmu_vr);
                     return fmi2Error;
+                }
             }
         }
     }
@@ -398,7 +394,6 @@ fmi2Status fmi2DoStep(fmi2Component c,
     (void)noSetFMUStatePriorToCurrentPoint; /* unused parameter */
     
     container_t *container = (container_t*)c;
-
 
     ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_STEP_MODE);
 
