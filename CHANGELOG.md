@@ -1,6 +1,9 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Version 1.9.4.1
+* FIXED: Minor regression on GUI-only virtual `configuration`
+
 # Version 1.9.4 
 * INFO : Linux builds are made on Ubuntu 2024.04
 * ADDED: Change the way the threads are synchronized for container.

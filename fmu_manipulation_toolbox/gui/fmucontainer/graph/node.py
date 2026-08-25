@@ -17,7 +17,7 @@ from .constants import (
     NODE_MIN_WIDTH, NODE_TITLE_HEIGHT, NODE_PORT_SPACING, NODE_CORNER_RADIUS,
     NODE_ICON_SIZE, NODE_ICON_MARGIN,
     COLOR_NODE_BG, COLOR_NODE_TITLE_BG, COLOR_NODE_BORDER, COLOR_NODE_SELECTED,
-    COLOR_TEXT, FONT_TITLE,
+    COLOR_TEXT, FONT_TITLE, COLOR_NODE_SIGNAL_TITLE_BG
 )
 
 
@@ -430,6 +430,7 @@ class ConfigurationNode(NodeItem):
 
         self._title_highlighted = False
         self._title_bg_color = COLOR_NODE_SIGNAL_TITLE_BG
+        self._icon_pixmap = None
 
         # port_name -> active (bool). `active` mirrors the owning container's
         # current `ts_multiplier` checkbox state.
