@@ -193,7 +193,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
         const fmu_vr_t fmu_vr = port->links[0].fmu_vr;                                                              \
                                                                                                                     \
         if (fmu_id < 0) {                                                                                           \
-            if (fmu_vr + port->dimension >= container->nb_local_ ## type) {                                         \
+            if (fmu_vr + port->dimension > container->nb_local_ ## type) {                                          \
                 logger(LOGGER_ERROR, "Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);\
                 return fmi3Error;                                                                                   \
             }                                                                                                       \
@@ -324,7 +324,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                              \
                                                                                                                         \
             if (fmu_id < 0) {                                                                                           \
-                if (fmu_vr + port->dimension >= container->nb_local_ ## type) {                                         \
+                if (fmu_vr + port->dimension > container->nb_local_ ## type) {                                          \
                 logger(LOGGER_ERROR, "Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);    \
                 return fmi3Error;                                                                                       \
             }                                                                                                           \
