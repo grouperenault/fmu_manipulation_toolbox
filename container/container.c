@@ -1365,8 +1365,7 @@ static int container_start_threads(container_t *container) {
 static void container_stop_threads(container_t *container) {
     if (container->mt) {
         logger(LOGGER_DEBUG, "Stopping threads...");
-        for (int i = 0; i < container->nb_fmu; i += 1)
-            container->fmu[i].cancel = true;
+        container->cancel = true;
 
         thread_barrier_wait(&container->barrier_start);
 
@@ -1635,6 +1634,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         container->need_event_update = false;
 
         container->mt = false;
+        container->cancel = false;
     }
     return container;
 }

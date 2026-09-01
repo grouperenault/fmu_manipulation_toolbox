@@ -19,6 +19,7 @@ extern "C" {
 #   ifdef WIN32
 typedef HANDLE                      thread_t;
 typedef HANDLE                      mutex_t;
+/* SYNCHRONIZATION_BARRIER requires Windows 8 / Server 2012 or later; Windows 7 is not supported. */
 typedef SYNCHRONIZATION_BARRIER     thread_barrier_t;
 #   elif defined(__APPLE__)
 typedef pthread_t       *thread_t;

@@ -167,6 +167,7 @@ typedef struct container_s {
 	bool						need_event_update;
 
 	bool						mt;						/* true if FMUs are executed in parallel */
+	bool						cancel;					/* set once to stop all FMU worker threads */
 	/* Cache-line aligned to avoid false sharing between successive fork-join phases. */
 	_Alignas(64) thread_barrier_t	barrier_start;		/* used for parallel execution of FMUs */
 	_Alignas(64) thread_barrier_t	barrier_end;		/* used for parallel execution of FMUs */
