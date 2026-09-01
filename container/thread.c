@@ -70,7 +70,8 @@ int thread_barrier_init(thread_barrier_t *barrier, unsigned int count) {
 
 void thread_barrier_wait(thread_barrier_t *barrier) {
 #ifdef WIN32
-    EnterSynchronizationBarrier(barrier, 0);
+    /* NO_DELETE: barrier outlives every wait; skips the deletion refcount interlock. */
+    EnterSynchronizationBarrier(barrier, SYNCHRONIZATION_BARRIER_FLAGS_NO_DELETE);
 #elif defined(__APPLE__)
     pthread_mutex_lock(&barrier->mutex);
     const unsigned int gen = barrier->generation;
