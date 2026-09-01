@@ -11,19 +11,22 @@ extern "C" {
 #       include <pthread.h>
 #   endif
 
+#   ifdef __APPLE__
+#       include <dispatch/dispatch.h>
+#       include <stdatomic.h>
+#   endif
+
 #   ifdef WIN32
 typedef HANDLE                      thread_t;
 typedef HANDLE                      mutex_t;
 typedef SYNCHRONIZATION_BARRIER     thread_barrier_t;
 #   elif defined(__APPLE__)
 typedef pthread_t       *thread_t;
-/* Darwin lacks pthread_barrier_t: hand-rolled below. */
+/* Darwin lacks pthread_barrier_t: rebuilt on top of dispatch_semaphore. */
 typedef struct {
-    pthread_mutex_t     mutex;
-    pthread_cond_t      cond;
-    unsigned int        count;      /* total participants */
-    unsigned int        waiting;    /* threads currently waiting */
-    unsigned long       generation; /* distinguishes successive barrier phases */
+    unsigned int            count;      /* total participants (immutable after init) */
+    _Atomic unsigned int    arrived;    /* incremented on entry, reset by last-in */
+    dispatch_semaphore_t    sem;        /* non-last threads park here */
 } thread_barrier_t;
 #   else
 typedef pthread_t       *thread_t;
