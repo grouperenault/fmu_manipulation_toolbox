@@ -7,7 +7,7 @@
  */
 
 thread_t thread_new(thread_function_t function, void *data) {
-#ifdef WIN32
+#ifdef _WIN32
     HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)function, data, 0, NULL); /* Thread should be create _after_ mutexes */
     if (thread) {
         SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
@@ -30,7 +30,7 @@ thread_t thread_new(thread_function_t function, void *data) {
 
 void thread_join(thread_t thread) {
     if (thread) {
-#ifdef WIN32
+#ifdef _WIN32
         WaitForSingleObject(thread, INFINITE);
         CloseHandle(thread);
 #else
@@ -48,7 +48,7 @@ void thread_join(thread_t thread) {
 ----------------------------------------------------------------------------*/
 
 int thread_barrier_init(thread_barrier_t *barrier, unsigned int count) {
-#ifdef WIN32
+#ifdef _WIN32
     return InitializeSynchronizationBarrier(barrier, (LONG)count, -1) ? 0 : -1;
 #elif defined(__APPLE__)
     if (pthread_mutex_init(&barrier->mutex, NULL) != 0)
@@ -69,7 +69,7 @@ int thread_barrier_init(thread_barrier_t *barrier, unsigned int count) {
 
 
 void thread_barrier_wait(thread_barrier_t *barrier) {
-#ifdef WIN32
+#ifdef _WIN32
     EnterSynchronizationBarrier(barrier, 0);
 #elif defined(__APPLE__)
     pthread_mutex_lock(&barrier->mutex);
@@ -93,7 +93,7 @@ void thread_barrier_wait(thread_barrier_t *barrier) {
 
 
 void thread_barrier_destroy(thread_barrier_t *barrier) {
-#ifdef WIN32
+#ifdef _WIN32
     DeleteSynchronizationBarrier(barrier);
 #elif defined(__APPLE__)
     pthread_cond_destroy(&barrier->cond);

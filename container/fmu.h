@@ -327,7 +327,7 @@ typedef enum {
 #   endif
 #   define FMU_BIN_SUFFIXE  ".dylib"
 #endif
-#ifdef WIN32
+#ifdef _WIN32
 #   if defined(_WIN64) || defined(__amd64__)
 #       define FMU2_BINDIR  "win64"
 #       define FMU3_BINDIR  "x86_64-windows"

@@ -1,6 +1,6 @@
 #include "config.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 #   include <io.h>
 #   define strdup _strdup
 #else
@@ -126,7 +126,7 @@ static fmi2Status make_rpc(client_t* client, rpc_function_t function) {
 
 static char *dirname(char* path) {
     for(size_t i = strlen(path); i > 0; i -= 1)
-#ifdef WIN32
+#ifdef _WIN32
         if (path[i] == '\\') {
 #else
         if (path[i] == '/') {
@@ -167,7 +167,7 @@ static int get_opposite_bitness(void) {
 
 
 static int client_module_path(char path[MAX_PATH])  {
-#ifdef WIN32
+#ifdef _WIN32
     HMODULE hm = NULL;
 
     if (GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |

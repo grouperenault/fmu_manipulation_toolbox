@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef WIN32
+#ifdef _WIN32
 #   include <windows.h>
 #   pragma warning(disable: 4996) /* Stop complaining about strdup() */
 #else
@@ -72,7 +72,7 @@ static void server_logger(fmi2ComponentEnvironment componentEnvironment,
 
 static void *library_symbol(library_t library, const char* symbol_name) {
     if (library)
-#ifdef WIN32
+#ifdef _WIN32
         return (void *)GetProcAddress(library, symbol_name);
 #else
         return dlsym(library, symbol_name);
@@ -85,7 +85,7 @@ static void *library_symbol(library_t library, const char* symbol_name) {
 static library_t library_load(const char* library_filename) {
     library_t handle;
     SERVER_LOG("Loading Dynamic Library `%s'\n", library_filename);
-#ifdef WIN32
+#ifdef _WIN32
     handle = LoadLibraryA(library_filename);
 #else
     handle = dlopen(library_filename, RTLD_LAZY | RTLD_LOCAL);
@@ -104,7 +104,7 @@ static library_t library_load(const char* library_filename) {
 
 static void library_unload(library_t library) {
     if (library) {
-#ifdef WIN32
+#ifdef _WIN32
         FreeLibrary(library);
 #else
         dlclose(library);
@@ -146,7 +146,7 @@ static void server_free(server_t* server) {
     if (server->communication)
         communication_free(server->communication);
     library_unload(server->library);
-#ifdef WIN32
+#ifdef _WIN32
     CloseHandle(server->parent_handle);
 #endif
     free(server->instance_name);
@@ -200,7 +200,7 @@ static server_t* server_new(const char *library_filename, unsigned long ppid, co
 
 #undef ALLOC
 
-#ifdef WIN32
+#ifdef _WIN32
     server->parent_handle = OpenProcess(SYNCHRONIZE, FALSE, ppid);
 #else
     server->parent_handle = ppid;

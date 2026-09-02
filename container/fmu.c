@@ -484,7 +484,7 @@ static void fs_make_path(char* buffer, size_t len, ...) {
 	int i = 0;
 	while ((folder = va_arg(params, const char*))) {
 		if (i > 0) {
-#ifdef WIN32
+#ifdef _WIN32
             STRLCAT(buffer, "\\", len);
 #else
             STRLCAT(buffer, "/", len);

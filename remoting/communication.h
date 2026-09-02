@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#ifdef WIN32
+#ifdef _WIN32
 #	include <windows.h>
 #else
 #	include <fcntl.h>
@@ -25,7 +25,7 @@ typedef enum {
 /*-----------------------------------------------------------------------------
                              S H M _ H A N D L E _ T
 -----------------------------------------------------------------------------*/
-#ifdef WIN32
+#ifdef _WIN32
 typedef HANDLE shm_handle_t;
 #	define SHM_INVALID	NULL
 #else
@@ -37,7 +37,7 @@ typedef int shm_handle_t;
 /*-----------------------------------------------------------------------------
                              S E M _ H A N D L E _ T
 -----------------------------------------------------------------------------*/
-#ifdef WIN32
+#ifdef _WIN32
 typedef HANDLE sem_handle_t;
 #	define SEM_INVALID	NULL
 #else

@@ -2,7 +2,7 @@
  * Basic DLL/SO loading functions.
  */
 
-#ifdef WIN32
+#ifdef _WIN32
 #   include <windows.h>
 #   include <imagehlp.h>
 #else
@@ -29,7 +29,7 @@ static libray_status_t* libray_analyse(hash_t* dll_db, const char* filename);
 #endif
 
 void *library_symbol(library_t library, const char *symbol_name) {
-#ifdef WIN32
+#ifdef _WIN32
     return (void *)GetProcAddress(library, symbol_name);
 #else
     return dlsym(library, symbol_name);
@@ -38,7 +38,7 @@ void *library_symbol(library_t library, const char *symbol_name) {
 
 
 static void library_load_error(const char* library_filename) {
-#ifdef WIN32
+#ifdef _WIN32
     hash_t* dll_db = hash_new();
     libray_analyse(dll_db, library_filename);
     hash_free(dll_db);
@@ -53,7 +53,7 @@ static void library_load_error(const char* library_filename) {
 
 library_t library_load(const char* library_filename) {
     library_t handle;
-#ifdef WIN32
+#ifdef _WIN32
     handle = LoadLibraryA(library_filename);
 #else
     handle = dlopen(library_filename, RTLD_LAZY);	/* RTLD_LOCAL can lead to failure */
@@ -81,7 +81,7 @@ int library_unload(library_t library) {
 /*
  * see: https://stackoverflow.com/questions/597260/how-to-determine-a-windows-executables-dll-dependencies-programmatically
  */
-#ifdef WIN32
+#ifdef _WIN32
 static PIMAGE_SECTION_HEADER GetEnclosingSectionHeader(DWORD rva, PIMAGE_NT_HEADERS pNTHeader) {
     PIMAGE_SECTION_HEADER section = IMAGE_FIRST_SECTION(pNTHeader);
     unsigned i;

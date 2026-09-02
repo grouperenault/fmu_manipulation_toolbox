@@ -2,7 +2,7 @@
 
 #include <stdlib.h>
 #include <string.h>
-#ifndef WIN32
+#ifndef _WIN32
 #   define _GNU_SOURCE  /* to access to semtimedop() if available */
 #   include <errno.h>
 #   include <stdio.h>
@@ -36,7 +36,7 @@ static char* concat(const char* prefix, const char* name) {
 }
 
 
-#if !defined WIN32 && !defined HAVE_SEMTIMEDOP
+#if !defined _WIN32 && !defined HAVE_SEMTIMEDOP
 static void communication_alarm_handler(int sig) {
     /* this nop signal handler is needed to make semop() interruptible */
     return;
@@ -47,7 +47,7 @@ static void communication_alarm_handler(int sig) {
 static sem_handle_t communication_sem_create(const char *name) {
     sem_handle_t sem;
 
-#ifdef WIN32
+#ifdef _WIN32
     sem = CreateSemaphoreA(NULL, 0, 1, name);
 #else
     SHM_LOG("Create SEM %s\n", name);
@@ -65,7 +65,7 @@ static sem_handle_t communication_sem_create(const char *name) {
 static sem_handle_t communication_sem_join(const char *name) {
     sem_handle_t sem;
 
-#ifdef WIN32
+#ifdef _WIN32
     sem = CreateSemaphoreA(NULL, 0, 1, name);
 #else
     SHM_LOG("Join SEM %s\n", name);
@@ -78,7 +78,7 @@ static sem_handle_t communication_sem_join(const char *name) {
 
 static void communication_sem_free(sem_handle_t sem, const char *sem_name) {
     if (sem)
-#ifdef WIN32
+#ifdef _WIN32
        CloseHandle(sem);
 #else
         SHM_LOG("communication_sem_free(%s)\n", sem_name);
@@ -91,7 +91,7 @@ static void communication_sem_free(sem_handle_t sem, const char *sem_name) {
 
 
 static void communication_shm_free(shm_handle_t map_file, const char *shm_name) {
-#ifdef WIN32
+#ifdef _WIN32
     CloseHandle(map_file);
 #else
     shm_unlink(shm_name);
@@ -101,7 +101,7 @@ static void communication_shm_free(shm_handle_t map_file, const char *shm_name) 
 
 static shm_handle_t communication_shm_create(const char *shm_name, size_t memory_size) {
     shm_handle_t map_file;
- #ifdef WIN32
+ #ifdef _WIN32
     map_file = CreateFileMappingA(
         INVALID_HANDLE_VALUE,           // use paging file
         NULL,                           // default security
@@ -126,7 +126,7 @@ static shm_handle_t communication_shm_create(const char *shm_name, size_t memory
 static shm_handle_t communication_shm_join(const char *shm_name) {
     shm_handle_t map_file;
 
-#ifdef WIN32
+#ifdef _WIN32
     map_file = OpenFileMapping(
         FILE_MAP_ALL_ACCESS,            // read/write access
         FALSE,                          // do not inherit the name
@@ -145,7 +145,7 @@ static shm_handle_t communication_shm_join(const char *shm_name) {
 
 static void *communication_shm_map(shm_handle_t map_file, size_t memory_size) {
     void *data;
-#ifdef WIN32
+#ifdef _WIN32
     data = MapViewOfFile(map_file, FILE_MAP_ALL_ACCESS,
         0, 0, memory_size);
 #else
@@ -158,7 +158,7 @@ static void *communication_shm_map(shm_handle_t map_file, size_t memory_size) {
 
 
 static void communication_shm_unmap(void *addr, size_t len) {
-#ifdef WIN32
+#ifdef _WIN32
     UnmapViewOfFile(addr);
 #else
     munmap(addr, len);
@@ -300,7 +300,7 @@ communication_t *communication_new(const char *prefix, unsigned long nb_reals,
     communication->nb_reals = nb_reals;
     communication->nb_integers = nb_integers;
     communication->nb_booleans = nb_booleans;
-#ifdef WIN32
+#ifdef _WIN32
     communication->sem_name_client = concat(prefix, "_client");
     communication->sem_name_server = concat(prefix, "_server");
 #else
@@ -332,7 +332,7 @@ communication_t *communication_new(const char *prefix, unsigned long nb_reals,
         return NULL;
     }
 
-#if !defined WIN32 && !defined HAVE_SEMTIMEDOP
+#if !defined _WIN32 && !defined HAVE_SEMTIMEDOP
     /* Make SIG_ALARM interrupt system call without other side effect */
     struct sigaction sa;
     sa.sa_handler = communication_alarm_handler;
@@ -346,7 +346,7 @@ communication_t *communication_new(const char *prefix, unsigned long nb_reals,
 
 
 void communication_client_ready(const communication_t* communication) {
-#ifdef WIN32
+#ifdef _WIN32
     ReleaseSemaphore(communication->client_ready, 1, NULL);
 #else
     SHM_LOG("communication_client_ready()\n");
@@ -358,7 +358,7 @@ void communication_client_ready(const communication_t* communication) {
 
 
 void communication_waitfor_server(const communication_t* communication) {
-#ifdef WIN32
+#ifdef _WIN32
     WaitForSingleObject(communication->server_ready, INFINITE);
 #else
     SHM_LOG("communication_waitfor_server()\n");
@@ -371,7 +371,7 @@ void communication_waitfor_server(const communication_t* communication) {
 
 
 int communication_timedwaitfor_server(const communication_t* communication, int timeout) {
-#ifdef WIN32
+#ifdef _WIN32
     return WaitForSingleObject(communication->server_ready, timeout) == WAIT_TIMEOUT;
 #else
     SHM_LOG("communication_timedwaitfor_server(%d)\n", timeout);
@@ -411,7 +411,7 @@ int communication_timedwaitfor_server(const communication_t* communication, int 
 
 
 void communication_waitfor_client(const communication_t* communication) {
-#ifdef WIN32
+#ifdef _WIN32
     WaitForSingleObject(communication->client_ready, INFINITE);
 #else
     SHM_LOG("communication_waitfor_client()\n");
@@ -424,7 +424,7 @@ void communication_waitfor_client(const communication_t* communication) {
 
 
 int communication_timedwaitfor_client(const communication_t* communication, int timeout) {
-#ifdef WIN32
+#ifdef _WIN32
     return WaitForSingleObject(communication->client_ready, timeout) == WAIT_TIMEOUT;
 #else
     SHM_LOG("communication_timedwaitfor_client(%d)\n", timeout);
@@ -464,7 +464,7 @@ int communication_timedwaitfor_client(const communication_t* communication, int 
 
 
 void communication_server_ready(const communication_t* communication) {
-#ifdef WIN32
+#ifdef _WIN32
     ReleaseSemaphore(communication->server_ready, 1, NULL);
 #else
     SHM_LOG("communication_server_ready()\n");
