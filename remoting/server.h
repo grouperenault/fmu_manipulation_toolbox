@@ -10,7 +10,7 @@
                             F M U _ L I B R A R Y T
 ----------------------------------------------------------------------------*/
 
-#ifdef WIN32
+#ifdef _WIN32
 typedef HINSTANCE library_t;
 #else
 typedef void* library_t;

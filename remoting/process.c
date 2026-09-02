@@ -1,4 +1,4 @@
-#ifdef WIN32
+#ifdef _WIN32
 #   include <windows.h>
 #else
 #   include <dlfcn.h>
@@ -20,7 +20,7 @@
 
 
 int process_is_alive(process_handle_t handle) {
-#ifdef WIN32
+#ifdef _WIN32
     return WaitForSingleObject(handle, 0) == WAIT_TIMEOUT;
 #else
     return ! kill(handle, 0);
@@ -30,7 +30,7 @@ int process_is_alive(process_handle_t handle) {
 
 process_handle_t process_spawn(char *const argv[])  {
     process_handle_t handle;
-#ifdef WIN32
+#ifdef _WIN32
     char cmd[32768];
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
@@ -82,7 +82,7 @@ process_handle_t process_spawn(char *const argv[])  {
 
 
 unsigned long int process_current_id(void) {
-#ifdef WIN32
+#ifdef _WIN32
     return GetCurrentProcessId();
 #else
     return getpid();
@@ -91,7 +91,7 @@ unsigned long int process_current_id(void) {
 
 
 void process_close_handle(process_handle_t handle) {
-#ifdef WIN32
+#ifdef _WIN32
     CloseHandle(handle);
 #else
     (void)handle;
@@ -99,7 +99,7 @@ void process_close_handle(process_handle_t handle) {
 }
 
 void process_waitfor(process_handle_t handle) {
-#ifdef WIN32
+#ifdef _WIN32
     WaitForSingleObject(handle, INFINITE);
 #else
     int reason; 

@@ -8,7 +8,7 @@ extern "C" {
 #include <stdio.h>
 
 
-#ifdef WIN32
+#ifdef _WIN32
 #   define STRLCPY(dst, src, len)   strcpy_s(dst, len, src)
 #   define STRLCAT(dst, src, len)   strcat_s(dst, len, src)
 #else
@@ -16,7 +16,7 @@ extern "C" {
 #   define STRLCAT(dst, src, len)   strncat(dst, src, len-strlen(dst)-1); dst[len-1] = '\0'
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 #   define __attribute__(x)
 #endif
 

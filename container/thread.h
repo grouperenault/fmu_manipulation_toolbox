@@ -5,13 +5,13 @@
 extern "C" {
 #	endif
 
-#   ifdef WIN32
+#   ifdef _WIN32
 #       include <windows.h>
 #   else
 #       include <pthread.h>
 #   endif
 
-#   ifdef WIN32
+#   ifdef _WIN32
 typedef HANDLE                      thread_t;
 typedef HANDLE                      mutex_t;
 typedef SYNCHRONIZATION_BARRIER     thread_barrier_t;

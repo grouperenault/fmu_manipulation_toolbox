@@ -5,7 +5,7 @@
 extern "C" {
 #	endif
 
-#ifdef WIN32
+#ifdef _WIN32
 #	include <Windows.h>
 #endif
 
@@ -13,7 +13,7 @@ extern "C" {
                               L I B R A R Y _ T
 ----------------------------------------------------------------------------*/
 
-#ifdef WIN32
+#ifdef _WIN32
 typedef HINSTANCE library_t;
 #else
 typedef void* library_t;

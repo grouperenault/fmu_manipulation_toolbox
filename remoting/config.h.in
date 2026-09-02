@@ -6,7 +6,7 @@
 #cmakedefine HAVE_SEMTIMEDOP
 
 
-#if defined WIN32
+#if defined _WIN32
 #   define CONFIG_DIR_SEP       "\\"
 #   define CONFIG_EXE_SUFFIX    ".exe"
 #   define CONFIG_FMI_BIN       "win"

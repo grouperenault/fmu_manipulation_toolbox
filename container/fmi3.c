@@ -84,7 +84,7 @@ fmi3Instance fmi3InstantiateCoSimulation(
         logger(LOGGER_DEBUG, "Container model loading...");
         if (strncmp(resourcePath, "file://", 7) == 0)
             resourcePath += 7;
-#ifdef WIN32
+#ifdef _WIN32
         if (resourcePath[0] == '/')
             resourcePath += 1;
 #endif

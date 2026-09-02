@@ -1,4 +1,4 @@
-#ifdef WIN32
+#ifdef _WIN32
 #	include <windows.h>
 #else
 #	include <unistd.h>
@@ -35,7 +35,7 @@ void profile_free(profile_t *profile) {
 
 
 void profile_tic(profile_t *profile) {
-#ifdef WIN32
+#ifdef _WIN32
 	profile->current_tic = GetTickCount();
 #else
 	struct timespec ts;
@@ -51,7 +51,7 @@ void profile_tic(profile_t *profile) {
 double profile_toc(profile_t *profile, double current_time) {
 	profile_tic_t now;
 	
-#ifdef WIN32
+#ifdef _WIN32
 	now = GetTickCount();
 #else
 	struct timespec ts;
