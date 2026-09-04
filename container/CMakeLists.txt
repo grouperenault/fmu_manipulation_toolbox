@@ -161,6 +161,71 @@ else()
 endif()
 
 # -----------------------------------------------------------------------------
+# Profile-Guided Optimization (PGO)
+#
+# Workflow:
+#   1. Configure with -DCONTAINER_PGO=GENERATE and build. The library is
+#      instrumented (~2-3x slower) and writes raw profile data at runtime to
+#      ${CMAKE_BINARY_DIR}/pgo-data/.
+#   2. Load the instrumented container.dylib/.so/.dll in a representative FMU
+#      simulation (long enough to cover the hot paths).
+#   3. For Clang only, merge the raw profiles:
+#        llvm-profdata merge -output=pgo-data/default.profdata pgo-data/*.profraw
+#      GCC produces .gcda files consumed as-is.
+#   4. Reconfigure with -DCONTAINER_PGO=USE and rebuild.
+#
+# Notes:
+#   - Requires a matching source tree between GENERATE and USE builds.
+#   - Instrumentation runtime is linked automatically (Clang: libclang_rt.profile,
+#     GCC: libgcov). MSVC PGO requires the MSVC toolset (not clang-cl).
+# -----------------------------------------------------------------------------
+set(CONTAINER_PGO "OFF" CACHE STRING "PGO mode: OFF, GENERATE, or USE")
+set_property(CACHE CONTAINER_PGO PROPERTY STRINGS "OFF" "GENERATE" "USE")
+
+if(NOT CONTAINER_PGO STREQUAL "OFF")
+    set(_pgo_dir "${CMAKE_BINARY_DIR}/pgo-data")
+    file(MAKE_DIRECTORY "${_pgo_dir}")
+
+    if(MSVC)
+        # /GENPROFILE and /USEPROFILE require /LTCG (enabled by IPO above).
+        if(CONTAINER_PGO STREQUAL "GENERATE")
+            target_link_options(container PRIVATE /GENPROFILE)
+        elseif(CONTAINER_PGO STREQUAL "USE")
+            target_link_options(container PRIVATE /USEPROFILE)
+        endif()
+    else()
+        if(CONTAINER_PGO STREQUAL "GENERATE")
+            target_compile_options(container PRIVATE
+                -fprofile-generate=${_pgo_dir}
+            )
+            target_link_options(container PRIVATE
+                -fprofile-generate=${_pgo_dir}
+            )
+        elseif(CONTAINER_PGO STREQUAL "USE")
+            if(CMAKE_C_COMPILER_ID MATCHES "Clang")
+                # Clang expects a merged .profdata file.
+                target_compile_options(container PRIVATE
+                    -fprofile-use=${_pgo_dir}/default.profdata
+                )
+                target_link_options(container PRIVATE
+                    -fprofile-use=${_pgo_dir}/default.profdata
+                )
+            else()
+                # GCC consumes .gcda files directly from the directory.
+                target_compile_options(container PRIVATE
+                    -fprofile-use=${_pgo_dir}
+                    -fprofile-correction
+                )
+                target_link_options(container PRIVATE
+                    -fprofile-use=${_pgo_dir}
+                )
+            endif()
+        endif()
+    endif()
+    message(STATUS "PGO enabled: CONTAINER_PGO=${CONTAINER_PGO} (data dir: ${_pgo_dir})")
+endif()
+
+# -----------------------------------------------------------------------------
 # Print the effective compilation flags applied to `container`.
 # Generator expressions (e.g. $<$<CONFIG:Release>:...>) are shown unresolved
 # at configure time; for the fully-resolved per-config list, look at
