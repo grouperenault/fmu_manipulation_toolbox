@@ -1440,7 +1440,6 @@ int container_configure(container_t* container, const char* resource_location) {
     setlocale(LC_NUMERIC, "C");
 
     resource_location_to_path(resource_location, dirname, sizeof(dirname));
-    logger(LOGGER_DEBUG, "Resource location path: '%s' => '%s'", resource_location, dirname);
     if (config_file_open(&file, dirname, "container.txt")) {
         logger(LOGGER_ERROR, "Cannot open '%s/container.txt': %s.", dirname, strerror(errno));
         return -1;
