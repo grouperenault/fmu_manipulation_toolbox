@@ -1385,9 +1385,52 @@ static void container_stop_threads(container_t *container) {
 }
 
 
-int container_configure(container_t* container, const char* dirname) {
+/* Value of a single hexadecimal digit, or -1 if it is not one. */
+static int hex_digit(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+
+/*
+ * Convert an FMI resource location URI into a native filesystem directory.
+ *
+ * Per the FMI 2.0 standard, fmuResourceLocation is a URI following RFC 3986:
+ * the "file://" scheme is stripped, the leading '/' before a Windows drive
+ * letter is removed, and percent-encoded octets (e.g. "%20" -> ' ') are decoded.
+ * The result is written into dest (of size bytes, always NUL-terminated).
+ */
+static void resource_location_to_path(const char *location, char *dest, size_t size) {
+    const char *src;
+    size_t i = 0;
+
+    if (strncmp(location, "file://", 7) == 0)
+        location += 7;
+
+#ifdef _WIN32
+    /* "file:///C:/..." -> drop the leading '/' before the drive letter. */
+    if (location[0] == '/')
+        location += 1;
+#endif
+
+    for (src = location; *src && i + 1 < size; ) {
+        int hi, lo;
+        if (src[0] == '%' && (hi = hex_digit(src[1])) >= 0 && (lo = hex_digit(src[2])) >= 0) {
+            dest[i++] = (char)((hi << 4) | lo);
+            src += 3;
+        } else {
+            dest[i++] = *src++;
+        }
+    }
+    dest[i] = '\0';
+}
+
+
+int container_configure(container_t* container, const char* resource_location) {
     config_file_t file;
-    char filename[CONFIG_FILE_SZ];
+    char dirname[CONFIG_FILE_SZ];
 
     logger(LOGGER_WARNING, "FMUContainer '" VERSION_TAG "'");
 
@@ -1395,8 +1438,11 @@ int container_configure(container_t* container, const char* dirname) {
      * Force C locale for numeric values, to avoid issues with decimal separator
      */
     setlocale(LC_NUMERIC, "C");
+
+    resource_location_to_path(resource_location, dirname, sizeof(dirname));
+    logger(LOGGER_DEBUG, "Resource location path: '%s' => '%s'", resource_location, dirname);
     if (config_file_open(&file, dirname, "container.txt")) {
-        logger(LOGGER_ERROR, "Cannot open '%s': %s.", filename, strerror(errno));
+        logger(LOGGER_ERROR, "Cannot open '%s/container.txt': %s.", dirname, strerror(errno));
         return -1;
     }
 

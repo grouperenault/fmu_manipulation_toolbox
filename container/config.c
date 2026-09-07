@@ -34,9 +34,11 @@ int config_file_open(config_file_t* config_file, const char *dirname, const char
     STRLCAT(full_path, filename, sizeof(full_path));
     
     config_file->fp = fopen(full_path, "rt");
-    if (! config_file->fp)
+    if (! config_file->fp) {
+        logger(LOGGER_DEBUG, "Cannot open configuration file '%s'.", full_path);
         return -1;
-    
+    }
+
     logger(LOGGER_DEBUG, "Reading '%s'...", filename);
 
     config_file->line_number = 0;
