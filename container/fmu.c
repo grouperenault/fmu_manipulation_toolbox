@@ -354,7 +354,7 @@ static void *fmu_do_step_thread(fmu_t* fmu) {
 }
 
 
-static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version){
+static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version, fmu_kind_t kind){
     int status = 0;
 
     if (fmi_version == 2) {
@@ -390,13 +390,26 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version){
         OPT_MAP(fmi2GetDirectionalDerivative);
         OPT_MAP(fmi2SetRealInputDerivatives);
         OPT_MAP(fmi2GetRealOutputDerivatives);
-        REQ_MAP(fmi2DoStep);
-        OPT_MAP(fmi2CancelStep);
-        OPT_MAP(fmi2GetStatus);
-        REQ_MAP(fmi2GetRealStatus);
-        OPT_MAP(fmi2GetIntegerStatus);
-        REQ_MAP(fmi2GetBooleanStatus);
-        OPT_MAP(fmi2GetStringStatus);
+        if (kind == FMU_KIND_CS) {
+            REQ_MAP(fmi2DoStep);
+            OPT_MAP(fmi2CancelStep);
+            OPT_MAP(fmi2GetStatus);
+            REQ_MAP(fmi2GetRealStatus);
+            OPT_MAP(fmi2GetIntegerStatus);
+            REQ_MAP(fmi2GetBooleanStatus);
+            OPT_MAP(fmi2GetStringStatus);
+        } else {
+            REQ_MAP(fmi2EnterEventMode);
+            REQ_MAP(fmi2NewDiscreteStates);
+            REQ_MAP(fmi2EnterContinuousTimeMode);
+            REQ_MAP(fmi2CompletedIntegratorStep);
+            REQ_MAP(fmi2SetTime);
+            REQ_MAP(fmi2SetContinuousStates);
+            REQ_MAP(fmi2GetDerivatives);
+            OPT_MAP(fmi2GetEventIndicators);
+            REQ_MAP(fmi2GetContinuousStates);
+            OPT_MAP(fmi2GetNominalsOfContinuousStates);
+        }
 #undef OPT_MAP
 #undef REQ_MAP
     }
@@ -409,7 +422,11 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version){
 }
         OPT_MAP(fmi3GetVersion);
         OPT_MAP(fmi3SetDebugLogging);
-        REQ_MAP(fmi3InstantiateCoSimulation);
+        if (kind == FMU_KIND_CS) {
+            REQ_MAP(fmi3InstantiateCoSimulation);
+        } else {
+            REQ_MAP(fmi3InstantiateModelExchange);
+        }
         REQ_MAP(fmi3FreeInstance);
         REQ_MAP(fmi3EnterInitializationMode);
         REQ_MAP(fmi3ExitInitializationMode);
@@ -466,9 +483,20 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version){
         OPT_MAP(fmi3SetShiftFraction);
         OPT_MAP(fmi3EvaluateDiscreteStates);
         REQ_MAP(fmi3UpdateDiscreteStates);
-        REQ_MAP(fmi3EnterStepMode);
-        OPT_MAP(fmi3GetOutputDerivatives);
-        REQ_MAP(fmi3DoStep);
+        if (kind == FMU_KIND_CS) {
+            REQ_MAP(fmi3EnterStepMode);
+            OPT_MAP(fmi3GetOutputDerivatives);
+            REQ_MAP(fmi3DoStep);
+        } else {
+            REQ_MAP(fmi3EnterContinuousTimeMode);
+            REQ_MAP(fmi3CompletedIntegratorStep);
+            REQ_MAP(fmi3SetTime);
+            REQ_MAP(fmi3SetContinuousStates);
+            REQ_MAP(fmi3GetContinuousStateDerivatives);
+            OPT_MAP(fmi3GetEventIndicators);
+            REQ_MAP(fmi3GetContinuousStates);
+            OPT_MAP(fmi3GetNominalsOfContinuousStates);
+        }
 #undef OPT_MAP
 #undef REQ_MAP
     }
@@ -500,8 +528,10 @@ static void fs_make_path(char* buffer, size_t len, ...) {
 
 
 int fmu_load_from_directory(container_t *container, int i, const char *directory, const char *name,
-                            const char *identifier, const char *guid, fmu_version_t fmi_version, int support_event) {
-    logger(LOGGER_DEBUG, "FMU#%d: loading '%s" FMU_BIN_SUFFIXE "' from directory '%s' (FMI-%d)", i, identifier, directory, fmi_version);
+                            const char *identifier, const char *guid, fmu_version_t fmi_version, int support_event,
+                            fmu_kind_t kind) {
+    logger(LOGGER_DEBUG, "FMU#%d: loading '%s" FMU_BIN_SUFFIXE "' from directory '%s' (FMI-%d, %s)",
+           i, identifier, directory, fmi_version, (kind == FMU_KIND_ME) ? "ME" : "CS");
 
     fmu_t *fmu = &container->fmu[i];
 
@@ -511,7 +541,8 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->guid = strdup(guid);
     fmu->index = i;
     fmu->fmi_version = fmi_version;
-    fmu->component = NULL;  /* will be set by fmuInstantiateCoSimulation() */
+    fmu->kind = kind;
+    fmu->component = NULL;  /* will be set by fmuInstantiateCoSimulation/ModelExchange() */
 
 #define INIT_FMU_DATA(type)                             \
     fmu->fmu_io. type .in.translations = NULL;          \
@@ -556,7 +587,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     if (!fmu->library)
         return -2;
     
-    if (fmu_map_functions(fmu, fmi_version)) {
+    if (fmu_map_functions(fmu, fmi_version, kind)) {
         logger(LOGGER_ERROR, "missing API in %s", library_filename);
         return -3;
     }
@@ -591,8 +622,6 @@ void fmu_unload(fmu_t *fmu) {
     free(fmu->name);
     convert_free(fmu->conversions);
     profile_free(fmu->profile);
-
-
 
 /* Free a plain translation port (in + out) and the associated start values  */
 #define FREE_FMU_DATA(type)                                             \
@@ -944,8 +973,166 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, bool *discreteStatesNeedU
 }
 
 
-fmu_status_t fmuDoStep(fmu_t *fmu, 
-                       double currentCommunicationPoint, 
+/*----------------------------------------------------------------------------
+                       M O D E L   E X C H A N G E
+----------------------------------------------------------------------------*/
+
+/* Thin FMI-2/3 dispatchers used by the ME solver in solver.c. */
+
+fmu_status_t fmu_me_set_time(fmu_t *fmu, double t) {
+    if (fmu->fmi_version == 2) {
+        return (fmu->fmi_functions.version_2.fmi2SetTime(fmu->component, t) == fmi2OK)
+               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+    }
+    return (fmu->fmi_functions.version_3.fmi3SetTime(fmu->component, t) == fmi3OK)
+           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+}
+
+fmu_status_t fmu_me_set_states(fmu_t *fmu, const double *x, size_t nx) {
+    if (!nx) return FMU_STATUS_OK;
+    if (fmu->fmi_version == 2) {
+        return (fmu->fmi_functions.version_2.fmi2SetContinuousStates(fmu->component, x, nx) == fmi2OK)
+               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+    }
+    return (fmu->fmi_functions.version_3.fmi3SetContinuousStates(fmu->component, x, nx) == fmi3OK)
+           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+}
+
+fmu_status_t fmu_me_get_states(fmu_t *fmu, double *x, size_t nx) {
+    if (!nx) return FMU_STATUS_OK;
+    if (fmu->fmi_version == 2) {
+        return (fmu->fmi_functions.version_2.fmi2GetContinuousStates(fmu->component, x, nx) == fmi2OK)
+               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+    }
+    return (fmu->fmi_functions.version_3.fmi3GetContinuousStates(fmu->component, x, nx) == fmi3OK)
+           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+}
+
+fmu_status_t fmu_me_get_derivatives(fmu_t *fmu, double *dx, size_t nx) {
+    if (!nx) return FMU_STATUS_OK;
+    if (fmu->fmi_version == 2) {
+        return (fmu->fmi_functions.version_2.fmi2GetDerivatives(fmu->component, dx, nx) == fmi2OK)
+               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+    }
+    return (fmu->fmi_functions.version_3.fmi3GetContinuousStateDerivatives(fmu->component, dx, nx) == fmi3OK)
+           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+}
+
+fmu_status_t fmu_me_get_event_indicators(fmu_t *fmu, double *z, size_t nz) {
+    if (!nz) return FMU_STATUS_OK;
+    if (fmu->fmi_version == 2) {
+        return (fmu->fmi_functions.version_2.fmi2GetEventIndicators(fmu->component, z, nz) == fmi2OK)
+               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+    }
+    return (fmu->fmi_functions.version_3.fmi3GetEventIndicators(fmu->component, z, nz) == fmi3OK)
+           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+}
+
+fmu_status_t fmu_me_completed_step(fmu_t *fmu, bool *enter_event_mode) {
+    if (fmu->fmi_version == 2) {
+        fmi2Boolean enter = fmi2False, terminate = fmi2False;
+        fmi2Status s = fmu->fmi_functions.version_2.fmi2CompletedIntegratorStep(
+            fmu->component, fmi2True, &enter, &terminate);
+        if (s != fmi2OK) return FMU_STATUS_ERROR;
+        if (terminate) {
+            logger(LOGGER_WARNING, "ME FMU '%s' requested to end the simulation.", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+        *enter_event_mode = enter ? true : false;
+        return FMU_STATUS_OK;
+    }
+    fmi3Boolean enter = fmi3False, terminate = fmi3False;
+    fmi3Status s = fmu->fmi_functions.version_3.fmi3CompletedIntegratorStep(
+        fmu->component, fmi3True, &enter, &terminate);
+    if (s != fmi3OK) return FMU_STATUS_ERROR;
+    if (terminate) {
+        logger(LOGGER_WARNING, "ME FMU '%s' requested to end the simulation.", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+    *enter_event_mode = enter ? true : false;
+    return FMU_STATUS_OK;
+}
+
+fmu_status_t fmu_me_enter_event_mode(fmu_t *fmu) {
+    if (fmu->fmi_version == 2) {
+        return (fmu->fmi_functions.version_2.fmi2EnterEventMode(fmu->component) == fmi2OK)
+               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+    }
+    return (fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component) == fmi3OK)
+           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+}
+
+fmu_status_t fmu_me_enter_continuous_time_mode(fmu_t *fmu) {
+    if (fmu->fmi_version == 2) {
+        return (fmu->fmi_functions.version_2.fmi2EnterContinuousTimeMode(fmu->component) == fmi2OK)
+               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+    }
+    return (fmu->fmi_functions.version_3.fmi3EnterContinuousTimeMode(fmu->component) == fmi3OK)
+           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+}
+
+/* Iterate NewDiscreteStates / UpdateDiscreteStates until fixpoint. FMU must
+   already be in Event Mode; next-event-time info is returned via out-params. */
+fmu_status_t fmu_me_do_event_iteration(fmu_t *fmu,
+                                       bool *have_next_event_time,
+                                       double *next_event_time) {
+    const int MAX_EVENT_ITER = 100;
+
+    *have_next_event_time = false;
+    *next_event_time = 0.0;
+
+    for (int iter = 0; iter < MAX_EVENT_ITER; iter += 1) {
+        if (fmu->fmi_version == 2) {
+            fmi2EventInfo info;
+            fmi2Status s = fmu->fmi_functions.version_2.fmi2NewDiscreteStates(fmu->component, &info);
+            if (s != fmi2OK) {
+                logger(LOGGER_ERROR, "ME FMU '%s': fmi2NewDiscreteStates failed (%d).", fmu->name, s);
+                return FMU_STATUS_ERROR;
+            }
+            if (info.terminateSimulation) {
+                logger(LOGGER_WARNING, "ME FMU '%s' requested to stop simulation.", fmu->name);
+                return FMU_STATUS_ERROR;
+            }
+            *have_next_event_time = info.nextEventTimeDefined ? true : false;
+            if (*have_next_event_time)
+                *next_event_time = info.nextEventTime;
+            if (!info.newDiscreteStatesNeeded)
+                return FMU_STATUS_OK;
+        } else {
+            fmi3Boolean needUpdate, terminate, nominalsChanged, valuesChanged, nextDefined;
+            fmi3Float64 nextTime;
+            fmi3Status s = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(
+                fmu->component, &needUpdate, &terminate,
+                &nominalsChanged, &valuesChanged, &nextDefined, &nextTime);
+            if (s != fmi3OK) {
+                logger(LOGGER_ERROR, "ME FMU '%s': fmi3UpdateDiscreteStates failed (%d).", fmu->name, s);
+                return FMU_STATUS_ERROR;
+            }
+            if (terminate) {
+                logger(LOGGER_WARNING, "ME FMU '%s' requested to stop simulation.", fmu->name);
+                return FMU_STATUS_ERROR;
+            }
+            *have_next_event_time = nextDefined ? true : false;
+            if (*have_next_event_time)
+                *next_event_time = nextTime;
+            if (!needUpdate)
+                return FMU_STATUS_OK;
+        }
+    }
+
+    logger(LOGGER_ERROR, "ME FMU '%s': event iteration did not converge after %d steps.",
+           fmu->name, MAX_EVENT_ITER);
+    return FMU_STATUS_ERROR;
+}
+
+
+/* fmuDoStep is only ever called on CS FMUs. ME FMUs are advanced collectively
+   by solver_do_step() in solver.c. The container filters ME out of its
+   work loops via container->cs_fmu[]. */
+
+
+fmu_status_t fmuDoStep(fmu_t *fmu,
+                       double currentCommunicationPoint,
                        double communicationStepSize) {
     fmu_status_t status = FMU_STATUS_ERROR;
 
@@ -1054,14 +1241,20 @@ fmu_status_t fmuSetupExperiment(const fmu_t *fmu) {
 }
 
 
+/* fmi2Instantiate needs the callback struct to outlive the call: Simulink reads
+   it during the whole simulation, despite what the FMI spec says. */
+static void fmu_setup_fmi2_callbacks(fmu_t *fmu) {
+    fmu->fmi2_callback_functions.componentEnvironment = fmu;
+    fmu->fmi2_callback_functions.logger = logger_embedded_fmu2;
+    fmu->fmi2_callback_functions.allocateMemory = fmu->container->allocate_memory;
+    fmu->fmi2_callback_functions.freeMemory = fmu->container->free_memory;
+    fmu->fmi2_callback_functions.stepFinished = NULL;
+}
+
+
 fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
     if (fmu->fmi_version == 2) {
-        fmu->fmi2_callback_functions.componentEnvironment = fmu;
-        fmu->fmi2_callback_functions.logger = logger_embedded_fmu2;
-        fmu->fmi2_callback_functions.allocateMemory = fmu->container->allocate_memory;
-        fmu->fmi2_callback_functions.freeMemory = fmu->container->free_memory;
-        fmu->fmi2_callback_functions.stepFinished = NULL;
-
+        fmu_setup_fmi2_callbacks(fmu);
         fmu->component = fmu->fmi_functions.version_2.fmi2Instantiate(instanceName,
                                                                       fmi2CoSimulation,
                                                                       fmu->guid,
@@ -1070,8 +1263,8 @@ fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
                                                                       fmi2False,    /* visible */
                                                                       logger_get_debug());
     } else {
-        fmu->component =  fmu->fmi_functions.version_3.fmi3InstantiateCoSimulation(
-            instanceName, 
+        fmu->component = fmu->fmi_functions.version_3.fmi3InstantiateCoSimulation(
+            instanceName,
             fmu->guid,
             fmu->resource_dir,
             fmi3False,  /* visible */
@@ -1085,10 +1278,40 @@ fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
             NULL /* intermediateUpdateCallback */
         );
     }
+
     if (!fmu->component)
         return FMU_STATUS_ERROR;
 
-    return FMU_STATUS_OK;                
+    return FMU_STATUS_OK;
+}
+
+
+fmu_status_t fmuInstantiateModelExchange(fmu_t *fmu, const char *instanceName) {
+    if (fmu->fmi_version == 2) {
+        fmu_setup_fmi2_callbacks(fmu);
+        fmu->component = fmu->fmi_functions.version_2.fmi2Instantiate(instanceName,
+                                                                      fmi2ModelExchange,
+                                                                      fmu->guid,
+                                                                      fmu->resource_dir,
+                                                                      &fmu->fmi2_callback_functions,
+                                                                      fmi2False,    /* visible */
+                                                                      logger_get_debug());
+    } else {
+        fmu->component = fmu->fmi_functions.version_3.fmi3InstantiateModelExchange(
+            instanceName,
+            fmu->guid,
+            fmu->resource_dir,
+            fmi3False,  /* visible */
+            logger_get_debug(),
+            fmu,        /* fmi3InstanceEnvironment */
+            logger_embedded_fmu3
+        );
+    }
+
+    if (!fmu->component)
+        return FMU_STATUS_ERROR;
+
+    return FMU_STATUS_OK;
 }
 
 

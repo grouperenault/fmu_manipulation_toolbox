@@ -180,6 +180,15 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
+                             F M U _ K I N D _ T
+----------------------------------------------------------------------------*/
+typedef enum {
+    FMU_KIND_CS = 0,
+    FMU_KIND_ME = 1
+} fmu_kind_t;
+
+
+/*----------------------------------------------------------------------------
                          F M U _ I N T E R F A C E _ T
 ----------------------------------------------------------------------------*/
 typedef union {
@@ -219,6 +228,17 @@ typedef union {
         DECLARE_FMI_FUNCTION(fmi2GetIntegerStatus);
         DECLARE_FMI_FUNCTION(fmi2GetBooleanStatus);
         DECLARE_FMI_FUNCTION(fmi2GetStringStatus);
+        /* Model Exchange */
+        DECLARE_FMI_FUNCTION(fmi2EnterEventMode);
+        DECLARE_FMI_FUNCTION(fmi2NewDiscreteStates);
+        DECLARE_FMI_FUNCTION(fmi2EnterContinuousTimeMode);
+        DECLARE_FMI_FUNCTION(fmi2CompletedIntegratorStep);
+        DECLARE_FMI_FUNCTION(fmi2SetTime);
+        DECLARE_FMI_FUNCTION(fmi2SetContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi2GetDerivatives);
+        DECLARE_FMI_FUNCTION(fmi2GetEventIndicators);
+        DECLARE_FMI_FUNCTION(fmi2GetContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi2GetNominalsOfContinuousStates);
     } version_2;
     struct {
         DECLARE_FMI_FUNCTION(fmi3GetVersion);
@@ -283,6 +303,16 @@ typedef union {
         DECLARE_FMI_FUNCTION(fmi3EnterStepMode);
         DECLARE_FMI_FUNCTION(fmi3GetOutputDerivatives);
         DECLARE_FMI_FUNCTION(fmi3DoStep);
+        /* Model Exchange */
+        DECLARE_FMI_FUNCTION(fmi3InstantiateModelExchange);
+        DECLARE_FMI_FUNCTION(fmi3EnterContinuousTimeMode);
+        DECLARE_FMI_FUNCTION(fmi3CompletedIntegratorStep);
+        DECLARE_FMI_FUNCTION(fmi3SetTime);
+        DECLARE_FMI_FUNCTION(fmi3SetContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi3GetContinuousStateDerivatives);
+        DECLARE_FMI_FUNCTION(fmi3GetEventIndicators);
+        DECLARE_FMI_FUNCTION(fmi3GetContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi3GetNominalsOfContinuousStates);
     } version_3;
 } fmu_interface_t;
 #	undef DECLARE_FMI_FUNCTION
@@ -358,6 +388,8 @@ typedef struct {
     bool                        support_event;
     bool                        need_event_udpate;
 	
+    fmu_kind_t                  kind;
+
     profile_t                   *profile;
 
     struct convert_table_s      *conversions;
@@ -384,9 +416,25 @@ extern fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, bool *discreteStat
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,
-                                   fmu_version_t fmi_version, int support_event);
+                                   fmu_version_t fmi_version, int support_event,
+                                   fmu_kind_t kind);
 extern int fmu_launch_thread(fmu_t *fmu);
 extern void fmu_unload(fmu_t *fmu);
+
+/* Thin FMI-2/3 dispatchers for the Model Exchange primitives (used by
+   the collective Euler solver in solver.c). They are stateless: state buffers
+   are passed in by the solver. */
+extern fmu_status_t fmu_me_set_time(fmu_t *fmu, double t);
+extern fmu_status_t fmu_me_set_states(fmu_t *fmu, const double *x, size_t nx);
+extern fmu_status_t fmu_me_get_states(fmu_t *fmu, double *x, size_t nx);
+extern fmu_status_t fmu_me_get_derivatives(fmu_t *fmu, double *dx, size_t nx);
+extern fmu_status_t fmu_me_get_event_indicators(fmu_t *fmu, double *z, size_t nz);
+extern fmu_status_t fmu_me_completed_step(fmu_t *fmu, bool *enter_event_mode);
+extern fmu_status_t fmu_me_enter_event_mode(fmu_t *fmu);
+extern fmu_status_t fmu_me_enter_continuous_time_mode(fmu_t *fmu);
+extern fmu_status_t fmu_me_do_event_iteration(fmu_t *fmu,
+                                              bool *have_next_event_time,
+                                              double *next_event_time);
 
 extern fmu_status_t fmuGetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
                                  size_t nvr, double value[], size_t nvalues);
@@ -456,6 +504,7 @@ extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu);
 extern fmu_status_t fmuExitInitializationMode(const fmu_t *fmu);
 extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu);
 extern fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, fmi2String instanceName);
+extern fmu_status_t fmuInstantiateModelExchange(fmu_t *fmu, fmi2String instanceName);
 extern void fmuFreeInstance(const fmu_t *fmu);
 extern fmu_status_t fmuTerminate(const fmu_t *fmu);
 extern fmu_status_t fmuReset(const fmu_t *fmu);
