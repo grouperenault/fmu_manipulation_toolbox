@@ -16,6 +16,32 @@ from fmu_manipulation_toolbox.operations import FMU
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
+def get_fmu_icon_path(fmu: FMU, fmi_version: Optional[int]) -> Optional[Path]:
+    """Return the path to the FMU model icon inside its extraction directory.
+
+    The icon location depends on the FMI version:
+      - FMI 3.0: `terminalsAndIcons/icon.png`
+      - FMI 2.0 (or unknown): `model.png` at the FMU root
+
+    Args:
+        fmu: The loaded FMU (uses its `tmp_directory`).
+        fmi_version: The detected FMI version (`2` or `3`), or `None` if unknown.
+
+    Returns:
+        The icon `Path` if the file exists, otherwise `None`.
+    """
+    if fmu is None:
+        return None
+
+    base = Path(fmu.tmp_directory)
+    if fmi_version == 3:
+        icon_path = base / "terminalsAndIcons" / "icon.png"
+    else:
+        icon_path = base / "model.png"
+
+    return icon_path if icon_path.is_file() else None
+
+
 class LastDirectory:
     """Remembers the last directory used in any file dialog across the whole application.
 
@@ -311,7 +337,10 @@ class DropZoneWidget(QLabel):
         try:
             LastDirectory.update(filename)
             self.fmu = FMU(filename)
-            self.set_image(Path(self.fmu.tmp_directory) / "model.png")
+            # At load time the FMU is not parsed yet, so fmi_version is unknown:
+            # the FMI-2 icon (model.png) is shown here, and each tool refreshes
+            # the icon once the FMI version has been detected.
+            self.set_image(get_fmu_icon_path(self.fmu, self.fmu.fmi_version))
         except Exception as e:
             logger.error(f"Cannot load this FMU: {e}")
             self.set_image(None)

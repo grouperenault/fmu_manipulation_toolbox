@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsIte
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.terminals import Terminals
 from fmu_manipulation_toolbox.container import ArrayAggregate
-from fmu_manipulation_toolbox.gui.helper import load_scaled_pixmap, crop_transparent_border
+from fmu_manipulation_toolbox.gui.helper import load_scaled_pixmap, crop_transparent_border, get_fmu_icon_path
 
 from .constants import (
     NODE_MIN_WIDTH, NODE_TITLE_HEIGHT, NODE_PORT_SPACING, NODE_CORNER_RADIUS,
@@ -117,8 +117,8 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self._icon_pixmap = None
         self._icon_native_width = 0
         self._icon_native_height = 0
-        icon_path = Path(fmu.tmp_directory) / "model.png"
-        if not icon_path.is_file():
+        icon_path = get_fmu_icon_path(fmu, fmu.fmi_version)
+        if icon_path is None:
             return
 
         image = QImage(str(icon_path))

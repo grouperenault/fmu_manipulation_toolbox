@@ -2290,7 +2290,15 @@ class FMUContainer:
         if self.description_pathname:
             self.copyfile(self.description_pathname, documentation_directory)
 
-        self.copyfile(origin / "fmucontainer.png", base_directory / "model.png")
+        # Model icon location depends on the FMI version:
+        #   - FMI 3.0: terminalsAndIcons/icon.png
+        #   - FMI 2.0: model.png at the FMU root
+        if self.fmi_version == 3:
+            terminals_and_icons_directory = base_directory / "terminalsAndIcons"
+            terminals_and_icons_directory.mkdir(exist_ok=True)
+            self.copyfile(origin / "fmucontainer.png", terminals_and_icons_directory / "icon.png")
+        else:
+            self.copyfile(origin / "fmucontainer.png", base_directory / "model.png")
 
         for platform in self.get_platforms():
             library_filename = origin / platform.origin_bindir / f"container.{platform.suffixe}"

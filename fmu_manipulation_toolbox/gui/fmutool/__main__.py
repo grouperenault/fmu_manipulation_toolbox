@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushBut
 from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
-from fmu_manipulation_toolbox.gui.helper import Application, HelpWidget, DropZoneWidget, LogWidget, LastDirectory
+from fmu_manipulation_toolbox.gui.helper import Application, HelpWidget, DropZoneWidget, LogWidget, LastDirectory, get_fmu_icon_path
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
@@ -276,6 +276,9 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             self.fmu_title.setText(os.path.basename(self.dropped_fmu.fmu.fmu_filename))
             self.log_widget.clear()
             self.apply_operation(OperationSummary())
+            # The FMI version is now known: refresh the icon so that FMI-3 FMUs
+            # (icon stored in terminalsAndIcons/icon.png) display correctly.
+            self.dropped_fmu.set_image(get_fmu_icon_path(self.dropped_fmu.fmu, self.dropped_fmu.fmu.fmi_version))
         else:
             self.fmu_title.setText('')
 

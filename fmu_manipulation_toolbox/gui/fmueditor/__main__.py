@@ -19,7 +19,8 @@ from PySide6.QtWidgets import (
 
 from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
 from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, StatusBar,
-                                                 UnsavedChangesWindowMixin, LastDirectory)
+                                                 UnsavedChangesWindowMixin, LastDirectory,
+                                                 get_fmu_icon_path)
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -65,6 +66,8 @@ class OperationCollectPorts(OperationAbstract):
         self.generation_tool: str = ""
         self.generation_date: str = ""
         self.fmu_description: str = ""
+        # FMI version (2 or 3), detected while parsing
+        self.fmi_version: Optional[int] = None
         # DefaultExperiment
         self.start_time: str = ""
         self.stop_time: str = ""
@@ -78,6 +81,10 @@ class OperationCollectPorts(OperationAbstract):
         self.generation_tool = attrs.get("generationTool", "")
         self.generation_date = attrs.get("generationDateAndTime", "")
         self.fmu_description = attrs.get("description", "")
+        try:
+            self.fmi_version = int(float(attrs["fmiVersion"]))
+        except (KeyError, ValueError):
+            self.fmi_version = None
 
     def experiment_attrs(self, attrs):
         self.start_time = attrs.get("startTime", "")
@@ -509,6 +516,10 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         # Collect variables and metadata
         collector = OperationCollectPorts()
         fmu.apply_operation(collector)
+
+        # Refresh the drop-zone icon now that the FMI version is known
+        # (FMI-3 stores the icon in terminalsAndIcons/icon.png).
+        self._drop_zone.set_image(get_fmu_icon_path(fmu, collector.fmi_version))
 
         # Display FMU info
         self._fmu_title.setText(os.path.basename(fmu.fmu_filename))
