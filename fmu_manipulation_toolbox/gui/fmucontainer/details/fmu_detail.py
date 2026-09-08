@@ -10,7 +10,7 @@ from PySide6.QtCore import Qt, Signal, QSortFilterProxyModel
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor
 from PySide6.QtWidgets import (
     QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout,
-    QStyledItemDelegate, QAbstractItemView, QTabWidget,
+    QStyledItemDelegate, QAbstractItemView, QTabWidget, QMenu,
 )
 
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem
@@ -133,6 +133,11 @@ class FMUDetailWidget(QWidget):
         self._in_delegate = _StartValueDelegate(self._in_table)
         self._in_table.setItemDelegateForColumn(0, self._in_delegate)
 
+        self._in_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._in_table.customContextMenuRequested.connect(
+            lambda pos: self._show_exposure_menu(self._in_table, self._in_model, pos)
+        )
+
         self._tabs.addTab(self._in_table, "Input Ports")
 
         # ── Tab 3: Output Ports ───────────────────────────────────
@@ -155,6 +160,11 @@ class FMUDetailWidget(QWidget):
         self._out_delegate = _StartValueDelegate(self._out_table)
         self._out_table.setItemDelegateForColumn(0, self._out_delegate)
 
+        self._out_table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._out_table.customContextMenuRequested.connect(
+            lambda pos: self._show_exposure_menu(self._out_table, self._out_model, pos)
+        )
+
         self._tabs.addTab(self._out_table, "Output Ports")
 
         # ── Layout ────────────────────────────────────────────────
@@ -172,6 +182,28 @@ class FMUDetailWidget(QWidget):
             if obj is self._sv_table or obj is self._in_table or obj is self._out_table:
                 unlock_column_resize(obj)
         return super().eventFilter(obj, event)
+
+    # -- Context menu ----------------------------------------------------------
+
+    def _show_exposure_menu(self, table, model, pos):
+        """Show a context menu to expose all or none of the ports in one click."""
+        menu = QMenu(table)
+        select_all = menu.addAction("Select all")
+        select_none = menu.addAction("Select none")
+        action = menu.exec(table.viewport().mapToGlobal(pos))
+        if action is select_all:
+            self._set_all_exposed(model, True)
+        elif action is select_none:
+            self._set_all_exposed(model, False)
+
+    @staticmethod
+    def _set_all_exposed(model, exposed):
+        """Set the check-state of every checkable row in *model*."""
+        state = Qt.CheckState.Checked if exposed else Qt.CheckState.Unchecked
+        for row in range(model.rowCount()):
+            check_item = model.item(row, 1)
+            if check_item is not None and check_item.isCheckable():
+                check_item.setCheckState(state)
 
     # -- Sync helpers ----------------------------------------------------------
 
