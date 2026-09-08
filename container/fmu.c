@@ -337,7 +337,7 @@ static void *fmu_do_step_thread(fmu_t* fmu) {
 
         fmu->status = FMU_STATUS_ERROR;
 
-        if (fmu->cancel)
+        if (container->cancel)
             break;
 
         fmu->status = fmuDoStep(fmu, 
@@ -561,7 +561,6 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
         return -3;
     }
 
-    fmu->cancel = false;
     fmu->support_event = support_event;
     fmu->need_event_udpate = false;
 
