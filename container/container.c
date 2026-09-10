@@ -277,6 +277,7 @@ static fmu_status_t container_handle_events(container_t *container) {
        when a clock may tick (FMI-3.0 4.2.1). */
     if (!container->need_event_update && (container->clocks_list.nb_local_clocks == 0)) {
         container->next_step = container_nominal_step(container);
+        datalog_log(container);
         return FMU_STATUS_OK;
     }
 
@@ -289,6 +290,7 @@ static fmu_status_t container_handle_events(container_t *container) {
     if (status != FMU_STATUS_OK)
         return status;
     
+    datalog_log(container);
     status = container_update_discrete_state(container);
     if (status != FMU_STATUS_OK)
         return status;
@@ -570,7 +572,6 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                 if (container->time + container->next_step > target_time) {
                     container->next_step = target_time - container->time;
                 }
-                datalog_log(container);
 #ifdef DEBUG
                 logger(LOGGER_DEBUG, "[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
 #endif
