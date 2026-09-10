@@ -4,6 +4,8 @@ This package was formerly known as `fmutool`.
 # Version 1.9.5 (unreleased)
 * ADDED: FMI-3 model icon support: `fmutool`, `fmueditor` and `fmucontainer` builder now read the
          icon from `terminalsAndIcons/icon.png`, and generated FMI-3 containers store their icon there.
+* FIXED: GUI: `fmucontainer` right-click on a node now first selects the pointed node; "Replace FMU" (Info)
+         also refreshes the tree view.
 
 # Version 1.9.4.1
 * FIXED: Minor regression on GUI-only virtual `configuration`
