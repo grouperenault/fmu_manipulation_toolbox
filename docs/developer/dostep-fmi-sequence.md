@@ -56,23 +56,20 @@ sequenceDiagram
     C->>F2: fmi*GetReal/Int/Bool <br/>(clocked outputs)
 
     loop Do While more_event
+        Note over C, F2: Gauss-Seidel sweep in configuration order<br/>(Set inputs → UpdateDiscreteStates → Get outputs per FMU)
         C->>F1: fmi*SetClock(vr, true) <br/>(activated clocks)
-        C->>F1: fmi*SetReal/Int/Bool (corresponding clocked inputs)
-        C->>F2: fmi*SetClock(vr, true) <br/>(activated clocks)
-        C->>F2: fmi*SetReal/Int/Bool (corresponding clocked inputs)
-
-        C->>C: datalog_log()
-
-        C->>F1: fmi*GetClock <br/>(triggered clocks)
-        C->>F1: fmi*GetReal/Int/Bool (corresponding clocked outputs)
-        C->>F2: fmi*GetClock <br/>(triggered clocks)
-        C->>F2: fmi*GetReal/Int/Bool (corresponding clocked outputs)
-
+        C->>F1: fmi*SetReal/Int/Bool <br/>(inputs + clocked inputs)
         C->>F1: fmi*UpdateDiscreteStates()
         F1-->>C: nextEventTime, more_event
- 
+        C->>F1: fmi*GetReal/Int/Bool + fmi*GetClock <br/>(outputs + clocked outputs)
+
+        C->>F2: fmi*SetClock(vr, true) <br/>(activated clocks)
+        C->>F2: fmi*SetReal/Int/Bool <br/>(inputs + clocked inputs)
         C->>F2: fmi*UpdateDiscreteStates()
         F2-->>C: nextEventTime, more_event
+        C->>F2: fmi*GetReal/Int/Bool + fmi*GetClock <br/>(outputs + clocked outputs)
+
+        C->>C: datalog_log()
     end
 
     Note over C, F2: Prepare next scheduled event
@@ -93,4 +90,8 @@ sequenceDiagram
   per-FMU worker threads, synchronized through `mutex_container` / `mutex_fmu`.
 - The EVENT MODE phase is entered only when at least one FMU has reported
   `need_event_update`, or when clocks are declared in `clocks_list`.
+- Inside the `more_event` loop, FMUs are updated with a **Gauss-Seidel sweep** in configuration
+  order: each FMU is driven `Set inputs → fmi*UpdateDiscreteStates → Get outputs` before moving to
+  the next one, so a value produced by FMU *i* reaches FMU *i+1* within the same pass and the
+  outputs read back reflect the freshly updated discrete state.
 - `fmi3GetIntervalDecimal()` is invoked only for FMUs that own scheduled clocks.
