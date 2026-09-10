@@ -203,6 +203,20 @@ class NodeTreeWidget(QWidget):
     def _on_scene_node_removed(self, node):
         self._remove_uid_from(self._model.invisibleRootItem(), node.uid)
 
+    def update_node_item(self, node):
+        """Refresh the tree row (name/tooltip) after an in-place FMU replacement.
+
+        The node keeps its UID during a replacement, so the matching tree item
+        can be located by UID; only its visible title needs to be updated.
+        """
+        item = self._find_tree_item_by_uid(self._model.invisibleRootItem(), node.uid)
+        if item is None:
+            return
+        # Block signals to avoid triggering an unintended itemChanged/rename flow.
+        self._model.blockSignals(True)
+        item.setText(node.title)
+        self._model.blockSignals(False)
+
     def _remove_uid_from(self, parent: QStandardItem, uid: str) -> bool:
         for r in range(parent.rowCount()):
             child = parent.child(r, 0)

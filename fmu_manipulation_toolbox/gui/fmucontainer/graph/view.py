@@ -185,6 +185,16 @@ class NodeGraphView(QGraphicsView):
         menu = QMenu(self)
         scene_pos = self.mapToScene(event.pos())
 
+        # Right-clicking a node should first select the node under the cursor,
+        # otherwise the action would target the previously selected node instead
+        # of the one the user is pointing at.
+        clicked_item = self.itemAt(event.pos())
+        while clicked_item is not None and not isinstance(clicked_item, NodeItem):
+            clicked_item = clicked_item.parentItem()
+        if clicked_item is not None and not clicked_item.isSelected():
+            self._scene.clearSelection()
+            clicked_item.setSelected(True)
+
         add_fmu_action = menu.addAction("Add FMU…")
         delete_action = None
         simulate_action = None

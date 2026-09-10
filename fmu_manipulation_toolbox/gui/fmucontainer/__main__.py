@@ -166,6 +166,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         """Refresh the detail panel after an in-place FMU replacement."""
         self._tree.fmu_detail._current_node = None
         self._tree.fmu_detail.set_node(node)
+        self._tree.update_node_item(node)
         self._mark_dirty()
 
     @staticmethod

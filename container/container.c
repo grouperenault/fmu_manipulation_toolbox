@@ -209,44 +209,52 @@ static fmu_status_t container_proceed_event(container_t *container) {
 }
 
 
+/* Step used when no event shortens it. */
+static double container_nominal_step(const container_t *container) {
+    return container->time_step * container->integers32[0];
+}
+
+
 static fmu_status_t container_update_discrete_state(container_t *container) {
-    const int ts_multiplier = container->integers32[0];
     bool more_event;
 
-    container->next_step = container->time_step * ts_multiplier;
+    container->next_step = container_nominal_step(container);
 #ifdef DEBUG
     logger(LOGGER_DEBUG, "[DEBUG] time=%e | container_update_discrete_state()", container->time);
 #endif
     do {
+        /* Gauss-Seidel sweep in configuration order, so a value produced by FMU i
+           reaches FMU i+1 within the same pass. Per FMI-3.0, each FMU is driven
+           Set inputs -> fmi3UpdateDiscreteStates -> Get outputs, so the outputs
+           read back reflect the freshly updated discrete state. */
+        more_event = false;
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t *fmu = &container->fmu[i];
+            bool fmu_more_event = false;
 
-            /* Set remaining clocks */
             if (fmu_set_clocks(fmu) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
+
+            if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
 
             if (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
-        }
-            
-        datalog_log(container);
 
-        for (int i = 0; i < container->nb_fmu; i += 1) {
-            fmu_t *fmu = &container->fmu[i];
+            /* Closing the super-dense time instant; a further iteration opens a new one. */
+            if (fmuUpdateDiscreteStates(fmu, &fmu_more_event) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
+
+            more_event |= fmu_more_event;
+
+            if (fmu_get_outputs(fmu) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
 
             if (fmu_get_clocked_outputs(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
         }
 
-        more_event = false;
-        for (int i = 0; i < container->nb_fmu; i += 1) {
-            fmu_t *fmu = &container->fmu[i];
-            bool fmu_more_event = false;
-            if (fmuUpdateDiscreteStates(fmu, &fmu_more_event) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-
-            more_event |= fmu_more_event;
-        }
+        datalog_log(container);
     } while(more_event);
 
     /* All clock have been transmitted by now
@@ -265,6 +273,14 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
 static fmu_status_t container_handle_events(container_t *container) {
     fmu_status_t status;
 
+    /* Event Mode is only required when an FMU reported eventHandlingNeeded or
+       when a clock may tick (FMI-3.0 4.2.1). */
+    if (!container->need_event_update && (container->clocks_list.nb_local_clocks == 0)) {
+        container->next_step = container_nominal_step(container);
+        datalog_log(container);
+        return FMU_STATUS_OK;
+    }
+
     /* Event loop */
     status = container_enter_event_mode(container);
     if (status != FMU_STATUS_OK)
@@ -274,6 +290,7 @@ static fmu_status_t container_handle_events(container_t *container) {
     if (status != FMU_STATUS_OK)
         return status;
     
+    datalog_log(container);
     status = container_update_discrete_state(container);
     if (status != FMU_STATUS_OK)
         return status;
@@ -555,7 +572,6 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                 if (container->time + container->next_step > target_time) {
                     container->next_step = target_time - container->time;
                 }
-                datalog_log(container);
 #ifdef DEBUG
                 logger(LOGGER_DEBUG, "[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
 #endif
