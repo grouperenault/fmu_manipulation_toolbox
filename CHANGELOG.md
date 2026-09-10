@@ -6,6 +6,8 @@ This package was formerly known as `fmutool`.
          icon from `terminalsAndIcons/icon.png`, and generated FMI-3 containers store their icon there.
 * FIXED: GUI: `fmucontainer` right-click on a node now first selects the pointed node; "Replace FMU" (Info)
          also refreshes the tree view.
+* FIXED: Container Event Mode: each FMU is now driven `Set inputs -> fmi3UpdateDiscreteStates -> Get outputs`
+         within the same Gauss-Seidel sweep, so read-back outputs reflect the freshly updated discrete state.
 
 # Version 1.9.4.1
 * FIXED: Minor regression on GUI-only virtual `configuration`
