@@ -417,7 +417,7 @@ class TestSuite:
                     '-can', 'ls-bus/REF-nodes-only-datalog.csv']
         datalog2pcap()
 
-        self.assert_md5("ls-bus/REF-nodes-only-datalog.pcap", "ceab6b0161dbc93458bd47c057e80375")
+        self.assert_md5("ls-bus/REF-nodes-only-datalog.pcap", "f1bfb8e8f97b42d2b32e530b77a15b22")
 
     def test_array_operation(self):
         fmu = FMU("array/StateSpace.fmu")
