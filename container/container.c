@@ -224,10 +224,13 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
 #endif
     do {
         /* Gauss-Seidel sweep in configuration order, so a value produced by FMU i
-           reaches FMU i+1 within the same pass. Event Mode grants direct
-           feedthrough, hence Get after Set is legal here (unlike Step Mode). */
+           reaches FMU i+1 within the same pass. Per FMI-3.0, each FMU is driven
+           Set inputs -> fmi3UpdateDiscreteStates -> Get outputs, so the outputs
+           read back reflect the freshly updated discrete state. */
+        more_event = false;
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t *fmu = &container->fmu[i];
+            bool fmu_more_event = false;
 
             if (fmu_set_clocks(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
@@ -238,6 +241,12 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
             if (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
 
+            /* Closing the super-dense time instant; a further iteration opens a new one. */
+            if (fmuUpdateDiscreteStates(fmu, &fmu_more_event) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
+
+            more_event |= fmu_more_event;
+
             if (fmu_get_outputs(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
 
@@ -246,17 +255,6 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
         }
 
         datalog_log(container);
-
-        /* Closing the super-dense time instant; a further iteration opens a new one. */
-        more_event = false;
-        for (int i = 0; i < container->nb_fmu; i += 1) {
-            fmu_t *fmu = &container->fmu[i];
-            bool fmu_more_event = false;
-            if (fmuUpdateDiscreteStates(fmu, &fmu_more_event) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-
-            more_event |= fmu_more_event;
-        }
     } while(more_event);
 
     /* All clock have been transmitted by now
