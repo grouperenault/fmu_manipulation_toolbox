@@ -11,7 +11,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (
     QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
     QPushButton, QCheckBox, QRadioButton, QButtonGroup, QFrame,
-    QMenu, QWidgetAction, QMainWindow
+    QMenu, QWidgetAction, QMainWindow, QMessageBox
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application, RunTask, UnsavedChangesWindowMixin, LastDirectory
@@ -94,6 +94,17 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._fmi_group.addButton(self._fmi2_radio, 2)
         self._fmi_group.addButton(self._fmi3_radio, 3)
 
+        # AI Assistant (MCP server) on/off radio buttons
+        self._mcp_controller = None
+        self._ai_on_radio = QRadioButton("AI Assistant On")
+        self._ai_off_radio = QRadioButton("AI Assistant Off")
+        self._ai_off_radio.setChecked(True)
+        self._ai_on_radio.setToolTip("Start a local MCP server so an AI agent can help build the container")
+        self._ai_group = QButtonGroup(self)
+        self._ai_group.addButton(self._ai_off_radio, 0)
+        self._ai_group.addButton(self._ai_on_radio, 1)
+        self._ai_on_radio.toggled.connect(self._on_ai_assistant_toggled)
+
         # "Configuration" popup menu grouping FMI version + debug
         config_widget = QWidget()
         config_layout = QVBoxLayout(config_widget)
@@ -106,6 +117,12 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         config_layout.addWidget(separator)
         config_layout.addWidget(self._debug_checkbox)
         config_layout.addWidget(self._datalog_checkbox)
+        ai_separator = QFrame()
+        ai_separator.setFrameShape(QFrame.Shape.HLine)
+        ai_separator.setFrameShadow(QFrame.Shadow.Sunken)
+        config_layout.addWidget(ai_separator)
+        config_layout.addWidget(self._ai_on_radio)
+        config_layout.addWidget(self._ai_off_radio)
 
         config_action = QWidgetAction(self)
         config_action.setDefaultWidget(config_widget)
@@ -161,6 +178,57 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
     def _mark_dirty(self):
         self._dirty = True
+
+    def _on_ai_assistant_toggled(self, checked: bool):
+        """Start/stop the MCP server (AI assistant) from the Configuration menu."""
+        if checked:
+            try:
+                from .mcp_server import McpServerController, McpUnavailableError
+            except ImportError as e:
+                self._ai_assistant_error(f"Cannot load MCP support: {e}")
+                return
+            try:
+                if self._mcp_controller is None:
+                    self._mcp_controller = McpServerController(self)
+                    # Delivered on the main thread (controller is a QObject).
+                    self._mcp_controller.error.connect(self._ai_assistant_error)
+                self._mcp_controller.start()
+                logger.info(f"AI Assistant enabled — connect your MCP client to {self._mcp_controller.url}")
+            except McpUnavailableError as e:
+                self._ai_assistant_error(str(e))
+            except OSError as e:
+                self._ai_assistant_error(str(e))
+            except Exception as e:  # noqa: BLE001
+                self._ai_assistant_error(f"Cannot start AI Assistant: {e}")
+        else:
+            if self._mcp_controller is not None:
+                self._mcp_controller.stop()
+                logger.info("AI Assistant disabled.")
+
+    def _ai_assistant_error(self, message: str):
+        """Report an AI-assistant activation failure and revert the radio.
+
+        Always runs on the Qt main thread (direct calls, or queued via the
+        controller's ``error`` signal).
+        """
+        logger.error(message)
+        # Reverting to Off also stops the server via the toggled handler.
+        self._ai_off_radio.setChecked(True)
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setWindowTitle("AI Assistant")
+        msg.setText(message)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        btn_ok = msg.button(QMessageBox.StandardButton.Ok)
+        btn_ok.setProperty("class", "info")
+        btn_ok.setMinimumWidth(150)
+        msg.exec()
+
+    def closeEvent(self, event):
+        """Ensure the MCP server is stopped before the window actually closes."""
+        super().closeEvent(event)  # UnsavedChangesWindowMixin may ignore() to cancel
+        if event.isAccepted() and self._mcp_controller is not None:
+            self._mcp_controller.stop()
 
     def _on_node_replaced(self, node):
         """Refresh the detail panel after an in-place FMU replacement."""
