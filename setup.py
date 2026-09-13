@@ -89,7 +89,6 @@ FMI versions 2.0, 3.0 and LS-BUS are supported.
         "xmlschema >= 3.3.1",
         "elementpath >= 4.4.0",
         "colorama >= 0.4.6",
-        "fastmcp >= 2.14.0; python_version>='3.10'",
         "importlib_metadata >= 8.7.0; python_version<'3.10'"
     ],
     extras_require={
@@ -100,6 +99,7 @@ FMI versions 2.0, 3.0 and LS-BUS are supported.
             "coverage-badge >= 1.1.2",
             "fmpy >= 0.3.20",
             "numpy",
+            "fastmcp >= 2.14.0; python_version>='3.10'",
         ],
     },
     license="BSD-2-Clause",
