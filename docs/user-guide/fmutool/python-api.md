@@ -92,7 +92,9 @@ fmu.apply_operation(operation, apply_on=["input"])
 fmu.repack("module-clean.fmu")
 ```
 
-Valid values for `apply_on`: `"parameter"`, `"input"`, `"output"`, `"local"`.
+Valid values for `apply_on` match the FMI `causality` attribute, e.g. `"parameter"`, `"input"`,
+`"output"`, `"local"`, `"independent"`, `"calculatedParameter"` (`"structuralParameter"` for FMI 3.0).
+Any causality not listed defaults to `"local"` when a port omits the attribute.
 
 ## Available Operations
 
