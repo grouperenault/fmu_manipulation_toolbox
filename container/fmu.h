@@ -439,9 +439,10 @@ extern fmu_status_t fmu_me_get_event_indicators(fmu_t *fmu, double *z, size_t nz
 extern fmu_status_t fmu_me_completed_step(fmu_t *fmu, bool *enter_event_mode);
 extern fmu_status_t fmu_me_enter_event_mode(fmu_t *fmu);
 extern fmu_status_t fmu_me_enter_continuous_time_mode(fmu_t *fmu);
-extern fmu_status_t fmu_me_do_event_iteration(fmu_t *fmu,
-                                              bool *have_next_event_time,
-                                              double *next_event_time);
+extern fmu_status_t fmu_me_update_discrete_states(fmu_t *fmu,
+                                                  bool *need_update,
+                                                  bool *have_next_event_time,
+                                                  double *next_event_time);
 
 extern fmu_status_t fmuGetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
                                  size_t nvr, double value[], size_t nvalues);

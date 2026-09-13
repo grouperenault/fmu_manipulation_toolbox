@@ -70,9 +70,22 @@ extern int solver_register_me(solver_t *solver, unsigned long fmu_idx,
    Must be called once every ME FMU has been registered. */
 extern int solver_build(solver_t *solver);
 
-/* Move every ME FMU from Event Mode to Continuous Time Mode, after
-   ExitInitializationMode. */
-extern fmu_status_t solver_finish_initialization(solver_t *solver);
+/* Move every ME FMU from Event Mode to Continuous Time Mode, refreshing the
+   states and event indicators the event may have changed. */
+extern fmu_status_t solver_leave_event_mode(solver_t *solver);
+
+/* Move every ME FMU into Event Mode. */
+extern fmu_status_t solver_enter_event_mode(solver_t *solver);
+
+/* One pass of the container-wide event iteration for the ME FMUs: set inputs,
+   UpdateDiscreteStates, get outputs. ORs into *more_event. */
+extern fmu_status_t solver_update_discrete_states(solver_t *solver, bool *more_event);
+
+/* Shorten container->next_step so it lands on the earliest ME time event. */
+extern void solver_bound_next_step(solver_t *solver);
+
+/* One Gauss-Seidel sweep propagating outputs to inputs across all ME FMUs. */
+extern fmu_status_t solver_propagate(solver_t *solver);
 
 /* Collective forward-Euler integration of all ME FMUs over [t0, t0+h_total]. */
 extern fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total);

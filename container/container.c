@@ -22,6 +22,9 @@
  * configuration.
  */
 
+/* Safety net against a non-converging event iteration. */
+#define CONTAINER_MAX_EVENT_ITER    100
+
 /*----------------------------------------------------------------------------
                         E V E N T   M O D E
 ----------------------------------------------------------------------------*/
@@ -34,7 +37,7 @@ fmu_status_t container_enter_event_mode(container_t *container) {
         if (fmuEnterEventMode(container->cs_fmu[i]) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
     }
-    return FMU_STATUS_OK;
+    return solver_enter_event_mode(container->solver);
 }
 
 
@@ -214,18 +217,19 @@ static double container_nominal_step(const container_t *container) {
 
 static fmu_status_t container_update_discrete_state(container_t *container) {
     bool more_event;
+    int iter;
 
     container->next_step = container_nominal_step(container);
 #ifdef DEBUG
     logger(LOGGER_DEBUG, "[DEBUG] time=%e | container_update_discrete_state()", container->time);
 #endif
-    do {
+    for (iter = 0; iter < CONTAINER_MAX_EVENT_ITER; iter += 1) {
         /* Gauss-Seidel sweep in configuration order, so a value produced by FMU i
            reaches FMU i+1 within the same pass. Per FMI-3.0, each FMU is driven
            Set inputs -> fmi3UpdateDiscreteStates -> Get outputs, so the outputs
            read back reflect the freshly updated discrete state. */
         more_event = false;
-        for (int i = 0; i < container->nb_cs; i += 1) {
+        for (unsigned int i = 0; i < container->nb_cs; i += 1) {
             fmu_t *fmu = container->cs_fmu[i];
             bool fmu_more_event = false;
 
@@ -250,11 +254,22 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
             if (fmu_get_clocked_outputs(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
         }
-            
-        datalog_log(container);
+
+        /* ME FMUs close the same super-dense time instant. */
+        if (solver_update_discrete_states(container->solver, &more_event) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
 
         datalog_log(container);
-    } while(more_event);
+
+        if (!more_event)
+            break;
+    }
+
+    if (iter >= CONTAINER_MAX_EVENT_ITER) {
+        logger(LOGGER_ERROR, "Container: event iteration did not converge after %d steps.",
+               CONTAINER_MAX_EVENT_ITER);
+        return FMU_STATUS_ERROR;
+    }
 
     /* All clock have been transmitted by now
        The following code is not necessary but could be used if paranoid
@@ -263,6 +278,7 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
         container->clocks[i] = false;
     */
 
+    solver_bound_next_step(container->solver);
     container_set_next_event_time(container);
 
     return FMU_STATUS_OK;
@@ -291,6 +307,10 @@ static fmu_status_t container_handle_events(container_t *container) {
     
     datalog_log(container);
     status = container_update_discrete_state(container);
+    if (status != FMU_STATUS_OK)
+        return status;
+
+    status = solver_leave_event_mode(container->solver);
     if (status != FMU_STATUS_OK)
         return status;
 
@@ -394,13 +414,14 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
     }
 
     /* CS FMUs are in EventMode (or StepMode if support_event=0); ME FMUs are in
-       EventMode -> transition them to ContinuousTimeMode via the solver. */
-    if (solver_finish_initialization(container->solver) != FMU_STATUS_OK)
-        return FMU_STATUS_ERROR;
-
+       EventMode: run one common event iteration before splitting the modes. */
     container_init_values(container);
 
     status = container_update_discrete_state(container);
+    if (status != FMU_STATUS_OK)
+        return status;
+
+    status = solver_leave_event_mode(container->solver);
     if (status != FMU_STATUS_OK)
         return status;
 

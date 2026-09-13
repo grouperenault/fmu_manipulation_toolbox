@@ -1082,58 +1082,52 @@ fmu_status_t fmu_me_enter_continuous_time_mode(fmu_t *fmu) {
            ? FMU_STATUS_OK : FMU_STATUS_ERROR;
 }
 
-/* Iterate NewDiscreteStates / UpdateDiscreteStates until fixpoint. FMU must
-   already be in Event Mode; next-event-time info is returned via out-params. */
-fmu_status_t fmu_me_do_event_iteration(fmu_t *fmu,
-                                       bool *have_next_event_time,
-                                       double *next_event_time) {
-    const int MAX_EVENT_ITER = 100;
+/* Single UpdateDiscreteStates call. The caller owns the event iteration so that
+   every coupled FMU crosses the same super-dense time instant. */
+fmu_status_t fmu_me_update_discrete_states(fmu_t *fmu,
+                                           bool *need_update,
+                                           bool *have_next_event_time,
+                                           double *next_event_time) {
+    *need_update = false;
 
-    *have_next_event_time = false;
-    *next_event_time = 0.0;
-
-    for (int iter = 0; iter < MAX_EVENT_ITER; iter += 1) {
-        if (fmu->fmi_version == 2) {
-            fmi2EventInfo info;
-            fmi2Status s = fmu->fmi_functions.version_2.fmi2NewDiscreteStates(fmu->component, &info);
-            if (s != fmi2OK) {
-                logger(LOGGER_ERROR, "ME FMU '%s': fmi2NewDiscreteStates failed (%d).", fmu->name, s);
-                return FMU_STATUS_ERROR;
-            }
-            if (info.terminateSimulation) {
-                logger(LOGGER_WARNING, "ME FMU '%s' requested to stop simulation.", fmu->name);
-                return FMU_STATUS_ERROR;
-            }
-            *have_next_event_time = info.nextEventTimeDefined ? true : false;
-            if (*have_next_event_time)
-                *next_event_time = info.nextEventTime;
-            if (!info.newDiscreteStatesNeeded)
-                return FMU_STATUS_OK;
-        } else {
-            fmi3Boolean needUpdate, terminate, nominalsChanged, valuesChanged, nextDefined;
-            fmi3Float64 nextTime;
-            fmi3Status s = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(
-                fmu->component, &needUpdate, &terminate,
-                &nominalsChanged, &valuesChanged, &nextDefined, &nextTime);
-            if (s != fmi3OK) {
-                logger(LOGGER_ERROR, "ME FMU '%s': fmi3UpdateDiscreteStates failed (%d).", fmu->name, s);
-                return FMU_STATUS_ERROR;
-            }
-            if (terminate) {
-                logger(LOGGER_WARNING, "ME FMU '%s' requested to stop simulation.", fmu->name);
-                return FMU_STATUS_ERROR;
-            }
-            *have_next_event_time = nextDefined ? true : false;
-            if (*have_next_event_time)
-                *next_event_time = nextTime;
-            if (!needUpdate)
-                return FMU_STATUS_OK;
+    if (fmu->fmi_version == 2) {
+        fmi2EventInfo info;
+        fmi2Status s = fmu->fmi_functions.version_2.fmi2NewDiscreteStates(fmu->component, &info);
+        if (s != fmi2OK) {
+            logger(LOGGER_ERROR, "ME FMU '%s': fmi2NewDiscreteStates failed (%d).", fmu->name, s);
+            return FMU_STATUS_ERROR;
         }
+        if (info.terminateSimulation) {
+            logger(LOGGER_WARNING, "ME FMU '%s' requested to stop simulation.", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+        *have_next_event_time = info.nextEventTimeDefined ? true : false;
+        if (*have_next_event_time)
+            *next_event_time = info.nextEventTime;
+        *need_update = info.newDiscreteStatesNeeded ? true : false;
+
+        return FMU_STATUS_OK;
     }
 
-    logger(LOGGER_ERROR, "ME FMU '%s': event iteration did not converge after %d steps.",
-           fmu->name, MAX_EVENT_ITER);
-    return FMU_STATUS_ERROR;
+    fmi3Boolean needUpdate, terminate, nominalsChanged, valuesChanged, nextDefined;
+    fmi3Float64 nextTime;
+    fmi3Status s = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(
+        fmu->component, &needUpdate, &terminate,
+        &nominalsChanged, &valuesChanged, &nextDefined, &nextTime);
+    if (s != fmi3OK) {
+        logger(LOGGER_ERROR, "ME FMU '%s': fmi3UpdateDiscreteStates failed (%d).", fmu->name, s);
+        return FMU_STATUS_ERROR;
+    }
+    if (terminate) {
+        logger(LOGGER_WARNING, "ME FMU '%s' requested to stop simulation.", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+    *have_next_event_time = nextDefined ? true : false;
+    if (*have_next_event_time)
+        *next_event_time = nextTime;
+    *need_update = needUpdate ? true : false;
+
+    return FMU_STATUS_OK;
 }
 
 
