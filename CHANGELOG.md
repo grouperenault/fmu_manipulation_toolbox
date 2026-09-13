@@ -1,8 +1,17 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
-# Version 1.9.5 (unreleased)
-* ADDED: FMI-3 model icon support: `fmutool`, `fmueditor` and `fmucontainer` builder now read the
+# Version 1.9.4.2
+* ADDED: Container thread synchronization on macOS now uses a semaphore instead of a barrier
+         (macOS does not implement POSIX `pthread_barrier`).
+* ADDED: GUI: `fmucontainer` FMU detail panel now offers a right-click **Select all** / **Select none**
+         context menu on the *Input Ports* and *Output Ports* tables to expose ports in one click.
+* FIXED: Container datalog: samples are now logged during event handling so the recorded outputs
+         reflect the freshly updated discrete state.
+* FIXED: Container now decodes the `fmuResourceLocation` URI following RFC 3986 (percent-encoded
+         octets such as `%20` are decoded, drive letter handled), fixing resource paths that
+         contain spaces or special characters.
+* FIXED: FMI-3 model icon support: `fmutool`, `fmueditor` and `fmucontainer` builder now read the
          icon from `terminalsAndIcons/icon.png`, and generated FMI-3 containers store their icon there.
 * FIXED: GUI: `fmucontainer` right-click on a node now first selects the pointed node; "Replace FMU" (Info)
          also refreshes the tree view.
