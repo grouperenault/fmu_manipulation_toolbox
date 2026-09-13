@@ -5,8 +5,6 @@
 extern "C" {
 #	endif
 
-#include <stdalign.h>
-
 #include "convert.h"
 #include "fmu.h"
 #include "library.h"
@@ -168,9 +166,9 @@ typedef struct container_s {
 
 	bool						mt;						/* true if FMUs are executed in parallel */
 	bool						cancel;					/* set once to stop all FMU worker threads */
-	/* Cache-line aligned to avoid false sharing between successive fork-join phases. */
-	_Alignas(64) thread_barrier_t	barrier_start;		/* used for parallel execution of FMUs */
-	_Alignas(64) thread_barrier_t	barrier_end;		/* used for parallel execution of FMUs */
+
+	thread_barrier_t			barrier_start;			/* used for parallel execution of FMUs */
+	thread_barrier_t			barrier_end;			/* used for parallel execution of FMUs */
 
 	struct datalog_s			*datalog;
 
