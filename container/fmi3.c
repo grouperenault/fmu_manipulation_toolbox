@@ -168,6 +168,7 @@ fmi3Status fmi3Terminate(fmi3Instance instance) {
 
 
 fmi3Status fmi3Reset(fmi3Instance instance) {
+    (void)instance;
     __NOT_IMPLEMENTED__
 }
 

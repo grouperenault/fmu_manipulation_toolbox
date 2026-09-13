@@ -73,6 +73,7 @@ int library_unload(library_t library) {
         return dlclose(library);
 #endif
     }
+    return 0; /* nothing to unload */
 }
 
 /*----------------------------------------------------------------------------
