@@ -54,6 +54,14 @@ Two options available to install FMU Manipulation Toolbox:
   - C compiler with C23 support (for the container) or C99 (for remoting)
   - CMake ≥ 3.21
 
+By default, `pip install fmu-manipulation-toolbox` only installs the **CLI** and **Python API** (no GUI toolkit
+required). If you also want the **Graphical User Interfaces** (`fmutoolbox`, `fmutool-gui`, `fmueditor`,
+`fmucontainer-gui`), install the `gui` extra, which pulls in [PySide6](https://pypi.org/project/PySide6/):
+
+```bash
+pip install "fmu-manipulation-toolbox[gui]"
+```
+
 
 ### Supported platforms
 
@@ -65,7 +73,9 @@ FMU Manipulation Toolbox is packaged for:
 
 # 🖥️ Graphical User Interface
 
-FMU Manipulation Toolbox is released with a GUI. You can launch it with the following command `fmutoolbox`
+FMU Manipulation Toolbox is released with a GUI. It requires the `gui` extra
+(`pip install "fmu-manipulation-toolbox[gui]"`) to pull in [PySide6](https://pypi.org/project/PySide6/).
+You can launch it with the following command `fmutoolbox`
 
 ![GUI](docs/gui-launcher.png "GUI")
 
@@ -234,9 +244,13 @@ Key design points:
 git clone https://github.com/grouperenault/fmu_manipulation_toolbox.git
 cd fmu_manipulation_toolbox
 
-# Install dependencies
+# Install dependencies (includes the GUI toolkit and test dependencies)
 pip install -r requirements.txt
 ```
+
+> **Note:** `requirements.txt` installs everything needed for development (GUI + tests). If you only
+> need the CLI/API dependencies, install the package with `pip install -e .` (add `[gui]`
+> and/or `[test]` as needed, e.g. `pip install -e ".[gui,test]"`).
 
 ### Building C code (optional)
 

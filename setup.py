@@ -104,14 +104,21 @@ FMI versions 2.0, 3.0 and LS-BUS are supported.
     """,
         long_description_content_type="text/markdown",
         install_requires=[
-            "PySide6 >= 6.8.0",
             "xmlschema >= 3.3.1",
             "elementpath >= 4.4.0",
             "colorama >= 0.4.6",
             "importlib_metadata >= 8.7.0; python_version<'3.10'"
         ],
         extras_require={
+            "gui": [
+                # Only needed by `fmu_manipulation_toolbox.gui.*` (fmutool-gui, fmueditor,
+                # fmucontainer-gui, fmutoolbox launcher). The CLI (`fmutool`, `fmucontainer`,
+                # `fmusplit`, `datalog2pcap`) and the Python API never import PySide6.
+                "PySide6 >= 6.8.0",
+            ],
             "test": [
+                # pytest-qt exercises the GUI, so PySide6 is required here too.
+                "PySide6 >= 6.8.0",
                 "pytest >= 9.0.3",
                 "pytest-qt >= 4.4.0",
                 "pytest-cov >= 7.0.0",
@@ -119,6 +126,7 @@ FMI versions 2.0, 3.0 and LS-BUS are supported.
                 "fmpy >= 0.3.20",
                 "numpy",
             ],
+            "all": ["fmu_manipulation_toolbox[gui,test]"],
         },
         license="BSD-2-Clause",
         license_files=["LICENSE.txt"],

@@ -1,6 +1,14 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Upstream
+* CHANGE: `PySide6` (the GUI toolkit) is no longer installed by default. `pip install fmu-manipulation-toolbox`
+          now only installs the **CLI** (`fmutool`, `fmucontainer`, `fmusplit`, `datalog2pcap`) and the
+          **Python API**, neither of which import `PySide6`. To use the **Graphical User Interfaces**
+          (`fmutoolbox`, `fmutool-gui`, `fmueditor`, `fmucontainer-gui`), install the new `gui` extra:
+          `pip install "fmu-manipulation-toolbox[gui]"`. A convenience `all` extra (`gui` + `test`) is also
+          available. See the [Installation Guide](docs/installation.md).
+
 # Version 1.9.4.2
 * ADDED: Container thread synchronization on macOS now uses a semaphore instead of a barrier
          (macOS does not implement POSIX `pthread_barrier`).

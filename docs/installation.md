@@ -33,10 +33,27 @@ This is the simplest and fastest method to install FMU Manipulation Toolbox.
 pip install fmu-manipulation-toolbox
 ```
 
+This installs the **CLI** (`fmutool`, `fmucontainer`, `fmusplit`, `datalog2pcap`) and the **Python API**. It does
+**not** pull in the GUI toolkit ([PySide6](https://pypi.org/project/PySide6/)), which is a heavy dependency only
+needed by the graphical tools.
+
+### Installation with the Graphical User Interfaces
+
+If you also want to use `fmutoolbox`, `fmutool-gui`, `fmueditor` or `fmucontainer-gui`, install the `gui` extra:
+
+```bash
+pip install "fmu-manipulation-toolbox[gui]"
+```
+
+!!! tip "Which install do I need?"
+
+    - **CLI / Python API only** (scripting, CI/CD, servers): `pip install fmu-manipulation-toolbox`
+    - **GUI tools** (interactive use): `pip install "fmu-manipulation-toolbox[gui]"`
+
 ### Installation with Upgrade
 
 ```bash
-pip install --upgrade fmu-manipulation-toolbox
+pip install --upgrade "fmu-manipulation-toolbox[gui]"
 ```
 
 ### Installing a Specific Version
@@ -55,7 +72,7 @@ pip show fmu-manipulation-toolbox
 fmutool -h
 fmucontainer -h
 
-# Test GUI commands
+# Test GUI commands (requires the `gui` extra, see above)
 fmutoolbox         # Launcher with all GUI tools
 fmutool-gui        # FMU analysis & modification
 fmueditor          # FMU variable editor
@@ -103,6 +120,11 @@ pytest >= 8.4.2
 pytest-cov >= 7.0.0
 coverage-badge >= 1.1.2
 ```
+
+!!! note
+    `requirements.txt` installs everything needed for development, including the GUI toolkit
+    (PySide6) and the test dependencies. This corresponds to the `gui` and `test` extras of the
+    package (see below).
 
 ### Step 3: Compile C Components
 
@@ -165,13 +187,20 @@ cd ..
 #### Development Mode Installation (changes take effect immediately)
 
 ```bash
+# CLI/API only
 pip install -e .
+
+# With GUI and/or test dependencies
+pip install -e ".[gui]"
+pip install -e ".[gui,test]"
 ```
 
 #### Standard Installation
 
 ```bash
 pip install .
+# or, with the GUI toolkit:
+pip install ".[gui]"
 ```
 
 ## Installation in a Virtual Environment (Recommended)
@@ -293,7 +322,10 @@ pip uninstall fmu-manipulation-toolbox
 For complete uninstallation (with dependencies):
 
 ```bash
-pip uninstall fmu-manipulation-toolbox PySide6 xmlschema elementpath colorama fmpy
+pip uninstall fmu-manipulation-toolbox xmlschema elementpath colorama
+
+# If you installed the `gui` and/or `test` extras, also remove:
+pip uninstall PySide6 fmpy
 ```
 
 ## Supported Python Versions
