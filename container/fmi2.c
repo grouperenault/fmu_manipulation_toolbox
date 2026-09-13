@@ -491,3 +491,97 @@ fmi2Status fmi2GetStringStatus(fmi2Component c, const fmi2StatusKind s, fmi2Stri
 
     __NOT_IMPLEMENTED__
 }
+
+
+/*----------------------------------------------------------------------------
+        F M I 2   F U N C T I O N S   ( M O D E L   E X C H A N G E )
+----------------------------------------------------------------------------*/
+
+/* The container only exposes a Co-Simulation interface. */
+
+fmi2Status fmi2EnterEventMode(fmi2Component c) {
+    (void)c; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2NewDiscreteStates(fmi2Component c, fmi2EventInfo* fmi2eventInfo) {
+    (void)c; /* unused parameter */
+    (void)fmi2eventInfo; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2EnterContinuousTimeMode(fmi2Component c) {
+    (void)c; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2CompletedIntegratorStep(fmi2Component c,
+    fmi2Boolean noSetFMUStatePriorToCurrentPoint,
+    fmi2Boolean* enterEventMode,
+    fmi2Boolean* terminateSimulation) {
+    (void)c; /* unused parameter */
+    (void)noSetFMUStatePriorToCurrentPoint; /* unused parameter */
+    (void)enterEventMode; /* unused parameter */
+    (void)terminateSimulation; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2SetTime(fmi2Component c, fmi2Real time) {
+    (void)c; /* unused parameter */
+    (void)time; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2SetContinuousStates(fmi2Component c, const fmi2Real x[], size_t nx) {
+    (void)c; /* unused parameter */
+    (void)x; /* unused parameter */
+    (void)nx; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2GetDerivatives(fmi2Component c, fmi2Real derivatives[], size_t nx) {
+    (void)c; /* unused parameter */
+    (void)derivatives; /* unused parameter */
+    (void)nx; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2GetEventIndicators(fmi2Component c, fmi2Real eventIndicators[], size_t ni) {
+    (void)c; /* unused parameter */
+    (void)eventIndicators; /* unused parameter */
+    (void)ni; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2GetContinuousStates(fmi2Component c, fmi2Real x[], size_t nx) {
+    (void)c; /* unused parameter */
+    (void)x; /* unused parameter */
+    (void)nx; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2GetNominalsOfContinuousStates(fmi2Component c, fmi2Real x_nominal[], size_t nx) {
+    (void)c; /* unused parameter */
+    (void)x_nominal; /* unused parameter */
+    (void)nx; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
