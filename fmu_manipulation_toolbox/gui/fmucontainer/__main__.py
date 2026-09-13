@@ -6,6 +6,7 @@ Main application interface for building FMU containers composing multiple FMUs.
 
 import logging
 import sys
+from importlib.util import find_spec
 from pathlib import Path
 
 from PySide6.QtWidgets import (
@@ -94,16 +95,21 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._fmi_group.addButton(self._fmi2_radio, 2)
         self._fmi_group.addButton(self._fmi3_radio, 3)
 
-        # AI Assistant (MCP server) on/off radio buttons
+        # AI Assistant (MCP server) on/off radio buttons.
+        # Only offered when the optional 'fastmcp' package is installed.
         self._mcp_controller = None
-        self._ai_on_radio = QRadioButton("AI Assistant On")
-        self._ai_off_radio = QRadioButton("AI Assistant Off")
-        self._ai_off_radio.setChecked(True)
-        self._ai_on_radio.setToolTip("Start a local MCP server so an AI agent can help build the container")
-        self._ai_group = QButtonGroup(self)
-        self._ai_group.addButton(self._ai_off_radio, 0)
-        self._ai_group.addButton(self._ai_on_radio, 1)
-        self._ai_on_radio.toggled.connect(self._on_ai_assistant_toggled)
+        self._ai_available = find_spec("fastmcp") is not None
+        self._ai_on_radio = None
+        self._ai_off_radio = None
+        if self._ai_available:
+            self._ai_on_radio = QRadioButton("AI Assistant On")
+            self._ai_off_radio = QRadioButton("AI Assistant Off")
+            self._ai_off_radio.setChecked(True)
+            self._ai_on_radio.setToolTip("Start a local MCP server so an AI agent can help build the container")
+            self._ai_group = QButtonGroup(self)
+            self._ai_group.addButton(self._ai_off_radio, 0)
+            self._ai_group.addButton(self._ai_on_radio, 1)
+            self._ai_on_radio.toggled.connect(self._on_ai_assistant_toggled)
 
         # "Configuration" popup menu grouping FMI version + debug
         config_widget = QWidget()
@@ -117,12 +123,13 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         config_layout.addWidget(separator)
         config_layout.addWidget(self._debug_checkbox)
         config_layout.addWidget(self._datalog_checkbox)
-        ai_separator = QFrame()
-        ai_separator.setFrameShape(QFrame.Shape.HLine)
-        ai_separator.setFrameShadow(QFrame.Shadow.Sunken)
-        config_layout.addWidget(ai_separator)
-        config_layout.addWidget(self._ai_on_radio)
-        config_layout.addWidget(self._ai_off_radio)
+        if self._ai_available:
+            ai_separator = QFrame()
+            ai_separator.setFrameShape(QFrame.Shape.HLine)
+            ai_separator.setFrameShadow(QFrame.Shadow.Sunken)
+            config_layout.addWidget(ai_separator)
+            config_layout.addWidget(self._ai_on_radio)
+            config_layout.addWidget(self._ai_off_radio)
 
         config_action = QWidgetAction(self)
         config_action.setDefaultWidget(config_widget)
