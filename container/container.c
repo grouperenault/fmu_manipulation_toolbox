@@ -33,11 +33,11 @@ fmu_status_t container_enter_event_mode(container_t *container) {
 #ifdef DEBUG
     logger(LOGGER_DEBUG, "[DEBUG] time=%e| Container entering in EVENT mode", container->time);
 #endif
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        if (fmuEnterEventMode(container->cs_fmu[i]) != FMU_STATUS_OK)
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        if (fmuEnterEventMode(&container->fmu[i]) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
     }
-    return solver_enter_event_mode(container->solver);
+    return FMU_STATUS_OK;
 }
 
 
@@ -215,6 +215,30 @@ static double container_nominal_step(const container_t *container) {
 }
 
 
+/* Shorten the step so it lands on the earliest announced time event. */
+static void container_bound_next_step(container_t *container) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        const fmu_t *fmu = &container->fmu[i];
+
+        if (! fmu->have_next_event_time)
+            continue;
+
+        const double dt = fmu->next_event_time - container->time;
+
+        /* Event at or before the current instant: already handled, and shortening
+           to zero would stall the container loop. */
+        if (dt < container->tolerance)
+            continue;
+
+        if (dt + container->tolerance < container->next_step) {
+            container->next_step = dt;
+            logger(LOGGER_DEBUG, "%s: next event time %g, updating next step to %g.",
+                   fmu->name, fmu->next_event_time, container->next_step);
+        }
+    }
+}
+
+
 static fmu_status_t container_update_discrete_state(container_t *container) {
     bool more_event;
     int iter;
@@ -229,8 +253,8 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
            Set inputs -> fmi3UpdateDiscreteStates -> Get outputs, so the outputs
            read back reflect the freshly updated discrete state. */
         more_event = false;
-        for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-            fmu_t *fmu = container->cs_fmu[i];
+        for (int i = 0; i < container->nb_fmu; i += 1) {
+            fmu_t *fmu = &container->fmu[i];
             bool fmu_more_event = false;
 
             if (fmu_set_clocks(fmu) != FMU_STATUS_OK)
@@ -255,10 +279,6 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
                 return FMU_STATUS_ERROR;
         }
 
-        /* ME FMUs close the same super-dense time instant. */
-        if (solver_update_discrete_states(container->solver, &more_event) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-
         datalog_log(container);
 
         if (!more_event)
@@ -278,7 +298,7 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
         container->clocks[i] = false;
     */
 
-    solver_bound_next_step(container->solver);
+    container_bound_next_step(container);
     container_set_next_event_time(container);
 
     return FMU_STATUS_OK;

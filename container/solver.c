@@ -15,7 +15,8 @@
  * derivatives, state events and time events stay consistent across the
  * coupled set. State buffers (x, dx, x_save, z, z_prev) are flat and
  * concatenated over all ME FMUs; each solver->me[i] holds the offset of its
- * slice. Thin FMI-2/3 dispatchers (fmu_me_*) live in fmu.c and are stateless.
+ * slice. Thin FMI-2/3 dispatchers (fmuSetTime, fmuGetContinuousStateDerivatives,
+ * ...) live in fmu.c and are stateless.
  */
 
 #define SOLVER_MAX_OUTER        1024
@@ -55,8 +56,6 @@ int solver_register_me(solver_t *solver, unsigned long fmu_idx, size_t nx, size_
     e->nz      = nz;
     e->x_off   = 0;
     e->z_off   = 0;
-    e->have_next_event_time = false;
-    e->next_event_time = 0.0;
     solver->nb_me += 1;
 
     return 0;
@@ -154,12 +153,9 @@ static fmu_status_t solver_event_iteration(solver_t *solver) {
             return FMU_STATUS_ERROR;
 
         for (size_t i = 0; i < solver->nb_me; i += 1) {
-            solver_me_fmu_t *e = &solver->me[i];
             bool need_update = false;
 
-            if (fmu_me_update_discrete_states(e->fmu, &need_update,
-                                              &e->have_next_event_time,
-                                              &e->next_event_time) != FMU_STATUS_OK)
+            if (fmuUpdateDiscreteStates(solver->me[i].fmu, &need_update) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
 
             more_event |= need_update;
@@ -181,84 +177,16 @@ fmu_status_t solver_leave_event_mode(solver_t *solver) {
     for (size_t i = 0; i < solver->nb_me; i += 1) {
         solver_me_fmu_t *e = &solver->me[i];
 
-        if (fmu_me_enter_continuous_time_mode(e->fmu) != FMU_STATUS_OK) {
+        if (fmuEnterContinuousTimeMode(e->fmu) != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "ME FMU '%s': cannot enter Continuous Time Mode.", e->fmu->name);
             return FMU_STATUS_ERROR;
         }
-        if (fmu_me_get_states(e->fmu, &solver->x[e->x_off], e->nx) != FMU_STATUS_OK)
+        if (fmuGetContinuousStates(e->fmu, &solver->x[e->x_off], e->nx) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
-        if (e->nz && fmu_me_get_event_indicators(e->fmu, &solver->z_prev[e->z_off], e->nz) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-    }
-    return FMU_STATUS_OK;
-}
-
-
-/*----------------------------------------------------------------------------
-              C O N T A I N E R - D R I V E N   E V E N T S
-----------------------------------------------------------------------------*/
-
-fmu_status_t solver_enter_event_mode(solver_t *solver) {
-    for (size_t i = 0; i < solver->nb_me; i += 1) {
-        if (fmu_me_enter_event_mode(solver->me[i].fmu) != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "ME FMU '%s': cannot enter Event Mode.", solver->me[i].fmu->name);
-            return FMU_STATUS_ERROR;
-        }
-    }
-    return FMU_STATUS_OK;
-}
-
-
-/* One pass of the container-wide event iteration, for the ME FMUs only. The
-   caller owns the loop so that CS and ME FMUs share the same instant. */
-fmu_status_t solver_update_discrete_states(solver_t *solver, bool *more_event) {
-    for (size_t i = 0; i < solver->nb_me; i += 1) {
-        solver_me_fmu_t *e = &solver->me[i];
-        bool need_update = false;
-
-        if (fmu_set_clocks(e->fmu) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-        if (fmu_set_inputs(e->fmu) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-        if (fmu_set_clocked_inputs(e->fmu) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-
-        if (fmu_me_update_discrete_states(e->fmu, &need_update,
-                                          &e->have_next_event_time,
-                                          &e->next_event_time) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-
-        *more_event |= need_update;
-
-        if (fmu_get_outputs(e->fmu) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-        if (fmu_get_clocked_outputs(e->fmu) != FMU_STATUS_OK)
+        if (e->nz && fmuGetEventIndicators(e->fmu, &solver->z_prev[e->z_off], e->nz) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
     }
     return FMU_STATUS_OK;
-}
-
-
-/* Shorten the container step so it lands on the earliest ME time event. */
-void solver_bound_next_step(solver_t *solver) {
-    container_t *container = solver->container;
-
-    for (size_t i = 0; i < solver->nb_me; i += 1) {
-        const solver_me_fmu_t *e = &solver->me[i];
-
-        if (!e->have_next_event_time)
-            continue;
-
-        const double dt = e->next_event_time - container->time;
-
-        /* Event at or before the current instant: already handled, and shortening
-           to zero would stall the container loop. */
-        if (dt < container->tolerance)
-            continue;
-
-        if (dt + container->tolerance < container->next_step)
-            container->next_step = dt;
-    }
 }
 
 
@@ -291,8 +219,8 @@ static fmu_status_t solver_push_and_read_indicators(solver_t *solver,
 
     for (size_t i = 0; i < solver->nb_me; i += 1) {
         solver_me_fmu_t *e = &solver->me[i];
-        if (fmu_me_set_time(e->fmu, t_start + h) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
-        if (fmu_me_set_states(e->fmu, &x[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+        if (fmuSetTime(e->fmu, t_start + h) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+        if (fmuSetContinuousStates(e->fmu, &x[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
     }
 
     if (solver_propagate(solver) != FMU_STATUS_OK)
@@ -302,7 +230,7 @@ static fmu_status_t solver_push_and_read_indicators(solver_t *solver,
     for (size_t i = 0; i < solver->nb_me; i += 1) {
         solver_me_fmu_t *e = &solver->me[i];
         if (e->nz == 0) continue;
-        if (fmu_me_get_event_indicators(e->fmu, &solver->z[e->z_off], e->nz) != FMU_STATUS_OK)
+        if (fmuGetEventIndicators(e->fmu, &solver->z[e->z_off], e->nz) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
         if (any_crossed && !*any_crossed &&
             solver_sign_changed(&solver->z_prev[e->z_off], &solver->z[e->z_off], e->nz))
@@ -362,10 +290,10 @@ fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total) {
         bool is_time_event = false;
         for (size_t i = 0; i < solver->nb_me; i += 1) {
             solver_me_fmu_t *e = &solver->me[i];
-            if (!e->have_next_event_time) continue;
-            if (e->next_event_time >= t_end + tol) continue;
+            if (!e->fmu->have_next_event_time) continue;
+            if (e->fmu->next_event_time >= t_end + tol) continue;
 
-            const double dt_to_event = e->next_event_time - t;
+            const double dt_to_event = e->fmu->next_event_time - t;
             if (dt_to_event <= tol) {
                 h_step = 0.0;
                 is_time_event = true;
@@ -390,14 +318,14 @@ fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total) {
             /* At (t, x): dispatch derivatives per FMU into their slice. */
             for (size_t i = 0; i < solver->nb_me; i += 1) {
                 solver_me_fmu_t *e = &solver->me[i];
-                if (fmu_me_set_time(e->fmu, t) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
-                if (fmu_me_set_states(e->fmu, &solver->x[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+                if (fmuSetTime(e->fmu, t) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+                if (fmuSetContinuousStates(e->fmu, &solver->x[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
             }
             if (solver_propagate(solver) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
             for (size_t i = 0; i < solver->nb_me; i += 1) {
                 solver_me_fmu_t *e = &solver->me[i];
-                if (fmu_me_get_derivatives(e->fmu, &solver->dx[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+                if (fmuGetContinuousStateDerivatives(e->fmu, &solver->dx[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
             }
 
             /* Snapshot and forward-Euler advance on the flat buffers. */
@@ -414,15 +342,15 @@ fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total) {
             const double t_new_tentative = t + h_step;
             for (size_t i = 0; i < solver->nb_me; i += 1) {
                 solver_me_fmu_t *e = &solver->me[i];
-                if (fmu_me_set_time(e->fmu, t_new_tentative) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
-                if (fmu_me_set_states(e->fmu, &solver->x[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+                if (fmuSetTime(e->fmu, t_new_tentative) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+                if (fmuSetContinuousStates(e->fmu, &solver->x[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
             }
             if (solver_propagate(solver) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
             for (size_t i = 0; i < solver->nb_me; i += 1) {
                 solver_me_fmu_t *e = &solver->me[i];
                 if (e->nz == 0) continue;
-                if (fmu_me_get_event_indicators(e->fmu, &solver->z[e->z_off], e->nz) != FMU_STATUS_OK)
+                if (fmuGetEventIndicators(e->fmu, &solver->z[e->z_off], e->nz) != FMU_STATUS_OK)
                     return FMU_STATUS_ERROR;
                 if (solver_sign_changed(&solver->z_prev[e->z_off], &solver->z[e->z_off], e->nz))
                     state_event = true;
@@ -439,7 +367,7 @@ fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total) {
             for (size_t i = 0; i < solver->nb_me; i += 1) {
                 solver_me_fmu_t *e = &solver->me[i];
                 bool completed_event = false;
-                if (fmu_me_completed_step(e->fmu, &completed_event) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+                if (fmuCompletedIntegratorStep(e->fmu, &completed_event) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
                 if (completed_event) state_event = true;
             }
 
@@ -448,7 +376,7 @@ fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total) {
 
         if (is_time_event || state_event) {
             for (size_t i = 0; i < solver->nb_me; i += 1) {
-                if (fmu_me_enter_event_mode(solver->me[i].fmu) != FMU_STATUS_OK)
+                if (fmuEnterEventMode(solver->me[i].fmu) != FMU_STATUS_OK)
                     return FMU_STATUS_ERROR;
             }
 

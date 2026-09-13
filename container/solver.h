@@ -24,8 +24,6 @@ typedef struct solver_me_fmu_s {
     size_t       nz;                    /* nb event indicators */
     size_t       x_off;                 /* offset into x/dx/x_save (total_nx) */
     size_t       z_off;                 /* offset into z/z_prev    (total_nz) */
-    bool         have_next_event_time;
-    double       next_event_time;
 } solver_me_fmu_t;
 
 
@@ -73,16 +71,6 @@ extern int solver_build(solver_t *solver);
 /* Move every ME FMU from Event Mode to Continuous Time Mode, refreshing the
    states and event indicators the event may have changed. */
 extern fmu_status_t solver_leave_event_mode(solver_t *solver);
-
-/* Move every ME FMU into Event Mode. */
-extern fmu_status_t solver_enter_event_mode(solver_t *solver);
-
-/* One pass of the container-wide event iteration for the ME FMUs: set inputs,
-   UpdateDiscreteStates, get outputs. ORs into *more_event. */
-extern fmu_status_t solver_update_discrete_states(solver_t *solver, bool *more_event);
-
-/* Shorten container->next_step so it lands on the earliest ME time event. */
-extern void solver_bound_next_step(solver_t *solver);
 
 /* One Gauss-Seidel sweep propagating outputs to inputs across all ME FMUs. */
 extern fmu_status_t solver_propagate(solver_t *solver);

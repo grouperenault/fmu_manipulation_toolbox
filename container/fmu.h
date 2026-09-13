@@ -394,7 +394,11 @@ typedef struct {
 
     bool                        support_event;
     bool                        need_event_udpate;
-	
+
+    /* Next event time announced by the last UpdateDiscreteStates. */
+    bool                        have_next_event_time;
+    double                      next_event_time;
+
     fmu_kind_t                  kind;
 
     profile_t                   *profile;
@@ -419,7 +423,7 @@ extern fmu_status_t fmu_set_clocks(const fmu_t* fmu);
 extern fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu);
-extern fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, bool *discreteStatesNeedUpdate);
+extern fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,
@@ -431,18 +435,13 @@ extern void fmu_unload(fmu_t *fmu);
 /* Thin FMI-2/3 dispatchers for the Model Exchange primitives (used by
    the collective Euler solver in solver.c). They are stateless: state buffers
    are passed in by the solver. */
-extern fmu_status_t fmu_me_set_time(fmu_t *fmu, double t);
-extern fmu_status_t fmu_me_set_states(fmu_t *fmu, const double *x, size_t nx);
-extern fmu_status_t fmu_me_get_states(fmu_t *fmu, double *x, size_t nx);
-extern fmu_status_t fmu_me_get_derivatives(fmu_t *fmu, double *dx, size_t nx);
-extern fmu_status_t fmu_me_get_event_indicators(fmu_t *fmu, double *z, size_t nz);
-extern fmu_status_t fmu_me_completed_step(fmu_t *fmu, bool *enter_event_mode);
-extern fmu_status_t fmu_me_enter_event_mode(fmu_t *fmu);
-extern fmu_status_t fmu_me_enter_continuous_time_mode(fmu_t *fmu);
-extern fmu_status_t fmu_me_update_discrete_states(fmu_t *fmu,
-                                                  bool *need_update,
-                                                  bool *have_next_event_time,
-                                                  double *next_event_time);
+extern fmu_status_t fmuSetTime(fmu_t *fmu, double t);
+extern fmu_status_t fmuSetContinuousStates(fmu_t *fmu, const double *x, size_t nx);
+extern fmu_status_t fmuGetContinuousStates(fmu_t *fmu, double *x, size_t nx);
+extern fmu_status_t fmuGetContinuousStateDerivatives(fmu_t *fmu, double *dx, size_t nx);
+extern fmu_status_t fmuGetEventIndicators(fmu_t *fmu, double *z, size_t nz);
+extern fmu_status_t fmuCompletedIntegratorStep(fmu_t *fmu, bool *enter_event_mode);
+extern fmu_status_t fmuEnterContinuousTimeMode(fmu_t *fmu);
 
 extern fmu_status_t fmuGetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
                                  size_t nvr, double value[], size_t nvalues);

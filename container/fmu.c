@@ -933,52 +933,73 @@ fmu_status_t fmuSetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, cons
 }
 
 
-fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, bool *discreteStatesNeedUpdate) {
-    if (fmu->support_event) {
-        fmi3Boolean terminateSimulation;
-        fmi3Boolean nominalsOfContinuousStatesChanged;
-        fmi3Boolean valuesOfContinuousStatesChanged;
-        fmi3Boolean nextEventTimeDefined;
-        fmi3Float64 nextEventTime;
-        fmi3Status status;
-        
-#ifdef DEBUG
-        logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmi3UpdateDiscreteStates(%s)", fmu->container->time, fmu->name);
-#endif
-        status = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(fmu->component,
-                discreteStatesNeedUpdate,
-                &terminateSimulation,
-                &nominalsOfContinuousStatesChanged,
-                &valuesOfContinuousStatesChanged,
-                &nextEventTimeDefined,
-                &nextEventTime);
+/* Closes the current super-dense time instant. The announced next event time is
+   stored in the FMU and consumed later by container_bound_next_step(). */
+fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate) {
+    fmi3Boolean terminateSimulation;
+    fmi3Boolean nominalsOfContinuousStatesChanged;
+    fmi3Boolean valuesOfContinuousStatesChanged;
+    fmi3Boolean nextEventTimeDefined;
+    fmi3Float64 nextEventTime;
+    fmi3Status status;
 
-#ifdef DEBUG
-        logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmuUpdateDiscreteStates(%s): discreteStatesNeedUpdate=%d, terminateSimulation=%d, nominalsOfContinuousStatesChanged=%d, valuesOfContinuousStatesChanged=%d nextEventTimeDefined=%d", 
-            fmu->container->time, fmu->name,
-            *discreteStatesNeedUpdate, terminateSimulation, nominalsOfContinuousStatesChanged, valuesOfContinuousStatesChanged, nextEventTimeDefined);
-#endif
-        if (status != fmi3OK) {
+    *discreteStatesNeedUpdate = false;
+
+    /* A CS FMU only has an Event Mode when it was instantiated with it. */
+    if ((fmu->kind == FMU_KIND_CS) && (! fmu->support_event))
+        return FMU_STATUS_OK;
+
+    /* Only ME is supported in FMI-2.0, where the function is named differently. */
+    if ((fmu->kind == FMU_KIND_ME) && (fmu->fmi_version == 2)) {
+        fmi2EventInfo info;
+        fmi2Status status2 = fmu->fmi_functions.version_2.fmi2NewDiscreteStates(fmu->component, &info);
+
+        if (status2 != fmi2OK) {
             logger(LOGGER_ERROR, "Cannot update discrete states for '%s'", fmu->name);
             return FMU_STATUS_ERROR;
         }
-
-        if (terminateSimulation) {
+        if (info.terminateSimulation) {
             logger(LOGGER_WARNING, "FMU '%s' requested to stop simulation.", fmu->name);
             return FMU_STATUS_ERROR;
         }
 
-        /* support next event time (requires to change the way the master computes the next step time) */
-        if (nextEventTimeDefined) { 
-            if (nextEventTime < fmu->container->time) {
-                logger(LOGGER_ERROR, "%s: UpdateDiscreteStates defined next event time %g in the past (current time is %g).", fmu->name, nextEventTime, fmu->container->time);
-                return FMU_STATUS_ERROR;
-            } else if (nextEventTime + fmu->container->tolerance < fmu->container->time + fmu->container->next_step) {
-                fmu->container->next_step = nextEventTime - fmu->container->time;
-                logger(LOGGER_DEBUG, "%s: UpdateDiscreteStates defined next event time %g, updating next step to %g.", fmu->name, nextEventTime, fmu->container->next_step);
-            }
-        }
+        *discreteStatesNeedUpdate = info.newDiscreteStatesNeeded ? true : false;
+        fmu->have_next_event_time = info.nextEventTimeDefined ? true : false;
+        if (fmu->have_next_event_time)
+            fmu->next_event_time = info.nextEventTime;
+
+        return FMU_STATUS_OK;
     }
+
+#ifdef DEBUG
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmi3UpdateDiscreteStates(%s)", fmu->container->time, fmu->name);
+#endif
+    status = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(fmu->component,
+            discreteStatesNeedUpdate,
+            &terminateSimulation,
+            &nominalsOfContinuousStatesChanged,
+            &valuesOfContinuousStatesChanged,
+            &nextEventTimeDefined,
+            &nextEventTime);
+
+#ifdef DEBUG
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmuUpdateDiscreteStates(%s): discreteStatesNeedUpdate=%d, terminateSimulation=%d, nominalsOfContinuousStatesChanged=%d, valuesOfContinuousStatesChanged=%d nextEventTimeDefined=%d", 
+        fmu->container->time, fmu->name,
+        *discreteStatesNeedUpdate, terminateSimulation, nominalsOfContinuousStatesChanged, valuesOfContinuousStatesChanged, nextEventTimeDefined);
+#endif
+    if (status != fmi3OK) {
+        logger(LOGGER_ERROR, "Cannot update discrete states for '%s'", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+
+    if (terminateSimulation) {
+        logger(LOGGER_WARNING, "FMU '%s' requested to stop simulation.", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+
+    fmu->have_next_event_time = nextEventTimeDefined ? true : false;
+    if (fmu->have_next_event_time)
+        fmu->next_event_time = nextEventTime;
 
     return FMU_STATUS_OK;
 }
@@ -990,7 +1011,7 @@ fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, bool *discreteStatesNeedU
 
 /* Thin FMI-2/3 dispatchers used by the ME solver in solver.c. */
 
-fmu_status_t fmu_me_set_time(fmu_t *fmu, double t) {
+fmu_status_t fmuSetTime(fmu_t *fmu, double t) {
     if (fmu->fmi_version == 2) {
         return (fmu->fmi_functions.version_2.fmi2SetTime(fmu->component, t) == fmi2OK)
                ? FMU_STATUS_OK : FMU_STATUS_ERROR;
@@ -999,7 +1020,7 @@ fmu_status_t fmu_me_set_time(fmu_t *fmu, double t) {
            ? FMU_STATUS_OK : FMU_STATUS_ERROR;
 }
 
-fmu_status_t fmu_me_set_states(fmu_t *fmu, const double *x, size_t nx) {
+fmu_status_t fmuSetContinuousStates(fmu_t *fmu, const double *x, size_t nx) {
     if (!nx) return FMU_STATUS_OK;
     if (fmu->fmi_version == 2) {
         return (fmu->fmi_functions.version_2.fmi2SetContinuousStates(fmu->component, x, nx) == fmi2OK)
@@ -1009,7 +1030,7 @@ fmu_status_t fmu_me_set_states(fmu_t *fmu, const double *x, size_t nx) {
            ? FMU_STATUS_OK : FMU_STATUS_ERROR;
 }
 
-fmu_status_t fmu_me_get_states(fmu_t *fmu, double *x, size_t nx) {
+fmu_status_t fmuGetContinuousStates(fmu_t *fmu, double *x, size_t nx) {
     if (!nx) return FMU_STATUS_OK;
     if (fmu->fmi_version == 2) {
         return (fmu->fmi_functions.version_2.fmi2GetContinuousStates(fmu->component, x, nx) == fmi2OK)
@@ -1019,7 +1040,7 @@ fmu_status_t fmu_me_get_states(fmu_t *fmu, double *x, size_t nx) {
            ? FMU_STATUS_OK : FMU_STATUS_ERROR;
 }
 
-fmu_status_t fmu_me_get_derivatives(fmu_t *fmu, double *dx, size_t nx) {
+fmu_status_t fmuGetContinuousStateDerivatives(fmu_t *fmu, double *dx, size_t nx) {
     if (!nx) return FMU_STATUS_OK;
     if (fmu->fmi_version == 2) {
         return (fmu->fmi_functions.version_2.fmi2GetDerivatives(fmu->component, dx, nx) == fmi2OK)
@@ -1029,7 +1050,7 @@ fmu_status_t fmu_me_get_derivatives(fmu_t *fmu, double *dx, size_t nx) {
            ? FMU_STATUS_OK : FMU_STATUS_ERROR;
 }
 
-fmu_status_t fmu_me_get_event_indicators(fmu_t *fmu, double *z, size_t nz) {
+fmu_status_t fmuGetEventIndicators(fmu_t *fmu, double *z, size_t nz) {
     if (!nz) return FMU_STATUS_OK;
     if (fmu->fmi_version == 2) {
         return (fmu->fmi_functions.version_2.fmi2GetEventIndicators(fmu->component, z, nz) == fmi2OK)
@@ -1039,7 +1060,7 @@ fmu_status_t fmu_me_get_event_indicators(fmu_t *fmu, double *z, size_t nz) {
            ? FMU_STATUS_OK : FMU_STATUS_ERROR;
 }
 
-fmu_status_t fmu_me_completed_step(fmu_t *fmu, bool *enter_event_mode) {
+fmu_status_t fmuCompletedIntegratorStep(fmu_t *fmu, bool *enter_event_mode) {
     if (fmu->fmi_version == 2) {
         fmi2Boolean enter = fmi2False, terminate = fmi2False;
         fmi2Status s = fmu->fmi_functions.version_2.fmi2CompletedIntegratorStep(
@@ -1064,16 +1085,7 @@ fmu_status_t fmu_me_completed_step(fmu_t *fmu, bool *enter_event_mode) {
     return FMU_STATUS_OK;
 }
 
-fmu_status_t fmu_me_enter_event_mode(fmu_t *fmu) {
-    if (fmu->fmi_version == 2) {
-        return (fmu->fmi_functions.version_2.fmi2EnterEventMode(fmu->component) == fmi2OK)
-               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
-    }
-    return (fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component) == fmi3OK)
-           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
-}
-
-fmu_status_t fmu_me_enter_continuous_time_mode(fmu_t *fmu) {
+fmu_status_t fmuEnterContinuousTimeMode(fmu_t *fmu) {
     if (fmu->fmi_version == 2) {
         return (fmu->fmi_functions.version_2.fmi2EnterContinuousTimeMode(fmu->component) == fmi2OK)
                ? FMU_STATUS_OK : FMU_STATUS_ERROR;
@@ -1081,55 +1093,6 @@ fmu_status_t fmu_me_enter_continuous_time_mode(fmu_t *fmu) {
     return (fmu->fmi_functions.version_3.fmi3EnterContinuousTimeMode(fmu->component) == fmi3OK)
            ? FMU_STATUS_OK : FMU_STATUS_ERROR;
 }
-
-/* Single UpdateDiscreteStates call. The caller owns the event iteration so that
-   every coupled FMU crosses the same super-dense time instant. */
-fmu_status_t fmu_me_update_discrete_states(fmu_t *fmu,
-                                           bool *need_update,
-                                           bool *have_next_event_time,
-                                           double *next_event_time) {
-    *need_update = false;
-
-    if (fmu->fmi_version == 2) {
-        fmi2EventInfo info;
-        fmi2Status s = fmu->fmi_functions.version_2.fmi2NewDiscreteStates(fmu->component, &info);
-        if (s != fmi2OK) {
-            logger(LOGGER_ERROR, "ME FMU '%s': fmi2NewDiscreteStates failed (%d).", fmu->name, s);
-            return FMU_STATUS_ERROR;
-        }
-        if (info.terminateSimulation) {
-            logger(LOGGER_WARNING, "ME FMU '%s' requested to stop simulation.", fmu->name);
-            return FMU_STATUS_ERROR;
-        }
-        *have_next_event_time = info.nextEventTimeDefined ? true : false;
-        if (*have_next_event_time)
-            *next_event_time = info.nextEventTime;
-        *need_update = info.newDiscreteStatesNeeded ? true : false;
-
-        return FMU_STATUS_OK;
-    }
-
-    fmi3Boolean needUpdate, terminate, nominalsChanged, valuesChanged, nextDefined;
-    fmi3Float64 nextTime;
-    fmi3Status s = fmu->fmi_functions.version_3.fmi3UpdateDiscreteStates(
-        fmu->component, &needUpdate, &terminate,
-        &nominalsChanged, &valuesChanged, &nextDefined, &nextTime);
-    if (s != fmi3OK) {
-        logger(LOGGER_ERROR, "ME FMU '%s': fmi3UpdateDiscreteStates failed (%d).", fmu->name, s);
-        return FMU_STATUS_ERROR;
-    }
-    if (terminate) {
-        logger(LOGGER_WARNING, "ME FMU '%s' requested to stop simulation.", fmu->name);
-        return FMU_STATUS_ERROR;
-    }
-    *have_next_event_time = nextDefined ? true : false;
-    if (*have_next_event_time)
-        *next_event_time = nextTime;
-    *need_update = needUpdate ? true : false;
-
-    return FMU_STATUS_OK;
-}
-
 
 /* fmuDoStep is only ever called on CS FMUs. ME FMUs are advanced collectively
    by solver_do_step() in solver.c. The container filters ME out of its
@@ -1388,6 +1351,18 @@ fmu_status_t fmuGetRealStatus(const fmu_t *fmu, const fmi2StatusKind s, fmi2Real
 
 
 fmu_status_t fmuEnterEventMode(const fmu_t *fmu) {
+    if (fmu->kind == FMU_KIND_ME) {
+        const bool ok = (fmu->fmi_version == 2)
+            ? (fmu->fmi_functions.version_2.fmi2EnterEventMode(fmu->component) == fmi2OK)
+            : (fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component) == fmi3OK);
+
+        if (! ok) {
+            logger(LOGGER_ERROR, "Cannot enter in Event mode for fmu %s", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+        return FMU_STATUS_OK;
+    }
+
     if (fmu->support_event) {
         fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterEventMode(fmu->component);
         if (status != fmi3OK) {
