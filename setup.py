@@ -63,23 +63,31 @@ setup(
                   },
     author=author,
     url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
-    description="FMU Manipulation Toolbox is a python package which helps to analyze, modify or combine "
-                "Functional Mock-up Units (FMUs) without recompilation.",
-    long_description="""FMU Manipulation Toolbox is a python package which helps to analyze, modify or combine
-[Functional Mock-up Units (FMUs)](https://fmi-standard.org/) without recompilation. It is highly customizable and comes with
-a Python API.
+    description="FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate, combine or "
+                "split Functional Mock-up Units (FMUs) without recompilation, through a GUI, a CLI or a Python API.",
+    long_description="""FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate,
+combine or split [Functional Mock-up Units (FMUs)](https://fmi-standard.org/) without recompilation. It is highly
+customizable and comes with a Python API.
 
 FMU Manipulation Toolbox can be used in different ways:
-- Using a Graphical User Interface: suitable for end users
+- Using a Graphical User Interface: suitable for end users (`fmutoolbox` launcher gives access to `fmutool-gui`,
+  `fmueditor` and `fmucontainer-gui`)
 - Using a Command Line Interface: useful for scripting and automation
-- Using a Python API: the most efficient option for automation (CI/CD, transformation scripts, ...))
+- Using a Python API: the most efficient option for automation (CI/CD, transformation scripts, ...)
 
 Major features:
-- Analyze FMU content: list ports and their attributes, check compliance of `ModelDescription.xml` with XSD, etc.
-- Alter FMU by modifying its `modelDescription.xml` file. NOTE: manipulating this file can be a risky.
-  When possible, it is preferable to communicate with the FMU developer and adapt the FMU generation process.
-- Add binary interfaces. Typical use case is porting a 32-bit FMUs to 64-bit systems (or vice et versa). 
-- Combine FMUs into FMU Containers and allow your favourite FMI tool to orchestrate complex assemblies of FMUs.
+- Analyze FMU content: list ports and their attributes, check compliance of `ModelDescription.xml` with XSD, and
+  run built-in or custom validation rules with the Checker.
+- Alter FMU by modifying its `modelDescription.xml` file: batch rename ports from/to CSV, filter variables with
+  regular expressions, flatten hierarchy levels, edit variables and experiment settings with the `fmueditor`
+  spreadsheet-like editor. NOTE: manipulating this file can be risky. When possible, it is preferable to
+  communicate with the FMU developer and adapt the FMU generation process.
+- Remoting: add binary interfaces to port 32-bit FMUs to 64-bit systems (or vice versa), or run an FMU in a
+  separate process through a frontend wrapper.
+- Combine FMUs into FMU Containers (`fmucontainer`) with automatic or explicit routing, multi-threading,
+  performance profiling and CSV datalog, then let your favourite FMI tool orchestrate the resulting assembly.
+  A visual node-graph editor (`fmucontainer-gui`) is also available.
+- Split a Container FMU back into its embedded FMUs with `fmusplit`.
 
 FMI versions 2.0, 3.0 and LS-BUS are supported.
     """,
