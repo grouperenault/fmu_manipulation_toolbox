@@ -64,16 +64,16 @@ This guide presents practical solutions to frequently encountered problems when 
 
 === "Python API Solution"
 
-```python
-from fmu_manipulation_toolbox.operations import FMU, OperationRemoveRegexp
-
-fmu = FMU("model_dev.fmu")
-
-fmu.apply_operation(OperationRemoveRegexp(r".*[Dd]ebug.*"))
-fmu.apply_operation(OperationRemoveRegexp(r".*[Tt]est.*"))
-
-fmu.repack("model_release.fmu")
-```
+    ```python
+    from fmu_manipulation_toolbox.operations import FMU, OperationRemoveRegexp
+    
+    fmu = FMU("model_dev.fmu")
+    
+    fmu.apply_operation(OperationRemoveRegexp(r".*[Dd]ebug.*"))
+    fmu.apply_operation(OperationRemoveRegexp(r".*[Tt]est.*"))
+    
+    fmu.repack("model_release.fmu")
+    ```
 
 
 ### Simplify Deep Hierarchy
@@ -171,16 +171,17 @@ fmu.repack("model_release.fmu")
     ```
 
 === "Python API Solution"
-```python
-from fmu_manipulation_toolbox.operations import FMU, OperationRemoveSources, OperationRemoveRegexp
-from fmu_manipulation_toolbox.checker import OperationGenericCheck
 
-fmu = FMU("internal_model.fmu")
-fmu.apply_operation(OperationRemoveSources())
-fmu.apply_operation(OperationRemoveRegexp(r".*"), apply_on=["local"])
-fmu.apply_operation(OperationGenericCheck())
-fmu.repack("public_model.fmu")
-```
+    ```python
+    from fmu_manipulation_toolbox.operations import FMU, OperationRemoveSources, OperationRemoveRegexp
+    from fmu_manipulation_toolbox.checker import OperationGenericCheck
+    
+    fmu = FMU("internal_model.fmu")
+    fmu.apply_operation(OperationRemoveSources())
+    fmu.apply_operation(OperationRemoveRegexp(r".*"), apply_on=["local"])
+    fmu.apply_operation(OperationGenericCheck())
+    fmu.repack("public_model.fmu")
+    ```
 
 ---
 
