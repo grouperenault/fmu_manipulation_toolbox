@@ -363,6 +363,9 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version, fmu_kind_t k
     logger(LOGGER_ERROR, "Missing API '" #x "'.");                      \
     status = -1;                                                        \
 }
+/* kind specific API: mapped for both kinds, only required for the matching one */
+#define CS_MAP(x) if (kind == FMU_KIND_CS) { REQ_MAP(x); } else { OPT_MAP(x); }
+#define ME_MAP(x) if (kind == FMU_KIND_ME) { REQ_MAP(x); } else { OPT_MAP(x); }
         OPT_MAP(fmi2GetTypesPlatform);
         OPT_MAP(fmi2GetVersion);
         OPT_MAP(fmi2SetDebugLogging);
@@ -390,28 +393,29 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version, fmu_kind_t k
         OPT_MAP(fmi2GetDirectionalDerivative);
         OPT_MAP(fmi2SetRealInputDerivatives);
         OPT_MAP(fmi2GetRealOutputDerivatives);
-        if (kind == FMU_KIND_CS) {
-            REQ_MAP(fmi2DoStep);
-            OPT_MAP(fmi2CancelStep);
-            OPT_MAP(fmi2GetStatus);
-            REQ_MAP(fmi2GetRealStatus);
-            OPT_MAP(fmi2GetIntegerStatus);
-            REQ_MAP(fmi2GetBooleanStatus);
-            OPT_MAP(fmi2GetStringStatus);
-        } else {
-            REQ_MAP(fmi2EnterEventMode);
-            REQ_MAP(fmi2NewDiscreteStates);
-            REQ_MAP(fmi2EnterContinuousTimeMode);
-            REQ_MAP(fmi2CompletedIntegratorStep);
-            REQ_MAP(fmi2SetTime);
-            REQ_MAP(fmi2SetContinuousStates);
-            REQ_MAP(fmi2GetDerivatives);
-            OPT_MAP(fmi2GetEventIndicators);
-            REQ_MAP(fmi2GetContinuousStates);
-            OPT_MAP(fmi2GetNominalsOfContinuousStates);
-        }
+
+        CS_MAP(fmi2DoStep);
+        OPT_MAP(fmi2CancelStep);
+        OPT_MAP(fmi2GetStatus);
+        CS_MAP(fmi2GetRealStatus);
+        OPT_MAP(fmi2GetIntegerStatus);
+        CS_MAP(fmi2GetBooleanStatus);
+        OPT_MAP(fmi2GetStringStatus);
+
+        ME_MAP(fmi2EnterEventMode);
+        ME_MAP(fmi2NewDiscreteStates);
+        ME_MAP(fmi2EnterContinuousTimeMode);
+        ME_MAP(fmi2CompletedIntegratorStep);
+        ME_MAP(fmi2SetTime);
+        ME_MAP(fmi2SetContinuousStates);
+        ME_MAP(fmi2GetDerivatives);
+        ME_MAP(fmi2GetEventIndicators);
+        ME_MAP(fmi2GetContinuousStates);
+        OPT_MAP(fmi2GetNominalsOfContinuousStates);
 #undef OPT_MAP
 #undef REQ_MAP
+#undef CS_MAP
+#undef ME_MAP
     }
 
     if (fmi_version == 3) {
@@ -420,13 +424,13 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version, fmu_kind_t k
     logger(LOGGER_ERROR, "Missing API '" #x "'.");                      \
     status = -1;                                                        \
 }
+/* kind specific API: mapped for both kinds, only required for the matching one */
+#define CS_MAP(x) if (kind == FMU_KIND_CS) { REQ_MAP(x); } else { OPT_MAP(x); }
+#define ME_MAP(x) if (kind == FMU_KIND_ME) { REQ_MAP(x); } else { OPT_MAP(x); }
         OPT_MAP(fmi3GetVersion);
         OPT_MAP(fmi3SetDebugLogging);
-        if (kind == FMU_KIND_CS) {
-            REQ_MAP(fmi3InstantiateCoSimulation);
-        } else {
-            REQ_MAP(fmi3InstantiateModelExchange);
-        }
+        CS_MAP(fmi3InstantiateCoSimulation);
+        ME_MAP(fmi3InstantiateModelExchange);
         REQ_MAP(fmi3FreeInstance);
         REQ_MAP(fmi3EnterInitializationMode);
         REQ_MAP(fmi3ExitInitializationMode);
@@ -471,8 +475,8 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version, fmu_kind_t k
         OPT_MAP(fmi3DeserializeFMUState);
         OPT_MAP(fmi3GetDirectionalDerivative);
         OPT_MAP(fmi3GetAdjointDerivative);
-        REQ_MAP(fmi3EnterConfigurationMode);
-        REQ_MAP(fmi3ExitConfigurationMode);
+        OPT_MAP(fmi3EnterConfigurationMode);
+        OPT_MAP(fmi3ExitConfigurationMode);
         REQ_MAP(fmi3GetIntervalDecimal);
         OPT_MAP(fmi3GetIntervalFraction);
         OPT_MAP(fmi3GetShiftDecimal);
@@ -483,22 +487,29 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version, fmu_kind_t k
         OPT_MAP(fmi3SetShiftFraction);
         OPT_MAP(fmi3EvaluateDiscreteStates);
         REQ_MAP(fmi3UpdateDiscreteStates);
-        if (kind == FMU_KIND_CS) {
-            REQ_MAP(fmi3EnterStepMode);
-            OPT_MAP(fmi3GetOutputDerivatives);
-            REQ_MAP(fmi3DoStep);
-        } else {
-            REQ_MAP(fmi3EnterContinuousTimeMode);
-            REQ_MAP(fmi3CompletedIntegratorStep);
-            REQ_MAP(fmi3SetTime);
-            REQ_MAP(fmi3SetContinuousStates);
-            REQ_MAP(fmi3GetContinuousStateDerivatives);
-            OPT_MAP(fmi3GetEventIndicators);
-            REQ_MAP(fmi3GetContinuousStates);
-            OPT_MAP(fmi3GetNominalsOfContinuousStates);
-        }
+
+        CS_MAP(fmi3EnterStepMode);
+        OPT_MAP(fmi3GetOutputDerivatives);
+        CS_MAP(fmi3DoStep);
+
+        /* Scheduled Execution is not supported by the container */
+        OPT_MAP(fmi3InstantiateScheduledExecution);
+        OPT_MAP(fmi3ActivateModelPartition);
+
+        ME_MAP(fmi3EnterContinuousTimeMode);
+        ME_MAP(fmi3CompletedIntegratorStep);
+        ME_MAP(fmi3SetTime);
+        ME_MAP(fmi3SetContinuousStates);
+        ME_MAP(fmi3GetContinuousStateDerivatives);
+        ME_MAP(fmi3GetEventIndicators);
+        ME_MAP(fmi3GetContinuousStates);
+        OPT_MAP(fmi3GetNominalsOfContinuousStates);
+        OPT_MAP(fmi3GetNumberOfContinuousStates);
+        OPT_MAP(fmi3GetNumberOfEventIndicators);
 #undef OPT_MAP
 #undef REQ_MAP
+#undef CS_MAP
+#undef ME_MAP
     }
 
     return status;

@@ -219,6 +219,7 @@ typedef union {
         DECLARE_FMI_FUNCTION(fmi2SerializeFMUstate);
         DECLARE_FMI_FUNCTION(fmi2DeSerializeFMUstate);
         DECLARE_FMI_FUNCTION(fmi2GetDirectionalDerivative);
+        /* Co-Simulation */
         DECLARE_FMI_FUNCTION(fmi2SetRealInputDerivatives);
         DECLARE_FMI_FUNCTION(fmi2GetRealOutputDerivatives);
         DECLARE_FMI_FUNCTION(fmi2DoStep);
@@ -243,7 +244,6 @@ typedef union {
     struct {
         DECLARE_FMI_FUNCTION(fmi3GetVersion);
         DECLARE_FMI_FUNCTION(fmi3SetDebugLogging);
-        DECLARE_FMI_FUNCTION(fmi3InstantiateCoSimulation);
         DECLARE_FMI_FUNCTION(fmi3FreeInstance);
         DECLARE_FMI_FUNCTION(fmi3EnterInitializationMode);
         DECLARE_FMI_FUNCTION(fmi3ExitInitializationMode);
@@ -300,9 +300,14 @@ typedef union {
         DECLARE_FMI_FUNCTION(fmi3SetShiftFraction);
         DECLARE_FMI_FUNCTION(fmi3EvaluateDiscreteStates);
         DECLARE_FMI_FUNCTION(fmi3UpdateDiscreteStates);
+        /* Co-Simulation */
+        DECLARE_FMI_FUNCTION(fmi3InstantiateCoSimulation);
         DECLARE_FMI_FUNCTION(fmi3EnterStepMode);
         DECLARE_FMI_FUNCTION(fmi3GetOutputDerivatives);
         DECLARE_FMI_FUNCTION(fmi3DoStep);
+        /* Scheduled Execution */
+        DECLARE_FMI_FUNCTION(fmi3InstantiateScheduledExecution);
+        DECLARE_FMI_FUNCTION(fmi3ActivateModelPartition);
         /* Model Exchange */
         DECLARE_FMI_FUNCTION(fmi3InstantiateModelExchange);
         DECLARE_FMI_FUNCTION(fmi3EnterContinuousTimeMode);
@@ -313,6 +318,8 @@ typedef union {
         DECLARE_FMI_FUNCTION(fmi3GetEventIndicators);
         DECLARE_FMI_FUNCTION(fmi3GetContinuousStates);
         DECLARE_FMI_FUNCTION(fmi3GetNominalsOfContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi3GetNumberOfContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi3GetNumberOfEventIndicators);
     } version_3;
 } fmu_interface_t;
 #	undef DECLARE_FMI_FUNCTION
