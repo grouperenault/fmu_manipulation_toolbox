@@ -14,58 +14,69 @@ if not re.match(r"[A-Za-z]?\d+(\.\d)+", version):
     print(f"WARNING: Version {version} does not match standard. The publication will fail !")
     version = default_version
 
+VERSION_FILE = "fmu_manipulation_toolbox/__version__.py"
+
 # Create __version__.py
 try:
-    with open("fmu_manipulation_toolbox/__version__.py", "wt") as file:
+    with open(VERSION_FILE, "wt") as file:
         print(f"'{version}'", file=file)
 except Exception as e:
     print(f"Cannot create __version__.py: {e}")
 
-setup(
-    name="fmu_manipulation_toolbox",
-    version=version,
-    packages=[ "fmu_manipulation_toolbox",
-               "fmu_manipulation_toolbox.cli",
-               "fmu_manipulation_toolbox.gui",
-               "fmu_manipulation_toolbox.gui.fmucontainer",
-               "fmu_manipulation_toolbox.gui.fmucontainer.details",
-               "fmu_manipulation_toolbox.gui.fmucontainer.graph",
-               "fmu_manipulation_toolbox.gui.fmucontainer.tree",
-               "fmu_manipulation_toolbox.gui.fmueditor",
-               "fmu_manipulation_toolbox.gui.fmutool"],
-    package_data={"fmu_manipulation_toolbox": [
-        "resources/win32/client_sm.dll",
-        "resources/win32/server_sm.exe",
-        "resources/win64/client_sm.dll",
-        "resources/win64/server_sm.exe",
-        "resources/win64/container.dll",
-        "resources/linux64/client_sm.so",
-        "resources/linux64/server_sm",
-        "resources/linux64/container.so",
-        "resources/linux32/client_sm.so",
-        "resources/linux32/server_sm",
-        "resources/darwin64/container.dylib",
-        "resources/license.txt",
-        "resources/*.png",
-        "resources/fmi-2.0/*.xsd",
-        "resources/fmi-3.0/*.xsd",
-    ]},
-    entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.cli.fmutool:fmutool",
-                                      "fmucontainer = fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer",
-                                      "fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit",
-                                      "datalog2pcap = fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap",
-                                      ],
-                  "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.fmutool.__main__:main",
-                                  "fmucontainer-gui = fmu_manipulation_toolbox.gui.fmucontainer.__main__:main",
-                                  "fmueditor = fmu_manipulation_toolbox.gui.fmueditor.__main__:main",
-                                  "fmutoolbox = fmu_manipulation_toolbox.gui.__main__:main",
-                                  ]
-                  },
-    author=author,
-    url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
-    description="FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate, combine or "
-                "split Functional Mock-up Units (FMUs) without recompilation, through a GUI, a CLI or a Python API.",
-    long_description="""FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate,
+try:
+    setup(
+        name="fmu_manipulation_toolbox",
+        version=version,
+        packages=["fmu_manipulation_toolbox",
+                  "fmu_manipulation_toolbox.cli",
+                  "fmu_manipulation_toolbox.gui",
+                  "fmu_manipulation_toolbox.gui.fmucontainer",
+                  "fmu_manipulation_toolbox.gui.fmucontainer.details",
+                  "fmu_manipulation_toolbox.gui.fmucontainer.graph",
+                  "fmu_manipulation_toolbox.gui.fmucontainer.tree",
+                  "fmu_manipulation_toolbox.gui.fmueditor",
+                  "fmu_manipulation_toolbox.gui.fmutool"],
+        package_data={"fmu_manipulation_toolbox": [
+            "resources/win32/client_sm.dll",
+            "resources/win32/server_sm.exe",
+            "resources/win64/client_sm.dll",
+            "resources/win64/server_sm.exe",
+            "resources/win64/container.dll",
+            "resources/linux64/client_sm.so",
+            "resources/linux64/server_sm",
+            "resources/linux64/container.so",
+            "resources/linux32/client_sm.so",
+            "resources/linux32/server_sm",
+            "resources/darwin64/container.dylib",
+            "resources/license.txt",
+            "resources/*.png",
+            "resources/fmi-2.0/*.xsd",
+            "resources/fmi-3.0/*.xsd",
+        ]},
+        entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.cli.fmutool:fmutool",
+                                          "fmucontainer = fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer",
+                                          "fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit",
+                                          "datalog2pcap = fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap",
+                                          ],
+                      "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.fmutool.__main__:main",
+                                      "fmucontainer-gui = fmu_manipulation_toolbox.gui.fmucontainer.__main__:main",
+                                      "fmueditor = fmu_manipulation_toolbox.gui.fmueditor.__main__:main",
+                                      "fmutoolbox = fmu_manipulation_toolbox.gui.__main__:main",
+                                      ]
+                      },
+        author=author,
+        url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
+        project_urls={
+            "Documentation": "https://grouperenault.github.io/fmu_manipulation_toolbox/",
+            "Source": "https://github.com/grouperenault/fmu_manipulation_toolbox/",
+            "Changelog": "https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/CHANGELOG.md",
+            "Bug Tracker": "https://github.com/grouperenault/fmu_manipulation_toolbox/issues",
+        },
+        keywords=["FMI", "FMU", "co-simulation", "Functional Mock-up Interface", "Functional Mock-up Unit",
+                   "model-based systems engineering", "simulation"],
+        description="FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate, combine or "
+                    "split Functional Mock-up Units (FMUs) without recompilation, through a GUI, a CLI or a Python API.",
+        long_description="""FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate,
 combine or split [Functional Mock-up Units (FMUs)](https://fmi-standard.org/) without recompilation. It is highly
 customizable and comes with a Python API.
 
@@ -91,26 +102,49 @@ Major features:
 
 FMI versions 2.0, 3.0 and LS-BUS are supported.
     """,
-    long_description_content_type="text/markdown",
-    install_requires=[
-        "PySide6 >= 6.8.0",
-        "xmlschema >= 3.3.1",
-        "elementpath >= 4.4.0",
-        "colorama >= 0.4.6",
-        "importlib_metadata >= 8.7.0; python_version<'3.10'"
-    ],
-    extras_require={
-        "test": [
-            "pytest >= 9.0.3",
-            "pytest-qt >= 4.4.0",
-            "pytest-cov >= 7.0.0",
-            "coverage-badge >= 1.1.2",
-            "fmpy >= 0.3.20",
-            "numpy",
+        long_description_content_type="text/markdown",
+        install_requires=[
+            "PySide6 >= 6.8.0",
+            "xmlschema >= 3.3.1",
+            "elementpath >= 4.4.0",
+            "colorama >= 0.4.6",
+            "importlib_metadata >= 8.7.0; python_version<'3.10'"
         ],
-    },
-    license="BSD-2-Clause",
-    python_requires=">=3.9",
-)
-
-os.remove("fmu_manipulation_toolbox/__version__.py")
+        extras_require={
+            "test": [
+                "pytest >= 9.0.3",
+                "pytest-qt >= 4.4.0",
+                "pytest-cov >= 7.0.0",
+                "coverage-badge >= 1.1.2",
+                "fmpy >= 0.3.20",
+                "numpy",
+            ],
+        },
+        license="BSD-2-Clause",
+        license_files=["LICENSE.txt"],
+        python_requires=">=3.9",
+        classifiers=[
+            "Development Status :: 5 - Production/Stable",
+            "Intended Audience :: Developers",
+            "Intended Audience :: Science/Research",
+            "Topic :: Scientific/Engineering",
+            "Topic :: Software Development :: Libraries :: Python Modules",
+            "Operating System :: Microsoft :: Windows",
+            "Operating System :: POSIX :: Linux",
+            "Operating System :: MacOS",
+            "Programming Language :: Python :: 3",
+            "Programming Language :: Python :: 3 :: Only",
+            "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: 3.10",
+            "Programming Language :: Python :: 3.11",
+            "Programming Language :: Python :: 3.12",
+            "Programming Language :: Python :: 3.13",
+        ],
+    )
+finally:
+    # Best-effort cleanup even if `setup()` raised (e.g. invalid arguments,
+    # missing dependency): avoid leaving a stray __version__.py behind.
+    try:
+        os.remove(VERSION_FILE)
+    except FileNotFoundError:
+        pass
