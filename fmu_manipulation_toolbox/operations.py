@@ -764,6 +764,12 @@ class OperationSummary(OperationAbstract):
             logger.info(f"|  - {k} = {v}")
         logger.info(f"|")
 
+    def modelexchange_attrs(self, attrs):
+        logger.info("| Model Exchange capabilities: ")
+        for (k, v) in attrs.items():
+            logger.info(f"|  - {k} = {v}")
+        logger.info(f"|")
+
     def experiment_attrs(self, attrs):
         logger.info("| Default Experiment values: ")
         for (k, v) in attrs.items():
