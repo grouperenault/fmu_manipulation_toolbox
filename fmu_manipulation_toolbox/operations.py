@@ -314,6 +314,8 @@ class Manipulation:
                 self.current_port.dimensions = attrs
             elif name == 'CoSimulation':
                 self.operation.cosimulation_attrs(attrs)
+            elif name == 'ModelExchange':
+                self.operation.modelexchange_attrs(attrs)
             elif name == 'DefaultExperiment':
                 self.operation.experiment_attrs(attrs)
             elif name == 'fmiModelDescription':
@@ -509,6 +511,14 @@ class OperationAbstract:
 
         Args:
             attrs (dict[str, str]): XML attributes of the co-simulation element.
+        """
+        pass
+
+    def modelexchange_attrs(self, attrs):
+        """Called when the `<ModelExchange>` element is encountered.
+
+        Args:
+            attrs (dict[str, str]): XML attributes of the model-exchange element.
         """
         pass
 
