@@ -119,16 +119,22 @@ void solver_free(solver_t *solver) {
    sweep in registration order, so an output produced by me[i] reaches me[i+1]
    within the same sweep. Required before every evaluation of the right-hand
    side and of the event indicators (FMI-3.0 2.2.11), otherwise the coupled
-   FMUs are evaluated with stale inputs. */
+   FMUs are evaluated with stale inputs.
+
+   Continuous Time Mode only: exchange the continuous (real) couplings, never the
+   discrete ones. Per FMI-2.0 2.1.3, discrete variables may only be set/get in
+   Event or Initialization Mode; touching a discrete boolean/integer input here
+   (e.g. a bounce "reset" flag) corrupts the target FMU's edge detection. The
+   discrete couplings are exchanged by solver_event_iteration() in Event Mode. */
 fmu_status_t solver_propagate(solver_t *solver) {
     for (size_t i = 0; i < solver->nb_me; i += 1) {
         fmu_t *fmu = solver->me[i].fmu;
 
-        if (fmu_set_inputs(fmu) != FMU_STATUS_OK) {
+        if (fmu_set_continuous_inputs(fmu) != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "ME FMU '%s': cannot set inputs.", fmu->name);
             return FMU_STATUS_ERROR;
         }
-        if (fmu_get_outputs(fmu) != FMU_STATUS_OK) {
+        if (fmu_get_continuous_outputs(fmu) != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "ME FMU '%s': cannot get outputs.", fmu->name);
             return FMU_STATUS_ERROR;
         }
@@ -142,23 +148,32 @@ fmu_status_t solver_propagate(solver_t *solver) {
 ----------------------------------------------------------------------------*/
 
 /* Collective event iteration (FMI-3.0 2.2.11): every ME FMU must already be in
-   Event Mode. Each pass propagates the coupling, then closes the super-dense
-   time instant on all FMUs, so a discrete change in one FMU is seen by the
-   others at the same instant. */
+   Event Mode. Gauss-Seidel sweep in registration order (Set inputs ->
+   fmi*UpdateDiscreteStates -> Get outputs per FMU), so a discrete output
+   produced by me[i] reaches me[i+1] within the same pass and the outputs read
+   back reflect the freshly updated discrete state. */
 static fmu_status_t solver_event_iteration(solver_t *solver) {
     for (int iter = 0; iter < solver->max_event_iter; iter += 1) {
         bool more_event = false;
 
-        if (solver_propagate(solver) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-
         for (size_t i = 0; i < solver->nb_me; i += 1) {
+            fmu_t *fmu = solver->me[i].fmu;
             bool need_update = false;
 
-            if (fmuUpdateDiscreteStates(solver->me[i].fmu, &need_update) != FMU_STATUS_OK)
+            if (fmu_set_inputs(fmu) != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "ME FMU '%s': cannot set inputs.", fmu->name);
+                return FMU_STATUS_ERROR;
+            }
+
+            if (fmuUpdateDiscreteStates(fmu, &need_update) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
 
             more_event |= need_update;
+
+            if (fmu_get_outputs(fmu) != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "ME FMU '%s': cannot get outputs.", fmu->name);
+                return FMU_STATUS_ERROR;
+            }
         }
 
         if (!more_event)

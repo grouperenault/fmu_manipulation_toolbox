@@ -235,6 +235,63 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
     return status;
 }
 
+
+/*
+ * Continuous Time Mode variants: exchange ONLY the continuous (real) couplings.
+ * Per FMI-2.0 2.1.3, discrete variables (booleans/integers) may only be set/get
+ * in Event or Initialization Mode; exchanging them in Continuous Time Mode is
+ * illegal and corrupts the target FMU (e.g. a bounce "reset" edge detector).
+ */
+fmu_status_t fmu_set_continuous_inputs(const fmu_t* fmu) {
+    fmu_status_t status = FMU_STATUS_OK;
+    const container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+
+#define SET_CONT_INPUT(variable, fmi_type)                                                          \
+    for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                               \
+        const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                 \
+        const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr;                     \
+        const unsigned int dimension = fmu_io->variable .in.translations[i].dimension;              \
+        status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
+        if (status != FMU_STATUS_OK)                                                                \
+            return status;                                                                          \
+    }
+
+    SET_CONT_INPUT(reals64, Real64)
+    SET_CONT_INPUT(reals32, Real32)
+
+#undef SET_CONT_INPUT
+
+    return status;
+}
+
+
+fmu_status_t fmu_get_continuous_outputs(const fmu_t* fmu) {
+    container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+    fmu_status_t status = FMU_STATUS_OK;
+
+#define GET_CONT_OUTPUT(variable, fmi_type)                                                         \
+    for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) {                                     \
+        const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr;                      \
+        const fmu_vr_t local_vr = fmu_io-> variable .out.translations[i].vr;                        \
+        const unsigned int dimension = fmu_io-> variable .out.translations[i].dimension;            \
+        status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
+        if (status != FMU_STATUS_OK)                                                                \
+            return status;                                                                          \
+    }
+
+    GET_CONT_OUTPUT(reals64, Real64)
+    GET_CONT_OUTPUT(reals32, Real32)
+
+#undef GET_CONT_OUTPUT
+
+    /* cast conversion between local variables */
+    convert_proceed(fmu->container, fmu->conversions);
+
+    return status;
+}
+
     
 fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
     container_t* container = fmu->container;
