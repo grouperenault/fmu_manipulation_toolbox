@@ -852,7 +852,8 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
             return -2;
         }
     } else {
-        /* ME entries carry an extra line: nb continuous states and event indicators. */
+        /* "<filename> <fmi_version> <nx> <nz>": ME entries carry nb continuous
+           states and event indicators on the same line as the filename. */
         if (sscanf(flags, "%d %zu %zu", &fmi_version, &nx, &nz) < 3) {
             CONFIG_ERROR("Cannot read ME sizes (nb_states nb_event_indicators) for FMU '%s'.", name);
             free(name);

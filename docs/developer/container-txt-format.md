@@ -131,7 +131,8 @@ The FMU's resources are stored in subdirectories named by index: `resources/00/`
 - **Version 0/1**: Only `<fmu_filename>` on the first line (no FMI version or event mode flag).
 - **Version 2 to 5**: Single count `<nb_fmu>` and full triplet `<fmu_filename> <fmi_version> <has_event_mode>`.
 - **Version ≥ 6**: Split count `<nb_fmu_cs> <nb_fmu_me>` and dedicated Model-Exchange entries
-  carrying the `<nx> <nz>` line.
+  carrying `<nx> <nz>` on the same line as `<fmu_filename> <fmi_version>` (instead of
+  `<has_event_mode>`).
 
 ---
 

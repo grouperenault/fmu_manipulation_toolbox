@@ -1409,7 +1409,7 @@ class InvolvedFMU:
         fmu_rank: Dict[str, int] = {}
         for i, fmu in enumerate(self.values()):
             if fmu.is_me:
-                # ME entries: <filename> <fmi_version> / <identifier> / <guid> / <nx> <nz>
+                # ME entries: <filename> <fmi_version> <nx> <nz> / <identifier> / <guid>
                 print(f"{fmu.name} {fmu.fmi_version} {fmu.number_of_continuous_states} {fmu.number_of_event_indicators}", file=txt_file)
             else:
                 # CS entries: <filename> <fmi_version> <has_event_mode> / <identifier> / <guid>
