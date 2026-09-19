@@ -346,6 +346,9 @@ class TestSuite:
     def test_fmusplit_5(self):
         self.fmusplit_n(5)
 
+    def test_fmusplit_6(self):
+        self.fmusplit_n(6)
+
     def test_fmusplit_array_3(self):
         sys.argv = ['fmusplit',
                     "-fmu", f"split/container-array-3.fmu"]
