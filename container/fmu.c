@@ -650,12 +650,14 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     return 0;
 }
 
+
 int fmu_launch_thread(fmu_t *fmu) {
     logger(LOGGER_DEBUG, "FMU '%s' thread launched.", fmu->name);
     fmu->thread = thread_new((thread_function_t)fmu_do_step_thread, fmu);
 
     return fmu->thread ? 0 : -1;
 }
+
 
 void fmu_unload(fmu_t *fmu) {
     logger(LOGGER_DEBUG, "Unload FMU %s", fmu->name);
@@ -1047,91 +1049,174 @@ fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate)
 
 fmu_status_t fmuSetTime(fmu_t *fmu, double t) {
     if (fmu->fmi_version == 2) {
-        return (fmu->fmi_functions.version_2.fmi2SetTime(fmu->component, t) == fmi2OK)
-               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+        fmi2Status status = fmu->fmi_functions.version_2.fmi2SetTime(fmu->component, t);
+        if (status != fmi2OK) {
+            logger(LOGGER_ERROR, "Cannot set time for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status = fmu->fmi_functions.version_3.fmi3SetTime(fmu->component, t);
+        if (status != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot set time for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
     }
-    return (fmu->fmi_functions.version_3.fmi3SetTime(fmu->component, t) == fmi3OK)
-           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+    return FMU_STATUS_OK;
 }
+
 
 fmu_status_t fmuSetContinuousStates(fmu_t *fmu, const double *x, size_t nx) {
-    if (!nx) return FMU_STATUS_OK;
+    if (!nx)
+        return FMU_STATUS_OK;
+
     if (fmu->fmi_version == 2) {
-        return (fmu->fmi_functions.version_2.fmi2SetContinuousStates(fmu->component, x, nx) == fmi2OK)
-               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+        fmi2Status status = fmu->fmi_functions.version_2.fmi2SetContinuousStates(fmu->component, x, nx);
+        if (status != fmi2OK) {
+            logger(LOGGER_ERROR, "Cannot set continuous states for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status = fmu->fmi_functions.version_3.fmi3SetContinuousStates(fmu->component, x, nx);
+        if (status != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot set continuous states for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
     }
-    return (fmu->fmi_functions.version_3.fmi3SetContinuousStates(fmu->component, x, nx) == fmi3OK)
-           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+
+    return FMU_STATUS_OK;
 }
+
 
 fmu_status_t fmuGetContinuousStates(fmu_t *fmu, double *x, size_t nx) {
-    if (!nx) return FMU_STATUS_OK;
+    if (!nx)
+        return FMU_STATUS_OK;
+
     if (fmu->fmi_version == 2) {
-        return (fmu->fmi_functions.version_2.fmi2GetContinuousStates(fmu->component, x, nx) == fmi2OK)
-               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+        fmi2Status status = fmu->fmi_functions.version_2.fmi2GetContinuousStates(fmu->component, x, nx);
+        if (status != fmi2OK) {
+            logger(LOGGER_ERROR, "Cannot get continuous states for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status = fmu->fmi_functions.version_3.fmi3GetContinuousStates(fmu->component, x, nx);
+        if (status != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot get continuous states for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
     }
-    return (fmu->fmi_functions.version_3.fmi3GetContinuousStates(fmu->component, x, nx) == fmi3OK)
-           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+
+    return FMU_STATUS_OK;
 }
+
 
 fmu_status_t fmuGetContinuousStateDerivatives(fmu_t *fmu, double *dx, size_t nx) {
-    if (!nx) return FMU_STATUS_OK;
+    if (!nx)
+        return FMU_STATUS_OK;
+
     if (fmu->fmi_version == 2) {
-        return (fmu->fmi_functions.version_2.fmi2GetDerivatives(fmu->component, dx, nx) == fmi2OK)
-               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+        fmi2Status status = fmu->fmi_functions.version_2.fmi2GetDerivatives(fmu->component, dx, nx);
+        if (status != fmi2OK) {
+            logger(LOGGER_ERROR, "Cannot get continuous state derivatives for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status = fmu->fmi_functions.version_3.fmi3GetContinuousStateDerivatives(fmu->component, dx, nx);
+        if (status != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot get continuous state derivatives for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
     }
-    return (fmu->fmi_functions.version_3.fmi3GetContinuousStateDerivatives(fmu->component, dx, nx) == fmi3OK)
-           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+    return FMU_STATUS_OK;
 }
 
+
 fmu_status_t fmuGetEventIndicators(fmu_t *fmu, double *z, size_t nz) {
-    if (!nz) return FMU_STATUS_OK;
+    if (!nz)
+        return FMU_STATUS_OK;
+
     if (fmu->fmi_version == 2) {
-        return (fmu->fmi_functions.version_2.fmi2GetEventIndicators(fmu->component, z, nz) == fmi2OK)
-               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+        fmi2Status status = fmu->fmi_functions.version_2.fmi2GetEventIndicators(fmu->component, z, nz);
+        if (status != fmi2OK) {
+            logger(LOGGER_ERROR, "Cannot get event indicators for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status = fmu->fmi_functions.version_3.fmi3GetEventIndicators(fmu->component, z, nz);
+        if (status != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot get event indicators for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
     }
-    return (fmu->fmi_functions.version_3.fmi3GetEventIndicators(fmu->component, z, nz) == fmi3OK)
-           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+
+    return FMU_STATUS_OK;
 }
+
 
 fmu_status_t fmuCompletedIntegratorStep(fmu_t *fmu, bool *enter_event_mode) {
     if (fmu->fmi_version == 2) {
-        fmi2Boolean enter = fmi2False, terminate = fmi2False;
-        fmi2Status s = fmu->fmi_functions.version_2.fmi2CompletedIntegratorStep(
+        fmi2Boolean enter = fmi2False;
+        fmi2Boolean terminate = fmi2False;
+
+        fmi2Status status = fmu->fmi_functions.version_2.fmi2CompletedIntegratorStep(
             fmu->component, fmi2True, &enter, &terminate);
-        if (s != fmi2OK) return FMU_STATUS_ERROR;
+
+        if (status != fmi2OK) {
+            logger(LOGGER_ERROR, "Cannot complete integrator step for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+
+        if (terminate) {
+            logger(LOGGER_WARNING, "ME FMU '%s' requested to end the simulation.", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+
+        *enter_event_mode = enter ? true : false;
+
+        return FMU_STATUS_OK;
+    } else {
+        fmi3Boolean enter = fmi3False;
+        fmi3Boolean terminate = fmi3False;
+
+        fmi3Status status = fmu->fmi_functions.version_3.fmi3CompletedIntegratorStep(
+            fmu->component, fmi3True, &enter, &terminate);
+        if (status != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot complete integrator step for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        } 
+    
         if (terminate) {
             logger(LOGGER_WARNING, "ME FMU '%s' requested to end the simulation.", fmu->name);
             return FMU_STATUS_ERROR;
         }
         *enter_event_mode = enter ? true : false;
-        return FMU_STATUS_OK;
     }
-    fmi3Boolean enter = fmi3False, terminate = fmi3False;
-    fmi3Status s = fmu->fmi_functions.version_3.fmi3CompletedIntegratorStep(
-        fmu->component, fmi3True, &enter, &terminate);
-    if (s != fmi3OK) return FMU_STATUS_ERROR;
-    if (terminate) {
-        logger(LOGGER_WARNING, "ME FMU '%s' requested to end the simulation.", fmu->name);
-        return FMU_STATUS_ERROR;
-    }
-    *enter_event_mode = enter ? true : false;
+
     return FMU_STATUS_OK;
 }
 
+
 fmu_status_t fmuEnterContinuousTimeMode(fmu_t *fmu) {
     if (fmu->fmi_version == 2) {
-        return (fmu->fmi_functions.version_2.fmi2EnterContinuousTimeMode(fmu->component) == fmi2OK)
-               ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+        fmi2Status status = fmu->fmi_functions.version_2.fmi2EnterContinuousTimeMode(fmu->component);
+        if (status != fmi2OK) {
+            logger(LOGGER_ERROR, "Cannot enter continuous time mode for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+    } else {
+        fmi3Status status = fmu->fmi_functions.version_3.fmi3EnterContinuousTimeMode(fmu->component);
+        if (status != fmi3OK) {
+            logger(LOGGER_ERROR, "Cannot enter continuous time mode for '%s'", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
     }
-    return (fmu->fmi_functions.version_3.fmi3EnterContinuousTimeMode(fmu->component) == fmi3OK)
-           ? FMU_STATUS_OK : FMU_STATUS_ERROR;
+
+    return FMU_STATUS_OK;
 }
 
-/* fmuDoStep is only ever called on CS FMUs. ME FMUs are advanced collectively
-   by solver_do_step() in solver.c. The container filters ME out of its
-   work loops via container->cs_fmu[]. */
 
+/*----------------------------------------------------------------------------
+                         C O - S I M U L A T I O N
+----------------------------------------------------------------------------*/
 
 fmu_status_t fmuDoStep(fmu_t *fmu,
                        double currentCommunicationPoint,
