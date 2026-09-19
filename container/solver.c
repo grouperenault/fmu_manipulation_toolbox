@@ -9,7 +9,7 @@
 #include "solver.h"
 
 /*
- * Forward-Euler integrator for Model Exchange FMUs.
+ * Fixed-step integrator for Model Exchange FMUs (forward Euler or RK4).
  *
  * All ME FMUs are advanced in a single container-wide loop so their state
  * derivatives, state events and time events stay consistent across the
@@ -27,6 +27,8 @@
 /*----------------------------------------------------------------------------
                        L I F E T I M E
 ----------------------------------------------------------------------------*/
+static fmu_status_t solver_integrate_euler(solver_t *solver, double t, double h);
+static fmu_status_t solver_integrate_rk4(solver_t *solver, double t, double h);
 
 solver_t *solver_new(container_t *container) {
     solver_t *s = calloc(1, sizeof(*s));
@@ -36,6 +38,7 @@ solver_t *solver_new(container_t *container) {
     s->max_outer = SOLVER_MAX_OUTER;
     s->max_bisect = SOLVER_MAX_BISECT;
     s->max_event_iter = SOLVER_MAX_EVENT_ITER;
+    s->integrator = solver_integrate_euler;
 
     return s;
 }
@@ -84,6 +87,13 @@ int solver_build(solver_t *solver) {
         solver->dx     = calloc(solver->total_nx, sizeof(*solver->dx));
         solver->x_save = calloc(solver->total_nx, sizeof(*solver->x_save));
         if (!solver->x || !solver->dx || !solver->x_save) goto fail;
+
+
+        solver->k2    = calloc(solver->total_nx, sizeof(*solver->k2));
+        solver->k3    = calloc(solver->total_nx, sizeof(*solver->k3));
+        solver->k4    = calloc(solver->total_nx, sizeof(*solver->k4));
+        solver->x_tmp = calloc(solver->total_nx, sizeof(*solver->x_tmp));
+        if (!solver->k2 || !solver->k3 || !solver->k4 || !solver->x_tmp) goto fail;
     }
     if (solver->total_nz) {
         solver->z      = calloc(solver->total_nz, sizeof(*solver->z));
@@ -106,6 +116,10 @@ void solver_free(solver_t *solver) {
     free(solver->x_save);
     free(solver->z);
     free(solver->z_prev);
+    free(solver->k2);
+    free(solver->k3);
+    free(solver->k4);
+    free(solver->x_tmp);
     free(solver->me);
     free(solver);
 }
@@ -126,7 +140,7 @@ void solver_free(solver_t *solver) {
    Event or Initialization Mode; touching a discrete boolean/integer input here
    (e.g. a bounce "reset" flag) corrupts the target FMU's edge detection. The
    discrete couplings are exchanged by solver_event_iteration() in Event Mode. */
-fmu_status_t solver_propagate(solver_t *solver) {
+static fmu_status_t solver_propagate(solver_t *solver) {
     for (size_t i = 0; i < solver->nb_me; i += 1) {
         fmu_t *fmu = solver->me[i].fmu;
 
@@ -283,6 +297,79 @@ static fmu_status_t solver_locate_state_event(solver_t *solver,
 
 
 /*----------------------------------------------------------------------------
+                         I N T E G R A T O R S
+----------------------------------------------------------------------------*/
+
+/* Evaluate the coupled right-hand side f(t, x): push (t, x) to every ME FMU,
+   refresh the couplings, then read the state derivatives into dxdt. */
+static fmu_status_t solver_eval_f(solver_t *solver, double t,
+                                  const double *x, double *dxdt) {
+    for (size_t i = 0; i < solver->nb_me; i += 1) {
+        solver_me_fmu_t *e = &solver->me[i];
+        if (fmuSetTime(e->fmu, t) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+        if (fmuSetContinuousStates(e->fmu, &x[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+    }
+    if (solver_propagate(solver) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    for (size_t i = 0; i < solver->nb_me; i += 1) {
+        solver_me_fmu_t *e = &solver->me[i];
+        if (fmuGetContinuousStateDerivatives(e->fmu, &dxdt[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
+    }
+    return FMU_STATUS_OK;
+}
+
+
+/* Advance x_save -> x over [t, t+h] with the selected fixed-step integrator.
+   On entry solver->dx must hold k1 = f(t, x_save); it is left untouched so the
+   caller can reuse it as the linear slope for event localization. */
+static fmu_status_t solver_integrate_euler(solver_t *solver, double t, double h) {
+    const size_t n = solver->total_nx;
+    const double *xs = solver->x_save;
+    const double *k1 = solver->dx;
+    double *x = solver->x;
+
+    (void)t;
+    (void)h;
+
+    for (size_t i = 0; i < n; i += 1)
+        x[i] = xs[i] + h * k1[i];
+
+        return FMU_STATUS_OK;
+}
+
+
+static fmu_status_t solver_integrate_rk4(solver_t *solver, double t, double h) {
+    const size_t n = solver->total_nx;
+    const double *xs = solver->x_save;
+    const double *k1 = solver->dx;
+    double *x = solver->x;
+    double *k2 = solver->k2, *k3 = solver->k3, *k4 = solver->k4, *xt = solver->x_tmp;
+
+    for (size_t i = 0; i < n; i += 1)
+        xt[i] = xs[i] + 0.5 * h * k1[i];
+    
+    if (solver_eval_f(solver, t + 0.5 * h, xt, k2) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+
+    for (size_t i = 0; i < n; i += 1)
+        xt[i] = xs[i] + 0.5 * h * k2[i];
+    if (solver_eval_f(solver, t + 0.5 * h, xt, k3) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+
+    for (size_t i = 0; i < n; i += 1)
+        xt[i] = xs[i] + h * k3[i];
+    if (solver_eval_f(solver, t + h, xt, k4) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+
+    const double h6 = h / 6.0;
+    for (size_t i = 0; i < n; i += 1)
+        x[i] = xs[i] + h6 * (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]);
+
+    return FMU_STATUS_OK;
+}
+
+
+/*----------------------------------------------------------------------------
                       C O L L E C T I V E   S T E P
 ----------------------------------------------------------------------------*/
 
@@ -330,28 +417,18 @@ fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total) {
         bool state_event = false;
 
         if (h_step > 0.0) {
-            /* At (t, x): dispatch derivatives per FMU into their slice. */
-            for (size_t i = 0; i < solver->nb_me; i += 1) {
-                solver_me_fmu_t *e = &solver->me[i];
-                if (fmuSetTime(e->fmu, t) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
-                if (fmuSetContinuousStates(e->fmu, &solver->x[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
-            }
-            if (solver_propagate(solver) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-            for (size_t i = 0; i < solver->nb_me; i += 1) {
-                solver_me_fmu_t *e = &solver->me[i];
-                if (fmuGetContinuousStateDerivatives(e->fmu, &solver->dx[e->x_off], e->nx) != FMU_STATUS_OK) return FMU_STATUS_ERROR;
-            }
-
-            /* Snapshot and forward-Euler advance on the flat buffers. */
+            /* Snapshot the state at the start of the step. */
             if (solver->total_nx)
                 memcpy(solver->x_save, solver->x, solver->total_nx * sizeof(*solver->x));
-            {
-                double *x = solver->x;
-                const double *dx = solver->dx;
-                for (size_t k = 0; k < solver->total_nx; k += 1)
-                    x[k] += h_step * dx[k];
-            }
+
+            /* k1 = f(t, x_save): start-of-step slope, also reused as the linear
+               interpolation slope for event localization. */
+            if (solver_eval_f(solver, t, solver->x_save, solver->dx) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
+
+            /* Advance x_save -> x over h_step with the selected integrator. */
+            if (solver->integrator(solver, t, h_step) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
 
             /* Push new (t, x) and read event indicators. */
             const double t_new_tentative = t + h_step;

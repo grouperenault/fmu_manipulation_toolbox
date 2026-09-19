@@ -10,8 +10,8 @@ extern "C" {
 
 #include "fmu.h"
 
-struct container_s;
-
+typedef fmu_status_t (*solver_integrator_t)(struct solver_s *solver,
+     double t, double h);
 
 /*----------------------------------------------------------------------------
                    S O L V E R _ M E _ F M U _ T
@@ -41,12 +41,19 @@ typedef struct solver_s {
     size_t              total_nx;
     size_t              total_nz;
     double              *x;             /* total_nx */
-    double              *dx;            /* total_nx */
+    double              *dx;            /* total_nx (start-of-step slope k1) */
     double              *x_save;        /* total_nx */
     double              *z;             /* total_nz */
     double              *z_prev;        /* total_nz */
 
-    /* Iteration limits (defaults set by solver_new()). */
+    /* RK4 scratch buffers (allocated only when method == SOLVER_METHOD_RK4). */
+    double              *k2;            /* total_nx */
+    double              *k3;            /* total_nx */
+    double              *k4;            /* total_nx */
+    double              *x_tmp;         /* total_nx */
+
+    /* Integrator selection and iteration limits (defaults set by solver_new()). */
+    solver_integrator_t integrator;
     int                 max_outer;
     int                 max_bisect;
     int                 max_event_iter;
@@ -72,10 +79,8 @@ extern int solver_build(solver_t *solver);
    states and event indicators the event may have changed. */
 extern fmu_status_t solver_leave_event_mode(solver_t *solver);
 
-/* One Gauss-Seidel sweep propagating outputs to inputs across all ME FMUs. */
-extern fmu_status_t solver_propagate(solver_t *solver);
-
-/* Collective forward-Euler integration of all ME FMUs over [t0, t0+h_total]. */
+/* Collective fixed-step integration (Euler or RK4) of all ME FMUs over
+   [t0, t0+h_total]. */
 extern fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total);
 
 #ifdef __cplusplus
