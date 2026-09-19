@@ -418,6 +418,15 @@ fmu_status_t container_enter_initialization_mode(container_t* container) {
 
 static void container_init_values(container_t* container) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
+        /* Do NOT read ME FMU outputs here: they are still in the initial
+           EventMode and the first fmi2NewDiscreteStates() has not been called
+           yet. Reading outputs before that first event iteration makes some
+           FMI 2.0 ME FMUs (e.g. Simulink generated) reset their continuous
+           states to 0 on the next NewDiscreteStates() call. ME outputs are
+           read after the event iteration (in container_update_discrete_state)
+           and after solver_leave_event_mode(). */
+        if (container->fmu[i].kind == FMU_KIND_ME)
+            continue;
         fmu_get_outputs(&container->fmu[i]);
         fmu_get_clocked_outputs(&container->fmu[i]);
     }
