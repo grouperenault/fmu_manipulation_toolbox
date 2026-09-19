@@ -1277,76 +1277,6 @@ class FMUIOList:
                         print(f"{clock} {len(translation)} {s}", file=txt_file)
 
 
-class Clock:
-    def __init__(self, container_vr: int, fmu_vr: int):
-        self.container_vr = container_vr
-        self.fmu_vr = fmu_vr
-
-
-class ClockList:
-    """Tracks clocks that need to be scheduled by the FMI importer.
-
-    Used for LS-BUS support where the container runtime needs to trigger
-    countdown clocks on embedded FMUs.
-
-    Attributes:
-        clocks_per_fmu (dict[int, list[tuple[int, int]]]): Clock entries
-            per FMU index: `(fmu_vr, local_vr)` pairs.
-        fmu_index (dict[str, int]): Mapping from FMU name to its index
-            in the container.
-    """
-
-    def __init__(self, involved_fmu: InvolvedFMU):
-        self.clocks_per_fmu: DefaultDict[int, List[Clock]] = defaultdict(list)
-        self.fmu_index: Dict[str, int] = {}
-        for i, fmu_name in enumerate(involved_fmu):
-            self.fmu_index[fmu_name] = i
-
-    def append(self, cport: ContainerPort, vr: int):
-        """Register a clock for importer scheduling.
-
-        Args:
-            cport (ContainerPort): The clocked port on the embedded FMU.
-            vr (int): The local value reference of the clock.
-        """
-        self.clocks_per_fmu[self.fmu_index[cport.fmu.name]].append(Clock(cport.port.vr, vr))
-
-    def write_txt(self, txt_file: IO) -> None:
-        """Write the clock scheduling table to the `container.txt` file.
-
-        Args:
-            txt_file (IO): Writable text file handle.
-        """
-        print(f"# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]", file=txt_file)
-        nb_total_clocks = 0
-        for clocks in self.clocks_per_fmu.values():
-            nb_total_clocks += len(clocks)
-
-        print(f"{len(self.clocks_per_fmu)} {nb_total_clocks}", file=txt_file)
-        for index, clocks in self.clocks_per_fmu.items():
-            clocks_str = " ".join([f"{clock.container_vr} {clock.fmu_vr}" for clock in clocks])
-            print(f"{index} {len(clocks)} {clocks_str}", file=txt_file)
-
-
-class LocalVariable:
-    def __init__(self, vr: int, dimension: int):
-        self.vr: int = vr
-        self.dimension: int = dimension
-
-
-class Platform:
-    def __init__(self, origin_bindir: str, suffixe: str, target_bindir: str):
-        self.origin_bindir = origin_bindir
-        self.suffixe = suffixe
-        self.target_bindir = target_bindir
-
-
-class Port:
-    def __init__(self, vr: int, name: str):
-        self.vr: int = vr
-        self.name = name
-
-
 class InvolvedFMU:
     """Ordered collection of embedded FMUs behaving like a single mapping.
 
@@ -1421,6 +1351,75 @@ class InvolvedFMU:
 
         return fmu_rank
 
+
+class Clock:
+    def __init__(self, container_vr: int, fmu_vr: int):
+        self.container_vr = container_vr
+        self.fmu_vr = fmu_vr
+
+
+class ClockList:
+    """Tracks clocks that need to be scheduled by the FMI importer.
+
+    Used for LS-BUS support where the container runtime needs to trigger
+    countdown clocks on embedded FMUs.
+
+    Attributes:
+        clocks_per_fmu (dict[int, list[tuple[int, int]]]): Clock entries
+            per FMU index: `(fmu_vr, local_vr)` pairs.
+        fmu_index (dict[str, int]): Mapping from FMU name to its index
+            in the container.
+    """
+
+    def __init__(self, involved_fmu: InvolvedFMU):
+        self.clocks_per_fmu: DefaultDict[int, List[Clock]] = defaultdict(list)
+        self.fmu_index: Dict[str, int] = {}
+        for i, fmu_name in enumerate(involved_fmu):
+            self.fmu_index[fmu_name] = i
+
+    def append(self, cport: ContainerPort, vr: int):
+        """Register a clock for importer scheduling.
+
+        Args:
+            cport (ContainerPort): The clocked port on the embedded FMU.
+            vr (int): The local value reference of the clock.
+        """
+        self.clocks_per_fmu[self.fmu_index[cport.fmu.name]].append(Clock(cport.port.vr, vr))
+
+    def write_txt(self, txt_file: IO) -> None:
+        """Write the clock scheduling table to the `container.txt` file.
+
+        Args:
+            txt_file (IO): Writable text file handle.
+        """
+        print(f"# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]", file=txt_file)
+        nb_total_clocks = 0
+        for clocks in self.clocks_per_fmu.values():
+            nb_total_clocks += len(clocks)
+
+        print(f"{len(self.clocks_per_fmu)} {nb_total_clocks}", file=txt_file)
+        for index, clocks in self.clocks_per_fmu.items():
+            clocks_str = " ".join([f"{clock.container_vr} {clock.fmu_vr}" for clock in clocks])
+            print(f"{index} {len(clocks)} {clocks_str}", file=txt_file)
+
+
+class LocalVariable:
+    def __init__(self, vr: int, dimension: int):
+        self.vr: int = vr
+        self.dimension: int = dimension
+
+
+class Platform:
+    def __init__(self, origin_bindir: str, suffixe: str, target_bindir: str):
+        self.origin_bindir = origin_bindir
+        self.suffixe = suffixe
+        self.target_bindir = target_bindir
+
+
+class Port:
+    def __init__(self, vr: int, name: str):
+        self.vr: int = vr
+        self.name = name
 
 
 class FMUContainer:

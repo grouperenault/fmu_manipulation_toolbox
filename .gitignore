@@ -152,3 +152,4 @@ tests/me/bouncing_ball_me
 tests/me/bouncing_ball_me.fmu
 tests/me/results-bouncing_ball_me.csv
 tests/split/container-V6.dir
+tests/me/bouncing_ball_me.dir
