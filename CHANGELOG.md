@@ -2,6 +2,11 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* ADDED: Model-Exchange embedded FMUs: the number of continuous states (`nx`) and of event indicators (`nz`)
+         are now computed from `<ModelStructure>` (FMI-2 `<Derivatives>` / FMI-3 `<ContinuousStateDerivative>`
+         and `<EventIndicator>`, array variables counted per element) and written in `container.txt`.
+         `fmudump` reports both values for FMUs providing Model-Exchange.
+* CHANGE: An FMU providing both Co-Simulation and Model-Exchange is now embedded in Co-Simulation mode.
 * CHANGE: `PySide6` (the GUI toolkit) is no longer installed by default. `pip install fmu-manipulation-toolbox`
           now only installs the **CLI** (`fmutool`, `fmucontainer`, `fmusplit`, `datalog2pcap`) and the
           **Python API**, neither of which import `PySide6`. To use the **Graphical User Interfaces**
