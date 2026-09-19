@@ -18,29 +18,23 @@
  * X-macro: lists all numeric types (field name, FMI type suffix).
  * Expand with: FOR_ALL_NUMERIC_TYPES(MACRO) where MACRO(variable, fmi_type)
  */
-#define FOR_ALL_NUMERIC_TYPES(X)    \
-    X(reals64,     Real64)          \
-    X(reals32,     Real32)          \
-    X(integers8,   Integer8)        \
-    X(uintegers8,  UInteger8)       \
-    X(integers16,  Integer16)       \
-    X(uintegers16, UInteger16)      \
-    X(integers32,  Integer32)       \
-    X(uintegers32, UInteger32)      \
-    X(integers64,  Integer64)       \
-    X(uintegers64, UInteger64)      \
-    X(booleans,    Boolean)         \
+#define FOR_ALL_NUMERIC_TYPES(X)                                                                    \
+    X(reals64,     Real64)                                                                          \
+    X(reals32,     Real32)                                                                          \
+    X(integers8,   Integer8)                                                                        \
+    X(uintegers8,  UInteger8)                                                                       \
+    X(integers16,  Integer16)                                                                       \
+    X(uintegers16, UInteger16)                                                                      \
+    X(integers32,  Integer32)                                                                       \
+    X(uintegers32, UInteger32)                                                                      \
+    X(integers64,  Integer64)                                                                       \
+    X(uintegers64, UInteger64)                                                                      \
+    X(booleans,    Boolean)                                                                         \
     X(booleans1,   Boolean1)
 
 
-fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
-    fmu_status_t status = FMU_STATUS_OK;
-    const container_t* container = fmu->container;
-    const fmu_io_t* fmu_io = &fmu->fmu_io;
-#ifdef DEBUG
-        logger(LOGGER_DEBUG, "[DEBUG] Time=%e | fmu_set_inputs(%s)", fmu->container->time, fmu->name);
-#endif
-
+/* Shared per-type IO translation loops. Defined at file scope so the plain and
+   the continuous-only exchange functions share one implementation. */
 #define SET_INPUT(variable, fmi_type)                                                               \
     for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                               \
         const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                 \
@@ -51,6 +45,24 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
             return status;                                                                          \
     }
 
+#define GET_OUTPUT(variable, fmi_type)                                                              \
+    for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) {                                     \
+        const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr;                      \
+        const fmu_vr_t local_vr = fmu_io-> variable .out.translations[i].vr;                        \
+        const unsigned int dimension = fmu_io-> variable .out.translations[i].dimension;            \
+        status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
+        if (status != FMU_STATUS_OK)                                                                \
+            return status;                                                                          \
+    }
+
+
+fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
+    fmu_status_t status = FMU_STATUS_OK;
+    const container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+#ifdef DEBUG
+        logger(LOGGER_DEBUG, "[DEBUG] Time=%e | fmu_set_inputs(%s)", fmu->container->time, fmu->name);
+#endif
 
     FOR_ALL_NUMERIC_TYPES(SET_INPUT)
 
@@ -74,8 +86,6 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
         if (status != FMU_STATUS_OK)
             return status;
     }
-
-#undef SET_INPUT
 
     return status;
 }
@@ -175,19 +185,7 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
     logger(LOGGER_DEBUG, "[DEBUG] time=%e | fmu_get_outputs(fmu=%s)", fmu->container->time, fmu->name);
 #endif
 
-#define GET_OUTPUT(variable, fmi_type)                                                              \
-    for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) {                                     \
-        const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr;                      \
-        const fmu_vr_t local_vr = fmu_io-> variable .out.translations[i].vr;                        \
-        const unsigned int dimension = fmu_io-> variable .out.translations[i].dimension;            \
-        status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
-        if (status != FMU_STATUS_OK)                                                                \
-            return status;                                                                          \
-    }
-
     FOR_ALL_NUMERIC_TYPES(GET_OUTPUT)
-
-#undef GET_OUTPUT
 
     /* strings */
     for (size_t i = 0; i < fmu_io->strings.out.nb; i += 1) {
@@ -247,20 +245,8 @@ fmu_status_t fmu_set_continuous_inputs(const fmu_t* fmu) {
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
-#define SET_CONT_INPUT(variable, fmi_type)                                                          \
-    for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                               \
-        const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                 \
-        const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr;                     \
-        const unsigned int dimension = fmu_io->variable .in.translations[i].dimension;              \
-        status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
-        if (status != FMU_STATUS_OK)                                                                \
-            return status;                                                                          \
-    }
-
-    SET_CONT_INPUT(reals64, Real64)
-    SET_CONT_INPUT(reals32, Real32)
-
-#undef SET_CONT_INPUT
+    SET_INPUT(reals64, Real64)
+    SET_INPUT(reals32, Real32)
 
     return status;
 }
@@ -271,26 +257,17 @@ fmu_status_t fmu_get_continuous_outputs(const fmu_t* fmu) {
     const fmu_io_t* fmu_io = &fmu->fmu_io;
     fmu_status_t status = FMU_STATUS_OK;
 
-#define GET_CONT_OUTPUT(variable, fmi_type)                                                         \
-    for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) {                                     \
-        const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr;                      \
-        const fmu_vr_t local_vr = fmu_io-> variable .out.translations[i].vr;                        \
-        const unsigned int dimension = fmu_io-> variable .out.translations[i].dimension;            \
-        status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
-        if (status != FMU_STATUS_OK)                                                                \
-            return status;                                                                          \
-    }
-
-    GET_CONT_OUTPUT(reals64, Real64)
-    GET_CONT_OUTPUT(reals32, Real32)
-
-#undef GET_CONT_OUTPUT
+    GET_OUTPUT(reals64, Real64)
+    GET_OUTPUT(reals32, Real32)
 
     /* cast conversion between local variables */
     convert_proceed(fmu->container, fmu->conversions);
 
     return status;
 }
+
+#undef SET_INPUT
+#undef GET_OUTPUT
 
     
 fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
