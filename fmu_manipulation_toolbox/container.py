@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import *
 
 from .ls import LayeredStandard
-from .operations import FMU, OperationAbstract, FMUError, FMUPort
+from .operations import FMU, OperationAbstract, FMUError, FMUPort, ModelStructureCounter
 from .terminals import Terminals
 from .version import __version__ as tool_version
 
@@ -420,6 +420,11 @@ class EmbeddedFMU(OperationAbstract):
         ports (dict[str, EmbeddedFMUPort]): Ports of the FMU, keyed by name.
         has_event_mode (bool): Whether the FMU supports event mode (FMI 3.0).
         capabilities (dict[str, str]): FMI capability flags and their values.
+        is_me (bool): Whether the FMU is embedded in Model-Exchange mode.
+            Co-Simulation takes precedence when both modes are provided.
+        structure (ModelStructureCounter): Model-Exchange sizes computed from
+            `<ModelStructure>` (see `number_of_continuous_states` and
+            `number_of_event_indicators`).
 
     Raises:
         FMUContainerError: If the FMU does not implement Co-Simulation mode.
@@ -445,7 +450,7 @@ class EmbeddedFMU(OperationAbstract):
         self.guid = None
         self.fmi_version = None
         self.is_me = False
-        self.number_of_event_indicators = 0
+        self.structure = ModelStructureCounter(self.name)
         self.platforms = set()
         self.ports: Dict[str, EmbeddedFMUPort] = {}
 
@@ -516,20 +521,37 @@ class EmbeddedFMU(OperationAbstract):
             self.guid = attrs['instantiationToken']
             self.fmi_version = 3
 
-        self.number_of_event_indicators = attrs.get("numberOfEventIndicators", 0)
+        self.structure.fmi_attrs(self.fmi_version, attrs)
+
+    @property
+    def number_of_event_indicators(self) -> int:
+        """Number of event indicators (`nz`) declared by this FMU."""
+        return self.structure.number_of_event_indicators
+
+    @property
+    def number_of_continuous_states(self) -> int:
+        """Number of continuous states (`nx`) declared by this FMU."""
+        return self.structure.number_of_continuous_states
+
+    def model_structure_attrs(self, section: str, attrs: Dict[str, str]):
+        self.structure.model_structure_attrs(self.fmi_version, section, attrs)
 
     def cosimulation_attrs(self, attrs: Dict[str, str]):
+        # Co-Simulation takes precedence over Model-Exchange for dual-mode FMUs.
+        self.is_me = False
         self.model_identifier = attrs['modelIdentifier']
         if attrs.get("hasEventMode", "false") == "true":
             self.has_event_mode = True
         for capability in self.capability_list:
             self.capabilities[capability] = attrs.get(capability, "false")
+        logger.debug(f"FMU '{self.name}' is embedded in Co-Simulation mode.")
 
     def modelexchange_attrs(self, attrs):
         self.is_me = True
         self.model_identifier = attrs['modelIdentifier']
         for capability in self.capability_list:
             self.capabilities[capability] = attrs.get(capability, "false")
+        logger.debug(f"FMU '{self.name}' provides Model-Exchange mode.")
 
     def experiment_attrs(self, attrs: Dict[str, str]):
         try:
@@ -548,6 +570,7 @@ class EmbeddedFMU(OperationAbstract):
                 fmu_port.fmi_type = "Int32"
         port = EmbeddedFMUPort(fmu_port.fmi_type, fmu_port, fmi_version=self.fmi_version)
         self.ports[port.name] = port
+        self.structure.register_port(port.vr, port.dimensions, fmu_port.get("start", None))
 
     def closure(self):
         osname = {
@@ -1273,7 +1296,7 @@ class ClockList:
             in the container.
     """
 
-    def __init__(self, involved_fmu: OrderedDict[str, EmbeddedFMU]):
+    def __init__(self, involved_fmu: InvolvedFMU):
         self.clocks_per_fmu: DefaultDict[int, List[Clock]] = defaultdict(list)
         self.fmu_index: Dict[str, int] = {}
         for i, fmu_name in enumerate(involved_fmu):
@@ -1386,20 +1409,18 @@ class InvolvedFMU:
         fmu_rank: Dict[str, int] = {}
         for i, fmu in enumerate(self.values()):
             if fmu.is_me:
-                print(f"{fmu.name} {fmu.fmi_version} {fmu.number_of_event_indicators}", file=txt_file)
+                # ME entries: <filename> <fmi_version> / <identifier> / <guid> / <nx> <nz>
+                print(f"{fmu.name} {fmu.fmi_version} {fmu.number_of_continuous_states} {fmu.number_of_event_indicators}", file=txt_file)
             else:
+                # CS entries: <filename> <fmi_version> <has_event_mode> / <identifier> / <guid>
                 print(f"{fmu.name} {fmu.fmi_version} {int(fmu.has_event_mode)}", file=txt_file)
+
             print(f"{fmu.model_identifier}", file=txt_file)
             print(f"{fmu.guid}", file=txt_file)
             fmu_rank[fmu.name] = i
 
         return fmu_rank
 
-
-        print(len(self), file=txt_file)
-        for fmu_name, fmu in self.items():
-            fmu_type = "ME" if fmu.is_me else "CS"
-            print(f"{fmu_name} {fmu_type} {fmu.guid}", file=txt_file)
 
 
 class FMUContainer:

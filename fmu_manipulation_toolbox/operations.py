@@ -200,6 +200,7 @@ class FMUPort:
             # FMI-3 ("valueReference", 2) ("start", 3)
             self.dimensions_list.append((key, int(value)))
 
+
 class FMUError(Exception):
     """Exception raised for FMU-related errors.
 
@@ -212,6 +213,116 @@ class FMUError(Exception):
 
     def __repr__(self):
         return self.reason
+
+
+class ModelStructureCounter:
+    """Counts Model-Exchange sizes declared in `<ModelStructure>`.
+
+    Computes the number of continuous states (`nx`) and the number of event
+    indicators (`nz`) of an FMU, for both FMI 2.0 and FMI 3.0.
+
+    - **FMI 2.0**: continuous states are the `<Unknown>` entries of the
+      `<Derivatives>` section (FMI-2 variables are always scalar); event
+      indicators are given by the `numberOfEventIndicators` attribute of
+      `<fmiModelDescription>`.
+    - **FMI 3.0**: continuous states are the `<ContinuousStateDerivative>`
+      entries and event indicators the `<EventIndicator>` entries; array
+      variables count for their number of elements.
+
+    When the size of an FMI-3 entry cannot be resolved (unknown value reference
+    or dimension depending on a structural parameter), the entry is counted as a
+    single scalar and a warning is emitted.
+
+    Attributes:
+        fmu_name (str): Name of the FMU, used in log messages.
+        number_of_continuous_states (int): Computed `nx`.
+        number_of_event_indicators (int): Computed `nz`.
+    """
+
+    def __init__(self, fmu_name: str = ""):
+        self.fmu_name = fmu_name
+        self.number_of_continuous_states = 0
+        self.number_of_event_indicators = 0
+        self._ports: Dict[str, Tuple[List[Tuple[str, int]], Optional[str]]] = {}
+
+    def register_port(self, vr: Union[str, int], dimensions: List[Tuple[str, int]],
+                      start: Optional[str] = None):
+        """Record a port, by value reference, for later size resolution.
+
+        Args:
+            vr (str | int): Value reference of the port.
+            dimensions (list[tuple[str, int]]): Dimensions of the port as parsed
+                from the `<Dimension>` elements: `("start", n)` for a fixed size,
+                `("valueReference", vr)` when the size is given by a structural
+                parameter.
+            start (str | None): Start value of the port, used when this port is a
+                structural parameter defining the size of an array.
+        """
+        self._ports[str(vr)] = (list(dimensions), start)
+
+    def fmi_attrs(self, fmi_version: int, attrs: Dict[str, str]):
+        """Read `numberOfEventIndicators` (FMI-2 only) from the root element."""
+        if fmi_version == 2:
+            self.number_of_event_indicators = int(attrs.get("numberOfEventIndicators", 0))
+
+    def model_structure_attrs(self, fmi_version: int, section: str, attrs: Dict[str, str]):
+        """Account for one `<ModelStructure>` entry.
+
+        Args:
+            fmi_version (int): FMI version (`2` or `3`).
+            section (str): Section (FMI-2) or element name (FMI-3).
+            attrs (dict[str, str]): Attributes of the entry.
+        """
+        if fmi_version == 2:
+            if section == "Derivatives":
+                self.number_of_continuous_states += 1
+        else:
+            if section == "ContinuousStateDerivative":
+                self.number_of_continuous_states += self._size_of(section, attrs)
+            elif section == "EventIndicator":
+                self.number_of_event_indicators += self._size_of(section, attrs)
+
+    def _size_of(self, section: str, attrs: Dict[str, str]) -> int:
+        vr = attrs.get("valueReference", None)
+        if vr is None:
+            logger.warning(f"'{self.fmu_name}': <{section}> without valueReference. Assuming 1 element.")
+            return 1
+
+        try:
+            dimensions, _ = self._ports[str(vr)]
+        except KeyError:
+            logger.warning(f"'{self.fmu_name}': <{section}> refers to unknown variable vr={vr}. "
+                           f"Assuming 1 element.")
+            return 1
+
+        size = 1
+        for kind, value in dimensions:
+            if kind == "start":
+                size *= value
+            else:  # dimension given by a structural parameter: use its start value
+                dimension = self._structural_parameter_value(value)
+                if dimension is None:
+                    logger.warning(f"'{self.fmu_name}': <{section}> vr={vr} has a dimension given by "
+                                   f"structuralParameter vr={value} whose value cannot be resolved. "
+                                   f"Assuming 1 element.")
+                    return 1
+                size *= dimension
+
+        return size
+
+    def _structural_parameter_value(self, vr: Union[str, int]) -> Optional[int]:
+        try:
+            _, start = self._ports[str(vr)]
+        except KeyError:
+            return None
+
+        if start is None:
+            return None
+
+        try:
+            return int(start)
+        except ValueError:
+            return None
 
 
 class Manipulation:
@@ -263,6 +374,10 @@ class Manipulation:
         self.port_names_list: List[str] = []
         self.port_removed_vr: Set[str] = set()
         self.apply_on = None
+
+        # FMI-2: name of the <ModelStructure> sub-section being parsed
+        # ("Outputs", "Derivatives", "InitialUnknowns") used to qualify <Unknown> elements.
+        self.current_structure_section: Optional[str] = None
 
     @staticmethod
     def escape(value) -> str:
@@ -323,8 +438,11 @@ class Manipulation:
                 self.operation.fmi_attrs(attrs)
             elif name == 'Unknown': # FMI-2.0 only
                 self.unknown_attrs(attrs)
-            elif name == 'Output' or name == "ContinuousStateDerivative" or "InitialUnknown": #  FMI-3.0 only
-                self.handle_structure(attrs)
+            elif name in ('Output', 'ContinuousStateDerivative', 'InitialUnknown',
+                          'EventIndicator', 'ClockedState'): #  FMI-3.0 only
+                self.handle_structure(name, attrs)
+            elif name in self.TAGS_MODEL_STRUCTURE:  # FMI-2.0 only
+                self.current_structure_section = name
 
         except ManipulationSkipTag:
             self.skip_until = name
@@ -351,6 +469,9 @@ class Manipulation:
                 self.skip_until = None
             return
         else:
+            if name == self.current_structure_section:
+                self.current_structure_section = None
+
             if name == "ScalarVariable" or (self.fmu.fmi_version == 3 and name in FMU.FMI3_TYPES):
                 try:
                     self.handle_port()
@@ -386,6 +507,8 @@ class Manipulation:
 
     def unknown_attrs(self, attrs):
         index = int(attrs['index'])
+        if self.current_structure_section:
+            self.operation.model_structure_attrs(self.current_structure_section, attrs)
         new_index = self.port_translation[index-1]
         if new_index is not None:
             attrs['index'] = str(new_index)
@@ -418,7 +541,9 @@ class Manipulation:
             logger.warning(f"Removed port '{self.port_names_list[index-1]}' is involved in dependencies tree.")
             raise ManipulationSkipTag
 
-    def handle_structure(self, attrs):
+    def handle_structure(self, section, attrs):
+        self.operation.model_structure_attrs(section, attrs)
+
         try:
             vr = attrs['valueReference']
             if vr in self.port_removed_vr:
@@ -527,6 +652,24 @@ class OperationAbstract:
 
         Args:
             attrs (dict[str, str]): XML attributes of the default experiment.
+        """
+        pass
+
+    def model_structure_attrs(self, section: str, attrs: Dict[str, str]):
+        """Called for each entry of the `<ModelStructure>` section.
+
+        For FMI 2.0, `section` is the name of the enclosing sub-section
+        (`"Outputs"`, `"Derivatives"`, `"InitialUnknowns"`) and `attrs` holds the
+        attributes of an `<Unknown>` element (1-based `index` of the variable).
+
+        For FMI 3.0, `section` is the name of the element itself
+        (`"Output"`, `"ContinuousStateDerivative"`, `"InitialUnknown"`,
+        `"EventIndicator"`, `"ClockedState"`) and `attrs` holds its attributes
+        (including `valueReference`).
+
+        Args:
+            section (str): Name of the model-structure section or element.
+            attrs (dict[str, str]): XML attributes of the entry.
         """
         pass
 
@@ -735,16 +878,24 @@ class OperationSummary(OperationAbstract):
 
     Attributes:
         nb_port_per_causality (dict[str, int]): Count of ports per causality.
+        structure (ModelStructureCounter): Model-Exchange sizes (nx/nz), only
+            reported when the FMU declares a `<ModelExchange>` section.
     """
 
     def __init__(self):
         self.nb_port_per_causality = {}
+        self.fmi_version = 2
+        self.has_model_exchange = False
+        self.structure = ModelStructureCounter()
 
     def __repr__(self):
         return f"FMU Summary"
 
     def fmi_attrs(self, attrs):
         logger.info(f"| fmu filename = {self.fmu.fmu_filename}")
+        self.structure.fmu_name = os.path.basename(self.fmu.fmu_filename)
+        self.fmi_version = int(float(attrs.get("fmiVersion", "2.0")))
+        self.structure.fmi_attrs(self.fmi_version, attrs)
         logger.info(f"| temporary directory = {self.fmu.tmp_directory}")
         hash_md5 = hashlib.md5()
         with open(self.fmu.fmu_filename, "rb") as f:
@@ -765,10 +916,14 @@ class OperationSummary(OperationAbstract):
         logger.info(f"|")
 
     def modelexchange_attrs(self, attrs):
+        self.has_model_exchange = True
         logger.info("| Model Exchange capabilities: ")
         for (k, v) in attrs.items():
             logger.info(f"|  - {k} = {v}")
         logger.info(f"|")
+
+    def model_structure_attrs(self, section: str, attrs: Dict[str, str]):
+        self.structure.model_structure_attrs(self.fmi_version, section, attrs)
 
     def experiment_attrs(self, attrs):
         logger.info("| Default Experiment values: ")
@@ -778,6 +933,12 @@ class OperationSummary(OperationAbstract):
 
     def port_attrs(self, fmu_port) -> int:
         causality = fmu_port.get("causality", "local")
+
+        try:
+            self.structure.register_port(fmu_port["valueReference"], fmu_port.dimensions,
+                                         fmu_port.get("start", None))
+        except KeyError:
+            pass  # port without valueReference: nothing to register.
 
         try:
             self.nb_port_per_causality[causality] += 1
@@ -815,6 +976,12 @@ class OperationSummary(OperationAbstract):
         logger.info("| Number of ports")
         for causality, nb_ports in self.nb_port_per_causality.items():
             logger.info(f"|  {causality} : {nb_ports}")
+
+        if self.has_model_exchange:
+            logger.info("|")
+            logger.info("| Model Exchange sizes")
+            logger.info(f"|  continuous states : {self.structure.number_of_continuous_states}")
+            logger.info(f"|  event indicators : {self.structure.number_of_event_indicators}")
 
         terminals = Terminals(self.fmu.tmp_directory)
         if terminals:

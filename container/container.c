@@ -815,7 +815,7 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
  * array2scalar.fmu 3 1
  * array
  * {e092864e-3b8e-7e1d-a4bf-ee0e4c648539}
- * # ME entries: <filename> <fmi_version> / <identifier> / <guid> / <nx> <nz>
+ * # ME entries: <filename> <fmi_version> <nx> <nz> / <identifier> / <guid>
  * bouncing_ball.fmu 2
  * bb
  * {3f2a1c4e-6b8d-4f1a-9c7e-2d5b8a0f3e91}
@@ -834,19 +834,30 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
     char *name = strdup(file->line);
     int fmi_version = 2;
     int support_event = 0;
+    size_t nx = 0;
+    size_t nz = 0;
+    
 
-    /* "<filename> <fmi_version> [<has_event_mode>]": ME entries have no event flag. */
     char *flags = strchr(name, ' ');
-    if (flags) {
+    if (flags)
         *flags++ = '\0';
-        const int nb_flags = is_me ? 1 : 2;
-        if (sscanf(flags, "%d %d", &fmi_version, &support_event) < nb_flags) {
-            CONFIG_ERROR("Cannot read FMU flags from '%s'.", flags);
+    else
+        return -1;
+
+    if (kind == FMU_KIND_CS) {
+        /* "<filename> <fmi_version> [<has_event_mode>]": ME entries have no event flag. */
+        if (sscanf(flags, "%d %d", &fmi_version, &support_event) < 2) {
+            CONFIG_ERROR("Cannot read CS flags from FMU '%s'.", name);
             free(name);
             return -2;
         }
-        if (is_me)
-            support_event = 0;
+    } else {
+        /* ME entries carry an extra line: nb continuous states and event indicators. */
+        if (sscanf(flags, "%d %zu %zu", &fmi_version, &nx, &nz) < 3) {
+            CONFIG_ERROR("Cannot read ME sizes (nb_states nb_event_indicators) for FMU '%s'.", name);
+            free(name);
+            return -2;
+        }
     }
 
     CONFIG_GETLINE;
@@ -855,30 +866,19 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
     CONFIG_GETLINE;
     char *guid = strdup(file->line); /* saved because next CONFIG_GETLINE would overwrite file->line */
 
-    /* ME entries carry an extra line: nb continuous states and event indicators. */
-    size_t me_nx = 0, me_nz = 0;
-    if (is_me) {
-        CONFIG_GETLINE;
-        if (sscanf(file->line, "%zu %zu", &me_nx, &me_nz) < 2) {
-            CONFIG_ERROR("Cannot read ME sizes (nb_states nb_event_indicators) for FMU '%s'.", name);
-            free(guid);
-            free(identifier);
-            free(name);
-            return -2;
-        }
-    }
 
     int status = fmu_load_from_directory(container, index, directory, name, identifier, guid,
                                          fmi_version, support_event, kind);
     free(guid);
     free(identifier);
     free(name);
+
     if (status) {
         CONFIG_ERROR("Cannot load FMU from directory '%s' (status=%d).", directory, status);
         return -1;
     }
 
-    if (is_me && solver_register_me(container->solver, (unsigned long)index, me_nx, me_nz)) {
+    if (is_me && solver_register_me(container->solver, index, nx, nz)) {
         CONFIG_ERROR("Cannot register ME dimensions for FMU '%s'.", container->fmu[index].name);
         return -1;
     }
