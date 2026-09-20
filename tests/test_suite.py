@@ -468,6 +468,12 @@ class TestSuite:
         if os.name == 'nt':
             self.assert_simulation("me/bouncing_ball_me.fmu", 0.1)
 
+    def test_me_mix(self):
+        assembly = Assembly("bouncing_ball_mix.json", fmu_directory=Path("me"), debug=True)
+        assembly.make_fmu(fmi_version=2)
+        if os.name == 'nt':
+            self.assert_simulation("me/bouncing_ball_mix.fmu", 0.1)
+
     def _fmusplit_array_link(self, container_stem, expected_link):
         """Build `<container_stem>.fmu` (if missing), split it, and assert that
         the reconstructed JSON contains the expected aggregate link."""
