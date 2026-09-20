@@ -1,0 +1,68 @@
+{
+  "auto_input": false,
+  "auto_output": false,
+  "auto_parameter": false,
+  "auto_local": false,
+  "auto_link": false,
+  "mt": false,
+  "profiling": false,
+  "sequential": false,
+  "step_size": 0.01,
+  "output": [
+    [
+      "level1.fmu",
+      "final",
+      "final"
+    ]
+  ],
+  "link": [
+    [
+      "integrate.fmu",
+      "integrate",
+      "level1.fmu",
+      "integrate"
+    ],
+    [
+      "sine.fmu",
+      "sine",
+      "integrate.fmu",
+      "sine"
+    ]
+  ],
+  "name": "container-V6.fmu",
+  "container": [
+    {
+      "auto_input": false,
+      "auto_output": false,
+      "auto_parameter": false,
+      "auto_local": false,
+      "auto_link": false,
+      "mt": false,
+      "profiling": false,
+      "sequential": false,
+      "step_size": 0.5,
+      "input": [
+        [
+          "integrate",
+          "gain.fmu",
+          "integrate"
+        ]
+      ],
+      "output": [
+        [
+          "gain.fmu",
+          "final",
+          "final"
+        ]
+      ],
+      "name": "level1.fmu",
+      "fmu": [
+        "gain.fmu"
+      ]
+    }
+  ],
+  "fmu": [
+    "sine.fmu",
+    "integrate.fmu"
+  ]
+}

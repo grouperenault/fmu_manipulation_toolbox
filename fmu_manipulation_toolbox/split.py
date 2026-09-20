@@ -323,12 +323,18 @@ class FMUSplitterDescription:
             raise FMUSplitterError(f"Cannot interpret flags '{flags}'")
 
         self.config["step_size"] = float(self.get_line(file))
-        nb_fmu = int(self.get_line(file))
+
+        # Format ≥ 6: "<nb_fmu_cs> <nb_fmu_me>", Co-Simulation FMUs first.
+        # Older formats: a single "<nb_fmu>" count (Co-Simulation only).
+        nb_fmu_tokens = self.get_line(file).split(" ")
+        nb_fmu_cs = int(nb_fmu_tokens[0])
+        nb_fmu_me = int(nb_fmu_tokens[1]) if len(nb_fmu_tokens) > 1 else 0
+        nb_fmu = nb_fmu_cs + nb_fmu_me
 
         logger.debug(f'mt             : {self.config["mt"]}')
         logger.debug(f'profiling      : {self.config["profiling"]}')
         logger.debug(f'sequential     : {self.config["sequential"]}')
-        logger.debug(f"Number of FMUs : {nb_fmu}")
+        logger.debug(f"Number of FMUs : {nb_fmu} ({nb_fmu_cs} CS, {nb_fmu_me} ME)")
 
         self.config["candidate_fmu"] = []
 
@@ -336,7 +342,7 @@ class FMUSplitterDescription:
             # format is
             #    filename.fmu
             # or
-            #    filename.fmu fmi_version
+            #    filename.fmu fmi_version [has_event_mode]
             fmu_filename = self.get_line(file)
             if ' ' in fmu_filename:
                 fmu_filename = fmu_filename.split(' ')[0]

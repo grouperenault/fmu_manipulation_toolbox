@@ -11,6 +11,7 @@
 #include "datalog.h"
 #include "logger.h"
 #include "fmu.h"
+#include "solver.h"
 #include "version.h"
 
 // #define DEBUG
@@ -21,6 +22,9 @@
  * configuration.
  */
 
+/* Safety net against a non-converging event iteration. */
+#define CONTAINER_MAX_EVENT_ITER    100
+
 /*----------------------------------------------------------------------------
                         E V E N T   M O D E
 ----------------------------------------------------------------------------*/
@@ -30,9 +34,7 @@ fmu_status_t container_enter_event_mode(container_t *container) {
     logger(LOGGER_DEBUG, "[DEBUG] time=%e| Container entering in EVENT mode", container->time);
 #endif
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t *fmu = &container->fmu[i];
-
-        if (fmuEnterEventMode(fmu) != FMU_STATUS_OK)
+        if (fmuEnterEventMode(&container->fmu[i]) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
     }
     return FMU_STATUS_OK;
@@ -43,10 +45,8 @@ fmu_status_t container_enter_step_mode(container_t *container) {
 #ifdef DEBUG
     logger(LOGGER_DEBUG, "[DEBUG] time=%e: Container entering in STEP mode", container->time);
 #endif
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t *fmu = &container->fmu[i];
-
-        if (fmuEnterStepMode(fmu) != FMU_STATUS_OK)
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        if (fmuEnterStepMode(container->cs_fmu[i]) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
     }
     return FMU_STATUS_OK;
@@ -192,8 +192,8 @@ static fmu_status_t container_proceed_event(container_t *container) {
     }
 
     /* Propagate clocks (LS-BUS: input clocks could be shared)*/
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t *fmu = &container->fmu[i];
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t *fmu = container->cs_fmu[i];
 
         if (fmu_set_clocks(fmu) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
@@ -215,14 +215,39 @@ static double container_nominal_step(const container_t *container) {
 }
 
 
+/* Shorten the step so it lands on the earliest announced time event. */
+static void container_bound_next_step(container_t *container) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        const fmu_t *fmu = &container->fmu[i];
+
+        if (! fmu->have_next_event_time)
+            continue;
+
+        const double dt = fmu->next_event_time - container->time;
+
+        /* Event at or before the current instant: already handled, and shortening
+           to zero would stall the container loop. */
+        if (dt < container->tolerance)
+            continue;
+
+        if (dt + container->tolerance < container->next_step) {
+            container->next_step = dt;
+            logger(LOGGER_DEBUG, "%s: next event time %g, updating next step to %g.",
+                   fmu->name, fmu->next_event_time, container->next_step);
+        }
+    }
+}
+
+
 static fmu_status_t container_update_discrete_state(container_t *container) {
     bool more_event;
+    int iter;
 
     container->next_step = container_nominal_step(container);
 #ifdef DEBUG
     logger(LOGGER_DEBUG, "[DEBUG] time=%e | container_update_discrete_state()", container->time);
 #endif
-    do {
+    for (iter = 0; iter < CONTAINER_MAX_EVENT_ITER; iter += 1) {
         /* Gauss-Seidel sweep in configuration order, so a value produced by FMU i
            reaches FMU i+1 within the same pass. Per FMI-3.0, each FMU is driven
            Set inputs -> fmi3UpdateDiscreteStates -> Get outputs, so the outputs
@@ -255,7 +280,16 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
         }
 
         datalog_log(container);
-    } while(more_event);
+
+        if (!more_event)
+            break;
+    }
+
+    if (iter >= CONTAINER_MAX_EVENT_ITER) {
+        logger(LOGGER_ERROR, "Container: event iteration did not converge after %d steps.",
+               CONTAINER_MAX_EVENT_ITER);
+        return FMU_STATUS_ERROR;
+    }
 
     /* All clock have been transmitted by now
        The following code is not necessary but could be used if paranoid
@@ -264,6 +298,7 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
         container->clocks[i] = false;
     */
 
+    container_bound_next_step(container);
     container_set_next_event_time(container);
 
     return FMU_STATUS_OK;
@@ -292,6 +327,10 @@ static fmu_status_t container_handle_events(container_t *container) {
     
     datalog_log(container);
     status = container_update_discrete_state(container);
+    if (status != FMU_STATUS_OK)
+        return status;
+
+    status = solver_leave_event_mode(container->solver);
     if (status != FMU_STATUS_OK)
         return status;
 
@@ -379,6 +418,15 @@ fmu_status_t container_enter_initialization_mode(container_t* container) {
 
 static void container_init_values(container_t* container) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
+        /* Do NOT read ME FMU outputs here: they are still in the initial
+           EventMode and the first fmi2NewDiscreteStates() has not been called
+           yet. Reading outputs before that first event iteration makes some
+           FMI 2.0 ME FMUs (e.g. Simulink generated) reset their continuous
+           states to 0 on the next NewDiscreteStates() call. ME outputs are
+           read after the event iteration (in container_update_discrete_state)
+           and after solver_leave_event_mode(). */
+        if (container->fmu[i].kind == FMU_KIND_ME)
+            continue;
         fmu_get_outputs(&container->fmu[i]);
         fmu_get_clocked_outputs(&container->fmu[i]);
     }
@@ -394,11 +442,15 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
             return status;
     }
 
-    /* FMUs are in EventMode */
-
+    /* CS FMUs are in EventMode (or StepMode if support_event=0); ME FMUs are in
+       EventMode: run one common event iteration before splitting the modes. */
     container_init_values(container);
 
     status = container_update_discrete_state(container);
+    if (status != FMU_STATUS_OK)
+        return status;
+
+    status = solver_leave_event_mode(container->solver);
     if (status != FMU_STATUS_OK)
         return status;
 
@@ -437,15 +489,43 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
     fmu_status_t status = FMU_STATUS_OK;
 
     container->need_event_update = false;
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t* fmu = &container->fmu[i];
-        
+
+    /* Propagate inputs to every ME FMU before the collective integration. */
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
         status = fmu_set_inputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", container->fmu[i].name);
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", fmu->name);
             return status;
         }
-        
+    }
+
+    /* Advance every ME FMU in a single Euler loop so their couplings stay
+       consistent within the communication step. */
+    status = solver_do_step(container->solver, container->time, container->next_step);
+    if (status != FMU_STATUS_OK)
+        return status;
+
+    /* Read ME outputs so they are visible to any CS FMU processed below. */
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
+        status = fmu_get_outputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
+            return status;
+        }
+    }
+
+    /* CS FMUs are still processed sequentially (set inputs -> doStep -> get outputs). */
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t *fmu = container->cs_fmu[i];
+
+        status = fmu_set_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", fmu->name);
+            return status;
+        }
+
         /* COMPUTATION */
 
         status = fmuDoStep(fmu, container->time, container->next_step);
@@ -455,7 +535,7 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
 
         status = fmu_get_outputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", container->fmu[i].name);
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
             return status;
         }
     }
@@ -468,9 +548,10 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
     fmu_status_t status = FMU_STATUS_OK;
 
     container->need_event_update = false;
-    
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t* fmu = &container->fmu[i];
+
+    /* Set inputs for CS FMUs (worker threads will do the doStep). */
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t* fmu = container->cs_fmu[i];
         status = fmu_set_inputs(fmu);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU '%s' failed setting inputs. %d", fmu->name, fmu->status);
@@ -478,29 +559,48 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
         }
     }
 
+    /* Set inputs and advance ME FMUs collectively on the main thread. */
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
+        status = fmu_set_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed setting inputs.", fmu->name);
+            return status;
+        }
+    }
+    status = solver_do_step(container->solver, container->time, container->next_step);
+    if (status != FMU_STATUS_OK)
+        return status;
+
     thread_barrier_wait(&container->barrier_start); /* 1st SYNC point */
     /*
-     * Each FMU thread will set inputs, compute its step and get outputs.
-     * The main thread will wait for all FMU threads to finish.
+     * Each CS FMU worker thread will compute its step.
+     * The main thread waits for all workers.
      */
     thread_barrier_wait(&container->barrier_end); /* 2nd SYNC point */
-    
-    /* 
-     * Consolidate results
-     */
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t* fmu = &container->fmu[i];
+
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t* fmu = container->cs_fmu[i];
         if (fmu->status != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
         container->need_event_update |= fmu->need_event_udpate;
 
         status = fmu_get_outputs(fmu);
-        if (fmu->status != FMU_STATUS_OK) {
+        if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
             return status;
         }
     }
-    
+
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
+        status = fmu_get_outputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
+            return status;
+        }
+    }
+
     return status;
 }
 
@@ -510,29 +610,49 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
 
     /* STEP MODE */
     container->need_event_update = false;
-    for (int i = 0; i < container->nb_fmu; i += 1) {          
-        status = fmu_set_inputs(&container->fmu[i]);
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        status = fmu_set_inputs(container->cs_fmu[i]);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", container->fmu[i].name);
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", container->cs_fmu[i]->name);
+            return status;
+        }
+    }
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
+        status = fmu_set_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", fmu->name);
             return status;
         }
     }
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        fmu_t* fmu = &container->fmu[i];
-        /* COMPUTATION */
+    /* Advance all ME FMUs together. */
+    status = solver_do_step(container->solver, container->time, container->next_step);
+    if (status != FMU_STATUS_OK)
+        return status;
+
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t* fmu = container->cs_fmu[i];
         status = fmuDoStep(fmu, container->time, container->next_step);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed doStep.", container->fmu[i].name);
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed doStep.", fmu->name);
             return status;
         }
         container->need_event_update |= fmu->need_event_udpate;
     }
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        status = fmu_get_outputs(&container->fmu[i]);
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        status = fmu_get_outputs(container->cs_fmu[i]);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed get outputs.", container->fmu[i].name);
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed get outputs.", container->cs_fmu[i]->name);
+            return status;
+        }
+    }
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
+        status = fmu_get_outputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed get outputs.", fmu->name);
             return status;
         }
     }
@@ -686,25 +806,99 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
 
 
 /*
- * # NB of embedded FMU's
- * 2
+ * # NB of embedded FMU's: <nb_fmu_cs> <nb_fmu_me>
+ * 2 1
+ * # CS entries: <filename> <fmi_version> <has_event_mode> / <identifier> / <guid>
  * scalar2array.fmu 3 1
  * vec
  * {121d828d-d4dd-3c76-8227-7be1b268a801}
  * array2scalar.fmu 3 1
  * array
  * {e092864e-3b8e-7e1d-a4bf-ee0e4c648539}
+ * # ME entries: <filename> <fmi_version> <nx> <nz> / <identifier> / <guid>
+ * bouncing_ball.fmu 2
+ * bb
+ * {3f2a1c4e-6b8d-4f1a-9c7e-2d5b8a0f3e91}
+ * 2 1
  */
-static int read_conf_fmu(container_t *container, const char *dirname, config_file_t* file) {
-    int nb_fmu;
+
+/* Returns -1 when the FMU could not be loaded (caller drops the whole array),
+   -2 on a config syntax error. */
+static int read_conf_one_fmu(container_t *container, const char *dirname, config_file_t *file,
+                             int index, fmu_kind_t kind) {
+    const bool is_me = (kind == FMU_KIND_ME);
+    char directory[CONFIG_FILE_SZ];
+    snprintf(directory, CONFIG_FILE_SZ, "%s/%02x", dirname, index);
 
     CONFIG_GETLINE;
-    if (sscanf(file->line, "%d", &nb_fmu) < 1) {
-        CONFIG_ERROR("Cannot read number of embedded FMUs.");
+    char *name = strdup(file->line);
+    int fmi_version = 2;
+    int support_event = 0;
+    size_t nx = 0;
+    size_t nz = 0;
+    
+
+    char *flags = strchr(name, ' ');
+    if (flags)
+        *flags++ = '\0';
+    else
+        return -1;
+
+    if (kind == FMU_KIND_CS) {
+        /* "<filename> <fmi_version> [<has_event_mode>]": ME entries have no event flag. */
+        if (sscanf(flags, "%d %d", &fmi_version, &support_event) < 2) {
+            CONFIG_ERROR("Cannot read CS flags from FMU '%s'.", name);
+            free(name);
+            return -2;
+        }
+    } else {
+        /* "<filename> <fmi_version> <nx> <nz>": ME entries carry nb continuous
+           states and event indicators on the same line as the filename. */
+        if (sscanf(flags, "%d %zu %zu", &fmi_version, &nx, &nz) < 3) {
+            CONFIG_ERROR("Cannot read ME sizes (nb_states nb_event_indicators) for FMU '%s'.", name);
+            free(name);
+            return -2;
+        }
+    }
+
+    CONFIG_GETLINE;
+    char *identifier = strdup(file->line);
+
+    CONFIG_GETLINE;
+    char *guid = strdup(file->line); /* saved because next CONFIG_GETLINE would overwrite file->line */
+
+
+    int status = fmu_load_from_directory(container, index, directory, name, identifier, guid,
+                                         fmi_version, support_event, kind);
+    free(guid);
+    free(identifier);
+    free(name);
+
+    if (status) {
+        CONFIG_ERROR("Cannot load FMU from directory '%s' (status=%d).", directory, status);
         return -1;
     }
 
-    logger(LOGGER_DEBUG, "%d FMUs to be loaded.", nb_fmu);
+    if (is_me && solver_register_me(container->solver, index, nx, nz)) {
+        CONFIG_ERROR("Cannot register ME dimensions for FMU '%s'.", container->fmu[index].name);
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int read_conf_fmu(container_t *container, const char *dirname, config_file_t* file) {
+    int nb_cs, nb_me;
+
+    CONFIG_GETLINE;
+    if (sscanf(file->line, "%d %d", &nb_cs, &nb_me) < 2) {
+        CONFIG_ERROR("Cannot read number of embedded FMUs (<nb_fmu_cs> <nb_fmu_me>).");
+        return -1;
+    }
+
+    const int nb_fmu = nb_cs + nb_me;
+    logger(LOGGER_DEBUG, "%d FMUs to be loaded (%d CS, %d ME).", nb_fmu, nb_cs, nb_me);
     if (!nb_fmu) {
         container->fmu = NULL;
         return 0;
@@ -712,43 +906,21 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
 
     CONFIG_ALLOC(container->fmu, nb_fmu);
 
+    /* CS entries come first, then ME entries. */
     for (int i = 0; i < nb_fmu; i += 1) {
-        char directory[CONFIG_FILE_SZ];
-        snprintf(directory, CONFIG_FILE_SZ, "%s/%02x", dirname, i);
+        const fmu_kind_t kind = (i < nb_cs) ? FMU_KIND_CS : FMU_KIND_ME;
+        const int status = read_conf_one_fmu(container, dirname, file, i, kind);
 
-        CONFIG_GETLINE;
-        char* name = strdup(file->line);
-        int fmi_version = 2;
-        int support_event = 0;
-
-        for(size_t j=0; j < strlen(name); j += 1) {
-            if (name[j] == ' ') {
-                name[j] = '\0';
-                if (sscanf(name+j+1, "%d %d", &fmi_version, &support_event) < 2) {
-                    CONFIG_ERROR("Cannot read FMU flags from '%s'.", name + j + 1);
-                    free(name);
-                    return -2;
-                }
-                break;
-            } 
-        }
-      
-        CONFIG_GETLINE;
-        char *identifier = strdup(file->line);
-
-        CONFIG_GETLINE;
-        const char *guid = file->line;
-
-        int status = fmu_load_from_directory(container, i, directory, name, identifier, guid, fmi_version, support_event);
-        free(identifier);
-        free(name);
-        if (status) {
-            CONFIG_ERROR("Cannot load FMU from directory '%s' (status=%d).", directory, status);
+        if (status == -1) {
+            /* Slot i is partially initialized: drop the array so that
+               container_free() does not touch it. */
             free(container->fmu);
-            container->fmu = NULL; /* to allow freeInstance on container */
+            container->fmu = NULL;
             container->nb_fmu = 0;
             return -1;
         }
+        if (status)
+            return status;
 
         container->nb_fmu = i + 1;  /* in case of error, free only loaded FMU */
     }
@@ -1358,18 +1530,18 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
 
 static int container_start_threads(container_t *container) {
     if (container->mt) {
-        logger(LOGGER_DEBUG, "Container barrier is configured with %d participants", container->nb_fmu + 1);
-        if (thread_barrier_init(&container->barrier_start, container->nb_fmu + 1)) {
+        logger(LOGGER_DEBUG, "Container barrier is configured with %u participants", container->nb_cs + 1);
+        if (thread_barrier_init(&container->barrier_start, container->nb_cs + 1)) {
             logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
             return -1;
         }
-        if (thread_barrier_init(&container->barrier_end, container->nb_fmu + 1)) {
+        if (thread_barrier_init(&container->barrier_end, container->nb_cs + 1)) {
             logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
             return -1;
         }
-        for (int i = 0; i < container->nb_fmu; i += 1)
-            if (fmu_launch_thread(&container->fmu[i])) {
-                logger(LOGGER_ERROR, "Cannot launch FMU '%s' thread.", container->fmu[i].name);
+        for (unsigned int i = 0; i < container->nb_cs; i += 1)
+            if (fmu_launch_thread(container->cs_fmu[i])) {
+                logger(LOGGER_ERROR, "Cannot launch FMU '%s' thread.", container->cs_fmu[i]->name);
                 return -2;
             }
     }
@@ -1385,10 +1557,11 @@ static void container_stop_threads(container_t *container) {
 
         thread_barrier_wait(&container->barrier_start);
 
-        for (int i = 0; i < container->nb_fmu; i += 1) {
-            logger(LOGGER_DEBUG, "Waiting for FMU '%s' thread to finish.", container->fmu[i].name);
-            thread_join(container->fmu[i].thread);
-            container->fmu[i].thread = NULL;
+        for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+            fmu_t *fmu = container->cs_fmu[i];
+            logger(LOGGER_DEBUG, "Waiting for FMU '%s' thread to finish.", fmu->name);
+            thread_join(fmu->thread);
+            fmu->thread = NULL;
         }
 
         
@@ -1448,6 +1621,13 @@ int container_configure(container_t* container, const char* resource_location) {
     char dirname[CONFIG_FILE_SZ];
 
     logger(LOGGER_WARNING, "FMUContainer '" VERSION_TAG "'");
+
+    /* The config parser registers ME FMUs into the solver as it reads them. */
+    container->solver = solver_new(container);
+    if (!container->solver) {
+        logger(LOGGER_ERROR, "Cannot allocate ME solver.");
+        return -1;
+    }
 
     /*
      * Force C locale for numeric values, to avoid issues with decimal separator
@@ -1585,10 +1765,16 @@ int container_configure(container_t* container, const char* resource_location) {
 
     logger(LOGGER_DEBUG, "Instanciate embedded FMUs...");
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        logger(LOGGER_DEBUG, "FMU#%d: Instanciate '%s' for CoSimulation", i, container->fmu[i].name);
-        fmu_status_t status = fmuInstantiateCoSimulation(&container->fmu[i], container->instance_name);
+        fmu_t *fmu = &container->fmu[i];
+        const bool is_me = (fmu->kind == FMU_KIND_ME);
+
+        logger(LOGGER_DEBUG, "FMU#%d: Instanciate '%s' for %s", i, fmu->name,
+               is_me ? "ModelExchange" : "CoSimulation");
+
+        fmu_status_t status = is_me ? fmuInstantiateModelExchange(fmu, container->instance_name)
+                                    : fmuInstantiateCoSimulation(fmu, container->instance_name);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Cannot Instantiate FMU '%s'", container->fmu[i].name);
+            logger(LOGGER_ERROR, "Cannot Instantiate FMU '%s'", fmu->name);
             return -8;
         }
     }
@@ -1622,6 +1808,26 @@ int container_configure(container_t* container, const char* resource_location) {
         container->binaries_size_tmp = NULL;
     }
 
+    /* Build the CS working set (pointers into container->fmu[]). */
+    container->nb_cs = 0;
+    if (container->nb_fmu > 0) {
+        container->cs_fmu = malloc((size_t)container->nb_fmu * sizeof(*container->cs_fmu));
+        if (!container->cs_fmu) {
+            logger(LOGGER_ERROR, "Cannot allocate CS working set.");
+            return -9;
+        }
+        for (int i = 0; i < container->nb_fmu; i += 1) {
+            if (container->fmu[i].kind != FMU_KIND_ME)
+                container->cs_fmu[container->nb_cs++] = &container->fmu[i];
+        }
+    }
+
+    /* Resolve ME FMU pointers and allocate the solver's flat state buffers. */
+    if (solver_build(container->solver)) {
+        logger(LOGGER_ERROR, "Cannot build ME solver.");
+        return -9;
+    }
+
     if (container_start_threads(container)) {
         logger(LOGGER_ERROR, "Cannot start threads.");
         return -10;
@@ -1647,6 +1853,10 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
 
         container->nb_fmu = 0;
         container->fmu = NULL;
+
+        container->nb_cs = 0;
+        container->cs_fmu = NULL;
+        container->solver = NULL;
 
 #define INIT(type)                          \
         container->nb_local_ ## type = 0;   \
@@ -1712,7 +1922,10 @@ void container_free(container_t *container) {
         }
         free(container->fmu);
     }
-    
+
+    solver_free(container->solver);
+    free(container->cs_fmu);
+
     free(container->instance_name);
     free(container->uuid);
 

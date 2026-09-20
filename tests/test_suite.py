@@ -346,6 +346,9 @@ class TestSuite:
     def test_fmusplit_5(self):
         self.fmusplit_n(5)
 
+    def test_fmusplit_6(self):
+        self.fmusplit_n(6)
+
     def test_fmusplit_array_3(self):
         sys.argv = ['fmusplit',
                     "-fmu", f"split/container-array-3.fmu"]
@@ -458,6 +461,18 @@ class TestSuite:
                                     "array/array-32/resources/container.txt")
         if os.name == 'nt':
             self.assert_simulation("array/array-32.fmu", 0.1)
+
+    def test_me(self):
+        assembly = Assembly("bouncing_ball_me.json", fmu_directory=Path("me"), debug=True)
+        assembly.make_fmu(fmi_version=2)
+        if os.name == 'nt':
+            self.assert_simulation("me/bouncing_ball_me.fmu", 0.1)
+
+    def test_me_mix(self):
+        assembly = Assembly("bouncing_ball_mix.json", fmu_directory=Path("me"), debug=True)
+        assembly.make_fmu(fmi_version=2)
+        if os.name == 'nt':
+            self.assert_simulation("me/bouncing_ball_mix.fmu", 0.1)
 
     def _fmusplit_array_link(self, container_stem, expected_link):
         """Build `<container_stem>.fmu` (if missing), split it, and assert that

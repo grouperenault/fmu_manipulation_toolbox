@@ -1,0 +1,37 @@
+{
+  "name": "bouncing_ball_mix.fmu",
+  "mt": false,
+  "profiling": false,
+  "sequential": false,
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": false,
+  "auto_parameter": false,
+  "auto_local": false,
+  "step_size": 0.1,
+  "fmu": [
+    "position_cs.fmu",
+    "velocity_me.fmu"
+  ],
+  "output": [
+    [
+      "position_cs.fmu",
+      "position1",
+      "position1"
+    ]
+  ],
+  "link": [
+    [
+      "position_cs.fmu",
+      "is_ground",
+      "velocity_me.fmu",
+      "reset"
+    ],
+    [
+      "velocity_me.fmu",
+      "velocity",
+      "position_cs.fmu",
+      "velocity"
+    ]
+  ]
+}

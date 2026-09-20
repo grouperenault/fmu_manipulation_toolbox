@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import *
 
 from .ls import LayeredStandard
-from .operations import FMU, OperationAbstract, FMUError, FMUPort
+from .operations import FMU, OperationAbstract, FMUError, FMUPort, ModelStructureCounter
 from .terminals import Terminals
 from .version import __version__ as tool_version
 
@@ -420,6 +420,11 @@ class EmbeddedFMU(OperationAbstract):
         ports (dict[str, EmbeddedFMUPort]): Ports of the FMU, keyed by name.
         has_event_mode (bool): Whether the FMU supports event mode (FMI 3.0).
         capabilities (dict[str, str]): FMI capability flags and their values.
+        is_me (bool): Whether the FMU is embedded in Model-Exchange mode.
+            Co-Simulation takes precedence when both modes are provided.
+        structure (ModelStructureCounter): Model-Exchange sizes computed from
+            `<ModelStructure>` (see `number_of_continuous_states` and
+            `number_of_event_indicators`).
 
     Raises:
         FMUContainerError: If the FMU does not implement Co-Simulation mode.
@@ -444,6 +449,8 @@ class EmbeddedFMU(OperationAbstract):
         self.model_identifier = None
         self.guid = None
         self.fmi_version = None
+        self.is_me = False
+        self.structure = ModelStructureCounter(self.name)
         self.platforms = set()
         self.ports: Dict[str, EmbeddedFMUPort] = {}
 
@@ -514,12 +521,37 @@ class EmbeddedFMU(OperationAbstract):
             self.guid = attrs['instantiationToken']
             self.fmi_version = 3
 
+        self.structure.fmi_attrs(self.fmi_version, attrs)
+
+    @property
+    def number_of_event_indicators(self) -> int:
+        """Number of event indicators (`nz`) declared by this FMU."""
+        return self.structure.number_of_event_indicators
+
+    @property
+    def number_of_continuous_states(self) -> int:
+        """Number of continuous states (`nx`) declared by this FMU."""
+        return self.structure.number_of_continuous_states
+
+    def model_structure_attrs(self, section: str, attrs: Dict[str, str]):
+        self.structure.model_structure_attrs(self.fmi_version, section, attrs)
+
     def cosimulation_attrs(self, attrs: Dict[str, str]):
+        # Co-Simulation takes precedence over Model-Exchange for dual-mode FMUs.
+        self.is_me = False
         self.model_identifier = attrs['modelIdentifier']
         if attrs.get("hasEventMode", "false") == "true":
             self.has_event_mode = True
         for capability in self.capability_list:
             self.capabilities[capability] = attrs.get(capability, "false")
+        logger.debug(f"FMU '{self.name}' is embedded in Co-Simulation mode.")
+
+    def modelexchange_attrs(self, attrs):
+        self.is_me = True
+        self.model_identifier = attrs['modelIdentifier']
+        for capability in self.capability_list:
+            self.capabilities[capability] = attrs.get(capability, "false")
+        logger.debug(f"FMU '{self.name}' provides Model-Exchange mode.")
 
     def experiment_attrs(self, attrs: Dict[str, str]):
         try:
@@ -538,6 +570,7 @@ class EmbeddedFMU(OperationAbstract):
                 fmu_port.fmi_type = "Int32"
         port = EmbeddedFMUPort(fmu_port.fmi_type, fmu_port, fmi_version=self.fmi_version)
         self.ports[port.name] = port
+        self.structure.register_port(port.vr, port.dimensions, fmu_port.get("start", None))
 
     def closure(self):
         osname = {
@@ -1244,6 +1277,81 @@ class FMUIOList:
                         print(f"{clock} {len(translation)} {s}", file=txt_file)
 
 
+class InvolvedFMU:
+    """Ordered collection of embedded FMUs behaving like a single mapping.
+
+    Internally the FMUs are split between Co-Simulation (`fmu_cs`) and
+    Model-Exchange (`fmu_me`) FMUs, but the object exposes a dict-like
+    interface (`in`, `[]`, iteration, `len()`, `values()`, ...) that
+    transparently combines both stores (CS first, then ME).
+    """
+
+    def __init__(self):
+        self.fmu_cs: OrderedDict[str, EmbeddedFMU] = OrderedDict()
+        self.fmu_me: OrderedDict[str, EmbeddedFMU] = OrderedDict()
+
+    def __contains__(self, fmu_name: str) -> bool:
+        return fmu_name in self.fmu_cs or fmu_name in self.fmu_me
+
+    def __getitem__(self, fmu_name: str) -> EmbeddedFMU:
+        if fmu_name in self.fmu_cs:
+            return self.fmu_cs[fmu_name]
+        return self.fmu_me[fmu_name]
+
+    def __setitem__(self, fmu_name: str, fmu: EmbeddedFMU) -> None:
+        if fmu.is_me:
+            self.fmu_me[fmu_name] = fmu
+        else:
+            self.fmu_cs[fmu_name] = fmu
+
+    def __delitem__(self, fmu_name: str) -> None:
+        if fmu_name in self.fmu_cs:
+            del self.fmu_cs[fmu_name]
+        else:
+            del self.fmu_me[fmu_name]
+
+    def __iter__(self):
+        yield from self.fmu_cs
+        yield from self.fmu_me
+
+    def __len__(self) -> int:
+        return len(self.fmu_cs) + len(self.fmu_me)
+
+    def keys(self):
+        yield from self.fmu_cs.keys()
+        yield from self.fmu_me.keys()
+
+    def values(self):
+        yield from self.fmu_cs.values()
+        yield from self.fmu_me.values()
+
+    def items(self):
+        yield from self.fmu_cs.items()
+        yield from self.fmu_me.items()
+
+    def get(self, fmu_name: str, default=None):
+        if fmu_name in self:
+            return self[fmu_name]
+        return default
+
+    def write_txt(self, txt_file: IO) -> Dict[str, int]:
+        print(f"{len(self.fmu_cs)} {len(self.fmu_me)}", file=txt_file)
+        fmu_rank: Dict[str, int] = {}
+        for i, fmu in enumerate(self.values()):
+            if fmu.is_me:
+                # ME entries: <filename> <fmi_version> <nx> <nz> / <identifier> / <guid>
+                print(f"{fmu.name} {fmu.fmi_version} {fmu.number_of_continuous_states} {fmu.number_of_event_indicators}", file=txt_file)
+            else:
+                # CS entries: <filename> <fmi_version> <has_event_mode> / <identifier> / <guid>
+                print(f"{fmu.name} {fmu.fmi_version} {int(fmu.has_event_mode)}", file=txt_file)
+
+            print(f"{fmu.model_identifier}", file=txt_file)
+            print(f"{fmu.guid}", file=txt_file)
+            fmu_rank[fmu.name] = i
+
+        return fmu_rank
+
+
 class Clock:
     def __init__(self, container_vr: int, fmu_vr: int):
         self.container_vr = container_vr
@@ -1263,7 +1371,7 @@ class ClockList:
             in the container.
     """
 
-    def __init__(self, involved_fmu: OrderedDict[str, EmbeddedFMU]):
+    def __init__(self, involved_fmu: InvolvedFMU):
         self.clocks_per_fmu: DefaultDict[int, List[Clock]] = defaultdict(list)
         self.fmu_index: Dict[str, int] = {}
         for i, fmu_name in enumerate(involved_fmu):
@@ -1307,10 +1415,12 @@ class Platform:
         self.suffixe = suffixe
         self.target_bindir = target_bindir
 
+
 class Port:
     def __init__(self, vr: int, name: str):
         self.vr: int = vr
         self.name = name
+
 
 class FMUContainer:
     """Builds an FMU Container that embeds multiple FMUs into a single FMU.
@@ -1435,7 +1545,7 @@ class FMUContainer:
         self.identifier = identifier
         if not self.fmu_directory.is_dir():
             raise FMUContainerError(f"{self.fmu_directory} is not a valid directory")
-        self.involved_fmu: OrderedDict[str, EmbeddedFMU] = OrderedDict()
+        self.involved_fmu = InvolvedFMU()
 
         self.description_pathname = description_pathname
         self.fmi_version = fmi_version
@@ -2070,21 +2180,17 @@ class FMUContainer:
                        "</fmiModelDescription>")
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
-        print("# Version 5", file=txt_file)
+        print("# Version 6", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
         flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)
 
         print(f"# Internal time step in seconds", file=txt_file)
         print(f"{step_size}", file=txt_file)
+
         print(f"# NB of embedded FMU's", file=txt_file)
-        print(f"{len(self.involved_fmu)}", file=txt_file)
-        fmu_rank: Dict[str, int] = {}
-        for i, fmu in enumerate(self.involved_fmu.values()):
-            print(f"{fmu.name} {fmu.fmi_version} {int(fmu.has_event_mode)}", file=txt_file)
-            print(f"{fmu.model_identifier}", file=txt_file)
-            print(f"{fmu.guid}", file=txt_file)
-            fmu_rank[fmu.name] = i
+        fmu_rank = self.involved_fmu.write_txt(txt_file)
+
 
         # Prepare data structure
         inputs_per_type: Dict[str, List[ContainerInput]] = defaultdict(list) # Container's INPUT

@@ -93,7 +93,16 @@ typedef struct container_s {
 	/* configuration */
 	int							profiling;
 	int							nb_fmu;
-	fmu_t						*fmu;		/* embedded FMUs */
+	fmu_t						*fmu;		/* embedded FMUs (master registry) */
+
+	/* CS working set: pointers to the CS FMUs of fmu[]. Avoids testing 'kind'
+	   in the hot loops. Sized to feed thread_barrier_init() directly. */
+	unsigned int				nb_cs;
+	fmu_t						**cs_fmu;
+
+	/* ME working set (states, derivatives, event indicators, flat buffers). */
+	struct solver_s				*solver;
+
 	char						*instance_name;
 	char						*uuid;
 	container_state_t			state;		/* managed in fmi2.c and fmi3.c */
