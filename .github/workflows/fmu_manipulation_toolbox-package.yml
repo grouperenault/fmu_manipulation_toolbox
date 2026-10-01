@@ -262,7 +262,7 @@ jobs:
     - name: Test suite run
       run: |
         cd tests
-        pytest --cov=fmu_manipulation_toolbox test_suite.py
+        pytest --cov=fmu_manipulation_toolbox
     - name: Switch to `badges` branch and copy badge
       if: github.ref == 'refs/heads/main'
       run: |
@@ -288,6 +288,10 @@ jobs:
   tests-linux:
     needs: [remoting-windows32, remoting-windows64, remoting-linux32, remoting-linux64, container-windows64, container-linux64, container-darwin64]
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.13"]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/download-artifact@master
@@ -318,10 +322,10 @@ jobs:
       with:
         name: container-darwin64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
-    - name: Set up Python 3.10
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
       with:
-        python-version: "3.10"
+        python-version: ${{ matrix.python-version }}
     - name: Install libEGL.so.1
       run: |
         sudo apt-get install freeglut3-dev
@@ -333,20 +337,47 @@ jobs:
     - name: Test with pytest
       run: |
         cd tests
-        pytest -v test_suite.py
+        pytest -v
     - name: Package
+      if: matrix.python-version == '3.10'
       run: |
         python -m build
     - name: Archive Artifacts
+      if: matrix.python-version == '3.10'
       uses: actions/upload-artifact@master
       with:
         name: package
         path: ${{ github.workspace }}/dist
         retention-days: 1
 
+  tests-macos:
+    needs: [container-darwin64]
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@master
+      with:
+        name: container-darwin64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v3
+      with:
+        python-version: "3.10"
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    # `windows_only` tests (remoting, container-mt) are skipped automatically by
+    # the conftest hook; the remaining simulations use the darwin64 container
+    # binary downloaded above.
+    - name: Test with pytest
+      run: |
+        cd tests
+        pytest -v
+
   publish:
     if: startsWith(github.ref, 'refs/tags/V')
-    needs: [tests-linux, tests-win64]
+    needs: [tests-linux, tests-win64, tests-macos]
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v4
