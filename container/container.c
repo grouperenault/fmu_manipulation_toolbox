@@ -285,8 +285,7 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
             break;
     }
 
-    if (iter >= CONTAINER_MAX_EVENT_ITER) {
-        logger(LOGGER_ERROR, "Container: event iteration did not converge after %d steps.",
+    if (iter >= CONTAINER_MAX_EVENT_ITER) {        logger(LOGGER_ERROR, "Container: event iteration did not converge after %d steps.",
                CONTAINER_MAX_EVENT_ITER);
         return FMU_STATUS_ERROR;
     }
@@ -490,33 +489,9 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
 
     container->need_event_update = false;
 
-    /* Propagate inputs to every ME FMU before the collective integration. */
-    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
-        fmu_t *fmu = container->solver->me[i].fmu;
-        status = fmu_set_inputs(fmu);
-        if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", fmu->name);
-            return status;
-        }
-    }
-
-    /* Advance every ME FMU in a single Euler loop so their couplings stay
-       consistent within the communication step. */
-    status = solver_do_step(container->solver, container->time, container->next_step);
-    if (status != FMU_STATUS_OK)
-        return status;
-
-    /* Read ME outputs so they are visible to any CS FMU processed below. */
-    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
-        fmu_t *fmu = container->solver->me[i].fmu;
-        status = fmu_get_outputs(fmu);
-        if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
-            return status;
-        }
-    }
-
-    /* CS FMUs are still processed sequentially (set inputs -> doStep -> get outputs). */
+    /* CS FMUs are processed first (set inputs -> doStep -> get outputs) so that
+       their discrete outputs are fresh when the ME solver runs. This ensures a
+       discrete level coupled into an ME reset is applied on a single clean edge. */
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t *fmu = container->cs_fmu[i];
 
@@ -533,6 +508,36 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
             return status;
         container->need_event_update |= fmu->need_event_udpate;
 
+        status = fmu_get_outputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
+            return status;
+        }
+    }
+
+    /* Push only the continuous (real) inputs to every ME FMU before the
+       collective integration. Discrete inputs (e.g. a bounce "reset" flag) must
+       not be set in Continuous Time Mode: that corrupts the target FMU's edge
+       detection (FMI-2.0 2.1.3). They are exchanged in Event Mode by
+       solver_event_iteration()/container_update_discrete_state(). */
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
+        status = fmu_set_continuous_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", fmu->name);
+            return status;
+        }
+    }
+
+    /* Advance every ME FMU in a single Euler loop so their couplings stay
+       consistent within the communication step. */
+    status = solver_do_step(container->solver, container->time, container->next_step);
+    if (status != FMU_STATUS_OK)
+        return status;
+
+    /* Read ME outputs. */
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
         status = fmu_get_outputs(fmu);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
@@ -559,19 +564,10 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
         }
     }
 
-    /* Set inputs and advance ME FMUs collectively on the main thread. */
-    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
-        fmu_t *fmu = container->solver->me[i].fmu;
-        status = fmu_set_inputs(fmu);
-        if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed setting inputs.", fmu->name);
-            return status;
-        }
-    }
-    status = solver_do_step(container->solver, container->time, container->next_step);
-    if (status != FMU_STATUS_OK)
-        return status;
-
+    /* Step the CS FMUs first (worker threads run them in parallel), so their
+       discrete outputs are fresh when the ME solver runs. This matches the mono
+       mode ordering and delivers a discrete level coupled into an ME reset on a
+       single clean edge. */
     thread_barrier_wait(&container->barrier_start); /* 1st SYNC point */
     /*
      * Each CS FMU worker thread will compute its step.
@@ -592,6 +588,22 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
         }
     }
 
+    /* Advance ME FMUs collectively on the main thread, now that CS outputs are
+       fresh. Only continuous inputs are pushed here; discrete inputs must not be
+       set in Continuous Time Mode (FMI-2.0 2.1.3) and are exchanged in Event
+       Mode. */
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
+        status = fmu_set_continuous_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed setting inputs.", fmu->name);
+            return status;
+        }
+    }
+    status = solver_do_step(container->solver, container->time, container->next_step);
+    if (status != FMU_STATUS_OK)
+        return status;
+
     for (size_t i = 0; i < container->solver->nb_me; i += 1) {
         fmu_t *fmu = container->solver->me[i].fmu;
         status = fmu_get_outputs(fmu);
@@ -610,6 +622,10 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
 
     /* STEP MODE */
     container->need_event_update = false;
+
+    /* CS FMUs are stepped first (set inputs -> doStep -> get outputs) so their
+       discrete outputs are fresh when the ME solver runs. This delivers a
+       discrete level coupled into an ME reset on a single clean edge. */
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         status = fmu_set_inputs(container->cs_fmu[i]);
         if (status != FMU_STATUS_OK) {
@@ -617,20 +633,6 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
             return status;
         }
     }
-    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
-        fmu_t *fmu = container->solver->me[i].fmu;
-        status = fmu_set_inputs(fmu);
-        if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", fmu->name);
-            return status;
-        }
-    }
-
-    /* Advance all ME FMUs together. */
-    status = solver_do_step(container->solver, container->time, container->next_step);
-    if (status != FMU_STATUS_OK)
-        return status;
-
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t* fmu = container->cs_fmu[i];
         status = fmuDoStep(fmu, container->time, container->next_step);
@@ -640,7 +642,6 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
         }
         container->need_event_update |= fmu->need_event_udpate;
     }
-
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         status = fmu_get_outputs(container->cs_fmu[i]);
         if (status != FMU_STATUS_OK) {
@@ -648,6 +649,24 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
             return status;
         }
     }
+
+    /* Advance all ME FMUs together. Only continuous inputs are pushed here;
+       discrete inputs must not be set in Continuous Time Mode (it corrupts the
+       target FMU's edge detection, FMI-2.0 2.1.3) and are exchanged in Event
+       Mode by solver_event_iteration()/container_update_discrete_state(). */
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
+        status = fmu_set_continuous_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", fmu->name);
+            return status;
+        }
+    }
+
+    status = solver_do_step(container->solver, container->time, container->next_step);
+    if (status != FMU_STATUS_OK)
+        return status;
+
     for (size_t i = 0; i < container->solver->nb_me; i += 1) {
         fmu_t *fmu = container->solver->me[i].fmu;
         status = fmu_get_outputs(fmu);

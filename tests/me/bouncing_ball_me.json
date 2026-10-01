@@ -1,8 +1,6 @@
 {
   "name": "bouncing_ball_me.fmu",
-  "mt": false,
   "profiling": false,
-  "sequential": false,
   "auto_link": false,
   "auto_input": false,
   "auto_output": false,
