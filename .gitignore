@@ -22,9 +22,7 @@ container/.vscode
 fmu_manipulation_toolbox/resources/darwin64/client_sm.dylib
 fmu_manipulation_toolbox/resources/darwin64/container.dylib
 fmu_manipulation_toolbox/resources/darwin64/server_sm
-# Test artefacts.
-# Tests isolate their outputs in pytest tmp_path, so generated FMUs/CSVs no
-# longer land in the source tree. Only the coverage/cache files remain.
+tests/tmp/
 tests/.coverage
 tests/.pytest_cache/
 tests/coverage.svg

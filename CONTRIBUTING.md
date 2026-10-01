@@ -84,7 +84,7 @@ pytest -m lsbus               # LS-BUS tests
 | `windows_only` | only runs on win32 (auto-skipped elsewhere) |
 | `fmi2` / `fmi3` | exercises a specific FMI version |
 | `lsbus` | exercises the LS-BUS feature |
-| `area(name)` | selects the `tests/data/<name>` directory copied into `tmp_path` |
+| `area(name)` | selects the `tests/data/<name>` directory copied into `tests/tmp/<test>` |
 
 Platform- or binary-dependent tests are skipped automatically (with an explicit reason) when their
 prerequisites are missing — they never fail silently.
@@ -95,8 +95,10 @@ prerequisites are missing — they never fail silently.
    generated outputs).
 2. Add the test to the matching module in `tests/unit/`, `tests/integration/` or `tests/gui/`.
 3. Decorate it with the relevant markers, e.g. `@pytest.mark.area("<area>")`. The `area_dir`
-   fixture copies that data directory into a `tmp_path` and `chdir`s into it, so your test can
-   refer to files by their bare names and write outputs without polluting the source tree.
+   fixture copies that data directory into `tests/tmp/<test>/` and `chdir`s into it, so your test
+   can refer to files by their bare names and write outputs without polluting the source tree.
+   The `tests/tmp/` tree is wiped at the start of every session and kept afterwards, so the
+   generated artefacts are easy to inspect when debugging a failure.
 4. Reuse the shared helpers in `tests/_helpers/` (`assertions.py`, `simulation.py`).
 
 
