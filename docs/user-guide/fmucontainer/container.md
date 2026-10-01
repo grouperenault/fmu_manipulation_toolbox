@@ -19,7 +19,9 @@ FMU Manipulation Toolbox is shipped with `fmucontainer` command which makes it e
 
 The `fmucontainer` command creates a FMU, named Container, from a description file. This file contains multiple parameters:
 
-- *time_step*: a FMU Container acts as a fixed step time "solver" for its embedded FMU's.
+- *time_step*: a FMU Container acts as a fixed step time "solver" for its embedded FMU's. For
+  [Model-Exchange](#model-exchange-support) FMU's, this time step is also used as the integration
+  step of the built-in solver.
 - optional features
   - *multi-threading*: each embedded FMU will use its own thread to parallelize `doStep()` operation.  
   - *profiling*: performance indicators can be calculated by the container to help to identify the bottlenecks among 
@@ -250,14 +252,20 @@ Feel free to [create a ticket](https://github.com/grouperenault/fmu_manipulation
 let us know your needs.
 
 
+A container may embed FMU's in **Co-Simulation** mode as well as in **Model-Exchange** mode, and both
+kinds can be freely mixed inside the same container. The mode used for each embedded FMU is detected
+automatically — see [Model-Exchange support](#model-exchange-support) below.
+
 ## FMI-2.0 Containers
 Without any additional option, `fmucontainer` will produce FMI-2.0 containers. These containers may embed
 - *FMU 2.0* in cosimulation mode without any particular limitation.
+- *FMU 2.0* in [Model-Exchange mode](#model-exchange-support).
 - *FMU 3.0* in cosimulation mode with limitations:
   - Variables with FMI-3.0 specific types can be used for routing but cannot be exposed (as input, output, parameter or local).
     Note: `boolean` is redefined in FMI-3.0. So cannot be exposed from an FMU-3.0.
   - Early Return feature is not supported
   - Arrays are not supported
+- *FMU 3.0* in [Model-Exchange mode](#model-exchange-support) (same type/exposition limitations as above).
 
 ## FMI-3.0 Containers
 To produce FMI-3.0 compliant containers, use option `-fmi 3` in `fmucontainer` command line.
@@ -265,10 +273,46 @@ Those containers may embed
 
 - *FMU 2.0* in cosimulation mode with limitations:
   - `boolean` variables can be used for routing but cannot be exposed (as input, output, parameter or local).
-   
+
+- *FMU 2.0* in [Model-Exchange mode](#model-exchange-support).
+
 - *FMU 3.0* in cosimulation mode with limitations:
   - Early Return feature is _not_ supported
   - Arrays are not supported
+
+- *FMU 3.0* in [Model-Exchange mode](#model-exchange-support).
+
+## Model-Exchange support
+
+In addition to Co-Simulation, `fmucontainer` can embed **Model-Exchange (ME)** FMU's. In that case the
+container itself provides the numerical solver: it integrates the continuous states of the embedded ME
+FMU's and handles their events.
+
+!!! info "Automatic mode selection"
+    The mode of each embedded FMU is detected automatically from its `modelDescription.xml`; there is
+    **no command-line option** to select it:
+
+    - An FMU that only provides **Model-Exchange** is embedded in Model-Exchange mode.
+    - An FMU that provides **both** Co-Simulation and Model-Exchange is embedded in **Co-Simulation**
+      mode (Co-Simulation takes precedence).
+
+How it works:
+
+- All Model-Exchange FMU's are advanced together by a **built-in fixed-step solver** (forward Euler),
+  using the container's [*time_step*](#how-to-create-an-fmu-container) as the integration step. Keep the
+  step small enough for the dynamics of your ME models.
+- State events (via event indicators) and time events are detected and handled so that the coupled set
+  of ME FMU's stays consistent.
+- The number of continuous states (`nx`) and of event indicators (`nz`) is computed automatically from
+  the FMU's `<ModelStructure>` (FMI-2.0 `<Derivatives>` / FMI-3.0 `<ContinuousStateDerivative>` and
+  `<EventIndicator>`). You can inspect these values with `fmudump`, which now reports `nx` and `nz` for
+  any FMU providing Model-Exchange.
+- Both FMI-2.0 and FMI-3.0 Model-Exchange FMU's are supported, in either an FMI-2.0 or an FMI-3.0
+  container. The routing/exposition rules and type limitations listed above apply identically to
+  Model-Exchange FMU's.
+
+No change to the description file (CSV/JSON/SSP) nor to the Python API is required: simply reference a
+Model-Exchange FMU like any other embedded FMU and build the container as usual.
 
 
 ## Connecting FMI-2 and FMI-3 arrays
