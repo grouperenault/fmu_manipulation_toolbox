@@ -334,7 +334,7 @@ static fmu_status_t solver_integrate_euler(solver_t *solver, double t, double h)
     for (size_t i = 0; i < n; i += 1)
         x[i] = xs[i] + h * k1[i];
 
-        return FMU_STATUS_OK;
+    return FMU_STATUS_OK;
 }
 
 
