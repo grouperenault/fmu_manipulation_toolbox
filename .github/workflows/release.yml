@@ -7,10 +7,13 @@ name: Release
 on:
   push:
     tags:
+      # Accept both upper- and lower-case prefixes (V1.2.3 or v1.2.3); PEP 440
+      # normalises the leading letter away for the published version.
       - "V*"
+      - "v*"
   workflow_dispatch:
 
-# Default read-only; the publish job keeps only what it needs.
+# Default read-only; jobs raise what they need.
 permissions:
   contents: read
 
@@ -25,11 +28,16 @@ jobs:
   # on the tag ref, setup.py derives the version from the tag name.
   ci:
     uses: ./.github/workflows/ci.yml
+    # The called workflow's `tests-win64` job requests `contents: write` (coverage
+    # badge). A called (reusable) workflow cannot exceed the caller's token, so
+    # grant it here to avoid a startup failure.
+    permissions:
+      contents: write
 
   publish:
     # Extra guard: only publish for real version tags, never for a manual
-    # dispatch from a branch.
-    if: startsWith(github.ref, 'refs/tags/V')
+    # dispatch from a branch. Case-insensitive to match the tag trigger above.
+    if: startsWith(github.ref, 'refs/tags/V') || startsWith(github.ref, 'refs/tags/v')
     needs: ci
     runs-on: ubuntu-24.04
     permissions:
@@ -38,14 +46,17 @@ jobs:
       # OIDC Trusted Publishing to PyPI (no long-lived API token needed).
       id-token: write
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: package
         path: dist
     # Authentication uses OIDC Trusted Publishing configured on PyPI for this
-    # project, so no username/password is provided.
+    # project, so no username/password is provided. The PyPI Trusted Publisher
+    # MUST reference this workflow file name (release.yml) and a matching
+    # environment (none here). `release/v1` is PyPA's maintained tag with full
+    # OIDC support.
     - name: Publish package to PyPI
-      uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
+      uses: pypa/gh-action-pypi-publish@release/v1
     - name: Determine pre-release flag
       id: prerelease
       shell: bash

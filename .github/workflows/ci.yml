@@ -99,21 +99,21 @@ jobs:
         # Oldest testable and newest Python (test tooling such as pytest>=9 needs >=3.10).
         python-version: ["3.10", "3.13"]
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/download-artifact@v4
+    - uses: actions/checkout@v5
+    - uses: actions/download-artifact@v5
       with:
         name: remoting-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: remoting-win32
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: container-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -156,37 +156,37 @@ jobs:
         # Oldest testable and newest Python (test tooling such as pytest>=9 needs >=3.10).
         python-version: ["3.10", "3.13"]
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/download-artifact@v4
+    - uses: actions/checkout@v5
+    - uses: actions/download-artifact@v5
       with:
         name: remoting-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: remoting-win32
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: remoting-linux32
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux32/
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: remoting-linux64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: container-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: container-linux64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: container-darwin64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install libEGL.so.1
@@ -219,7 +219,7 @@ jobs:
         python -m build
     - name: Archive Artifacts
       if: matrix.python-version == '3.13'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: package
         path: ${{ github.workspace }}/dist
@@ -234,13 +234,13 @@ jobs:
         # Oldest testable and newest Python (test tooling such as pytest>=9 needs >=3.10).
         python-version: ["3.10", "3.13"]
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/download-artifact@v4
+    - uses: actions/checkout@v5
+    - uses: actions/download-artifact@v5
       with:
         name: container-darwin64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install dependencies
@@ -273,11 +273,11 @@ jobs:
         python-version: ["3.9", "3.13"]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: package
         path: dist
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install the built wheel
