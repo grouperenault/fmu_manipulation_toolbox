@@ -251,9 +251,13 @@ jobs:
     # the conftest hook; the remaining simulations use the darwin64 container
     # binary downloaded above.
     - name: Test with pytest
+      env:
+        # QtWebEngine segfaults in QtWebEngineWidgets on the arm64 macOS runners.
+        # The GUI suite is already exercised by the Windows job, so skip it here.
+        QTWEBENGINE_DISABLE_SANDBOX: "1"
       run: |
         cd tests
-        pytest -v
+        pytest -v -m "not gui"
 
   # Validate the *built wheel* (not the sources): install it into a clean
   # environment on every OS and check that imports, metadata, entry points and
