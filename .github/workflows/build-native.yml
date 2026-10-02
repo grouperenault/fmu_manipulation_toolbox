@@ -1,0 +1,70 @@
+# Reusable workflow that builds one native target (remoting or container) with
+# CMake and uploads the resulting binaries as an artifact. It is called with a
+# matrix from the CI/release workflows so all the per-platform build logic lives
+# in a single place.
+name: build-native
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: "Runner image (e.g. windows-latest, ubuntu-24.04, macos-latest)."
+        required: true
+        type: string
+      source_dir:
+        description: "CMake source directory: `remoting` or `container`."
+        required: true
+        type: string
+      configure_args:
+        description: "Extra flags passed to `cmake -B ... <here> -S ...`."
+        required: false
+        type: string
+        default: ""
+      build_args:
+        description: "Extra flags passed to `cmake --build ... <here>` (e.g. --config Release)."
+        required: false
+        type: string
+        default: ""
+      artifact_name:
+        description: "Name of the uploaded artifact."
+        required: true
+        type: string
+      resource_subdir:
+        description: "resources/<subdir> holding the produced binaries (win32, win64, linux32, linux64, darwin64)."
+        required: true
+        type: string
+      install_multilib:
+        description: "Install gcc-multilib (needed for the 32-bit Linux build)."
+        required: false
+        type: boolean
+        default: false
+
+# This workflow only reads the repo and uploads artifacts.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ${{ inputs.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install 32-bit toolchain
+        if: inputs.install_multilib
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib
+
+      - name: Configure CMake
+        run: cmake -B ${{ github.workspace }}/build ${{ inputs.configure_args }} -S ${{ github.workspace }}/${{ inputs.source_dir }}
+
+      - name: Build
+        run: cmake --build ${{ github.workspace }}/build ${{ inputs.build_args }}
+
+      - name: Archive artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/${{ inputs.resource_subdir }}
+          retention-days: 1
+
