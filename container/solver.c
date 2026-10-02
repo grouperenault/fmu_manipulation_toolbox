@@ -68,9 +68,11 @@ int solver_register_me(solver_t *solver, unsigned long fmu_idx, size_t nx, size_
 }
 
 
-int solver_configure(solver_t *solver, int solver_integrator) {
+int solver_configure(solver_t *solver) {
     if (solver->nb_me == 0)
         return 0;
+
+    const int solver_integrator = solver->container->integers32[1];
     
     switch(solver_integrator) {
         case 0: /* Euler */

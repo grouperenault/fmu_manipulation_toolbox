@@ -436,7 +436,7 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
     fmu_status_t status;
     
     /* Resolve ME FMU pointers and allocate the solver's flat state buffers. */
-    if (solver_configure(container->solver, container->integers32[1])) {
+    if (solver_configure(container->solver)) {
         logger(LOGGER_ERROR, "Cannot build ME solver.");
         return -9;
     }

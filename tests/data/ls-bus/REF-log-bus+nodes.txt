@@ -31,7 +31,6 @@ FMU#1: Instanciate 'node1.fmu' for CoSimulation
 node1.fmu: Instance bus+nodes instantiated.
 FMU#2: Instanciate 'node2.fmu' for CoSimulation
 node2.fmu: Instance bus+nodes instantiated.
-[TRACE] nb integers32: 2
 Reading 'datalog.txt'...
 Container enable DATALOG.
 Container is configured.

@@ -10,25 +10,31 @@ extern "C" {
 
 #include "fmu.h"
 
+
+/*----------------------------------------------------------------------------
+                   S O L V E R _ I N T E G R A T O R 
+-----------------------------------------------------------------------------*/
+
 typedef fmu_status_t (*solver_integrator_t)(struct solver_s *solver,
      double t, double h);
 
+
 /*----------------------------------------------------------------------------
-                   S O L V E R _ M E _ F M U _ T
+                       S O L V E R _ M E _ F M U _ T
 ----------------------------------------------------------------------------*/
 
 typedef struct solver_me_fmu_s {
-    fmu_t       *fmu;                   /* resolved by solver_build() */
-    unsigned long fmu_idx;              /* index in container->fmu[] */
-    size_t       nx;                    /* nb continuous states */
-    size_t       nz;                    /* nb event indicators */
-    size_t       x_off;                 /* offset into x/dx/x_save (total_nx) */
-    size_t       z_off;                 /* offset into z/z_prev    (total_nz) */
+    fmu_t         *fmu;                  /* resolved by solver_build() */
+    unsigned long fmu_idx;               /* index in container->fmu[] */
+    size_t        nx;                    /* nb continuous states */
+    size_t        nz;                    /* nb event indicators */
+    size_t        x_off;                 /* offset into x/dx/x_save (total_nx) */
+    size_t        z_off;                 /* offset into z/z_prev    (total_nz) */
 } solver_me_fmu_t;
 
 
 /*----------------------------------------------------------------------------
-                         S O L V E R _ T
+                              S O L V E R _ T
 ----------------------------------------------------------------------------*/
 
 typedef struct solver_s {
@@ -73,7 +79,7 @@ extern int solver_register_me(solver_t *solver, unsigned long fmu_idx,
 
 /* Resolve FMU pointers, compute slice offsets and allocate the flat buffers.
    Must be called once every ME FMU has been registered. */
-extern int solver_configure(solver_t *solver, int solver_integrator);
+extern int solver_configure(solver_t *solver);
 
 /* Move every ME FMU from Event Mode to Continuous Time Mode, refreshing the
    states and event indicators the event may have changed. */
