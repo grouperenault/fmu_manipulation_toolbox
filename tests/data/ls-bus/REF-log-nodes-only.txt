@@ -1,13 +1,14 @@
 Container model loading...
-FMUContainer 'V1.9.4.1-21-gf20761d'
+FMUContainer 'V1.9.4.2-39-g06bd0af'
+Solver configure....
 Reading 'container.txt'...
 Container use PARALLEL mode with MONO thread.
 Container time_step = 1.000000e-01s
-2 FMUs to be loaded.
-FMU#0: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmp96wjy6w0\resources\/00' (FMI-3)
-FMU#1: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmp96wjy6w0\resources\/01' (FMI-3)
+2 FMUs to be loaded (2 CS, 0 ME).
+FMU#0: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpp4tker2e\resources\/00' (FMI-3, CS)
+FMU#1: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpp4tker2e\resources\/01' (FMI-3, CS)
 reals64   : 1 local variables and 1 ports
-integers32: 1 local variables and 1 ports
+integers32: 2 local variables and 2 ports
 binaries  : 2 local variables and 2 ports
 clocks    : 2 local variables and 2 ports
 FMU# 0: binaries  : [in] 0 ports and 1 clocked
@@ -23,6 +24,7 @@ FMU#0: Instanciate 'node1.fmu' for CoSimulation
 node1.fmu: Instance nodes-only instantiated.
 FMU#1: Instanciate 'node2.fmu' for CoSimulation
 node2.fmu: Instance nodes-only instantiated.
+[TRACE] nb integers32: 2
 Reading 'datalog.txt'...
 Container enable DATALOG.
 Container is configured.
@@ -848,4 +850,3 @@ node1.fmu: Instance nodes-only freed.
 Unload FMU node1.fmu
 node2.fmu: Instance nodes-only freed.
 Unload FMU node2.fmu
-hb

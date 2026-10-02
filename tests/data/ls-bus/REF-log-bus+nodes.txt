@@ -1,14 +1,15 @@
 Container model loading...
-FMUContainer 'V1.9.4.1-21-gf20761d'
+FMUContainer 'V1.9.4.2-39-g06bd0af'
+Solver configure....
 Reading 'container.txt'...
 Container use SEQUENTIAL mode.
 Container time_step = 1.000000e-01s
-3 FMUs to be loaded.
-FMU#0: loading 'DemoCanBusSimulation.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpcolmkrx3\resources\/00' (FMI-3)
-FMU#1: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpcolmkrx3\resources\/01' (FMI-3)
-FMU#2: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpcolmkrx3\resources\/02' (FMI-3)
+3 FMUs to be loaded (3 CS, 0 ME).
+FMU#0: loading 'DemoCanBusSimulation.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmprqm455xd\resources\/00' (FMI-3, CS)
+FMU#1: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmprqm455xd\resources\/01' (FMI-3, CS)
+FMU#2: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmprqm455xd\resources\/02' (FMI-3, CS)
 reals64   : 1 local variables and 2 ports
-integers32: 1 local variables and 1 ports
+integers32: 2 local variables and 2 ports
 binaries  : 4 local variables and 4 ports
 clocks    : 4 local variables and 4 ports
 FMU# 0: binaries  : [in] 0 ports and 2 clocked
@@ -30,6 +31,7 @@ FMU#1: Instanciate 'node1.fmu' for CoSimulation
 node1.fmu: Instance bus+nodes instantiated.
 FMU#2: Instanciate 'node2.fmu' for CoSimulation
 node2.fmu: Instance bus+nodes instantiated.
+[TRACE] nb integers32: 2
 Reading 'datalog.txt'...
 Container enable DATALOG.
 Container is configured.

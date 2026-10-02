@@ -12,7 +12,7 @@ array2scalar-3.fmu 3 1
 array2scalar
 {75d40875-14e3-e8a1-f5d6-557662a999a0}
 # NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
-13 0 0 0 0 0 7 0 0 0 0 0 0 0 0
+13 0 0 0 0 0 8 0 0 0 0 0 0 0 0
 # CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
 # real64
 12 12
@@ -39,10 +39,11 @@ array2scalar
 # uinteger16
 0 0
 # integer32
-3 3
-0 1 1 -1 0
-100663298 1 1 0 0
-100663297 6 1 -1 1
+4 4
+100663296 1 1 -1 0
+100663297 1 1 -1 1
+100663299 1 1 0 0
+100663298 6 1 -1 2
 # uinteger32
 0 0
 # integer64
@@ -179,12 +180,12 @@ array2scalar
 0 0
 # Outputs of scalar2array-2.fmu - integer32: <LOCAL_OFFSET> <DIM> <FMU_VR>
 6
-1 1 1
-2 1 2
-3 1 3
-4 1 4
-5 1 5
-6 1 6
+2 1 1
+3 1 2
+4 1 3
+5 1 4
+6 1 5
+7 1 6
 # Clocked Outputs of scalar2array-2.fmu - integer32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
 0 0
 # Outputs of scalar2array-2.fmu - uinteger32: <LOCAL_OFFSET> <DIM> <FMU_VR>
@@ -219,7 +220,7 @@ array2scalar
 0
 # Conversion table of scalar2array-2.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 1
-100663297 4 _D32_F64
+100663298 4 _D32_F64
 # Inputs of array2scalar-3.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 4
 1 2 0

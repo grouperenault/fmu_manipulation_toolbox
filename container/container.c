@@ -435,6 +435,12 @@ static void container_init_values(container_t* container) {
 fmu_status_t container_exit_initialization_mode(container_t* container) {
     fmu_status_t status;
     
+    /* Resolve ME FMU pointers and allocate the solver's flat state buffers. */
+    if (solver_configure(container->solver, container->integers32[1])) {
+        logger(LOGGER_ERROR, "Cannot build ME solver.");
+        return -9;
+    }
+
     for (int i = 0; i < container->nb_fmu; i += 1) {
         status = fmuExitInitializationMode(&container->fmu[i]);
         if ( status != FMU_STATUS_OK)
@@ -1640,6 +1646,9 @@ int container_configure(container_t* container, const char* resource_location) {
     char dirname[CONFIG_FILE_SZ];
 
     logger(LOGGER_WARNING, "FMUContainer '" VERSION_TAG "'");
+    /* Force C locale for numeric values, to avoid issues with decimal separator */
+    setlocale(LC_NUMERIC, "C");
+
 
     /* The config parser registers ME FMUs into the solver as it reads them. */
     container->solver = solver_new(container);
@@ -1647,11 +1656,6 @@ int container_configure(container_t* container, const char* resource_location) {
         logger(LOGGER_ERROR, "Cannot allocate ME solver.");
         return -1;
     }
-
-    /*
-     * Force C locale for numeric values, to avoid issues with decimal separator
-     */
-    setlocale(LC_NUMERIC, "C");
 
     resource_location_to_path(resource_location, dirname, sizeof(dirname));
     if (config_file_open(&file, dirname, "container.txt")) {
@@ -1799,6 +1803,7 @@ int container_configure(container_t* container, const char* resource_location) {
     }
 
     container->integers32[0] = 1;                /* Default: TS multiplier */
+    container->integers32[1] = 0;                /* Default: solver config (euler) */
     container->next_step = container->time_step; /* Default: no next event time */
     container->time = container->start_time;
     
@@ -1839,12 +1844,6 @@ int container_configure(container_t* container, const char* resource_location) {
             if (container->fmu[i].kind != FMU_KIND_ME)
                 container->cs_fmu[container->nb_cs++] = &container->fmu[i];
         }
-    }
-
-    /* Resolve ME FMU pointers and allocate the solver's flat state buffers. */
-    if (solver_build(container->solver)) {
-        logger(LOGGER_ERROR, "Cannot build ME solver.");
-        return -9;
     }
 
     if (container_start_threads(container)) {

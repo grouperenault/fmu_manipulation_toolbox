@@ -1553,6 +1553,8 @@ class FMUContainer:
         self.start_time = None
         self.stop_time = None
 
+        self.have_me = False
+
         # Rules
         self.inputs: Dict[str, ContainerInput] = {}
         self.outputs: Dict[str, ContainerPort] = {}
@@ -1583,13 +1585,20 @@ class FMUContainer:
         
         try:
             fmu = EmbeddedFMU(self.fmu_directory / fmu_filename)
-            if not fmu.fmi_version == self.fmi_version:
-                logger.warning(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}.")
-            self.involved_fmu[fmu.name] = fmu
-
-            logger.info(f"Involved FMU #{len(self.involved_fmu)}: {fmu}")
         except (FMUContainerError, FMUError) as e:
             raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}")
+
+        if not fmu.fmi_version == self.fmi_version:
+            logger.warning(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}.")
+        self.involved_fmu[fmu.name] = fmu
+
+        if fmu.is_me:
+            fmu_type = "ME"
+            self.have_me = True
+        else:
+            fmu_type = "CS"
+
+        logger.info(f"Involved FMU #{len(self.involved_fmu)}: {fmu} ({fmu_type})")
 
         return fmu
 
@@ -2088,6 +2097,18 @@ class FMUContainer:
                                                  "initial": "exact"})
             print(f"    {port.xml(vr_ts_multiplier, fmi_version=self.fmi_version)}", file=xml_file)
 
+        vr_solver = self.vr_table.add_vr("integer32", local=True)
+        if self.have_me:
+            logger.debug(f"Solver config vr = {vr_solver}")
+            port = EmbeddedFMUPort("integer32", {"valueReference": vr_solver,
+                                                 "name": f"container.solver",
+                                                 "causality": "input",
+                                                 "description": f"0:Euler, 1: RK4",
+                                                 "variability": "discrete",
+                                                 "start": 0,
+                                                 "initial": "exact"})
+            print(f"    {port.xml(vr_solver, fmi_version=self.fmi_version)}", file=xml_file)
+
         if profiling:
             for fmu in self.involved_fmu.values():
                 vr = self.vr_table.add_vr("real64", local=True)
@@ -2264,7 +2285,8 @@ class FMUContainer:
                     for profiling_port, _ in enumerate(self.involved_fmu.values()):
                         print(f"{profiling_port + 1} 1 1 -2 {profiling_port + 1}", file=txt_file)
             elif type_name == "integer32":
-                print(f"0 1 1 -1 0", file=txt_file)  # TS Multiplier
+                print(f"100663296 1 1 -1 0", file=txt_file)  # TS Multiplier
+                print(f"100663297 1 1 -1 1", file=txt_file)  # ME Solver config
 
             for input_port in inputs_per_type[type_name]:
                 cport_string = [f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list]

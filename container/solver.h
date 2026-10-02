@@ -73,7 +73,7 @@ extern int solver_register_me(solver_t *solver, unsigned long fmu_idx,
 
 /* Resolve FMU pointers, compute slice offsets and allocate the flat buffers.
    Must be called once every ME FMU has been registered. */
-extern int solver_build(solver_t *solver);
+extern int solver_configure(solver_t *solver, int solver_integrator);
 
 /* Move every ME FMU from Event Mode to Continuous Time Mode, refreshing the
    states and event indicators the event may have changed. */

@@ -31,16 +31,19 @@ static fmu_status_t solver_integrate_euler(solver_t *solver, double t, double h)
 static fmu_status_t solver_integrate_rk4(solver_t *solver, double t, double h);
 
 solver_t *solver_new(container_t *container) {
-    solver_t *s = calloc(1, sizeof(*s));
-    if (!s) return NULL;
+    logger(LOGGER_ERROR, "Solver configure....");
+    solver_t *solver = calloc(1, sizeof(*solver));
+    if (!solver) {
+        logger(LOGGER_ERROR, "solver allocation failed.");
+        return NULL;
+    }
+    solver->container = container;
+    solver->max_outer = SOLVER_MAX_OUTER;
+    solver->max_bisect = SOLVER_MAX_BISECT;
+    solver->max_event_iter = SOLVER_MAX_EVENT_ITER;
+    solver->integrator = solver_integrate_euler;
 
-    s->container = container;
-    s->max_outer = SOLVER_MAX_OUTER;
-    s->max_bisect = SOLVER_MAX_BISECT;
-    s->max_event_iter = SOLVER_MAX_EVENT_ITER;
-    s->integrator = solver_integrate_euler;
-
-    return s;
+    return solver;
 }
 
 
@@ -65,9 +68,24 @@ int solver_register_me(solver_t *solver, unsigned long fmu_idx, size_t nx, size_
 }
 
 
-int solver_build(solver_t *solver) {
+int solver_configure(solver_t *solver, int solver_integrator) {
     if (solver->nb_me == 0)
         return 0;
+    
+    switch(solver_integrator) {
+        case 0: /* Euler */
+            logger(LOGGER_WARNING, "Solver configured to use Euler integrator.");
+            solver->integrator = solver_integrate_euler;
+            break;
+        case 1: /* RK4 */
+            logger(LOGGER_WARNING, "Solver configured to use RK4 integrator.");
+            solver->integrator = solver_integrate_rk4;
+            break;
+        default:
+            logger(LOGGER_ERROR, "Solver configured to use default Euler integrator. (%d)", solver_integrator);
+            solver->integrator = solver_integrate_euler;
+            break;
+    }
 
     size_t x_off = 0;
     size_t z_off = 0;

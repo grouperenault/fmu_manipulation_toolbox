@@ -37,7 +37,7 @@
     <ScalarVariable name="In1" valueReference="5" causality="input" variability="continuous" description="In1"><Real start="1"/></ScalarVariable>
     <ScalarVariable name="In2" valueReference="6" causality="input" variability="continuous" description="In2"><Real start="2"/></ScalarVariable>
     <ScalarVariable name="In3" valueReference="7" causality="input" variability="continuous" description="In3"><Real start="3"/></ScalarVariable>
-    <ScalarVariable name="In4" valueReference="100663298" causality="input" variability="discrete" description="In4"><Integer start="4"/></ScalarVariable>
+    <ScalarVariable name="In4" valueReference="100663299" causality="input" variability="discrete" description="In4"><Integer start="4"/></ScalarVariable>
     <ScalarVariable name="Out1" valueReference="8" causality="output" variability="continuous" initial="calculated" description="Out1"><Real /></ScalarVariable>
     <ScalarVariable name="Out2" valueReference="9" causality="output" variability="continuous" initial="calculated" description="Out2"><Real /></ScalarVariable>
     <ScalarVariable name="Out3" valueReference="10" causality="output" variability="continuous" initial="calculated" description="Out3"><Real /></ScalarVariable>
