@@ -17,7 +17,7 @@ from .constants import (
     NODE_MIN_WIDTH, NODE_TITLE_HEIGHT, NODE_PORT_SPACING, NODE_CORNER_RADIUS,
     NODE_ICON_SIZE, NODE_ICON_MARGIN,
     COLOR_NODE_BG, COLOR_NODE_TITLE_BG, COLOR_NODE_BORDER, COLOR_NODE_SELECTED,
-    COLOR_TEXT, FONT_TITLE, COLOR_NODE_SIGNAL_TITLE_BG
+    COLOR_TEXT, FONT_TITLE, COLOR_NODE_SIGNAL_TITLE_BG, COLOR_NODE_ME_TITLE_BG
 )
 
 
@@ -55,6 +55,9 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_step_size: Optional[str] = None
         self.fmu_generator: str = ""
         self.fmu_fmi_version: Optional[int] = None
+        # FMI kind advertised by the FMU descriptor.
+        self.fmu_is_model_exchange: bool = False
+        self.fmu_is_cosimulation: bool = False
         # Names of the underlying scalar element ports for each FMI-2 array
         # aggregate detected on this node (e.g. `myVector` -> `[myVector[1],
         # myVector[2], myVector[3]]`). Used to hide/mark the elements when
@@ -71,6 +74,10 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         fmu.apply_operation(self)
         self._load_icon(fmu)
         del fmu
+
+        # Pick the title bar color according to the FMI kind (ModelExchange
+        # FMUs are shown in green).
+        self._update_title_bg_color()
 
         # -- Wires attached to this node --------------------------------------
         self.wires: List = []  # List["WireItem"] — avoids circular import
@@ -183,6 +190,19 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
             self._title_highlighted = highlighted
             self.update()
 
+    def _update_title_bg_color(self):
+        """Choose the title bar background color from the FMU's FMI kind.
+
+        ModelExchange FMUs are shown with a green title bar so they stand out
+        from CoSimulation FMUs (blue). If both kinds are advertised, the FMU is
+        usable as a co-simulation slave, so the default (blue) color is kept.
+        """
+        if self.fmu_is_model_exchange and not self.fmu_is_cosimulation:
+            self._title_bg_color = COLOR_NODE_ME_TITLE_BG
+        else:
+            self._title_bg_color = COLOR_NODE_TITLE_BG
+        self.update()
+
     def fmi_attrs(self, attrs):
         self.fmu_generator = attrs.get("generationTool", "-")
         version = attrs.get("fmiVersion", "")
@@ -193,6 +213,12 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     def experiment_attrs(self, attrs):
         self.fmu_step_size = attrs.get("stepSize", "")
+
+    def cosimulation_attrs(self, attrs):
+        self.fmu_is_cosimulation = True
+
+    def modelexchange_attrs(self, attrs):
+        self.fmu_is_model_exchange = True
 
     def port_attrs(self, fmu_port: FMUPort) -> int:
         causality = fmu_port.get("causality", "local")
@@ -355,12 +381,16 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_step_size = None
         self.fmu_generator = ""
         self.fmu_fmi_version = None
+        self.fmu_is_model_exchange = False
+        self.fmu_is_cosimulation = False
 
         fmu = FMU(new_fmu_path)
         fmu.apply_operation(self)
         self._load_icon(fmu)
         del fmu
 
+        # Refresh the title bar color (the new FMU may have a different FMI kind).
+        self._update_title_bg_color()
 
         # Update FMU name in wire mappings
         if old_name != new_name:

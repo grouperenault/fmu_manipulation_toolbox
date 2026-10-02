@@ -79,13 +79,17 @@ Let's start by analyzing an existing FMU to understand its structure.
 
 === "Graphical Interface"
 
+    !!! note "Requires the `gui` extra"
+        `fmutool-gui` needs [PySide6](https://pypi.org/project/PySide6/), installed via
+        `pip install "fmu-manipulation-toolbox[gui]"` — see the [Installation Guide](../installation.md).
+
     ```bash
     fmutool-gui
     ```
     
-    1. Click **Load FMU**
+    1. Click (or drag & drop your FMU onto) the drop zone
     2. Select your FMU file
-    3. View the summary in the interface
+    3. View the summary in the log area
 
 ### Step 2: List All Ports
 
@@ -163,9 +167,11 @@ Controller.Gain
 
 === "Graphical Interface"
 
+    (requires the `gui` extra — see [Step 1](#step-1-get-fmu-information))
+
     1. Load your FMU
-    2. Click **Strip Toplevel** button
-    3. Click **Save** and choose output filename
+    2. Click **Remove Toplevel**
+    3. Click **Save modified FMU as** and choose output filename
 
 !!! warning "Important: Original FMU Preservation"
     

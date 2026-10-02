@@ -38,6 +38,16 @@ There are three ways to add FMUs to the canvas:
 
 Each FMU node displays its filename as a title.
 
+!!! note "Title bar color — Co-Simulation vs Model-Exchange"
+    The color of a node's title bar reflects the FMI interface used to embed the FMU:
+
+    - **Blue** — the FMU is embedded in **Co-Simulation** mode (default). FMUs advertising both
+      Co-Simulation and Model-Exchange are also shown in blue, since Co-Simulation takes precedence.
+    - **Green** — the FMU only provides **Model-Exchange** and is therefore integrated by the
+      container's built-in solver (see [Model-Exchange support](container.md#model-exchange-support)).
+
+    This lets you tell at a glance which embedded FMUs rely on the container's solver.
+
 ### Connecting FMUs with Wires
 
 To create a connection between two FMUs:

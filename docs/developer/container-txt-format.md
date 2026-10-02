@@ -91,28 +91,48 @@ A floating-point value representing the fundamental internal time step in second
 
 ```
 # NB of embedded FMU's
-<nb_fmu>
+<nb_fmu_cs> <nb_fmu_me>
 <fmu_filename> <fmi_version> <has_event_mode>
+<model_identifier>
+<guid>
+...
+<fmu_filename> <fmi_version> <nx> <nz>
 <model_identifier>
 <guid>
 ...
 ```
 
-- `<nb_fmu>`: Integer count of embedded FMUs.
-- For each FMU (repeated `nb_fmu` times):
+- `<nb_fmu_cs> <nb_fmu_me>`: Number of Co-Simulation FMUs, then number of Model-Exchange FMUs.
+  Co-Simulation entries come first, followed by the Model-Exchange entries.
+- For each **Co-Simulation** FMU (repeated `nb_fmu_cs` times):
   - **Line 1**: `<fmu_filename> <fmi_version> <has_event_mode>`
     - `fmu_filename`: Name of the `.fmu` file (e.g., `model.fmu`)
     - `fmi_version`: Integer (`2` or `3`)
     - `has_event_mode`: Integer (`0` or `1`) — whether the FMU supports FMI 3.0 event mode
   - **Line 2**: `<model_identifier>` — the CoSimulation `modelIdentifier`
   - **Line 3**: `<guid>` — the GUID (FMI 2.0) or instantiation token (FMI 3.0)
+- For each **Model-Exchange** FMU (repeated `nb_fmu_me` times):
+  - **Line 1**: `<fmu_filename> <fmi_version> <nx> <nz>` — no event mode flag
+    - `fmu_filename`: Name of the `.fmu` file (e.g., `model.fmu`)
+    - `fmi_version`: Integer (`2` or `3`)
+    - `nx` is deduced from `<Derivatives>` (FMI 2.0) or from the
+      `<ContinuousStateDerivative>` entries (FMI 3.0, array variables counted per element).
+    - `nz` is the `numberOfEventIndicators` attribute (FMI 2.0) or the number of
+      `<EventIndicator>` entries (FMI 3.0, array variables counted per element).
+  - **Line 2**: `<model_identifier>` — the ModelExchange `modelIdentifier`
+  - **Line 3**: `<guid>`
+
+An FMU providing both interfaces is always embedded as a Co-Simulation FMU.
 
 The FMU's resources are stored in subdirectories named by index: `resources/00/`, `resources/01/`, etc.
 
 ### Version differences
 
 - **Version 0/1**: Only `<fmu_filename>` on the first line (no FMI version or event mode flag).
-- **Version ≥ 2**: Full triplet `<fmu_filename> <fmi_version> <has_event_mode>`.
+- **Version 2 to 5**: Single count `<nb_fmu>` and full triplet `<fmu_filename> <fmi_version> <has_event_mode>`.
+- **Version ≥ 6**: Split count `<nb_fmu_cs> <nb_fmu_me>` and dedicated Model-Exchange entries
+  carrying `<nx> <nz>` on the same line as `<fmu_filename> <fmi_version>` (instead of
+  `<has_event_mode>`).
 
 ---
 
@@ -437,4 +457,5 @@ consumer
 | 2 | 1.9 | FMI-3 numeric types added. Flags merged. Conversion tables. Sequential mode. |
 | 3 | 1.9.2 | Binary and clock types. Clocked I/O sections. Importer clocks (LS-BUS). Event mode. |
 | 4 | 1.9.3 | Array variable support via DIM field in all I/O lines. |
+| 6 | 1.9.5 | Model-Exchange support: FMU count split into `<nb_fmu_cs> <nb_fmu_me>`, ME entries carry `<nx> <nz>`. |
 

@@ -1,0 +1,19 @@
+# Dependabot keeps GitHub Actions used in the workflows up to date.
+# It opens PRs when a newer version (or patched release) of an action is
+# available, which also surfaces security fixes for the CI/CD chain.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Group all action bumps into a single PR to reduce review noise for a
+    # solo-maintained project.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "github-actions"
+

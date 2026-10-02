@@ -126,6 +126,7 @@ add_library(container SHARED
 		library.c	library.h
 		logger.c    logger.h
 		profile.c   profile.h
+		solver.c    solver.h
 		thread.c    thread.h)
 target_include_directories(container PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../fmi

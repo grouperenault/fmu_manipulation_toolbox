@@ -2,12 +2,20 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
-* CHANGE: `PySide6` (the GUI toolkit) is no longer installed by default. `pip install fmu-manipulation-toolbox`
-          now only installs the **CLI** (`fmutool`, `fmucontainer`, `fmusplit`, `datalog2pcap`) and the
-          **Python API**, neither of which import `PySide6`. To use the **Graphical User Interfaces**
-          (`fmutoolbox`, `fmutool-gui`, `fmueditor`, `fmucontainer-gui`), install the new `gui` extra:
-          `pip install "fmu-manipulation-toolbox[gui]"`. A convenience `all` extra (`gui` + `test`) is also
-          available. See the [Installation Guide](docs/installation.md).
+* ADDED: Model-Exchange FMUs: the number of continuous states (`nx`) and of event indicators (`nz`)
+         are now computed from `<ModelStructure>` (FMI-2 `<Derivatives>` / FMI-3 `<ContinuousStateDerivative>`
+         and `<EventIndicator>`, array variables counted per element).
+* ADDED: `fmucontainer`: embedded fixed-step solver for Model-Exchange FMUs. All ME FMUs are advanced in a
+         single container-wide loop so their state derivatives, state events and time events stay consistent
+         across the coupled set. A forward-Euler integrator is used by default, with an RK4 integrator also
+         available. An FMU providing both Co-Simulation and Model-Exchange is now embedded in Co-Simulation mode.
+         Assemblies mixing Co-Simulation and Model-Exchange FMUs are supported.
+* CHANGE:`PySide6` (the GUI toolkit) is no longer installed by default. `pip install fmu-manipulation-toolbox`
+         now only installs the **CLI** (`fmutool`, `fmucontainer`, `fmusplit`, `datalog2pcap`) and the
+         **Python API**, neither of which import `PySide6`. To use the **Graphical User Interfaces**
+         (`fmutoolbox`, `fmutool-gui`, `fmueditor`, `fmucontainer-gui`), install the new `gui` extra:
+         `pip install "fmu-manipulation-toolbox[gui]"`. A convenience `all` extra (`gui` + `test`) is also
+         available. See the [Installation Guide](docs/installation.md).
 
 # Version 1.9.4.2
 * ADDED: Container thread synchronization on macOS now uses a semaphore instead of a barrier
