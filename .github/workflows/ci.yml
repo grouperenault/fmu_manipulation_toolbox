@@ -96,8 +96,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Minimum and maximum supported Python versions.
-        python-version: ["3.9", "3.13"]
+        # Oldest testable and newest Python (test tooling such as pytest>=9 needs >=3.10).
+        python-version: ["3.10", "3.13"]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/download-artifact@v4
@@ -153,8 +153,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Minimum and maximum supported Python versions.
-        python-version: ["3.9", "3.13"]
+        # Oldest testable and newest Python (test tooling such as pytest>=9 needs >=3.10).
+        python-version: ["3.10", "3.13"]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/download-artifact@v4
@@ -231,8 +231,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Minimum and maximum supported Python versions.
-        python-version: ["3.9", "3.13"]
+        # Oldest testable and newest Python (test tooling such as pytest>=9 needs >=3.10).
+        python-version: ["3.10", "3.13"]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/download-artifact@v4
@@ -264,6 +264,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-latest, macos-latest]
+        # Minimum and maximum supported Python runtimes. The package itself must
+        # run on 3.9 even though the test tooling (pytest>=9) requires >=3.10.
+        python-version: ["3.9", "3.13"]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/download-artifact@v4
@@ -272,7 +275,7 @@ jobs:
         path: dist
     - uses: actions/setup-python@v5
       with:
-        python-version: "3.13"
+        python-version: ${{ matrix.python-version }}
     - name: Install the built wheel
       shell: bash
       run: |
