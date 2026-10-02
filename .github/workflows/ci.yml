@@ -1,0 +1,309 @@
+# Continuous integration: build the native binaries, run the test suite on the
+# supported platforms and produce the distributable package. This workflow is
+# also exposed via `workflow_call` so the release workflow can reuse the exact
+# same build+test+package pipeline before publishing.
+name: CI
+
+on:
+  pull_request:
+  push:
+    # Branch pushes only; tag pushes are handled by release.yml.
+    branches:
+      - "**"
+  workflow_dispatch:
+  workflow_call:
+
+# Least-privilege default; only `tests-win64` raises it (coverage badge).
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Build all native targets (remoting + container) through the reusable
+  # workflow. Each matrix entry maps to one platform/artifact.
+  build-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # remoting: 32-bit Windows
+          - os: windows-latest
+            source_dir: remoting
+            configure_args: "-DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -A Win32"
+            build_args: "--config Release"
+            artifact_name: remoting-win32
+            resource_subdir: win32
+          # remoting: 64-bit Windows
+          - os: windows-latest
+            source_dir: remoting
+            configure_args: "-DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -A x64"
+            build_args: "--config Release"
+            artifact_name: remoting-win64
+            resource_subdir: win64
+          # remoting: 32-bit Linux (needs gcc-multilib)
+          - os: ubuntu-24.04
+            source_dir: remoting
+            configure_args: "-DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release -DBUILD_32=ON"
+            build_args: "--config Release"
+            artifact_name: remoting-linux32
+            resource_subdir: linux32
+            install_multilib: true
+          # remoting: 64-bit Linux
+          - os: ubuntu-24.04
+            source_dir: remoting
+            configure_args: "-DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release"
+            build_args: "--config Release"
+            artifact_name: remoting-linux64
+            resource_subdir: linux64
+          # container: 64-bit Windows
+          - os: windows-latest
+            source_dir: container
+            configure_args: "-DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -A x64"
+            build_args: "--config Release"
+            artifact_name: container-win64
+            resource_subdir: win64
+          # container: 64-bit Linux
+          - os: ubuntu-24.04
+            source_dir: container
+            configure_args: "-DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release"
+            build_args: "--config Release"
+            artifact_name: container-linux64
+            resource_subdir: linux64
+          # container: macOS (Apple Silicon; default generator and flags)
+          - os: macos-latest
+            source_dir: container
+            artifact_name: container-darwin64
+            resource_subdir: darwin64
+    uses: ./.github/workflows/build-native.yml
+    with:
+      os: ${{ matrix.os }}
+      source_dir: ${{ matrix.source_dir }}
+      configure_args: ${{ matrix.configure_args }}
+      build_args: ${{ matrix.build_args }}
+      artifact_name: ${{ matrix.artifact_name }}
+      resource_subdir: ${{ matrix.resource_subdir }}
+      install_multilib: ${{ matrix.install_multilib || false }}
+
+  tests-win64:
+    needs: [build-native]
+    runs-on: windows-latest
+    # Needs write access to push the coverage badge to the `badges` branch.
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # Minimum and maximum supported Python versions.
+        python-version: ["3.9", "3.13"]
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: remoting-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+    - uses: actions/download-artifact@v4
+      with:
+        name: remoting-win32
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
+    - uses: actions/download-artifact@v4
+      with:
+        name: container-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    - name: Test suite run
+      run: |
+        cd tests
+        pytest --cov=fmu_manipulation_toolbox
+    # The coverage badge is refreshed from a single leg (3.13) on `main` only.
+    - name: Switch to `badges` branch and copy badge
+      if: github.ref == 'refs/heads/main' && matrix.python-version == '3.13'
+      run: |
+        cd tests
+        coverage-badge -f -o /coverage.svg
+        cd ..
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+
+        git fetch origin badges
+        git checkout badges
+
+        cp /coverage.svg .github/badges/coverage.svg
+
+    - name: Commit badge to `badges` branch
+      if: github.ref == 'refs/heads/main' && matrix.python-version == '3.13'
+      uses: stefanzweifel/git-auto-commit-action@v7
+      with:
+        commit_message: "Update coverage badge"
+        branch: badges
+        file_pattern: .github/badges/coverage.svg
+
+  tests-linux:
+    needs: [build-native]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # Minimum and maximum supported Python versions.
+        python-version: ["3.9", "3.13"]
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: remoting-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+    - uses: actions/download-artifact@v4
+      with:
+        name: remoting-win32
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
+    - uses: actions/download-artifact@v4
+      with:
+        name: remoting-linux32
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux32/
+    - uses: actions/download-artifact@v4
+      with:
+        name: remoting-linux64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
+    - uses: actions/download-artifact@v4
+      with:
+        name: container-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+    - uses: actions/download-artifact@v4
+      with:
+        name: container-linux64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
+    - uses: actions/download-artifact@v4
+      with:
+        name: container-darwin64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install libEGL.so.1
+      run: |
+        sudo apt-get install freeglut3-dev
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+        pip install -r requirements.txt
+    - name: Test with pytest
+      env:
+        # QtWebEngine is unstable headless on the GitHub runners; disabling the
+        # Chromium sandbox/GPU avoids spurious crashes.
+        QTWEBENGINE_DISABLE_SANDBOX: "1"
+        QTWEBENGINE_CHROMIUM_FLAGS: "--no-sandbox --disable-gpu"
+      run: |
+        cd tests
+        # The PySide6 GUI tests segfault under Python 3.13 on the Linux runner
+        # (QtWebEngine). They are still exercised by the Windows job, so skip
+        # them on the 3.13 Linux leg only.
+        if [ "${{ matrix.python-version }}" = "3.13" ]; then
+          pytest -v -m "not gui"
+        else
+          pytest -v
+        fi
+    - name: Package
+      if: matrix.python-version == '3.13'
+      run: |
+        python -m build
+    - name: Archive Artifacts
+      if: matrix.python-version == '3.13'
+      uses: actions/upload-artifact@v4
+      with:
+        name: package
+        path: ${{ github.workspace }}/dist
+        retention-days: 1
+
+  tests-macos:
+    needs: [build-native]
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Minimum and maximum supported Python versions.
+        python-version: ["3.9", "3.13"]
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+      with:
+        name: container-darwin64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    # `windows_only` tests (remoting, container-mt) are skipped automatically by
+    # the conftest hook; the remaining simulations use the darwin64 container
+    # binary downloaded above.
+    - name: Test with pytest
+      run: |
+        cd tests
+        pytest -v
+
+  # Validate the *built wheel* (not the sources): install it into a clean
+  # environment on every OS and check that imports, metadata, entry points and
+  # bundled binaries/data files are all present and working.
+  smoke-wheel:
+    needs: [tests-linux]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: package
+        path: dist
+    - uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+    - name: Install the built wheel
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install dist/*.whl
+    - name: Verify import, metadata and bundled resources
+      shell: bash
+      run: |
+        python - <<'PY'
+        import sys
+        from importlib.metadata import version
+        from importlib.resources import files
+        import fmu_manipulation_toolbox  # noqa: F401
+        print("import OK, version", version("fmu_manipulation_toolbox"))
+        res = files("fmu_manipulation_toolbox") / "resources"
+        assert (res / "license.txt").is_file(), "license.txt missing from wheel"
+        binaries = {
+            "linux": ["linux64/container.so", "linux64/client_sm.so"],
+            "win32": ["win64/container.dll", "win64/client_sm.dll"],
+            "darwin": ["darwin64/container.dylib"],
+        }
+        key = "win32" if sys.platform.startswith("win") else ("darwin" if sys.platform == "darwin" else "linux")
+        for rel in binaries[key]:
+            assert (res / rel).is_file(), f"bundled binary missing from wheel: {rel}"
+        print("bundled resources OK for", key)
+        PY
+    - name: Smoke-test CLI entry point
+      run: fmutool -h
+
+
+
+
+
+

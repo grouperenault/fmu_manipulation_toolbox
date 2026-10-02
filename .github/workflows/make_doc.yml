@@ -1,13 +1,62 @@
 name: mkdocs
+
 on:
   push:
     branches:
       - main
+  # Validate the documentation build on pull requests that touch the docs,
+  # the mkdocs config, the documented source package or this workflow.
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "fmu_manipulation_toolbox/**"
+      - ".github/workflows/make_doc.yml"
+  workflow_dispatch:
+
+# Least-privilege default; the deploy job raises it to `contents: write`.
 permissions:
-  contents: write
+  contents: read
+
+# Cancel superseded documentation runs on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  deploy:
+  # Strict build surfaces broken links / missing nav pages. It is a *blocking*
+  # check on pull requests. On `main` it runs alongside `deploy` as a signal
+  # only (deploy is intentionally NOT gated on it yet to avoid any deployment
+  # regression; add `needs: build` to the deploy job once strict is confirmed
+  # green).
+  build:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+      - uses: actions/cache@v4
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: ~/.cache
+          restore-keys: |
+            mkdocs-material-
+      - run: pip install mkdocs-material mkdocs-minify-plugin mkdocstrings-python
+      # `--strict` turns warnings (broken links, missing nav pages, ...) into
+      # errors so they are caught before publishing.
+      - run: mkdocs build --strict
+
+  deploy:
+    # Only publish for pushes to `main` (and manual runs), never on PRs.
+    # Deploy behaviour is unchanged from before this refactor (no `needs:`), so
+    # documentation keeps publishing exactly as it used to.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Needs write access to push the built site to the `gh-pages` branch.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - name: Configure Git Credentials
