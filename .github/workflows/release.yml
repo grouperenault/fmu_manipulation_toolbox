@@ -51,9 +51,12 @@ jobs:
         name: package
         path: dist
     # Authentication uses OIDC Trusted Publishing configured on PyPI for this
-    # project, so no username/password is provided.
+    # project, so no username/password is provided. The PyPI Trusted Publisher
+    # MUST reference this workflow file name (release.yml) and a matching
+    # environment (none here). `release/v1` is PyPA's maintained tag with full
+    # OIDC support.
     - name: Publish package to PyPI
-      uses: pypa/gh-action-pypi-publish@27b31702a0e7fc50959f5ad993c78deac1bdfc29
+      uses: pypa/gh-action-pypi-publish@release/v1
     - name: Determine pre-release flag
       id: prerelease
       shell: bash
