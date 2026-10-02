@@ -5,11 +5,15 @@
 name: CI
 
 on:
+  # Validate branches through their pull request...
   pull_request:
+  # ...and only run on direct pushes to the default branch. This avoids the
+  # duplicate run you get when pushing to a branch that already has an open PR
+  # (which would fire both `push` and `pull_request`). Tags are handled by
+  # release.yml.
   push:
-    # Branch pushes only; tag pushes are handled by release.yml.
     branches:
-      - "**"
+      - main
   workflow_dispatch:
   workflow_call:
 
