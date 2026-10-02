@@ -17,7 +17,7 @@ Before you begin, ensure you have:
 
 !!! info "What is an FMU?"
     A Functional Mock-up Unit (FMU) is a standardized format for model exchange and co-simulation defined by the
-[FMI Standard](https://fmi-standard.org/){:target="_blank"}. FMUs are widely used in automotive, aerospace, and industrial automation.
+    [FMI Standard](https://fmi-standard.org/){:target="_blank"}. FMUs are widely used in automotive, aerospace, and industrial automation.
 
 ## Installation
 
@@ -36,7 +36,7 @@ fmutool --help
 ??? success "Installation successful!"
     
     You should see the help message displaying all available commands. If you encounter issues, check our 
-[Troubleshooting Guide](../help/troubleshooting.md).
+    [Troubleshooting Guide](../help/troubleshooting.md).
 
 ## Your First FMU Analysis
 
