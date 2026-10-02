@@ -47,7 +47,7 @@ jobs:
   build:
     runs-on: ${{ inputs.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install 32-bit toolchain
         if: inputs.install_multilib
@@ -62,7 +62,7 @@ jobs:
         run: cmake --build ${{ github.workspace }}/build ${{ inputs.build_args }}
 
       - name: Archive artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ inputs.artifact_name }}
           path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/${{ inputs.resource_subdir }}

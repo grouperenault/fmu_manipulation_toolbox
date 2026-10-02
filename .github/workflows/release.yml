@@ -46,7 +46,7 @@ jobs:
       # OIDC Trusted Publishing to PyPI (no long-lived API token needed).
       id-token: write
     steps:
-    - uses: actions/download-artifact@v4
+    - uses: actions/download-artifact@v5
       with:
         name: package
         path: dist
