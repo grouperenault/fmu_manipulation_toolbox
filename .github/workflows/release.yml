@@ -7,10 +7,13 @@ name: Release
 on:
   push:
     tags:
+      # Accept both upper- and lower-case prefixes (V1.2.3 or v1.2.3); PEP 440
+      # normalises the leading letter away for the published version.
       - "V*"
+      - "v*"
   workflow_dispatch:
 
-# Default read-only; the publish job keeps only what it needs.
+# Default read-only; jobs raise what they need.
 permissions:
   contents: read
 
@@ -25,11 +28,16 @@ jobs:
   # on the tag ref, setup.py derives the version from the tag name.
   ci:
     uses: ./.github/workflows/ci.yml
+    # The called workflow's `tests-win64` job requests `contents: write` (coverage
+    # badge). A called (reusable) workflow cannot exceed the caller's token, so
+    # grant it here to avoid a startup failure.
+    permissions:
+      contents: write
 
   publish:
     # Extra guard: only publish for real version tags, never for a manual
-    # dispatch from a branch.
-    if: startsWith(github.ref, 'refs/tags/V')
+    # dispatch from a branch. Case-insensitive to match the tag trigger above.
+    if: startsWith(github.ref, 'refs/tags/V') || startsWith(github.ref, 'refs/tags/v')
     needs: ci
     runs-on: ubuntu-24.04
     permissions:
