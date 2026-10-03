@@ -16,6 +16,8 @@ This package was formerly known as `fmutool`.
          (`fmutoolbox`, `fmutool-gui`, `fmueditor`, `fmucontainer-gui`), install the new `gui` extra:
          `pip install "fmu-manipulation-toolbox[gui]"`. A convenience `all` extra (`gui` + `test`) is also
          available. See the [Installation Guide](docs/installation.md).
+* CHANGE: CI improved.
+* CHANGE: Test plan improved.
 
 # Version 1.9.4.2
 * ADDED: Container thread synchronization on macOS now uses a semaphore instead of a barrier
