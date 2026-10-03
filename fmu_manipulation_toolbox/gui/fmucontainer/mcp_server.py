@@ -369,7 +369,7 @@ def _build_fastmcp(bridge: GuiBridge, invoker: MainThreadInvoker):
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise McpUnavailableError(
             "The 'fastmcp' package is required for the AI assistant "
-            "(pip install 'fastmcp>=2.14.0', Python >= 3.10)."
+            "(pip install 'fmu_manipulation_toolbox[mcp]', Python >= 3.10)."
         ) from exc
 
     mcp = FastMCP("fmucontainer")

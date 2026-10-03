@@ -45,10 +45,21 @@ If you also want to use `fmutoolbox`, `fmutool-gui`, `fmueditor` or `fmucontaine
 pip install "fmu-manipulation-toolbox[gui]"
 ```
 
+### Installation with the AI Assistant (MCP server)
+
+The Container Builder can expose its assembly capabilities to an AI agent through an
+[MCP server](user-guide/fmucontainer/ai-assistant.md). This optional feature requires
+Python **3.10+** and the `fastmcp` package, available through the `mcp` extra:
+
+```bash
+pip install "fmu-manipulation-toolbox[gui,mcp]"
+```
+
 !!! tip "Which install do I need?"
 
     - **CLI / Python API only** (scripting, CI/CD, servers): `pip install fmu-manipulation-toolbox`
     - **GUI tools** (interactive use): `pip install "fmu-manipulation-toolbox[gui]"`
+    - **GUI tools + AI Assistant** (MCP server, Python 3.10+): `pip install "fmu-manipulation-toolbox[gui,mcp]"`
 
 ### Installation with Upgrade
 
@@ -193,6 +204,8 @@ pip install -e .
 # With GUI and/or test dependencies
 pip install -e ".[gui]"
 pip install -e ".[gui,test]"
+# With the AI Assistant (MCP server, Python 3.10+)
+pip install -e ".[gui,mcp]"
 ```
 
 #### Standard Installation
@@ -326,6 +339,9 @@ pip uninstall fmu-manipulation-toolbox xmlschema elementpath colorama
 
 # If you installed the `gui` and/or `test` extras, also remove:
 pip uninstall PySide6 fmpy
+
+# If you installed the `mcp` extra (AI Assistant), also remove:
+pip uninstall fastmcp
 ```
 
 ## Supported Python Versions

@@ -11,13 +11,18 @@ log panel.
 
 ## Requirements
 
-- Python **3.10+** and the optional `fastmcp` package (FastMCP 2):
+- Python **3.10+** and the optional `fastmcp` package (FastMCP 2). It is **not**
+  installed by default: pull it in through the `mcp` extra of the toolbox:
 
   ```bash
-  pip install "fastmcp>=2.14.0"
+  pip install "fmu-manipulation-toolbox[mcp]"
   ```
 
-  It is installed automatically with the toolbox on supported Python versions.
+  To combine it with the GUI (required to run the Container Builder), use:
+
+  ```bash
+  pip install "fmu-manipulation-toolbox[gui,mcp]"
+  ```
 
 ## Starting the server
 

@@ -107,10 +107,15 @@ FMI versions 2.0, 3.0 and LS-BUS are supported.
             "xmlschema >= 3.3.1",
             "elementpath >= 4.4.0",
             "colorama >= 0.4.6",
-			"fastmcp >= 2.14.0; python_version>='3.10'",
             "importlib_metadata >= 8.7.0; python_version<'3.10'"
         ],
         extras_require={
+            "mcp": [
+                # Only needed by the optional MCP server
+                # (`fmu_manipulation_toolbox.gui.fmucontainer.mcp_server`).
+                # Requires Python >= 3.10.
+                "fastmcp >= 2.14.0; python_version>='3.10'",
+            ],
             "gui": [
                 # Only needed by `fmu_manipulation_toolbox.gui.*` (fmutool-gui, fmueditor,
                 # fmucontainer-gui, fmutoolbox launcher). The CLI (`fmutool`, `fmucontainer`,
@@ -127,7 +132,7 @@ FMI versions 2.0, 3.0 and LS-BUS are supported.
                 "fmpy >= 0.3.20",
                 "numpy",
             ],
-            "all": ["fmu_manipulation_toolbox[gui,test]"],
+            "all": ["fmu_manipulation_toolbox[gui,mcp,test]"],
         },
         license="BSD-2-Clause",
         license_files=["LICENSE.txt"],

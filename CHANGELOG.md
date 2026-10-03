@@ -2,6 +2,16 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* ADDED: `fmucontainer-gui`: **AI Assistant** — the Container Builder can expose its assembly
+         capabilities to an AI agent (e.g. GitHub Copilot in *Agent* mode) through a
+         [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server. Toggle it from the
+         **Configuration** menu (*AI Assistant On/Off*); the agent drives the live canvas (add FMUs,
+         wire ports, expose inputs/outputs, set start values and options, build the container FMU),
+         with every action marked as an unsaved change and written to the log panel. The server uses
+         the Streamable HTTP transport bound to `127.0.0.1:8765/mcp` (port overridable with the
+         `FMUCONTAINER_MCP_PORT` environment variable). This feature requires Python >= 3.10 and the
+         new `mcp` extra: `pip install "fmu-manipulation-toolbox[gui,mcp]"`. See
+         [AI Assistant (MCP server)](docs/user-guide/fmucontainer/ai-assistant.md).
 * ADDED: Model-Exchange FMUs: the number of continuous states (`nx`) and of event indicators (`nz`)
          are now computed from `<ModelStructure>` (FMI-2 `<Derivatives>` / FMI-3 `<ContinuousStateDerivative>`
          and `<EventIndicator>`, array variables counted per element).
