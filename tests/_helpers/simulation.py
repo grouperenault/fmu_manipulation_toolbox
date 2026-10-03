@@ -31,7 +31,13 @@ def assert_simulation(filename: Union[Path, str], step_size: Optional[float] = N
 
 
 def assert_simulation_log(filename: Union[Path, str], step_size: Optional[float] = None):
-    """Simulate `filename` with debug logging and compare the log against REF."""
+    """Simulate `filename` with debug logging and compare the log against REF.
+
+    The first lines of an FMI debug log carry volatile build/instance metadata
+    (GUID, timestamps, ...), so they are skipped. The remaining lines are
+    compared one by one *including the line count*, so a truncated or overlong
+    log is reported rather than silently accepted.
+    """
     if isinstance(filename, str):
         filename = Path(filename)
 
@@ -45,12 +51,24 @@ def assert_simulation_log(filename: Union[Path, str], step_size: Optional[float]
 
     ref_filename = log_filename.with_stem("REF-" + log_filename.stem)
 
-    with open(log_filename, mode="rt", newline=None) as a, open(ref_filename, mode="rt", newline=None) as b:
-        for i, (lineA, lineB) in enumerate(zip(a, b)):
-            if i > 10:
-                assert lineA == lineB, \
-                    f"files {log_filename} and {ref_filename} missmatch (excl. GUID):\n" \
-                    f"{lineA}\n" \
-                    f"vs.\n\n" \
-                    f"{lineB}"
+    # Number of leading log lines carrying volatile metadata (not part of the
+    # contract) that must be excluded from the comparison.
+    header_lines = 11
+    log_lines = Path(log_filename).read_text().splitlines()[header_lines:]
+    ref_lines = Path(ref_filename).read_text().splitlines()[header_lines:]
+
+    assert len(log_lines) == len(ref_lines), (
+        f"files {log_filename} and {ref_filename} mismatch "
+        f"(after the {header_lines}-line header): "
+        f"{len(log_lines)} vs {len(ref_lines)} lines"
+    )
+    for offset, (actual, expected) in enumerate(zip(log_lines, ref_lines)):
+        lineno = header_lines + offset + 1
+        assert actual == expected, (
+            f"files {log_filename} and {ref_filename} mismatch at line {lineno} "
+            f"(excl. volatile header):\n"
+            f"{actual}\n"
+            f"vs.\n\n"
+            f"{expected}"
+        )
 

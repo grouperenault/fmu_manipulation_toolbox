@@ -795,7 +795,7 @@ class OperationRenameFromCSV(OperationAbstract):
                     self.translations[row[0]] = row[1]
         except FileNotFoundError:
             raise OperationError(f"file '{csv_filename}' is not found")
-        except KeyError:
+        except IndexError:
             raise OperationError(f"file '{csv_filename}' should contain two columns")
 
     def port_attrs(self, fmu_port):
@@ -1033,8 +1033,8 @@ class OperationTrimUntil(OperationAbstract):
     def port_attrs(self, fmu_port) -> int:
         name = fmu_port['name']
         try:
-            fmu_port['name'] = name[name.index(self.separator)+len(self.separator):-1]
-        except KeyError:
+            fmu_port['name'] = name[name.index(self.separator)+len(self.separator):]
+        except ValueError:
             pass  # no separator
 
         return 0

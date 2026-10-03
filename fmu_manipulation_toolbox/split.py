@@ -99,8 +99,10 @@ class FMUSplitter:
         self.close()
 
     def close(self) -> None:
-        """Close the underlying zip file. Safe to call multiple times."""
-        if self.zip is not None:
+        """Close the underlying zip file. Safe to call multiple times, and
+        even when ``__init__`` failed before ``self.zip`` was assigned (e.g.
+        the FMU file does not exist): ``__del__`` must never raise."""
+        if getattr(self, "zip", None) is not None:
             logger.debug("Closing zip file")
             self.zip.close()
             self.zip = None
