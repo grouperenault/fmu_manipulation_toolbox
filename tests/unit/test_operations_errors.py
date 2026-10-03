@@ -40,7 +40,7 @@ def _make_port(name: str) -> FMUPort:
 def test_fmu_missing_file_raises_fmuerror(tmp_path):
     with pytest.raises(FMUError) as exc:
         FMU(str(tmp_path / "does-not-exist.fmu"))
-    assert "does not exist" in exc.value.reason
+    assert "does not exist" in str(exc.value)
 
 
 def test_fmu_without_descriptor_raises_fmuerror(tmp_path):
@@ -51,7 +51,7 @@ def test_fmu_without_descriptor_raises_fmuerror(tmp_path):
 
     with pytest.raises(FMUError) as exc:
         FMU(str(broken))
-    assert "is not valid" in exc.value.reason
+    assert "is not valid" in str(exc.value)
 
 
 # --------------------------------------------------------------------------- #
@@ -60,7 +60,7 @@ def test_fmu_without_descriptor_raises_fmuerror(tmp_path):
 def test_rename_from_csv_missing_file_raises(tmp_path):
     with pytest.raises(OperationError) as exc:
         OperationRenameFromCSV(str(tmp_path / "absent.csv"))
-    assert "not found" in exc.value.reason
+    assert "not found" in str(exc.value)
 
 
 def test_rename_from_csv_single_column_raises(tmp_path):
@@ -72,7 +72,7 @@ def test_rename_from_csv_single_column_raises(tmp_path):
 
     with pytest.raises(OperationError) as exc:
         OperationRenameFromCSV(str(csv_file))
-    assert "two columns" in exc.value.reason
+    assert "two columns" in str(exc.value)
 
 
 # --------------------------------------------------------------------------- #

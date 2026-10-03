@@ -26,11 +26,10 @@ pytestmark = [pytest.mark.integration]
 
 @pytest.fixture(autouse=True)
 def _capture_package_logger(caplog):
-    """Capture the ``fmu_manipulation_toolbox`` logger at DEBUG level so the
-    fatal messages emitted by the CLIs are visible to ``caplog`` regardless of
-    the handler the CLI installs on it."""
+    """Force capture of the ``fmu_manipulation_toolbox`` logger at DEBUG level so
+    the fatal messages emitted by the CLIs are visible to ``caplog`` regardless
+    of the handler the CLI installs on that logger."""
     caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
-    return caplog
 
 
 # --------------------------------------------------------------------------- #
