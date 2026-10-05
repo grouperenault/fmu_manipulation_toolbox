@@ -78,6 +78,14 @@ def mcp_server(qapp, data_dir):
         # would then pop a modal "save your changes?" dialog, which never
         # returns under the offscreen platform and hangs the test session.
         window._dirty = False
+        # Block the scene's signals before deleting the widgets: Qt re-emits
+        # `selectionChanged` while items are torn down by the C++ destructors,
+        # and the handlers would then touch the already-deleted scene
+        # (libshiboken: "Internal C++ object (NodeGraphScene) already deleted").
+        try:
+            window._graph.scene.blockSignals(True)
+        except RuntimeError:
+            pass
         window.close()
         # Delete the widgets now, while logging still works: letting the
         # garbage collector do it at interpreter shutdown makes Qt emit
@@ -295,5 +303,3 @@ def test_building_gets_a_longer_budget_than_editing(qapp):
     bridge = QtAssemblyBridge(window=None, invoker=_invoker(timeout=2.0))
 
     assert bridge._build_timeout == 2.0 * BUILD_TIMEOUT_FACTOR
-
-
