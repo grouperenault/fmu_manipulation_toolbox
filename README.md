@@ -62,6 +62,15 @@ required). If you also want the **Graphical User Interfaces** (`fmutoolbox`, `fm
 pip install "fmu-manipulation-toolbox[gui]"
 ```
 
+To let an AI agent assemble FMU containers for you through a
+[Model Context Protocol](https://modelcontextprotocol.io/) server
+(`fmutool-mcp`, or the Container Builder's *AI Assistant* menu), install the `mcp`
+extra (Python ≥ 3.10):
+
+```bash
+pip install "fmu-manipulation-toolbox[mcp]"
+```
+
 
 ### Supported platforms
 

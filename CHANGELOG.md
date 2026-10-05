@@ -2,12 +2,41 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* ADDED: MCP server: **single-FMU tools** beyond container assembly — `summarize_fmu`,
+         `check_fmu` (FMI schema conformity), `dump_ports_csv`, `rename_ports_from_csv` and
+         `apply_operation` (prefix stripping/merging, trimming, regexp filtering). The tools that
+         rewrite an FMU always produce a new file and leave the source untouched.
+* ADDED: MCP server: assembly edition is now reversible and batchable — `remove_link`,
+         `unset_start_value` and `add_links` (bulk wiring, reporting per-link failures).
+* ADDED: MCP server: optional **bearer-token authentication** for the HTTP transport
+         (`--token generate`, or `FMUCONTAINER_MCP_TOKEN`). The loopback interface keeps remote
+         machines out, but not the other processes of the same machine, which can otherwise read
+         and write files through the server.
+* FIXED: `Checker`: XSD validation errors were lost instead of being reported — the error was
+         logged with a malformed `logger.error(reason, msg)` call, which raised at formatting time.
+* ADDED: `fmutool-mcp`: a **standalone MCP server**, launched by the MCP client over the
+         **stdio** transport (Claude Desktop, VS Code, Cline, ...) and requiring neither a display
+         nor a running GUI. It serves exactly the same tools as the GUI assistant, on top of the
+         public `Assembly` API. `--root DIR` (or `FMUCONTAINER_MCP_ROOT`) confines the agent to a
+         directory tree; `--transport http` is also available for clients that attach to an
+         already-running server. The server advertises itself to clients as `fmutool`.
+         Requires Python >= 3.10 and the `mcp` extra.
 * ADDED: `fmucontainer-gui`: **AI Assistant** — the Container Builder can expose its assembly
          capabilities to an AI agent (e.g. GitHub Copilot in *Agent* mode) through a
          [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server. Toggle it from the
          **Configuration** menu (*AI Assistant On/Off*); the agent drives the live canvas (add FMUs,
          wire ports, expose inputs/outputs, set start values and options, build the container FMU),
-         with every action marked as an unsaved change and written to the log panel. The server uses
+         with every action marked as an unsaved change and written to the log panel. Port
+         introspection reports every variable with its causality, variability, type, unit, start
+         value and description, and is filterable (by causality or name pattern) and paginated so
+         that industrial FMUs do not saturate the agent context. The server also ships its own
+         know-how, so that any MCP client benefits from it: three prompts (`build_container`,
+         `diagnose_assembly`, `inspect_fmu`) describing complete procedures, and reference
+         resources (`guide://usage`, `fmi://conventions`, `container://options`,
+         `assembly://current`, `fmu://{name}/ports`). Building a container reports its progress
+         to the client instead of running silently, and the time the tools wait for the GUI is
+         configurable with `FMUCONTAINER_MCP_TIMEOUT` (60 s by default, ten times that for
+         builds). The server uses
          the Streamable HTTP transport bound to `127.0.0.1:8765/mcp` (port overridable with the
          `FMUCONTAINER_MCP_PORT` environment variable). This feature requires Python >= 3.10 and the
          new `mcp` extra: `pip install "fmu-manipulation-toolbox[gui,mcp]"`. See

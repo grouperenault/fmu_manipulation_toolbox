@@ -1,10 +1,10 @@
-"""
-FMU Container Builder – MCP (Model Context Protocol) server.
+"""Qt bridge and HTTP runner for the Container Builder MCP server.
 
-Exposes the running Container Builder GUI to an AI agent (e.g. GitHub Copilot
-in *Agent* mode) over an HTTP/SSE transport bound to localhost. The agent can
-introspect FMUs, add them to the assembly, wire ports together, expose
-container inputs/outputs, set start values and finally build the container FMU.
+This module is the **Qt side** of the AI assistant: it implements the
+:class:`~fmu_manipulation_toolbox.assistant.bridge.AssemblyBridge` protocol on
+top of the live Container Builder window, and runs the MCP server (built by
+:func:`~fmu_manipulation_toolbox.assistant.server.build_server`) over the
+Streamable HTTP transport.
 
 Every action is applied on the live scene/tree (so the user sees it happen),
 marked *dirty* (undoable / re-savable) and logged to the visible log panel.
@@ -12,25 +12,28 @@ marked *dirty* (undoable / re-savable) and logged to the visible log panel.
 Design
 ------
 Qt owns the main-thread event loop. The MCP server (uvicorn + anyio) runs in a
-dedicated ``QThread``. Because all GUI objects must only be touched from the
-Qt main thread, every tool marshals its work onto the main thread through
-:class:`MainThreadInvoker` (a queued signal + blocking wait), and returns the
-result to the MCP worker thread.
-
-The FastMCP 2 SDK (``fastmcp`` package) requires Python >= 3.10; the import is
-therefore performed lazily so the rest of the GUI keeps working on Python 3.9.
-The server uses the recommended Streamable HTTP transport (endpoint ``/mcp``).
+dedicated ``QThread``, and FastMCP additionally dispatches synchronous tools to
+its own worker threads. Because all GUI objects must only be touched from the
+Qt main thread, every bridge method marshals its work onto the main thread
+through :class:`MainThreadInvoker` (a queued signal + blocking wait), and
+returns the result to the calling worker thread.
 """
 
-from __future__ import annotations
-
 import logging
-import os
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
+
+from fmu_manipulation_toolbox.assistant import (
+    BUILD_TIMEOUT_FACTOR, DEFAULT_HOST, PORT_ENV_VAR, TIMEOUT_ENV_VAR, build_server,
+    resolve_port, resolve_timeout,
+)
+from fmu_manipulation_toolbox.assistant.auth import (
+    TOKEN_ENV_VAR, build_auth_middleware, resolve_token,
+)
+from fmu_manipulation_toolbox.assistant.bridge import SUPPORTED_FMI_VERSIONS
 
 from .details import ContainerParameters
 from .graph import NodeItem
@@ -43,12 +46,13 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 logger = logging.getLogger("fmu_manipulation_toolbox")
 tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
 
-DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = int(os.environ.get("FMUCONTAINER_MCP_PORT", "8765"))
 
-
-class McpUnavailableError(RuntimeError):
-    """Raised when the optional ``mcp`` dependency cannot be imported."""
+def _count_by_causality(ports: List[Dict[str, Any]]) -> Dict[str, int]:
+    counts: Dict[str, int] = {}
+    for port in ports:
+        causality = port["causality"] or "unknown"
+        counts[causality] = counts.get(causality, 0) + 1
+    return counts
 
 
 # ---------------------------------------------------------------------------
@@ -66,20 +70,32 @@ class MainThreadInvoker(QObject):
 
     _invoke = Signal(object)
 
-    def __init__(self):
+    def __init__(self, timeout: Optional[float] = None):
         super().__init__()
         # QueuedConnection guarantees `_run` executes in this object's thread
         # (the main thread), regardless of the emitting thread.
         self._invoke.connect(self._run, Qt.ConnectionType.QueuedConnection)
+        self.timeout = resolve_timeout() if timeout is None else timeout
 
     @staticmethod
     def _run(task: Callable[[], None]):
         task()
 
-    def call(self, fn: Callable[[], Any], timeout: float = 60.0) -> Any:
+    def call(self, fn: Callable[[], Any], timeout: Optional[float] = None) -> Any:
         """Execute ``fn`` on the Qt main thread and return its result.
 
+        Args:
+            fn: Callable to run on the main thread.
+            timeout: Seconds to wait. Defaults to :attr:`timeout`, itself
+                configurable through ``FMUCONTAINER_MCP_TIMEOUT``.
+
         Re-raises on the calling thread any exception raised by ``fn``.
+
+        Raises:
+            TimeoutError: If the main thread did not run ``fn`` in time. This
+                is not a failure of the operation: the GUI is simply busy (a
+                modal dialog, a long build), and the operation may well still
+                be applied afterwards.
         """
         outcome: Dict[str, Any] = {}
         done = threading.Event()
@@ -92,28 +108,46 @@ class MainThreadInvoker(QObject):
             finally:
                 done.set()
 
+        budget = self.timeout if timeout is None else timeout
         self._invoke.emit(task)
-        if not done.wait(timeout):
-            raise TimeoutError("Timed out waiting for the GUI main thread.")
+        if not done.wait(budget):
+            raise TimeoutError(
+                f"The Container Builder window did not answer within {budget:g} s. "
+                f"It is probably busy (a dialog may be waiting for the user). The "
+                f"operation may still complete on its own: check the window before "
+                f"retrying, and raise {TIMEOUT_ENV_VAR} if this keeps happening."
+            )
         if "error" in outcome:
             raise outcome["error"]
         return outcome.get("value")
 
 
 # ---------------------------------------------------------------------------
-# GUI bridge – all methods run on the Qt main thread (via the invoker)
+# GUI bridge – all operations are marshalled onto the Qt main thread
 # ---------------------------------------------------------------------------
 
 
-class GuiBridge:
-    """Thin adapter mapping MCP tool calls onto Container Builder GUI actions.
+class QtAssemblyBridge:
+    """:class:`AssemblyBridge` implementation driving the Container Builder GUI.
 
-    All public methods assume they run on the Qt main thread (the MCP tools
-    wrap them with :meth:`MainThreadInvoker.call`).
+    Public methods may be called from any thread: each one marshals its work
+    onto the Qt main thread through the :class:`MainThreadInvoker`. The
+    ``_impl``-suffixed counterparts hold the actual GUI logic and always run on
+    the main thread.
     """
 
-    def __init__(self, window: "MainWindow"):
+    def __init__(self, window: "MainWindow", invoker: MainThreadInvoker):
         self._window = window
+        self._invoker = invoker
+
+    @property
+    def _build_timeout(self) -> float:
+        """Budget for the operations that rewrite every embedded FMU.
+
+        Editing the canvas is instantaneous; building a container is not, and
+        the two cannot share a deadline without making one of them wrong.
+        """
+        return self._invoker.timeout * BUILD_TIMEOUT_FACTOR
 
     # -- lookup helpers ----------------------------------------------------
 
@@ -141,9 +175,9 @@ class GuiBridge:
     def _resync_fmu_detail_panel(self, node: NodeItem):
         """Refresh the FMU detail panel's tables if it currently displays *node*.
 
-        Mirrors the wire-detail fix in :meth:`add_link`: `add_fmu()` selects
-        the new node, which synchronously shows it in the FMU detail panel
-        (loading its *pre-mutation* `user_start_values` /
+        Mirrors the wire-detail fix in :meth:`_add_link_impl`: `add_fmu()`
+        selects the new node, which synchronously shows it in the FMU detail
+        panel (loading its *pre-mutation* `user_start_values` /
         `user_exposed_inputs` / `user_exposed_outputs`). A later, direct
         mutation of those dicts (via `expose_input`/`expose_output`/
         `set_start_value`) would otherwise be silently discarded the next
@@ -158,43 +192,77 @@ class GuiBridge:
     # -- introspection -----------------------------------------------------
 
     def list_fmus(self) -> List[str]:
+        return self._invoker.call(self._list_fmus_impl)
+
+    def _list_fmus_impl(self) -> List[str]:
         return [node.fmu_path.name for node in self._scene.fmu_nodes()]
 
     @staticmethod
     def _node_ports(node: NodeItem) -> Dict[str, Any]:
+        """Describe every port of *node*, all causalities included.
+
+        Filtering and pagination are the server's job: this returns the whole
+        picture so the assistant layer stays the single place that decides
+        what the client actually sees.
+        """
+        kinds = []
+        if node.fmu_is_cosimulation:
+            kinds.append("CoSimulation")
+        if node.fmu_is_model_exchange:
+            kinds.append("ModelExchange")
+
+        ports = []
+        for name, causality in node.fmu_port_causality.items():
+            details = node.fmu_port_details.get(name, {})
+            ports.append({
+                "name": name,
+                "type": node.fmu_port_type.get(name, ""),
+                "causality": causality,
+                "variability": details.get("variability"),
+                "unit": details.get("unit"),
+                "start": node.user_start_values.get(name, node.fmu_start_values.get(name)),
+                "description": details.get("description"),
+            })
+
         return {
             "fmu": node.fmu_path.name,
+            "path": str(node.fmu_path),
             "fmi_version": node.fmu_fmi_version,
             "generator": node.fmu_generator,
-            "inputs": [
-                {"name": name, "type": node.fmu_port_type.get(name, ""),
-                 "causality": node.fmu_port_causality.get(name, ""),
-                 "start": node.fmu_start_values.get(name)}
-                for name in node.fmu_input_names
-            ],
-            "outputs": [
-                {"name": name, "type": node.fmu_port_type.get(name, "")}
-                for name in node.fmu_output_names
-            ],
+            "kinds": kinds,
             "terminals": list(node.fmu_terminal_names),
+            "ports": ports,
         }
 
     def list_fmu_ports(self, fmu: str) -> Dict[str, Any]:
-        node = self._node_by_name(fmu)
-        if node is not None:
-            return self._node_ports(node)
+        return self._invoker.call(lambda: self._list_fmu_ports_impl(fmu))
 
-        # Not in the scene yet: introspect the file off-scene, then discard.
-        path = Path(fmu)
-        if not path.is_file():
-            raise FileNotFoundError(f"FMU '{fmu}' is neither loaded nor a valid file path.")
-        probe = NodeItem(path)
+    def _list_fmu_ports_impl(self, fmu: str) -> Dict[str, Any]:
+        node = self._node_by_name(fmu)
+        if node is None:
+            known = ", ".join(self._list_fmus_impl()) or "none"
+            raise ValueError(
+                f"FMU '{fmu}' is not in the assembly (currently: {known}). "
+                f"Use `inspect_fmu_file` to look at a file that has not been added."
+            )
+        return self._node_ports(node)
+
+    def inspect_fmu_file(self, path: str) -> Dict[str, Any]:
+        return self._invoker.call(lambda: self._inspect_fmu_file_impl(path))
+
+    def _inspect_fmu_file_impl(self, path: str) -> Dict[str, Any]:
+        # Read the descriptor off-scene through a throw-away node, so the
+        # inspected file is never added to the assembly.
+        probe = NodeItem(Path(path))
         try:
             return self._node_ports(probe)
         finally:
             del probe
 
     def get_assembly_json(self) -> Dict[str, Any]:
+        return self._invoker.call(self._get_assembly_json_impl)
+
+    def _get_assembly_json_impl(self) -> Dict[str, Any]:
         assembly = self._window.create_assembly()
         if assembly is None or assembly.root is None:
             return {}
@@ -202,7 +270,10 @@ class GuiBridge:
 
     # -- mutations ---------------------------------------------------------
 
-    def add_fmu(self, path: str) -> str:
+    def add_fmu(self, path: str) -> Dict[str, Any]:
+        return self._invoker.call(lambda: self._add_fmu_impl(path))
+
+    def _add_fmu_impl(self, path: str) -> Dict[str, Any]:
         fmu_path = Path(path)
         if not fmu_path.is_file():
             raise FileNotFoundError(f"FMU file not found: '{path}'")
@@ -211,20 +282,37 @@ class GuiBridge:
             raise ValueError(f"'{fmu_path.name}' could not be added (already present?).")
         self._mark_dirty()
         tree_logger.info(f"[AI] Added FMU '{fmu_path.name}'")
-        return node.fmu_path.name
 
-    def remove_fmu(self, name: str) -> bool:
+        description = self._node_ports(node)
+        return {
+            "fmu": description["fmu"],
+            "path": description["path"],
+            "fmi_version": description["fmi_version"],
+            "generator": description["generator"],
+            "kinds": description["kinds"],
+            "counts": _count_by_causality(description["ports"]),
+            "terminals": description["terminals"],
+        }
+
+    def remove_fmu(self, name: str) -> Dict[str, Any]:
+        return self._invoker.call(lambda: self._remove_fmu_impl(name))
+
+    def _remove_fmu_impl(self, name: str) -> Dict[str, Any]:
         node = self._node_by_name(name)
         if node is None:
             raise ValueError(f"FMU '{name}' is not in the assembly.")
+        removed_links = sum(len(wire.mappings) for wire in node.wires)
         self._scene.node_removed.emit(node)
         node.remove_wires()
         self._scene.removeItem(node)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Removed FMU '{name}'")
-        return True
+        tree_logger.info(f"[AI] Removed FMU '{name}' ({removed_links} link(s))")
+        return {"fmu": node.fmu_path.name, "removed_links": removed_links}
 
     def add_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
+        return self._invoker.call(lambda: self._add_link_impl(from_fmu, from_port, to_fmu, to_port))
+
+    def _add_link_impl(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
         node_from = self._node_by_name(from_fmu)
         node_to = self._node_by_name(to_fmu)
         if node_from is None:
@@ -263,7 +351,50 @@ class GuiBridge:
         tree_logger.info(f"[AI] Linked {link}")
         return link
 
+    def remove_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
+        return self._invoker.call(
+            lambda: self._remove_link_impl(from_fmu, from_port, to_fmu, to_port))
+
+    def _remove_link_impl(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
+        node_from = self._node_by_name(from_fmu)
+        node_to = self._node_by_name(to_fmu)
+        if node_from is None:
+            raise ValueError(f"Source FMU '{from_fmu}' is not in the assembly.")
+        if node_to is None:
+            raise ValueError(f"Destination FMU '{to_fmu}' is not in the assembly.")
+
+        wire = self._existing_wire(node_from, node_to)
+        mapping = (node_from.fmu_path.name, from_port, node_to.fmu_path.name, to_port)
+        if wire is None or mapping not in wire.mappings:
+            raise ValueError(
+                f"There is no link {from_fmu}/{from_port} -> {to_fmu}/{to_port}. "
+                f"Use `get_assembly_json` to see the existing ones."
+            )
+
+        wire.mappings.remove(mapping)
+        # Same staleness trap as in `_add_link_impl`: the detail panel holds a
+        # copy of the mappings and would write it back over ours.
+        wire_detail = self._window._tree.wire_detail
+        if wire_detail._wire is wire:
+            wire_detail._load_from_wire()
+
+        # A wire carrying nothing is visual noise: drop it, unless it still
+        # holds terminal mappings, which are links of their own.
+        if not wire.mappings and not wire.terminal_mappings:
+            self._scene.wire_removed.emit(wire)
+            wire.remove()
+        else:
+            wire.update()
+
+        self._mark_dirty()
+        link = f"{node_from.fmu_path.name}/{from_port} -> {node_to.fmu_path.name}/{to_port}"
+        tree_logger.info(f"[AI] Unlinked {link}")
+        return link
+
     def expose_input(self, fmu: str, port: str) -> str:
+        return self._invoker.call(lambda: self._expose_input_impl(fmu, port))
+
+    def _expose_input_impl(self, fmu: str, port: str) -> str:
         node = self._node_by_name(fmu)
         if node is None:
             raise ValueError(f"FMU '{fmu}' is not in the assembly.")
@@ -276,6 +407,9 @@ class GuiBridge:
         return f"{node.fmu_path.name}/{port}"
 
     def expose_output(self, fmu: str, port: str) -> str:
+        return self._invoker.call(lambda: self._expose_output_impl(fmu, port))
+
+    def _expose_output_impl(self, fmu: str, port: str) -> str:
         node = self._node_by_name(fmu)
         if node is None:
             raise ValueError(f"FMU '{fmu}' is not in the assembly.")
@@ -288,6 +422,9 @@ class GuiBridge:
         return f"{node.fmu_path.name}/{port}"
 
     def set_start_value(self, fmu: str, port: str, value: str) -> str:
+        return self._invoker.call(lambda: self._set_start_value_impl(fmu, port, value))
+
+    def _set_start_value_impl(self, fmu: str, port: str, value: str) -> str:
         node = self._node_by_name(fmu)
         if node is None:
             raise ValueError(f"FMU '{fmu}' is not in the assembly.")
@@ -299,7 +436,30 @@ class GuiBridge:
         tree_logger.info(f"[AI] Start value {node.fmu_path.name}/{port} = {value}")
         return f"{node.fmu_path.name}/{port} = {value}"
 
+    def unset_start_value(self, fmu: str, port: str) -> str:
+        return self._invoker.call(lambda: self._unset_start_value_impl(fmu, port))
+
+    def _unset_start_value_impl(self, fmu: str, port: str) -> str:
+        node = self._node_by_name(fmu)
+        if node is None:
+            raise ValueError(f"FMU '{fmu}' is not in the assembly.")
+        if port not in node.user_start_values:
+            declared = node.fmu_start_values.get(port)
+            raise ValueError(
+                f"No start value was set on {node.fmu_path.name}/{port}"
+                + (f" (the FMU declares '{declared}')." if declared is not None
+                   else " and the FMU declares none.")
+            )
+        del node.user_start_values[port]
+        self._resync_fmu_detail_panel(node)
+        self._mark_dirty()
+        tree_logger.info(f"[AI] Start value cleared on {node.fmu_path.name}/{port}")
+        return f"{node.fmu_path.name}/{port}"
+
     def set_container_options(self, options: Dict[str, Any]) -> Dict[str, Any]:
+        return self._invoker.call(lambda: self._set_container_options_impl(options))
+
+    def _set_container_options_impl(self, options: Dict[str, Any]) -> Dict[str, Any]:
         root = self._window._tree.root
         params: Optional[ContainerParameters] = root.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
         if params is None:
@@ -318,145 +478,27 @@ class GuiBridge:
     # -- build / export ----------------------------------------------------
 
     def save_as_json(self, path: str) -> str:
+        return self._invoker.call(lambda: self._save_as_json_impl(path),
+                                  timeout=self._build_timeout)
+
+    def _save_as_json_impl(self, path: str) -> str:
         self._window.save_as_json(path)
         tree_logger.info(f"[AI] Exported assembly JSON to '{path}'")
         return path
 
     def save_as_fmu(self, path: str, fmi_version: int = 2, datalog: bool = False) -> str:
+        return self._invoker.call(lambda: self._save_as_fmu_impl(path, fmi_version, datalog),
+                                  timeout=self._build_timeout)
+
+    def _save_as_fmu_impl(self, path: str, fmi_version: int, datalog: bool) -> str:
+        if fmi_version not in SUPPORTED_FMI_VERSIONS:
+            raise ValueError(
+                f"Unsupported FMI version {fmi_version!r}: expected one of "
+                f"{list(SUPPORTED_FMI_VERSIONS)}."
+            )
         self._window.save_as_fmu(path, fmi_version=fmi_version, datalog=datalog)
         tree_logger.info(f"[AI] Built container FMU '{path}' (FMI-{fmi_version})")
         return path
-
-
-# ---------------------------------------------------------------------------
-# MCP application factory
-# ---------------------------------------------------------------------------
-
-USAGE_GUIDE = """\
-# FMU Container Builder — AI assistant guide
-
-You help the user compose several FMUs into a single **FMU Container** using
-the live Container Builder GUI. Actions are applied immediately and visible to
-the user.
-
-Recommended workflow:
-1. `list_fmus` to see what is already on the canvas.
-2. `add_fmu(path)` for each FMU file the user wants to combine.
-3. `list_fmu_ports(fmu)` to discover input/output ports and their types.
-4. `add_link(from_fmu, from_port, to_fmu, to_port)` to connect an OUTPUT of one
-   FMU to an INPUT of another. Types should be compatible.
-5. `expose_input` / `expose_output` to surface ports on the container boundary
-   (only needed when auto_input/auto_output are disabled or for clarity).
-6. `set_start_value(fmu, port, value)` for initial values / parameters.
-7. `set_container_options({...})` for step_size, mt, profiling, sequential,
-   auto_link, auto_input, auto_output, auto_parameter, auto_local.
-8. `get_assembly_json` to review the whole assembly before building.
-9. `save_as_json(path)` to save the description, or
-   `save_as_fmu(path, fmi_version=2|3, datalog=False)` to build the container.
-
-Tips:
-- FMU names are the file base names (e.g. `controller.fmu`).
-- `auto_link` connects same-named/typed ports automatically at build time, so
-  you often only need explicit `add_link` for ports whose names differ.
-- Always confirm the target output filename with the user before `save_as_fmu`.
-"""
-
-
-def _build_fastmcp(bridge: GuiBridge, invoker: MainThreadInvoker):
-    """Create and configure the FastMCP 2 server exposing the GUI tools."""
-    try:
-        from fastmcp import FastMCP
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise McpUnavailableError(
-            "The 'fastmcp' package is required for the AI assistant "
-            "(pip install 'fmu_manipulation_toolbox[mcp]', Python >= 3.10)."
-        ) from exc
-
-    mcp = FastMCP("fmucontainer")
-
-    def run_on_gui(fn: Callable[[], Any]) -> Any:
-        return invoker.call(fn)
-
-    @mcp.tool()
-    def list_fmus() -> List[str]:
-        """List the FMUs currently present in the assembly (by file name)."""
-        return run_on_gui(bridge.list_fmus)
-
-    @mcp.tool()
-    def list_fmu_ports(fmu: str) -> Dict[str, Any]:
-        """Describe the input/output ports of an FMU.
-
-        `fmu` is either the name of an FMU already on the canvas or a path to
-        an `.fmu` file to introspect.
-        """
-        return run_on_gui(lambda: bridge.list_fmu_ports(fmu))
-
-    @mcp.tool()
-    def add_fmu(path: str) -> str:
-        """Add an FMU file to the assembly. Returns the FMU name."""
-        return run_on_gui(lambda: bridge.add_fmu(path))
-
-    @mcp.tool()
-    def remove_fmu(name: str) -> bool:
-        """Remove an FMU (and its wires) from the assembly."""
-        return run_on_gui(lambda: bridge.remove_fmu(name))
-
-    @mcp.tool()
-    def add_link(from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
-        """Connect an OUTPUT port of one FMU to an INPUT port of another."""
-        return run_on_gui(lambda: bridge.add_link(from_fmu, from_port, to_fmu, to_port))
-
-    @mcp.tool()
-    def expose_input(fmu: str, port: str) -> str:
-        """Expose an FMU input port as a container input."""
-        return run_on_gui(lambda: bridge.expose_input(fmu, port))
-
-    @mcp.tool()
-    def expose_output(fmu: str, port: str) -> str:
-        """Expose an FMU output port as a container output."""
-        return run_on_gui(lambda: bridge.expose_output(fmu, port))
-
-    @mcp.tool()
-    def set_start_value(fmu: str, port: str, value: str) -> str:
-        """Set the start value (or parameter) of an FMU port."""
-        return run_on_gui(lambda: bridge.set_start_value(fmu, port, value))
-
-    @mcp.tool()
-    def set_container_options(options: Dict[str, Any]) -> Dict[str, Any]:
-        """Update root container options.
-
-        Keys: step_size, mt, profiling, sequential, auto_link, auto_input,
-        auto_output, auto_parameter, auto_local, ts_multiplier.
-        """
-        return run_on_gui(lambda: bridge.set_container_options(options))
-
-    @mcp.tool()
-    def get_assembly_json() -> Dict[str, Any]:
-        """Return the current assembly as a JSON-serialisable description."""
-        return run_on_gui(bridge.get_assembly_json)
-
-    @mcp.tool()
-    def save_as_json(path: str) -> str:
-        """Export the current assembly description as a JSON file."""
-        return run_on_gui(lambda: bridge.save_as_json(path))
-
-    @mcp.tool()
-    def save_as_fmu(path: str, fmi_version: int = 2, datalog: bool = False) -> str:
-        """Build the container and save it as an `.fmu` file (FMI 2 or 3)."""
-        return run_on_gui(lambda: bridge.save_as_fmu(path, fmi_version, datalog))
-
-    @mcp.resource("guide://usage")
-    def usage_guide() -> str:
-        """How to drive the Container Builder to assemble FMUs."""
-        return USAGE_GUIDE
-
-    @mcp.resource("assembly://current")
-    def current_assembly() -> str:
-        """The current assembly description (JSON)."""
-        import json
-        return json.dumps(run_on_gui(bridge.get_assembly_json), indent=2)
-
-    return mcp
 
 
 # ---------------------------------------------------------------------------
@@ -519,19 +561,39 @@ class McpServerController(QObject):
     #: Emitted on the main thread when the server cannot start / has failed.
     error = Signal(str)
 
-    def __init__(self, window: "MainWindow", host: str = DEFAULT_HOST, port: int = DEFAULT_PORT):
+    def __init__(self, window: "MainWindow", host: str = DEFAULT_HOST, port: Optional[int] = None):
         super().__init__()
         self._window = window
         self._host = host
+        # Resolved on first use (i.e. when the server starts), so a malformed
+        # FMUCONTAINER_MCP_PORT cannot break an unrelated import.
         self._port = port
-        self._bridge = GuiBridge(window)
         # The invoker must live on the Qt main thread.
         self._invoker = MainThreadInvoker()
+        self._bridge = QtAssemblyBridge(window, self._invoker)
         self._thread: Optional[_UvicornThread] = None
+        #: Bearer token required from clients, resolved when the server starts.
+        self._token: Optional[str] = None
+
+    @property
+    def token(self) -> Optional[str]:
+        """Token clients must present, or ``None`` when the port is open."""
+        return self._token
+
+    @property
+    def port(self) -> int:
+        """TCP port the server listens on.
+
+        Raises:
+            ValueError: If ``FMUCONTAINER_MCP_PORT`` holds an invalid value.
+        """
+        if self._port is None:
+            self._port = resolve_port()
+        return self._port
 
     @property
     def url(self) -> str:
-        return f"http://{self._host}:{self._port}/mcp"
+        return f"http://{self._host}:{self.port}/mcp"
 
     @property
     def running(self) -> bool:
@@ -555,12 +617,12 @@ class McpServerController(QObject):
         # succeed immediately.
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            probe.bind((self._host, self._port))
+            probe.bind((self._host, self.port))
         except OSError as exc:
             raise OSError(
-                f"Cannot start the AI Assistant: address {self._host}:{self._port} "
+                f"Cannot start the AI Assistant: address {self._host}:{self.port} "
                 f"is already in use ({exc.strerror}). Close the other instance or set "
-                f"a different port via the FMUCONTAINER_MCP_PORT environment variable."
+                f"a different port via the {PORT_ENV_VAR} environment variable."
             ) from exc
         finally:
             probe.close()
@@ -570,15 +632,32 @@ class McpServerController(QObject):
 
         Raises:
             McpUnavailableError: if the optional ``fastmcp`` package is missing.
+            ValueError: if ``FMUCONTAINER_MCP_PORT`` holds an invalid value.
             OSError: if the port is already in use.
         """
         if self.running:
             return
         self._check_port_available()
-        mcp = _build_fastmcp(self._bridge, self._invoker)
-        # FastMCP 2 Streamable HTTP ASGI app (endpoint path: /mcp).
+        mcp = build_server(self._bridge)
+        # FastMCP Streamable HTTP ASGI app (endpoint path: /mcp).
         app = mcp.http_app(path="/mcp")
-        self._thread = _UvicornThread(app, self._host, self._port)
+
+        # Opt-in authentication: without a token, any local process can drive
+        # the GUI and write files through it (see `assistant.auth`).
+        self._token = resolve_token()
+        if self._token:
+            app = build_auth_middleware(self._token)(app)
+            logger.info("MCP server: bearer token required. Configure your "
+                        "client with: Authorization: Bearer <token>")
+            logger.info(f"MCP server token: {self._token}")
+        else:
+            logger.warning(
+                f"MCP server: no authentication. Any local process can drive "
+                f"this window and read/write files through it. Set "
+                f"{TOKEN_ENV_VAR}=generate to require a token."
+            )
+
+        self._thread = _UvicornThread(app, self._host, self.port)
         # Queued delivery on the main thread (self lives on the main thread).
         self._thread.failed.connect(self._on_thread_failed)
         self._thread.start()
@@ -611,5 +690,4 @@ class McpServerController(QObject):
         logger.error(f"MCP server error: {message}")
         self.stop()
         self.error.emit(message)
-
 

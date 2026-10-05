@@ -48,6 +48,10 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_terminal_names: List[str] = []
         self.fmu_port_causality: Dict[str, str] = {}
         self.fmu_port_type: Dict[str, str] = {}
+        # Secondary descriptor attributes (variability, unit, description) kept
+        # per port. They are not needed to draw the node, but they are what
+        # makes a port listing readable for a human or a language model.
+        self.fmu_port_details: Dict[str, Dict[str, str]] = {}
         self.fmu_start_values: Dict[str, str] = {}
         self.user_start_values: Dict[str, str] = {}
         self.user_exposed_outputs: Dict[str, bool] = {}
@@ -229,6 +233,10 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
             self.fmu_output_names.append(name)
         self.fmu_port_causality[name] = causality
         self.fmu_port_type[name] = fmu_port.fmi_type or ""
+        details = {key: fmu_port.get(key, None)
+                   for key in ("variability", "unit", "description")}
+        self.fmu_port_details[name] = {key: value for key, value in details.items()
+                                       if value is not None}
         start = fmu_port.get("start", None)
         if start is not None:
             self.fmu_start_values[name] = start
@@ -264,6 +272,10 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
             self.fmu_port_causality[agg.basename] = causality
             self.fmu_port_type[agg.basename] = type_name
+            self.fmu_port_details[agg.basename] = {
+                "description": f"Array aggregate of {len(agg.ordered_element_names)} "
+                               f"scalar ports ({agg.ordered_element_names[0]}, ...)",
+            }
             self.fmu_array_aggregate_elements[agg.basename] = list(agg.ordered_element_names)
             if causality in ("input", "parameter"):
                 self.fmu_input_names.append(agg.basename)
@@ -376,6 +388,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_terminal_names.clear()
         self.fmu_port_causality.clear()
         self.fmu_port_type.clear()
+        self.fmu_port_details.clear()
         self.fmu_start_values.clear()
         self.fmu_array_aggregate_elements.clear()
         self.fmu_step_size = None
@@ -471,6 +484,7 @@ class ConfigurationNode(NodeItem):
         self.fmu_terminal_names: List[str] = []
         self.fmu_port_causality: Dict[str, str] = {}
         self.fmu_port_type: Dict[str, str] = {}
+        self.fmu_port_details: Dict[str, Dict[str, str]] = {}
         self.fmu_start_values: Dict[str, str] = {}
         self.user_start_values: Dict[str, str] = {}
         self.user_exposed_outputs: Dict[str, bool] = {}

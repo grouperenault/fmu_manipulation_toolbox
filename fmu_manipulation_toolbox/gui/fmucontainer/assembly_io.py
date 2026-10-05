@@ -596,24 +596,36 @@ class AssemblyIOMixin:
         return assembly
 
     def save_as_json(self, output_path):
-        """Export the current assembly as a JSON file."""
+        """Export the current assembly as a JSON file.
+
+        Raises:
+            AssemblyError: If the assembly cannot be built from the current
+                scene/tree state.
+        """
         assembly = self.create_assembly()
-        if assembly:
-            assembly.write_json(output_path)
-            self._dirty = False
+        if assembly is None:
+            raise AssemblyError("Cannot build the assembly from the current content.")
+        assembly.write_json(output_path)
+        self._dirty = False
 
     def save_as_fmu(self, output_path, fmi_version=2, datalog=False):
-        """Build and save the assembly as an FMU container."""
+        """Build and save the assembly as an FMU container.
+
+        Raises:
+            AssemblyError: If the assembly cannot be built from the current
+                scene/tree state.
+            FMUContainerError: If the container itself cannot be built. The
+                error is propagated so that callers never mistake a failed
+                build for a successful one.
+        """
         assembly = self.create_assembly()
+        if assembly is None:
+            raise AssemblyError("Cannot build the assembly from the current content.")
 
-        if assembly:
-            try:
-                with tempfile.TemporaryDirectory() as tmp_dir:
-                    json_file_path = Path(tmp_dir) / "container.json"
-                    assembly.write_json(json_file_path, basenames_only=True)
-                    assembly.description_pathname = json_file_path
-                    assembly.make_fmu(filename=output_path, fmi_version=fmi_version, datalog=datalog)
-                    self._dirty = False
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            json_file_path = Path(tmp_dir) / "container.json"
+            assembly.write_json(json_file_path, basenames_only=True)
+            assembly.description_pathname = json_file_path
+            assembly.make_fmu(filename=output_path, fmi_version=fmi_version, datalog=datalog)
+            self._dirty = False
 
-            except FMUContainerError as e:
-                logger.fatal(f"{e}")

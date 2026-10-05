@@ -190,7 +190,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         """Start/stop the MCP server (AI assistant) from the Configuration menu."""
         if checked:
             try:
-                from .mcp_server import McpServerController, McpUnavailableError
+                from fmu_manipulation_toolbox.assistant import McpUnavailableError
+                from .mcp_bridge import McpServerController
             except ImportError as e:
                 self._ai_assistant_error(f"Cannot load MCP support: {e}")
                 return

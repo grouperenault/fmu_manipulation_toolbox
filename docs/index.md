@@ -79,6 +79,23 @@ developers working with FMI-compliant models, it provides three powerful interfa
     
     Full programmatic control for complex workflows and custom integrations.
 
+=== "AI Assistant"
+
+    ```json
+    {
+      "mcpServers": {
+        "fmutool": {
+          "command": "fmutool-mcp",
+          "args": ["--root", "/path/to/my/fmus"]
+        }
+      }
+    }
+    ```
+
+    Let an AI agent assemble FMU containers through an
+    [MCP server](user-guide/fmucontainer/ai-assistant.md), standalone
+    (`fmutool-mcp`) or driving the live Container Builder window.
+
 
 ## Key Features
 

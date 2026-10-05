@@ -56,7 +56,10 @@ class OperationGenericCheck(OperationAbstract):
         try:
             xsd.validate(self.fmu.descriptor_filename)
         except XMLSchemaValidationError as error:
-            logger.error(error.reason, error.msg)
+            # NOTE: `logger.error(reason, msg)` would treat `msg` as a
+            # printf-style argument for `reason`, which raises at formatting
+            # time and loses the error entirely.
+            logger.error(f"{error.reason}: {error.msg}")
         else:
             self.compliant_with_version = attrs['fmiVersion']
 
