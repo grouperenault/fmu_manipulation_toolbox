@@ -22,6 +22,7 @@ pytestmark = [pytest.mark.unit]
 
 fastmcp = pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
 
+from pathlib import Path
 from fastmcp.exceptions import ToolError  # noqa: E402
 
 from fmu_manipulation_toolbox.assistant import (  # noqa: E402
@@ -114,7 +115,7 @@ class FakeBridge:
 
     def inspect_fmu_file(self, path):
         self._record("inspect_fmu_file", path)
-        return self._description(path.rsplit("/", 1)[-1])
+        return self._description(str(Path(path).name))
 
     def get_assembly_json(self):
         self._record("get_assembly_json")
@@ -123,7 +124,7 @@ class FakeBridge:
     # -- mutations ---------------------------------------------------------
     def add_fmu(self, path):
         self._record("add_fmu", path)
-        name = path.rsplit("/", 1)[-1]
+        name = str(Path(path).name)
         self.fmus[name] = self._description(name)
         return {
             "fmu": name,
@@ -1096,6 +1097,3 @@ def test_importing_the_package_does_not_require_fastmcp(monkeypatch):
     module = importlib.reload(importlib.import_module("fmu_manipulation_toolbox.assistant"))
 
     assert module.DEFAULT_HOST == "127.0.0.1"
-
-
-

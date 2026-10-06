@@ -19,10 +19,25 @@ fastmcp = pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not
 
 from fastmcp.client.transports import StdioTransport  # noqa: E402
 
+import os  # noqa: E402
+from fmu_manipulation_toolbox.assistant.paths import ROOT_ENV_VAR  # noqa: E402
+
 #: Repository root, so the subprocess can import the package from the checkout.
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 MODULE = "fmu_manipulation_toolbox.cli.fmutool_mcp"
+
+
+def _process_env() -> dict:
+    """Environment for spawned servers: inherit the current one so that the
+    child interpreter can start on any platform (in particular on Windows,
+    where replacing ``PATH`` with a Unix one breaks Python's own
+    initialization), while still clearing any pre-set root so that the test
+    stays hermetic."""
+    env = {key: value for key, value in os.environ.items()
+           if key != ROOT_ENV_VAR}
+    env["PYTHONPATH"] = str(REPO_ROOT)
+    return env
 
 
 def _run(coro):
@@ -35,7 +50,7 @@ def _client(*extra_args, root: Optional[Path] = None):
     if root is not None:
         args += ["--root", str(root)]
     return fastmcp.Client(StdioTransport(command=sys.executable, args=args,
-                                         env={"PYTHONPATH": str(REPO_ROOT)}))
+                                          env=_process_env()))
 
 
 @pytest.fixture
@@ -114,7 +129,7 @@ def test_the_module_reports_a_bad_root_instead_of_crashing(tmp_path):
     completed = subprocess.run(
         [sys.executable, "-m", MODULE, "--root", str(tmp_path / "missing")],
         capture_output=True, text=True, timeout=120,
-        env={"PYTHONPATH": str(REPO_ROOT), "PATH": "/usr/bin:/bin"},
+        env=_process_env(),
     )
 
     assert completed.returncode == 1
@@ -126,7 +141,7 @@ def test_the_help_is_available(tmp_path):
     completed = subprocess.run(
         [sys.executable, "-m", MODULE, "--help"],
         capture_output=True, text=True, timeout=120,
-        env={"PYTHONPATH": str(REPO_ROOT), "PATH": "/usr/bin:/bin"},
+        env=_process_env(),
     )
 
     assert completed.returncode == 0
