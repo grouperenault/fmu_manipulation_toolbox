@@ -209,6 +209,7 @@ def test_unlinking_cleans_the_scene(mcp_server, data_dir):
                                                 "from_port": "velocity",
                                                 "to_fmu": "bb_position.fmu",
                                                 "to_port": "velocity"})
+            time.sleep(0.01)
             wired = len(window._graph.scene.wires())
             await client.call_tool("remove_link", {"from_fmu": "bb_velocity.fmu",
                                                    "from_port": "velocity",
