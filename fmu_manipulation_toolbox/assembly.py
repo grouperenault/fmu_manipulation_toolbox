@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 from .container import FMUContainer
+from .textfiles import ENCODING, open_text
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -574,7 +575,7 @@ class Assembly:
                                  auto_output=self.default_auto_output, auto_parameter=self.default_auto_parameter,
                                  auto_local=self.default_auto_local, ts_multiplier=self.default_ts_multiplier)
 
-        with open(self.input_pathname) as file:
+        with open_text(self.input_pathname) as file:
             reader = csv.reader(file, delimiter=';')
             self._check_csv_headers(reader)
             for i, row in enumerate(reader):
@@ -652,7 +653,7 @@ class Assembly:
         if self.root.children:
             raise AssemblyError("This assembly is not flat. Cannot export to CSV file.")
 
-        with open(self.fmu_directory / filename, "wt") as outfile:
+        with open(self.fmu_directory / filename, "wt", encoding=ENCODING) as outfile:
             outfile.write("rule;from_fmu;from_port;to_fmu;to_port\n")
             for fmu in self.root.fmu_names_list:
                 outfile.write(f"FMU;{fmu};;;\n")
@@ -674,7 +675,7 @@ class Assembly:
         Raises:
             AssemblyError: If the JSON is malformed or contains invalid keywords.
         """
-        with open(self.input_pathname) as file:
+        with open_text(self.input_pathname) as file:
             try:
                 data = json.load(file)
             except json.decoder.JSONDecodeError as e:
@@ -768,7 +769,7 @@ class Assembly:
                 a built FMU).
         """
         output_pathname = self.fmu_directory / filename
-        with open(output_pathname, "wt") as file:
+        with open(output_pathname, "wt", encoding=ENCODING) as file:
             data = self.json_encode()
             if basenames_only:
                 data = _basename_json(data)

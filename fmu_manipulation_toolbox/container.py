@@ -17,6 +17,7 @@ from .ls import LayeredStandard
 from .model_description import ModelDescription
 from .operations import FMU, OperationAbstract, FMUError, FMUPort
 from .terminals import Terminals
+from .textfiles import ENCODING
 from .version import __version__ as tool_version
 
 
@@ -1909,11 +1910,11 @@ class FMUContainer:
         resources_directory = self.make_fmu_skeleton(base_directory)
 
         self.make_fmu_xml(base_directory / "modelDescription.xml", step_size, profiling, ts_multiplier)
-        with open(resources_directory / "container.txt", "wt") as txt_file:
+        with open(resources_directory / "container.txt", "wt", encoding=ENCODING) as txt_file:
             self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential)
 
         if datalog:
-            with open(resources_directory / "datalog.txt", "wt") as datalog_file:
+            with open(resources_directory / "datalog.txt", "wt", encoding=ENCODING) as datalog_file:
                 self.make_datalog(datalog_file)
 
         self.make_fmu_package(base_directory, fmu_filename)
