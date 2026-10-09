@@ -9,6 +9,7 @@ from pathlib import Path
 from .container import EmbeddedFMUPort, Link
 from .model_description import ModelDescription, ModelDescriptionError
 from .terminals import Terminals, Terminal
+from .textfiles import ENCODING
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -111,7 +112,7 @@ class FMUSplitter:
         logger.info(f"Splitting...")
         config = self._split_fmu(fmu_filename=str(self.fmu_filename), relative_path="")
         config_filename = self.directory / self.fmu_filename.with_suffix(".json").name
-        with open(config_filename, "w") as file:
+        with open(config_filename, "w", encoding=ENCODING) as file:
             json.dump(config, file, indent=2)
         logger.info(f"Container definition saved to '{config_filename}'")
 

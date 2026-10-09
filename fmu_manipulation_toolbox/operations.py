@@ -13,6 +13,7 @@ from typing import *
 
 from .model_description import ModelDescription, ModelDescriptionError, ModelVariable
 from .terminals import Terminals
+from .textfiles import ENCODING, open_text
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -716,7 +717,7 @@ class OperationSaveNamesToCSV(OperationAbstract):
 
     def __init__(self, filename):
         self.output_filename = filename
-        self.csvfile = open(filename, 'w', newline='')
+        self.csvfile = open(filename, 'w', newline='', encoding=ENCODING)
         self.writer = csv.writer(self.csvfile, delimiter=';', quotechar="'", quoting=csv.QUOTE_MINIMAL)
         self.writer.writerow(['name', 'newName', 'valueReference', 'causality', 'variability', 'scalarType',
                               'startValue'])
@@ -791,7 +792,7 @@ class OperationRenameFromCSV(OperationAbstract):
         self.translations = {}
 
         try:
-            with open(csv_filename, newline='') as csvfile:
+            with open_text(csv_filename) as csvfile:
                 reader = csv.reader(csvfile, delimiter=';', quotechar="'")
                 for row in reader:
                     self.translations[row[0]] = row[1]

@@ -2,6 +2,12 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* FIXED: text files are written and read in UTF-8 on every platform: assembly descriptions (CSV, JSON),
+         the port names CSV (`-dump-csv`, `-rename-from-csv`), `container.txt` and `datalog.txt`, and the log
+         saved by `fmutool-gui`. They used the platform encoding, cp1252 on most Windows installations, so
+         a non-ASCII name written on one platform was misread on another. A UTF-8 byte order mark (added
+         by Excel) is accepted, and a file that is not UTF-8 is still read with the platform encoding,
+         with a warning.
 * FIXED: reading an SSP archive: the elements of `SystemStructure.ssd` are recognized by their namespace
          (SSP 1.0) instead of the literal `ssd:` prefix. A valid SSD using another prefix or a default
          namespace failed with `AttributeError`. An invalid SSD (other namespace, not well-formed,
