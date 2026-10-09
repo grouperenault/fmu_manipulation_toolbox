@@ -2,6 +2,10 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* FIXED: reading an SSP archive: the elements of `SystemStructure.ssd` are recognized by their namespace
+         (SSP 1.0) instead of the literal `ssd:` prefix. A valid SSD using another prefix or a default
+         namespace failed with `AttributeError`. An invalid SSD (other namespace, not well-formed,
+         reference to an unknown element) now raises `AssemblyError` with a clear message.
 * REMOVED: `ModelStructureCounter`. The Model Exchange sizes are computed from the descriptor tree by
          `ModelDescription.model_exchange_sizes()`. `OperationSummary.structure` is replaced by
          `OperationSummary.number_of_continuous_states` and `number_of_event_indicators`, which

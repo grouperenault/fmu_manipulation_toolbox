@@ -487,12 +487,18 @@ fait partie de l'API publique documentée (`python-api.md`, checkers personnalis
    dans une version ultérieure ;
 5. entrée dans `CHANGELOG.md` (rupture d'API) ; adapter `tests/unit/test_operations_errors.py`, qui teste le mode détaché.
 
-### Parseur SSD de `assembly.py`
+### Parseur SSD de `assembly.py` — réalisé le 9 octobre 2026
 
-`AssemblyNode` lit les fichiers SSD (SSP) avec expat, sans traitement des namespaces : les balises sont reconnues par leur
-préfixe littéral (`'ssd:Connection'`, `'ssd:System'`…). Un SSD valide qui utiliserait un autre préfixe pour le même
-namespace ne serait pas lu. À reprendre avec ElementTree et les noms qualifiés `{http://ssp-standard.org/SSP1/SystemStructureDescription}…`,
-avec des tests sur des SSD produits par d'autres outils.
+`SSDParser` lisait les fichiers SSD (SSP) avec expat, sans traitement des namespaces : les balises étaient reconnues par
+leur préfixe littéral (`'ssd:Connection'`, `'ssd:System'`…). Constat : un SSD valide avec un autre préfixe ou un namespace
+par défaut ne produisait aucun système, et `read_ssp` échouait avec `AttributeError`.
+
+Réalisation : `ET.iterparse` et noms qualifiés (`SSDParser.SSD_NAMESPACE`, SSP 1.0). L'élément racine est vérifié ; un SSD
+d'un autre namespace, mal formé ou qui référence un élément inconnu lève `AssemblyError`. `start_element()` et
+`end_element()` reçoivent désormais le nom local (`"Connection"`) au lieu du nom préfixé (`"ssd:Connection"`). Tests :
+`tests/integration/test_ssp.py` (variantes de `bouncing.ssp` d'easySSP avec un autre préfixe et un namespace par défaut,
+comparées à la même référence JSON ; trois cas d'erreur). Les 5 tests échouent sur l'ancien code. Reste à faire : tester
+avec des SSD produits par d'autres outils que easySSP.
 
 ### Comparaison des descripteurs en cache
 

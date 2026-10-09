@@ -5,7 +5,7 @@ import os
 from typing import *
 from pathlib import Path
 import uuid
-import xml.parsers.expat
+import xml.etree.ElementTree as ET
 import zipfile
 
 from .container import FMUContainer
@@ -919,11 +919,14 @@ class Assembly:
 
 
 class SSDParser:
-    """SAX-based parser for SSD (System Structure Description) files.
+    """Parser for SSD (System Structure Description) files of SSP 1.0 archives.
 
     Parses the XML structure of an `.ssd` file and builds the corresponding
     [AssemblyNode][fmu_manipulation_toolbox.assembly.AssemblyNode] tree, including
     embedded FMUs, connections, and hierarchical sub-systems.
+
+    Elements are recognized by their namespace (`SSD_NAMESPACE`), whatever the
+    prefix used in the file (`ssd:`, another one, or a default namespace).
 
     Attributes:
         node_stack (list[AssemblyNode]): Stack of nodes used during XML parsing
@@ -932,6 +935,8 @@ class SSDParser:
         fmu_filenames (dict[str, str]): Mapping from SSD component names to
             FMU filenames.
     """
+
+    SSD_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureDescription"
 
     def __init__(self, zin: zipfile.ZipFile, extract_folder_name: str, **kwargs):
         self.zin = zin
@@ -950,18 +955,43 @@ class SSDParser:
 
         Returns:
             AssemblyNode: The root node representing the parsed system structure.
+
+        Raises:
+            AssemblyError: If the file is not well-formed, is not an SSP 1.0
+                system structure description, or refers to unknown elements.
         """
         logger.debug(f"Analysing {ssd_filename}")
-        with self.zin.open(ssd_filename) as file:
-            parser = xml.parsers.expat.ParserCreate()
-            parser.StartElementHandler = self.start_element
-            parser.EndElementHandler = self.end_element
-            parser.ParseFile(file)
+        prefix = f"{{{self.SSD_NAMESPACE}}}"
+        try:
+            with self.zin.open(ssd_filename) as file:
+                root_checked = False
+                for event, element in ET.iterparse(file, events=("start", "end")):
+                    if not root_checked:
+                        if element.tag != f"{prefix}SystemStructureDescription":
+                            raise AssemblyError(f"'{ssd_filename}' is not an SSP 1.0 system structure description: "
+                                                f"root element is <{element.tag}>, expected "
+                                                f"<SystemStructureDescription> in namespace '{self.SSD_NAMESPACE}'")
+                        root_checked = True
+                    if not element.tag.startswith(prefix):
+                        continue  # other SSP namespaces (ssc:, ssv:...) and vendor annotations
+                    tag = element.tag[len(prefix):]
+                    if event == "start":
+                        self.start_element(tag, element.attrib)
+                    else:
+                        self.end_element(tag)
+        except ET.ParseError as error:
+            raise AssemblyError(f"'{ssd_filename}' is not well-formed XML: {error}") from error
+        except KeyError as error:
+            raise AssemblyError(f"'{ssd_filename}': reference to an unknown element or missing attribute "
+                                f"{error}") from error
 
+        if self.root is None:
+            raise AssemblyError(f"'{ssd_filename}': no <System> found in namespace '{self.SSD_NAMESPACE}'")
         return self.root
 
     def start_element(self, tag_name, attrs):
-        if tag_name == 'ssd:Connection':
+        """Handle the start of an SSD element (`tag_name` without namespace, e.g. `"Connection"`)."""
+        if tag_name == 'Connection':
             if 'startElement' in attrs:
                 if 'endElement' in attrs:
                     fmu_start = self.fmu_filenames[attrs['startElement']]
@@ -977,7 +1007,7 @@ class SSDParser:
                 self.node_stack[-1].add_input(attrs['startConnector'],
                                               fmu_end, attrs['endConnector'])
 
-        elif tag_name == 'ssd:System':
+        elif tag_name == 'System':
             logger.info(f"SSP System: {attrs['name']}")
             filename = attrs['name'] + ".fmu"
             self.fmu_filenames[attrs['name']] = filename
@@ -989,7 +1019,7 @@ class SSDParser:
 
             self.node_stack.append(node)
 
-        elif tag_name == 'ssd:Component':
+        elif tag_name == 'Component':
             filename = f"{self.extract_folder_name}/{str(Path(attrs['source']).name)}"
             name = attrs['name']
             self.fmu_filenames[name] = filename
@@ -997,5 +1027,6 @@ class SSDParser:
             logger.debug(f"Component {name} => {filename}")
 
     def end_element(self, tag_name):
-        if tag_name == 'ssd:System':
+        """Handle the end of an SSD element (`tag_name` without namespace)."""
+        if tag_name == 'System':
             self.node_stack.pop()
