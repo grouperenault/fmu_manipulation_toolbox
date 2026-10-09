@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import uuid
+import xml.etree.ElementTree as ET
 import zipfile
 from collections import defaultdict
 from datetime import datetime
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import *
 
 from .ls import LayeredStandard
+from .model_description import ModelDescription
 from .operations import FMU, OperationAbstract, FMUError, FMUPort, ModelStructureCounter
 from .terminals import Terminals
 from .version import __version__ as tool_version
@@ -288,11 +290,12 @@ class EmbeddedFMUPort:
                                f"which is not supported")
         return size
 
-    def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> str:
+    def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> Optional[ET.Element]:
         """Generate the XML element for this port in `modelDescription.xml`.
 
         Produces a `<ScalarVariable>` element (FMI 2.0) or a typed element
-        like `<Float64>` (FMI 3.0).
+        like `<Float64>` (FMI 3.0). Attribute values are escaped when the
+        document is written.
 
         Args:
             vr (int): Value reference to use in the generated XML.
@@ -302,8 +305,8 @@ class EmbeddedFMUPort:
             fmi_version (int): FMI version (`2` or `3`).
 
         Returns:
-            str: XML fragment string, or an empty string if the type is not
-                compatible with the requested FMI version.
+            ET.Element | None: The variable element, or `None` if the type is
+                not compatible with the requested FMI version.
         """
         if name is None:
             name = self.name
@@ -324,73 +327,47 @@ class EmbeddedFMUPort:
         except KeyError:
             logger.error(f"Cannot expose ({causality}) '{name}' because type '{self.type_name}' is not compatible "
                          f"with FMI-{fmi_version}.0")
-            return ""
+            return None
 
         if fmi_version == 2 and self.is_fmi2_aggregate:
             logger.error(f"Cannot expose FMI-2 array aggregate '{name}' in an FMI-2 container "
                          f"(use the scalar elements '{name}[k]' individually).")
-            return ""
+            return None
+
+        attrs = {
+            "name": name,
+            "valueReference": vr,
+            "causality": causality,
+            "variability": self.variability,
+            "initial": self.initial,
+            "description": self.description,
+        }
 
         if fmi_version == 2:
-            child_attrs =  {
-                "start": start,
-            }
-
-            filtered_child_attrs = {key: value for key, value in child_attrs.items() if value is not None}
-            child_str = (f"<{fmi_type} " +
-                         " ".join([f'{key}="{value}"' for (key, value) in filtered_child_attrs.items()]) +
-                         "/>")
-
-            scalar_attrs = {
-                "name": name,
-                "valueReference": vr,
-                "causality": causality,
-                "variability": self.variability,
-                "initial": self.initial,
-                "description": self.description,
-            }
-            filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
-            scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
-            return f'<ScalarVariable {scalar_attrs_str}>{child_str}</ScalarVariable>'
+            variable = self._element("ScalarVariable", attrs)
+            variable.append(self._element(fmi_type, {"start": start}))
+            return variable
 
         elif fmi_version == 3:
-            child_str = ""
-            for dimension in self.dimensions:
-                child_str += f'<Dimension {dimension[0]}="{dimension[1]}"/>'
-
-            if child_str or fmi_type in ('String', 'Binary'):
+            if self.dimensions or fmi_type in ('String', 'Binary'):
+                variable = self._element(fmi_type, attrs)
+                for dimension in self.dimensions:
+                    variable.append(self._element("Dimension", {dimension[0]: dimension[1]}))
                 if start is not None:
-                    child_str += f'<Start value="{start}"/>'
-
-                scalar_attrs = {
-                    "name": name,
-                    "valueReference": vr,
-                    "causality": causality,
-                    "variability": self.variability,
-                    "initial": self.initial,
-                    "description": self.description,
-                }
-                filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
-                scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
-                return f'<{fmi_type} {scalar_attrs_str}>{child_str}</{fmi_type}>'
+                    variable.append(self._element("Start", {"value": start}))
             else:
-                scalar_attrs = {
-                    "name": name,
-                    "valueReference": vr,
-                    "causality": causality,
-                    "variability": self.variability,
-                    "initial": self.initial,
-                    "description": self.description,
-                    "start": start,
-                    "intervalVariability": self.interval_variability
-                }
-                filtered_attrs = {key: value for key, value in scalar_attrs.items() if value is not None}
-                scalar_attrs_str = " ".join([f'{key}="{value}"' for (key, value) in filtered_attrs.items()])
+                variable = self._element(fmi_type, {**attrs, "start": start,
+                                                    "intervalVariability": self.interval_variability})
+            return variable
 
-                return f'<{fmi_type} {scalar_attrs_str}/>'
         else:
             logger.critical(f"Unknown version {fmi_version}. BUG?")
-            return ''
+            return None
+
+    @staticmethod
+    def _element(tag: str, attrs: Dict[str, Any]) -> ET.Element:
+        """Element with the attributes whose value is not `None`, converted to strings."""
+        return ET.Element(tag, {key: str(value) for key, value in attrs.items() if value is not None})
 
 
 class EmbeddedFMU(OperationAbstract):
@@ -1462,84 +1439,6 @@ class FMUContainer:
         FMUContainerError: If the FMU directory is invalid.
     """
 
-    HEADER_XML_2 = """<?xml version="1.0" encoding="ISO-8859-1"?>
-<fmiModelDescription
-  fmiVersion="2.0"
-  modelName="{identifier}"
-  generationTool="FMUContainer-{tool_version}"
-  generationDateAndTime="{timestamp}"
-  guid="{guid}"
-  description="FMUContainer with {embedded_fmu}"
-  author="{author}"
-  license="Proprietary"
-  copyright="See Embedded FMU's copyrights."
-  variableNamingConvention="structured">
-
-  <CoSimulation
-    modelIdentifier="{identifier}"
-    canHandleVariableCommunicationStepSize="true"
-    canBeInstantiatedOnlyOncePerProcess="{only_once}"
-    canNotUseMemoryManagementFunctions="true"
-    canGetAndSetFMUstate="false"
-    canSerializeFMUstate="false"
-    providesDirectionalDerivative="false"
-    needsExecutionTool="{execution_tool}">
-  </CoSimulation>
-
-  <LogCategories>
-    <Category name="Info"
-              description="Info log messages." />
-    <Category name="Error"
-              description="Error log messages." />
-  </LogCategories>
-
-  <DefaultExperiment stepSize="{step_size}"{default_experiment_times}/>
-
-  <ModelVariables>
-    <ScalarVariable valueReference="0" name="time" causality="independent"><Real /></ScalarVariable>
-"""
-
-    HEADER_XML_3 = """<?xml version="1.0" encoding="ISO-8859-1"?>
-<fmiModelDescription
-  fmiVersion="3.0"
-  modelName="{identifier}"
-  generationTool="FMUContainer-{tool_version}"
-  generationDateAndTime="{timestamp}"
-  instantiationToken="{guid}"
-  description="FMUContainer with {embedded_fmu}"
-  author="{author}"
-  license="Proprietary"
-  copyright="See Embedded FMU's copyrights."
-  variableNamingConvention="structured">
-
-  <CoSimulation
-    modelIdentifier="{identifier}"
-    canHandleVariableCommunicationStepSize="true"
-    canBeInstantiatedOnlyOncePerProcess="{only_once}"
-    canNotUseMemoryManagementFunctions="true"
-    canGetAndSetFMUState="false"
-    canSerializeFMUState="false"
-    providesDirectionalDerivatives="false"
-    providesAdjointDerivatives="false"
-    providesPerElementDependencies="false"
-    providesEvaluateDiscreteStates="false"
-    hasEventMode="false"
-    needsExecutionTool="{execution_tool}">
-  </CoSimulation>
-
-  <LogCategories>
-    <Category name="Info"
-              description="Info log messages." />
-    <Category name="Error"
-              description="Error log messages." />
-  </LogCategories>
-
-  <DefaultExperiment stepSize="{step_size}"{default_experiment_times}/>
-
-  <ModelVariables>
-    <Float64 valueReference="0" name="time" causality="independent"/>
-"""
-
     def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2):
         self.fmu_directory = Path(fmu_directory)
         self.identifier = identifier
@@ -2017,8 +1916,7 @@ class FMUContainer:
         base_directory = self.fmu_directory / fmu_filename.with_suffix('')
         resources_directory = self.make_fmu_skeleton(base_directory)
 
-        with open(base_directory / "modelDescription.xml", "wt") as xml_file:
-            self.make_fmu_xml(xml_file, step_size, profiling, ts_multiplier)
+        self.make_fmu_xml(base_directory / "modelDescription.xml", step_size, profiling, ts_multiplier)
         with open(resources_directory / "container.txt", "wt") as txt_file:
             self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential)
 
@@ -2030,7 +1928,13 @@ class FMUContainer:
         if not debug:
             self.make_fmu_cleanup(base_directory)
 
-    def make_fmu_xml(self, xml_file, step_size: float, profiling: bool, ts_multiplier: bool):
+    def make_fmu_xml(self, xml_filename: Path, step_size: float, profiling: bool, ts_multiplier: bool):
+        """Build the container `modelDescription.xml` and write it (UTF-8, see `ModelDescription.save`).
+
+        The document is built as an ElementTree, so that names and descriptions
+        coming from the embedded FMUs are escaped. FMI 2.0 `<Unknown index>`
+        entries are computed from the actual position of the output variables.
+        """
         timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
         guid = str(uuid.uuid4())
         embedded_fmu = ", ".join([fmu_name for fmu_name in self.involved_fmu])
@@ -2059,28 +1963,71 @@ class FMUContainer:
         else:
             logger.info(f"stop_time={self.stop_time}")
 
-        default_experiment_times = ""
-        if self.start_time is not None:
-            default_experiment_times += f' startTime="{self.start_time}"'
-        if self.stop_time is not None:
-            default_experiment_times += f' stopTime="{self.stop_time}"'
+        root = ET.Element("fmiModelDescription", {
+            "fmiVersion": f"{self.fmi_version}.0",
+            "modelName": self.identifier,
+            "generationTool": f"FMUContainer-{tool_version}",
+            "generationDateAndTime": timestamp,
+            "guid" if self.fmi_version == 2 else "instantiationToken": guid,
+            "description": f"FMUContainer with {embedded_fmu}",
+            "author": author,
+            "license": "Proprietary",
+            "copyright": "See Embedded FMU's copyrights.",
+            "variableNamingConvention": "structured",
+        })
 
         if self.fmi_version == 2:
-            xml_file.write(self.HEADER_XML_2.format(identifier=self.identifier, tool_version=tool_version,
-                                                    timestamp=timestamp, guid=guid, embedded_fmu=embedded_fmu,
-                                                    author=author,
-                                                    only_once=capabilities['canBeInstantiatedOnlyOncePerProcess'],
-                                                    execution_tool=capabilities['needsExecutionTool'],
-                                                    default_experiment_times=default_experiment_times,
-                                                    step_size=step_size))
-        elif self.fmi_version == 3:
-            xml_file.write(self.HEADER_XML_3.format(identifier=self.identifier, tool_version=tool_version,
-                                                    timestamp=timestamp, guid=guid, embedded_fmu=embedded_fmu,
-                                                    author=author,
-                                                    only_once=capabilities['canBeInstantiatedOnlyOncePerProcess'],
-                                                    execution_tool=capabilities['needsExecutionTool'],
-                                                    default_experiment_times=default_experiment_times,
-                                                    step_size=step_size))
+            cosimulation = {
+                "modelIdentifier": self.identifier,
+                "canHandleVariableCommunicationStepSize": "true",
+                "canBeInstantiatedOnlyOncePerProcess": capabilities['canBeInstantiatedOnlyOncePerProcess'],
+                "canNotUseMemoryManagementFunctions": "true",
+                "canGetAndSetFMUstate": "false",
+                "canSerializeFMUstate": "false",
+                "providesDirectionalDerivative": "false",
+                "needsExecutionTool": capabilities['needsExecutionTool'],
+            }
+        else:
+            cosimulation = {
+                "modelIdentifier": self.identifier,
+                "canHandleVariableCommunicationStepSize": "true",
+                "canBeInstantiatedOnlyOncePerProcess": capabilities['canBeInstantiatedOnlyOncePerProcess'],
+                "canNotUseMemoryManagementFunctions": "true",
+                "canGetAndSetFMUState": "false",
+                "canSerializeFMUState": "false",
+                "providesDirectionalDerivatives": "false",
+                "providesAdjointDerivatives": "false",
+                "providesPerElementDependencies": "false",
+                "providesEvaluateDiscreteStates": "false",
+                "hasEventMode": "false",
+                "needsExecutionTool": capabilities['needsExecutionTool'],
+            }
+        ET.SubElement(root, "CoSimulation", cosimulation)
+
+        log_categories = ET.SubElement(root, "LogCategories")
+        ET.SubElement(log_categories, "Category", {"name": "Info", "description": "Info log messages."})
+        ET.SubElement(log_categories, "Category", {"name": "Error", "description": "Error log messages."})
+
+        default_experiment = {"stepSize": str(step_size)}
+        if self.start_time is not None:
+            default_experiment["startTime"] = str(self.start_time)
+        if self.stop_time is not None:
+            default_experiment["stopTime"] = str(self.stop_time)
+        ET.SubElement(root, "DefaultExperiment", default_experiment)
+
+        model_variables = ET.SubElement(root, "ModelVariables")
+        if self.fmi_version == 2:
+            time = ET.SubElement(model_variables, "ScalarVariable",
+                                 {"valueReference": "0", "name": "time", "causality": "independent"})
+            ET.SubElement(time, "Real")
+        else:
+            ET.SubElement(model_variables, "Float64",
+                          {"valueReference": "0", "name": "time", "causality": "independent"})
+
+        def add_variable(variable: Optional[ET.Element]) -> Optional[ET.Element]:
+            if variable is not None:
+                model_variables.append(variable)
+            return variable
 
         vr_time = self.vr_table.add_vr("real64", local=True)
         logger.debug(f"Time vr = {vr_time}")
@@ -2095,7 +2042,7 @@ class FMUContainer:
                                                  "variability": "discrete",
                                                  "start": 1,
                                                  "initial": "exact"})
-            print(f"    {port.xml(vr_ts_multiplier, fmi_version=self.fmi_version)}", file=xml_file)
+            add_variable(port.xml(vr_ts_multiplier, fmi_version=self.fmi_version))
 
         vr_solver = self.vr_table.add_vr("integer32", local=True)
         if self.have_me:
@@ -2107,7 +2054,7 @@ class FMUContainer:
                                                  "variability": "discrete",
                                                  "start": 0,
                                                  "initial": "exact"})
-            print(f"    {port.xml(vr_solver, fmi_version=self.fmi_version)}", file=xml_file)
+            add_variable(port.xml(vr_solver, fmi_version=self.fmi_version))
 
         if profiling:
             for fmu in self.involved_fmu.values():
@@ -2115,90 +2062,54 @@ class FMUContainer:
                 port = EmbeddedFMUPort("real64", {"valueReference": vr,
                                         "name": f"container.{fmu.id}.rt_ratio",
                                         "description": f"RT ratio for embedded FMU '{fmu.name}'"})
-                print(f"    {port.xml(vr, fmi_version=self.fmi_version)}", file=xml_file)
-
-        index_offset = 2    # index of output ports. Start at 2 to skip "time" port
+                add_variable(port.xml(vr, fmi_version=self.fmi_version))
 
         # Local variable should be first to ensure to attribute them the lowest VR.
         nb_clocks = 0
         for link in self.links.values():
             self.vr_table.set_link_vr(link)
             if link.cport_from:
-                port_local_def = link.cport_from.port.xml(link.vr, name=link.name, causality='local',
-                                                          fmi_version=self.fmi_version)
+                add_variable(link.cport_from.port.xml(link.vr, name=link.name, causality='local',
+                                                      fmi_version=self.fmi_version))
             else:
                 # LS-BUS allow Clock generated by fmi-importer
                 port = EmbeddedFMUPort("Clock",
                                        {"name": "", "valueReference": -1, "intervalVariability": "triggered"},
                                        fmi_version=3)
-                port_local_def = port.xml(link.vr, name=f"container.clock{nb_clocks}", causality='local', fmi_version=self.fmi_version)
+                add_variable(port.xml(link.vr, name=f"container.clock{nb_clocks}", causality='local',
+                                      fmi_version=self.fmi_version))
                 nb_clocks += 1
-
-            if port_local_def:
-                print(f"    {port_local_def}", file=xml_file)
-                index_offset += 1
 
         for input_port_name, input_port in self.inputs.items():
             input_port.vr = self.vr_table.add_vr(input_port.type_name)
             # Get Start and XML from first connected input
             start = self.start_values.get(input_port.cport_list[0], None)
-            port_input_def = input_port.cport_list[0].port.xml(input_port.vr, name=input_port_name,
-                                                               start=start, fmi_version=self.fmi_version)
-            if port_input_def:
-                print(f"    {port_input_def}", file=xml_file)
-                index_offset += 1
+            add_variable(input_port.cport_list[0].port.xml(input_port.vr, name=input_port_name,
+                                                           start=start, fmi_version=self.fmi_version))
 
+        outputs = []    # (container output, its variable element), for <ModelStructure>
         for output_port_name, output_port in self.outputs.items():
             output_port.vr = self.vr_table.add_vr(output_port)
-            port_output_def = output_port.port.xml(output_port.vr, name=output_port_name,
-                                                   fmi_version=self.fmi_version)
-            if port_output_def:
-                print(f"    {port_output_def}", file=xml_file)
+            variable = add_variable(output_port.port.xml(output_port.vr, name=output_port_name,
+                                                         fmi_version=self.fmi_version))
+            if variable is not None:
+                outputs.append((output_port, variable))
 
+        model_structure = ET.SubElement(root, "ModelStructure")
         if self.fmi_version == 2:
-            self.make_fmu_xml_epilog_2(xml_file, index_offset)
-        elif self.fmi_version == 3:
-            self.make_fmu_xml_epilog_3(xml_file)
+            # FMI-2 §2.2.8: <Unknown index> is the 1-based position of the variable in <ModelVariables>.
+            positions = {id(variable): index for index, variable in enumerate(model_variables, start=1)}
+            if outputs:
+                for section in ("Outputs", "InitialUnknowns"):
+                    unknowns = ET.SubElement(model_structure, section)
+                    for _, variable in outputs:
+                        ET.SubElement(unknowns, "Unknown", {"index": str(positions[id(variable)])})
+        else:
+            for tag in ("Output", "InitialUnknown"):
+                for output_port, _ in outputs:
+                    ET.SubElement(model_structure, tag, {"valueReference": str(output_port.vr)})
 
-    def make_fmu_xml_epilog_2(self, xml_file, index_offset):
-        xml_file.write("  </ModelVariables>\n"
-                       "\n"
-                       "  <ModelStructure>\n")
-
-
-        if self.outputs:
-            xml_file.write("    <Outputs>\n")
-            index = index_offset
-            for output in self.outputs.values():
-                if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[2]:
-                    print(f'      <Unknown index="{index}"/>', file=xml_file)
-                    index += 1
-            xml_file.write("    </Outputs>\n"
-                           "    <InitialUnknowns>\n")
-            index = index_offset
-            for output in self.outputs.values():
-                if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[2]:
-                    print(f'      <Unknown index="{index}"/>', file=xml_file)
-                    index += 1
-            xml_file.write("    </InitialUnknowns>\n")
-
-        xml_file.write("  </ModelStructure>\n"
-                       "\n"
-                       "</fmiModelDescription>")
-
-    def make_fmu_xml_epilog_3(self, xml_file):
-        xml_file.write("  </ModelVariables>\n"
-                       "\n"
-                       "  <ModelStructure>\n")
-        for output in self.outputs.values():
-            if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[3]:
-                print(f'      <Output valueReference="{output.vr}"/>', file=xml_file)
-        for output in self.outputs.values():
-            if output.port.type_name in EmbeddedFMUPort.CONTAINER_TO_FMI[3]:
-                print(f'      <InitialUnknown valueReference="{output.vr}"/>', file=xml_file)
-        xml_file.write("  </ModelStructure>\n"
-                       "\n"
-                       "</fmiModelDescription>")
+        ModelDescription(root).save(xml_filename)
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
         print("# Version 6", file=txt_file)

@@ -24,17 +24,18 @@ Défauts constatés, dont la plupart ont été reproduits avec une opération vi
 | D4 | Sous-éléments d'une variable perdus : `<Annotations>` (FMI-2), `<Alias>` (FMI-3), plusieurs `<Start>` (tableaux de `String`) | `start_element` / `FMUPort.write_xml` | ✅ si l'arbre est **modifié en place** au lieu d'être régénéré |
 | D5 | Commentaires et déclaration `<?xml?>` supprimés. **Non conforme** : FMI-2 §2.2 et FMI-3 §2.4 exigent que la première ligne déclare l'encodage UTF-8 | `Manipulation` | ⚠️ seulement si on le demande explicitement (`TreeBuilder(insert_comments=True)`, `xml_declaration=True`) |
 | D6 | Conséquence de D1/D2 : la **deuxième** opération d'une chaîne lève `ExpatError` (ex. `fmutool -remove-toplevel -check`) | — | ✅ |
-| D7 | XML du container non échappé (attributs `description`, `name`… recopiés tels quels depuis les FMU embarquées) | `EmbeddedFMUPort.xml`, `HEADER_XML_*` | ✅ si la génération passe aussi par ElementTree (phase 4) |
-| D8 | Container : `encoding="ISO-8859-1"` déclaré, mais fichier ouvert en `"wt"` **sans encodage**, donc écrit avec l'encodage de la locale (UTF-8 sous Linux/macOS, cp1252 sous Windows). **Non conforme** : les deux standards exigent UTF-8 | `container.py:2020`, `:1465`, `:1502` | ✅ avec `tree.write(..., encoding="UTF-8")` |
+| D7 | XML du container non échappé (attributs `description`, `name`… recopiés tels quels depuis les FMU embarquées) | `EmbeddedFMUPort.xml`, `HEADER_XML_*` | ✅ corrigé en phase 4 |
+| D8 | Container : `encoding="ISO-8859-1"` déclaré, mais fichier ouvert en `"wt"` **sans encodage**, donc écrit avec l'encodage de la locale (UTF-8 sous Linux/macOS, cp1252 sous Windows). **Non conforme** : les deux standards exigent UTF-8 | `container.py:2020`, `:1465`, `:1502` | ✅ corrigé en phase 4 |
 | D9 | `-remove-sources` supprime `sources/` mais laisse `<SourceFiles>` dans le descripteur | `OperationRemoveSources` | ➖ pas automatique, mais devient trivial |
 | D10 | Une opération qui supprime **toutes** les variables (ex. `-keep-only-regexp` sans correspondance) produit un `<ModelVariables>` vide, que le XSD FMI-2 comme FMI-3 interdit. L'outil livre alors une FMU invalide sans prévenir | `Manipulation` | ➖ non ; il faut un garde-fou explicite (erreur ou avertissement) |
 | D11 | FMI-2 : l'attribut `derivative` (index 1-based de l'état, §2.2.7) **n'est pas renuméroté** quand des ports sont supprimés. Dans `tests/data/me/velocity_me.fmu`, après `rename_from_csv`, `Deriv1` pointe sur lui-même | `Manipulation` (seuls `<Unknown index>` et `dependencies` sont renumérotés) | ➖ non ; à traiter en phase 2 |
 | D12 | Supprimer une variable référencée par une autre laisse une **référence pendante** : `derivative` (FMI-2 et FMI-3), `previous`, `clocks`, `<Dimension valueReference>` (FMI-3) | `Manipulation` | ➖ non ; refuser l'opération ou supprimer en cascade (décision en phase 2) |
 | D13 | Les renommages (`-remove-toplevel`, `-trim-until`…) peuvent donner **le même nom** à plusieurs variables, alors que les noms (et les alias FMI-3) doivent être uniques (FMI-3 §2.4 *uniqueNameAttribute*). Le XSD ne le vérifie pas. Constaté sur 5 FMU de `tests/data` (`ls-bus/bus`, `split/container-*`) | opérations de renommage | ➖ non ; garde-fou en phase 2 |
 | D14 | *(trouvé en phase 2)* L'ancienne réécriture supprimait les `<Start value="">` vides des `Binary` FMI-3 et les `<Dimension start="1">` : un tableau de taille 1 devenait un scalaire. Constaté sur les FMU ls-bus de `tests/data` | `FMUPort.write_xml` | ✅ corrigé en phase 2 (arbre modifié en place) |
+| D15 | *(trouvé en phase 4)* Container FMI-2 : les index de `<Outputs>`/`<InitialUnknowns>` étaient calculés à la main sans compter les variables `ts_multiplier`, `solver` et de profiling. Dès que l'une d'elles était présente, `<ModelStructure>` désignait des variables **locales** au lieu des sorties (FMI-2 §2.2.8). La référence `REF-modelDescription-profiling.xml` contenait ce défaut | `make_fmu_xml_epilog_2` | ✅ corrigé en phase 4 (index calculés depuis la position des éléments) |
 
-D1 à D6 et D9 à D14 sont reproduits par des tests (phases 0 à 2) et **corrigés en phase 2**. D7 et D8 viennent de la lecture
-du code ; ils seront couverts par les tests de la phase 4. Pour D10, D12 et D13, la politique retenue est le **refus** de
+D1 à D6 et D9 à D14 sont reproduits par des tests (phases 0 à 2) et **corrigés en phase 2** ; D7, D8 et D15 sont reproduits
+et corrigés en phase 4. Pour D10, D12 et D13, la politique retenue est le **refus** de
 l'opération (`OperationError`, FMU laissée intacte).
 
 **Ce qu'ElementTree ne corrige pas** (à traiter à part, voir phase 3) : `BadZipFile` brute au lieu de `FMUError`, nettoyage du
@@ -392,6 +393,20 @@ la phase 5.
 - références de test : `REF-*modelDescription*.xml` comparés en C14N (phase 0), en ignorant les attributs
   volatils (`guid`, `generationDateAndTime`…) listés dans `VOLATILE_XML_ATTRIBUTES` ;
 - on ajoute un test avec une FMU embarquée dont la `description` contient `&`, `"` et des caractères non ASCII.
+
+**État au 9 octobre 2026 : réalisée.**
+
+| Élément | Fichier |
+|---|---|
+| `EmbeddedFMUPort.xml()` renvoie un `ET.Element` (ou `None` si le type n'est pas exposable), au lieu d'une chaîne | `container.py` |
+| `make_fmu_xml()` construit tout l'arbre (en-tête, `CoSimulation`, `LogCategories`, `DefaultExperiment`, variables, `ModelStructure`) et l'écrit avec `ModelDescription.save()` : UTF-8, déclaration XML. `HEADER_XML_2/3` et `make_fmu_xml_epilog_2/3` sont supprimés | `container.py` |
+| D15 : index FMI-2 calculés à partir de la position réelle des sorties ; sections `<Outputs>`/`<InitialUnknowns>` écrites seulement si elles ont des entrées (une section vide est interdite par le XSD) | `container.py` |
+| Tests D7/D8 (FMI-2 et FMI-3 : description, nom de sortie et auteur avec `&`, `<`, `"`, caractères non ASCII ; déclaration UTF-8 ; validité XSD) et D15 (profiling, `ts_multiplier`, les deux, aucun ; FMI-3) | `tests/integration/test_container_xml.py` |
+| Référence corrigée : `<Unknown index>` 4, 5 → 6, 7 (D15), seule différence constatée sur les 5 références de container | `tests/data/containers/bouncing_ball/REF-modelDescription-profiling.xml` |
+
+Vérifications faites : sur le code de la phase 3, 5 des 7 nouveaux tests échouent (les 2 autres sont des cas qui étaient
+déjà corrects : FMI-2 sans port ajouté, FMI-3) ; D7 reproduit à part (`description="Position & "height" < 10 m"` →
+`ParseError`). Suite complète : 1788 tests.
 
 ### Phase 5 — Finalisation
 

@@ -2,6 +2,12 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* FIXED: `fmucontainer`: the `modelDescription.xml` of the container is now built with ElementTree.
+         Names and descriptions coming from the embedded FMUs are escaped (a `&`, `<` or `"` made
+         the descriptor invalid), and the file is written in UTF-8 as required by FMI 2.0 and 3.0
+         (it declared ISO-8859-1 but was written with the encoding of the locale).
+* FIXED: `fmucontainer`: in FMI-2 containers with profiling, `ts_multiplier` or a Model Exchange
+         solver, `<ModelStructure>` listed local variables instead of the outputs.
 * CHANGED: `FMU` can be used as a context manager (`with FMU(...) as fmu:`), and has a `close()`
          method. Its temporary directory is now also removed at interpreter exit, and when opening
          fails.
