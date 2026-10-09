@@ -1,0 +1,88 @@
+<fmiModelDescription fmiVersion="2.0" generationDateAndTime="2026-07-21T09:32:21Z" generationTool="Simulink (R2024b)" guid="{75d40875-14e3-e8a1-f5d6-557662a999a0}" modelName="array2scalar" numberOfEventIndicators="0" variableNamingConvention="structured" version="1.13">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUstate="true" canHandleVariableCommunicationStepSize="false" canNotUseMemoryManagementFunctions="true" canSerializeFMUstate="true" modelIdentifier="array2scalar"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.1" stopTime="10"></DefaultExperiment>
+  <VendorAnnotations>
+    <Tool name="Simulink">
+      <Simulink>
+        <ImportCompatibility FMUProduct="standalone FMU" requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Inport blockPath="array2scalar/In1" dataType="double" dimension="[2]" portName="In1" portNumber="1" sampleTime="[0.1   0]" uniquePortName="In1" unit=""></Inport>
+          <Inport blockPath="array2scalar/In2" dataType="double" dimension="[3]" portName="In2" portNumber="2" sampleTime="[0.1   0]" uniquePortName="In2" unit=""></Inport>
+          <Inport blockPath="array2scalar/In3" dataType="double" dimension="[1]" portName="In3" portNumber="3" sampleTime="[0.1   0]" uniquePortName="In3" unit=""></Inport>
+          <Inport blockPath="array2scalar/In4" dataType="double" dimension="[2  3]" portName="In4" portNumber="4" sampleTime="[0.1   0]" uniquePortName="In4" unit=""></Inport>
+          <Outport blockPath="array2scalar/Out1" dataType="double" dimension="[1]" portName="Out1" portNumber="1" sampleTime="[0.1   0]" uniquePortName="Out1" unit=""></Outport>
+          <Outport blockPath="array2scalar/Out2" dataType="double" dimension="[1]" portName="Out2" portNumber="2" sampleTime="[0.1   0]" uniquePortName="Out2" unit=""></Outport>
+          <Outport blockPath="array2scalar/Out3" dataType="double" dimension="[1]" portName="Out3" portNumber="3" sampleTime="[0.1   0]" uniquePortName="Out3" unit=""></Outport>
+          <Outport blockPath="array2scalar/Out4" dataType="double" dimension="[1  1]" portName="Out4" portNumber="4" sampleTime="[0.1   0]" uniquePortName="Out4" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Tool>
+  </VendorAnnotations>
+  <ModelVariables>
+    <ScalarVariable causality="input" description="In1(1)" name="In1[1]" valueReference="0" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In1(2)" name="In1[2]" valueReference="1" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In2(1)" name="In2[1]" valueReference="2" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In2(2)" name="In2[2]" valueReference="3" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In2(3)" name="In2[3]" valueReference="4" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In3" name="In3" valueReference="5" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In4(1,1)" name="In4[1,1]" valueReference="6" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In4(1,2)" name="In4[1,2]" valueReference="7" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In4(1,3)" name="In4[1,3]" valueReference="8" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In4(2,1)" name="In4[2,1]" valueReference="9" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In4(2,2)" name="In4[2,2]" valueReference="10" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="input" description="In4(2,3)" name="In4[2,3]" valueReference="11" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="output" description="Out1" initial="calculated" name="Out1" valueReference="12" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="output" description="Out2" initial="calculated" name="Out2" valueReference="13" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="output" description="Out3" initial="calculated" name="Out3" valueReference="14" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="output" description="Out4" initial="calculated" name="Out4" valueReference="15" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="independent" description="time" name="time" valueReference="16" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="13"></Unknown>
+      <Unknown index="14"></Unknown>
+      <Unknown index="15"></Unknown>
+      <Unknown index="16"></Unknown>
+    </Outputs>
+    <InitialUnknowns>
+      <Unknown index="13"></Unknown>
+      <Unknown index="14"></Unknown>
+      <Unknown index="15"></Unknown>
+      <Unknown index="16"></Unknown>
+    </InitialUnknowns>
+  </ModelStructure>
+</fmiModelDescription>

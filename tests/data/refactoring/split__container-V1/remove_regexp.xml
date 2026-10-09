@@ -1,0 +1,13 @@
+<fmiModelDescription author="root" copyright="See Embedded FMU's copyrights." description="FMUContainer with sine.fmu, integrate.fmu, level1.fmu" fmiVersion="2.0" generationDateAndTime="2026-04-02T20:23:30Z" generationTool="FMUContainer-V1.8.4" guid="862c2f35-12ff-4994-a76b-26ec569a7c3e" license="Proprietary" modelName="reversed" variableNamingConvention="structured">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUstate="false" canHandleVariableCommunicationStepSize="true" canNotUseMemoryManagementFunctions="true" canSerializeFMUstate="false" modelIdentifier="reversed" needsExecutionTool="false" providesDirectionalDerivative="false"></CoSimulation>
+  <LogCategories>
+    <Category name="fmucontainer"></Category>
+  </LogCategories>
+  <DefaultExperiment startTime="0.0" stepSize="0.01" stopTime="10.0"></DefaultExperiment>
+  <ModelVariables>
+    <ScalarVariable causality="local" description="sine" initial="calculated" name="sine.sine" valueReference="0" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure></ModelStructure>
+</fmiModelDescription>

@@ -1,0 +1,22 @@
+<fmiModelDescription fmiVersion="3.0" generationDateAndTime="2025-11-29T08:30:55Z" generationTool="Simulink (R2024b)" instantiationToken="{8772fef8-3464-a43b-3ac1-2feaddf23b87}" modelName="sched" variableNamingConvention="structured" version="1.1">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUState="true" canHandleVariableCommunicationStepSize="false" canSerializeFMUState="true" fixedInternalStepSize="0.1" hasEventMode="true" modelIdentifier="sched"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.1" stopTime="20"></DefaultExperiment>
+  <ModelVariables>
+    <Int32 causality="output" description="multiplier" initial="calculated" name="multiplier" valueReference="1" variability="discrete"></Int32>
+    <Float64 causality="independent" description="time" name="time" valueReference="0" variability="continuous"></Float64>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="1"></Output>
+    <InitialUnknown valueReference="1"></InitialUnknown>
+  </ModelStructure>
+  <Annotations>
+    <Annotation type="com.mathworks.Simulink">
+      <Simulink>
+        <ImportCompatibility FMUProduct="standalone FMU" requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Outport blockPath="sched/multiplier" dataType="int32" dimension="[1]" portName="multiplier" portNumber="1" sampleTime="[0 0]" uniquePortName="multiplier" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Annotation>
+  </Annotations>
+</fmiModelDescription>

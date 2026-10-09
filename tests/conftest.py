@@ -29,9 +29,23 @@ def _sanitize(name: str) -> str:
     return re.sub(r"[^\w.\-]+", "_", name).strip("_")
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--update-refs", action="store_true", default=False,
+        help="(Re)generate the characterization references under tests/data/refactoring/ "
+             "instead of comparing against them.")
+
+
 # --------------------------------------------------------------------------- #
 #                                 Fixtures                                     #
 # --------------------------------------------------------------------------- #
+@pytest.fixture(scope="session")
+def update_refs(request) -> bool:
+    """True when the run was asked to regenerate the characterization references."""
+    return request.config.getoption("--update-refs")
+
+
+
 @pytest.fixture(scope="session")
 def data_dir() -> Path:
     """Absolute path to the read-only reference data directory."""

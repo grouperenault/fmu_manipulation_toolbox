@@ -1,0 +1,34 @@
+<fmiModelDescription fmiVersion="2.0" generationDateAndTime="2024-08-31T19:37:26Z" generationTool="Simulink (R2022b)" guid="{abf5f61d-b459-3641-3a2c-1e594b990280}" modelName="bb_velocity" numberOfEventIndicators="0" variableNamingConvention="structured" version="13.0">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canHandleVariableCommunicationStepSize="false" canNotUseMemoryManagementFunctions="true" modelIdentifier="bb_velocity"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.001" stopTime="10"></DefaultExperiment>
+  <VendorAnnotations>
+    <Tool name="Simulink">
+      <Simulink>
+        <ImportCompatibility requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Inport blockPath="bb_velocity/reset" dataType="boolean" dimension="[1]" portName="reset" portNumber="1" sampleTime="[0 0]" uniquePortName="reset" unit=""></Inport>
+          <Outport blockPath="bb_velocity/velocity" dataType="double" dimension="[1]" portName="velocity" portNumber="1" sampleTime="[0 0]" uniquePortName="velocity" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Tool>
+  </VendorAnnotations>
+  <ModelVariables>
+    <ScalarVariable causality="input" description="reset" name="reset" valueReference="0" variability="discrete">
+      <Boolean start="0"></Boolean>
+    </ScalarVariable>
+    <ScalarVariable causality="output" description="velocity" initial="calculated" name="velocity" valueReference="0" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="independent" description="time" name="time" valueReference="1" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="2"></Unknown>
+    </Outputs>
+    <InitialUnknowns>
+      <Unknown index="2"></Unknown>
+    </InitialUnknowns>
+  </ModelStructure>
+</fmiModelDescription>

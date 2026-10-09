@@ -1,16 +1,19 @@
 import csv
-import html
 import logging
 import os
 import re
 import shutil
 import tempfile
-import xml.parsers.expat
+import warnings
+import weakref
+import xml.etree.ElementTree as ET
 import zipfile
 import hashlib
 from typing import *
 
+from .model_description import ModelDescription, ModelDescriptionError, ModelVariable
 from .terminals import Terminals
+from .textfiles import ENCODING, open_text
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -20,6 +23,14 @@ class FMU:
     Extracts an FMU (`.fmu` zip archive) into a temporary directory so that
     operations can be applied to its `modelDescription.xml` descriptor.
     After manipulation, the FMU can be repacked into a new archive.
+
+    The temporary directory is removed by `close()`, at the end of a `with`
+    block, or at the latest when the object is garbage-collected or the
+    interpreter exits:
+
+        with FMU("module.fmu") as fmu:
+            fmu.apply_operation(OperationStripTopLevel())
+            fmu.repack("module-stripped.fmu")
 
     Attributes:
         FMI2_TYPES (tuple[str, ...]): FMI 2.0 scalar variable type names.
@@ -43,18 +54,76 @@ class FMU:
         self.fmu_filename = fmu_filename
         self.tmp_directory = tempfile.mkdtemp()
         self.fmi_version = None
+        # Unlike `__del__`, a finalizer also runs at interpreter exit, and never on a half-built object.
+        self._finalizer = weakref.finalize(self, shutil.rmtree, self.tmp_directory, ignore_errors=True)
+        self.descriptor_filename = os.path.join(self.tmp_directory, "modelDescription.xml")
+        self._model_description: Optional[ModelDescription] = None
+        self._descriptor_signature: Optional[Tuple[int, int]] = None
 
+        try:
+            self._extract()
+        except FMUError:
+            self.close()
+            raise
+
+    def _extract(self):
         try:
             with zipfile.ZipFile(self.fmu_filename) as zin:
                 zin.extractall(self.tmp_directory)
         except FileNotFoundError:
-            raise FMUError(f"'{fmu_filename}' does not exist")
-        self.descriptor_filename = os.path.join(self.tmp_directory, "modelDescription.xml")
+            raise FMUError(f"'{self.fmu_filename}' does not exist") from None
+        except (IsADirectoryError, PermissionError) as error:
+            raise FMUError(f"'{self.fmu_filename}' cannot be read: {error.strerror}") from None
+        except zipfile.BadZipFile:
+            raise FMUError(f"'{self.fmu_filename}' is not valid: not a ZIP archive") from None
         if not os.path.isfile(self.descriptor_filename):
-            raise FMUError(f"'{fmu_filename}' is not valid: {self.descriptor_filename} not found")
+            raise FMUError(f"'{self.fmu_filename}' is not valid: modelDescription.xml not found")
 
-    def __del__(self):
-        shutil.rmtree(self.tmp_directory)
+    @property
+    def model_description(self) -> ModelDescription:
+        """The descriptor tree, parsed once and shared by the successive operations.
+
+        It is parsed again if `modelDescription.xml` was changed on disk by
+        other means (different modification time or size).
+
+        Raises:
+            FMUError: If the descriptor cannot be read.
+        """
+        self._check_open()
+        signature = self._signature()
+        if self._model_description is None or signature != self._descriptor_signature:
+            try:
+                self._model_description = ModelDescription.load(self.descriptor_filename)
+            except ModelDescriptionError as error:
+                raise FMUError(f"'{self.fmu_filename}': {error}") from error
+            self._descriptor_signature = signature
+        return self._model_description
+
+    def _signature(self) -> Tuple[int, int]:
+        stat = os.stat(self.descriptor_filename)
+        return stat.st_mtime_ns, stat.st_size
+
+    def _save_model_description(self):
+        self._model_description.save(self.descriptor_filename)
+        self._descriptor_signature = self._signature()
+
+    def close(self):
+        """Remove the temporary directory. The FMU can no longer be used afterwards."""
+        self._finalizer()
+
+    @property
+    def closed(self) -> bool:
+        return not self._finalizer.alive
+
+    def _check_open(self):
+        if self.closed:
+            raise FMUError(f"'{self.fmu_filename}' is closed")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def save_descriptor(self, filename):
         """Save a copy of the current `modelDescription.xml` to a file.
@@ -62,7 +131,8 @@ class FMU:
         Args:
             filename (str): Destination path for the descriptor copy.
         """
-        shutil.copyfile(os.path.join(self.tmp_directory, "modelDescription.xml"), filename)
+        self._check_open()
+        shutil.copyfile(self.descriptor_filename, filename)
 
     def repack(self, filename):
         """Repack the (possibly modified) FMU into a new `.fmu` archive.
@@ -70,6 +140,7 @@ class FMU:
         Args:
             filename (str): Output path for the repacked FMU.
         """
+        self._check_open()
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as zout:
             for root, dirs, files in os.walk(self.tmp_directory):
                 for file in files:
@@ -80,125 +151,117 @@ class FMU:
     def apply_operation(self, operation, apply_on=None):
         """Apply an operation to the FMU's `modelDescription.xml`.
 
-        Parses the descriptor, invokes the operation's callbacks for each
-        element, and writes back the modified descriptor.
+        Invokes the operation's callbacks on the descriptor tree (parsed once
+        per FMU), and writes back the descriptor unless the operation is
+        `read_only`.
 
         Args:
             operation (OperationAbstract): The operation to apply.
             apply_on (list[str] | None): If set, only apply the operation
                 to ports with a causality in this list.
         """
+        self._check_open()
         manipulation = Manipulation(operation, self)
-        manipulation.manipulate(self.descriptor_filename, apply_on)
+        try:
+            manipulation.manipulate(self.descriptor_filename, apply_on)
+        except BaseException:
+            self._model_description = None  # the tree may be half-modified: parse the file again next time
+            raise
 
 
-class FMUPort:
-    """Represents a port (variable) parsed from `modelDescription.xml`.
+class FMUPort(ModelVariable):
+    """Represents a port (variable) of `modelDescription.xml`.
 
-    Stores the XML attributes from one or more levels of the port definition.
-    For FMI 2.0, this includes the `<ScalarVariable>` attributes and the
-    child type element (e.g. `<Real>`). For FMI 3.0, all attributes are
-    on the type element itself.
+    This is the object given to
+    [OperationAbstract.port_attrs][fmu_manipulation_toolbox.operations.OperationAbstract.port_attrs]:
+    a view on one variable of the descriptor tree (see
+    [ModelVariable][fmu_manipulation_toolbox.model_description.ModelVariable]).
+    Reading or changing an attribute through `[]` reads or changes the
+    descriptor itself.
 
-    Supports dict-like access to attributes across all levels.
+    Supports dict-like access to attributes across all levels: for FMI 2.0, the
+    `<ScalarVariable>` attributes and those of its type element (e.g. `<Real>`);
+    for FMI 3.0, the attributes of the variable element and the values of its
+    `<Start>` elements (`String` and `Binary` variables), under the key `start`.
 
     Attributes:
         fmi_type (str | None): The FMI type name (e.g. `"Real"`, `"Float64"`).
-        attrs_list (list[dict[str, str]]): Stacked attribute dictionaries,
-            one per XML nesting level.
-        dimensions_list (int | None): Array dimension, if applicable.
+            Setting it renames the type element.
+        attrs_list (list[dict[str, str]]): Attribute dictionaries, one per
+            XML nesting level.
+        dimensions (list[tuple[str, int]]): Array dimensions (FMI 3.0).
+
+    Note:
+        `FMUPort()` without element builds a *detached* port, filled with
+        `push_attrs()`. This was the only way to build a port before the
+        ElementTree implementation; it is deprecated.
     """
 
-    def __init__(self):
-        self.fmi_type = None
-        self.attrs_list: List[Dict] = []
-        self.dimensions_list = []
-
-    def dict_level(self, nb) -> str:
-        """Format one level of attributes as an XML attribute string.
-
-        Args:
-            nb (int): Index into `attrs_list`.
-
-        Returns:
-            str: Space-separated `key="value"` pairs with HTML-escaped values.
-        """
-        return " ".join([f'{key}="{Manipulation.escape(value)}"' for key, value in self.attrs_list[nb].items()])
-
-    def write_xml(self, fmi_version: int, file: IO) -> None:
-        """Write the port definition as XML to a file.
-
-        Args:
-            fmi_version (int): FMI version (`2` or `3`).
-            file (IO): Writable text file handle.
-
-        Raises:
-            FMUError: If the FMI version is not supported.
-        """
-        if fmi_version == 2:
-            print(f"    <ScalarVariable {self.dict_level(0)}>", file=file)
-            print(f"      <{self.fmi_type} {self.dict_level(1)}/>", file=file)
-            print(f"    </ScalarVariable>", file=file)
-        elif fmi_version == 3:
-            start_value = self.get("start", "")
-
-            if self.dimensions or (self.fmi_type in ("String", "Binary") and start_value):
-                print(f"    <{self.fmi_type} {self.dict_level(0)}>", file=file)
-                if self.fmi_type in ("String", "Binary") and start_value:
-                    print(f'      <Start value="{start_value}"/>', file=file)
-                for dimension in self.dimensions:
-                    print(f'      <Dimension {dimension[0]}="{dimension[1]}"/>', file=file)
-                print(f"    </{self.fmi_type}>", file=file)
-            else:
-                print(f"    <{self.fmi_type} {self.dict_level(0)}/>", file=file)
-        else:
-            raise FMUError(f"FMUPort writing: unsupported FMI version {fmi_version}")
-
-    def __contains__(self, item):
-        for attrs in self.attrs_list:
-            if item in attrs:
-                return True
-        return False
-
-    def __getitem__(self, item):
-        for attrs in self.attrs_list:
-            if item in attrs:
-                return attrs[item]
-        raise KeyError
-
-    def __setitem__(self, key, value):
-        for attrs in self.attrs_list:
-            if key in attrs:
-                attrs[key] = value
-                return
-        raise KeyError
-
-    def get(self, item, default_value):
-        try:
-            return self[item]
-        except KeyError:
-            return default_value
-
-    def push_attrs(self, attrs):
-        """Push a new attribute dictionary onto the stack.
-
-        Args:
-            attrs (dict[str, str]): XML attributes from a nested element.
-        """
-        self.attrs_list.append(attrs)
+    def __init__(self, element: Optional[ET.Element] = None, fmi_version: int = 0):
+        super().__init__(element, fmi_version)
+        self._detached_levels: Optional[List[Dict[str, str]]] = None
+        self._detached_type: Optional[str] = None
+        self._detached_dimensions: List[Tuple[str, int]] = []
+        if element is None:
+            warnings.warn("FMUPort() without element is deprecated: ports are views on the descriptor tree",
+                          DeprecationWarning, stacklevel=2)
+            self._detached_levels = []
 
     @property
-    def dimensions(self):
-        if self.dimensions_list == [("start", 1)]:
-            return []
+    def detached(self) -> bool:
+        """True for a port built with `FMUPort()`, not attached to a descriptor."""
+        return self._detached_levels is not None
+
+    @property
+    def fmi_type(self) -> Optional[str]:
+        return self._detached_type if self.detached else ModelVariable.fmi_type.fget(self)
+
+    @fmi_type.setter
+    def fmi_type(self, fmi_type: str):
+        if self.detached:
+            self._detached_type = fmi_type
         else:
-            return self.dimensions_list
+            ModelVariable.fmi_type.fset(self, fmi_type)
+
+    @property
+    def attrs_list(self) -> List[MutableMapping[str, str]]:
+        return self._detached_levels if self.detached else ModelVariable.attrs_list.fget(self)
+
+    @property
+    def dimensions(self) -> List[Tuple[str, int]]:
+        if self.detached:
+            return [] if self._detached_dimensions == [("start", 1)] else self._detached_dimensions
+        return ModelVariable.dimensions.fget(self)
 
     @dimensions.setter
     def dimensions(self, attrs: Dict[str, str]):
-        for key, value in attrs.items():
-            # FMI-3 ("valueReference", 2) ("start", 3)
-            self.dimensions_list.append((key, int(value)))
+        """Deprecated: add the attributes of one `<Dimension>` element."""
+        warnings.warn("Setting FMUPort.dimensions is deprecated", DeprecationWarning, stacklevel=2)
+        if self.detached:
+            for key, value in attrs.items():
+                self._detached_dimensions.append((key, int(value)))
+        else:
+            existing = self.element.findall("Dimension")
+            position = list(self.element).index(existing[-1]) + 1 if existing else 0
+            self.element.insert(position, ET.Element("Dimension", dict(attrs)))
+
+    def push_attrs(self, attrs: Dict[str, str]):
+        """Deprecated: add an attribute level to a detached port.
+
+        Args:
+            attrs (dict[str, str]): XML attributes of a nested element.
+
+        Raises:
+            FMUError: If the port is attached to a descriptor.
+        """
+        warnings.warn("FMUPort.push_attrs() is deprecated: ports are views on the descriptor tree",
+                      DeprecationWarning, stacklevel=2)
+        if not self.detached:
+            raise FMUError("push_attrs() is only available on a detached FMUPort")
+        self._detached_levels.append(attrs)
+
+    def __repr__(self):
+        return f"<FMUPort {self.fmi_type} '{self.get('name')}'>"
 
 
 class FMUError(Exception):
@@ -215,333 +278,273 @@ class FMUError(Exception):
         return self.reason
 
 
-class ModelStructureCounter:
-    """Counts Model-Exchange sizes declared in `<ModelStructure>`.
-
-    Computes the number of continuous states (`nx`) and the number of event
-    indicators (`nz`) of an FMU, for both FMI 2.0 and FMI 3.0.
-
-    - **FMI 2.0**: continuous states are the `<Unknown>` entries of the
-      `<Derivatives>` section (FMI-2 variables are always scalar); event
-      indicators are given by the `numberOfEventIndicators` attribute of
-      `<fmiModelDescription>`.
-    - **FMI 3.0**: continuous states are the `<ContinuousStateDerivative>`
-      entries and event indicators the `<EventIndicator>` entries; array
-      variables count for their number of elements.
-
-    When the size of an FMI-3 entry cannot be resolved (unknown value reference
-    or dimension depending on a structural parameter), the entry is counted as a
-    single scalar and a warning is emitted.
-
-    Attributes:
-        fmu_name (str): Name of the FMU, used in log messages.
-        number_of_continuous_states (int): Computed `nx`.
-        number_of_event_indicators (int): Computed `nz`.
-    """
-
-    def __init__(self, fmu_name: str = ""):
-        self.fmu_name = fmu_name
-        self.number_of_continuous_states = 0
-        self.number_of_event_indicators = 0
-        self._ports: Dict[str, Tuple[List[Tuple[str, int]], Optional[str]]] = {}
-
-    def register_port(self, vr: Union[str, int], dimensions: List[Tuple[str, int]],
-                      start: Optional[str] = None):
-        """Record a port, by value reference, for later size resolution.
-
-        Args:
-            vr (str | int): Value reference of the port.
-            dimensions (list[tuple[str, int]]): Dimensions of the port as parsed
-                from the `<Dimension>` elements: `("start", n)` for a fixed size,
-                `("valueReference", vr)` when the size is given by a structural
-                parameter.
-            start (str | None): Start value of the port, used when this port is a
-                structural parameter defining the size of an array.
-        """
-        self._ports[str(vr)] = (list(dimensions), start)
-
-    def fmi_attrs(self, fmi_version: int, attrs: Dict[str, str]):
-        """Read `numberOfEventIndicators` (FMI-2 only) from the root element."""
-        if fmi_version == 2:
-            self.number_of_event_indicators = int(attrs.get("numberOfEventIndicators", 0))
-
-    def model_structure_attrs(self, fmi_version: int, section: str, attrs: Dict[str, str]):
-        """Account for one `<ModelStructure>` entry.
-
-        Args:
-            fmi_version (int): FMI version (`2` or `3`).
-            section (str): Section (FMI-2) or element name (FMI-3).
-            attrs (dict[str, str]): Attributes of the entry.
-        """
-        if fmi_version == 2:
-            if section == "Derivatives":
-                self.number_of_continuous_states += 1
-        else:
-            if section == "ContinuousStateDerivative":
-                self.number_of_continuous_states += self._size_of(section, attrs)
-            elif section == "EventIndicator":
-                self.number_of_event_indicators += self._size_of(section, attrs)
-
-    def _size_of(self, section: str, attrs: Dict[str, str]) -> int:
-        vr = attrs.get("valueReference", None)
-        if vr is None:
-            logger.warning(f"'{self.fmu_name}': <{section}> without valueReference. Assuming 1 element.")
-            return 1
-
-        try:
-            dimensions, _ = self._ports[str(vr)]
-        except KeyError:
-            logger.warning(f"'{self.fmu_name}': <{section}> refers to unknown variable vr={vr}. "
-                           f"Assuming 1 element.")
-            return 1
-
-        size = 1
-        for kind, value in dimensions:
-            if kind == "start":
-                size *= value
-            else:  # dimension given by a structural parameter: use its start value
-                dimension = self._structural_parameter_value(value)
-                if dimension is None:
-                    logger.warning(f"'{self.fmu_name}': <{section}> vr={vr} has a dimension given by "
-                                   f"structuralParameter vr={value} whose value cannot be resolved. "
-                                   f"Assuming 1 element.")
-                    return 1
-                size *= dimension
-
-        return size
-
-    def _structural_parameter_value(self, vr: Union[str, int]) -> Optional[int]:
-        try:
-            _, start = self._ports[str(vr)]
-        except KeyError:
-            return None
-
-        if start is None:
-            return None
-
-        try:
-            return int(start)
-        except ValueError:
-            return None
-
-
 class Manipulation:
-    """SAX-based parser that applies an operation to `modelDescription.xml`.
+    """Applies an operation to `modelDescription.xml`, on its ElementTree.
 
-    Parses the XML descriptor using `xml.parsers.expat`, invokes the
-    operation's callbacks for each relevant element, and writes back
-    the modified XML. Handles port renumbering and dependency tree
-    updates when ports are removed.
+    Loads the descriptor as a
+    [ModelDescription][fmu_manipulation_toolbox.model_description.ModelDescription],
+    invokes the operation's callbacks in document order, modifies the tree in
+    place and writes it back. Everything the operation does not touch is kept
+    as is (annotations, aliases, comments, namespaces...).
+
+    When ports are removed, the references to them are updated: FMI 2.0
+    `<ModelStructure>` indexes and `derivative` attributes are renumbered,
+    entries and dependencies of `<ModelStructure>` that refer to removed ports
+    are dropped.
+
+    The operation is refused (`OperationError`, descriptor left unchanged) when
+    it would produce an FMU that breaks the FMI standard:
+
+    - every variable removed (empty `<ModelVariables>`, forbidden by the XSD);
+    - a removed variable still referenced by a kept one (`derivative`,
+      `previous`, `clocks`, `<Dimension valueReference>`);
+    - several variables (or FMI 3.0 aliases) with the same name.
 
     Attributes:
-        output_filename (str): Path to the temporary output file.
         operation (OperationAbstract): The operation being applied.
         fmu (FMU): The FMU being manipulated.
-        current_port (FMUPort | None): The port currently being parsed.
-        current_port_number (int): Running count of kept ports (1-based).
-        port_translation (list[int | None]): Maps original port indices to
-            new indices, or `None` for removed ports.
-        port_names_list (list[str]): Names of all encountered ports.
+        model_description (ModelDescription | None): The descriptor tree, once loaded.
+        port_translation (list[int | None]): Maps original port indices (0-based)
+            to new 1-based indices, or `None` for removed ports.
+        port_names_list (list[str]): Original names of all encountered ports.
         port_removed_vr (set[str]): Value references of removed ports.
     """
 
-    TAGS_MODEL_STRUCTURE = ("InitialUnknowns", "Derivatives", "Outputs")
-
     def __init__(self, operation, fmu):
-        (fd, self.output_filename) = tempfile.mkstemp()
-        os.close(fd)  # File will be re-opened later
-        self.out = None
         self.operation = operation
-        self.parser = xml.parsers.expat.ParserCreate()
-        self.parser.StartElementHandler = self.start_element
-        self.parser.EndElementHandler = self.end_element
-        self.parser.CharacterDataHandler = self.char_data
-
-        # used for filter
-        self.skip_until: Optional[str] = None
-
-        # used to remove empty sections
-        self.delayed_tag = None
-        self.delayed_tag_open = False
-
-        self.operation.set_fmu(fmu)
         self.fmu = fmu
-
-        self.current_port: Optional[FMUPort] = None
+        self.model_description: Optional[ModelDescription] = None
+        self.apply_on = None
 
         self.current_port_number: int = 0
         self.port_translation: List[Optional[int]] = []
         self.port_names_list: List[str] = []
         self.port_removed_vr: Set[str] = set()
-        self.apply_on = None
 
-        # FMI-2: name of the <ModelStructure> sub-section being parsed
-        # ("Outputs", "Derivatives", "InitialUnknowns") used to qualify <Unknown> elements.
-        self.current_structure_section: Optional[str] = None
+        self.operation.set_fmu(fmu)
 
-    @staticmethod
-    def escape(value) -> str:
-        """HTML-escape a string value for safe XML output.
+    def manipulate(self, descriptor_filename, apply_on=None):
+        """Apply the operation and rewrite the descriptor file (unless the operation is `read_only`).
 
         Args:
-            value (str): The value to escape.
+            descriptor_filename (str): Path to the `modelDescription.xml` file.
+                The file is modified in place.
+            apply_on (list[str] | None): If set, only process ports with a
+                causality in this list.
 
-        Returns:
-            str: The escaped value. Non-string values are returned unchanged.
+        Raises:
+            FMUError: If the descriptor cannot be loaded.
+            OperationError: If the result would break the FMI standard. The
+                descriptor file is then left unchanged.
         """
-        if isinstance(value, str):
-            return html.escape(html.unescape(value))
+        self.apply_on = apply_on
+        shared = descriptor_filename == self.fmu.descriptor_filename
+        if shared:
+            md = self.fmu.model_description
         else:
-            return value
+            try:
+                md = ModelDescription.load(descriptor_filename)
+            except ModelDescriptionError as error:
+                raise FMUError(f"'{self.fmu.fmu_filename}': {error}") from error
+        self.model_description = md
+        self.fmu.fmi_version = md.fmi_version
+        self.operation.model_description = md
 
-    def handle_port(self):
-        causality = self.current_port.get('causality', 'local')
-        port_name = self.current_port['name']
-        vr = self.current_port['valueReference']
-        if not self.apply_on or causality in self.apply_on:
-            if self.operation.port_attrs(self.current_port):
-                self.remove_port(port_name, vr)
-                # Exception is raised by remove port !
+        self.operation.fmi_attrs(md.attributes(md.root))
+        self.handle_toplevel_elements(md)
+        names_before = self.duplicate_names(md)
+        variables = md.variables()
+        removed = self.handle_ports(md)
+        self.check_result(md, variables, removed, names_before)
+        self.remove_children(md.model_variables, removed)
+        self.renumber_derivatives(md)
+        self.handle_model_structure(md)
+        self.operation.closure()
+        if not self.operation.read_only:
+            if shared:
+                self.fmu._save_model_description()
             else:
-                self.keep_port(port_name)
-        else:  # Keep ScalarVariable as it is.
-            self.keep_port(port_name)
+                md.save(descriptor_filename)
 
-    def start_element(self, name, attrs):
-        if self.skip_until:
-            return
-
-        try:
-            if name == 'ScalarVariable': # FMI 2.0 only
-                self.current_port = FMUPort()
-                self.current_port.push_attrs(attrs)
-            elif self.fmu.fmi_version == 2 and name in self.fmu.FMI2_TYPES:
-                if self.current_port: # <Enumeration> can be found before port definition. Ignored.
-                    self.current_port.fmi_type = name
-                    self.current_port.push_attrs(attrs)
-            elif self.fmu.fmi_version == 3 and name in self.fmu.FMI3_TYPES:
-                self.current_port = FMUPort()
-                self.current_port.fmi_type = name
-                self.current_port.push_attrs(attrs)
-            elif self.fmu.fmi_version == 3 and name == "Start":
-                self.current_port.push_attrs({"start": attrs.get("value", "")})
-            elif self.fmu.fmi_version == 3 and name == "Dimension":
-                self.current_port.dimensions = attrs
-            elif name == 'CoSimulation':
-                self.operation.cosimulation_attrs(attrs)
-            elif name == 'ModelExchange':
-                self.operation.modelexchange_attrs(attrs)
-            elif name == 'DefaultExperiment':
-                self.operation.experiment_attrs(attrs)
-            elif name == 'fmiModelDescription':
-                self.fmu.fmi_version = int(float(attrs["fmiVersion"]))
-                self.operation.fmi_attrs(attrs)
-            elif name == 'Unknown': # FMI-2.0 only
-                self.unknown_attrs(attrs)
-            elif name in ('Output', 'ContinuousStateDerivative', 'InitialUnknown',
-                          'EventIndicator', 'ClockedState'): #  FMI-3.0 only
-                self.handle_structure(name, attrs)
-            elif name in self.TAGS_MODEL_STRUCTURE:  # FMI-2.0 only
-                self.current_structure_section = name
-
-        except ManipulationSkipTag:
-            self.skip_until = name
-            return
-
-        if self.current_port is None:
-            if self.delayed_tag and not self.delayed_tag_open:
-                print(f"<{self.delayed_tag}>", end='', file=self.out)
-                self.delayed_tag_open = True
-
-            if attrs:
-                attrs_list = [f'{key}="{self.escape(value)}"' for (key, value) in attrs.items()]
-                print(f"<{name}", " ".join(attrs_list), ">", end='', file=self.out)
-            else:
-                if name in self.TAGS_MODEL_STRUCTURE:
-                    self.delayed_tag = name
-                    self.delayed_tag_open = False
-                else:
-                    print(f"<{name}>", end='', file=self.out)
-
-    def end_element(self, name):
-        if self.skip_until:
-            if self.skip_until == name:
-                self.skip_until = None
-            return
-        else:
-            if name == self.current_structure_section:
-                self.current_structure_section = None
-
-            if name == "ScalarVariable" or (self.fmu.fmi_version == 3 and name in FMU.FMI3_TYPES):
+    # ---------------------------------------------------------------- Callbacks
+    def handle_toplevel_elements(self, md: ModelDescription):
+        callbacks = {
+            "CoSimulation": self.operation.cosimulation_attrs,
+            "ModelExchange": self.operation.modelexchange_attrs,
+            "DefaultExperiment": self.operation.experiment_attrs,
+        }
+        for element in list(md.root):
+            callback = callbacks.get(element.tag)
+            if callback:
                 try:
-                    self.handle_port()
-                    self.current_port.write_xml(self.fmu.fmi_version, self.out)
+                    callback(md.attributes(element))
                 except ManipulationSkipTag:
-                    logger.info(f"Port '{self.current_port['name']}' is removed.")
-                self.current_port = None
+                    md.root.remove(element)
 
-            elif self.current_port is None:
-                if self.delayed_tag and name == self.delayed_tag:
-                    if self.delayed_tag_open:
-                        print(f"</{self.delayed_tag}>", end='', file=self.out)
-                    else:
-                        logger.debug(f"Remove tag <{self.delayed_tag}> from modelDescription.xml")
-                    self.delayed_tag = None
-                else:
-                    print(f"</{name}>", end='', file=self.out)
+    def handle_ports(self, md: ModelDescription) -> List[ET.Element]:
+        """Call `port_attrs` on every port. Returns the elements to remove."""
+        removed = []
+        for element in md.variables():
+            port = FMUPort(element, md.fmi_version)
+            # name, valueReference and causality are attributes of <ScalarVariable> (FMI-2) or of
+            # the variable element (FMI-3): read them directly, before the operation renames the port.
+            name = element.get("name")
+            vr = element.get("valueReference")
+            remove = False
+            if not self.apply_on or element.get("causality", "local") in self.apply_on:
+                try:
+                    remove = bool(self.operation.port_attrs(port))
+                except ManipulationSkipTag:
+                    remove = True
 
-    def char_data(self, data):
-        if not self.skip_until:
-            print(data, end='', file=self.out)
+            self.port_names_list.append(name)
+            if remove:
+                logger.info(f"Port '{name}' is removed.")
+                self.port_translation.append(None)
+                self.port_removed_vr.add(vr)
+                removed.append(element)
+            else:
+                self.current_port_number += 1
+                self.port_translation.append(self.current_port_number)
+        return removed
 
-    def remove_port(self, name, vr):
-        self.port_names_list.append(name)
-        self.port_translation.append(None)
-        self.port_removed_vr.add(vr)
-        raise ManipulationSkipTag
+    # ------------------------------------------------------- Conformity checks
+    @staticmethod
+    def all_names(md: ModelDescription) -> List[str]:
+        """Names of variables and FMI 3.0 aliases, which must all be unique."""
+        names = [variable.get("name") for variable in md.variables()]
+        if md.fmi_version == 3:
+            names += [alias.get("name") for alias in md.model_variables.iter("Alias")]
+        return names
 
-    def keep_port(self, name):
-        self.port_names_list.append(name)
-        self.current_port_number += 1
-        self.port_translation.append(self.current_port_number)
+    @classmethod
+    def duplicate_names(cls, md: ModelDescription) -> Set[str]:
+        seen, duplicates = set(), set()
+        for name in cls.all_names(md):
+            if name in seen:
+                duplicates.add(name)
+            seen.add(name)
+        return duplicates
+
+    def check_result(self, md: ModelDescription, variables: List[ET.Element], removed: List[ET.Element],
+                     names_before: Set[str]):
+        """Refuse a result that breaks the FMI standard (only for what the operation changed)."""
+        if variables and len(removed) == len(variables):
+            raise OperationError("The operation would remove every variable: <ModelVariables> cannot be empty.")
+
+        broken = self.broken_references(md, variables, removed)
+        if broken:
+            raise OperationError("The operation would remove variables that are still referenced: " +
+                                 "; ".join(broken[:10]) + (" ..." if len(broken) > 10 else ""))
+
+        removed_ids = {id(element) for element in removed}
+        kept_names = [variable.get("name") for variable in variables if id(variable) not in removed_ids]
+        if md.fmi_version == 3:
+            kept_names += [alias.get("name") for variable in variables if id(variable) not in removed_ids
+                           for alias in variable.iter("Alias")]
+        seen, duplicates = set(), []
+        for name in kept_names:
+            if name in seen and name not in names_before and name not in duplicates:
+                duplicates.append(name)
+            seen.add(name)
+        if duplicates:
+            raise OperationError("The operation would give the same name to several variables: " +
+                                 ", ".join(f"'{name}'" for name in duplicates[:10]) +
+                                 (" ..." if len(duplicates) > 10 else ""))
+
+    @staticmethod
+    def broken_references(md: ModelDescription, variables: List[ET.Element],
+                          removed: List[ET.Element]) -> List[str]:
+        """References from kept variables to removed ones, as human-readable strings."""
+        if not removed:
+            return []
+        removed_ids = {id(element) for element in removed}
+        kept = [variable for variable in variables if id(variable) not in removed_ids]
+        broken = []
+        if md.fmi_version == 2:
+            removed_indexes = {index for index, variable in enumerate(variables, start=1)
+                               if id(variable) in removed_ids}
+            for variable in kept:
+                port = ModelVariable(variable, 2)
+                derivative = port.typed_element.get("derivative") if port.typed_element is not None else None
+                if derivative and derivative.isdigit() and int(derivative) in removed_indexes:
+                    state = variables[int(derivative) - 1].get("name")
+                    broken.append(f"'{state}' is referenced by '{variable.get('name')}' (derivative)")
+        else:
+            removed_vrs = {variable.get("valueReference"): variable.get("name") for variable in removed}
+            for variable in kept:
+                references = [("derivative", variable.get("derivative")), ("previous", variable.get("previous"))]
+                references += [("clocks", vr) for vr in (variable.get("clocks") or "").split()]
+                references += [("Dimension", dimension.get("valueReference"))
+                               for dimension in variable.findall("Dimension")]
+                for kind, vr in references:
+                    if vr in removed_vrs:
+                        broken.append(f"'{removed_vrs[vr]}' is referenced by '{variable.get('name')}' ({kind})")
+        return list(dict.fromkeys(broken))  # a variable can refer twice to the same one (e.g. two dimensions)
+
+    # -------------------------------------------------------------- References
+    def renumber_derivatives(self, md: ModelDescription):
+        """FMI 2.0: `derivative` is the 1-based index of the state variable."""
+        if md.fmi_version != 2 or self.current_port_number == len(self.port_translation):
+            return  # nothing removed
+        for variable in md.variables():
+            typed = ModelVariable(variable, 2).typed_element
+            derivative = typed.get("derivative") if typed is not None else None
+            if derivative and derivative.isdigit() and 0 < int(derivative) <= len(self.port_translation):
+                typed.set("derivative", str(self.port_translation[int(derivative) - 1]))
+
+    def handle_model_structure(self, md: ModelDescription):
+        structure = md.model_structure
+        if structure is None:
+            return
+        if md.fmi_version == 2:
+            for section in list(structure):
+                if section.tag not in ModelDescription.FMI2_STRUCTURE_SECTIONS:
+                    continue
+                skipped = []
+                for unknown in [child for child in section if child.tag == "Unknown"]:
+                    try:
+                        self.operation.model_structure_attrs(section.tag, unknown.attrib)
+                        self.unknown_attrs(unknown.attrib)
+                    except ManipulationSkipTag:
+                        skipped.append(unknown)
+                self.remove_children(section, skipped)
+                if not any(child.tag == "Unknown" for child in section):
+                    logger.debug(f"Remove tag <{section.tag}> from modelDescription.xml")
+                    structure.remove(section)
+        else:
+            skipped = []
+            for section, entry in md.model_structure_entries():
+                try:
+                    self.handle_structure(section, entry.attrib)
+                except ManipulationSkipTag:
+                    skipped.append(entry)
+            self.remove_children(structure, skipped)
+
+    @staticmethod
+    def remove_children(parent: ET.Element, children: List[ET.Element]):
+        """Remove several children at once (`Element.remove` is linear: one call per child is quadratic)."""
+        if children:
+            removed = {id(child) for child in children}
+            parent[:] = [child for child in parent if id(child) not in removed]
 
     def unknown_attrs(self, attrs):
+        """FMI 2.0: renumber an `<Unknown>` entry. Raises `ManipulationSkipTag` if its port is removed."""
         index = int(attrs['index'])
-        if self.current_structure_section:
-            self.operation.model_structure_attrs(self.current_structure_section, attrs)
         new_index = self.port_translation[index-1]
-        if new_index is not None:
-            attrs['index'] = str(new_index)
-            if attrs.get('dependencies', ""):
-                if 'dependenciesKind' in attrs:
-                    new_dependencies = []
-                    new_kinds = []
-                    for dependency, kind in zip(attrs['dependencies'].split(' '), attrs['dependenciesKind'].split(' ')):
-                        new_dependency = self.port_translation[int(dependency)-1]
-                        if new_dependency is not None:
-                            new_dependencies.append(str(new_dependency))
-                            new_kinds.append(kind)
-                    if new_dependencies:
-                        attrs['dependencies'] = " ".join(new_dependencies)
-                        attrs['dependenciesKind'] = " ".join(new_kinds)
-                    else:
-                        attrs.pop('dependencies')
-                        attrs.pop('dependenciesKind')
-                else:
-                    new_dependencies = []
-                    for dependency in attrs['dependencies'].split(' '):
-                        new_dependency = self.port_translation[int(dependency)-1]
-                        if new_dependency is not None:
-                            new_dependencies.append(str(new_dependency))
-                    if new_dependencies:
-                        attrs['dependencies'] = " ".join(new_dependencies)
-                    else:
-                        attrs.pop('dependencies')
-        else:
+        if new_index is None:
             logger.warning(f"Removed port '{self.port_names_list[index-1]}' is involved in dependencies tree.")
             raise ManipulationSkipTag
 
+        attrs['index'] = str(new_index)
+        if attrs.get('dependencies', ""):
+            kept = [(str(self.port_translation[int(dependency)-1]), kind)
+                    for dependency, kind in self.dependency_pairs(attrs)
+                    if self.port_translation[int(dependency)-1] is not None]
+            self.set_dependencies(attrs, kept)
+
     def handle_structure(self, section, attrs):
+        """FMI 3.0: filter a `<ModelStructure>` entry. Raises `ManipulationSkipTag` if its port is removed."""
         self.operation.model_structure_attrs(section, attrs)
 
         try:
@@ -553,43 +556,28 @@ class Manipulation:
             return
 
         if attrs.get('dependencies', ""):
+            kept = [(dependency, kind) for dependency, kind in self.dependency_pairs(attrs)
+                    if dependency not in self.port_removed_vr]
+            self.set_dependencies(attrs, kept)
+
+    @staticmethod
+    def dependency_pairs(attrs) -> List[Tuple[str, Optional[str]]]:
+        """`(dependency, dependencyKind)` pairs; the kind is `None` without `dependenciesKind`."""
+        dependencies = attrs['dependencies'].split(' ')
+        if 'dependenciesKind' in attrs:
+            return list(zip(dependencies, attrs['dependenciesKind'].split(' ')))
+        return [(dependency, None) for dependency in dependencies]
+
+    @staticmethod
+    def set_dependencies(attrs, kept: List[Tuple[str, Optional[str]]]):
+        """Write back filtered `dependencies` (and `dependenciesKind`), or drop them if empty."""
+        if kept:
+            attrs['dependencies'] = " ".join(dependency for dependency, _ in kept)
             if 'dependenciesKind' in attrs:
-                new_dependencies = []
-                new_kinds = []
-                for dependency, kind in zip(attrs['dependencies'].split(' '), attrs['dependenciesKind'].split(' ')):
-                    if dependency not in self.port_removed_vr:
-                        new_dependencies.append(dependency)
-                        new_kinds.append(kind)
-                if new_dependencies:
-                    attrs['dependencies'] = " ".join(new_dependencies)
-                    attrs['dependenciesKind'] = " ".join(new_kinds)
-                else:
-                    attrs.pop('dependencies')
-                    attrs.pop('dependenciesKind')
-            else:
-                new_dependencies = []
-                for dependency in attrs['dependencies'].split(' '):
-                    if dependency not in self.port_removed_vr:
-                        new_dependencies.append(dependency)
-                if new_dependencies:
-                    attrs['dependencies'] = " ".join(new_dependencies)
-                else:
-                    attrs.pop('dependencies')
-
-    def manipulate(self, descriptor_filename, apply_on=None):
-        """Parse and rewrite the descriptor file.
-
-        Args:
-            descriptor_filename (str): Path to the `modelDescription.xml` file.
-                The file is modified in place.
-            apply_on (list[str] | None): If set, only process ports with a
-                causality in this list.
-        """
-        self.apply_on = apply_on
-        with open(self.output_filename, "w", encoding="utf-8") as self.out, open(descriptor_filename, "rb") as file:
-            self.parser.ParseFile(file)
-        self.operation.closure()
-        os.replace(self.output_filename, descriptor_filename)
+                attrs['dependenciesKind'] = " ".join(kind for _, kind in kept)
+        else:
+            attrs.pop('dependencies')
+            attrs.pop('dependenciesKind', None)
 
 
 class ManipulationSkipTag(Exception):
@@ -604,14 +592,27 @@ class OperationAbstract:
     """Base class for all FMU manipulation operations.
 
     Subclass this to implement custom operations on FMU descriptors. The
-    methods act as callbacks invoked during SAX parsing of
-    `modelDescription.xml`.
+    methods act as callbacks invoked, in document order, while
+    `modelDescription.xml` is walked: `fmi_attrs`, then `cosimulation_attrs`,
+    `modelexchange_attrs` and `experiment_attrs`, then `port_attrs` for each
+    variable, then `model_structure_attrs`, and finally `closure`.
+
+    The `attrs` dictionaries given to the callbacks are those of the descriptor
+    tree: changing them changes the descriptor.
 
     Attributes:
         fmu (FMU | None): The FMU being processed, set via `set_fmu`.
+        model_description (ModelDescription | None): The whole descriptor tree,
+            set before the first callback. Use it for changes that the
+            callbacks cannot express (e.g. removing an element).
+        read_only (bool): Set to `True` in an operation that never changes
+            the descriptor: it is then not written back. Defaults to `False`,
+            which is always safe.
     """
 
     fmu: FMU = None
+    model_description: Optional[ModelDescription] = None
+    read_only: bool = False
 
     def set_fmu(self, fmu):
         """Bind this operation to an FMU.
@@ -709,12 +710,14 @@ class OperationSaveNamesToCSV(OperationAbstract):
         output_filename (str): Path to the output CSV file.
     """
 
+    read_only = True
+
     def __repr__(self):
         return f"Dump names into '{self.output_filename}'"
 
     def __init__(self, filename):
         self.output_filename = filename
-        self.csvfile = open(filename, 'w', newline='')
+        self.csvfile = open(filename, 'w', newline='', encoding=ENCODING)
         self.writer = csv.writer(self.csvfile, delimiter=';', quotechar="'", quoting=csv.QUOTE_MINIMAL)
         self.writer.writerow(['name', 'newName', 'valueReference', 'causality', 'variability', 'scalarType',
                               'startValue'])
@@ -789,7 +792,7 @@ class OperationRenameFromCSV(OperationAbstract):
         self.translations = {}
 
         try:
-            with open(csv_filename, newline='') as csvfile:
+            with open_text(csv_filename) as csvfile:
                 reader = csv.reader(csvfile, delimiter=';', quotechar="'")
                 for row in reader:
                     self.translations[row[0]] = row[1]
@@ -878,24 +881,28 @@ class OperationSummary(OperationAbstract):
 
     Attributes:
         nb_port_per_causality (dict[str, int]): Count of ports per causality.
-        structure (ModelStructureCounter): Model-Exchange sizes (nx/nz), only
-            reported when the FMU declares a `<ModelExchange>` section.
+        number_of_continuous_states (int): Model-Exchange number of continuous
+            states (`nx`), only reported when the FMU declares a `<ModelExchange>`
+            section.
+        number_of_event_indicators (int): Model-Exchange number of event
+            indicators (`nz`), idem.
     """
+
+    read_only = True
 
     def __init__(self):
         self.nb_port_per_causality = {}
         self.fmi_version = 2
         self.has_model_exchange = False
-        self.structure = ModelStructureCounter()
+        self.number_of_continuous_states = 0
+        self.number_of_event_indicators = 0
 
     def __repr__(self):
         return f"FMU Summary"
 
     def fmi_attrs(self, attrs):
         logger.info(f"| fmu filename = {self.fmu.fmu_filename}")
-        self.structure.fmu_name = os.path.basename(self.fmu.fmu_filename)
         self.fmi_version = int(float(attrs.get("fmiVersion", "2.0")))
-        self.structure.fmi_attrs(self.fmi_version, attrs)
         logger.info(f"| temporary directory = {self.fmu.tmp_directory}")
         hash_md5 = hashlib.md5()
         with open(self.fmu.fmu_filename, "rb") as f:
@@ -922,9 +929,6 @@ class OperationSummary(OperationAbstract):
             logger.info(f"|  - {k} = {v}")
         logger.info(f"|")
 
-    def model_structure_attrs(self, section: str, attrs: Dict[str, str]):
-        self.structure.model_structure_attrs(self.fmi_version, section, attrs)
-
     def experiment_attrs(self, attrs):
         logger.info("| Default Experiment values: ")
         for (k, v) in attrs.items():
@@ -933,12 +937,6 @@ class OperationSummary(OperationAbstract):
 
     def port_attrs(self, fmu_port) -> int:
         causality = fmu_port.get("causality", "local")
-
-        try:
-            self.structure.register_port(fmu_port["valueReference"], fmu_port.dimensions,
-                                         fmu_port.get("start", None))
-        except KeyError:
-            pass  # port without valueReference: nothing to register.
 
         try:
             self.nb_port_per_causality[causality] += 1
@@ -978,10 +976,12 @@ class OperationSummary(OperationAbstract):
             logger.info(f"|  {causality} : {nb_ports}")
 
         if self.has_model_exchange:
+            self.number_of_continuous_states, self.number_of_event_indicators = \
+                self.model_description.model_exchange_sizes(os.path.basename(self.fmu.fmu_filename))
             logger.info("|")
             logger.info("| Model Exchange sizes")
-            logger.info(f"|  continuous states : {self.structure.number_of_continuous_states}")
-            logger.info(f"|  event indicators : {self.structure.number_of_event_indicators}")
+            logger.info(f"|  continuous states : {self.number_of_continuous_states}")
+            logger.info(f"|  event indicators : {self.number_of_event_indicators}")
 
         terminals = Terminals(self.fmu.tmp_directory)
         if terminals:
@@ -998,17 +998,23 @@ class OperationRemoveSources(OperationAbstract):
     """Remove the `sources/` directory from the FMU.
 
     Strips the embedded C/C++ source files that some FMUs include for
-    recompilation on the target platform.
+    recompilation on the target platform, and the `<SourceFiles>` elements
+    (FMI 2.0) that list them. For FMI 3.0, the list of sources is
+    `sources/buildDescription.xml`, removed with the directory.
     """
 
     def __repr__(self):
         return f"Remove sources"
 
-    def cosimulation_attrs(self, attrs):
+    def closure(self):
         try:
             shutil.rmtree(os.path.join(self.fmu.tmp_directory, "sources"))
         except FileNotFoundError:
             logger.info("This FMU does not embed sources.")
+
+        for interface in self.model_description.interfaces.values():
+            for source_files in interface.findall("SourceFiles"):
+                interface.remove(source_files)
 
 
 class OperationTrimUntil(OperationAbstract):

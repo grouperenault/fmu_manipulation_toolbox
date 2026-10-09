@@ -1,0 +1,43 @@
+| MD5Sum = 9b4243b142bf6248f50311837f92eaa1
+|
+| FMI properties: 
+|  - fmiVersion = 3.0
+|  - instantiationToken = 
+|  - modelName = DemoCanNodeTriggeredOutput
+|  - variableNamingConvention = structured
+|  - xsi:noNamespaceSchemaLocation = https://raw.githubusercontent.com/modelica/fmi-standard/v3.0.1/schema/fmi3ModelDescription.xsd
+|
+| Co-Simulation capabilities: 
+|  - canBeInstantiatedOnlyOncePerProcess = false
+|  - canGetAndSetFMUState = false
+|  - canHandleVariableCommunicationStepSize = true
+|  - canReturnEarlyAfterIntermediateUpdate = false
+|  - canSerializeFMUState = false
+|  - hasEventMode = true
+|  - modelIdentifier = DemoCanNodeTriggeredOutput
+|  - needsExecutionTool = false
+|  - providesIntermediateUpdate = false
+|
+| Default Experiment values: 
+|  - startTime = 0
+|  - stepSize = 0.001
+|
+| Supported platforms: 
+|  - RT (sources available)
+|  - aarch64-darwin
+|  - x86_64-linux
+|  - x86_64-windows
+|
+| Additional (meta-)data:
+|  - org.fmi-standard.fmi-ls-bus
+|
+| Number of ports
+|  independent : 1
+|  input : 2
+|  output : 2
+|  structuralParameter : 1
+|
+| Terminals:
+|  - CanChannel (4 signals, org.fmi-ls-bus.network-terminal)
+|
+| [End of report]

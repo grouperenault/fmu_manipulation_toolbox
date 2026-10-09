@@ -45,10 +45,29 @@ If you also want to use `fmutoolbox`, `fmutool-gui`, `fmueditor` or `fmucontaine
 pip install "fmu-manipulation-toolbox[gui]"
 ```
 
+### Installation with the AI Assistant (MCP server)
+
+The toolbox can expose its FMU Container assembly capabilities to an AI agent through an
+[MCP server](user-guide/fmucontainer/ai-assistant.md), either as a standalone command
+(`fmutool-mcp`, no GUI needed) or from the Container Builder window. This optional
+feature requires Python **3.10+** and the `fastmcp` package, available through the `mcp`
+extra:
+
+```bash
+# Standalone MCP server only (no GUI)
+pip install "fmu-manipulation-toolbox[mcp]"
+
+# MCP server + the graphical tools
+pip install "fmu-manipulation-toolbox[gui,mcp]"
+```
+
 !!! tip "Which install do I need?"
 
     - **CLI / Python API only** (scripting, CI/CD, servers): `pip install fmu-manipulation-toolbox`
     - **GUI tools** (interactive use): `pip install "fmu-manipulation-toolbox[gui]"`
+    - **AI Assistant alone** (MCP server for Claude Desktop, VS Code, ...; Python 3.10+):
+      `pip install "fmu-manipulation-toolbox[mcp]"`
+    - **GUI tools + AI Assistant** (MCP server, Python 3.10+): `pip install "fmu-manipulation-toolbox[gui,mcp]"`
 
 ### Installation with Upgrade
 
@@ -77,6 +96,9 @@ fmutoolbox         # Launcher with all GUI tools
 fmutool-gui        # FMU analysis & modification
 fmueditor          # FMU variable editor
 fmucontainer-gui   # FMU container builder
+
+# Test the MCP server (requires the `mcp` extra and Python 3.10+)
+fmutool-mcp --help
 ```
 
 **Expected Output:**
@@ -193,6 +215,8 @@ pip install -e .
 # With GUI and/or test dependencies
 pip install -e ".[gui]"
 pip install -e ".[gui,test]"
+# With the AI Assistant (MCP server, Python 3.10+)
+pip install -e ".[gui,mcp]"
 ```
 
 #### Standard Installation
@@ -326,6 +350,9 @@ pip uninstall fmu-manipulation-toolbox xmlschema elementpath colorama
 
 # If you installed the `gui` and/or `test` extras, also remove:
 pip uninstall PySide6 fmpy
+
+# If you installed the `mcp` extra (AI Assistant), also remove:
+pip uninstall fastmcp
 ```
 
 ## Supported Python Versions

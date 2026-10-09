@@ -1,0 +1,51 @@
+<fmiModelDescription fmiVersion="2.0" generationDateAndTime="2026-09-08T08:42:20Z" generationTool="Simulink (R2025b)" guid="{7b736af6-8ff5-87d1-1fe7-5939d3346dfd}" modelName="position" numberOfEventIndicators="5" variableNamingConvention="structured" version="1.5">
+  <ModelExchange canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUstate="true" canNotUseMemoryManagementFunctions="true" canSerializeFMUstate="true" modelIdentifier="position" needsExecutionTool="false"></ModelExchange>
+  <DefaultExperiment startTime="0" stepSize="0.1" stopTime="5"></DefaultExperiment>
+  <VendorAnnotations>
+    <Tool name="Simulink">
+      <Simulink>
+        <ImportCompatibility FMUProduct="standalone FMU" canSourceFileCodeGeneration="false" requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Inport blockPath="position/velocity" dataType="double" dimension="[1]" portName="velocity" portNumber="1" sampleTime="[0 0]" uniquePortName="velocity" unit=""></Inport>
+          <Outport blockPath="position/reset" dataType="boolean" dimension="[1]" portName="reset" portNumber="1" sampleTime="[0 0]" uniquePortName="reset" unit=""></Outport>
+          <Outport blockPath="position/position" dataType="double" dimension="[1]" portName="position" portNumber="2" sampleTime="[0 0]" uniquePortName="position" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Tool>
+  </VendorAnnotations>
+  <ModelVariables>
+    <ScalarVariable causality="input" description="velocity" name="velocity" valueReference="0" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="output" description="reset" initial="calculated" name="reset" valueReference="0" variability="discrete">
+      <Boolean></Boolean>
+    </ScalarVariable>
+    <ScalarVariable causality="output" description="position" initial="calculated" name="position" valueReference="1" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="independent" description="time" name="time" valueReference="2" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="local" description="ContState1" initial="calculated" name="ContState1" valueReference="3" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="local" description="Deriv1" initial="calculated" name="Deriv1" valueReference="4" variability="continuous">
+      <Real derivative="5"></Real>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="2"></Unknown>
+      <Unknown index="3"></Unknown>
+    </Outputs>
+    <Derivatives>
+      <Unknown index="6"></Unknown>
+    </Derivatives>
+    <InitialUnknowns>
+      <Unknown index="2"></Unknown>
+      <Unknown index="3"></Unknown>
+      <Unknown index="5"></Unknown>
+      <Unknown index="6"></Unknown>
+    </InitialUnknowns>
+  </ModelStructure>
+</fmiModelDescription>

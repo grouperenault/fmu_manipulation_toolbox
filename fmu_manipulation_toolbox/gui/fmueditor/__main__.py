@@ -59,6 +59,8 @@ class FMUVariable:
 class OperationCollectPorts(OperationAbstract):
     """Collects variables, FMU info and the DefaultExperiment."""
 
+    read_only = True
+
     def __init__(self):
         self.variables: List[FMUVariable] = []
         # FMU metadata

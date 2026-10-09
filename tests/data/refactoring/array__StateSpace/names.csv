@@ -1,0 +1,14 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+time;time;0;independent;continuous;Float64;
+m;m;1;structuralParameter;tunable;UInt64;3
+n;n;2;structuralParameter;tunable;UInt64;3
+r;r;3;structuralParameter;tunable;UInt64;3
+A;A;4;parameter;tunable;Float64;1 0 0 0 1 0 0 0 1
+B;B;5;parameter;tunable;Float64;1 0 0 0 1 0 0 0 1
+C;C;6;parameter;tunable;Float64;1 0 0 0 1 0 0 0 1
+D;D;7;parameter;tunable;Float64;1 0 0 0 1 0 0 0 1
+x0;x0;8;parameter;tunable;Float64;0 0 0
+u;u;9;input;continuous;Float64;1 2 3
+y;y;10;output;continuous;Float64;
+x;x;11;local;continuous;Float64;
+der(x);der(x);12;local;continuous;Float64;

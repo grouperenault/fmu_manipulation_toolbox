@@ -1,0 +1,14 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+real64;real64;0;output;continuous;Float64;
+real32;real32;2;output;discrete;Float32;
+integer8;integer8;3;output;discrete;Int8;
+uinteger8;uinteger8;4;output;discrete;UInt8;
+integer16;integer16;5;output;discrete;Int16;
+uinteger16;uinteger16;6;output;discrete;UInt16;
+integer32;integer32;7;output;discrete;Int32;
+uinteger32;uinteger32;8;output;discrete;UInt32;
+integer64;integer64;9;output;discrete;Int64;
+uinteger64;uinteger64;10;output;discrete;UInt64;
+string;string;12;output;discrete;String;
+boolean;boolean;11;output;discrete;Boolean;
+time;time;1;independent;continuous;Float64;

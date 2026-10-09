@@ -1,0 +1,44 @@
+| MD5Sum = 9a08be8c8c3f98b96aa776beb5dae46a
+|
+| FMI properties: 
+|  - fmiVersion = 3.0
+|  - instantiationToken = 
+|  - modelName = DemoCanBusSimulation
+|  - variableNamingConvention = structured
+|  - xsi:noNamespaceSchemaLocation = https://raw.githubusercontent.com/modelica/fmi-standard/v3.0.1/schema/fmi3ModelDescription.xsd
+|
+| Co-Simulation capabilities: 
+|  - canBeInstantiatedOnlyOncePerProcess = false
+|  - canGetAndSetFMUState = false
+|  - canHandleVariableCommunicationStepSize = true
+|  - canReturnEarlyAfterIntermediateUpdate = false
+|  - canSerializeFMUState = false
+|  - hasEventMode = true
+|  - modelIdentifier = DemoCanBusSimulation
+|  - needsExecutionTool = false
+|  - providesEvaluateDiscreteStates = true
+|  - providesIntermediateUpdate = false
+|
+| Default Experiment values: 
+|  - startTime = 0
+|  - stepSize = 0.001
+|
+| Supported platforms: 
+|  - RT (sources available)
+|  - aarch64-darwin
+|  - x86_64-linux
+|  - x86_64-windows
+|
+| Additional (meta-)data:
+|  - org.fmi-standard.fmi-ls-bus
+|
+| Number of ports
+|  independent : 1
+|  input : 7
+|  output : 2
+|
+| Terminals:
+|  - Node1 (4 signals, org.fmi-ls-bus.network-terminal)
+|  - Node2 (4 signals, org.fmi-ls-bus.network-terminal)
+|
+| [End of report]

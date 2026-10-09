@@ -1,0 +1,49 @@
+| MD5Sum = afe28276462722280f2d5525e8d268fd
+|
+| FMI properties: 
+|  - author = nl
+|  - copyright = See Embedded FMU's copyrights.
+|  - description = FMUContainer with bus.fmu, node1.fmu, node2.fmu
+|  - fmiVersion = 3.0
+|  - generationDateAndTime = 2026-07-19T12:40:12Z
+|  - generationTool = FMUContainer-0.0.dev0
+|  - instantiationToken = b757f65d-d430-4a78-8756-1aace4c182f9
+|  - license = Proprietary
+|  - modelName = bus+nodes
+|  - variableNamingConvention = structured
+|
+| Co-Simulation capabilities: 
+|  - canBeInstantiatedOnlyOncePerProcess = false
+|  - canGetAndSetFMUState = false
+|  - canHandleVariableCommunicationStepSize = true
+|  - canNotUseMemoryManagementFunctions = true
+|  - canSerializeFMUState = false
+|  - hasEventMode = false
+|  - modelIdentifier = bus+nodes
+|  - needsExecutionTool = false
+|  - providesAdjointDerivatives = false
+|  - providesDirectionalDerivatives = false
+|  - providesEvaluateDiscreteStates = false
+|  - providesPerElementDependencies = false
+|
+| Default Experiment values: 
+|  - startTime = 0.0
+|  - stepSize = 0.1
+|  - stopTime = 1.0
+|
+| Supported platforms: 
+|  - aarch64-darwin
+|
+| Embedded resources:
+|  - 00
+|  - 01
+|  - 02
+|  - container.txt
+|  - datalog.txt
+|
+| Number of ports
+|  independent : 1
+|  local : 8
+|  input : 1
+|
+| [End of report]

@@ -1,0 +1,32 @@
+| MD5Sum = ab5af9a7a93e95917f974118980f243b
+|
+| FMI properties: 
+|  - description = A test model with 5 parameters, 5 inputs, 5 outputs, and 5 states.
+|  - fmiVersion = 3.0
+|  - generationDateAndTime = 2026-08-13T06:23:42.063580+00:00
+|  - generationTool = FMPy 0.3.30
+|  - instantiationToken = 8e04d29b-cdc0-47bc-8c5f-50e65b6712b0
+|  - modelName = model
+|
+| Co-Simulation capabilities: 
+|  - modelIdentifier = model
+|
+| Default Experiment values: 
+|  - startTime = 0.0
+|  - stepSize = 1e-3
+|  - stopTime = 1.0
+|
+| Supported platforms: 
+|  - RT (sources available)
+|  - aarch64-darwin
+|  - x86_64-linux
+|  - x86_64-windows
+|
+| Number of ports
+|  independent : 1
+|  parameter : 5
+|  input : 5
+|  output : 5
+|  local : 5
+|
+| [End of report]

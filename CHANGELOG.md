@@ -2,6 +2,110 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* FIXED: text files are written and read in UTF-8 on every platform: assembly descriptions (CSV, JSON),
+         the port names CSV (`-dump-csv`, `-rename-from-csv`), `container.txt` and `datalog.txt`, and the log
+         saved by `fmutool-gui`. They used the platform encoding, cp1252 on most Windows installations, so
+         a non-ASCII name written on one platform was misread on another. A UTF-8 byte order mark (added
+         by Excel) is accepted, and a file that is not UTF-8 is still read with the platform encoding,
+         with a warning.
+* FIXED: reading an SSP archive: the elements of `SystemStructure.ssd` are recognized by their namespace
+         (SSP 1.0) instead of the literal `ssd:` prefix. A valid SSD using another prefix or a default
+         namespace failed with `AttributeError`. An invalid SSD (other namespace, not well-formed,
+         reference to an unknown element) now raises `AssemblyError` with a clear message.
+* REMOVED: `ModelStructureCounter`. The Model Exchange sizes are computed from the descriptor tree by
+         `ModelDescription.model_exchange_sizes()`. `OperationSummary.structure` is replaced by
+         `OperationSummary.number_of_continuous_states` and `number_of_event_indicators`, which
+         `EmbeddedFMU` already provided.
+* CHANGED (**breaking**): `fmutool`, `fmucontainer` and `fmusplit` exit with positive codes, shared by
+         the three tools: 2 invalid command line, 3 input missing or unreadable, 4 invalid input,
+         5 operation or build refused or failed, 6 output cannot be written, 7 `-check` found the FMU
+         non-compliant (see the CLI guide). They used negative codes (`-1` to `-6`), with a different
+         meaning for each tool. Scripts that test the exact value must be updated.
+* ADDED: `fmutool -check` exits with status 7 when a checker reports an error, so that it can be used
+         in CI. The XSD checker reports every violation instead of the first one only.
+* ADDED: `OperationSemanticCheck`, a built-in checker for the rules of FMI 2.0 and 3.0 that the XSD
+         cannot express: unique names and value references, allowed `causality`/`variability`/`initial`
+         combinations, `start` values, references between variables and in `<ModelStructure>`.
+* CHANGED: an `FMU` parses its `modelDescription.xml` once for all the operations applied to it, and
+         operations declared `read_only` (summary, CSV dump, checkers) no longer rewrite it: the
+         descriptor stays exactly as in the archive.
+* FIXED: `get_checkers()` added the checkers registered through entry points again at each call.
+* FIXED: `fmusplit` failed with `KeyError` on an FMI-3 variable without `causality` attribute.
+* FIXED: `fmucontainer`: the `modelDescription.xml` of the container is now built with ElementTree.
+         Names and descriptions coming from the embedded FMUs are escaped (a `&`, `<` or `"` made
+         the descriptor invalid), and the file is written in UTF-8 as required by FMI 2.0 and 3.0
+         (it declared ISO-8859-1 but was written with the encoding of the locale).
+* FIXED: `fmucontainer`: in FMI-2 containers with profiling, `ts_multiplier` or a Model Exchange
+         solver, `<ModelStructure>` listed local variables instead of the outputs.
+* CHANGED: `FMU` can be used as a context manager (`with FMU(...) as fmu:`), and has a `close()`
+         method. Its temporary directory is now also removed at interpreter exit, and when opening
+         fails.
+* FIXED: opening a file that is not a ZIP archive, or a directory, raised a raw exception instead
+         of `FMUError`. `fmutool` now reports these errors, and an unreadable `modelDescription.xml`,
+         with a clear message instead of a traceback.
+* CHANGED: `fmutool` operations: `modelDescription.xml` is now modified in place with ElementTree
+         instead of being re-generated, so that everything an operation does not touch is kept as
+         is. Fixes text and attribute values written unescaped or unescaped twice (which produced
+         invalid XML, and made the second of two chained operations fail), and the loss of
+         `<Annotations>` of FMI-2 variables, FMI-3 `<Alias>`, all but the first `<Start>` of FMI-3
+         `String` arrays, empty FMI-3 `<Start value="">`, FMI-3 `<Dimension start="1">` (the
+         array became a scalar), comments and the XML declaration (required by FMI 2.0 and 3.0).
+         The descriptor is always written in UTF-8.
+* FIXED: removing ports from an FMI-2 FMU did not renumber the `derivative` attribute, which
+         then pointed to the wrong variable.
+* CHANGED: an operation is now refused with `OperationError`, leaving the FMU unchanged, if its
+         result would break the FMI standard: removing every variable, removing a variable still
+         referenced by a kept one (`derivative`, `previous`, `clocks`, `<Dimension
+         valueReference>`), or giving the same name to several variables (or FMI-3 aliases).
+* FIXED: `-remove-sources` also removes the `<SourceFiles>` elements of the descriptor, and now
+         works on Model Exchange-only FMUs.
+* CHANGED: `FMUPort` is now a view on the descriptor tree. Building a detached `FMUPort()` and
+         `push_attrs()` are deprecated. Operations can reach the whole tree through their new
+         `model_description` attribute. Namespaced attributes are still given to the callbacks as
+         `prefix:name`, but the `xmlns:*` declarations are no longer listed (`-summary` no
+         longer prints them).
+* FIXED: MCP server: invalid arguments are reported with a short, actionable message (unknown option or
+         argument with the list of the allowed ones, missing argument, value outside its constraint)
+         instead of the raw Pydantic text and its documentation link.
+* ADDED: MCP server: **single-FMU tools** beyond container assembly — `summarize_fmu`,
+         `check_fmu` (FMI schema conformity), `dump_ports_csv`, `rename_ports_from_csv` and
+         `apply_operation` (prefix stripping/merging, trimming, regexp filtering). The tools that
+         rewrite an FMU always produce a new file and leave the source untouched.
+* ADDED: MCP server: assembly edition is now reversible and batchable — `remove_link`,
+         `unset_start_value` and `add_links` (bulk wiring, reporting per-link failures).
+* ADDED: MCP server: optional **bearer-token authentication** for the HTTP transport
+         (`--token generate`, or `FMUCONTAINER_MCP_TOKEN`). The loopback interface keeps remote
+         machines out, but not the other processes of the same machine, which can otherwise read
+         and write files through the server.
+* FIXED: `Checker`: XSD validation errors were lost instead of being reported — the error was
+         logged with a malformed `logger.error(reason, msg)` call, which raised at formatting time.
+* ADDED: `fmutool-mcp`: a **standalone MCP server**, launched by the MCP client over the
+         **stdio** transport (Claude Desktop, VS Code, Cline, ...) and requiring neither a display
+         nor a running GUI. It serves exactly the same tools as the GUI assistant, on top of the
+         public `Assembly` API. `--root DIR` (or `FMUCONTAINER_MCP_ROOT`) confines the agent to a
+         directory tree; `--transport http` is also available for clients that attach to an
+         already-running server. The server advertises itself to clients as `fmutool`.
+         Requires Python >= 3.10 and the `mcp` extra.
+* ADDED: `fmucontainer-gui`: **AI Assistant** — the Container Builder can expose its assembly
+         capabilities to an AI agent (e.g. GitHub Copilot in *Agent* mode) through a
+         [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server. Toggle it from the
+         **Configuration** menu (*AI Assistant On/Off*); the agent drives the live canvas (add FMUs,
+         wire ports, expose inputs/outputs, set start values and options, build the container FMU),
+         with every action marked as an unsaved change and written to the log panel. Port
+         introspection reports every variable with its causality, variability, type, unit, start
+         value and description, and is filterable (by causality or name pattern) and paginated so
+         that industrial FMUs do not saturate the agent context. The server also ships its own
+         know-how, so that any MCP client benefits from it: three prompts (`build_container`,
+         `diagnose_assembly`, `inspect_fmu`) describing complete procedures, and reference
+         resources (`guide://usage`, `fmi://conventions`, `container://options`,
+         `assembly://current`, `fmu://{name}/ports`). Building a container reports its progress
+         to the client instead of running silently, and the time the tools wait for the GUI is
+         configurable with `FMUCONTAINER_MCP_TIMEOUT` (60 s by default, ten times that for
+         builds). The server uses
+         the Streamable HTTP transport bound to `127.0.0.1:8765/mcp` (port overridable with the
+         `FMUCONTAINER_MCP_PORT` environment variable). This feature requires Python >= 3.10 and the
+         new `mcp` extra: `pip install "fmu-manipulation-toolbox[gui,mcp]"`. See
+         [AI Assistant (MCP server)](docs/user-guide/fmucontainer/ai-assistant.md).
 * ADDED: Model-Exchange FMUs: the number of continuous states (`nx`) and of event indicators (`nz`)
          are now computed from `<ModelStructure>` (FMI-2 `<Derivatives>` / FMI-3 `<ContinuousStateDerivative>`
          and `<EventIndicator>`, array variables counted per element).

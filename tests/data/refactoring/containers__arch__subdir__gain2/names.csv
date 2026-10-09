@@ -1,0 +1,4 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+integrate;integrate;0;input;continuous;Real;0
+final;final;1;output;continuous;Real;
+time;time;2;independent;continuous;Real;

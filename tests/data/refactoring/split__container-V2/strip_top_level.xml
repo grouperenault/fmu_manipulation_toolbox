@@ -1,0 +1,26 @@
+<fmiModelDescription author="root" copyright="See Embedded FMU's copyrights." description="FMUContainer with sine.fmu, integrate.fmu, level1.fmu" fmiVersion="2.0" generationDateAndTime="2026-04-02T20:23:29Z" generationTool="FMUContainer-V1.8.4.2" guid="24ac1ffd-fa22-4a7f-83db-f980661d1030" license="Proprietary" modelName="reversed" variableNamingConvention="structured">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUstate="false" canHandleVariableCommunicationStepSize="true" canNotUseMemoryManagementFunctions="true" canSerializeFMUstate="false" modelIdentifier="reversed" needsExecutionTool="false" providesDirectionalDerivative="false"></CoSimulation>
+  <LogCategories>
+    <Category name="fmucontainer"></Category>
+  </LogCategories>
+  <DefaultExperiment startTime="0.0" stepSize="0.01" stopTime="10.0"></DefaultExperiment>
+  <ModelVariables>
+    <ScalarVariable causality="local" description="sine" initial="calculated" name="sine" valueReference="0" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="local" description="integrate" initial="calculated" name="integrate" valueReference="1" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="output" description="final" initial="calculated" name="final" valueReference="2" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="3"></Unknown>
+    </Outputs>
+    <InitialUnknowns>
+      <Unknown index="3"></Unknown>
+    </InitialUnknowns>
+  </ModelStructure>
+</fmiModelDescription>

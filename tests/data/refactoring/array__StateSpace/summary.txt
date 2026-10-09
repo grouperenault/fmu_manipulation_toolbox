@@ -1,0 +1,51 @@
+| MD5Sum = 5d50e5686ede0c59808f6b49a2d28674
+|
+| FMI properties: 
+|  - description = This model implements a linear time-invariant (LTI) system
+|  - fmiVersion = 3.0
+|  - generationDateAndTime = 2025-06-12T19:14:15.071804+00:00
+|  - generationTool = Reference FMUs (v0.0.39)
+|  - instantiationToken = {D773325B-AB94-4630-BF85-643EB24FCB78}
+|  - modelName = StateSpace
+|
+| Model Exchange capabilities: 
+|  - canGetAndSetFMUState = true
+|  - canSerializeFMUState = true
+|  - modelIdentifier = StateSpace
+|
+| Co-Simulation capabilities: 
+|  - canGetAndSetFMUState = true
+|  - canHandleVariableCommunicationStepSize = true
+|  - canReturnEarlyAfterIntermediateUpdate = true
+|  - canSerializeFMUState = true
+|  - fixedInternalStepSize = 1
+|  - hasEventMode = true
+|  - modelIdentifier = StateSpace
+|  - providesIntermediateUpdate = true
+|
+| Default Experiment values: 
+|  - startTime = 0
+|  - stopTime = 10
+|
+| Supported platforms: 
+|  - RT (sources available)
+|  - aarch64-darwin
+|  - aarch64-linux
+|  - x86-windows
+|  - x86_64-darwin
+|  - x86_64-linux
+|  - x86_64-windows
+|
+| Number of ports
+|  independent : 1
+|  structuralParameter : 3
+|  parameter : 5
+|  input : 1
+|  output : 1
+|  local : 2
+|
+| Model Exchange sizes
+|  continuous states : 3
+|  event indicators : 0
+|
+| [End of report]

@@ -63,14 +63,15 @@ FMU Information:
 fmutool -input module.fmu -check
 ```
 
-**Output:**
-```
-Checking FMU: module.fmu
-✓ modelDescription.xml is valid
-✓ Schema validation passed
-⚠ Warning: Variable 'temp' has no description
-✓ All value references are unique
-```
+Two built-in checkers are run, followed by the custom ones (see [FMU Checker](checker.md)):
+
+- the **XSD schema** of the FMI version (every violation is reported, not only the first one);
+- the **semantic rules** that the schema cannot express: unique names and value references, allowed
+  `causality`/`variability`/`initial` combinations, presence of `start` values, references between
+  variables and in `<ModelStructure>`.
+
+Each violation is logged as an error. If any checker logs an error, `fmutool` exits with status `7`,
+after having performed the other requested actions (e.g. `-output`), so that `-check` can be used in CI.
 
 ### List All Ports in CSV
 
@@ -384,6 +385,25 @@ datalog2pcap -can datalog.csv
 |---|---|
 | `-can filename.csv` | Datalog CSV file with CAN data and clocks. |
 | `-debug` | Enable verbose logging. |
+
+## Exit Codes
+
+`fmutool`, `fmucontainer` and `fmusplit` share the same exit codes:
+
+| Code | Meaning |
+|-----:|---------|
+| `0`  | Success |
+| `1`  | Unexpected internal error (reported with a Python traceback) |
+| `2`  | Invalid command line (also `-input` and `-output` pointing to the same file) |
+| `3`  | Input file missing or unreadable |
+| `4`  | Invalid input: not an FMU or not a container, invalid assembly, unreadable `modelDescription.xml` |
+| `5`  | Operation or build refused or failed (e.g. an operation that would break the FMI standard) |
+| `6`  | Output cannot be written |
+| `7`  | `-check`: the FMU is not compliant |
+
+!!! note
+    Earlier versions exited with negative codes (`-1` to `-6`, seen as `255` to `250` by the shell),
+    with a different meaning for each tool: see the changelog.
 
 ## Automation and Scripts
 

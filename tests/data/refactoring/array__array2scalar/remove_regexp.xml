@@ -1,0 +1,23 @@
+<fmiModelDescription fmiVersion="3.0" generationDateAndTime="2026-02-08T17:04:33Z" generationTool="Simulink (R2024b)" instantiationToken="{e092864e-3b8e-7e1d-a4bf-ee0e4c648539}" modelName="array" variableNamingConvention="structured" version="1.4">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUState="false" canHandleVariableCommunicationStepSize="false" canSerializeFMUState="false" fixedInternalStepSize="0.1" hasEventMode="true" modelIdentifier="array"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.1" stopTime="10"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="output" description="Out1" initial="calculated" name="Out1" valueReference="1" variability="continuous"></Float64>
+    <Float64 causality="independent" description="time" name="time" valueReference="2" variability="continuous"></Float64>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="1"></Output>
+    <InitialUnknown valueReference="1"></InitialUnknown>
+  </ModelStructure>
+  <Annotations>
+    <Annotation type="com.mathworks.Simulink">
+      <Simulink>
+        <ImportCompatibility FMUProduct="standalone FMU" requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Inport blockPath="array/In1" dataType="double" dimension="[2]" portName="In1" portNumber="1" sampleTime="[0.1   0]" uniquePortName="In1" unit=""></Inport>
+          <Outport blockPath="array/Out1" dataType="double" dimension="[1]" portName="Out1" portNumber="1" sampleTime="[0.1   0]" uniquePortName="Out1" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Annotation>
+  </Annotations>
+</fmiModelDescription>

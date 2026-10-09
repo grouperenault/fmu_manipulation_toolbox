@@ -1,0 +1,1 @@
+OperationError: The operation would remove variables that are still referenced: 'x0' is referenced by 'der(x0)' (derivative); 'x1' is referenced by 'der(x1)' (derivative)

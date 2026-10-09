@@ -1,0 +1,5 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+velocity;velocity;0;input;continuous;Real;0
+is_ground;is_ground;0;output;discrete;Boolean;
+position1;position1;1;output;continuous;Real;
+time;time;2;independent;continuous;Real;

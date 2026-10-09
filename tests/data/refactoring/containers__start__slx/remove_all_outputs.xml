@@ -1,0 +1,23 @@
+<fmiModelDescription fmiVersion="2.0" generationDateAndTime="2025-05-19T12:29:49Z" generationTool="Simulink (R2022b)" guid="{6853134c-427d-44a3-ac7a-36eca9552797}" modelName="G" numberOfEventIndicators="0" variableNamingConvention="structured" version="1.2">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canHandleVariableCommunicationStepSize="false" canNotUseMemoryManagementFunctions="true" modelIdentifier="G"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.1" stopTime="10"></DefaultExperiment>
+  <VendorAnnotations>
+    <Tool name="Simulink">
+      <Simulink>
+        <ImportCompatibility requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Outport blockPath="G/g" dataType="double" dimension="[1]" portName="g" portNumber="1" sampleTime="[Inf   0]" uniquePortName="g" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Tool>
+  </VendorAnnotations>
+  <ModelVariables>
+    <ScalarVariable causality="independent" description="time" name="time" valueReference="1" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="parameter" description="g" initial="exact" name="g_1" valueReference="2" variability="tunable">
+      <Real start="9.81"></Real>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure></ModelStructure>
+</fmiModelDescription>

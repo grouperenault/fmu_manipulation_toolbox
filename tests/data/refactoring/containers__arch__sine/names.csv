@@ -1,0 +1,3 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+sine;sine;0;output;continuous;Real;
+time;time;1;independent;continuous;Real;

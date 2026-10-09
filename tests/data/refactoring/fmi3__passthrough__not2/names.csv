@@ -1,0 +1,4 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+in_bool;in_bool;0;input;discrete;Boolean;0
+not_bool;not_bool;1;output;discrete;Boolean;
+time;time;0;independent;continuous;Real;

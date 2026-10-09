@@ -1,0 +1,34 @@
+| MD5Sum = fd0baef519295434d2615280bb9c9505
+|
+| FMI properties: 
+|  - fmiVersion = 2.0
+|  - generationDateAndTime = 2026-07-21T09:32:21Z
+|  - generationTool = Simulink (R2024b)
+|  - guid = {75d40875-14e3-e8a1-f5d6-557662a999a0}
+|  - modelName = array2scalar
+|  - numberOfEventIndicators = 0
+|  - variableNamingConvention = structured
+|  - version = 1.13
+|
+| Co-Simulation capabilities: 
+|  - canBeInstantiatedOnlyOncePerProcess = true
+|  - canGetAndSetFMUstate = true
+|  - canHandleVariableCommunicationStepSize = false
+|  - canNotUseMemoryManagementFunctions = true
+|  - canSerializeFMUstate = true
+|  - modelIdentifier = array2scalar
+|
+| Default Experiment values: 
+|  - startTime = 0
+|  - stepSize = 0.1
+|  - stopTime = 10
+|
+| Supported platforms: 
+|  - win64
+|
+| Number of ports
+|  input : 12
+|  output : 4
+|  independent : 1
+|
+| [End of report]

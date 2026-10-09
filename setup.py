@@ -28,6 +28,7 @@ try:
         name="fmu_manipulation_toolbox",
         version=version,
         packages=["fmu_manipulation_toolbox",
+                  "fmu_manipulation_toolbox.assistant",
                   "fmu_manipulation_toolbox.cli",
                   "fmu_manipulation_toolbox.gui",
                   "fmu_manipulation_toolbox.gui.fmucontainer",
@@ -55,6 +56,7 @@ try:
         ]},
         entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.cli.fmutool:fmutool",
                                           "fmucontainer = fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer",
+                                          "fmutool-mcp = fmu_manipulation_toolbox.cli.fmutool_mcp:main",
                                           "fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit",
                                           "datalog2pcap = fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap",
                                           ],
@@ -97,7 +99,8 @@ Major features:
   separate process through a frontend wrapper.
 - Combine FMUs into FMU Containers (`fmucontainer`) with automatic or explicit routing, multi-threading,
   performance profiling and CSV datalog, then let your favourite FMI tool orchestrate the resulting assembly.
-  A visual node-graph editor (`fmucontainer-gui`) is also available.
+  A visual node-graph editor (`fmucontainer-gui`) is also available, as well as an MCP server
+  (`fmutool-mcp`) letting an AI agent assemble containers for you.
 - Split a Container FMU back into its embedded FMUs with `fmusplit`.
 
 FMI versions 2.0, 3.0 and LS-BUS are supported.
@@ -110,6 +113,19 @@ FMI versions 2.0, 3.0 and LS-BUS are supported.
             "importlib_metadata >= 8.7.0; python_version<'3.10'"
         ],
         extras_require={
+            "mcp": [
+                # Needed by the MCP server, both flavours: the standalone
+                # `fmutool-mcp` and the GUI assistant
+                # (`fmu_manipulation_toolbox.assistant`). Requires Python >= 3.10.
+                # Upper-bounded on the next major: FastMCP has already renamed
+                # public attributes across majors, so a new one is assumed to
+                # break us until proven otherwise.
+                "fastmcp >= 4.0.3, < 5; python_version>='3.10'",
+                # ASGI server backing the HTTP transport used by the GUI. It is
+                # pulled in transitively by fastmcp today, but the assistant
+                # imports it directly, so it is declared explicitly.
+                "uvicorn >= 0.30; python_version>='3.10'",
+            ],
             "gui": [
                 # Only needed by `fmu_manipulation_toolbox.gui.*` (fmutool-gui, fmueditor,
                 # fmucontainer-gui, fmutoolbox launcher). The CLI (`fmutool`, `fmucontainer`,
@@ -126,7 +142,7 @@ FMI versions 2.0, 3.0 and LS-BUS are supported.
                 "fmpy >= 0.3.20",
                 "numpy",
             ],
-            "all": ["fmu_manipulation_toolbox[gui,test]"],
+            "all": ["fmu_manipulation_toolbox[gui,mcp,test]"],
         },
         license="BSD-2-Clause",
         license_files=["LICENSE.txt"],

@@ -1,0 +1,44 @@
+| MD5Sum = 741bdd72734108ac874ec9b7dd2bdf07
+|
+| FMI properties: 
+|  - description = This model calculates the trajectory, over time, of a ball dropped from a height of 1 m
+|  - fmiVersion = 2.0
+|  - generationDateAndTime = 2025-06-12T19:14:13.998312+00:00
+|  - generationTool = Reference FMUs (v0.0.39)
+|  - guid = {1AE5E10D-9521-4DE3-80B9-D0EAAA7D5AF1}
+|  - modelName = BouncingBall
+|  - numberOfEventIndicators = 1
+|
+| Model Exchange capabilities: 
+|  - canGetAndSetFMUstate = true
+|  - canNotUseMemoryManagementFunctions = true
+|  - canSerializeFMUstate = true
+|  - modelIdentifier = BouncingBall
+|
+| Co-Simulation capabilities: 
+|  - canGetAndSetFMUstate = true
+|  - canHandleVariableCommunicationStepSize = true
+|  - canNotUseMemoryManagementFunctions = true
+|  - canSerializeFMUstate = true
+|  - modelIdentifier = BouncingBall
+|
+| Default Experiment values: 
+|  - startTime = 0
+|  - stepSize = 1e-2
+|  - stopTime = 3
+|
+| Supported platforms: 
+|  - RT (sources available)
+|  - win32
+|
+| Number of ports
+|  independent : 1
+|  output : 2
+|  local : 3
+|  parameter : 2
+|
+| Model Exchange sizes
+|  continuous states : 2
+|  event indicators : 1
+|
+| [End of report]

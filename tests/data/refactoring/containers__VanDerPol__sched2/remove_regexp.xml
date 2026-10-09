@@ -1,0 +1,20 @@
+<fmiModelDescription fmiVersion="2.0" generationDateAndTime="2025-11-29T08:30:08Z" generationTool="Simulink (R2024b)" guid="{8772fef8-3464-a43b-3ac1-2feaddf23b87}" modelName="sched" numberOfEventIndicators="0" variableNamingConvention="structured" version="1.1">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUstate="true" canHandleVariableCommunicationStepSize="false" canNotUseMemoryManagementFunctions="true" canSerializeFMUstate="true" modelIdentifier="sched"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.1" stopTime="20"></DefaultExperiment>
+  <VendorAnnotations>
+    <Tool name="Simulink">
+      <Simulink>
+        <ImportCompatibility FMUProduct="standalone FMU" requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Outport blockPath="sched/multiplier" dataType="int32" dimension="[1]" portName="multiplier" portNumber="1" sampleTime="[0 0]" uniquePortName="multiplier" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Tool>
+  </VendorAnnotations>
+  <ModelVariables>
+    <ScalarVariable causality="independent" description="time" name="time" valueReference="0" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure></ModelStructure>
+</fmiModelDescription>

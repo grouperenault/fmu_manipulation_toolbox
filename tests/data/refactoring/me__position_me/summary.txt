@@ -1,0 +1,39 @@
+| MD5Sum = 04570161e4d9e8a842553468f5679cc2
+|
+| FMI properties: 
+|  - fmiVersion = 2.0
+|  - generationDateAndTime = 2026-09-08T08:42:20Z
+|  - generationTool = Simulink (R2025b)
+|  - guid = {7b736af6-8ff5-87d1-1fe7-5939d3346dfd}
+|  - modelName = position
+|  - numberOfEventIndicators = 5
+|  - variableNamingConvention = structured
+|  - version = 1.5
+|
+| Model Exchange capabilities: 
+|  - canBeInstantiatedOnlyOncePerProcess = true
+|  - canGetAndSetFMUstate = true
+|  - canNotUseMemoryManagementFunctions = true
+|  - canSerializeFMUstate = true
+|  - modelIdentifier = position
+|  - needsExecutionTool = false
+|
+| Default Experiment values: 
+|  - startTime = 0
+|  - stepSize = 0.1
+|  - stopTime = 5
+|
+| Supported platforms: 
+|  - win64
+|
+| Number of ports
+|  input : 1
+|  output : 2
+|  independent : 1
+|  local : 2
+|
+| Model Exchange sizes
+|  continuous states : 1
+|  event indicators : 5
+|
+| [End of report]

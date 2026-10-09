@@ -43,12 +43,12 @@
 
   <ModelStructure>
     <Outputs>
-      <Unknown index="4"/>
-      <Unknown index="5"/>
+      <Unknown index="6"/>
+      <Unknown index="7"/>
     </Outputs>
     <InitialUnknowns>
-      <Unknown index="4"/>
-      <Unknown index="5"/>
+      <Unknown index="6"/>
+      <Unknown index="7"/>
     </InitialUnknowns>
   </ModelStructure>
 

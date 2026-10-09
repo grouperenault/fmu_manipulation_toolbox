@@ -300,8 +300,12 @@ class NodeTreeWidget(QWidget):
 
         # Suppress scene signals while modifying tree (but allow tree signals to process normally)
         try:
-            scene = self._graph.scene
-            scene.blockSignals(True)
+            try:
+                scene = self._graph.scene
+                scene.blockSignals(True)
+            except RuntimeError:
+                # C++ scene already deleted (e.g. during application shutdown)
+                return
 
             try:
                 selected = scene.selectedItems()
@@ -344,7 +348,12 @@ class NodeTreeWidget(QWidget):
                     tree_logger.debug("Scene selection cleared")
 
         except Exception as e:
-            tree_logger.error(f"Error during scene selection sync: {e}")
+            try:
+                tree_logger.error(f"Error during scene selection sync: {e}")
+            except (OSError, ValueError):
+                # stdio may be closed at interpreter shutdown; the error
+                # would otherwise mask the benign (RuntimeError) cause.
+                pass
 
     def on_tree_selection_changed(self, _selected, _deselected):
         """Tree -> scene: select in graph when node is selected in tree.
@@ -356,6 +365,7 @@ class NodeTreeWidget(QWidget):
             try:
                 self._graph.scene.clearSelection()
             except RuntimeError:
+                # C++ scene already deleted (e.g. during application shutdown)
                 return
 
             # First, remove highlight from all nodes
@@ -503,4 +513,3 @@ class NodeTreeWidget(QWidget):
                 node.remove_wires()
                 self._graph.scene.removeItem(node)
                 return
-
