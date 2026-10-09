@@ -2,6 +2,25 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* REMOVED: `ModelStructureCounter`. The Model Exchange sizes are computed from the descriptor tree by
+         `ModelDescription.model_exchange_sizes()`. `OperationSummary.structure` is replaced by
+         `OperationSummary.number_of_continuous_states` and `number_of_event_indicators`, which
+         `EmbeddedFMU` already provided.
+* CHANGED (**breaking**): `fmutool`, `fmucontainer` and `fmusplit` exit with positive codes, shared by
+         the three tools: 2 invalid command line, 3 input missing or unreadable, 4 invalid input,
+         5 operation or build refused or failed, 6 output cannot be written, 7 `-check` found the FMU
+         non-compliant (see the CLI guide). They used negative codes (`-1` to `-6`), with a different
+         meaning for each tool. Scripts that test the exact value must be updated.
+* ADDED: `fmutool -check` exits with status 7 when a checker reports an error, so that it can be used
+         in CI. The XSD checker reports every violation instead of the first one only.
+* ADDED: `OperationSemanticCheck`, a built-in checker for the rules of FMI 2.0 and 3.0 that the XSD
+         cannot express: unique names and value references, allowed `causality`/`variability`/`initial`
+         combinations, `start` values, references between variables and in `<ModelStructure>`.
+* CHANGED: an `FMU` parses its `modelDescription.xml` once for all the operations applied to it, and
+         operations declared `read_only` (summary, CSV dump, checkers) no longer rewrite it: the
+         descriptor stays exactly as in the archive.
+* FIXED: `get_checkers()` added the checkers registered through entry points again at each call.
+* FIXED: `fmusplit` failed with `KeyError` on an FMI-3 variable without `causality` attribute.
 * FIXED: `fmucontainer`: the `modelDescription.xml` of the container is now built with ElementTree.
          Names and descriptions coming from the embedded FMUs are escaped (a `&`, `<` or `"` made
          the descriptor invalid), and the file is written in UTF-8 as required by FMI 2.0 and 3.0

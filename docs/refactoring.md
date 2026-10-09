@@ -38,8 +38,8 @@ D1 à D6 et D9 à D14 sont reproduits par des tests (phases 0 à 2) et **corrig�
 et corrigés en phase 4. Pour D10, D12 et D13, la politique retenue est le **refus** de
 l'opération (`OperationError`, FMU laissée intacte).
 
-**Ce qu'ElementTree ne corrige pas** (à traiter à part, voir phase 3) : `BadZipFile` brute au lieu de `FMUError`, nettoyage du
-répertoire temporaire dans `__del__`, code de sortie de `-check` toujours à 0.
+**Ce qu'ElementTree ne corrige pas** (traité à part) : `BadZipFile` brute au lieu de `FMUError` et nettoyage du répertoire
+temporaire dans `__del__` (corrigés en phase 3), code de sortie de `-check` toujours à 0 (corrigé en phase 5).
 
 **Réponse courte** : oui, commencer par ElementTree plutôt que de corriger les bugs un par un. Les bugs D1 à D4, D6 et D7
 viennent tous du même choix : écrire du XML à la main. Les corriger un par un dans `Manipulation` reviendrait à réimplémenter
@@ -422,6 +422,33 @@ déjà corrects : FMI-2 sans port ajouté, FMI-3) ; D7 reproduit à part (`descr
   opération supposée en lecture seule. Il faut vérifier que rien ne dépend de cette modification écrite sur disque avant de
   changer ce comportement.
 
+**État au 9 octobre 2026 : réalisée.**
+
+| Chantier | Réalisation | Fichiers |
+|---|---|---|
+| `split.py` | Parseur expat remplacé par `ModelDescription`. Corrige au passage une `KeyError` sur une variable FMI-3 sans `causality` (défaut : `local`). Un descripteur illisible lève `FMUSplitterError` | `split.py`, `tests/unit/test_split_parsing.py` |
+| Écrire seulement si modifié, parser une fois | `FMU.model_description` garde l'arbre ; il est relu si le fichier change sur disque (date, taille). Nouvel attribut `OperationAbstract.read_only` (défaut `False`, toujours sûr). Opérations marquées : `OperationSummary`, `OperationSaveNamesToCSV`, les deux checkers, `EmbeddedFMU`, et les collecteurs de la GUI et du MCP. Après un échec, y compris un refus, l'arbre en cache est jeté | `operations.py`, `tests/unit/test_fmu_descriptor_cache.py` |
+| Checker | `iter_errors()` : toutes les erreurs XSD. Nouveau `OperationSemanticCheck` (règles de FMI 2.0.5 §2.2.7–2.2.8 et FMI 3.0.2 §2.4–2.4.8, relues dans les sources de la spécification). `get_checkers()` n'accumule plus les checkers d'*entry points* | `checker.py`, `tests/unit/test_checker_semantic.py` |
+| Codes de sortie | Table commune aux trois CLI (`ExitCode`) : 2 usage, 3 entrée illisible, 4 entrée invalide, 5 opération refusée ou échouée, 6 écriture impossible, 7 `-check` non conforme | `cli/`, `tests/integration/test_cli_errors.py`, `docs/user-guide/fmutool/cli-usage.md` |
+
+Vérifications faites :
+
+- **`EmbeddedFMU`** : le container réextrait chaque FMU embarquée depuis son archive d'origine (`make_fmu_skeleton`), et
+  jamais depuis le descripteur extrait. Le remplacement `Enumeration` → `Integer` peut donc rester en mémoire : `EmbeddedFMU`
+  est marquée `read_only` ;
+- **checker sémantique** : aucune erreur sur les 63 descripteurs (`tests/data` et Reference FMUs), et chacun des 29 cas de
+  violation testés (au moins un par règle) est bien signalé ;
+- **gain mesuré** sur 100 000 variables : `-summary` passe de 0,84 s à 0,56 s, et `summary + merge + summary` de 2,86 s à
+  1,31 s ;
+- la suite complète passe : 1898 tests.
+
+**Complément : suppression de `ModelStructureCounter`.** Cette classe reconstituait `nx`/`nz` à partir des callbacks
+(`register_port`, `model_structure_attrs`). Elle est remplacée par `ModelDescription.model_exchange_sizes()`, qui calcule
+les mêmes valeurs sur l'arbre, avec les mêmes avertissements. `OperationSummary`, `EmbeddedFMU` et l'outil MCP
+`summarize_fmu` l'utilisent. Vérifications : valeurs de `EmbeddedFMU` identiques à celles de l'ancien code sur les 48 FMU de
+`tests/data` (6 non nulles, figées dans `tests/unit/test_model_exchange_sizes.py`) ; rapports `summary.txt` de la
+caractérisation inchangés ; les tests de l'ancienne classe sont transposés (`git mv`).
+
 ---
 
 ## 4. Risques
@@ -459,3 +486,16 @@ fait partie de l'API publique documentée (`python-api.md`, checkers personnalis
 4. réduire `FMUPort` à un alias (`FMUPort = ModelVariable`), avec un `DeprecationWarning` à l'import, puis le supprimer
    dans une version ultérieure ;
 5. entrée dans `CHANGELOG.md` (rupture d'API) ; adapter `tests/unit/test_operations_errors.py`, qui teste le mode détaché.
+
+### Parseur SSD de `assembly.py`
+
+`AssemblyNode` lit les fichiers SSD (SSP) avec expat, sans traitement des namespaces : les balises sont reconnues par leur
+préfixe littéral (`'ssd:Connection'`, `'ssd:System'`…). Un SSD valide qui utiliserait un autre préfixe pour le même
+namespace ne serait pas lu. À reprendre avec ElementTree et les noms qualifiés `{http://ssp-standard.org/SSP1/SystemStructureDescription}…`,
+avec des tests sur des SSD produits par d'autres outils.
+
+### Comparaison des descripteurs en cache
+
+Le cache de `FMU.model_description` est invalidé si la date de modification ou la taille de `modelDescription.xml` change.
+Sur un système de fichiers à résolution grossière (une seconde), une réécriture externe de même taille dans la même seconde
+ne serait pas vue. Aucun code du paquet n'écrit ce fichier par un autre moyen : à surveiller seulement si cela change.

@@ -1,7 +1,8 @@
 import argparse
+import os
 import sys
 
-from .utils import setup_logger, close_logger, make_wide
+from .utils import setup_logger, close_logger, make_wide, ExitCode, ErrorCounter
 from ..operations import (OperationSummary, OperationError, OperationRemoveRegexp,
                           OperationRemoveSources, OperationTrimUntil, OperationKeepOnlyRegexp, OperationMergeTopLevel,
                           OperationStripTopLevel, OperationRenameFromCSV, OperationSaveNamesToCSV, FMU, FMUError)
@@ -67,7 +68,8 @@ def fmutool():
     add_option('-only-locals', action='append_const', dest='apply_on', const='local')
     # Checker
     add_option('-summary', action='append_const', dest='operations_list', const=OperationSummary())
-    add_option('-check', action='append_const', dest='operations_list', const=[checker() for checker in get_checkers()])
+    checkers = [checker() for checker in get_checkers()]
+    add_option('-check', action='append_const', dest='operations_list', const=checkers)
 
     cli_options = parser.parse_args(sys.argv[1:])
     # handle the "no operation" use case
@@ -77,7 +79,7 @@ def fmutool():
     if cli_options.fmu_input == cli_options.fmu_output:
         logger.fatal(f"'-input' and '-output' should point to different files.")
         close_logger(logger)
-        sys.exit(-3)
+        sys.exit(ExitCode.USAGE_ERROR)
 
     logger.info(f"READING Input='{cli_options.fmu_input}'")
     try:
@@ -85,7 +87,8 @@ def fmutool():
     except FMUError as reason:
         logger.fatal(f"{reason}")
         close_logger(logger)
-        sys.exit(-4)
+        readable = os.path.isfile(cli_options.fmu_input) and os.access(cli_options.fmu_input, os.R_OK)
+        sys.exit(ExitCode.INVALID_INPUT if readable else ExitCode.INPUT_UNREADABLE)
 
     if cli_options.apply_on:
         logger.info("Applying operation for :")
@@ -101,30 +104,47 @@ def fmutool():
             else:
                 yield op
 
+    # Errors logged by the checkers make `-check` fail, once everything else is done.
+    check_errors = ErrorCounter()
     with fmu:
         for operation in operation_iterator():
             logger.info(f"     => {operation}")
+            is_check = any(operation is checker for checker in checkers)
+            if is_check:
+                logger.addHandler(check_errors)
             try:
                 fmu.apply_operation(operation, cli_options.apply_on)
-            except (OperationError, FMUError) as reason:  # FMUError: unreadable modelDescription.xml
+            except OperationError as reason:
                 logger.fatal(f"{reason}")
                 close_logger(logger)
-                sys.exit(-6)
-
-        if cli_options.extract_description:
-            logger.info(f"WRITING ModelDescriptor='{cli_options.extract_description}'")
-            fmu.save_descriptor(cli_options.extract_description)
-
-        if cli_options.fmu_output:
-            logger.info(f"WRITING Output='{cli_options.fmu_output}'")
-            try:
-                fmu.repack(cli_options.fmu_output)
-            except FMUError as reason:
-                logger.fatal(f"FATAL ERROR: {reason}")
+                sys.exit(ExitCode.OPERATION_FAILED)
+            except FMUError as reason:  # unreadable modelDescription.xml
+                logger.fatal(f"{reason}")
                 close_logger(logger)
-                sys.exit(-5)
-        else:
-            logger.info(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
+                sys.exit(ExitCode.INVALID_INPUT)
+            finally:
+                if is_check:
+                    logger.removeHandler(check_errors)
+
+        try:
+            if cli_options.extract_description:
+                logger.info(f"WRITING ModelDescriptor='{cli_options.extract_description}'")
+                fmu.save_descriptor(cli_options.extract_description)
+
+            if cli_options.fmu_output:
+                logger.info(f"WRITING Output='{cli_options.fmu_output}'")
+                fmu.repack(cli_options.fmu_output)
+            else:
+                logger.info(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
+        except (FMUError, OSError) as reason:
+            logger.fatal(f"FATAL ERROR: {reason}")
+            close_logger(logger)
+            sys.exit(ExitCode.OUTPUT_ERROR)
+
+    if check_errors.count:
+        logger.error(f"-check: {check_errors.count} error(s) found.")
+        close_logger(logger)
+        sys.exit(ExitCode.CHECK_FAILED)
 
     close_logger(logger)
 

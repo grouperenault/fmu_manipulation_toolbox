@@ -70,3 +70,39 @@ def test_close_is_safe_when_zip_was_never_assigned():
     splitter = FMUSplitter.__new__(FMUSplitter)  # bypass __init__
     splitter.close()  # must be a no-op, not an AttributeError
 
+
+
+# --------------------------------------------------------------------------- #
+#                 modelDescription.xml of the embedded FMUs                    #
+# --------------------------------------------------------------------------- #
+def _description_with(descriptor: str) -> FMUSplitterDescription:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zf:
+        zf.writestr("embedded/modelDescription.xml", descriptor)
+    desc = FMUSplitterDescription(handle=zipfile.ZipFile(buffer))
+    desc.parse_model_description("embedded", "embedded.fmu")
+    return desc
+
+
+def test_fmi3_variable_without_causality_is_local():
+    """`causality` is optional (default "local"): the former expat parser raised KeyError."""
+    desc = _description_with(
+        '<fmiModelDescription fmiVersion="3.0"><ModelVariables>'
+        '<Float64 name="x" valueReference="5"/><Enumeration name="e" valueReference="6" declaredType="E"/>'
+        '</ModelVariables></fmiModelDescription>')
+    assert desc.vr_to_name["embedded.fmu"]["real64"][5] == {"name": "x", "causality": "local"}
+    assert desc.vr_to_name["embedded.fmu"]["integer32"][6] == {"name": "e", "causality": "local"}
+
+
+def test_fmi2_type_definitions_are_not_variables():
+    desc = _description_with(
+        '<fmiModelDescription fmiVersion="2.0"><TypeDefinitions><SimpleType name="T"><Real/></SimpleType>'
+        '</TypeDefinitions><ModelVariables><ScalarVariable name="u" valueReference="1" causality="input">'
+        '<Enumeration declaredType="E"/></ScalarVariable></ModelVariables></fmiModelDescription>')
+    assert desc.vr_to_name["embedded.fmu"]["real64"] == {}
+    assert desc.vr_to_name["embedded.fmu"]["integer32"] == {1: {"name": "u", "causality": "input"}}
+
+
+def test_unreadable_embedded_descriptor_raises():
+    with pytest.raises(FMUSplitterError, match="not well-formed"):
+        _description_with("<fmiModelDescription fmiVersion='2.0'><x>a < b</x></fmiModelDescription>")

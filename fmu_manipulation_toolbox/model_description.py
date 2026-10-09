@@ -21,10 +21,13 @@ Conformity with FMI 2.0.5 and FMI 3.0.2 (fmi-standard.org):
 
 This module has no dependency on the rest of the package.
 """
+import logging
 import xml.etree.ElementTree as ET
 from io import BytesIO
 from pathlib import Path
 from typing import Dict, IO, Iterator, List, MutableMapping, Optional, Tuple, Union
+
+logger = logging.getLogger("fmu_manipulation_toolbox")
 
 __all__ = ["ModelDescription", "ModelDescriptionError", "ModelVariable", "PrefixedAttributes"]
 
@@ -415,6 +418,64 @@ class ModelDescription:
     def attributes(self, element: ET.Element) -> PrefixedAttributes:
         """Attributes of `element`, namespaced ones named `prefix:name` as in the file."""
         return PrefixedAttributes(element.attrib, self.namespaces)
+
+    def model_exchange_sizes(self, label: str = "") -> Tuple[int, int]:
+        """Number of continuous states (`nx`) and of event indicators (`nz`).
+
+        - FMI 2.0: `nx` is the number of `<Unknown>` entries of `<Derivatives>`
+          (FMI-2 variables are scalar), `nz` the `numberOfEventIndicators`
+          attribute of `<fmiModelDescription>`.
+        - FMI 3.0: `nx` and `nz` count the elements of the variables listed by
+          `<ContinuousStateDerivative>` and `<EventIndicator>`: an array counts
+          for its number of elements, its dimensions being given by
+          `<Dimension start>` or by the start value of a structural parameter.
+
+        An FMI 3.0 entry whose size cannot be resolved counts for one element,
+        with a warning.
+
+        Args:
+            label (str): Name of the FMU, used in the warnings.
+
+        Returns:
+            tuple[int, int]: `(nx, nz)`.
+        """
+        entries = self.model_structure_entries()
+        if self.fmi_version == 2:
+            nx = sum(1 for section, _ in entries if section == "Derivatives")
+            return nx, int(self.root.get("numberOfEventIndicators", 0))
+
+        ports = {port.get("valueReference"): port for port in self.iter_ports()}
+        sizes = {"ContinuousStateDerivative": 0, "EventIndicator": 0}
+        for section, entry in entries:
+            if section in sizes:
+                sizes[section] += self._size_of(section, entry.get("valueReference"), ports, label)
+        return sizes["ContinuousStateDerivative"], sizes["EventIndicator"]
+
+    @staticmethod
+    def _size_of(section: str, vr: Optional[str], ports: Dict[str, "ModelVariable"], label: str) -> int:
+        """Number of elements of the FMI 3.0 variable `vr` (1 if it cannot be resolved)."""
+        if vr is None:
+            logger.warning(f"'{label}': <{section}> without valueReference. Assuming 1 element.")
+            return 1
+        port = ports.get(vr)
+        if port is None:
+            logger.warning(f"'{label}': <{section}> refers to unknown variable vr={vr}. Assuming 1 element.")
+            return 1
+
+        size = 1
+        for kind, value in port.dimensions:
+            if kind == "start":
+                size *= value
+                continue
+            # Dimension given by a structural parameter: use its start value.
+            parameter = ports.get(str(value))
+            try:
+                size *= int(parameter.get("start"))
+            except (AttributeError, TypeError, ValueError):
+                logger.warning(f"'{label}': <{section}> vr={vr} has a dimension given by structuralParameter "
+                               f"vr={value} whose value cannot be resolved. Assuming 1 element.")
+                return 1
+        return size
 
     def parent_of(self, element: ET.Element) -> Optional[ET.Element]:
         """Parent of `element`, or `None` for the root. Raises `KeyError` if not in the document."""

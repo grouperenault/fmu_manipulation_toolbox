@@ -15,7 +15,7 @@ from typing import *
 
 from .ls import LayeredStandard
 from .model_description import ModelDescription
-from .operations import FMU, OperationAbstract, FMUError, FMUPort, ModelStructureCounter
+from .operations import FMU, OperationAbstract, FMUError, FMUPort
 from .terminals import Terminals
 from .version import __version__ as tool_version
 
@@ -399,13 +399,16 @@ class EmbeddedFMU(OperationAbstract):
         capabilities (dict[str, str]): FMI capability flags and their values.
         is_me (bool): Whether the FMU is embedded in Model-Exchange mode.
             Co-Simulation takes precedence when both modes are provided.
-        structure (ModelStructureCounter): Model-Exchange sizes computed from
-            `<ModelStructure>` (see `number_of_continuous_states` and
-            `number_of_event_indicators`).
+        number_of_continuous_states (int): Number of continuous states (`nx`).
+        number_of_event_indicators (int): Number of event indicators (`nz`).
 
     Raises:
         FMUContainerError: If the FMU does not implement Co-Simulation mode.
     """
+
+    # Not written back: Enumeration -> Integer is only needed in memory, and the container
+    # embeds the original archive, not the extracted descriptor.
+    read_only = True
 
     capability_list = ("needsExecutionTool",
                        "canBeInstantiatedOnlyOncePerProcess",
@@ -427,7 +430,8 @@ class EmbeddedFMU(OperationAbstract):
         self.guid = None
         self.fmi_version = None
         self.is_me = False
-        self.structure = ModelStructureCounter(self.name)
+        self.number_of_continuous_states = 0
+        self.number_of_event_indicators = 0
         self.platforms = set()
         self.ports: Dict[str, EmbeddedFMUPort] = {}
 
@@ -498,20 +502,6 @@ class EmbeddedFMU(OperationAbstract):
             self.guid = attrs['instantiationToken']
             self.fmi_version = 3
 
-        self.structure.fmi_attrs(self.fmi_version, attrs)
-
-    @property
-    def number_of_event_indicators(self) -> int:
-        """Number of event indicators (`nz`) declared by this FMU."""
-        return self.structure.number_of_event_indicators
-
-    @property
-    def number_of_continuous_states(self) -> int:
-        """Number of continuous states (`nx`) declared by this FMU."""
-        return self.structure.number_of_continuous_states
-
-    def model_structure_attrs(self, section: str, attrs: Dict[str, str]):
-        self.structure.model_structure_attrs(self.fmi_version, section, attrs)
 
     def cosimulation_attrs(self, attrs: Dict[str, str]):
         # Co-Simulation takes precedence over Model-Exchange for dual-mode FMUs.
@@ -547,9 +537,11 @@ class EmbeddedFMU(OperationAbstract):
                 fmu_port.fmi_type = "Int32"
         port = EmbeddedFMUPort(fmu_port.fmi_type, fmu_port, fmi_version=self.fmi_version)
         self.ports[port.name] = port
-        self.structure.register_port(port.vr, port.dimensions, fmu_port.get("start", None))
 
     def closure(self):
+        self.number_of_continuous_states, self.number_of_event_indicators = \
+            self.model_description.model_exchange_sizes(self.name)
+
         osname = {
             "win64": "Windows",
             "linux64": "Linux",

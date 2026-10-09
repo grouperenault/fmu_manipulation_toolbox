@@ -20,6 +20,7 @@ import pytest
 from fmu_manipulation_toolbox.cli.fmutool import fmutool
 from fmu_manipulation_toolbox.cli.fmucontainer import fmucontainer
 from fmu_manipulation_toolbox.cli.fmusplit import fmusplit
+from fmu_manipulation_toolbox.cli.utils import ExitCode
 
 pytestmark = [pytest.mark.integration]
 
@@ -43,7 +44,7 @@ def test_fmutool_same_input_output_exits(area_dir, caplog):
     with pytest.raises(SystemExit) as exc:
         fmutool()
 
-    assert exc.value.code == -3
+    assert exc.value.code == ExitCode.USAGE_ERROR
     assert "different files" in caplog.text
 
 
@@ -54,7 +55,7 @@ def test_fmutool_missing_input_exits(area_dir, caplog):
     with pytest.raises(SystemExit) as exc:
         fmutool()
 
-    assert exc.value.code == -4
+    assert exc.value.code == ExitCode.INPUT_UNREADABLE
     assert "does-not-exist.fmu" in caplog.text
 
 
@@ -62,13 +63,13 @@ def test_fmutool_missing_input_exits(area_dir, caplog):
 def test_fmutool_operation_error_exits(area_dir, caplog):
     # The sample FMU only ships win64 binaries, so requesting a win64 remoting
     # interface (which requires a *win32* source interface) raises an
-    # OperationError while the operation is applied → exit code -6.
+    # OperationError while the operation is applied → exit code 5 (OPERATION_FAILED).
     sys.argv = ["fmutool", "-input", "bouncing_ball.fmu", "-add-remoting-win64"]
 
     with pytest.raises(SystemExit) as exc:
         fmutool()
 
-    assert exc.value.code == -6
+    assert exc.value.code == ExitCode.OPERATION_FAILED
     assert "win32" in caplog.text
 
 
@@ -81,7 +82,7 @@ def test_fmutool_not_a_zip_exits(area_dir, caplog):
     with pytest.raises(SystemExit) as exc:
         fmutool()
 
-    assert exc.value.code == -4
+    assert exc.value.code == ExitCode.INVALID_INPUT
     assert "not a ZIP archive" in caplog.text
 
 
@@ -96,7 +97,7 @@ def test_fmutool_unreadable_descriptor_exits(area_dir, caplog):
     with pytest.raises(SystemExit) as exc:
         fmutool()
 
-    assert exc.value.code == -6
+    assert exc.value.code == ExitCode.INVALID_INPUT
     assert "not well-formed" in caplog.text
 
 
@@ -109,9 +110,45 @@ def test_fmutool_refused_operation_exits(area_dir, caplog):
     with pytest.raises(SystemExit) as exc:
         fmutool()
 
-    assert exc.value.code == -6
+    assert exc.value.code == ExitCode.OPERATION_FAILED
     assert "remove every variable" in caplog.text
     assert not (area_dir / "out.fmu").exists()
+
+
+@pytest.mark.area("operations")
+def test_fmutool_check_conforming_fmu_succeeds(area_dir, caplog):
+    sys.argv = ["fmutool", "-input", "bouncing_ball.fmu", "-check"]
+    fmutool()  # no SystemExit: exit status 0
+    assert "No semantic error" in caplog.text
+
+
+@pytest.mark.area("operations")
+def test_fmutool_check_non_conforming_fmu_exits(area_dir, caplog):
+    import zipfile
+    with zipfile.ZipFile("bad.fmu", "w") as fmu:  # output not listed in <Outputs>
+        fmu.writestr("modelDescription.xml",
+                     '<fmiModelDescription fmiVersion="2.0" modelName="m" guid="{x}">'
+                     '<CoSimulation modelIdentifier="m"/><ModelVariables>'
+                     '<ScalarVariable name="y" valueReference="1" causality="output"><Real/></ScalarVariable>'
+                     '</ModelVariables><ModelStructure/></fmiModelDescription>')
+    sys.argv = ["fmutool", "-input", "bad.fmu", "-check", "-output", "bad-copy.fmu"]
+
+    with pytest.raises(SystemExit) as exc:
+        fmutool()
+
+    assert exc.value.code == ExitCode.CHECK_FAILED
+    assert "is not listed in <Outputs>" in caplog.text
+    assert (area_dir / "bad-copy.fmu").exists()  # the other options are still honoured
+
+
+@pytest.mark.area("operations")
+def test_fmutool_output_error_exits(area_dir, caplog):
+    sys.argv = ["fmutool", "-input", "bouncing_ball.fmu", "-output", "no_such_directory/out.fmu"]
+
+    with pytest.raises(SystemExit) as exc:
+        fmutool()
+
+    assert exc.value.code == ExitCode.OUTPUT_ERROR
 
 
 # --------------------------------------------------------------------------- #
@@ -125,21 +162,21 @@ def test_fmucontainer_missing_description_exits(area_dir, caplog):
     with pytest.raises(SystemExit) as exc:
         fmucontainer()
 
-    assert exc.value.code == -1
+    assert exc.value.code == ExitCode.INPUT_UNREADABLE
     assert "Cannot read file" in caplog.text
 
 
 @pytest.mark.area("containers/bouncing_ball")
 def test_fmucontainer_invalid_fmu_directory_exits(area_dir, caplog):
     # An FMU directory that does not exist is rejected at Assembly construction
-    # time with an AssemblyError → exit code -2.
+    # time with an AssemblyError → exit code 4 (INVALID_INPUT).
     sys.argv = ["fmucontainer", "-fmu-directory", "no_such_directory",
                 "-container", "bouncing.csv"]
 
     with pytest.raises(SystemExit) as exc:
         fmucontainer()
 
-    assert exc.value.code == -2
+    assert exc.value.code == ExitCode.INVALID_INPUT
     assert "no_such_directory" in caplog.text
 
 
@@ -148,13 +185,13 @@ def test_fmucontainer_invalid_fmu_directory_exits(area_dir, caplog):
 # --------------------------------------------------------------------------- #
 @pytest.mark.area("operations")
 def test_fmusplit_not_a_container_exits(area_dir, caplog):
-    # A plain FMU has no resources/container.txt → FMUSplitterError → exit -1.
+    # A plain FMU has no resources/container.txt → FMUSplitterError → exit 4 (INVALID_INPUT).
     sys.argv = ["fmusplit", "-fmu", "bouncing_ball.fmu"]
 
     with pytest.raises(SystemExit) as exc:
         fmusplit()
 
-    assert exc.value.code == -1
+    assert exc.value.code == ExitCode.INVALID_INPUT
     assert "not an FMU Container" in caplog.text
 
 
@@ -165,6 +202,6 @@ def test_fmusplit_missing_file_exits(area_dir, caplog):
     with pytest.raises(SystemExit) as exc:
         fmusplit()
 
-    assert exc.value.code == -2
+    assert exc.value.code == ExitCode.INPUT_UNREADABLE
     assert "Cannot read file" in caplog.text
 

@@ -1,13 +1,13 @@
 import json
 import logging
 import re
-import xml.parsers.expat
 import zipfile
 
 from typing import *
 from pathlib import Path
 
 from .container import EmbeddedFMUPort, Link
+from .model_description import ModelDescription, ModelDescriptionError
 from .terminals import Terminals, Terminal
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -190,12 +190,6 @@ class FMUSplitterDescription:
         # fmu_filename → fmi_type → basename → frozenset of element names
         self.basename_map: Dict[str, Dict[str, Dict[str, FrozenSet[str]]]] = {}
 
-        # used for modelDescription.xml parsing
-        self.current_fmu_filename: Optional[str] = None
-        self.current_fmi_version: Optional[str] = None
-        self.current_vr: Optional[int] = None
-        self.current_name: Optional[str] = None
-        self.current_causality: Optional[str] = None
 
     @staticmethod
     def get_line(file):
@@ -206,41 +200,6 @@ class FMUSplitterDescription:
                 return line
         raise FMUSplitterError("This file seems to be truncated")
 
-    def start_element(self, tag, attrs):
-        assert self.current_fmu_filename is not None, "current_fmu_filename must be set before parsing"
-        if tag == "Enumeration":
-            if self.current_fmi_version == "2.0":
-                tag = "Integer"
-            else:
-                tag = "Int32"
-
-        if tag == "fmiModelDescription":
-            self.current_fmi_version = attrs["fmiVersion"]
-        elif tag == "ScalarVariable":
-            self.current_name = attrs["name"]
-            self.current_vr = int(attrs["valueReference"])
-            self.current_causality = attrs.get("causality", "local")
-        elif self.current_fmi_version == "2.0" and tag in EmbeddedFMUPort.FMI_TO_CONTAINER[2]:
-            fmi_type = EmbeddedFMUPort.FMI_TO_CONTAINER[2][tag]
-            if self.current_name: # in case of enumeration definition
-                assert self.current_vr is not None
-                assert self.current_causality is not None
-                self.vr_to_name[self.current_fmu_filename][fmi_type][self.current_vr] = {
-                    "name": self.current_name,
-                    "causality": self.current_causality}
-        elif (self.current_fmi_version is not None and self.current_fmi_version.startswith("3")
-              and tag in EmbeddedFMUPort.FMI_TO_CONTAINER[3]):
-            fmi_type = EmbeddedFMUPort.FMI_TO_CONTAINER[3][tag]
-            self.vr_to_name[self.current_fmu_filename][fmi_type][int(attrs["valueReference"])] = {
-                "name": attrs["name"],
-                "causality": attrs["causality"]}
-
-    def end_element(self, tag):
-        if tag == "ScalarVariable":
-            self.current_vr = None
-            self.current_name = None
-            self.current_causality = None
-
     def parse_model_description(self, directory: str, fmu_filename: str):
 
         if directory == ".":
@@ -249,17 +208,23 @@ class FMUSplitterDescription:
             filename = f"{directory}/modelDescription.xml"
 
         self.vr_to_name[fmu_filename] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
-        parser = xml.parsers.expat.ParserCreate()
-        self.current_fmu_filename = fmu_filename
-        self.current_fmi_version = None
-        self.current_vr = None
-        self.current_name = None
-        self.current_causality = None
-        parser.StartElementHandler = self.start_element
-        parser.EndElementHandler = self.end_element
-        with (self.zip.open(filename) as file):
+        with self.zip.open(filename) as file:
             logger.debug(f"Parsing '{filename}' ({fmu_filename})")
-            parser.ParseFile(file)
+            try:
+                model_description = ModelDescription.load(file.read())
+            except ModelDescriptionError as error:
+                raise FMUSplitterError(f"'{filename}': {error}") from error
+
+        fmi_version = model_description.fmi_version
+        for port in model_description.iter_ports():
+            fmi_type = port.fmi_type
+            if fmi_type == "Enumeration":  # enumerations are handled as integers by the container
+                fmi_type = "Integer" if fmi_version == 2 else "Int32"
+            container_type = EmbeddedFMUPort.FMI_TO_CONTAINER[fmi_version].get(fmi_type)
+            if container_type is not None:
+                self.vr_to_name[fmu_filename][container_type][int(port["valueReference"])] = {
+                    "name": port["name"],
+                    "causality": port.get("causality", "local")}  # "local" is the default of both standards
 
         # Also load terminalsAndIcons.xml, if any, so that later we can
         # aggregate multiple port-to-port links into a single terminal link.

@@ -56,6 +56,8 @@ class FMU:
         # Unlike `__del__`, a finalizer also runs at interpreter exit, and never on a half-built object.
         self._finalizer = weakref.finalize(self, shutil.rmtree, self.tmp_directory, ignore_errors=True)
         self.descriptor_filename = os.path.join(self.tmp_directory, "modelDescription.xml")
+        self._model_description: Optional[ModelDescription] = None
+        self._descriptor_signature: Optional[Tuple[int, int]] = None
 
         try:
             self._extract()
@@ -75,6 +77,34 @@ class FMU:
             raise FMUError(f"'{self.fmu_filename}' is not valid: not a ZIP archive") from None
         if not os.path.isfile(self.descriptor_filename):
             raise FMUError(f"'{self.fmu_filename}' is not valid: modelDescription.xml not found")
+
+    @property
+    def model_description(self) -> ModelDescription:
+        """The descriptor tree, parsed once and shared by the successive operations.
+
+        It is parsed again if `modelDescription.xml` was changed on disk by
+        other means (different modification time or size).
+
+        Raises:
+            FMUError: If the descriptor cannot be read.
+        """
+        self._check_open()
+        signature = self._signature()
+        if self._model_description is None or signature != self._descriptor_signature:
+            try:
+                self._model_description = ModelDescription.load(self.descriptor_filename)
+            except ModelDescriptionError as error:
+                raise FMUError(f"'{self.fmu_filename}': {error}") from error
+            self._descriptor_signature = signature
+        return self._model_description
+
+    def _signature(self) -> Tuple[int, int]:
+        stat = os.stat(self.descriptor_filename)
+        return stat.st_mtime_ns, stat.st_size
+
+    def _save_model_description(self):
+        self._model_description.save(self.descriptor_filename)
+        self._descriptor_signature = self._signature()
 
     def close(self):
         """Remove the temporary directory. The FMU can no longer be used afterwards."""
@@ -120,8 +150,9 @@ class FMU:
     def apply_operation(self, operation, apply_on=None):
         """Apply an operation to the FMU's `modelDescription.xml`.
 
-        Parses the descriptor, invokes the operation's callbacks for each
-        element, and writes back the modified descriptor.
+        Invokes the operation's callbacks on the descriptor tree (parsed once
+        per FMU), and writes back the descriptor unless the operation is
+        `read_only`.
 
         Args:
             operation (OperationAbstract): The operation to apply.
@@ -130,7 +161,11 @@ class FMU:
         """
         self._check_open()
         manipulation = Manipulation(operation, self)
-        manipulation.manipulate(self.descriptor_filename, apply_on)
+        try:
+            manipulation.manipulate(self.descriptor_filename, apply_on)
+        except BaseException:
+            self._model_description = None  # the tree may be half-modified: parse the file again next time
+            raise
 
 
 class FMUPort(ModelVariable):
@@ -242,116 +277,6 @@ class FMUError(Exception):
         return self.reason
 
 
-class ModelStructureCounter:
-    """Counts Model-Exchange sizes declared in `<ModelStructure>`.
-
-    Computes the number of continuous states (`nx`) and the number of event
-    indicators (`nz`) of an FMU, for both FMI 2.0 and FMI 3.0.
-
-    - **FMI 2.0**: continuous states are the `<Unknown>` entries of the
-      `<Derivatives>` section (FMI-2 variables are always scalar); event
-      indicators are given by the `numberOfEventIndicators` attribute of
-      `<fmiModelDescription>`.
-    - **FMI 3.0**: continuous states are the `<ContinuousStateDerivative>`
-      entries and event indicators the `<EventIndicator>` entries; array
-      variables count for their number of elements.
-
-    When the size of an FMI-3 entry cannot be resolved (unknown value reference
-    or dimension depending on a structural parameter), the entry is counted as a
-    single scalar and a warning is emitted.
-
-    Attributes:
-        fmu_name (str): Name of the FMU, used in log messages.
-        number_of_continuous_states (int): Computed `nx`.
-        number_of_event_indicators (int): Computed `nz`.
-    """
-
-    def __init__(self, fmu_name: str = ""):
-        self.fmu_name = fmu_name
-        self.number_of_continuous_states = 0
-        self.number_of_event_indicators = 0
-        self._ports: Dict[str, Tuple[List[Tuple[str, int]], Optional[str]]] = {}
-
-    def register_port(self, vr: Union[str, int], dimensions: List[Tuple[str, int]],
-                      start: Optional[str] = None):
-        """Record a port, by value reference, for later size resolution.
-
-        Args:
-            vr (str | int): Value reference of the port.
-            dimensions (list[tuple[str, int]]): Dimensions of the port as parsed
-                from the `<Dimension>` elements: `("start", n)` for a fixed size,
-                `("valueReference", vr)` when the size is given by a structural
-                parameter.
-            start (str | None): Start value of the port, used when this port is a
-                structural parameter defining the size of an array.
-        """
-        self._ports[str(vr)] = (list(dimensions), start)
-
-    def fmi_attrs(self, fmi_version: int, attrs: Dict[str, str]):
-        """Read `numberOfEventIndicators` (FMI-2 only) from the root element."""
-        if fmi_version == 2:
-            self.number_of_event_indicators = int(attrs.get("numberOfEventIndicators", 0))
-
-    def model_structure_attrs(self, fmi_version: int, section: str, attrs: Dict[str, str]):
-        """Account for one `<ModelStructure>` entry.
-
-        Args:
-            fmi_version (int): FMI version (`2` or `3`).
-            section (str): Section (FMI-2) or element name (FMI-3).
-            attrs (dict[str, str]): Attributes of the entry.
-        """
-        if fmi_version == 2:
-            if section == "Derivatives":
-                self.number_of_continuous_states += 1
-        else:
-            if section == "ContinuousStateDerivative":
-                self.number_of_continuous_states += self._size_of(section, attrs)
-            elif section == "EventIndicator":
-                self.number_of_event_indicators += self._size_of(section, attrs)
-
-    def _size_of(self, section: str, attrs: Dict[str, str]) -> int:
-        vr = attrs.get("valueReference", None)
-        if vr is None:
-            logger.warning(f"'{self.fmu_name}': <{section}> without valueReference. Assuming 1 element.")
-            return 1
-
-        try:
-            dimensions, _ = self._ports[str(vr)]
-        except KeyError:
-            logger.warning(f"'{self.fmu_name}': <{section}> refers to unknown variable vr={vr}. "
-                           f"Assuming 1 element.")
-            return 1
-
-        size = 1
-        for kind, value in dimensions:
-            if kind == "start":
-                size *= value
-            else:  # dimension given by a structural parameter: use its start value
-                dimension = self._structural_parameter_value(value)
-                if dimension is None:
-                    logger.warning(f"'{self.fmu_name}': <{section}> vr={vr} has a dimension given by "
-                                   f"structuralParameter vr={value} whose value cannot be resolved. "
-                                   f"Assuming 1 element.")
-                    return 1
-                size *= dimension
-
-        return size
-
-    def _structural_parameter_value(self, vr: Union[str, int]) -> Optional[int]:
-        try:
-            _, start = self._ports[str(vr)]
-        except KeyError:
-            return None
-
-        if start is None:
-            return None
-
-        try:
-            return int(start)
-        except ValueError:
-            return None
-
-
 class Manipulation:
     """Applies an operation to `modelDescription.xml`, on its ElementTree.
 
@@ -398,7 +323,7 @@ class Manipulation:
         self.operation.set_fmu(fmu)
 
     def manipulate(self, descriptor_filename, apply_on=None):
-        """Apply the operation and rewrite the descriptor file.
+        """Apply the operation and rewrite the descriptor file (unless the operation is `read_only`).
 
         Args:
             descriptor_filename (str): Path to the `modelDescription.xml` file.
@@ -412,10 +337,14 @@ class Manipulation:
                 descriptor file is then left unchanged.
         """
         self.apply_on = apply_on
-        try:
-            md = ModelDescription.load(descriptor_filename)
-        except ModelDescriptionError as error:
-            raise FMUError(f"'{self.fmu.fmu_filename}': {error}") from error
+        shared = descriptor_filename == self.fmu.descriptor_filename
+        if shared:
+            md = self.fmu.model_description
+        else:
+            try:
+                md = ModelDescription.load(descriptor_filename)
+            except ModelDescriptionError as error:
+                raise FMUError(f"'{self.fmu.fmu_filename}': {error}") from error
         self.model_description = md
         self.fmu.fmi_version = md.fmi_version
         self.operation.model_description = md
@@ -430,7 +359,11 @@ class Manipulation:
         self.renumber_derivatives(md)
         self.handle_model_structure(md)
         self.operation.closure()
-        md.save(descriptor_filename)
+        if not self.operation.read_only:
+            if shared:
+                self.fmu._save_model_description()
+            else:
+                md.save(descriptor_filename)
 
     # ---------------------------------------------------------------- Callbacks
     def handle_toplevel_elements(self, md: ModelDescription):
@@ -671,10 +604,14 @@ class OperationAbstract:
         model_description (ModelDescription | None): The whole descriptor tree,
             set before the first callback. Use it for changes that the
             callbacks cannot express (e.g. removing an element).
+        read_only (bool): Set to `True` in an operation that never changes
+            the descriptor: it is then not written back. Defaults to `False`,
+            which is always safe.
     """
 
     fmu: FMU = None
     model_description: Optional[ModelDescription] = None
+    read_only: bool = False
 
     def set_fmu(self, fmu):
         """Bind this operation to an FMU.
@@ -771,6 +708,8 @@ class OperationSaveNamesToCSV(OperationAbstract):
     Attributes:
         output_filename (str): Path to the output CSV file.
     """
+
+    read_only = True
 
     def __repr__(self):
         return f"Dump names into '{self.output_filename}'"
@@ -941,24 +880,28 @@ class OperationSummary(OperationAbstract):
 
     Attributes:
         nb_port_per_causality (dict[str, int]): Count of ports per causality.
-        structure (ModelStructureCounter): Model-Exchange sizes (nx/nz), only
-            reported when the FMU declares a `<ModelExchange>` section.
+        number_of_continuous_states (int): Model-Exchange number of continuous
+            states (`nx`), only reported when the FMU declares a `<ModelExchange>`
+            section.
+        number_of_event_indicators (int): Model-Exchange number of event
+            indicators (`nz`), idem.
     """
+
+    read_only = True
 
     def __init__(self):
         self.nb_port_per_causality = {}
         self.fmi_version = 2
         self.has_model_exchange = False
-        self.structure = ModelStructureCounter()
+        self.number_of_continuous_states = 0
+        self.number_of_event_indicators = 0
 
     def __repr__(self):
         return f"FMU Summary"
 
     def fmi_attrs(self, attrs):
         logger.info(f"| fmu filename = {self.fmu.fmu_filename}")
-        self.structure.fmu_name = os.path.basename(self.fmu.fmu_filename)
         self.fmi_version = int(float(attrs.get("fmiVersion", "2.0")))
-        self.structure.fmi_attrs(self.fmi_version, attrs)
         logger.info(f"| temporary directory = {self.fmu.tmp_directory}")
         hash_md5 = hashlib.md5()
         with open(self.fmu.fmu_filename, "rb") as f:
@@ -985,9 +928,6 @@ class OperationSummary(OperationAbstract):
             logger.info(f"|  - {k} = {v}")
         logger.info(f"|")
 
-    def model_structure_attrs(self, section: str, attrs: Dict[str, str]):
-        self.structure.model_structure_attrs(self.fmi_version, section, attrs)
-
     def experiment_attrs(self, attrs):
         logger.info("| Default Experiment values: ")
         for (k, v) in attrs.items():
@@ -996,12 +936,6 @@ class OperationSummary(OperationAbstract):
 
     def port_attrs(self, fmu_port) -> int:
         causality = fmu_port.get("causality", "local")
-
-        try:
-            self.structure.register_port(fmu_port["valueReference"], fmu_port.dimensions,
-                                         fmu_port.get("start", None))
-        except KeyError:
-            pass  # port without valueReference: nothing to register.
 
         try:
             self.nb_port_per_causality[causality] += 1
@@ -1041,10 +975,12 @@ class OperationSummary(OperationAbstract):
             logger.info(f"|  {causality} : {nb_ports}")
 
         if self.has_model_exchange:
+            self.number_of_continuous_states, self.number_of_event_indicators = \
+                self.model_description.model_exchange_sizes(os.path.basename(self.fmu.fmu_filename))
             logger.info("|")
             logger.info("| Model Exchange sizes")
-            logger.info(f"|  continuous states : {self.structure.number_of_continuous_states}")
-            logger.info(f"|  event indicators : {self.structure.number_of_event_indicators}")
+            logger.info(f"|  continuous states : {self.number_of_continuous_states}")
+            logger.info(f"|  event indicators : {self.number_of_event_indicators}")
 
         terminals = Terminals(self.fmu.tmp_directory)
         if terminals:

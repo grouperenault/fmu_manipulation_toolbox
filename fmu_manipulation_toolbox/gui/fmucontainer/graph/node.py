@@ -25,6 +25,8 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
     """Rectangular node representing an FMU. No visual ports — wires
     connect directly to the node edges."""
 
+    read_only = True  # reads the FMU interface, never changes the descriptor
+
     def __init__(self, fmu_path: Path, x: float = 0, y: float = 0):
         super().__init__()
 

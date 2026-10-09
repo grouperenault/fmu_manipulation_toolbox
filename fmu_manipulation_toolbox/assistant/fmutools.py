@@ -117,8 +117,8 @@ def summarize_fmu(path: Path) -> Dict[str, Any]:
     }
     if operation.has_model_exchange:
         summary["model_exchange"] = {
-            "continuous_states": operation.structure.number_of_continuous_states,
-            "event_indicators": operation.structure.number_of_event_indicators,
+            "continuous_states": operation.number_of_continuous_states,
+            "event_indicators": operation.number_of_event_indicators,
         }
     return summary
 

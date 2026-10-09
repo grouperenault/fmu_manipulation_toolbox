@@ -53,6 +53,8 @@ class _FmuDescriptor(OperationAbstract):
     causality, variability, type, unit, start value and description.
     """
 
+    read_only = True
+
     def __init__(self):
         self.fmi_version: Optional[int] = None
         self.generator: str = ""
