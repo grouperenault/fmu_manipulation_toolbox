@@ -7,8 +7,10 @@ string-rewriting operations must transform port names exactly as documented.
 
 A minimal on-disk FMU (a zip archive) is built in ``tmp_path`` only where an
 actual archive is required; the port transforms are exercised directly on an
-``FMUPort`` instance, which is the smallest representative fixture.
+``FMUPort`` attached to a one-variable descriptor, which is the smallest
+representative fixture.
 """
+import xml.etree.ElementTree as ET
 import zipfile
 
 import pytest
@@ -28,10 +30,24 @@ pytestmark = [pytest.mark.unit]
 
 
 def _make_port(name: str) -> FMUPort:
-    """Smallest representative port carrying a single ``name`` attribute."""
-    port = FMUPort()
-    port.push_attrs({"name": name})
-    return port
+    """Smallest representative port: an FMI-3 variable carrying a ``name`` attribute."""
+    return FMUPort(ET.Element("Float64", {"name": name, "valueReference": "0"}), fmi_version=3)
+
+
+def test_detached_port_is_deprecated_but_works():
+    """`FMUPort()` + `push_attrs()` was the only way to build a port before phase 2."""
+    with pytest.deprecated_call():
+        port = FMUPort()
+    with pytest.deprecated_call():
+        port.push_attrs({"name": "Bus1.signal"})
+    port.fmi_type = "Real"
+    assert OperationStripTopLevel().port_attrs(port) == 0
+    assert port["name"] == "signal" and port.fmi_type == "Real" and port.dimensions == []
+
+
+def test_push_attrs_on_attached_port_raises():
+    with pytest.deprecated_call(), pytest.raises(FMUError):
+        _make_port("x").push_attrs({"unit": "m"})
 
 
 # --------------------------------------------------------------------------- #

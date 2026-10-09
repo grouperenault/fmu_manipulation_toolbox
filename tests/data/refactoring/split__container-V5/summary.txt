@@ -1,0 +1,43 @@
+| MD5Sum = 1b1673c4ba2bbe57f658a0b9213b9da3
+|
+| FMI properties: 
+|  - author = nl
+|  - copyright = See Embedded FMU's copyrights.
+|  - description = FMUContainer with sine.fmu, integrate.fmu, level1.fmu
+|  - fmiVersion = 2.0
+|  - generationDateAndTime = 2026-04-03T11:27:54Z
+|  - generationTool = FMUContainer-0.0.dev0
+|  - guid = 0da9fc94-a040-4d31-8ffb-7335583c9d60
+|  - license = Proprietary
+|  - modelName = reversed
+|  - variableNamingConvention = structured
+|
+| Co-Simulation capabilities: 
+|  - canBeInstantiatedOnlyOncePerProcess = true
+|  - canGetAndSetFMUstate = false
+|  - canHandleVariableCommunicationStepSize = true
+|  - canNotUseMemoryManagementFunctions = true
+|  - canSerializeFMUstate = false
+|  - modelIdentifier = reversed
+|  - needsExecutionTool = false
+|  - providesDirectionalDerivative = false
+|
+| Default Experiment values: 
+|  - startTime = 0.0
+|  - stepSize = 0.01
+|  - stopTime = 10.0
+|
+| Supported platforms: 
+|
+| Embedded resources:
+|  - 00
+|  - 01
+|  - 02
+|  - container.txt
+|
+| Number of ports
+|  independent : 1
+|  local : 2
+|  output : 1
+|
+| [End of report]

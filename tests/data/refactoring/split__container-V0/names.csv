@@ -1,0 +1,4 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+integrate.integrate;integrate.integrate;0;local;continuous;Real;
+sine.sine;sine.sine;1;local;continuous;Real;
+final;final;2;output;continuous;Real;

@@ -1,0 +1,26 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+real64;real64;0;input;continuous;Float64;0
+real32;real32;3;input;discrete;Float32;0
+integer8;integer8;5;input;discrete;Int8;0
+uinteger8;uinteger8;7;input;discrete;UInt8;0
+integer16;integer16;9;input;discrete;Int16;0
+uinteger16;uinteger16;11;input;discrete;UInt16;0
+integer32;integer32;13;input;discrete;Int32;0
+uinteger32;uinteger32;15;input;discrete;UInt32;0
+integer64;integer64;17;input;discrete;Int64;0
+uinteger64;uinteger64;19;input;discrete;UInt64;0
+string;string;23;input;discrete;String;Hello world!
+boolean;boolean;21;input;discrete;Boolean;0
+out_real64;out_real64;1;output;continuous;Float64;
+out_real32;out_real32;4;output;discrete;Float32;
+out_integer8;out_integer8;6;output;discrete;Int8;
+out_uinteger8;out_uinteger8;8;output;discrete;UInt8;
+out_integer16;out_integer16;10;output;discrete;Int16;
+out_uinteger16;out_uinteger16;12;output;discrete;UInt16;
+out_integer32;out_integer32;14;output;discrete;Int32;
+out_uinteger32;out_uinteger32;16;output;discrete;UInt32;
+out_integer64;out_integer64;18;output;discrete;Int64;
+out_uinteger64;out_uinteger64;20;output;discrete;UInt64;
+out_string;out_string;24;output;discrete;String;
+out_boolean;out_boolean;22;output;discrete;Boolean;
+time;time;2;independent;continuous;Float64;

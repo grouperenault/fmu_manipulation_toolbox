@@ -1,0 +1,1 @@
+OperationError: The operation would give the same name to several variables: 'Rx_Data', 'Tx_Data', 'Rx_Clock', 'Tx_Clock'

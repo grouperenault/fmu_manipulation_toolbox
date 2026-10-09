@@ -1,0 +1,51 @@
+<fmiModelDescription fmiVersion="3.0" generationDateAndTime="2025-11-30T09:14:34Z" generationTool="Simulink (R2024b)" instantiationToken="{cda0b5a1-6cc5-a199-80ce-b28697eb4819}" modelName="untitled" variableNamingConvention="structured" version="1.7">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUState="false" canHandleVariableCommunicationStepSize="false" canSerializeFMUState="false" fixedInternalStepSize="0.1" hasEventMode="true" modelIdentifier="untitled"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.1" stopTime="10"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="output" description="real64" initial="calculated" name="real64" valueReference="0" variability="continuous"></Float64>
+    <Float32 causality="output" description="real32" initial="calculated" name="real32" valueReference="2" variability="discrete"></Float32>
+    <UInt8 causality="output" description="uinteger8" initial="calculated" name="uinteger8" valueReference="4" variability="discrete"></UInt8>
+    <UInt16 causality="output" description="uinteger16" initial="calculated" name="uinteger16" valueReference="6" variability="discrete"></UInt16>
+    <UInt32 causality="output" description="uinteger32" initial="calculated" name="uinteger32" valueReference="8" variability="discrete"></UInt32>
+    <UInt64 causality="output" description="uinteger64" initial="calculated" name="uinteger64" valueReference="10" variability="discrete"></UInt64>
+    <String causality="output" description="string" initial="calculated" name="string" valueReference="12" variability="discrete"></String>
+    <Float64 causality="independent" description="time" name="time" valueReference="1" variability="continuous"></Float64>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="0"></Output>
+    <Output valueReference="2"></Output>
+    <Output valueReference="4"></Output>
+    <Output valueReference="6"></Output>
+    <Output valueReference="8"></Output>
+    <Output valueReference="10"></Output>
+    <Output valueReference="12"></Output>
+    <InitialUnknown valueReference="0"></InitialUnknown>
+    <InitialUnknown valueReference="2"></InitialUnknown>
+    <InitialUnknown valueReference="4"></InitialUnknown>
+    <InitialUnknown valueReference="6"></InitialUnknown>
+    <InitialUnknown valueReference="8"></InitialUnknown>
+    <InitialUnknown valueReference="10"></InitialUnknown>
+    <InitialUnknown valueReference="12"></InitialUnknown>
+  </ModelStructure>
+  <Annotations>
+    <Annotation type="com.mathworks.Simulink">
+      <Simulink>
+        <ImportCompatibility FMUProduct="standalone FMU" requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Outport blockPath="untitled/real64" dataType="double" dimension="[1]" portName="real64" portNumber="1" sampleTime="[Inf   0]" uniquePortName="real64" unit=""></Outport>
+          <Outport blockPath="untitled/real32" dataType="single" dimension="[1]" portName="real32" portNumber="2" sampleTime="[Inf   0]" uniquePortName="real32" unit=""></Outport>
+          <Outport blockPath="untitled/integer8" dataType="int8" dimension="[1]" portName="integer8" portNumber="3" sampleTime="[Inf   0]" uniquePortName="integer8" unit=""></Outport>
+          <Outport blockPath="untitled/uinteger8" dataType="uint8" dimension="[1]" portName="uinteger8" portNumber="4" sampleTime="[Inf   0]" uniquePortName="uinteger8" unit=""></Outport>
+          <Outport blockPath="untitled/integer16" dataType="int16" dimension="[1]" portName="integer16" portNumber="5" sampleTime="[Inf   0]" uniquePortName="integer16" unit=""></Outport>
+          <Outport blockPath="untitled/uinteger16" dataType="uint16" dimension="[1]" portName="uinteger16" portNumber="6" sampleTime="[Inf   0]" uniquePortName="uinteger16" unit=""></Outport>
+          <Outport blockPath="untitled/integer32" dataType="int32" dimension="[1]" portName="integer32" portNumber="7" sampleTime="[Inf   0]" uniquePortName="integer32" unit=""></Outport>
+          <Outport blockPath="untitled/uinteger32" dataType="uint32" dimension="[1]" portName="uinteger32" portNumber="8" sampleTime="[Inf   0]" uniquePortName="uinteger32" unit=""></Outport>
+          <Outport blockPath="untitled/integer64" dataType="int64" dimension="[1]" portName="integer64" portNumber="9" sampleTime="[Inf   0]" uniquePortName="integer64" unit=""></Outport>
+          <Outport blockPath="untitled/uinteger64" dataType="uint64" dimension="[1]" portName="uinteger64" portNumber="10" sampleTime="[Inf   0]" uniquePortName="uinteger64" unit=""></Outport>
+          <Outport blockPath="untitled/string" dataType="string" dimension="[1]" portName="string" portNumber="11" sampleTime="[Inf   0]" uniquePortName="string" unit=""></Outport>
+          <Outport blockPath="untitled/boolean" dataType="boolean" dimension="[1]" portName="boolean" portNumber="12" sampleTime="[Inf   0]" uniquePortName="boolean" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Annotation>
+  </Annotations>
+</fmiModelDescription>

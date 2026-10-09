@@ -158,6 +158,7 @@ nav:
       - Assembly: API/assembly.md
       - Checker: API/checker.md
       - Container: API/container.md
+      - Model description: API/model_description.md
       - Operations: API/operations.md
       - Remoting: API/remoting.md
   - Examples: examples/examples.md

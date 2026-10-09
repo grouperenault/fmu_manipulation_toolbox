@@ -46,6 +46,21 @@ except FMUError as e:
     print(f"Cannot load FMU: {e}")
 ```
 
+Every failure to open an FMU (missing file, not a ZIP archive, no `modelDescription.xml`) raises
+`FMUError`. A `modelDescription.xml` that cannot be read (not well-formed XML, not FMI 2.0 or 3.0)
+raises `FMUError` from `apply_operation()`.
+
+The temporary directory is removed by `fmu.close()`, or automatically when the object is
+garbage-collected or the interpreter exits. To control when it happens, use the FMU as a context
+manager:
+
+```python
+with FMU("path/to/module.fmu") as fmu:
+    fmu.apply_operation(OperationStripTopLevel())
+    fmu.repack("path/to/module-stripped.fmu")
+# The temporary directory is removed here; `fmu` can no longer be used.
+```
+
 ### Apply an Operation
 
 ```python
@@ -322,9 +337,21 @@ class OperationCountPorts(OperationAbstract):
 |--------|------------|
 | `fmi_attrs(attrs)` | `<fmiModelDescription>` element is parsed |
 | `cosimulation_attrs(attrs)` | `<CoSimulation>` element is parsed |
+| `modelexchange_attrs(attrs)` | `<ModelExchange>` element is parsed |
 | `experiment_attrs(attrs)` | `<DefaultExperiment>` element is parsed |
 | `port_attrs(fmu_port) -> int` | Each port/variable. Return `0` to keep, non-zero to remove |
-| `closure()` | After the full descriptor has been parsed |
+| `model_structure_attrs(section, attrs)` | Each entry of `<ModelStructure>` |
+| `closure()` | After the full descriptor has been parsed, before it is written back |
+
+The `attrs` dictionaries are those of the descriptor: changing them changes the FMU. For changes the
+callbacks cannot express (adding or removing an element), the whole descriptor is available as
+`self.model_description`, an ElementTree-based
+[`ModelDescription`](../../API/model_description.md) modified in place.
+
+An operation is refused with `OperationError`, and the FMU left unchanged, if its result would break the
+FMI standard: removing every variable, removing a variable still referenced by a kept one (state of a
+derivative, clock, structural parameter of an array, `previous`), or giving the same name to several
+variables.
 
 The `fmu_port` argument is an `FMUPort` object that supports dict-like access to attributes:
 

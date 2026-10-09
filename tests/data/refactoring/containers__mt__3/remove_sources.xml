@@ -1,0 +1,42 @@
+<fmiModelDescription description="A test model with 5 parameters, 5 inputs, 5 outputs, and 5 states." fmiVersion="3.0" generationDateAndTime="2026-08-13T06:23:21.838168+00:00" generationTool="FMPy 0.3.30" instantiationToken="0ad08456-564c-49c0-b124-006e4f04fba9" modelName="model">
+  <CoSimulation modelIdentifier="model"></CoSimulation>
+  <LogCategories>
+    <Category description="Log error messages" name="logStatusError"></Category>
+  </LogCategories>
+  <DefaultExperiment startTime="0.0" stepSize="1e-3" stopTime="1.0"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="independent" description="description" name="time" valueReference="0" variability="continuous"></Float64>
+    <Float64 causality="parameter" description="Parameter 0" name="p0" start="0" valueReference="1" variability="fixed"></Float64>
+    <Float64 causality="parameter" description="Parameter 1" name="p1" start="0" valueReference="2" variability="fixed"></Float64>
+    <Float64 causality="parameter" description="Parameter 2" name="p2" start="0" valueReference="3" variability="fixed"></Float64>
+    <Float64 causality="parameter" description="Parameter 3" name="p3" start="0" valueReference="4" variability="fixed"></Float64>
+    <Float64 causality="parameter" description="Parameter 4" name="p4" start="0" valueReference="5" variability="fixed"></Float64>
+    <Float64 causality="input" description="Input 0" name="u0" start="0" valueReference="6" variability="continuous"></Float64>
+    <Float64 causality="input" description="Input 1" name="u1" start="0" valueReference="7" variability="continuous"></Float64>
+    <Float64 causality="input" description="Input 2" name="u2" start="0" valueReference="8" variability="continuous"></Float64>
+    <Float64 causality="input" description="Input 3" name="u3" start="0" valueReference="9" variability="continuous"></Float64>
+    <Float64 causality="input" description="Input 4" name="u4" start="0" valueReference="10" variability="continuous"></Float64>
+    <Float64 causality="output" description="Output 0" name="y0" valueReference="11" variability="continuous"></Float64>
+    <Float64 causality="output" description="Output 1" name="y1" valueReference="12" variability="continuous"></Float64>
+    <Float64 causality="output" description="Output 2" name="y2" valueReference="13" variability="continuous"></Float64>
+    <Float64 causality="output" description="Output 3" name="y3" valueReference="14" variability="continuous"></Float64>
+    <Float64 causality="output" description="Output 4" name="y4" valueReference="15" variability="continuous"></Float64>
+    <Float64 causality="local" description="State 0" name="x0" valueReference="16" variability="continuous"></Float64>
+    <Float64 causality="local" description="State 1" name="x1" valueReference="17" variability="continuous"></Float64>
+    <Float64 causality="local" description="State 2" name="x2" valueReference="18" variability="continuous"></Float64>
+    <Float64 causality="local" description="State 3" name="x3" valueReference="19" variability="continuous"></Float64>
+    <Float64 causality="local" description="State 4" name="x4" valueReference="20" variability="continuous"></Float64>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="11"></Output>
+    <Output valueReference="12"></Output>
+    <Output valueReference="13"></Output>
+    <Output valueReference="14"></Output>
+    <Output valueReference="15"></Output>
+    <InitialUnknown valueReference="11"></InitialUnknown>
+    <InitialUnknown valueReference="12"></InitialUnknown>
+    <InitialUnknown valueReference="13"></InitialUnknown>
+    <InitialUnknown valueReference="14"></InitialUnknown>
+    <InitialUnknown valueReference="15"></InitialUnknown>
+  </ModelStructure>
+</fmiModelDescription>

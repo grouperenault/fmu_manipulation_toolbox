@@ -1,0 +1,20 @@
+<fmiModelDescription fmiVersion="3.0" generationDateAndTime="2025-08-20T10:16:24Z" generationTool="Simulink (R2024b)" instantiationToken="{1ec53959-9fa0-f245-55fd-b4abb1343a78}" modelName="bb_velocity" variableNamingConvention="structured" version="13.0">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="false" canGetAndSetFMUState="true" canHandleVariableCommunicationStepSize="false" canSerializeFMUState="true" fixedInternalStepSize="0.001" hasEventMode="true" modelIdentifier="bb_velocity"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.001" stopTime="10"></DefaultExperiment>
+  <ModelVariables>
+    <Boolean causality="input" description="reset" initial="exact" name="reset" start="0" valueReference="2" variability="discrete"></Boolean>
+    <Float64 causality="independent" description="time" name="time" valueReference="1" variability="continuous"></Float64>
+  </ModelVariables>
+  <ModelStructure></ModelStructure>
+  <Annotations>
+    <Annotation type="com.mathworks.Simulink">
+      <Simulink>
+        <ImportCompatibility FMUProduct="standalone FMU" requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Inport blockPath="bb_velocity/reset" dataType="boolean" dimension="[1]" portName="reset" portNumber="1" sampleTime="[0 0]" uniquePortName="reset" unit=""></Inport>
+          <Outport blockPath="bb_velocity/velocity" dataType="double" dimension="[1]" portName="velocity" portNumber="1" sampleTime="[0 0]" uniquePortName="velocity" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Annotation>
+  </Annotations>
+</fmiModelDescription>

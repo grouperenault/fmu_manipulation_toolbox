@@ -1,0 +1,28 @@
+<fmiModelDescription fmiVersion="3.0" generationDateAndTime="2026-07-21T09:34:39Z" generationTool="Simulink (R2024b)" instantiationToken="{28c5607a-c2b7-c62d-f3cf-78813e466082}" modelName="scalar2array" variableNamingConvention="structured" version="1.9">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUState="true" canHandleVariableCommunicationStepSize="false" canSerializeFMUState="true" fixedInternalStepSize="0.1" hasEventMode="true" modelIdentifier="scalar2array"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.1" stopTime="10"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="input" description="In1" initial="exact" name="In1" start="0" valueReference="0" variability="continuous"></Float64>
+    <Float64 causality="input" description="In2" initial="exact" name="In2" start="0" valueReference="1" variability="continuous"></Float64>
+    <Float64 causality="input" description="In3" initial="exact" name="In3" start="0" valueReference="2" variability="continuous"></Float64>
+    <Int32 causality="input" description="In4" initial="exact" name="In4" start="0" valueReference="7" variability="discrete"></Int32>
+  </ModelVariables>
+  <ModelStructure></ModelStructure>
+  <Annotations>
+    <Annotation type="com.mathworks.Simulink">
+      <Simulink>
+        <ImportCompatibility FMUProduct="standalone FMU" requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Inport blockPath="scalar2array/In1" dataType="double" dimension="[1]" portName="In1" portNumber="1" sampleTime="[0.1   0]" uniquePortName="In1" unit=""></Inport>
+          <Inport blockPath="scalar2array/In2" dataType="double" dimension="[1]" portName="In2" portNumber="2" sampleTime="[0.1   0]" uniquePortName="In2" unit=""></Inport>
+          <Inport blockPath="scalar2array/In3" dataType="double" dimension="[1]" portName="In3" portNumber="3" sampleTime="[0.1   0]" uniquePortName="In3" unit=""></Inport>
+          <Inport blockPath="scalar2array/In4" dataType="int32" dimension="[1]" portName="In4" portNumber="4" sampleTime="[0.1   0]" uniquePortName="In4" unit=""></Inport>
+          <Outport blockPath="scalar2array/Out1" dataType="double" dimension="[2]" portName="Out1" portNumber="1" sampleTime="[0.1   0]" uniquePortName="Out1" unit=""></Outport>
+          <Outport blockPath="scalar2array/Out2" dataType="double" dimension="[3]" portName="Out2" portNumber="2" sampleTime="[0.1   0]" uniquePortName="Out2" unit=""></Outport>
+          <Outport blockPath="scalar2array/Out3" dataType="double" dimension="[1]" portName="Out3" portNumber="3" sampleTime="[0.1   0]" uniquePortName="Out3" unit=""></Outport>
+          <Outport blockPath="scalar2array/Out4" dataType="int32" dimension="[2  3]" portName="Out4" portNumber="4" sampleTime="[0.1   0]" uniquePortName="Out4" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Annotation>
+  </Annotations>
+</fmiModelDescription>

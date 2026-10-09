@@ -13,7 +13,7 @@ from fmpy.validation import validate_fmu
 from fmu_manipulation_toolbox.operations import FMU, OperationSummary
 from fmu_manipulation_toolbox.assembly import Assembly
 
-from _helpers.assertions import assert_identical_files, assert_identical_files_but_guid
+from _helpers.assertions import VOLATILE_XML_ATTRIBUTES, assert_equivalent_xml, assert_identical_files
 from _helpers.simulation import assert_simulation
 
 pytestmark = [pytest.mark.integration, pytest.mark.area("array")]
@@ -27,7 +27,7 @@ def test_array_operation(area_dir):
     fmu.save_descriptor("modelDescription.xml")
     fmu.repack("StateSpace-copy.fmu")
     validate_fmu("StateSpace-copy.fmu")
-    assert_identical_files("REF-modelDescription.xml", "modelDescription.xml")
+    assert_equivalent_xml("REF-modelDescription.xml", "modelDescription.xml")
 
 
 @pytest.mark.fmi3
@@ -35,7 +35,8 @@ def test_array3_container(area_dir):
     assembly = Assembly("array-3.json", debug=True)
     assembly.make_fmu(fmi_version=3)
     validate_fmu("array-3.fmu")
-    assert_identical_files_but_guid("REF-container-modelDescription-3.xml", "array-3/modelDescription.xml")
+    assert_equivalent_xml("REF-container-modelDescription-3.xml", "array-3/modelDescription.xml",
+                          ignore_attributes=VOLATILE_XML_ATTRIBUTES)
     if WIN:
         assert_simulation("array-3.fmu", 0.1)
 
@@ -45,7 +46,8 @@ def test_array2_container(area_dir):
     assembly = Assembly("array-2.json", debug=True)
     assembly.make_fmu(fmi_version=2)
     validate_fmu("array-2.fmu")
-    assert_identical_files_but_guid("REF-container-modelDescription-2.xml", "array-2/modelDescription.xml")
+    assert_equivalent_xml("REF-container-modelDescription-2.xml", "array-2/modelDescription.xml",
+                          ignore_attributes=VOLATILE_XML_ATTRIBUTES)
     if WIN:
         assert_simulation("array-2.fmu", 0.1)
 

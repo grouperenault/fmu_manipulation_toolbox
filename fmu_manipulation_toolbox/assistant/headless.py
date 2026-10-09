@@ -53,6 +53,8 @@ class _FmuDescriptor(OperationAbstract):
     causality, variability, type, unit, start value and description.
     """
 
+    read_only = True
+
     def __init__(self):
         self.fmi_version: Optional[int] = None
         self.generator: str = ""
@@ -118,9 +120,10 @@ def describe_fmu(path: Path) -> Dict[str, Any]:
         raise FileNotFoundError(f"FMU file not found: '{path}'")
 
     descriptor = _FmuDescriptor()
-    # `FMU` unzips into a temporary directory and drops it on `__del__`; the
-    # original archive is never modified.
-    FMU(str(path)).apply_operation(descriptor)
+    # `FMU` unzips into a temporary directory, removed at the end of the `with`
+    # block; the original archive is never modified.
+    with FMU(str(path)) as fmu:
+        fmu.apply_operation(descriptor)
 
     return {
         "fmu": path.name,

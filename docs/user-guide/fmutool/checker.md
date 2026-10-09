@@ -1,7 +1,20 @@
 # FMU Checker
 
-FMU Manipulation Toolbox includes a built-in checker that validates FMUs against the official
-FMI XSD schema (FMI 2.0 and 3.0). You can also write your own custom checkers.
+FMU Manipulation Toolbox includes two built-in checkers (FMI 2.0 and 3.0). You can also write your own
+custom checkers.
+
+- `OperationGenericCheck` validates `modelDescription.xml` against the official FMI XSD schema and reports
+  every violation.
+- `OperationSemanticCheck` checks the rules of the standard that the schema cannot express (FMI 2.0.5
+  §2.2.7–2.2.8, FMI 3.0.2 §2.4.7–2.4.8). Each message cites the section of the standard:
+    - variable names (and FMI 3.0 aliases) are unique; FMI 3.0 value references are unique;
+    - allowed combinations of `causality` and `variability`; only `Real` / `Float32` / `Float64` variables
+      can be `continuous`;
+    - allowed values of `initial`, and presence or absence of a `start` value;
+    - `derivative` attributes and `<ModelStructure>` entries refer to existing variables;
+    - `<Outputs>` / `<Output>` lists exactly the outputs; state derivatives have a `derivative` attribute.
+
+With `fmutool -check`, any error logged by a checker makes the command exit with status `7`.
 
 ## Running the Checker
 

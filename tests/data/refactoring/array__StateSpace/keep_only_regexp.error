@@ -1,0 +1,1 @@
+OperationError: The operation would remove variables that are still referenced: 'n' is referenced by 'A' (Dimension); 'n' is referenced by 'B' (Dimension); 'r' is referenced by 'C' (Dimension); 'n' is referenced by 'C' (Dimension); 'r' is referenced by 'D' (Dimension); 'x' is referenced by 'der(x)' (derivative); 'n' is referenced by 'der(x)' (Dimension)

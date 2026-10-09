@@ -106,8 +106,8 @@ def summarize_fmu(path: Path) -> Dict[str, Any]:
         ``report``, the full human-readable summary.
     """
     operation = OperationSummary()
-    with _captured_logs(logging.INFO) as records:
-        FMU(str(path)).apply_operation(operation)
+    with _captured_logs(logging.INFO) as records, FMU(str(path)) as fmu:
+        fmu.apply_operation(operation)
 
     summary: Dict[str, Any] = {
         "fmu": path.name,
@@ -117,8 +117,8 @@ def summarize_fmu(path: Path) -> Dict[str, Any]:
     }
     if operation.has_model_exchange:
         summary["model_exchange"] = {
-            "continuous_states": operation.structure.number_of_continuous_states,
-            "event_indicators": operation.structure.number_of_event_indicators,
+            "continuous_states": operation.number_of_continuous_states,
+            "event_indicators": operation.number_of_event_indicators,
         }
     return summary
 
@@ -141,9 +141,7 @@ def check_fmu(path: Path) -> Dict[str, Any]:
         true.
     """
     checkers = [checker() for checker in get_checkers()]
-    fmu = FMU(str(path))
-
-    with _captured_logs(logging.WARNING) as records:
+    with _captured_logs(logging.WARNING) as records, FMU(str(path)) as fmu:
         for checker in checkers:
             fmu.apply_operation(checker)
 
@@ -180,7 +178,8 @@ def dump_ports_csv(fmu_path: Path, csv_path: Path) -> Dict[str, Any]:
         A mapping with ``fmu``, ``csv`` and ``ports`` (how many were written).
     """
     operation = OperationSaveNamesToCSV(str(csv_path))
-    FMU(str(fmu_path)).apply_operation(operation)
+    with FMU(str(fmu_path)) as fmu:
+        fmu.apply_operation(operation)
     # One header row, then one row per port.
     rows = csv_path.read_text(encoding="utf-8").splitlines()
     return {"fmu": fmu_path.name, "csv": str(csv_path), "ports": max(len(rows) - 1, 0)}
@@ -211,9 +210,9 @@ def rename_ports_from_csv(fmu_path: Path, csv_path: Path, output_path: Path) -> 
     renamed = sum(1 for old, new in translations.items() if new and new != old)
     removed = sum(1 for new in translations.values() if not new)
 
-    fmu = FMU(str(fmu_path))
-    fmu.apply_operation(operation)
-    fmu.repack(str(output_path))
+    with FMU(str(fmu_path)) as fmu:
+        fmu.apply_operation(operation)
+        fmu.repack(str(output_path))
 
     return {"fmu": fmu_path.name, "output": str(output_path),
             "renamed": renamed, "removed": removed}
@@ -264,9 +263,9 @@ def apply_operation(fmu_path: Path, output_path: Path, operation: str,
     except Exception as exc:  # noqa: BLE001 - reported to the client
         raise ValueError(f"Cannot apply '{operation}': {exc}") from None
 
-    fmu = FMU(str(fmu_path))
-    fmu.apply_operation(instance, causality or None)
-    fmu.repack(str(output_path))
+    with FMU(str(fmu_path)) as fmu:
+        fmu.apply_operation(instance, causality or None)
+        fmu.repack(str(output_path))
 
     return {"fmu": fmu_path.name, "output": str(output_path),
             "operation": repr(instance)}

@@ -1,0 +1,21 @@
+<fmiModelDescription author="nl" copyright="See Embedded FMU's copyrights." description="FMUContainer with bus.fmu, node1.fmu, node2.fmu" fmiVersion="3.0" generationDateAndTime="2026-07-19T12:40:12Z" generationTool="FMUContainer-0.0.dev0" instantiationToken="b757f65d-d430-4a78-8756-1aace4c182f9" license="Proprietary" modelName="bus+nodes" variableNamingConvention="structured">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="false" canGetAndSetFMUState="false" canHandleVariableCommunicationStepSize="true" canNotUseMemoryManagementFunctions="true" canSerializeFMUState="false" hasEventMode="false" modelIdentifier="bus+nodes" needsExecutionTool="false" providesAdjointDerivatives="false" providesDirectionalDerivatives="false" providesEvaluateDiscreteStates="false" providesPerElementDependencies="false"></CoSimulation>
+  <LogCategories>
+    <Category description="Info log messages." name="Info"></Category>
+    <Category description="Error log messages." name="Error"></Category>
+  </LogCategories>
+  <DefaultExperiment startTime="0.0" stepSize="0.1" stopTime="1.0"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="independent" name="time" valueReference="0"></Float64>
+    <Binary causality="local" initial="calculated" name="node1_CanChannel.Tx_Data" valueReference="218103808" variability="discrete"></Binary>
+    <Clock causality="local" intervalVariability="triggered" name="node1_CanChannel.Tx_Clock" valueReference="234881024" variability="discrete"></Clock>
+    <Binary causality="local" initial="calculated" name="bus_Node1.Tx_Data" valueReference="218103809" variability="discrete"></Binary>
+    <Clock causality="local" intervalVariability="triggered" name="container_clock0" valueReference="234881025" variability="discrete"></Clock>
+    <Binary causality="local" initial="calculated" name="node2_CanChannel.Tx_Data" valueReference="218103810" variability="discrete"></Binary>
+    <Clock causality="local" intervalVariability="triggered" name="node2_CanChannel.Tx_Clock" valueReference="234881026" variability="discrete"></Clock>
+    <Binary causality="local" initial="calculated" name="bus_Node2.Tx_Data" valueReference="218103811" variability="discrete"></Binary>
+    <Clock causality="local" intervalVariability="triggered" name="container_clock1" valueReference="234881027" variability="discrete"></Clock>
+    <Float64 causality="input" name="BusErrorProbability" start="0.0" valueReference="1" variability="discrete"></Float64>
+  </ModelVariables>
+  <ModelStructure></ModelStructure>
+</fmiModelDescription>

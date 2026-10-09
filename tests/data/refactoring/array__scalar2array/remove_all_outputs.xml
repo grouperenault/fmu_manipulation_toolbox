@@ -1,0 +1,20 @@
+<fmiModelDescription fmiVersion="3.0" generationDateAndTime="2026-02-08T17:12:44Z" generationTool="Simulink (R2024b)" instantiationToken="{121d828d-d4dd-3c76-8227-7be1b268a801}" modelName="vec" variableNamingConvention="structured" version="1.2">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUState="true" canHandleVariableCommunicationStepSize="false" canSerializeFMUState="true" fixedInternalStepSize="0.1" hasEventMode="true" modelIdentifier="vec"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.1" stopTime="10"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="input" description="In1" initial="exact" name="In1" start="0" valueReference="0" variability="continuous"></Float64>
+    <Float64 causality="independent" description="time" name="time" valueReference="2" variability="continuous"></Float64>
+  </ModelVariables>
+  <ModelStructure></ModelStructure>
+  <Annotations>
+    <Annotation type="com.mathworks.Simulink">
+      <Simulink>
+        <ImportCompatibility FMUProduct="standalone FMU" requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Inport blockPath="vec/In1" dataType="double" dimension="[1]" portName="In1" portNumber="1" sampleTime="[0.1   0]" uniquePortName="In1" unit=""></Inport>
+          <Outport blockPath="vec/Out1" dataType="double" dimension="[2]" portName="Out1" portNumber="1" sampleTime="[0.1   0]" uniquePortName="Out1" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Annotation>
+  </Annotations>
+</fmiModelDescription>

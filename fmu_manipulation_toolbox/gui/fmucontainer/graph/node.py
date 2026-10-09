@@ -25,6 +25,8 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
     """Rectangular node representing an FMU. No visual ports — wires
     connect directly to the node edges."""
 
+    read_only = True  # reads the FMU interface, never changes the descriptor
+
     def __init__(self, fmu_path: Path, x: float = 0, y: float = 0):
         super().__init__()
 
@@ -74,10 +76,9 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self._icon_native_width: int = 0
         self._icon_native_height: int = 0
 
-        fmu = FMU(fmu_path)
-        fmu.apply_operation(self)
-        self._load_icon(fmu)
-        del fmu
+        with FMU(fmu_path) as fmu:
+            fmu.apply_operation(self)
+            self._load_icon(fmu)
 
         # Pick the title bar color according to the FMI kind (ModelExchange
         # FMUs are shown in green).
@@ -397,10 +398,9 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_is_model_exchange = False
         self.fmu_is_cosimulation = False
 
-        fmu = FMU(new_fmu_path)
-        fmu.apply_operation(self)
-        self._load_icon(fmu)
-        del fmu
+        with FMU(new_fmu_path) as fmu:
+            fmu.apply_operation(self)
+            self._load_icon(fmu)
 
         # Refresh the title bar color (the new FMU may have a different FMI kind).
         self._update_title_bg_color()
