@@ -2,6 +2,9 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* FIXED: MCP server: invalid arguments are reported with a short, actionable message (unknown option or
+         argument with the list of the allowed ones, missing argument, value outside its constraint)
+         instead of the raw Pydantic text and its documentation link.
 * ADDED: MCP server: **single-FMU tools** beyond container assembly — `summarize_fmu`,
          `check_fmu` (FMI schema conformity), `dump_ports_csv`, `rename_ports_from_csv` and
          `apply_operation` (prefix stripping/merging, trimming, regexp filtering). The tools that

@@ -115,6 +115,61 @@ def _is_actionable(exc: BaseException) -> bool:
             or type(exc).__module__.startswith(_TOOLBOX_PACKAGE))
 
 
+def _schema_node(schema: Dict[str, Any], node: Dict[str, Any]) -> Dict[str, Any]:
+    """Follow `$ref` and pick the object branch of `anyOf` (optional fields) in a JSON schema."""
+    while True:
+        if "$ref" in node:
+            node = schema.get("$defs", {}).get(node["$ref"].rsplit("/", 1)[-1], {})
+        elif "anyOf" in node:
+            node = next((branch for branch in node["anyOf"]
+                         if "properties" in branch or "$ref" in branch), {})
+        else:
+            return node
+
+
+def _allowed_keys(schema: Dict[str, Any], path: List[str]) -> List[str]:
+    """Keys accepted at `path` (e.g. `["options"]`) of a tool input schema."""
+    node = _schema_node(schema, schema)
+    for key in path:
+        node = _schema_node(schema, node.get("properties", {}).get(key, {}))
+    return sorted(node.get("properties", {}))
+
+
+def describe_argument_errors(tool: str, errors: List[Dict[str, Any]], schema: Dict[str, Any]) -> str:
+    """Turn Pydantic argument errors into one short, actionable message.
+
+    FastMCP validates the arguments before the tool runs and reports the raw
+    Pydantic text ("1 validation error for call[...]", error codes, a link to
+    the Pydantic documentation). A model can act on what is wrong and what is
+    accepted instead: the allowed keys come from the tool's own input schema,
+    so they cannot drift from what the tool accepts.
+
+    Args:
+        tool: Name of the tool.
+        errors: `pydantic.ValidationError.errors()`.
+        schema: Input JSON schema of the tool.
+    """
+    problems = []
+    for error in errors:
+        location = [str(part) for part in error.get("loc", ())]
+        kind = error.get("type", "")
+        if kind in ("extra_forbidden", "unexpected_keyword_argument"):
+            allowed = _allowed_keys(schema, location[:-1])
+            what = "option" if location[:-1] else "argument"
+            problem = f"unknown {what} '{location[-1]}'"
+            if allowed:
+                problem += f" (allowed: {', '.join(allowed)})"
+        elif kind in ("missing", "missing_argument"):
+            problem = f"missing required argument '{'.'.join(location)}'"
+        else:
+            given = repr(error.get("input"))
+            given = given if len(given) <= 60 else given[:57] + "..."
+            problem = f"'{'.'.join(location)}': {error.get('msg', 'invalid value')} (got {given})"
+        problems.append(problem)
+    return (f"Invalid arguments for '{tool}': {'; '.join(problems)}. "
+            f"Fix the arguments and call the tool again.")
+
+
 def _guard(fn):
     """Turn backend exceptions into actionable MCP errors.
 
@@ -201,7 +256,9 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     """
     try:
         from fastmcp import Context, FastMCP
-        from pydantic import Field
+        from fastmcp.exceptions import ToolError, ValidationError as FastMcpValidationError
+        from fastmcp.server.middleware import Middleware
+        from pydantic import Field, ValidationError as PydanticValidationError
         from typing_extensions import Annotated
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise McpUnavailableError(
@@ -224,6 +281,23 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         policy = PathPolicy.from_environment()
 
     mcp = FastMCP(name)
+
+    class ArgumentErrors(Middleware):
+        """Report invalid arguments with `describe_argument_errors` instead of the raw Pydantic text."""
+
+        async def on_call_tool(self, context, call_next):
+            try:
+                return await call_next(context)
+            except FastMcpValidationError as error:
+                cause = error.__cause__
+                if not isinstance(cause, PydanticValidationError):
+                    raise
+                tool_name = context.message.name
+                tool = await mcp.get_tool(tool_name)
+                schema = tool.parameters if tool is not None else {}
+                raise ToolError(describe_argument_errors(tool_name, cause.errors(), schema)) from None
+
+    mcp.add_middleware(ArgumentErrors())
 
     FmuName = Annotated[str, Field(
         description="File name of an FMU already in the assembly, e.g. "

@@ -30,6 +30,7 @@ from fmu_manipulation_toolbox.assistant import (  # noqa: E402
     PathPolicy, PathValidationError, build_server, resolve_port, resolve_timeout,
 )
 from fmu_manipulation_toolbox.assistant.bridge import SUPPORTED_FMI_VERSIONS  # noqa: E402
+from fmu_manipulation_toolbox.assistant.server import describe_argument_errors  # noqa: E402
 
 #: Tool name -> ordered parameter names.
 #: Starts from the inventory measured before the refactoring; the ``overwrite``
@@ -479,6 +480,56 @@ def test_bridge_errors_are_reported_to_the_client():
 
     with pytest.raises(Exception, match="ghost.fmu"):
         _run(scenario())
+
+
+# --------------------------------------------------------------------------- #
+#                              argument errors                                 #
+# --------------------------------------------------------------------------- #
+def _call_error(tool, arguments, tmp_path=None) -> str:
+    """Message of the ToolError raised for an invalid call (the bridge must not be reached)."""
+    bridge = FakeBridge()
+
+    async def scenario():
+        async with fastmcp.Client(build_server(bridge)) as client:
+            return await client.call_tool(tool, arguments)
+
+    with pytest.raises(ToolError) as error:
+        _run(scenario())
+    assert not any(call[0] == tool for call in bridge.calls)
+    return str(error.value)
+
+
+@pytest.mark.parametrize("tool, arguments, expected", [
+    ("set_container_options", {"options": {"stepsize": 1}},
+     "unknown option 'stepsize' (allowed: auto_input, auto_link, auto_local, auto_output, auto_parameter, "
+     "mt, profiling, sequential, step_size, ts_multiplier)"),
+    ("set_container_options", {"options": {"step_size": -1}},
+     "'options.step_size': Input should be greater than 0 (got -1)"),
+    ("save_as_fmu", {"path": "out.fmu", "fmi_version": 7}, "'fmi_version': Input should be 2 or 3 (got 7)"),
+    ("add_link", {"from_fmu": "a.fmu", "from_port": "y", "to_fmu": "b.fmu"}, "missing required argument 'to_port'"),
+    ("list_fmus", {"verbose": True}, "unknown argument 'verbose'"),
+], ids=["unknown-option", "constraint", "literal", "missing", "unknown-argument"])
+def test_invalid_arguments_are_reported_without_pydantic_noise(tool, arguments, expected):
+    """The audit's S8 message ("Unknown container option(s) ... Allowed: [...]") was lost when the
+    options became a Pydantic model: FastMCP reported the raw Pydantic text instead."""
+    message = _call_error(tool, arguments)
+    assert expected in message
+    assert message.startswith(f"Invalid arguments for '{tool}': ")
+    assert "pydantic" not in message and "validation error for" not in message
+
+
+def test_describe_argument_errors_follows_schema_references():
+    schema = {"properties": {"options": {"anyOf": [{"$ref": "#/$defs/Options"}, {"type": "null"}]}},
+              "$defs": {"Options": {"properties": {"b": {}, "a": {}}}}}
+    errors = [{"loc": ("options", "c"), "type": "extra_forbidden", "msg": "", "input": 1}]
+    assert describe_argument_errors("t", errors, schema) == (
+        "Invalid arguments for 't': unknown option 'c' (allowed: a, b). Fix the arguments and call the tool again.")
+
+
+def test_describe_argument_errors_truncates_long_values():
+    errors = [{"loc": ("path",), "type": "string_type", "msg": "Input should be a valid string", "input": ["x"] * 50}]
+    message = describe_argument_errors("t", errors, {})
+    assert "..." in message and len(message) < 200
 
 
 # --------------------------------------------------------------------------- #
@@ -938,8 +989,8 @@ def test_scenario_build_a_container(tmp_path):
     ("add_link", {"from_fmu": "a.fmu", "from_port": "nope",
                   "to_fmu": "a.fmu", "to_port": "u"}, "is not an output"),
     ("list_fmu_ports", {"fmu": "ghost.fmu"}, "ghost.fmu"),
-    # A misspelled option is now caught by the schema, which names the field.
-    ("set_container_options", {"options": {"stepsize": 1}}, "options.stepsize"),
+    # A misspelled option is caught by the schema; the message names it and lists the allowed ones.
+    ("set_container_options", {"options": {"stepsize": 1}}, r"unknown option 'stepsize' \(allowed: .*step_size"),
     ("remove_fmu", {"name": "ghost.fmu"}, "is not in the assembly"),
 ])
 def test_scenario_errors_are_actionable(tmp_path, tool, arguments, expected):
