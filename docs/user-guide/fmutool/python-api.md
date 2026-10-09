@@ -46,6 +46,21 @@ except FMUError as e:
     print(f"Cannot load FMU: {e}")
 ```
 
+Every failure to open an FMU (missing file, not a ZIP archive, no `modelDescription.xml`) raises
+`FMUError`. A `modelDescription.xml` that cannot be read (not well-formed XML, not FMI 2.0 or 3.0)
+raises `FMUError` from `apply_operation()`.
+
+The temporary directory is removed by `fmu.close()`, or automatically when the object is
+garbage-collected or the interpreter exits. To control when it happens, use the FMU as a context
+manager:
+
+```python
+with FMU("path/to/module.fmu") as fmu:
+    fmu.apply_operation(OperationStripTopLevel())
+    fmu.repack("path/to/module-stripped.fmu")
+# The temporary directory is removed here; `fmu` can no longer be used.
+```
+
 ### Apply an Operation
 
 ```python

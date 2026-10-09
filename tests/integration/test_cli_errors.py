@@ -72,6 +72,48 @@ def test_fmutool_operation_error_exits(area_dir, caplog):
     assert "win32" in caplog.text
 
 
+@pytest.mark.area("operations")
+def test_fmutool_not_a_zip_exits(area_dir, caplog):
+    with open("not_a_zip.fmu", "w") as file:
+        file.write("this is not a zip archive")
+    sys.argv = ["fmutool", "-input", "not_a_zip.fmu", "-summary"]
+
+    with pytest.raises(SystemExit) as exc:
+        fmutool()
+
+    assert exc.value.code == -4
+    assert "not a ZIP archive" in caplog.text
+
+
+@pytest.mark.area("operations")
+def test_fmutool_unreadable_descriptor_exits(area_dir, caplog):
+    import zipfile
+    with zipfile.ZipFile("broken.fmu", "w") as fmu:
+        fmu.writestr("modelDescription.xml", "<fmiModelDescription fmiVersion='2.0'><x>a < b</x>"
+                                             "</fmiModelDescription>")
+    sys.argv = ["fmutool", "-input", "broken.fmu", "-summary"]
+
+    with pytest.raises(SystemExit) as exc:
+        fmutool()
+
+    assert exc.value.code == -6
+    assert "not well-formed" in caplog.text
+
+
+@pytest.mark.area("operations")
+def test_fmutool_refused_operation_exits(area_dir, caplog):
+    # Keeping no port at all would leave an empty <ModelVariables>: refused (D10).
+    sys.argv = ["fmutool", "-input", "bouncing_ball.fmu", "-keep-only-regexp", "nothing-matches",
+                "-output", "out.fmu"]
+
+    with pytest.raises(SystemExit) as exc:
+        fmutool()
+
+    assert exc.value.code == -6
+    assert "remove every variable" in caplog.text
+    assert not (area_dir / "out.fmu").exists()
+
+
 # --------------------------------------------------------------------------- #
 #                               fmucontainer                                    #
 # --------------------------------------------------------------------------- #

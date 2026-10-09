@@ -3,17 +3,14 @@
 `FMU.apply_operation` rewrites the descriptor even for an operation that changes
 nothing; that rewrite must keep the meaning of the document. Each test below
 targets one defect listed in `docs/refactoring.md` (D1 to D9, D14). They were
-written as `xfail(strict=True)` tests in phase 0 and pass since phase 2; the
-remaining marker covers a defect fixed in a later phase.
+written as `xfail(strict=True)` tests in phase 0 and pass since phase 2.
 """
-import xml.etree.ElementTree as ET
-import xml.parsers.expat
 import zipfile
 from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.operations import FMU, FMUError, OperationAbstract, OperationRemoveSources
+from fmu_manipulation_toolbox.operations import FMU, OperationAbstract, OperationRemoveSources
 
 from _helpers.assertions import assert_equivalent_xml
 
@@ -72,12 +69,6 @@ def assert_noop_roundtrip(tmp_path: Path, descriptor: str, with_comments=False) 
     fmu = FMU(str(make_fmu(tmp_path, descriptor)))
     fmu.apply_operation(OperationAbstract())
     assert_equivalent_xml(descriptor.encode("utf-8"), fmu.descriptor_filename, with_comments=with_comments)
-
-
-def xfail(defect: str, phase: int, raises=AssertionError):
-    """Expected failure of a known defect, restricted to the exception that the defect raises."""
-    return pytest.mark.xfail(strict=True, raises=raises,
-                             reason=f"{defect} (docs/refactoring.md, fixed in phase {phase})")
 
 
 # --------------------------------------------------------------------------- #
@@ -155,12 +146,3 @@ def test_d14_fmi3_empty_binary_start_is_kept(tmp_path):
 def test_d14_fmi3_array_of_size_one_stays_an_array(tmp_path):
     extra = '\n    <Float64 name="a" valueReference="3" causality="input"><Dimension start="1"/></Float64>'
     assert_noop_roundtrip(tmp_path, fmi3(extra_variable=extra))
-
-
-@xfail("FMU life cycle: a file that is not a zip archive raises BadZipFile instead of FMUError", phase=3,
-        raises=zipfile.BadZipFile)
-def test_not_a_zip_raises_fmu_error(tmp_path):
-    not_a_zip = tmp_path / "not_a_zip.fmu"
-    not_a_zip.write_text("this is not a zip archive")
-    with pytest.raises(FMUError):
-        FMU(str(not_a_zip))

@@ -101,29 +101,30 @@ def fmutool():
             else:
                 yield op
 
-    for operation in operation_iterator():
-        logger.info(f"     => {operation}")
-        try:
-            fmu.apply_operation(operation, cli_options.apply_on)
-        except OperationError as reason:
-            logger.fatal(f"{reason}")
-            close_logger(logger)
-            sys.exit(-6)
+    with fmu:
+        for operation in operation_iterator():
+            logger.info(f"     => {operation}")
+            try:
+                fmu.apply_operation(operation, cli_options.apply_on)
+            except (OperationError, FMUError) as reason:  # FMUError: unreadable modelDescription.xml
+                logger.fatal(f"{reason}")
+                close_logger(logger)
+                sys.exit(-6)
 
-    if cli_options.extract_description:
-        logger.info(f"WRITING ModelDescriptor='{cli_options.extract_description}'")
-        fmu.save_descriptor(cli_options.extract_description)
+        if cli_options.extract_description:
+            logger.info(f"WRITING ModelDescriptor='{cli_options.extract_description}'")
+            fmu.save_descriptor(cli_options.extract_description)
 
-    if cli_options.fmu_output:
-        logger.info(f"WRITING Output='{cli_options.fmu_output}'")
-        try:
-            fmu.repack(cli_options.fmu_output)
-        except FMUError as reason:
-            logger.fatal(f"FATAL ERROR: {reason}")
-            close_logger(logger)
-            sys.exit(-5)
-    else:
-        logger.info(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
+        if cli_options.fmu_output:
+            logger.info(f"WRITING Output='{cli_options.fmu_output}'")
+            try:
+                fmu.repack(cli_options.fmu_output)
+            except FMUError as reason:
+                logger.fatal(f"FATAL ERROR: {reason}")
+                close_logger(logger)
+                sys.exit(-5)
+        else:
+            logger.info(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
 
     close_logger(logger)
 

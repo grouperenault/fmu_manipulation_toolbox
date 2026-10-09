@@ -2,6 +2,12 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* CHANGED: `FMU` can be used as a context manager (`with FMU(...) as fmu:`), and has a `close()`
+         method. Its temporary directory is now also removed at interpreter exit, and when opening
+         fails.
+* FIXED: opening a file that is not a ZIP archive, or a directory, raised a raw exception instead
+         of `FMUError`. `fmutool` now reports these errors, and an unreadable `modelDescription.xml`,
+         with a clear message instead of a traceback.
 * CHANGED: `fmutool` operations: `modelDescription.xml` is now modified in place with ElementTree
          instead of being re-generated, so that everything an operation does not touch is kept as
          is. Fixes text and attribute values written unescaped or unescaped twice (which produced

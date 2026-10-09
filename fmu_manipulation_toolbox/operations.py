@@ -5,6 +5,7 @@ import re
 import shutil
 import tempfile
 import warnings
+import weakref
 import xml.etree.ElementTree as ET
 import zipfile
 import hashlib
@@ -21,6 +22,14 @@ class FMU:
     Extracts an FMU (`.fmu` zip archive) into a temporary directory so that
     operations can be applied to its `modelDescription.xml` descriptor.
     After manipulation, the FMU can be repacked into a new archive.
+
+    The temporary directory is removed by `close()`, at the end of a `with`
+    block, or at the latest when the object is garbage-collected or the
+    interpreter exits:
+
+        with FMU("module.fmu") as fmu:
+            fmu.apply_operation(OperationStripTopLevel())
+            fmu.repack("module-stripped.fmu")
 
     Attributes:
         FMI2_TYPES (tuple[str, ...]): FMI 2.0 scalar variable type names.
@@ -44,18 +53,46 @@ class FMU:
         self.fmu_filename = fmu_filename
         self.tmp_directory = tempfile.mkdtemp()
         self.fmi_version = None
+        # Unlike `__del__`, a finalizer also runs at interpreter exit, and never on a half-built object.
+        self._finalizer = weakref.finalize(self, shutil.rmtree, self.tmp_directory, ignore_errors=True)
+        self.descriptor_filename = os.path.join(self.tmp_directory, "modelDescription.xml")
 
+        try:
+            self._extract()
+        except FMUError:
+            self.close()
+            raise
+
+    def _extract(self):
         try:
             with zipfile.ZipFile(self.fmu_filename) as zin:
                 zin.extractall(self.tmp_directory)
         except FileNotFoundError:
-            raise FMUError(f"'{fmu_filename}' does not exist")
-        self.descriptor_filename = os.path.join(self.tmp_directory, "modelDescription.xml")
+            raise FMUError(f"'{self.fmu_filename}' does not exist") from None
+        except (IsADirectoryError, PermissionError) as error:
+            raise FMUError(f"'{self.fmu_filename}' cannot be read: {error.strerror}") from None
+        except zipfile.BadZipFile:
+            raise FMUError(f"'{self.fmu_filename}' is not valid: not a ZIP archive") from None
         if not os.path.isfile(self.descriptor_filename):
-            raise FMUError(f"'{fmu_filename}' is not valid: {self.descriptor_filename} not found")
+            raise FMUError(f"'{self.fmu_filename}' is not valid: modelDescription.xml not found")
 
-    def __del__(self):
-        shutil.rmtree(self.tmp_directory)
+    def close(self):
+        """Remove the temporary directory. The FMU can no longer be used afterwards."""
+        self._finalizer()
+
+    @property
+    def closed(self) -> bool:
+        return not self._finalizer.alive
+
+    def _check_open(self):
+        if self.closed:
+            raise FMUError(f"'{self.fmu_filename}' is closed")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def save_descriptor(self, filename):
         """Save a copy of the current `modelDescription.xml` to a file.
@@ -63,7 +100,8 @@ class FMU:
         Args:
             filename (str): Destination path for the descriptor copy.
         """
-        shutil.copyfile(os.path.join(self.tmp_directory, "modelDescription.xml"), filename)
+        self._check_open()
+        shutil.copyfile(self.descriptor_filename, filename)
 
     def repack(self, filename):
         """Repack the (possibly modified) FMU into a new `.fmu` archive.
@@ -71,6 +109,7 @@ class FMU:
         Args:
             filename (str): Output path for the repacked FMU.
         """
+        self._check_open()
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as zout:
             for root, dirs, files in os.walk(self.tmp_directory):
                 for file in files:
@@ -89,6 +128,7 @@ class FMU:
             apply_on (list[str] | None): If set, only apply the operation
                 to ports with a causality in this list.
         """
+        self._check_open()
         manipulation = Manipulation(operation, self)
         manipulation.manipulate(self.descriptor_filename, apply_on)
 

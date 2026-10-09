@@ -366,6 +366,24 @@ mémoire FMI-3 est proche de la limite : c'est le coût de l'arbre ElementTree l
   de `__del__` ;
 - la CLI capture aussi `ET.ParseError` et la convertit en message clair.
 
+**État au 9 octobre 2026 : réalisée.**
+
+| Élément | Fichier |
+|---|---|
+| Ouverture : `BadZipFile`, répertoire (`IsADirectoryError`/`PermissionError`), fichier absent, descripteur absent → `FMUError` ; le répertoire temporaire est supprimé immédiatement en cas d'échec | `operations.py` (`FMU`) |
+| `weakref.finalize` remplace `__del__` : le nettoyage a aussi lieu à l'arrêt de l'interpréteur, et ne lève plus d'exception si le répertoire a déjà disparu | `operations.py` |
+| `close()`, `closed`, `__enter__`/`__exit__` ; un `FMU` fermé lève `FMUError` (« is closed ») au lieu d'une erreur de fichier introuvable | `operations.py` |
+| `with FMU(...)` aux endroits où la durée de vie est délimitée : CLI `fmutool`, outils MCP (`fmutools.py`, `headless.py`), nœuds du graphe GUI. Restent sur le nettoyage automatique les objets qui vivent avec leur propriétaire (`EmbeddedFMU`, FMU affichée par la GUI `fmutool`) | `cli/fmutool.py`, `assistant/`, `gui/fmucontainer/graph/node.py` |
+| CLI : un descripteur illisible arrive en `FMUError` depuis la phase 2 (et non plus en `ET.ParseError`) ; la boucle d'opérations l'attrape désormais (code de sortie −6) | `cli/fmutool.py` |
+| Tests : cycle de vie (`tests/unit/test_fmu_lifecycle.py`, 16 tests) et 3 nouveaux cas CLI (fichier non-zip → −4, descripteur illisible → −6, opération refusée → −6) ; dernier `xfail` retiré | `tests/` |
+| Documentation : guide de l'API Python, `CHANGELOG.md` | `docs/`, `CHANGELOG.md` |
+
+Vérifications faites : 14 des nouveaux tests échouent sur le code de la phase 2 ; les 11 autres sont des tests existants ou
+des cas déjà corrects (fichier absent, refus de la phase 2). Suite complète : 1781 tests, **aucun `xfail` restant**.
+
+Non traité ici, comme prévu : le code de sortie de `-check` (toujours 0) et les codes de sortie négatifs de la CLI, laissés à
+la phase 5.
+
 ### Phase 4 — Génération du container sur ElementTree
 
 - `EmbeddedFMUPort.xml()` renvoie un `ET.Element` au lieu d'une chaîne ;
@@ -382,6 +400,8 @@ mémoire FMI-3 est proche de la limite : c'est le coût de l'arbre ElementTree l
 - `checker.py` : s'appuyer sur l'arbre pour ajouter des règles sémantiques (valueReference/noms uniques, index de
   `ModelStructure`, combinaisons causality/variability/initial), remplacer `validate()` par `iter_errors()`, et faire en sorte
   que `-check` renvoie un code de sortie non nul ;
+- CLI : remplacer les codes de sortie négatifs (`sys.exit(-3)` donne 253 sous POSIX) par des codes positifs documentés.
+  C'est une rupture pour les scripts qui testent ces valeurs : à annoncer dans `CHANGELOG.md` ;
 - ne réécrire le descripteur que s'il a été modifié (indicateur de modification), puis parser une seule fois par FMU au lieu
   d'une fois par opération. **Attention** : `EmbeddedFMU` modifie aujourd'hui `fmi_type` (Enumeration → Integer) pendant une
   opération supposée en lecture seule. Il faut vérifier que rien ne dépend de cette modification écrite sur disque avant de
