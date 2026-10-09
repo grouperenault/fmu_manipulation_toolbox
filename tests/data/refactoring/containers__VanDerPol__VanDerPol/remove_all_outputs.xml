@@ -1,0 +1,21 @@
+<fmiModelDescription description="This model implements the van der Pol oscillator" fmiVersion="3.0" generationDateAndTime="2025-06-12T19:14:15.206818+00:00" generationTool="Reference FMUs (v0.0.39)" instantiationToken="{BD403596-3166-4232-ABC2-132BDF73E644}" modelName="van der Pol oscillator">
+  <ModelExchange canGetAndSetFMUState="true" canSerializeFMUState="true" modelIdentifier="VanDerPol" providesAdjointDerivatives="true" providesDirectionalDerivatives="true"></ModelExchange>
+  <CoSimulation canGetAndSetFMUState="true" canHandleVariableCommunicationStepSize="true" canReturnEarlyAfterIntermediateUpdate="true" canSerializeFMUState="true" fixedInternalStepSize="1e-2" modelIdentifier="VanDerPol" providesAdjointDerivatives="true" providesDirectionalDerivatives="true" providesIntermediateUpdate="true"></CoSimulation>
+  <LogCategories>
+    <Category description="Log events" name="logEvents"></Category>
+    <Category description="Log error messages" name="logStatusError"></Category>
+  </LogCategories>
+  <DefaultExperiment startTime="0" stepSize="1e-2" stopTime="20"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="independent" description="Simulation time" name="time" valueReference="0" variability="continuous"></Float64>
+    <Float64 causality="local" derivative="1" initial="calculated" name="der(x0)" valueReference="2" variability="continuous"></Float64>
+    <Float64 causality="local" derivative="3" initial="calculated" name="der(x1)" valueReference="4" variability="continuous"></Float64>
+    <Float64 causality="parameter" initial="exact" name="mu" start="1" valueReference="5" variability="fixed"></Float64>
+  </ModelVariables>
+  <ModelStructure>
+    <ContinuousStateDerivative valueReference="2"></ContinuousStateDerivative>
+    <ContinuousStateDerivative valueReference="4"></ContinuousStateDerivative>
+    <InitialUnknown valueReference="2"></InitialUnknown>
+    <InitialUnknown dependencies="5" dependenciesKind="dependent" valueReference="4"></InitialUnknown>
+  </ModelStructure>
+</fmiModelDescription>

@@ -1,0 +1,14 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+time;time;0;independent;continuous;Float64;
+scalar2array-2.Out1;scalar2array-2.Out1;1;local;continuous;Float64;
+scalar2array-2.Out2;scalar2array-2.Out2;2;local;continuous;Float64;
+scalar2array-2.Out3;scalar2array-2.Out3;3;local;continuous;Float64;
+scalar2array-2.Out4;scalar2array-2.Out4;100663297;local;discrete;Int32;
+In1;In1;5;input;continuous;Float64;1
+In2;In2;6;input;continuous;Float64;2
+In3;In3;7;input;continuous;Float64;3
+In4;In4;100663298;input;discrete;Int32;4
+Out1;Out1;8;output;continuous;Float64;
+Out2;Out2;9;output;continuous;Float64;
+Out3;Out3;10;output;continuous;Float64;
+Out4;Out4;11;output;continuous;Float64;

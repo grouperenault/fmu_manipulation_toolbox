@@ -1,0 +1,47 @@
+| MD5Sum = 2516763b6d17d803625319f4e0b2e081
+|
+| FMI properties: 
+|  - author = nl
+|  - copyright = See Embedded FMU's copyrights.
+|  - description = FMUContainer with scalar2array-3.fmu, array2scalar-3.fmu
+|  - fmiVersion = 3.0
+|  - generationDateAndTime = 2026-07-21T19:51:14Z
+|  - generationTool = FMUContainer-0.0.dev0
+|  - instantiationToken = 5a7f2be1-e64e-4584-b872-f004d905d4a6
+|  - license = Proprietary
+|  - modelName = array-3
+|  - variableNamingConvention = structured
+|
+| Co-Simulation capabilities: 
+|  - canBeInstantiatedOnlyOncePerProcess = true
+|  - canGetAndSetFMUState = false
+|  - canHandleVariableCommunicationStepSize = true
+|  - canNotUseMemoryManagementFunctions = true
+|  - canSerializeFMUState = false
+|  - hasEventMode = false
+|  - modelIdentifier = array-3
+|  - needsExecutionTool = false
+|  - providesAdjointDerivatives = false
+|  - providesDirectionalDerivatives = false
+|  - providesEvaluateDiscreteStates = false
+|  - providesPerElementDependencies = false
+|
+| Default Experiment values: 
+|  - startTime = 0.0
+|  - stepSize = 0.1
+|  - stopTime = 10.0
+|
+| Supported platforms: 
+|
+| Embedded resources:
+|  - 00
+|  - 01
+|  - container.txt
+|
+| Number of ports
+|  independent : 1
+|  local : 4
+|  input : 4
+|  output : 4
+|
+| [End of report]

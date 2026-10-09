@@ -1,0 +1,4 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+g;g;0;output;continuous;Real;
+time;time;1;independent;continuous;Real;
+g_1;g_1;2;parameter;tunable;Real;9.81

@@ -1,0 +1,41 @@
+<fmiModelDescription description="This model implements a linear time-invariant (LTI) system" fmiVersion="3.0" generationDateAndTime="2025-06-12T19:14:15.071804+00:00" generationTool="Reference FMUs (v0.0.39)" instantiationToken="{D773325B-AB94-4630-BF85-643EB24FCB78}" modelName="StateSpace">
+  <ModelExchange canGetAndSetFMUState="true" canSerializeFMUState="true" modelIdentifier="StateSpace"></ModelExchange>
+  <CoSimulation canGetAndSetFMUState="true" canHandleVariableCommunicationStepSize="true" canReturnEarlyAfterIntermediateUpdate="true" canSerializeFMUState="true" fixedInternalStepSize="1" hasEventMode="true" modelIdentifier="StateSpace" providesIntermediateUpdate="true"></CoSimulation>
+  <LogCategories>
+    <Category description="Log events" name="logEvents"></Category>
+    <Category description="Log error messages" name="logStatusError"></Category>
+  </LogCategories>
+  <DefaultExperiment startTime="0" stopTime="10"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="independent" description="Simulation time" name="renamed_time" valueReference="0" variability="continuous"></Float64>
+    <UInt64 causality="structuralParameter" description="Number of inputs" max="5" min="0" name="renamed_m" start="3" valueReference="1" variability="tunable"></UInt64>
+    <UInt64 causality="structuralParameter" description="Number of outputs" max="5" min="0" name="renamed_r" start="3" valueReference="3" variability="tunable"></UInt64>
+    <Float64 causality="parameter" description="Matrix coefficient A" name="renamed_A" start="1 0 0 0 1 0 0 0 1" valueReference="4" variability="tunable">
+      <Dimension valueReference="2"></Dimension>
+      <Dimension valueReference="2"></Dimension>
+    </Float64>
+    <Float64 causality="parameter" description="Matrix coefficient C" name="renamed_C" start="1 0 0 0 1 0 0 0 1" valueReference="6" variability="tunable">
+      <Dimension valueReference="3"></Dimension>
+      <Dimension valueReference="2"></Dimension>
+    </Float64>
+    <Float64 causality="parameter" description="Matrix coefficient D" name="renamed_D" start="1 0 0 0 1 0 0 0 1" valueReference="7" variability="tunable">
+      <Dimension valueReference="3"></Dimension>
+      <Dimension valueReference="1"></Dimension>
+    </Float64>
+    <Float64 causality="input" description="Input vector" name="renamed_u" start="1 2 3" valueReference="9">
+      <Dimension valueReference="1"></Dimension>
+    </Float64>
+    <Float64 causality="output" description="Output vector" name="renamed_y" valueReference="10">
+      <Dimension valueReference="3"></Dimension>
+    </Float64>
+    <Float64 causality="local" derivative="11" description="Derivative of the state vector" name="renamed_der(x)" valueReference="12">
+      <Dimension valueReference="2"></Dimension>
+    </Float64>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="10"></Output>
+    <ContinuousStateDerivative valueReference="12"></ContinuousStateDerivative>
+    <InitialUnknown valueReference="10"></InitialUnknown>
+    <InitialUnknown valueReference="12"></InitialUnknown>
+  </ModelStructure>
+</fmiModelDescription>

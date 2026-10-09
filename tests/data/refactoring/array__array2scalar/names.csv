@@ -1,0 +1,4 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+In1;In1;0;input;continuous;Float64;0 0
+Out1;Out1;1;output;continuous;Float64;
+time;time;2;independent;continuous;Float64;

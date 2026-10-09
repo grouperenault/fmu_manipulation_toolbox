@@ -1,0 +1,3 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+multiplier;multiplier;1;output;discrete;Int32;
+time;time;0;independent;continuous;Float64;

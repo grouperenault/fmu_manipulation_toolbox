@@ -1,0 +1,31 @@
+<fmiModelDescription fmiVersion="2.0" generationDateAndTime="2024-12-11T12:43:01Z" generationTool="Simulink (R2022b)" guid="{4fc386ba-750f-3500-b618-094488ad02af}" modelName="untitled" numberOfEventIndicators="0" variableNamingConvention="structured" version="1.0">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canHandleVariableCommunicationStepSize="false" canNotUseMemoryManagementFunctions="true" modelIdentifier="untitled"></CoSimulation>
+  <DefaultExperiment startTime="0" stepSize="0.005" stopTime="10"></DefaultExperiment>
+  <VendorAnnotations>
+    <Tool name="Simulink">
+      <Simulink>
+        <ImportCompatibility requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Inport blockPath="untitled/sine" dataType="double" dimension="[1]" portName="sine" portNumber="1" sampleTime="[0 0]" uniquePortName="sine" unit=""></Inport>
+          <Outport blockPath="untitled/integrate" dataType="double" dimension="[1]" portName="integrate" portNumber="1" sampleTime="[0 0]" uniquePortName="integrate" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Tool>
+  </VendorAnnotations>
+  <ModelVariables>
+    <ScalarVariable causality="input" description="sine" name="renamed_sine" valueReference="0" variability="continuous">
+      <Real start="0"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="output" description="integrate" initial="calculated" name="renamed_integrate" valueReference="1" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="2"></Unknown>
+    </Outputs>
+    <InitialUnknowns>
+      <Unknown index="2"></Unknown>
+    </InitialUnknowns>
+  </ModelStructure>
+</fmiModelDescription>

@@ -1,0 +1,42 @@
+<fmiModelDescription fmiVersion="2.0" generationDateAndTime="2026-09-08T08:41:40Z" generationTool="Simulink (R2025b)" guid="{6051dd04-89f4-c6f1-257a-c204b266056a}" modelName="velocity" numberOfEventIndicators="1" variableNamingConvention="structured" version="1.5">
+  <ModelExchange canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUstate="true" canNotUseMemoryManagementFunctions="true" canSerializeFMUstate="true" modelIdentifier="velocity" needsExecutionTool="false"></ModelExchange>
+  <DefaultExperiment startTime="0" stepSize="0.1" stopTime="5"></DefaultExperiment>
+  <VendorAnnotations>
+    <Tool name="Simulink">
+      <Simulink>
+        <ImportCompatibility FMUProduct="standalone FMU" canSourceFileCodeGeneration="false" requireMATLABOnPath="no" requireRelease="all"></ImportCompatibility>
+        <SimulinkModelInterface>
+          <Inport blockPath="velocity/reset" dataType="boolean" dimension="[1]" portName="reset" portNumber="1" sampleTime="[0 0]" uniquePortName="reset" unit=""></Inport>
+          <Outport blockPath="velocity/velocity" dataType="double" dimension="[1]" portName="velocity" portNumber="1" sampleTime="[0 0]" uniquePortName="velocity" unit=""></Outport>
+        </SimulinkModelInterface>
+      </Simulink>
+    </Tool>
+  </VendorAnnotations>
+  <ModelVariables>
+    <ScalarVariable causality="input" description="reset" name="renamed_reset" valueReference="0" variability="discrete">
+      <Boolean start="0"></Boolean>
+    </ScalarVariable>
+    <ScalarVariable causality="output" description="velocity" initial="calculated" name="renamed_velocity" valueReference="0" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="local" description="ContState1" initial="calculated" name="renamed_ContState1" valueReference="2" variability="continuous">
+      <Real></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="local" description="Deriv1" initial="calculated" name="renamed_Deriv1" valueReference="3" variability="continuous">
+      <Real derivative="4"></Real>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="2"></Unknown>
+    </Outputs>
+    <Derivatives>
+      <Unknown index="4"></Unknown>
+    </Derivatives>
+    <InitialUnknowns>
+      <Unknown index="2"></Unknown>
+      <Unknown index="3"></Unknown>
+      <Unknown index="4"></Unknown>
+    </InitialUnknowns>
+  </ModelStructure>
+</fmiModelDescription>

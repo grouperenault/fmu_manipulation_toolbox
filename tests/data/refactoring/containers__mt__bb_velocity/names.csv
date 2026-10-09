@@ -1,0 +1,4 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+reset;reset;0;input;discrete;Boolean;0
+velocity;velocity;0;output;continuous;Real;
+time;time;1;independent;continuous;Real;

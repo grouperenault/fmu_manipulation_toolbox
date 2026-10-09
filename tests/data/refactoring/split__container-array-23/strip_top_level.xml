@@ -1,0 +1,40 @@
+<fmiModelDescription author="nl" copyright="See Embedded FMU's copyrights." description="FMUContainer with scalar2array-2.fmu, array2scalar-3.fmu" fmiVersion="3.0" generationDateAndTime="2026-07-21T19:51:14Z" generationTool="FMUContainer-0.0.dev0" instantiationToken="02dae848-7d8e-4021-9cbd-d318bda81d27" license="Proprietary" modelName="array-23" variableNamingConvention="structured">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="true" canGetAndSetFMUState="false" canHandleVariableCommunicationStepSize="true" canNotUseMemoryManagementFunctions="true" canSerializeFMUState="false" hasEventMode="false" modelIdentifier="array-23" needsExecutionTool="false" providesAdjointDerivatives="false" providesDirectionalDerivatives="false" providesEvaluateDiscreteStates="false" providesPerElementDependencies="false"></CoSimulation>
+  <LogCategories>
+    <Category description="Info log messages." name="Info"></Category>
+    <Category description="Error log messages." name="Error"></Category>
+  </LogCategories>
+  <DefaultExperiment startTime="0.0" stepSize="0.1" stopTime="10.0"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="independent" name="time" valueReference="0"></Float64>
+    <Float64 causality="local" description="FMI-2 array aggregate of 2 elements 'Out1[]'" name="Out1" valueReference="1" variability="continuous">
+      <Dimension start="2"></Dimension>
+    </Float64>
+    <Float64 causality="local" description="FMI-2 array aggregate of 3 elements 'Out2[]'" name="Out2" valueReference="2" variability="continuous">
+      <Dimension start="3"></Dimension>
+    </Float64>
+    <Float64 causality="local" description="Out3" initial="calculated" name="Out3" valueReference="3" variability="continuous"></Float64>
+    <Int32 causality="local" description="FMI-2 array aggregate of 6 elements 'Out4[]'" name="Out4" valueReference="100663297" variability="discrete">
+      <Dimension start="2"></Dimension>
+      <Dimension start="3"></Dimension>
+    </Int32>
+    <Float64 causality="input" description="In1" name="In1" start="1" valueReference="5" variability="continuous"></Float64>
+    <Float64 causality="input" description="In2" name="In2" start="2" valueReference="6" variability="continuous"></Float64>
+    <Float64 causality="input" description="In3" name="In3" start="3" valueReference="7" variability="continuous"></Float64>
+    <Int32 causality="input" description="In4" name="In4" start="4" valueReference="100663298" variability="discrete"></Int32>
+    <Float64 causality="output" description="Out1" initial="calculated" name="Out1" valueReference="8" variability="continuous"></Float64>
+    <Float64 causality="output" description="Out2" initial="calculated" name="Out2" valueReference="9" variability="continuous"></Float64>
+    <Float64 causality="output" description="Out3" initial="calculated" name="Out3" valueReference="10" variability="continuous"></Float64>
+    <Float64 causality="output" description="Out4" initial="calculated" name="Out4" valueReference="11" variability="continuous"></Float64>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="8"></Output>
+    <Output valueReference="9"></Output>
+    <Output valueReference="10"></Output>
+    <Output valueReference="11"></Output>
+    <InitialUnknown valueReference="8"></InitialUnknown>
+    <InitialUnknown valueReference="9"></InitialUnknown>
+    <InitialUnknown valueReference="10"></InitialUnknown>
+    <InitialUnknown valueReference="11"></InitialUnknown>
+  </ModelStructure>
+</fmiModelDescription>

@@ -1,0 +1,34 @@
+| MD5Sum = 9804859e95a4e1a563892a0313752b5b
+|
+| FMI properties: 
+|  - fmiVersion = 3.0
+|  - generationDateAndTime = 2025-08-20T10:16:24Z
+|  - generationTool = Simulink (R2024b)
+|  - instantiationToken = {1ec53959-9fa0-f245-55fd-b4abb1343a78}
+|  - modelName = bb_velocity
+|  - variableNamingConvention = structured
+|  - version = 13.0
+|
+| Co-Simulation capabilities: 
+|  - canBeInstantiatedOnlyOncePerProcess = false
+|  - canGetAndSetFMUState = true
+|  - canHandleVariableCommunicationStepSize = false
+|  - canSerializeFMUState = true
+|  - fixedInternalStepSize = 0.001
+|  - hasEventMode = true
+|  - modelIdentifier = bb_velocity
+|
+| Default Experiment values: 
+|  - startTime = 0
+|  - stepSize = 0.001
+|  - stopTime = 10
+|
+| Supported platforms: 
+|  - x86_64-windows
+|
+| Number of ports
+|  input : 1
+|  output : 1
+|  independent : 1
+|
+| [End of report]

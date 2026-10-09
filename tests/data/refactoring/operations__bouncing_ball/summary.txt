@@ -1,0 +1,19 @@
+| MD5Sum = 9ac5aea20f1a22d864e5d80d01983f6d
+|
+| FMI properties: 
+|  - fmiVersion = 2.0
+|  - guid = {8c4e810f-3df3-4a00-8276-176fa3c9f003}
+|  - modelName = bouncing_ball
+|
+| Co-Simulation capabilities: 
+|  - canHandleVariableCommunicationStepSize = true
+|  - modelIdentifier = bouncing_ball
+|
+| Supported platforms: 
+|  - win64
+|
+| Number of ports
+|  local : 4
+|  parameter : 2
+|
+| [End of report]

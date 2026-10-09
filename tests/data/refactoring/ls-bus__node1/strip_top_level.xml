@@ -1,0 +1,24 @@
+<fmiModelDescription xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" fmiVersion="3.0" instantiationToken="" modelName="DemoCanNodeTriggeredOutput" variableNamingConvention="structured" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/modelica/fmi-standard/v3.0.1/schema/fmi3ModelDescription.xsd">
+  <CoSimulation canBeInstantiatedOnlyOncePerProcess="false" canGetAndSetFMUState="false" canHandleVariableCommunicationStepSize="true" canReturnEarlyAfterIntermediateUpdate="false" canSerializeFMUState="false" hasEventMode="true" modelIdentifier="DemoCanNodeTriggeredOutput" needsExecutionTool="false" providesIntermediateUpdate="false"></CoSimulation>
+  <LogCategories>
+    <Category description="Log messages when returning fmi3Discard status from any function." name="logStatusDiscard"></Category>
+    <Category description="Log messages when returning fmi3Error status from any function." name="logStatusError"></Category>
+    <Category description="Trace log messages." name="Trace"></Category>
+    <Category description="Info log messages." name="Info"></Category>
+    <Category description="Warning log messages." name="Warning"></Category>
+    <Category description="Error log messages." name="Error"></Category>
+  </LogCategories>
+  <DefaultExperiment startTime="0" stepSize="0.001"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="independent" description="Simulation time" name="time" valueReference="1024" variability="continuous"></Float64>
+    <Binary causality="input" clocks="2" initial="exact" maxSize="2048" mimeType="application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;" name="Rx_Data" valueReference="0" variability="discrete"></Binary>
+    <Binary causality="output" clocks="3" initial="calculated" maxSize="2048" mimeType="application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;" name="Tx_Data" valueReference="1" variability="discrete"></Binary>
+    <Clock causality="input" intervalVariability="triggered" name="Rx_Clock" valueReference="2"></Clock>
+    <Clock causality="output" intervalVariability="triggered" name="Tx_Clock" valueReference="3"></Clock>
+    <Boolean causality="structuralParameter" name="fmi_standard.fmi_ls_bus.Can_BusNotifications" start="false" valueReference="128" variability="fixed"></Boolean>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="1"></Output>
+    <Output valueReference="3"></Output>
+  </ModelStructure>
+</fmiModelDescription>

@@ -1,0 +1,22 @@
+<fmiModelDescription description="A test model with 1 parameters, 5 inputs, 5 outputs, and 0 states." fmiVersion="3.0" generationDateAndTime="2026-08-13T06:21:39.799723+00:00" generationTool="FMPy 0.3.30" instantiationToken="be34732a-7dcf-4dd6-bfc0-2cc53764b775" modelName="model">
+  <CoSimulation modelIdentifier="model"></CoSimulation>
+  <LogCategories>
+    <Category description="Log error messages" name="logStatusError"></Category>
+  </LogCategories>
+  <DefaultExperiment startTime="0.0" stepSize="1e-3" stopTime="1.0"></DefaultExperiment>
+  <ModelVariables>
+    <Float64 causality="independent" description="description" name="time" valueReference="0" variability="continuous"></Float64>
+    <Float64 causality="parameter" description="Parameter 0" name="p0" start="0" valueReference="1" variability="fixed"></Float64>
+    <Float64 causality="input" description="Input 0" name="u0" start="0" valueReference="2" variability="continuous"></Float64>
+    <Float64 causality="input" description="Input 1" name="u1" start="0" valueReference="3" variability="continuous"></Float64>
+    <Float64 causality="input" description="Input 2" name="u2" start="0" valueReference="4" variability="continuous"></Float64>
+    <Float64 causality="input" description="Input 3" name="u3" start="0" valueReference="5" variability="continuous"></Float64>
+    <Float64 causality="input" description="Input 4" name="u4" start="0" valueReference="6" variability="continuous"></Float64>
+    <Float64 causality="local" description="State 0" name="x0" valueReference="12" variability="continuous"></Float64>
+    <Float64 causality="local" description="State 1" name="x1" valueReference="13" variability="continuous"></Float64>
+    <Float64 causality="local" description="State 2" name="x2" valueReference="14" variability="continuous"></Float64>
+    <Float64 causality="local" description="State 3" name="x3" valueReference="15" variability="continuous"></Float64>
+    <Float64 causality="local" description="State 4" name="x4" valueReference="16" variability="continuous"></Float64>
+  </ModelVariables>
+  <ModelStructure></ModelStructure>
+</fmiModelDescription>

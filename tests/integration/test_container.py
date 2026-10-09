@@ -14,7 +14,7 @@ import pytest
 from fmu_manipulation_toolbox.assembly import Assembly
 from fmu_manipulation_toolbox.container import FMUContainer
 
-from _helpers.assertions import assert_identical_files, assert_identical_files_but_guid
+from _helpers.assertions import VOLATILE_XML_ATTRIBUTES, assert_equivalent_xml, assert_identical_files
 from _helpers.simulation import assert_simulation
 
 pytestmark = [pytest.mark.integration]
@@ -55,8 +55,8 @@ def test_container_bouncing_ball_profiling(area_dir):
     assembly.make_fmu()
     assert_identical_files("REF-container-profiling.txt", "bouncing-profiling/resources/container.txt")
     assert_identical_files("REF-bouncing-profiling.json", "bouncing-profiling.json")
-    assert_identical_files_but_guid("REF-modelDescription-profiling.xml",
-                                    "bouncing-profiling/modelDescription.xml")
+    assert_equivalent_xml("REF-modelDescription-profiling.xml", "bouncing-profiling/modelDescription.xml",
+                          ignore_attributes=VOLATILE_XML_ATTRIBUTES)
     if WIN:
         assert_simulation("bouncing-profiling.fmu")
 
@@ -67,7 +67,8 @@ def test_container_bouncing_ball_profiling_3(area_dir):
     assembly = Assembly("bouncing-3.csv", default_profiling=True, debug=True)
     assembly.make_fmu(fmi_version=3)
     assert_identical_files("REF-container-3.txt", "bouncing-3/resources/container.txt")
-    assert_identical_files_but_guid("REF-modelDescription-3.xml", "bouncing-3/modelDescription.xml")
+    assert_equivalent_xml("REF-modelDescription-3.xml", "bouncing-3/modelDescription.xml",
+                          ignore_attributes=VOLATILE_XML_ATTRIBUTES)
     if WIN:
         assert_simulation("bouncing-3.fmu")
 
@@ -134,7 +135,8 @@ def test_container_start(area_dir):
     assembly = Assembly("slx.json", debug=True)
     assembly.make_fmu()
     assert_identical_files("REF-container.txt", "container-slx/resources/container.txt")
-    assert_identical_files_but_guid("REF-modelDescription.xml", "container-slx/modelDescription.xml")
+    assert_equivalent_xml("REF-modelDescription.xml", "container-slx/modelDescription.xml",
+                          ignore_attributes=VOLATILE_XML_ATTRIBUTES)
     if WIN:
         assert_simulation("container-slx.fmu")
 

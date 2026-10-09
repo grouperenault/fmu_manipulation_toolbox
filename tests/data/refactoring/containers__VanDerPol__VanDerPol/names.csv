@@ -1,0 +1,7 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+time;time;0;independent;continuous;Float64;
+x0;x0;1;output;continuous;Float64;2
+der(x0);der(x0);2;local;continuous;Float64;
+x1;x1;3;output;continuous;Float64;0
+der(x1);der(x1);4;local;continuous;Float64;
+mu;mu;5;parameter;fixed;Float64;1

@@ -1,0 +1,40 @@
+<fmiModelDescription fmiVersion="2.0" guid="{8c4e810f-3df3-4a00-8276-176fa3c9f003}" modelName="bouncing_ball">
+  <CoSimulation canHandleVariableCommunicationStepSize="true" modelIdentifier="bouncing_ball">
+    <SourceFiles>
+      <File name="bouncingBall.c"></File>
+    </SourceFiles>
+  </CoSimulation>
+  <LogCategories>
+    <Category name="logAll"></Category>
+    <Category name="logError"></Category>
+    <Category name="logFmiCall"></Category>
+    <Category name="logEvent"></Category>
+  </LogCategories>
+  <ModelVariables>
+    <ScalarVariable causality="local" description="height, used as state" initial="exact" name="h" valueReference="0" variability="continuous">
+      <Real start="1"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="local" description="velocity of ball" initial="calculated" name="der(h)" valueReference="1" variability="continuous">
+      <Real derivative="1"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="local" description="acceleration of ball" initial="calculated" name="der(v)" valueReference="3" variability="continuous">
+      <Real derivative="3"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="parameter" description="acceleration of gravity" initial="exact" name="g" valueReference="4" variability="fixed">
+      <Real start="9.81"></Real>
+    </ScalarVariable>
+    <ScalarVariable causality="parameter" description="dimensionless parameter" initial="exact" name="e" valueReference="5" variability="tunable">
+      <Real max="1" min="0.5" start="0.7"></Real>
+    </ScalarVariable>
+  </ModelVariables>
+  <ModelStructure>
+    <Derivatives>
+      <Unknown index="2"></Unknown>
+      <Unknown index="3"></Unknown>
+    </Derivatives>
+    <InitialUnknowns>
+      <Unknown index="2"></Unknown>
+      <Unknown index="3"></Unknown>
+    </InitialUnknowns>
+  </ModelStructure>
+</fmiModelDescription>

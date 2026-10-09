@@ -1,0 +1,53 @@
+| MD5Sum = 4282d336b22b598b1e0f2144c3e8f6b4
+|
+| FMI properties: 
+|  - description = This model implements the van der Pol oscillator
+|  - fmiVersion = 3.0
+|  - generationDateAndTime = 2025-06-12T19:14:15.206818+00:00
+|  - generationTool = Reference FMUs (v0.0.39)
+|  - instantiationToken = {BD403596-3166-4232-ABC2-132BDF73E644}
+|  - modelName = van der Pol oscillator
+|
+| Model Exchange capabilities: 
+|  - canGetAndSetFMUState = true
+|  - canSerializeFMUState = true
+|  - modelIdentifier = VanDerPol
+|  - providesAdjointDerivatives = true
+|  - providesDirectionalDerivatives = true
+|
+| Co-Simulation capabilities: 
+|  - canGetAndSetFMUState = true
+|  - canHandleVariableCommunicationStepSize = true
+|  - canReturnEarlyAfterIntermediateUpdate = true
+|  - canSerializeFMUState = true
+|  - fixedInternalStepSize = 1e-2
+|  - modelIdentifier = VanDerPol
+|  - providesAdjointDerivatives = true
+|  - providesDirectionalDerivatives = true
+|  - providesIntermediateUpdate = true
+|
+| Default Experiment values: 
+|  - startTime = 0
+|  - stepSize = 1e-2
+|  - stopTime = 20
+|
+| Supported platforms: 
+|  - RT (sources available)
+|  - aarch64-darwin
+|  - aarch64-linux
+|  - x86-windows
+|  - x86_64-darwin
+|  - x86_64-linux
+|  - x86_64-windows
+|
+| Number of ports
+|  independent : 1
+|  output : 2
+|  local : 2
+|  parameter : 1
+|
+| Model Exchange sizes
+|  continuous states : 2
+|  event indicators : 0
+|
+| [End of report]

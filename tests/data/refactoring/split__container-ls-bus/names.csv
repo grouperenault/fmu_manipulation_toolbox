@@ -1,0 +1,11 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+time;time;0;independent;continuous;Float64;
+node1.CanChannel.Tx_Data;node1.CanChannel.Tx_Data;218103808;local;discrete;Binary;
+node1.CanChannel.Tx_Clock;node1.CanChannel.Tx_Clock;234881024;local;discrete;Clock;
+bus.Node1.Tx_Data;bus.Node1.Tx_Data;218103809;local;discrete;Binary;
+container.clock0;container.clock0;234881025;local;discrete;Clock;
+node2.CanChannel.Tx_Data;node2.CanChannel.Tx_Data;218103810;local;discrete;Binary;
+node2.CanChannel.Tx_Clock;node2.CanChannel.Tx_Clock;234881026;local;discrete;Clock;
+bus.Node2.Tx_Data;bus.Node2.Tx_Data;218103811;local;discrete;Binary;
+container.clock1;container.clock1;234881027;local;discrete;Clock;
+BusErrorProbability;BusErrorProbability;1;input;discrete;Float64;0.0

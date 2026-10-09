@@ -1,0 +1,7 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+time;time;1024;independent;continuous;Float64;
+CanChannel.Rx_Data;CanChannel.Rx_Data;0;input;discrete;Binary;
+CanChannel.Tx_Data;CanChannel.Tx_Data;1;output;discrete;Binary;
+CanChannel.Rx_Clock;CanChannel.Rx_Clock;2;input;continuous;Clock;
+CanChannel.Tx_Clock;CanChannel.Tx_Clock;3;output;continuous;Clock;
+org.fmi_standard.fmi_ls_bus.Can_BusNotifications;org.fmi_standard.fmi_ls_bus.Can_BusNotifications;128;structuralParameter;fixed;Boolean;false

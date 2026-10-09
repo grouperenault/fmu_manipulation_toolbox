@@ -1,0 +1,11 @@
+name;newName;valueReference;causality;variability;scalarType;startValue
+time;time;1024;independent;continuous;Float64;
+Node1.Rx_Data;Node1.Rx_Data;0;input;discrete;Binary;
+Node1.Tx_Data;Node1.Tx_Data;1;output;discrete;Binary;
+Node1.Rx_Clock;Node1.Rx_Clock;2;input;continuous;Clock;
+Node1.Tx_Clock;Node1.Tx_Clock;3;input;continuous;Clock;
+Node2.Rx_Data;Node2.Rx_Data;4;input;discrete;Binary;
+Node2.Tx_Data;Node2.Tx_Data;5;output;discrete;Binary;
+Node2.Rx_Clock;Node2.Rx_Clock;6;input;continuous;Clock;
+Node2.Tx_Clock;Node2.Tx_Clock;7;input;continuous;Clock;
+BusErrorProbability;BusErrorProbability;255;input;discrete;Float64;0.0
