@@ -26,7 +26,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Dict, IO, Iterator, List, MutableMapping, Optional, Tuple, Union
 
-__all__ = ["ModelDescription", "ModelDescriptionError", "ModelVariable"]
+__all__ = ["ModelDescription", "ModelDescriptionError", "ModelVariable", "PrefixedAttributes"]
 
 PathOrBytes = Union[str, Path, bytes]
 
@@ -113,6 +113,52 @@ class _StartValue(MutableMapping):
 
     def __len__(self):
         return 1
+
+
+class PrefixedAttributes(MutableMapping):
+    """Attributes of an element, with namespaced names written `prefix:name`.
+
+    ElementTree names a namespaced attribute `{uri}name`. Callbacks written for
+    the former expat implementation expect the name found in the file, e.g.
+    `xsi:noNamespaceSchemaLocation`; this view translates names both ways and
+    reads from / writes to the element's `attrib`.
+    """
+
+    def __init__(self, attrib: Dict[str, str], namespaces: List[Tuple[str, str]]):
+        self.attrib = attrib
+        self._prefixes = {uri: prefix for prefix, uri in namespaces if prefix}
+        self._uris = {prefix: uri for prefix, uri in namespaces if prefix}
+
+    def _prefixed(self, key: str) -> str:
+        if key.startswith("{"):
+            uri, name = key[1:].split("}", 1)
+            if uri in self._prefixes:
+                return f"{self._prefixes[uri]}:{name}"
+        return key
+
+    def _qualified(self, key: str) -> str:
+        prefix, separator, name = key.partition(":")
+        if separator and prefix in self._uris:
+            return f"{{{self._uris[prefix]}}}{name}"
+        return key
+
+    def __getitem__(self, key):
+        return self.attrib[self._qualified(key)]
+
+    def __setitem__(self, key, value):
+        self.attrib[self._qualified(key)] = value
+
+    def __delitem__(self, key):
+        del self.attrib[self._qualified(key)]
+
+    def __iter__(self):
+        return (self._prefixed(key) for key in list(self.attrib))
+
+    def __len__(self):
+        return len(self.attrib)
+
+    def __repr__(self):
+        return repr(dict(self.items()))
 
 
 class ModelVariable:
@@ -365,6 +411,10 @@ class ModelDescription:
                     for section in structure if section.tag in self.FMI2_STRUCTURE_SECTIONS
                     for unknown in section if unknown.tag == "Unknown"]
         return [(entry.tag, entry) for entry in structure if entry.tag in self.FMI3_STRUCTURE_ELEMENTS]
+
+    def attributes(self, element: ET.Element) -> PrefixedAttributes:
+        """Attributes of `element`, namespaced ones named `prefix:name` as in the file."""
+        return PrefixedAttributes(element.attrib, self.namespaces)
 
     def parent_of(self, element: ET.Element) -> Optional[ET.Element]:
         """Parent of `element`, or `None` for the root. Raises `KeyError` if not in the document."""

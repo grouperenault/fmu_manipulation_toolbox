@@ -1,0 +1,1 @@
+OperationError: The operation would remove variables that are still referenced: 'Node2.Tx_Clock' is referenced by 'renamed_Node2.Tx_Data' (clocks)

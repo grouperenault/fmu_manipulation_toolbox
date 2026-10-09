@@ -11,7 +11,10 @@
   <DefaultExperiment startTime="0" stepSize="0.001"></DefaultExperiment>
   <ModelVariables>
     <Float64 causality="independent" description="Simulation time" name="time" valueReference="1024" variability="continuous"></Float64>
-    <Binary causality="input" clocks="2" initial="exact" maxSize="2048" mimeType="application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;" name="CanChannel.Rx_Data" valueReference="0" variability="discrete"></Binary>
+    <Binary causality="input" clocks="2" initial="exact" maxSize="2048" mimeType="application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;" name="CanChannel.Rx_Data" valueReference="0" variability="discrete">
+      <Dimension start="1"></Dimension>
+      <Start value=""></Start>
+    </Binary>
     <Clock causality="input" intervalVariability="triggered" name="CanChannel.Rx_Clock" valueReference="2"></Clock>
     <Boolean causality="structuralParameter" name="org.fmi_standard.fmi_ls_bus.Can_BusNotifications" start="false" valueReference="128" variability="fixed"></Boolean>
   </ModelVariables>

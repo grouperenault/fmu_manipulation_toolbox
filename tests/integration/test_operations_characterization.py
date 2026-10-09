@@ -8,21 +8,24 @@ built-in operation, they compare against references stored in
 
 - `<case>.xml`: the resulting `modelDescription.xml`, in canonical form
   (compared with `assert_equivalent_xml`, so formatting does not matter);
+- `<case>.error`: instead of `<case>.xml` when the operation is refused
+  (`OperationError`), with the expected message;
 - `names.csv`: the output of `OperationSaveNamesToCSV`;
 - `summary.txt`: the report of `OperationSummary` (volatile lines removed).
 
-Read-only operations (summary, CSV dump, checker, remove-sources) must leave the
-descriptor as the no-op operation does; they are compared to `noop.xml`.
+Read-only operations (summary, CSV dump, checker) must leave the descriptor as
+the no-op operation does; they are compared to `noop.xml`.
 
-The references were generated with the expat-based implementation. Regenerate
-them only on purpose, after reviewing the change in behaviour:
+The references were generated with the expat-based implementation (phase 0),
+then deliberately updated by phase 2 for the defects it fixes (see
+`docs/refactoring.md`). Regenerate them only on purpose, after reviewing the
+change in behaviour:
 
     cd tests && pytest integration/test_operations_characterization.py --update-refs
 """
 import csv
 import functools
 import logging
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -33,6 +36,7 @@ from fmu_manipulation_toolbox.checker import OperationGenericCheck
 from fmu_manipulation_toolbox.operations import (
     FMU,
     OperationAbstract,
+    OperationError,
     OperationKeepOnlyRegexp,
     OperationMergeTopLevel,
     OperationRemoveRegexp,
@@ -88,6 +92,7 @@ MODIFYING_CASES: Dict[str, Tuple[OperationFactory, Optional[List[str]]]] = {
     "keep_only_regexp": (lambda fmu, tmp: OperationKeepOnlyRegexp("[a-mA-M]"), None),
     "remove_all_outputs": (lambda fmu, tmp: OperationRemoveRegexp("."), ["output"]),
     "rename_from_csv": (_rename_from_csv, None),
+    "remove_sources": (lambda fmu, tmp: OperationRemoveSources(), None),
 }
 
 #: Operations that must not change the meaning of the descriptor.
@@ -95,7 +100,6 @@ READ_ONLY_CASES: Dict[str, OperationFactory] = {
     "summary": lambda fmu, tmp: OperationSummary(),
     "save_names_to_csv": lambda fmu, tmp: OperationSaveNamesToCSV(str(tmp / "dump.csv")),
     "generic_check": lambda fmu, tmp: OperationGenericCheck(),
-    "remove_sources": lambda fmu, tmp: OperationRemoveSources(),
 }
 
 
@@ -117,19 +121,40 @@ def _check_reference(ref_filename: Path, update_refs: bool, write: Callable[[Pat
         compare(ref_filename)
 
 
-def _check_xml_reference(fmu: FMU, ref_filename: Path, update_refs: bool) -> None:
-    _check_reference(
-        ref_filename, update_refs,
-        write=lambda ref: ref.write_text(canonical_xml(fmu.descriptor_filename) + "\n", encoding="utf-8"),
-        compare=lambda ref: assert_equivalent_xml(ref, fmu.descriptor_filename))
+def _error_text(error: OperationError) -> str:
+    return f"{type(error).__name__}: {error}\n"
 
 
 @pytest.mark.parametrize("case", MODIFYING_CASES)
 @pytest.mark.parametrize("fmu_path", FMU_FILES, ids=_fmu_id)
 def test_modifying_operation(fmu_path, case, tmp_path, update_refs):
     factory, apply_on = MODIFYING_CASES[case]
-    fmu = _apply(fmu_path, tmp_path, factory, apply_on)
-    _check_xml_reference(fmu, REFS_DIR / _fmu_id(fmu_path) / f"{case}.xml", update_refs)
+    xml_ref = REFS_DIR / _fmu_id(fmu_path) / f"{case}.xml"
+    error_ref = xml_ref.with_suffix(".error")
+    fmu = FMU(str(fmu_path))
+    try:
+        fmu.apply_operation(factory(fmu_path, tmp_path), apply_on)
+        error = None
+    except OperationError as operation_error:
+        error = operation_error
+
+    if update_refs:
+        xml_ref.parent.mkdir(parents=True, exist_ok=True)
+        stale, ref = (error_ref, xml_ref) if error is None else (xml_ref, error_ref)
+        stale.unlink(missing_ok=True)
+        if error is None:
+            ref.write_text(canonical_xml(fmu.descriptor_filename) + "\n", encoding="utf-8")
+        else:
+            ref.write_text(_error_text(error), encoding="utf-8")
+    elif error_ref.exists():
+        assert error is not None, f"the operation should be refused: {error_ref.read_text().strip()}"
+        assert _error_text(error) == error_ref.read_text(encoding="utf-8")
+    elif xml_ref.exists():
+        if error is not None:
+            pytest.fail(f"unexpected {_error_text(error)}")
+        assert_equivalent_xml(xml_ref, fmu.descriptor_filename)
+    else:
+        pytest.fail(f"Missing reference {xml_ref}. Generate it with --update-refs.")
 
 
 @pytest.mark.parametrize("case", READ_ONLY_CASES)
@@ -205,7 +230,9 @@ def test_operation_keeps_descriptor_valid(fmu_path, case, tmp_path):
         pytest.skip("the original descriptor is not XSD-valid")
 
     factory, apply_on = MODIFYING_CASES[case]
-    fmu = _apply(fmu_path, tmp_path, factory, apply_on)
-    if not len(ET.parse(fmu.descriptor_filename).getroot().find("ModelVariables")):
-        pytest.xfail("D10: removing every variable leaves an empty <ModelVariables>, which the XSD forbids")
+    fmu = FMU(str(fmu_path))
+    try:
+        fmu.apply_operation(factory(fmu_path, tmp_path), apply_on)
+    except OperationError:
+        pass  # refused: the descriptor is left unchanged, hence still valid
     assert _xsd_errors(fmu.descriptor_filename, fmi_version) == []

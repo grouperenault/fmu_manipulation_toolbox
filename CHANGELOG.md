@@ -2,6 +2,27 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* CHANGED: `fmutool` operations: `modelDescription.xml` is now modified in place with ElementTree
+         instead of being re-generated, so that everything an operation does not touch is kept as
+         is. Fixes text and attribute values written unescaped or unescaped twice (which produced
+         invalid XML, and made the second of two chained operations fail), and the loss of
+         `<Annotations>` of FMI-2 variables, FMI-3 `<Alias>`, all but the first `<Start>` of FMI-3
+         `String` arrays, empty FMI-3 `<Start value="">`, FMI-3 `<Dimension start="1">` (the
+         array became a scalar), comments and the XML declaration (required by FMI 2.0 and 3.0).
+         The descriptor is always written in UTF-8.
+* FIXED: removing ports from an FMI-2 FMU did not renumber the `derivative` attribute, which
+         then pointed to the wrong variable.
+* CHANGED: an operation is now refused with `OperationError`, leaving the FMU unchanged, if its
+         result would break the FMI standard: removing every variable, removing a variable still
+         referenced by a kept one (`derivative`, `previous`, `clocks`, `<Dimension
+         valueReference>`), or giving the same name to several variables (or FMI-3 aliases).
+* FIXED: `-remove-sources` also removes the `<SourceFiles>` elements of the descriptor, and now
+         works on Model Exchange-only FMUs.
+* CHANGED: `FMUPort` is now a view on the descriptor tree. Building a detached `FMUPort()` and
+         `push_attrs()` are deprecated. Operations can reach the whole tree through their new
+         `model_description` attribute. Namespaced attributes are still given to the callbacks as
+         `prefix:name`, but the `xmlns:*` declarations are no longer listed (`-summary` no
+         longer prints them).
 * ADDED: MCP server: **single-FMU tools** beyond container assembly — `summarize_fmu`,
          `check_fmu` (FMI schema conformity), `dump_ports_csv`, `rename_ports_from_csv` and
          `apply_operation` (prefix stripping/merging, trimming, regexp filtering). The tools that

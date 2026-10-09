@@ -5,7 +5,6 @@
 |  - instantiationToken = 
 |  - modelName = DemoCanNodeTriggeredOutput
 |  - variableNamingConvention = structured
-|  - xmlns:xsi = http://www.w3.org/2001/XMLSchema-instance
 |  - xsi:noNamespaceSchemaLocation = https://raw.githubusercontent.com/modelica/fmi-standard/v3.0.1/schema/fmi3ModelDescription.xsd
 |
 | Co-Simulation capabilities: 

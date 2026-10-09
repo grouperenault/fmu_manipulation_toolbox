@@ -31,9 +31,11 @@ Défauts constatés, dont la plupart ont été reproduits avec une opération vi
 | D11 | FMI-2 : l'attribut `derivative` (index 1-based de l'état, §2.2.7) **n'est pas renuméroté** quand des ports sont supprimés. Dans `tests/data/me/velocity_me.fmu`, après `rename_from_csv`, `Deriv1` pointe sur lui-même | `Manipulation` (seuls `<Unknown index>` et `dependencies` sont renumérotés) | ➖ non ; à traiter en phase 2 |
 | D12 | Supprimer une variable référencée par une autre laisse une **référence pendante** : `derivative` (FMI-2 et FMI-3), `previous`, `clocks`, `<Dimension valueReference>` (FMI-3) | `Manipulation` | ➖ non ; refuser l'opération ou supprimer en cascade (décision en phase 2) |
 | D13 | Les renommages (`-remove-toplevel`, `-trim-until`…) peuvent donner **le même nom** à plusieurs variables, alors que les noms (et les alias FMI-3) doivent être uniques (FMI-3 §2.4 *uniqueNameAttribute*). Le XSD ne le vérifie pas. Constaté sur 5 FMU de `tests/data` (`ls-bus/bus`, `split/container-*`) | opérations de renommage | ➖ non ; garde-fou en phase 2 |
+| D14 | *(trouvé en phase 2)* L'ancienne réécriture supprimait les `<Start value="">` vides des `Binary` FMI-3 et les `<Dimension start="1">` : un tableau de taille 1 devenait un scalaire. Constaté sur les FMU ls-bus de `tests/data` | `FMUPort.write_xml` | ✅ corrigé en phase 2 (arbre modifié en place) |
 
-D1 à D6 et D9 à D13 sont reproduits par des tests (phases 0 et 1). D7 et D8 viennent de la lecture du code ; ils seront
-couverts par les tests de la phase 4.
+D1 à D6 et D9 à D14 sont reproduits par des tests (phases 0 à 2) et **corrigés en phase 2**. D7 et D8 viennent de la lecture
+du code ; ils seront couverts par les tests de la phase 4. Pour D10, D12 et D13, la politique retenue est le **refus** de
+l'opération (`OperationError`, FMU laissée intacte).
 
 **Ce qu'ElementTree ne corrige pas** (à traiter à part, voir phase 3) : `BadZipFile` brute au lieu de `FMUError`, nettoyage du
 répertoire temporaire dans `__del__`, code de sortie de `-check` toujours à 0.
@@ -283,6 +285,80 @@ Au passage, il devient simple de supprimer `<SourceFiles>` dans `OperationRemove
 équivalents en C14N, et le benchmark respecte, sur 100 000 variables : temps ≤ 1,5 × la référence SAX, mémoire ≤ 8 × la
 taille du descripteur.
 
+**État au 9 octobre 2026 : réalisée.**
+
+| Élément | Fichier |
+|---|---|
+| `Manipulation` réécrit sur `ModelDescription` : callbacks dans l'ordre du document, arbre modifié en place, suppressions groupées | `fmu_manipulation_toolbox/operations.py` |
+| `FMUPort` devient une sous-classe de `ModelVariable`. `FMUPort()` détaché et `push_attrs()` restent disponibles, avec `DeprecationWarning` ; `write_xml()`, `escape()` et le parseur expat sont supprimés | `operations.py` |
+| `OperationAbstract.model_description` : accès à l'arbre complet pour ce que les callbacks ne savent pas exprimer | `operations.py` |
+| `PrefixedAttributes` : les callbacks reçoivent toujours `xsi:noNamespaceSchemaLocation`, et non `{http://…}noNamespaceSchemaLocation` | `model_description.py` |
+| D9 : `OperationRemoveSources` supprime aussi `<SourceFiles>`, et agit désormais sur les FMU Model Exchange seules | `operations.py` |
+| Refus D10, D12, D13 et renumérotation D11 ; tests stricts (plus de `xfail`) | `tests/unit/test_operations_conformity.py` |
+| `xfail` de D1 à D6 et D9 retirés ; tests de D14 ajoutés | `tests/unit/test_xml_roundtrip.py` |
+| Références de caractérisation mises à jour (voir ci-dessous) ; `remove_sources` passe dans les opérations modifiantes ; une opération refusée a une référence `<cas>.error` | `tests/integration/test_operations_characterization.py`, `tests/data/refactoring/` |
+| Documentation : callbacks, `model_description`, refus ; page d'API du module ; `CHANGELOG.md` | `docs/user-guide/fmutool/python-api.md`, `docs/API/model_description.md`, `mkdocs.yml` |
+
+**Revue des références de caractérisation modifiées.** Chaque changement est expliqué par un défaut corrigé ; rien d'autre
+n'a bougé :
+
+| Changement | Nombre | Cause |
+|---|---:|---|
+| `<cas>.xml` remplacé par `<cas>.error` « remove every variable » | 9 | D10 (`keep_only_regexp`) |
+| `<cas>.xml` remplacé par `<cas>.error` « still referenced » | 10 | D12 : états (`derivative`), paramètres structurels (`Dimension`), horloges (`clocks`) |
+| `<cas>.xml` remplacé par `<cas>.error` « same name » | 10 | D13 (`strip_top_level`, `trim_until_dot` sur 5 FMU) |
+| `derivative` renuméroté (et vérifié : il pointe sur le bon état) | 6 | D11 |
+| `<Start value="">` et `<Dimension start="1">` restaurés | 14 fichiers | D14 (FMU ls-bus) |
+| Ligne `xmlns:xsi = …` absente du rapport `summary.txt` | 3 | Les déclarations `xmlns` ne sont pas des attributs |
+| Nouveaux `remove_sources.xml` : égaux à `noop.xml` à `<SourceFiles>` près | 48 (2 avec `<SourceFiles>`) | D9 |
+
+Un script a vérifié les invariants sur les 403 sorties acceptées : aucune référence pendante, aucun nom dupliqué introduit,
+aucun `<ModelVariables>` vide, chaque `derivative` FMI-2 pointe sur le même état qu'avant l'opération.
+
+Vérifications faites :
+
+- les 21 nouveaux tests de défauts **échouent sur le code de la phase 1** (commit `8e63a40`) et passent sur la phase 2. Les
+  5 tests qui passent des deux côtés sont des garde-fous : aller-retour simple, refus limité à ce que l'opération casse
+  elle-même (doublons et références pendantes déjà présents dans la FMU d'origine ne sont pas reprochés) ;
+- la suite complète passe (1763 tests, 1 `xfail` restant : `BadZipFile`, phase 3), y compris avec
+  `-W error::DeprecationWarning` : le paquet n'utilise plus l'API dépréciée.
+
+**Benchmark** (critère : temps ≤ 1,5 × la référence SAX, mémoire ≤ 8 × la taille du descripteur, sur 100 000 variables) :
+
+Python 3.14.8 — macOS-26.6.1-arm64-arm-64bit-Mach-O — best of 3 runs
+
+| FMI | Variables | Descriptor | Operation | Time | Peak memory (tracemalloc) |
+|---|---:|---:|---|---:|---:|
+| 2.0 | 1,000 | 0.2 MB | noop | 0.01 s | 1.5 MB |
+| 2.0 | 1,000 | 0.2 MB | remove 10% | 0.01 s | 1.5 MB |
+| 2.0 | 1,000 | 0.2 MB | *ET parse+write (estimate)* | 0.00 s | 1.5 MB |
+| 2.0 | 10,000 | 1.8 MB | noop | 0.06 s | 12.6 MB |
+| 2.0 | 10,000 | 1.8 MB | remove 10% | 0.07 s | 13.3 MB |
+| 2.0 | 10,000 | 1.8 MB | *ET parse+write (estimate)* | 0.04 s | 11.6 MB |
+| 2.0 | 100,000 | 18.2 MB | noop | 0.63 s | 126.2 MB |
+| 2.0 | 100,000 | 18.2 MB | remove 10% | 0.72 s | 133.7 MB |
+| 2.0 | 100,000 | 18.2 MB | *ET parse+write (estimate)* | 0.48 s | 113.8 MB |
+| 3.0 | 1,000 | 0.1 MB | noop | 0.00 s | 1.2 MB |
+| 3.0 | 1,000 | 0.1 MB | remove 10% | 0.00 s | 1.2 MB |
+| 3.0 | 1,000 | 0.1 MB | *ET parse+write (estimate)* | 0.00 s | 1.1 MB |
+| 3.0 | 10,000 | 1.3 MB | noop | 0.04 s | 10.1 MB |
+| 3.0 | 10,000 | 1.3 MB | remove 10% | 0.05 s | 10.2 MB |
+| 3.0 | 10,000 | 1.3 MB | *ET parse+write (estimate)* | 0.03 s | 9.2 MB |
+| 3.0 | 100,000 | 13.0 MB | noop | 0.50 s | 101.4 MB |
+| 3.0 | 100,000 | 13.0 MB | remove 10% | 0.54 s | 102.5 MB |
+| 3.0 | 100,000 | 13.0 MB | *ET parse+write (estimate)* | 0.35 s | 89.0 MB |
+
+| 100 000 variables | Référence SAX | Phase 2 | Rapport | Mémoire / descripteur |
+|---|---:|---:|---:|---:|
+| FMI 2.0, noop | 0,54 s | 0,63 s | 1,17 | 6,9 × |
+| FMI 2.0, remove 10 % | 0,53 s | 0,72 s | 1,36 | 7,3 × |
+| FMI 3.0, noop | 0,45 s | 0,50 s | 1,11 | 7,8 × |
+| FMI 3.0, remove 10 % | 0,45 s | 0,54 s | 1,20 | 7,9 × |
+
+Critère tenu. Deux corrections ont été nécessaires : la première version prenait 4,8 s pour `remove 10 %`, parce que
+`Element.remove()` est linéaire et était appelé une fois par élément supprimé ; les suppressions sont maintenant groupées. La
+mémoire FMI-3 est proche de la limite : c'est le coût de l'arbre ElementTree lui-même (6,8 × pour une simple lecture/écriture).
+
 ### Phase 3 — Cycle de vie de `FMU` (indépendant, petit)
 
 - `zipfile.BadZipFile` → `FMUError` ;
@@ -327,3 +403,24 @@ taille du descripteur.
 
 Une PR par phase. La phase 0 est mergeable seule et sans risque. Les phases 1 et 2 forment le cœur du changement. Les phases 3
 et 4 sont indépendantes l'une de l'autre et peuvent partir en parallèle une fois la phase 1 mergée.
+
+## 6. Notes pour un futur plan
+
+Hors du périmètre de ce refactoring : à reprendre lors de la **prochaine montée de version majeure**.
+
+### Suppression de `FMUPort`
+
+Depuis la phase 2, `FMUPort` n'est plus qu'une sous-classe de `ModelVariable`. Elle n'ajoute que le mode « détaché »,
+déprécié : `FMUPort()` sans élément, `push_attrs()` et le setter de `dimensions`. Le nom reste pour l'instant, parce qu'il
+fait partie de l'API publique documentée (`python-api.md`, checkers personnalisés) et que `container.py` teste
+`isinstance(attrs, FMUPort)`.
+
+À la version majeure :
+
+1. utiliser `ModelVariable` en interne : `isinstance(attrs, ModelVariable)` dans `EmbeddedFMUPort` (`container.py`),
+   annotations de type de `fmueditor`, `checker.py` et des opérations intégrées ;
+2. présenter `ModelVariable` comme le type de référence dans `python-api.md` ;
+3. retirer le mode détaché, `push_attrs()` et le setter de `dimensions` (dépréciés depuis la phase 2) ;
+4. réduire `FMUPort` à un alias (`FMUPort = ModelVariable`), avec un `DeprecationWarning` à l'import, puis le supprimer
+   dans une version ultérieure ;
+5. entrée dans `CHANGELOG.md` (rupture d'API) ; adapter `tests/unit/test_operations_errors.py`, qui teste le mode détaché.

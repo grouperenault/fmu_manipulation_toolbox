@@ -11,11 +11,15 @@
   <DefaultExperiment startTime="0" stepSize="0.001"></DefaultExperiment>
   <ModelVariables>
     <Float64 causality="independent" description="Simulation time" name="time" valueReference="1024" variability="continuous"></Float64>
-    <Binary causality="input" clocks="2" initial="exact" maxSize="2048" mimeType="application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;" name="Node1_Rx_Data" valueReference="0" variability="discrete"></Binary>
+    <Binary causality="input" clocks="2" initial="exact" maxSize="2048" mimeType="application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;" name="Node1_Rx_Data" valueReference="0" variability="discrete">
+      <Start value=""></Start>
+    </Binary>
     <Binary causality="output" clocks="3" initial="calculated" maxSize="2048" mimeType="application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;" name="Node1_Tx_Data" valueReference="1" variability="discrete"></Binary>
     <Clock causality="input" intervalVariability="triggered" name="Node1_Rx_Clock" valueReference="2"></Clock>
     <Clock causality="input" intervalVariability="countdown" name="Node1_Tx_Clock" valueReference="3"></Clock>
-    <Binary causality="input" clocks="6" initial="exact" maxSize="2048" mimeType="application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;" name="Node2_Rx_Data" valueReference="4" variability="discrete"></Binary>
+    <Binary causality="input" clocks="6" initial="exact" maxSize="2048" mimeType="application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;" name="Node2_Rx_Data" valueReference="4" variability="discrete">
+      <Start value=""></Start>
+    </Binary>
     <Binary causality="output" clocks="7" initial="calculated" maxSize="2048" mimeType="application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;" name="Node2_Tx_Data" valueReference="5" variability="discrete"></Binary>
     <Clock causality="input" intervalVariability="triggered" name="Node2_Rx_Clock" valueReference="6"></Clock>
     <Clock causality="input" intervalVariability="countdown" name="Node2_Tx_Clock" valueReference="7"></Clock>

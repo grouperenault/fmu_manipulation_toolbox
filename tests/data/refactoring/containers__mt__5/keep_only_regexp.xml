@@ -1,9 +1,0 @@
-<fmiModelDescription description="A test model with 5 parameters, 5 inputs, 5 outputs, and 5 states." fmiVersion="3.0" generationDateAndTime="2026-08-13T06:23:56.775522+00:00" generationTool="FMPy 0.3.30" instantiationToken="cbb8488e-603e-484c-bea2-b75895614a72" modelName="model">
-  <CoSimulation modelIdentifier="model"></CoSimulation>
-  <LogCategories>
-    <Category description="Log error messages" name="logStatusError"></Category>
-  </LogCategories>
-  <DefaultExperiment startTime="0.0" stepSize="1e-3" stopTime="1.0"></DefaultExperiment>
-  <ModelVariables></ModelVariables>
-  <ModelStructure></ModelStructure>
-</fmiModelDescription>

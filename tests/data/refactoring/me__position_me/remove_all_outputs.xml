@@ -24,7 +24,7 @@
       <Real></Real>
     </ScalarVariable>
     <ScalarVariable causality="local" description="Deriv1" initial="calculated" name="Deriv1" valueReference="4" variability="continuous">
-      <Real derivative="5"></Real>
+      <Real derivative="3"></Real>
     </ScalarVariable>
   </ModelVariables>
   <ModelStructure>

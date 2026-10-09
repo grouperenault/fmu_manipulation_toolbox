@@ -47,7 +47,7 @@
       <Real declaredType="Velocity" reinit="true" start="0"></Real>
     </ScalarVariable>
     <ScalarVariable causality="local" description="Derivative of v" initial="calculated" name="renamed_der(v)" valueReference="4" variability="continuous">
-      <Real declaredType="Acceleration" derivative="4"></Real>
+      <Real declaredType="Acceleration" derivative="3"></Real>
     </ScalarVariable>
     <ScalarVariable causality="parameter" description="Coefficient of restitution" initial="exact" name="renamed_e" valueReference="6" variability="tunable">
       <Real max="1" min="0.5" start="0.7"></Real>
