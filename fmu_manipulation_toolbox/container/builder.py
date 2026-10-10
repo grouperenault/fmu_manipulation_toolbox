@@ -8,6 +8,7 @@ import shutil
 import uuid
 import xml.etree.ElementTree as ET
 import zipfile
+from dataclasses import dataclass
 from collections import defaultdict
 from collections.abc import Generator
 from datetime import datetime
@@ -29,11 +30,13 @@ from .types import ALL_TYPES
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
+@dataclass
 class Platform:
-    def __init__(self, origin_bindir: str, suffixe: str, target_bindir: str):
-        self.origin_bindir = origin_bindir
-        self.suffixe = suffixe
-        self.target_bindir = target_bindir
+    """Binary of the container runtime for one OS: directory in the toolbox resources, library suffix, directory in
+    the container."""
+    origin_bindir: str
+    suffixe: str
+    target_bindir: str
 
 
 class FMUContainer:
@@ -172,9 +175,9 @@ class FMUContainer:
             to_port_name (str): Name of the input port on the embedded FMU.
 
         Raises:
-            FMUContainerError: If the port causality is not `"input"` or
-                `"parameter"`, or if types do not match an existing input
-                with the same name.
+            FMUContainerError: If the FMU or the port does not exist, if the port
+                causality is not `"input"` or `"parameter"`, or if types do not
+                match an existing input with the same name.
         """
         if not container_port_name:
             container_port_name = to_port_name
@@ -182,8 +185,7 @@ class FMUContainer:
         try:
             cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
         except FMUContainerError as e:
-            logger.error(f"Cannot add input: {e}")
-            return
+            raise FMUContainerError(f"Cannot add input '{container_port_name}': {e.reason}") from e
 
         if cport_to.port.causality not in ("input", "parameter"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
@@ -208,8 +210,9 @@ class FMUContainer:
                 defaults to `from_port_name`.
 
         Raises:
-            FMUContainerError: If the port causality is not `"output"` or
-                `"local"`, or if the exposed name is already used.
+            FMUContainerError: If the FMU or the port does not exist, if the port
+                causality is not `"output"` or `"local"`, or if the exposed name is
+                already used.
         """
         if not container_port_name:  # empty is allowed
             container_port_name = from_port_name
@@ -217,8 +220,7 @@ class FMUContainer:
         try:
             cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
         except FMUContainerError as e:
-            logger.error(f"Cannot add output: {e}")
-            return
+            raise FMUContainerError(f"Cannot add output '{container_port_name}': {e.reason}") from e
 
         if cport_from.port.causality not in ("output", "local"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_from}' as OUTPUT of the container but FMU causality is "
@@ -241,14 +243,14 @@ class FMUContainer:
             from_port_name (str): Name of the output port to drop.
 
         Raises:
-            FMUContainerError: If the port causality is not `"output"`.
+            FMUContainerError: If the FMU or the port does not exist, or if the
+                port causality is not `"output"`.
         """
 
         try:
             cport_from = ContainerPort(self.get_fmu(from_fmu_filename), from_port_name)
         except FMUContainerError as e:
-            logger.error(f"Cannot drop port: {e}")
-            return
+            raise FMUContainerError(f"Cannot drop port: {e.reason}") from e
 
         if not cport_from.port.causality == "output":  # check causality
             raise FMUContainerError(f"{cport_from}: trying to DROP {cport_from.port.causality}")
@@ -270,7 +272,8 @@ class FMUContainer:
             to_port_name (str): Input port name (or terminal name).
 
         Raises:
-            FMUContainerError: If port causalities are invalid or types
+            FMUContainerError: If an FMU or a port does not exist, if port
+                causalities are invalid or types
                 are incompatible.
         """
         fmu_from = self.get_fmu(from_fmu_filename)
@@ -292,40 +295,39 @@ class FMUContainer:
 
     def add_link_regular(self, fmu_from: EmbeddedFMU, from_port_name: str, fmu_to: EmbeddedFMU, to_port_name: str):
 
-            try:
-                cport_from = ContainerPort(fmu_from, from_port_name)
-                cport_to = ContainerPort(fmu_to, to_port_name)
-            except FMUContainerError as e:
-                logger.error(f"Cannot link {from_port_name} -> {to_port_name}: {e}")
-                return
+        try:
+            cport_from = ContainerPort(fmu_from, from_port_name)
+            cport_to = ContainerPort(fmu_to, to_port_name)
+        except FMUContainerError as e:
+            raise FMUContainerError(f"Cannot link {from_port_name} -> {to_port_name}: {e.reason}") from e
 
-            if cport_to.port.causality == "output" and cport_from.port.causality == "input":
-                logger.debug("Invert link orientation")
-                tmp = cport_to
-                cport_to = cport_from
-                cport_from = tmp
+        if cport_to.port.causality == "output" and cport_from.port.causality == "input":
+            logger.debug("Invert link orientation")
+            tmp = cport_to
+            cport_to = cport_from
+            cport_from = tmp
 
-            try:
-                local = self.links[cport_from]
-            except KeyError:
-                local = Link(cport_from)
-                self.links[cport_from] = local
+        try:
+            local = self.links[cport_from]
+        except KeyError:
+            local = Link(cport_from)
+            self.links[cport_from] = local
 
-            local.add_target(cport_to)  # Causality is check in the add() function
+        local.add_target(cport_to)  # Causality is check in the add() function
 
-            logger.debug(f"LINK: {cport_from} -> {cport_to}")
-            self.mark_ruled(cport_from, 'LINK')
-            self.mark_ruled(cport_to, 'LINK')
+        logger.debug(f"LINK: {cport_from} -> {cport_to}")
+        self.mark_ruled(cport_from, 'LINK')
+        self.mark_ruled(cport_to, 'LINK')
 
-            # If either side is an FMI-2 array aggregate, also mark each
-            # underlying scalar element port as LINK so it is not reported
-            # as unconnected.
-            for cport in (cport_from, cport_to):
-                for elt_name in cport.port.element_names:
-                    try:
-                        self.mark_ruled(ContainerPort(cport.fmu, elt_name), 'LINK')
-                    except FMUContainerError:
-                        pass
+        # If either side is an FMI-2 array aggregate, also mark each
+        # underlying scalar element port as LINK so it is not reported
+        # as unconnected.
+        for cport in (cport_from, cport_to):
+            for elt_name in cport.port.element_names:
+                try:
+                    self.mark_ruled(ContainerPort(cport.fmu, elt_name), 'LINK')
+                except FMUContainerError:
+                    pass
 
     def add_start_value(self, fmu_filename: str, port_name: str, value: str):
         """Set a start value for a port of an embedded FMU.
@@ -339,15 +341,15 @@ class FMUContainer:
             value (str): Start value as a string.
 
         Raises:
-            FMUContainerError: If the value cannot be converted to the
-                port's type.
+            FMUContainerError: If the FMU or the port does not exist, if the port
+                type has no start value (binary, clock), or if the value cannot be
+                converted to the port's type.
         """
 
         try:
             cport = ContainerPort(self.get_fmu(fmu_filename), port_name)
         except FMUContainerError as e:
-            logger.error(f"Cannot set start value: {e}")
-            return
+            raise FMUContainerError(f"Cannot set start value: {e.reason}") from e
 
         # Check dimensions
         value_tokens = str(value).split(' ')
@@ -367,8 +369,7 @@ class FMUContainer:
                 elif cport.port.type_name == 'string':
                     pass
                 else:
-                    logger.error(f"Start value cannot be set on '{cport.port.type_name}'")
-                    return
+                    raise FMUContainerError(f"Start value cannot be set on {cport} of type '{cport.port.type_name}'.")
             except ValueError:
                 raise FMUContainerError(f"Start value is not conforming to {cport.port.type_name} format.")
 
@@ -409,10 +410,20 @@ class FMUContainer:
             AutoWired: Record of all automatically created rules.
         """
         auto_wired = AutoWired()
+        all_cports = self.get_all_cports()
+        # Candidates of the auto-links, by (name, type), in the order of `all_cports`: same result as `find_inputs`,
+        # without going through every port for each output.
+        inputs_by_signature: dict[tuple[str, str], list[ContainerPort]] = defaultdict(list)
+        for cport in all_cports:
+            if cport.port.causality == 'input':
+                inputs_by_signature[(cport.port.name, cport.port.type_name)].append(cport)
+
         # Auto Link outputs
-        for cport in self.get_all_cports():
+        for cport in all_cports:
             if cport.port.causality == 'output':
-                candidates_cport_list = self.find_inputs(cport.port)
+                candidates_cport_list = [candidate for candidate in
+                                         inputs_by_signature[(cport.port.name, cport.port.type_name)]
+                                         if candidate not in self.rules]
                 if auto_link and candidates_cport_list:
                     for candidate_cport in candidates_cport_list:
                         logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
@@ -437,7 +448,7 @@ class FMUContainer:
                     auto_wired.add_output(cport.fmu.name, cport.port.name, local_portname)
 
         # Auto link inputs
-        for cport in self.get_all_cports():
+        for cport in all_cports:
             if cport not in self.rules:
                 if auto_parameter and cport.port.causality == 'parameter':
                     parameter_name = cport.fmu.id + "." + cport.port.name
@@ -541,12 +552,12 @@ class FMUContainer:
             fmu_filename = Path(fmu_filename)
 
         if step_size is None:
-            logger.info(f"step_size  will be deduced from the embedded FMU's")
+            logger.info("step_size  will be deduced from the embedded FMU's")
             step_size = self.default_step_size()
         self.sanity_check(step_size)
 
         if mt and len(self.involved_fmu) < 2:
-            logger.error(f"Requesting Multi-threaded mode with to few FMUs. Back to Mono-threaded mode.")
+            logger.error("Requesting Multi-threaded mode with to few FMUs. Back to Mono-threaded mode.")
             mt = False
 
         logger.info(f"Building FMU '{fmu_filename}', step_size={step_size}")
@@ -681,9 +692,9 @@ class FMUContainer:
         if ts_multiplier:
             logger.debug(f"TS Multiplier vr = {vr_ts_multiplier}")
             port = EmbeddedFMUPort("integer32", {"valueReference": vr_ts_multiplier,
-                                                 "name": f"container.ts_multiplier",
+                                                 "name": "container.ts_multiplier",
                                                  "causality": "input",
-                                                 "description": f"Timestep multiplier",
+                                                 "description": "Timestep multiplier",
                                                  "variability": "discrete",
                                                  "start": 1,
                                                  "initial": "exact"})
@@ -693,9 +704,9 @@ class FMUContainer:
         if self.have_me:
             logger.debug(f"Solver config vr = {vr_solver}")
             port = EmbeddedFMUPort("integer32", {"valueReference": vr_solver,
-                                                 "name": f"container.solver",
+                                                 "name": "container.solver",
                                                  "causality": "input",
-                                                 "description": f"0:Euler, 1: RK4",
+                                                 "description": "0:Euler, 1: RK4",
                                                  "variability": "discrete",
                                                  "start": 0,
                                                  "initial": "exact"})
@@ -755,13 +766,13 @@ class FMUContainer:
                      layout: ContainerLayout):
         print("# Version 6", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
-        flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
+        flags = [str(int(bool(flag))) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)
 
-        print(f"# Internal time step in seconds", file=txt_file)
+        print("# Internal time step in seconds", file=txt_file)
         print(f"{step_size}", file=txt_file)
 
-        print(f"# NB of embedded FMU's", file=txt_file)
+        print("# NB of embedded FMU's", file=txt_file)
         fmu_rank = self.involved_fmu.write_txt(txt_file)
 
 
@@ -802,6 +813,12 @@ class FMUContainer:
                         clock_list.append(cport_to, layout.links[link])
                         break
 
+            # Converted copies: one local variable per target type, whatever the number of targets of that type.
+            for type_name in link.conversions:
+                local_per_type[type_name].append(LocalVariable(layout.converted[link][type_name], link.size))
+            if link.conversions:
+                links_per_fmu[link.cport_from.fmu.name].append(link)
+
             # FMU Inputs
             for cport_to in link.cport_to_list:
                 if link.cport_from is not None or not cport_to.fmu.ls.is_bus:
@@ -811,12 +828,9 @@ class FMUContainer:
                         local_vr = layout.links[link]
                     else:
                         local_vr = layout.converted[link][cport_to.port.type_name]
-                        local_per_type[cport_to.port.type_name].append(LocalVariable(local_vr, link.size))
-                        links_per_fmu[link.cport_from.fmu.name].append(link)
-
                     fmu_io_list.add_input(cport_to, local_vr)
 
-        print(f"# NB local variables:", ", ".join(ALL_TYPES), file=txt_file)
+        print("# NB local variables:", ", ".join(ALL_TYPES), file=txt_file)
         nb_storage = [f"{layout.table.nb_storage(type_name)}" for type_name in ALL_TYPES]
         print(" ".join(nb_storage), file=txt_file, end='')
         print("", file=txt_file)
@@ -857,25 +871,16 @@ class FMUContainer:
             fmu_io_list.write_txt(fmu.name, txt_file)
 
             print(f"# Conversion table of {fmu.name}: <VR_FROM> <VR_TO> <CONVERSION>", file=txt_file)
-            try:
-                nb = 0
-                for link in links_per_fmu[fmu.name]:
-                    nb += len(link.conversions)
-                print(f"{nb}", file=txt_file)
-                for link in links_per_fmu[fmu.name]:
-                    for cport_to in link.cport_to_list:
-                        conversion =  link.get_conversion(cport_to)
-                        if conversion:
-                            print(f"{layout.links[link]} {layout.converted[link][cport_to.port.type_name]} {conversion}",
-                                  file=txt_file)
-            except KeyError:
-                print("0", file=txt_file)
+            print(sum(len(link.conversions) for link in links_per_fmu[fmu.name]), file=txt_file)
+            for link in links_per_fmu[fmu.name]:
+                for type_name, conversion in link.conversions.items():
+                    print(f"{layout.links[link]} {layout.converted[link][type_name]} {conversion}", file=txt_file)
 
         # CLOCKS
         clock_list.write_txt(txt_file)
 
     def make_datalog(self, datalog_file, layout: ContainerLayout):
-        print(f"# Datalog filename", file=datalog_file)
+        print("# Datalog filename", file=datalog_file)
         print(f"{self.identifier}-datalog.csv", file=datalog_file)
 
         ports = defaultdict(list)

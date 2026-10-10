@@ -2,6 +2,7 @@
 
 import logging
 from collections import OrderedDict, defaultdict
+from dataclasses import dataclass
 from typing import IO
 
 from .embedded import EmbeddedFMU
@@ -13,11 +14,15 @@ from .types import ALL_TYPES, START_VALUE_TYPES
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
+@dataclass
 class IOReference:
-    def __init__(self, local_offset: int, dim: int, fmu_vr: int):
-        self.local_offset = local_offset
-        self.dim = dim
-        self.fmu_vr = fmu_vr
+    """Exchange between a local variable of the container and a variable of an embedded FMU."""
+    local_offset: int
+    dim: int
+    fmu_vr: int
+
+    def __str__(self) -> str:
+        return f"{self.local_offset} {self.dim} {self.fmu_vr}"
 
 
 class FMUIOList:
@@ -30,20 +35,20 @@ class FMUIOList:
     Attributes:
         vr_table (ValueReferenceTable): Reference table for VR lookups.
         inputs: Nested mapping `[type][fmu_name][clock_vr]` → list of
-            `(fmu_vr, local_vr)` tuples.
-        outputs: Nested mapping `[type][fmu_name][clock_vr]` → list of
-            `(fmu_vr, local_vr)` tuples.
+            [IOReference][fmu_manipulation_toolbox.container.IOReference]
+            (`clock_vr` is `None` for the variables without clock).
+        outputs: Same as `inputs`, for the outputs of the embedded FMUs.
         start_values: Mapping `[type][fmu_name]` → list of
-            `(fmu_vr, reset, value)` tuples.
+            `(fmu_vr, dim, reset, value)` tuples.
     """
 
     def __init__(self, vr_table: ValueReferenceTable):
         self.vr_table = vr_table
-        self.inputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, dim, vr])
+        self.inputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr] -> [IOReference]
         self.nb_clocked_inputs = defaultdict(lambda: defaultdict(lambda: 0))
-        self.outputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr][(fmu_vr, dim, vr])
+        self.outputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr] -> [IOReference]
         self.nb_clocked_outputs = defaultdict(lambda: defaultdict(lambda: 0))
-        self.start_values = defaultdict(lambda: defaultdict(list)) # [type][fmu][(cport, value)]
+        self.start_values = defaultdict(lambda: defaultdict(list)) # [type][fmu] -> [(fmu_vr, dim, reset, value)]
 
     def add_input(self, cport: ContainerPort, local_vr: int):
         """Register an input mapping for an embedded FMU port.
@@ -52,27 +57,7 @@ class FMUIOList:
             cport (ContainerPort): The embedded FMU input port.
             local_vr (int): The local value reference in the container.
         """
-        if cport.port.clock is None:
-            clock = None
-        else:
-            try:
-                clock = self.vr_table.get_local_clock(cport)
-            except KeyError:
-                logger.error(f"Cannot expose clocked input: {cport}")
-                return
-            self.nb_clocked_inputs[cport.port.type_name][cport.fmu.name] += 1
-
-        dim = cport.port.size()
-        local_offset = self.vr_table.vr_to_local[local_vr]
-        fmu_vr = cport.port.vr
-
-        if dim > 1 and cport.fmu.fmi_version == 2:
-            for k in range(dim):
-                self.inputs[cport.port.type_name][cport.fmu.name][clock].append(
-                    IOReference(local_offset + k, 1, fmu_vr + k))
-        else:
-            self.inputs[cport.port.type_name][cport.fmu.name][clock].append(
-                IOReference(local_offset, dim, fmu_vr))
+        self._add("input", self.inputs, self.nb_clocked_inputs, cport, local_vr)
 
     def add_output(self, cport: ContainerPort, local_vr: int):
         """Register an output mapping for an embedded FMU port.
@@ -81,28 +66,28 @@ class FMUIOList:
             cport (ContainerPort): The embedded FMU output port.
             local_vr (int): The local value reference in the container.
         """
+        self._add("output", self.outputs, self.nb_clocked_outputs, cport, local_vr)
+
+    def _add(self, direction: str, references, nb_clocked, cport: ContainerPort, local_vr: int):
         if cport.port.clock is None:
             clock = None
         else:
             try:
                 clock = self.vr_table.get_local_clock(cport)
             except KeyError:
-                logger.error(f"Cannot expose clocked output: {cport}")
+                logger.error(f"Cannot expose clocked {direction}: {cport}")
                 return
-            self.nb_clocked_outputs[cport.port.type_name][cport.fmu.name] += 1
+            nb_clocked[cport.port.type_name][cport.fmu.name] += 1
 
         dim = cport.port.size()
         local_offset = self.vr_table.vr_to_local[local_vr]
         fmu_vr = cport.port.vr
-
+        references_of_fmu = references[cport.port.type_name][cport.fmu.name][clock]
         if dim > 1 and cport.fmu.fmi_version == 2:
-            for k in range(dim):
-                self.outputs[cport.port.type_name][cport.fmu.name][clock].append(
-                    IOReference(local_offset + k, 1, fmu_vr + k))
+            # FMI-2 array aggregate: one exchange per scalar element, with consecutive value references.
+            references_of_fmu.extend(IOReference(local_offset + k, 1, fmu_vr + k) for k in range(dim))
         else:
-            self.outputs[cport.port.type_name][cport.fmu.name][clock].append(
-                IOReference(local_offset, dim, fmu_vr))
-
+            references_of_fmu.append(IOReference(local_offset, dim, fmu_vr))
 
     def add_start_value(self, cport: ContainerPort, value: str):
         """Register a start value for an embedded FMU port.
@@ -138,43 +123,33 @@ class FMUIOList:
             fmu_name (str): Name of the embedded FMU.
             txt_file (IO): Writable text file handle.
         """
-        for type_name in ALL_TYPES:
-            print(f"# Inputs of {fmu_name} - {type_name}: <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
-            print(len(self.inputs[type_name][fmu_name][None]), file=txt_file)
-            for io_ref in self.inputs[type_name][fmu_name][None]:
-                print(f"{io_ref.local_offset} {io_ref.dim} {io_ref.fmu_vr}", file=txt_file)
-            if not type_name == "clock":
-                print(f"# Clocked Inputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
-                print(f"{len(self.inputs[type_name][fmu_name])-1} {self.nb_clocked_inputs[type_name][fmu_name]}",
-                      file=txt_file)
-                for clock, translation in self.inputs[type_name][fmu_name].items():
-                    if not clock is None:
-                        s = " ".join([f"{io_ref.local_offset} {io_ref.dim} {io_ref.fmu_vr}" for io_ref in translation])
-                        print(f"{clock} {len(translation)} {s}", file=txt_file)
+        self._write_io("Inputs", self.inputs, self.nb_clocked_inputs, fmu_name, txt_file)
 
         for type_name in START_VALUE_TYPES:
             print(f"# Start values of {fmu_name} - {type_name}: <FMU_VR> <DIM> <RESET> <VALUE>", file=txt_file)
-            nb_start_lines = len(self.start_values[type_name][fmu_name])
-            nb_start_values = 0
-            for vr, dim, reset, value in self.start_values[type_name][fmu_name]:
-                nb_start_values += dim
-            print(f"{nb_start_lines} {nb_start_values}", file=txt_file)
-            for vr, dim, reset, value in self.start_values[type_name][fmu_name]:
+            start_values = self.start_values[type_name][fmu_name]
+            print(f"{len(start_values)} {sum(dim for _, dim, _, _ in start_values)}", file=txt_file)
+            for vr, dim, reset, value in start_values:
                 print(f"{vr} {dim} {reset} {value}", file=txt_file)
 
+        self._write_io("Outputs", self.outputs, self.nb_clocked_outputs, fmu_name, txt_file)
+
+    @staticmethod
+    def _write_io(label: str, references, nb_clocked, fmu_name: str, txt_file: IO) -> None:
         for type_name in ALL_TYPES:
-            print(f"# Outputs of {fmu_name} - {type_name}: <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
-            print(len(self.outputs[type_name][fmu_name][None]), file=txt_file)
-            for io_ref in self.outputs[type_name][fmu_name][None]:
-                print(f"{io_ref.local_offset} {io_ref.dim} {io_ref.fmu_vr}", file=txt_file)
+            references_of_fmu = references[type_name][fmu_name]
+            print(f"# {label} of {fmu_name} - {type_name}: <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
+            print(len(references_of_fmu[None]), file=txt_file)
+            for io_ref in references_of_fmu[None]:
+                print(io_ref, file=txt_file)
             if not type_name == "clock":
-                print(f"# Clocked Outputs of {fmu_name} - {type_name}: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
-                print(f"{len(self.outputs[type_name][fmu_name])-1} {self.nb_clocked_outputs[type_name][fmu_name]}",
-                      file=txt_file)
-                for clock, translation in self.outputs[type_name][fmu_name].items():
+                print(f"# Clocked {label} of {fmu_name} - {type_name}: "
+                      f"<FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
+                print(f"{len(references_of_fmu)-1} {nb_clocked[type_name][fmu_name]}", file=txt_file)
+                for clock, translation in references_of_fmu.items():
                     if clock is not None:
-                        s = " ".join([f"{io_ref.local_offset} {io_ref.dim} {io_ref.fmu_vr}" for io_ref in translation])
-                        print(f"{clock} {len(translation)} {s}", file=txt_file)
+                        print(f"{clock} {len(translation)} {' '.join(str(io_ref) for io_ref in translation)}",
+                              file=txt_file)
 
 
 class InvolvedFMU:
@@ -252,10 +227,12 @@ class InvolvedFMU:
         return fmu_rank
 
 
+@dataclass
 class Clock:
-    def __init__(self, container_vr: int, fmu_vr: int):
-        self.container_vr = container_vr
-        self.fmu_vr = fmu_vr
+    """Clock of an embedded FMU scheduled by the importer: its value reference in the FMU, and the local variable of
+    the container that feeds it."""
+    fmu_vr: int
+    vr: int
 
 
 class ClockList:
@@ -265,8 +242,7 @@ class ClockList:
     countdown clocks on embedded FMUs.
 
     Attributes:
-        clocks_per_fmu (dict[int, list[tuple[int, int]]]): Clock entries
-            per FMU index: `(fmu_vr, local_vr)` pairs.
+        clocks_per_fmu (dict[int, list[Clock]]): Clock entries per FMU index.
         fmu_index (dict[str, int]): Mapping from FMU name to its index
             in the container.
     """
@@ -292,24 +268,26 @@ class ClockList:
         Args:
             txt_file (IO): Writable text file handle.
         """
-        print(f"# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]", file=txt_file)
+        print("# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]", file=txt_file)
         nb_total_clocks = 0
         for clocks in self.clocks_per_fmu.values():
             nb_total_clocks += len(clocks)
 
         print(f"{len(self.clocks_per_fmu)} {nb_total_clocks}", file=txt_file)
         for index, clocks in self.clocks_per_fmu.items():
-            clocks_str = " ".join([f"{clock.container_vr} {clock.fmu_vr}" for clock in clocks])
+            clocks_str = " ".join([f"{clock.fmu_vr} {clock.vr}" for clock in clocks])
             print(f"{index} {len(clocks)} {clocks_str}", file=txt_file)
 
 
+@dataclass
 class LocalVariable:
-    def __init__(self, vr: int, dimension: int):
-        self.vr: int = vr
-        self.dimension: int = dimension
+    """Local variable of the container: its value reference and its dimension."""
+    vr: int
+    dimension: int
 
 
+@dataclass
 class Port:
-    def __init__(self, vr: int, name: str):
-        self.vr: int = vr
-        self.name = name
+    """Variable logged by the datalog: its value reference and its name."""
+    vr: int
+    name: str

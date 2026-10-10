@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Any
 
 from ..ls import LayeredStandard
-from ..operations import FMU, OperationAbstract, FMUError, FMUPort
+from ..model_description import ModelVariable
+from ..operations import FMU, OperationAbstract, FMUError
 from ..terminals import Terminals
 from .arrays import ArrayAggregate
 from .errors import FMUContainerError
@@ -49,14 +50,14 @@ class EmbeddedFMUPort:
 
     ALL_TYPES = ALL_TYPES
 
-    def __init__(self, fmi_type, attrs: FMUPort | dict[str, Any], fmi_version=0):
+    def __init__(self, fmi_type, attrs: ModelVariable | dict[str, Any], fmi_version=0):
         self.causality = attrs.get("causality", "local")
         self.variability = attrs.get("variability", None)
         self.interval_variability = attrs.get("intervalVariability", None)
         self.name = attrs["name"]
         self.vr = int(attrs["valueReference"])
         self.description = attrs.get("description", None)
-        if isinstance(attrs, FMUPort):
+        if isinstance(attrs, ModelVariable):
             self.dimensions = attrs.dimensions
         else:
             self.dimensions = []
@@ -183,7 +184,8 @@ class EmbeddedFMU(OperationAbstract):
     Attributes:
         capability_list (tuple[str, ...]): FMI capability flags tracked by the container.
         fmu (FMU): The underlying
-            [FMU][fmu_manipulation_toolbox.operations.FMU] object.
+            [FMU][fmu_manipulation_toolbox.operations.FMU] object, closed once
+            analysed (only its `fmu_filename` remains usable).
         name (str): Filename of the FMU (e.g. `"model.fmu"`).
         id (str): Lowercase stem of the filename, used as an identifier.
         terminals (Terminals): FMI Terminals defined by this FMU.
@@ -207,8 +209,7 @@ class EmbeddedFMU(OperationAbstract):
         FMUContainerError: If the FMU does not implement Co-Simulation mode.
     """
 
-    # Not written back: Enumeration -> Integer is only needed in memory, and the container
-    # embeds the original archive, not the extracted descriptor.
+    # The descriptor is only read: the container embeds the original archive.
     read_only = True
 
     capability_list = ("needsExecutionTool",
@@ -240,7 +241,11 @@ class EmbeddedFMU(OperationAbstract):
         self.capabilities: dict[str, str] = {}
         self.current_port = None  # used during apply_operation()
 
-        self.fmu.apply_operation(self)  # Should be the last command in constructor!
+        try:
+            self.fmu.apply_operation(self)
+        finally:
+            # Only `fmu.fmu_filename` is used once analysed: remove the temporary directory now.
+            self.fmu.close()
         if self.model_identifier is None:
             raise FMUContainerError(f"FMU '{self.name}' does not implement Co-Simulation mode.")
 
@@ -329,14 +334,12 @@ class EmbeddedFMU(OperationAbstract):
         self.start_time = float(attrs.get("startTime", 0.0))
         self.stop_time = float(attrs.get("stopTime", self.start_time + 1.0))
 
-    def port_attrs(self, fmu_port: FMUPort):
+    def port_attrs(self, fmu_port: ModelVariable):
         # Container will manage Enumeration as Integer
-        if fmu_port.fmi_type == "Enumeration":
-            if self.fmi_version == 2:
-                fmu_port.fmi_type = "Integer"
-            else:
-                fmu_port.fmi_type = "Int32"
-        port = EmbeddedFMUPort(fmu_port.fmi_type, fmu_port, fmi_version=self.fmi_version)
+        fmi_type = fmu_port.fmi_type
+        if fmi_type == "Enumeration":
+            fmi_type = "Integer" if self.fmi_version == 2 else "Int32"
+        port = EmbeddedFMUPort(fmi_type, fmu_port, fmi_version=self.fmi_version)
         self.ports[port.name] = port
 
     def closure(self):

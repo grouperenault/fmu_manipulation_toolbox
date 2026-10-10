@@ -46,19 +46,15 @@ class ValueReferenceTable:
             port_or_type_name (ContainerPort | str): A port (type is inferred)
                 or a type name string.
             local (bool): Whether this VR is for a local variable.
+            port_size (int): Dimension of the local variable, when given by a type name.
 
         Returns:
             int: The allocated value reference with type mask applied.
         """
         if isinstance(port_or_type_name, ContainerPort):
-            type_name = port_or_type_name.port.type_name
+            type_name, size = port_or_type_name.port.type_name, port_or_type_name.port.size()
         else:
-            type_name = port_or_type_name
-
-        if isinstance(port_or_type_name, ContainerPort):
-            size = port_or_type_name.port.size()
-        else:
-            size = port_size
+            type_name, size = port_or_type_name, port_size
 
         vr = self.vr_table[type_name] | self.masks[type_name]
         self.vr_table[type_name] += 1

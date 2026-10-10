@@ -5,6 +5,7 @@ They pin the current behaviour of the classes of `container.py` before its refac
 marker be removed then.
 """
 import importlib
+import io
 import logging
 import re
 from pathlib import Path
@@ -242,12 +243,17 @@ def test_input_fed_twice(bouncing):
     lambda c: c.add_link("bb_position.fmu", "missing", "bb_velocity.fmu", "reset"),
     lambda c: c.add_start_value("bb_position.fmu", "missing", "1"),
 ], ids=["input", "output", "drop", "link", "start"])
-def test_missing_port_is_ignored(bouncing, rule, caplog):
-    """Current behaviour, to be changed by decision D2 (phase 4): logged and ignored instead of raised."""
-    with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
+def test_missing_port_is_an_error(bouncing, rule):
+    """Decision D2: a rule on a missing port raises instead of being logged and ignored."""
+    with pytest.raises(FMUContainerError, match="Port 'bb_position.fmu/missing' does not exist"):
         rule(bouncing)
-    assert "does not exist" in caplog.text
     assert not bouncing.rules and not bouncing.start_values
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_missing_fmu_is_an_error(bouncing):
+    with pytest.raises(FMUContainerError, match="Cannot add input 'x': Cannot load 'missing.fmu'"):
+        bouncing.add_input("x", "missing.fmu", "u")
 
 
 @pytest.mark.area("containers/bouncing_ball")
@@ -296,3 +302,36 @@ def test_port_xml_has_no_side_effect():
     variable = port.xml(7, fmi_version=3)
     assert variable.get("variability") == "continuous" and variable.get("valueReference") == "7"
     assert port.variability is None
+
+
+def _fake_fmu(name: str, ports):
+    """Just enough of an EmbeddedFMU for the rules API and the container.txt writer."""
+    return SimpleNamespace(
+        name=name, id=name[:-4], fmi_version=2, is_me=False, terminals={}, ls=SimpleNamespace(is_bus=False),
+        model_identifier=name[:-4], guid="{guid}", has_event_mode=False,
+        ports={port_name: EmbeddedFMUPort(type_name, {"name": port_name, "valueReference": vr, "causality": causality})
+               for port_name, type_name, causality, vr in ports})
+
+
+def test_one_converted_copy_per_target_type(tmp_path):
+    """B7: a link feeding two inputs of the same converted type gets one converted copy and one conversion."""
+    container = FMUContainer("test", tmp_path)
+    container.involved_fmu["a.fmu"] = _fake_fmu("a.fmu", [("y", "real64", "output", 1)])
+    container.involved_fmu["b.fmu"] = _fake_fmu("b.fmu", [("u1", "boolean", "input", 1), ("u2", "boolean", "input", 2)])
+    container.add_link("a.fmu", "y", "b.fmu", "u1")
+    container.add_link("a.fmu", "y", "b.fmu", "u2")
+    layout = ContainerLayout.allocate(container.links.values(), container.inputs, container.outputs)
+    txt = io.StringIO()
+    container.make_fmu_txt(txt, 0.1, False, False, False, layout)
+    lines = txt.getvalue().splitlines()
+
+    converted = layout.converted[next(iter(container.links.values()))]["boolean"]
+    boolean = lines.index("# boolean")
+    assert lines[boolean + 1:boolean + 3] == ["1 1", f"{converted} 1 1 -1 0"]
+    assert lines[boolean + 3] == "# boolean1"
+    table = lines.index("# Conversion table of a.fmu: <VR_FROM> <VR_TO> <CONVERSION>")
+    assert lines[table + 1:table + 3] == ["1", f"{layout.links[next(iter(container.links.values()))]} {converted} _F64_B"]
+    assert lines[table + 3].startswith("# Inputs of b.fmu")
+    # Both inputs read the same converted copy (local offset 0 of the booleans).
+    inputs = lines.index("# Inputs of b.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>")
+    assert lines[inputs + 1:inputs + 4] == ["2", "0 1 1", "0 1 2"]

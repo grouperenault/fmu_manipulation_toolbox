@@ -1,6 +1,6 @@
 # Plan: refactoring of `container.py`
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 3 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 4 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
 
 `fmu_manipulation_toolbox/container.py` builds FMU Containers: it loads the embedded FMUs, records the wiring rules,
 allocates the value references, then writes `modelDescription.xml`, `resources/container.txt` (read by the C runtime,
@@ -60,6 +60,7 @@ Latent bugs (found by reading, to be confirmed by tests in phase 0):
 | B3 | `sanity_check`: `ts_ratio != int(ts_ratio)` on floats warns for valid ratios (`0.3 / 0.1 = 2.9999999999999996`) | `sanity_check` |
 | B4 | The build directory is `fmu_directory / <output name without suffix>`, created with `exist_ok=True` and **removed with `rmtree`** at the end: a user directory with that name is mixed with the build and deleted | `make_fmu`, `make_fmu_cleanup` |
 | B6 | *(found in phase 0)* An FMU input can be fed twice: exposed as a container input **and** target of a link (or target of two links). `mark_ruled` accepts any rule combined with `LINK`, so both writers update the same input at every step | `FMUContainer.mark_ruled` |
+| B7 | *(found in phase 4)* A link feeding **several targets of the same converted type** (e.g. a `Real` output to two `Boolean` inputs) writes the converted local variable once per target in `container.txt` while the count line counts it once, and duplicates the conversion table: the runtime then reads the following sections shifted | `make_fmu_txt` |
 | B5 | `Clock(container_vr, fmu_vr)` is called as `Clock(cport.port.vr, vr)`: the names are swapped (the output is right, because the writer prints them in the swapped order too); the `ClockList` docstring describes tuples | `ClockList` |
 
 Minor: dead `try/except KeyError` around a `defaultdict` (`make_fmu_txt`, conversion table); `flag == True`;
@@ -89,7 +90,7 @@ The conversion names are consistent today: the 132 values of `CONVERSION_FUNCTIO
    layout, without side effects; `make_fmu` can be called twice.
 3. One definition of the container types and conversions, shared with `split.py`.
 4. Smaller modules with unit tests.
-5. The latent bugs B1 to B3, B5 and B6 fixed, each with a test (B4 kept, D3).
+5. The latent bugs B1 to B3 and B5 to B7 fixed, each with a test (B4 kept, D3).
 6. Public API unchanged: `from fmu_manipulation_toolbox.container import X` keeps working for every class of today.
 
 ---
@@ -260,7 +261,7 @@ the three `make_*` writers. `FMUContainer.make_fmu` itself is unchanged.
 feeds **several targets of the same converted type**, `make_fmu_txt` appends the converted local variable, and the
 link to `links_per_fmu`, once per target. The local lines of `container.txt` would then list the variable twice while
 their count (`nb_local`) counts it once, and the conversion table would be duplicated. Phase 3 keeps this behaviour
-(identical output).
+(identical output). *Confirmed and fixed in phase 4 (B7).*
 
 Checks performed: golden files unchanged (byte comparison, 12 scenarios + determinism); full suite **1988 passed,
 2 skipped, 5 xfailed** (clean Python 3.14 environment); `tools/dist_inventory.py --check --untracked`: rules
@@ -276,6 +277,28 @@ satisfied; `mkdocs build`: no warning, `ContainerLayout` rendered in the API ref
 5. Records as dataclasses, `Clock` fields named in the right order (B5), dead code and minor items of §1.
 
 *Exit criterion*: golden files unchanged; suite green.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `FMUIOList`: `add_input`/`add_output` share `_add()`, the input and output sections share `_write_io()`; `IOReference` prints itself (C7) | `container/txt.py` |
+| `ValueReferenceTable.add_vr`: one test of the argument type instead of two (C7) | `container/layout.py` |
+| Auto-wiring: the candidate inputs are indexed once by `(name, type)` (same order and same "not yet ruled" filter as `find_inputs`, kept for compatibility); `get_all_cports()` called once instead of once per output (C8) | `container/builder.py` |
+| Missing FMU or port in `add_input`, `add_output`, `drop_port`, `add_link`, `add_start_value`, and start value on a `binary`/`clock` port: `FMUContainerError` (D2). The callers already handle it: `fmucontainer` (exit status), Container Builder (`assembly_io.py`), MCP server (errors converted for the client) | `container/builder.py` |
+| `EmbeddedFMUPort` accepts a `ModelVariable` (`isinstance(attrs, ModelVariable)`), `EmbeddedFMU.port_attrs` no longer renames the `Enumeration` element of the tree (the container type is computed locally); no import of `FMUPort` left in the package (D4) | `container/embedded.py` |
+| `EmbeddedFMU` closes its `FMU` (temporary directory) at the end of the analysis, also when the analysis fails (C11) | `container/embedded.py` |
+| `IOReference`, `Clock`, `LocalVariable`, `Port`, `Platform` are dataclasses; `Clock(fmu_vr, vr)` named in the order it is built and written (B5) | `container/txt.py`, `container/builder.py` |
+| **B7 fixed**: one converted copy per target type (`Link.conversions`), one conversion line per copy; the conversion table no longer goes through `get_conversion()` and a dead `try/except KeyError` | `container/builder.py` |
+| Minor: `add_link_regular` re-indented, `flag == True` replaced, the 11 f-strings without placeholder of the package removed | `container/` |
+| Tests: missing port/FMU raise (replaces the "ignored" test of phase 0), B7 with two fake FMUs (checked to fail without the fix) | `tests/unit/test_container_internals.py` |
+
+Visible API changes for phase 6 (`CHANGELOG.md`): D2 (breaking); `Clock.container_vr`/`Clock.fmu_vr` become
+`Clock.fmu_vr`/`Clock.vr`; `EmbeddedFMU.fmu` is closed after the analysis (only `fmu_filename` usable); B7 fixed.
+
+Checks performed: golden files unchanged; full suite **1991 passed, 2 skipped, 5 xfailed** (clean Python 3.14
+environment); ruff `F` on the package and the tests: clean; `tools/dist_inventory.py --check --untracked`: rules
+satisfied; `mkdocs build`: no warning.
 
 ### Phase 5 — Bug fixes (B1 to B3, B6, D5)
 
@@ -296,7 +319,7 @@ one by one).
   kept by D3).
 - `docs/developer/container-txt-format.md`: the version table stops at 4 while the writer emits version 6; complete
   it, and point to `container/types.py` for the type list and conversions.
-- `CHANGELOG.md`: `CHANGED` (**breaking**) for D2; `FIXED` for B1 to B3 and B6; `CHANGED` for the package layout (imports
+- `CHANGELOG.md`: `CHANGED` (**breaking**) for D2; `FIXED` for B1 to B3, B6 and B7; `CHANGED` for the package layout (imports
   unchanged).
 
 *Exit criterion*: the documentation describes the 2.0 behaviour; `mkdocs build` without warning.
