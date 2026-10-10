@@ -15,6 +15,8 @@ from typing import IO, Any
 from collections import OrderedDict
 from collections.abc import Generator, Iterable
 
+from .container_types import (ALL_TYPES, CONTAINER_TO_FMI, CONVERSION_FUNCTION, FMI_TO_CONTAINER,
+                              START_VALUE_TYPES, is_lossy)
 from .ls import LayeredStandard
 from .model_description import ModelDescription
 from .operations import FMU, OperationAbstract, FMUError, FMUPort
@@ -178,10 +180,11 @@ class EmbeddedFMUPort:
 
     Attributes:
         FMI_TO_CONTAINER (dict[int, dict[str, str]]): Mapping from FMI type names
-            to container type names, keyed by FMI version.
+            to container type names, keyed by FMI version (alias of
+            `container_types.FMI_TO_CONTAINER`).
         CONTAINER_TO_FMI (dict[int, dict[str, str]]): Reverse mapping from container
-            type names to FMI type names, keyed by FMI version.
-        ALL_TYPES (tuple[str, ...]): All container type names.
+            type names to FMI type names, keyed by FMI version (alias).
+        ALL_TYPES (tuple[str, ...]): All container type names (alias).
         causality (str): Port causality (`"input"`, `"output"`, `"local"`,
             `"parameter"`).
         variability (str | None): Port variability (`"continuous"`, `"discrete"`, etc.).
@@ -194,63 +197,12 @@ class EmbeddedFMUPort:
         description (str | None): Human-readable description of the port.
     """
 
-    FMI_TO_CONTAINER = {
-        2: {
-            'Real': 'real64',
-            'Integer': 'integer32',
-            'String': 'string',
-            'Boolean': 'boolean'
-        },
-        3: {
-            'Float64': 'real64',
-            'Float32': 'real32',
-            'Int8': 'integer8',
-            'UInt8': 'uinteger8',
-            'Int16': 'integer16',
-            'UInt16': 'uinteger16',
-            'Int32': 'integer32',
-            'UInt32': 'uinteger32',
-            'Int64': 'integer64',
-            'UInt64': 'uinteger64',
-            'String': 'string',
-            'Boolean': 'boolean1',
-            'Binary': 'binary',
-            'Clock': 'clock'
-        }
-    }
+    # Aliases of the tables of `container_types`, kept for compatibility.
+    FMI_TO_CONTAINER = FMI_TO_CONTAINER
 
-    CONTAINER_TO_FMI = {
-        2: {
-            'real64': 'Real',
-            'integer32': 'Integer',
-            'string': 'String',
-            'boolean': 'Boolean'
-        },
-        3: {
-            'real64': 'Float64' ,
-            'real32': 'Float32' ,
-            'integer8': 'Int8' ,
-            'uinteger8': 'UInt8' ,
-            'integer16': 'Int16' ,
-            'uinteger16': 'UInt16' ,
-            'integer32': 'Int32' ,
-            'uinteger32': 'UInt32' ,
-            'integer64': 'Int64' ,
-            'uinteger64': 'UInt64' ,
-            'string': 'String' ,
-            'boolean1': 'Boolean',
-            'binary': 'Binary',
-            'clock': 'Clock'
-        }
-    }
+    CONTAINER_TO_FMI = CONTAINER_TO_FMI
 
-    ALL_TYPES = (
-        "real64", "real32",
-        "integer8", "uinteger8", "integer16", "uinteger16", "integer32", "uinteger32", "integer64", "uinteger64",
-        "boolean", "boolean1",
-        "string",
-        "binary", "clock"
-    )
+    ALL_TYPES = ALL_TYPES
 
     def __init__(self, fmi_type, attrs: FMUPort | dict[str, Any], fmi_version=0):
         self.causality = attrs.get("causality", "local")
@@ -275,7 +227,7 @@ class EmbeddedFMUPort:
         self.element_names: list[str] = []
 
         if fmi_version > 0:
-            self.type_name = self.FMI_TO_CONTAINER[fmi_version][fmi_type]
+            self.type_name = FMI_TO_CONTAINER[fmi_version][fmi_type]
         else:
             self.type_name = fmi_type
 
@@ -326,7 +278,7 @@ class EmbeddedFMUPort:
                 self.variability = "continuous" if "real" in self.type_name else "discrete"
 
         try:
-            fmi_type = self.CONTAINER_TO_FMI[fmi_version][self.type_name]
+            fmi_type = CONTAINER_TO_FMI[fmi_version][self.type_name]
         except KeyError:
             logger.error(f"Cannot expose ({causality}) '{name}' because type '{self.type_name}' is not compatible "
                          f"with FMI-{fmi_version}.0")
@@ -679,7 +631,8 @@ class Link:
 
     Attributes:
         CONVERSION_FUNCTION (dict[str, str]): Mapping from type pair strings
-            (e.g. `"real32/real64"`) to conversion function identifiers.
+            (e.g. `"real32/real64"`) to conversion function identifiers (alias of
+            `container_types.CONVERSION_FUNCTION`).
         name (str): Human-readable name derived from the source FMU and port.
         cport_from (ContainerPort | None): Source output port, or `None` for
             importer-generated clocks.
@@ -689,179 +642,7 @@ class Link:
             copies, keyed by target type name.
     """
 
-    CONVERSION_FUNCTION = {
-        # ------------------------------------------------------------------
-        # Lossless conversions (widening integers, F32 -> F64, boolean/int
-        # normalisation, boolean -> numeric which yields 0 or 1).
-        # ------------------------------------------------------------------
-        "real32/real64": "F32_F64",
-
-        "integer8/integer16": "D8_D16",
-        "integer8/uinteger16": "D8_U16",
-        "integer8/integer32": "D8_D32",
-        "integer8/uinteger32": "D8_U32",
-        "integer8/integer64": "D8_D64",
-        "integer8/uinteger64": "D8_U64",
-
-        "uinteger8/integer16": "U8_D16",
-        "uinteger8/uinteger16": "U8_U16",
-        "uinteger8/integer32": "U8_D32",
-        "uinteger8/uinteger32": "U8_U32",
-        "uinteger8/integer64": "U8_D64",
-        "uinteger8/uinteger64": "U8_U64",
-
-        "integer16/integer32": "D16_D32",
-        "integer16/uinteger32": "D16_U32",
-        "integer16/integer64": "D16_D64",
-        "integer16/uinteger64": "D16_U64",
-
-        "uinteger16/integer32": "U16_D32",
-        "uinteger16/uinteger32": "U16_U32",
-        "uinteger16/integer64": "U16_D64",
-        "uinteger16/uinteger64": "U16_U64",
-
-        "integer32/integer64": "D32_D64",
-        "integer32/uinteger64": "D32_U64",
-
-        "uinteger32/integer64": "U32_D64",
-        "uinteger32/uinteger64": "U32_U64",
-
-        "boolean/boolean1": "B_B1",
-        "boolean1/boolean": "B1_B",
-
-        # Boolean -> numeric: result is 0 or 1, lossless.
-        "boolean/real32":    "B_F32",
-        "boolean/real64":    "B_F64",
-        "boolean/integer8":  "B_D8",
-        "boolean/uinteger8": "B_U8",
-        "boolean/integer16": "B_D16",
-        "boolean/uinteger16":"B_U16",
-        "boolean/integer32": "B_D32",
-        "boolean/uinteger32":"B_U32",
-        "boolean/integer64": "B_D64",
-        "boolean/uinteger64":"B_U64",
-
-        "boolean1/real32":    "B1_F32",
-        "boolean1/real64":    "B1_F64",
-        "boolean1/integer8":  "B1_D8",
-        "boolean1/uinteger8": "B1_U8",
-        "boolean1/integer16": "B1_D16",
-        "boolean1/uinteger16":"B1_U16",
-        "boolean1/integer32": "B1_D32",
-        "boolean1/uinteger32":"B1_U32",
-        "boolean1/integer64": "B1_D64",
-        "boolean1/uinteger64":"B1_U64",
-
-        # ------------------------------------------------------------------
-        # Lossy conversions (prefixed with '_' so the C side and the Python
-        # side both flag them). A warning is emitted when such a conversion
-        # is instantiated (see Link.add_target).
-        # ------------------------------------------------------------------
-
-        # From F32
-        "real32/integer8":   "_F32_D8",
-        "real32/uinteger8":  "_F32_U8",
-        "real32/integer16":  "_F32_D16",
-        "real32/uinteger16": "_F32_U16",
-        "real32/integer32":  "_F32_D32",
-        "real32/uinteger32": "_F32_U32",
-        "real32/integer64":  "_F32_D64",
-        "real32/uinteger64": "_F32_U64",
-
-        # From F64
-        "real64/real32":     "_F64_F32",
-        "real64/integer8":   "_F64_D8",
-        "real64/uinteger8":  "_F64_U8",
-        "real64/integer16":  "_F64_D16",
-        "real64/uinteger16": "_F64_U16",
-        "real64/integer32":  "_F64_D32",
-        "real64/uinteger32": "_F64_U32",
-        "real64/integer64":  "_F64_D64",
-        "real64/uinteger64": "_F64_U64",
-
-        # From D8 / U8
-        "integer8/real32":   "_D8_F32",
-        "integer8/real64":   "_D8_F64",
-        "integer8/uinteger8": "_D8_U8",
-
-        "uinteger8/real32":  "_U8_F32",
-        "uinteger8/real64":  "_U8_F64",
-        "uinteger8/integer8": "_U8_D8",
-
-        # From D16 / U16
-        "integer16/real32":   "_D16_F32",
-        "integer16/real64":   "_D16_F64",
-        "integer16/integer8": "_D16_D8",
-        "integer16/uinteger8":"_D16_U8",
-        "integer16/uinteger16":"_D16_U16",
-
-        "uinteger16/real32":   "_U16_F32",
-        "uinteger16/real64":   "_U16_F64",
-        "uinteger16/integer8": "_U16_D8",
-        "uinteger16/uinteger8":"_U16_U8",
-        "uinteger16/integer16":"_U16_D16",
-
-        # From D32 / U32
-        "integer32/real32":    "_D32_F32",
-        "integer32/real64":    "_D32_F64",
-        "integer32/integer8":  "_D32_D8",
-        "integer32/uinteger8": "_D32_U8",
-        "integer32/integer16": "_D32_D16",
-        "integer32/uinteger16":"_D32_U16",
-        "integer32/uinteger32":"_D32_U32",
-
-        "uinteger32/real32":    "_U32_F32",
-        "uinteger32/real64":    "_U32_F64",
-        "uinteger32/integer8":  "_U32_D8",
-        "uinteger32/uinteger8": "_U32_U8",
-        "uinteger32/integer16": "_U32_D16",
-        "uinteger32/uinteger16":"_U32_U16",
-        "uinteger32/integer32": "_U32_D32",
-
-        # From D64 / U64
-        "integer64/real32":    "_D64_F32",
-        "integer64/real64":    "_D64_F64",
-        "integer64/integer8":  "_D64_D8",
-        "integer64/uinteger8": "_D64_U8",
-        "integer64/integer16": "_D64_D16",
-        "integer64/uinteger16":"_D64_U16",
-        "integer64/integer32": "_D64_D32",
-        "integer64/uinteger32":"_D64_U32",
-        "integer64/uinteger64":"_D64_U64",
-
-        "uinteger64/real32":    "_U64_F32",
-        "uinteger64/real64":    "_U64_F64",
-        "uinteger64/integer8":  "_U64_D8",
-        "uinteger64/uinteger8": "_U64_U8",
-        "uinteger64/integer16": "_U64_D16",
-        "uinteger64/uinteger16":"_U64_U16",
-        "uinteger64/integer32": "_U64_D32",
-        "uinteger64/uinteger32":"_U64_U32",
-        "uinteger64/integer64": "_U64_D64",
-
-        # Numeric -> boolean: non-zero is considered true.
-        "real32/boolean":     "_F32_B",
-        "real64/boolean":     "_F64_B",
-        "integer8/boolean":   "_D8_B",
-        "uinteger8/boolean":  "_U8_B",
-        "integer16/boolean":  "_D16_B",
-        "uinteger16/boolean": "_U16_B",
-        "integer32/boolean":  "_D32_B",
-        "uinteger32/boolean": "_U32_B",
-        "integer64/boolean":  "_D64_B",
-        "uinteger64/boolean": "_U64_B",
-
-        "real32/boolean1":     "_F32_B1",
-        "real64/boolean1":     "_F64_B1",
-        "integer8/boolean1":   "_D8_B1",
-        "uinteger8/boolean1":  "_U8_B1",
-        "integer16/boolean1":  "_D16_B1",
-        "uinteger16/boolean1": "_U16_B1",
-        "integer32/boolean1":  "_D32_B1",
-        "uinteger32/boolean1": "_U32_B1",
-        "integer64/boolean1":  "_D64_B1",
-        "uinteger64/boolean1": "_U64_B1",
-    }
+    CONVERSION_FUNCTION = CONVERSION_FUNCTION
 
     def __init__(self, cport_from: ContainerPort):
         self.name = cport_from.fmu.id + "." + cport_from.port.name  # strip .fmu suffix
@@ -902,7 +683,7 @@ class Link:
         else:
             conversion = self.get_conversion(cport_to)
             if conversion:
-                if conversion.startswith("_"):
+                if is_lossy(conversion):
                     logger.warning(f"Lossy conversion {conversion.lstrip('_')} applied "
                                    f"from {self.cport_from} to {cport_to}.")
                 self.cport_to_list.append(cport_to)
@@ -923,7 +704,7 @@ class Link:
         """
         try:
             conversion = f"{self.cport_from.port.type_name}/{cport_to.port.type_name}"
-            return self.CONVERSION_FUNCTION[conversion]
+            return CONVERSION_FUNCTION[conversion]
         except KeyError:
             return None
 
@@ -958,7 +739,7 @@ class ValueReferenceTable:
         self.vr_to_local:dict[int, int] = {}
 
         self.local_clock = {}
-        for i, type_name in enumerate(EmbeddedFMUPort.ALL_TYPES):
+        for i, type_name in enumerate(ALL_TYPES):
             self.vr_table[type_name] = 0
             self.masks[type_name] = i << 24
             self.nb_local_variable[type_name] = 0
@@ -1210,7 +991,7 @@ class FMUIOList:
             fmu_name (str): Name of the embedded FMU.
             txt_file (IO): Writable text file handle.
         """
-        for type_name in EmbeddedFMUPort.ALL_TYPES:
+        for type_name in ALL_TYPES:
             print(f"# Inputs of {fmu_name} - {type_name}: <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
             print(len(self.inputs[type_name][fmu_name][None]), file=txt_file)
             for io_ref in self.inputs[type_name][fmu_name][None]:
@@ -1224,7 +1005,7 @@ class FMUIOList:
                         s = " ".join([f"{io_ref.local_offset} {io_ref.dim} {io_ref.fmu_vr}" for io_ref in translation])
                         print(f"{clock} {len(translation)} {s}", file=txt_file)
 
-        for type_name in EmbeddedFMUPort.ALL_TYPES[:-2]:  # No start values for binary or clock
+        for type_name in START_VALUE_TYPES:
             print(f"# Start values of {fmu_name} - {type_name}: <FMU_VR> <DIM> <RESET> <VALUE>", file=txt_file)
             nb_start_lines = len(self.start_values[type_name][fmu_name])
             nb_start_values = 0
@@ -1234,7 +1015,7 @@ class FMUIOList:
             for vr, dim, reset, value in self.start_values[type_name][fmu_name]:
                 print(f"{vr} {dim} {reset} {value}", file=txt_file)
 
-        for type_name in EmbeddedFMUPort.ALL_TYPES:
+        for type_name in ALL_TYPES:
             print(f"# Outputs of {fmu_name} - {type_name}: <LOCAL_OFFSET> <DIM> <FMU_VR>", file=txt_file)
             print(len(self.outputs[type_name][fmu_name][None]), file=txt_file)
             for io_ref in self.outputs[type_name][fmu_name][None]:
@@ -2170,13 +1951,13 @@ class FMUContainer:
 
                     fmu_io_list.add_input(cport_to, local_vr)
 
-        print(f"# NB local variables:", ", ".join(EmbeddedFMUPort.ALL_TYPES), file=txt_file)
-        nb_storage = [f"{self.vr_table.nb_storage(type_name)}" for type_name in EmbeddedFMUPort.ALL_TYPES]
+        print(f"# NB local variables:", ", ".join(ALL_TYPES), file=txt_file)
+        nb_storage = [f"{self.vr_table.nb_storage(type_name)}" for type_name in ALL_TYPES]
         print(" ".join(nb_storage), file=txt_file, end='')
         print("", file=txt_file)
 
         print("# CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]", file=txt_file)
-        for type_name in EmbeddedFMUPort.ALL_TYPES:
+        for type_name in ALL_TYPES:
             print(f"# {type_name}" , file=txt_file)
             nb_local = (len(inputs_per_type[type_name]) +
                         len(outputs_per_type[type_name]) +
@@ -2243,7 +2024,7 @@ class FMUContainer:
             else:
                 ports[link.cport_from.port.type_name].append(Port(link.vr, link.name))
 
-        for type_name in EmbeddedFMUPort.ALL_TYPES:
+        for type_name in ALL_TYPES:
             print(f"# {type_name}: <VR> <NAME>" , file=datalog_file)
             print(f"{len(ports[type_name])}", file=datalog_file)
             for port in ports[type_name]:

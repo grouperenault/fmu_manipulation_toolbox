@@ -1,6 +1,6 @@
 # Plan: refactoring of `container.py`
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phase 0 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 and 1 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
 
 `fmu_manipulation_toolbox/container.py` builds FMU Containers: it loads the embedded FMUs, records the wiring rules,
 allocates the value references, then writes `modelDescription.xml`, `resources/container.txt` (read by the C runtime,
@@ -155,6 +155,22 @@ environment: full suite **1982 passed, 2 skipped, 6 xfailed**; ruff `F` on the n
    uses the new module directly (C5, C6).
 
 *Exit criterion*: no type table defined twice; golden files unchanged.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| New module: `ALL_TYPES`, `NO_START_VALUE_TYPES`, `START_VALUE_TYPES` (replaces `ALL_TYPES[:-2]`), `FMI_TO_CONTAINER`, `CONTAINER_TO_FMI` computed as its inverse (same order as the former hand-written table), `CONVERSION_FUNCTION`, `is_lossy()` | `fmu_manipulation_toolbox/container_types.py` |
+| `EmbeddedFMUPort.ALL_TYPES`, `FMI_TO_CONTAINER`, `CONTAINER_TO_FMI` and `Link.CONVERSION_FUNCTION` kept as aliases (same objects); the module code uses the tables directly; `Link.add_target` uses `is_lossy()` | `fmu_manipulation_toolbox/container.py` (2369 → 2150 lines) |
+| `split.py` imports `container_types` instead of `EmbeddedFMUPort` and `Link`; `FORMAT_2_TYPES` names the types of format 2 (binary and clock came with format 3), `START_VALUE_TYPES` the types with start values | `fmu_manipulation_toolbox/split.py` |
+| Tests: aliases are the shared objects, `CONTAINER_TO_FMI` is the inverse in the former order, `START_VALUE_TYPES` | `tests/unit/test_container_internals.py` |
+
+**Deviation**: the module is `fmu_manipulation_toolbox/container_types.py`, because a `container/` package cannot
+coexist with `container.py`; phase 2 moves it to `container/types.py` (and updates the import of `split.py`).
+
+Checks performed: golden files unchanged; full suite **1985 passed, 2 skipped, 6 xfailed** (clean Python 3.14
+environment); `tools/dist_inventory.py --check --untracked`: rules satisfied; ruff `F`: only the 17 `F541` (f-strings
+without placeholder) already present in `container.py` and `split.py`, left for phase 4.
 
 ### Phase 2 — Package (pure move)
 

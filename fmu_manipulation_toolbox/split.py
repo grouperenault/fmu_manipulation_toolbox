@@ -7,7 +7,8 @@ from typing import Any
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from .container import EmbeddedFMUPort, Link
+from .container_types import (ALL_TYPES, CONTAINER_TO_FMI, CONVERSION_FUNCTION, FMI_TO_CONTAINER,
+                              START_VALUE_TYPES)
 from .model_description import ModelDescription, ModelDescriptionError
 from .terminals import Terminals, Terminal
 from .textfiles import ENCODING
@@ -158,14 +159,17 @@ class FMUSplitter:
 
 class FMUSplitterDescription:
     # Reverse mapping from conversion function name to (source_type, target_type).
-    # Built dynamically from Link.CONVERSION_FUNCTION so that any conversion
+    # Built dynamically from CONVERSION_FUNCTION so that any conversion
     # supported by the container side is automatically recognized here. Lossy
-    # conversions (prefixed with '_' in Link.CONVERSION_FUNCTION) are kept as-is
+    # conversions (prefixed with '_' in CONVERSION_FUNCTION) are kept as-is
     # since the C side writes the identifier including the leading underscore.
     REVERSE_CONVERSION = {
         conversion_name: tuple(type_pair.split("/"))
-        for type_pair, conversion_name in Link.CONVERSION_FUNCTION.items()
+        for type_pair, conversion_name in CONVERSION_FUNCTION.items()
     }
+
+    # Types of the format 2 of container.txt: binary and clock came with format 3.
+    FORMAT_2_TYPES = tuple(type_name for type_name in ALL_TYPES if type_name not in ("binary", "clock"))
 
     # Matches variable names of the form "SomeName[k]" or "SomeName[i,j,...]"
     # (FMI-2 array elements, Modelica-style comma notation).
@@ -173,7 +177,7 @@ class FMUSplitterDescription:
 
     def __init__(self, handle):
         self.zip = handle
-        self.links: dict[str, dict[int, FMUSplitterLink]] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
+        self.links: dict[str, dict[int, FMUSplitterLink]] = dict((el, {}) for el in ALL_TYPES)
         self.vr_to_name: dict[str, dict[str, dict[int, dict[str, str]]]] = {} # name, fmi_type, vr <-> {name, causality}
         # Terminals declared by each candidate FMU (loaded from its
         # embedded terminalsAndIcons.xml inside the outer container zip).
@@ -209,7 +213,7 @@ class FMUSplitterDescription:
         else:
             filename = f"{directory}/modelDescription.xml"
 
-        self.vr_to_name[fmu_filename] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
+        self.vr_to_name[fmu_filename] = dict((el, {}) for el in ALL_TYPES)
         with self.zip.open(filename) as file:
             logger.debug(f"Parsing '{filename}' ({fmu_filename})")
             try:
@@ -222,7 +226,7 @@ class FMUSplitterDescription:
             fmi_type = port.fmi_type
             if fmi_type == "Enumeration":  # enumerations are handled as integers by the container
                 fmi_type = "Integer" if fmi_version == 2 else "Int32"
-            container_type = EmbeddedFMUPort.FMI_TO_CONTAINER[fmi_version].get(fmi_type)
+            container_type = FMI_TO_CONTAINER[fmi_version].get(fmi_type)
             if container_type is not None:
                 self.vr_to_name[fmu_filename][container_type][int(port["valueReference"])] = {
                     "name": port["name"],
@@ -247,23 +251,20 @@ class FMUSplitterDescription:
     @property
     def supported_fmi_types(self) -> tuple[str]:
         if self.file_format == 0 or self.file_format == 1:
-            return tuple(EmbeddedFMUPort.CONTAINER_TO_FMI[2].keys())
+            return tuple(CONTAINER_TO_FMI[2].keys())
         elif self.file_format == 2:
-            # no binary, no clock
-            return EmbeddedFMUPort.ALL_TYPES[:-2]
+            return self.FORMAT_2_TYPES
         else: #self.file_format >= 3:
-            return EmbeddedFMUPort.ALL_TYPES
+            return ALL_TYPES
 
     @property
     def supported_fmi_types_start(self) -> tuple[str]:
         if self.file_format == 0 or self.file_format == 1:
-            return tuple(EmbeddedFMUPort.CONTAINER_TO_FMI[2].keys())
+            return tuple(CONTAINER_TO_FMI[2].keys())
         elif self.file_format == 2:
-            # no binary, no clock
-            return EmbeddedFMUPort.ALL_TYPES[:-2]
+            return self.FORMAT_2_TYPES
         else: #self.file_format >= 3:
-            # no binary, no clock
-            return EmbeddedFMUPort.ALL_TYPES[:-2]
+            return START_VALUE_TYPES
 
     def parse_txt_file_header(self, file, txt_filename):
         logger.debug(f"*** HEADER ***")
@@ -274,14 +275,14 @@ class FMUSplitterDescription:
 
         flags = self.get_line(file).split(" ")
         if len(flags) == 1:
-            #self.supported_fmi_types = tuple(EmbeddedFMUPort.CONTAINER_TO_FMI[2].keys())
+            #self.supported_fmi_types = tuple(CONTAINER_TO_FMI[2].keys())
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = self.get_line(file) == "1"
             self.config["sequential"] = False
             self.file_format = 1
             logger.debug(f"File format: {self.file_format}")
         elif len(flags) >= 3:
-            #self.supported_fmi_types = EmbeddedFMUPort.ALL_TYPES
+            #self.supported_fmi_types = ALL_TYPES
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = flags[1] == "1"
             self.config["sequential"] = flags[2] == "1"

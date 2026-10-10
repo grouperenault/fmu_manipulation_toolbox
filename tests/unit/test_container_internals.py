@@ -12,8 +12,9 @@ from types import SimpleNamespace
 
 import pytest
 
-from fmu_manipulation_toolbox.container import (ArrayAggregate, FMUContainer, FMUContainerError, Link,
-                                                ValueReferenceTable)
+from fmu_manipulation_toolbox import container_types
+from fmu_manipulation_toolbox.container import (ArrayAggregate, EmbeddedFMUPort, FMUContainer, FMUContainerError,
+                                                Link, ValueReferenceTable)
 
 pytestmark = [pytest.mark.unit]
 
@@ -51,6 +52,33 @@ def test_lossy_conversions_are_prefixed():
     assert Link.CONVERSION_FUNCTION["integer32/uinteger32"] == "_D32_U32"
     assert Link.CONVERSION_FUNCTION["real64/boolean"] == "_F64_B"
     assert Link.CONVERSION_FUNCTION["boolean/real64"] == "B_F64"
+
+
+# --------------------------------------------------------------------------- #
+#                                Container types                                #
+# --------------------------------------------------------------------------- #
+def test_type_tables_are_shared():
+    """The class attributes of `EmbeddedFMUPort` and `Link` are aliases of `container_types` (compatibility)."""
+    assert EmbeddedFMUPort.ALL_TYPES is container_types.ALL_TYPES
+    assert EmbeddedFMUPort.FMI_TO_CONTAINER is container_types.FMI_TO_CONTAINER
+    assert EmbeddedFMUPort.CONTAINER_TO_FMI is container_types.CONTAINER_TO_FMI
+    assert Link.CONVERSION_FUNCTION is container_types.CONVERSION_FUNCTION
+
+
+def test_container_to_fmi_is_the_inverse_in_the_same_order():
+    """`split.py` reads the FMI-2 types of the old formats in this order."""
+    assert list(container_types.CONTAINER_TO_FMI[2].items()) == [
+        ("real64", "Real"), ("integer32", "Integer"), ("string", "String"), ("boolean", "Boolean")]
+    assert list(container_types.CONTAINER_TO_FMI[3]) == [
+        "real64", "real32", "integer8", "uinteger8", "integer16", "uinteger16", "integer32", "uinteger32",
+        "integer64", "uinteger64", "string", "boolean1", "binary", "clock"]
+    for fmi_version, table in container_types.FMI_TO_CONTAINER.items():
+        assert {v: k for k, v in container_types.CONTAINER_TO_FMI[fmi_version].items()} == table
+
+
+def test_start_value_types():
+    assert container_types.START_VALUE_TYPES == container_types.ALL_TYPES[:-2]
+    assert container_types.is_lossy("_F64_F32") and not container_types.is_lossy("F32_F64")
 
 
 # --------------------------------------------------------------------------- #
