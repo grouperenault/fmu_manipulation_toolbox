@@ -22,7 +22,8 @@ returns the result to the calling worker thread.
 import logging
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
+from collections.abc import Callable
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
 
@@ -47,8 +48,8 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
 
 
-def _count_by_causality(ports: List[Dict[str, Any]]) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
+def _count_by_causality(ports: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
     for port in ports:
         causality = port["causality"] or "unknown"
         counts[causality] = counts.get(causality, 0) + 1
@@ -70,7 +71,7 @@ class MainThreadInvoker(QObject):
 
     _invoke = Signal(object)
 
-    def __init__(self, timeout: Optional[float] = None):
+    def __init__(self, timeout: float | None = None):
         super().__init__()
         # QueuedConnection guarantees `_run` executes in this object's thread
         # (the main thread), regardless of the emitting thread.
@@ -81,7 +82,7 @@ class MainThreadInvoker(QObject):
     def _run(task: Callable[[], None]):
         task()
 
-    def call(self, fn: Callable[[], Any], timeout: Optional[float] = None) -> Any:
+    def call(self, fn: Callable[[], Any], timeout: float | None = None) -> Any:
         """Execute ``fn`` on the Qt main thread and return its result.
 
         Args:
@@ -97,7 +98,7 @@ class MainThreadInvoker(QObject):
                 modal dialog, a long build), and the operation may well still
                 be applied afterwards.
         """
-        outcome: Dict[str, Any] = {}
+        outcome: dict[str, Any] = {}
         done = threading.Event()
 
         def task():
@@ -155,7 +156,7 @@ class QtAssemblyBridge:
     def _scene(self):
         return self._window._graph.scene
 
-    def _node_by_name(self, name: str) -> Optional[NodeItem]:
+    def _node_by_name(self, name: str) -> NodeItem | None:
         target = Path(name).name
         for node in self._scene.fmu_nodes():
             if node.fmu_path.name == target:
@@ -191,14 +192,14 @@ class QtAssemblyBridge:
 
     # -- introspection -----------------------------------------------------
 
-    def list_fmus(self) -> List[str]:
+    def list_fmus(self) -> list[str]:
         return self._invoker.call(self._list_fmus_impl)
 
-    def _list_fmus_impl(self) -> List[str]:
+    def _list_fmus_impl(self) -> list[str]:
         return [node.fmu_path.name for node in self._scene.fmu_nodes()]
 
     @staticmethod
-    def _node_ports(node: NodeItem) -> Dict[str, Any]:
+    def _node_ports(node: NodeItem) -> dict[str, Any]:
         """Describe every port of *node*, all causalities included.
 
         Filtering and pagination are the server's job: this returns the whole
@@ -234,10 +235,10 @@ class QtAssemblyBridge:
             "ports": ports,
         }
 
-    def list_fmu_ports(self, fmu: str) -> Dict[str, Any]:
+    def list_fmu_ports(self, fmu: str) -> dict[str, Any]:
         return self._invoker.call(lambda: self._list_fmu_ports_impl(fmu))
 
-    def _list_fmu_ports_impl(self, fmu: str) -> Dict[str, Any]:
+    def _list_fmu_ports_impl(self, fmu: str) -> dict[str, Any]:
         node = self._node_by_name(fmu)
         if node is None:
             known = ", ".join(self._list_fmus_impl()) or "none"
@@ -247,10 +248,10 @@ class QtAssemblyBridge:
             )
         return self._node_ports(node)
 
-    def inspect_fmu_file(self, path: str) -> Dict[str, Any]:
+    def inspect_fmu_file(self, path: str) -> dict[str, Any]:
         return self._invoker.call(lambda: self._inspect_fmu_file_impl(path))
 
-    def _inspect_fmu_file_impl(self, path: str) -> Dict[str, Any]:
+    def _inspect_fmu_file_impl(self, path: str) -> dict[str, Any]:
         # Read the descriptor off-scene through a throw-away node, so the
         # inspected file is never added to the assembly.
         probe = NodeItem(Path(path))
@@ -259,10 +260,10 @@ class QtAssemblyBridge:
         finally:
             del probe
 
-    def get_assembly_json(self) -> Dict[str, Any]:
+    def get_assembly_json(self) -> dict[str, Any]:
         return self._invoker.call(self._get_assembly_json_impl)
 
-    def _get_assembly_json_impl(self) -> Dict[str, Any]:
+    def _get_assembly_json_impl(self) -> dict[str, Any]:
         assembly = self._window.create_assembly()
         if assembly is None or assembly.root is None:
             return {}
@@ -270,10 +271,10 @@ class QtAssemblyBridge:
 
     # -- mutations ---------------------------------------------------------
 
-    def add_fmu(self, path: str) -> Dict[str, Any]:
+    def add_fmu(self, path: str) -> dict[str, Any]:
         return self._invoker.call(lambda: self._add_fmu_impl(path))
 
-    def _add_fmu_impl(self, path: str) -> Dict[str, Any]:
+    def _add_fmu_impl(self, path: str) -> dict[str, Any]:
         fmu_path = Path(path)
         if not fmu_path.is_file():
             raise FileNotFoundError(f"FMU file not found: '{path}'")
@@ -294,10 +295,10 @@ class QtAssemblyBridge:
             "terminals": description["terminals"],
         }
 
-    def remove_fmu(self, name: str) -> Dict[str, Any]:
+    def remove_fmu(self, name: str) -> dict[str, Any]:
         return self._invoker.call(lambda: self._remove_fmu_impl(name))
 
-    def _remove_fmu_impl(self, name: str) -> Dict[str, Any]:
+    def _remove_fmu_impl(self, name: str) -> dict[str, Any]:
         node = self._node_by_name(name)
         if node is None:
             raise ValueError(f"FMU '{name}' is not in the assembly.")
@@ -456,12 +457,12 @@ class QtAssemblyBridge:
         tree_logger.info(f"[AI] Start value cleared on {node.fmu_path.name}/{port}")
         return f"{node.fmu_path.name}/{port}"
 
-    def set_container_options(self, options: Dict[str, Any]) -> Dict[str, Any]:
+    def set_container_options(self, options: dict[str, Any]) -> dict[str, Any]:
         return self._invoker.call(lambda: self._set_container_options_impl(options))
 
-    def _set_container_options_impl(self, options: Dict[str, Any]) -> Dict[str, Any]:
+    def _set_container_options_impl(self, options: dict[str, Any]) -> dict[str, Any]:
         root = self._window._tree.root
-        params: Optional[ContainerParameters] = root.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+        params: ContainerParameters | None = root.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
         if params is None:
             params = ContainerParameters(root.text() or "container.fmu")
             root.setData(params, _NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
@@ -561,7 +562,7 @@ class McpServerController(QObject):
     #: Emitted on the main thread when the server cannot start / has failed.
     error = Signal(str)
 
-    def __init__(self, window: "MainWindow", host: str = DEFAULT_HOST, port: Optional[int] = None):
+    def __init__(self, window: "MainWindow", host: str = DEFAULT_HOST, port: int | None = None):
         super().__init__()
         self._window = window
         self._host = host
@@ -571,12 +572,12 @@ class McpServerController(QObject):
         # The invoker must live on the Qt main thread.
         self._invoker = MainThreadInvoker()
         self._bridge = QtAssemblyBridge(window, self._invoker)
-        self._thread: Optional[_UvicornThread] = None
+        self._thread: _UvicornThread | None = None
         #: Bearer token required from clients, resolved when the server starts.
-        self._token: Optional[str] = None
+        self._token: str | None = None
 
     @property
-    def token(self) -> Optional[str]:
+    def token(self) -> str | None:
         """Token clients must present, or ``None`` when the port is open."""
         return self._token
 

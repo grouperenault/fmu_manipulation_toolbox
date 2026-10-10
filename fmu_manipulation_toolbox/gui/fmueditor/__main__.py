@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 from enum import Enum
-from typing import List, Optional, Any, Dict
+from typing import Any
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen
@@ -62,14 +62,14 @@ class OperationCollectPorts(OperationAbstract):
     read_only = True
 
     def __init__(self):
-        self.variables: List[FMUVariable] = []
+        self.variables: list[FMUVariable] = []
         # FMU metadata
         self.model_name: str = ""
         self.generation_tool: str = ""
         self.generation_date: str = ""
         self.fmu_description: str = ""
         # FMI version (2 or 3), detected while parsing
-        self.fmi_version: Optional[int] = None
+        self.fmi_version: int | None = None
         # DefaultExperiment
         self.start_time: str = ""
         self.stop_time: str = ""
@@ -113,10 +113,10 @@ class OperationCollectPorts(OperationAbstract):
 class OperationApplyEdits(OperationAbstract):
     """Applies edits (name, description, experiment) to the FMU."""
 
-    def __init__(self, edits: Dict[str, FMUVariable],
-                 start_time: Optional[str] = None,
-                 stop_time: Optional[str] = None,
-                 fmu_description: Optional[str] = None):
+    def __init__(self, edits: dict[str, FMUVariable],
+                 start_time: str | None = None,
+                 stop_time: str | None = None,
+                 fmu_description: str | None = None):
         """
         Args:
             edits: dictionary {original_name: modified FMUVariable}
@@ -223,9 +223,9 @@ class FMUVariableModel(QAbstractTableModel):
 
     MODIFIED_COLOR = QColor("#FF9800")
 
-    def __init__(self, variables: Optional[List[FMUVariable]] = None, parent=None):
+    def __init__(self, variables: list[FMUVariable] | None = None, parent=None):
         super().__init__(parent)
-        self._variables: List[FMUVariable] = variables or []
+        self._variables: list[FMUVariable] = variables or []
 
     def rowCount(self, parent=QModelIndex()) -> int:
         return len(self._variables)
@@ -289,13 +289,13 @@ class FMUVariableModel(QAbstractTableModel):
         self.dataChanged.emit(index, index, [role])
         return True
 
-    def set_variables(self, variables: List[FMUVariable]):
+    def set_variables(self, variables: list[FMUVariable]):
         self.beginResetModel()
         self._variables = variables
         self.endResetModel()
 
     @property
-    def variables(self) -> List[FMUVariable]:
+    def variables(self) -> list[FMUVariable]:
         """Direct access to the variable list."""
         return self._variables
 
@@ -502,7 +502,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
 
     # -- Slot: FMU loaded ------------------------------------------------------
 
-    def _on_fmu_loaded(self, fmu: Optional[FMU]):
+    def _on_fmu_loaded(self, fmu: FMU | None):
         if fmu is None:
             self._fmu_title.setText("")
             self._generation_tool_label.setText("")
@@ -572,7 +572,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             return
 
         # Variable modifications
-        edits: Dict[str, FMUVariable] = {}
+        edits: dict[str, FMUVariable] = {}
         for var in self._model.variables:
             if var.is_modified:
                 edits[var.original_name] = var

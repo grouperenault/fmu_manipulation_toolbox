@@ -5,7 +5,6 @@ import logging
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QStandardItem
 from PySide6.QtWidgets import QWidget, QTreeView, QVBoxLayout, QSplitter
-from typing import *
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import DetailPanelStack
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem, ConfigurationNode
@@ -65,11 +64,11 @@ class NodeTreePanel(QWidget):
         return self._detail_panel.container_detail
 
     @property
-    def pending_parent(self) -> Optional[QStandardItem]:
+    def pending_parent(self) -> QStandardItem | None:
         return self._tree_widget.pending_parent
 
     @pending_parent.setter
-    def pending_parent(self, value: Optional[QStandardItem]):
+    def pending_parent(self, value: QStandardItem | None):
         self._tree_widget.pending_parent = value
 
     def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:

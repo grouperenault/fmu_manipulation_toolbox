@@ -11,7 +11,7 @@ This guide will get you up and running with **FMU Manipulation Toolbox** in less
 
 Before you begin, ensure you have:
 
-- [x] Python 3.9 or higher
+- [x] Python 3.10 or higher
 - [x] pip (Python package manager)
 - [x] An FMU file to work with (or use our examples)
 

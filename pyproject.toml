@@ -11,7 +11,7 @@ dynamic = ["version"]
 description = """FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate, combine or \
 split Functional Mock-up Units (FMUs) without recompilation, through a GUI, a CLI or a Python API."""
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 license = "BSD-2-Clause"
 license-files = ["LICENSE.txt"]
 authors = [{ name = "Nicolas LAURENT", email = "Nicolas.LAURENT@Renault.com" }]
@@ -28,7 +28,6 @@ classifiers = [
     "Operating System :: MacOS",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -38,19 +37,18 @@ dependencies = [
     "xmlschema >= 3.3.1",
     "elementpath >= 4.4.0",
     "colorama >= 0.4.6",
-    "importlib_metadata >= 8.7.0; python_version<'3.10'",
 ]
 
 [project.optional-dependencies]
 mcp = [
     # Needed by the MCP server, both flavours: the standalone `fmutool-mcp` and the GUI assistant
-    # (`fmu_manipulation_toolbox.assistant`). Requires Python >= 3.10.
+    # (`fmu_manipulation_toolbox.assistant`).
     # Upper-bounded on the next major: FastMCP has already renamed public attributes across majors,
     # so a new one is assumed to break us until proven otherwise.
-    "fastmcp >= 4.0.3, < 5; python_version>='3.10'",
+    "fastmcp >= 4.0.3, < 5",
     # ASGI server backing the HTTP transport used by the GUI. It is pulled in transitively by fastmcp
     # today, but the assistant imports it directly, so it is declared explicitly.
-    "uvicorn >= 0.30; python_version>='3.10'",
+    "uvicorn >= 0.30",
 ]
 gui = [
     # Only needed by `fmu_manipulation_toolbox.gui.*` (fmutool-gui, fmueditor, fmucontainer-gui,

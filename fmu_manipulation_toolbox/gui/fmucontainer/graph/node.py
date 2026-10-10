@@ -2,7 +2,6 @@
 
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QPainter, QPainterPath, QPen, QBrush, QColor, QFontMetrics, QPixmap, QImage
@@ -45,22 +44,22 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.is_container_signal = False
 
         # -- Read FMU ports ---------------------------------------------------
-        self.fmu_input_names: List[str] = []
-        self.fmu_output_names: List[str] = []
-        self.fmu_terminal_names: List[str] = []
-        self.fmu_port_causality: Dict[str, str] = {}
-        self.fmu_port_type: Dict[str, str] = {}
+        self.fmu_input_names: list[str] = []
+        self.fmu_output_names: list[str] = []
+        self.fmu_terminal_names: list[str] = []
+        self.fmu_port_causality: dict[str, str] = {}
+        self.fmu_port_type: dict[str, str] = {}
         # Secondary descriptor attributes (variability, unit, description) kept
         # per port. They are not needed to draw the node, but they are what
         # makes a port listing readable for a human or a language model.
-        self.fmu_port_details: Dict[str, Dict[str, str]] = {}
-        self.fmu_start_values: Dict[str, str] = {}
-        self.user_start_values: Dict[str, str] = {}
-        self.user_exposed_outputs: Dict[str, bool] = {}
-        self.user_exposed_inputs: Dict[str, bool] = {}
-        self.fmu_step_size: Optional[str] = None
+        self.fmu_port_details: dict[str, dict[str, str]] = {}
+        self.fmu_start_values: dict[str, str] = {}
+        self.user_start_values: dict[str, str] = {}
+        self.user_exposed_outputs: dict[str, bool] = {}
+        self.user_exposed_inputs: dict[str, bool] = {}
+        self.fmu_step_size: str | None = None
         self.fmu_generator: str = ""
-        self.fmu_fmi_version: Optional[int] = None
+        self.fmu_fmi_version: int | None = None
         # FMI kind advertised by the FMU descriptor.
         self.fmu_is_model_exchange: bool = False
         self.fmu_is_cosimulation: bool = False
@@ -68,10 +67,10 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         # aggregate detected on this node (e.g. `myVector` -> `[myVector[1],
         # myVector[2], myVector[3]]`). Used to hide/mark the elements when
         # the aggregate is used in a wire.
-        self.fmu_array_aggregate_elements: Dict[str, List[str]] = {}
+        self.fmu_array_aggregate_elements: dict[str, list[str]] = {}
 
         # FMU icon (model.png), forced to NODE_ICON_SIZE x NODE_ICON_SIZE.
-        self._icon_pixmap: Optional[QPixmap] = None
+        self._icon_pixmap: QPixmap | None = None
         # Native size (px) of the source model.png, used to cap the display size.
         self._icon_native_width: int = 0
         self._icon_native_height: int = 0
@@ -85,7 +84,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self._update_title_bg_color()
 
         # -- Wires attached to this node --------------------------------------
-        self.wires: List = []  # List["WireItem"] — avoids circular import
+        self.wires: list = []  # List["WireItem"] — avoids circular import
 
         # Flags
         self.setFlags(
@@ -477,24 +476,24 @@ class ConfigurationNode(NodeItem):
 
         # port_name -> active (bool). `active` mirrors the owning container's
         # current `ts_multiplier` checkbox state.
-        self.ts_multiplier_ports: Dict[str, bool] = {}
+        self.ts_multiplier_ports: dict[str, bool] = {}
 
-        self.fmu_input_names: List[str] = []
-        self.fmu_output_names: List[str] = []
-        self.fmu_terminal_names: List[str] = []
-        self.fmu_port_causality: Dict[str, str] = {}
-        self.fmu_port_type: Dict[str, str] = {}
-        self.fmu_port_details: Dict[str, Dict[str, str]] = {}
-        self.fmu_start_values: Dict[str, str] = {}
-        self.user_start_values: Dict[str, str] = {}
-        self.user_exposed_outputs: Dict[str, bool] = {}
-        self.user_exposed_inputs: Dict[str, bool] = {}
-        self.fmu_step_size: Optional[str] = None
+        self.fmu_input_names: list[str] = []
+        self.fmu_output_names: list[str] = []
+        self.fmu_terminal_names: list[str] = []
+        self.fmu_port_causality: dict[str, str] = {}
+        self.fmu_port_type: dict[str, str] = {}
+        self.fmu_port_details: dict[str, dict[str, str]] = {}
+        self.fmu_start_values: dict[str, str] = {}
+        self.user_start_values: dict[str, str] = {}
+        self.user_exposed_outputs: dict[str, bool] = {}
+        self.user_exposed_inputs: dict[str, bool] = {}
+        self.fmu_step_size: str | None = None
         self.fmu_generator: str = ""
-        self.fmu_fmi_version: Optional[int] = None
-        self.fmu_array_aggregate_elements: Dict[str, List[str]] = {}
+        self.fmu_fmi_version: int | None = None
+        self.fmu_array_aggregate_elements: dict[str, list[str]] = {}
 
-        self.wires: List = []
+        self.wires: list = []
         self.deletable = False
         self.is_container_signal = True
 

@@ -22,7 +22,7 @@ themselves. Nothing is visible until the agent exports or builds the assembly.
 
 ## Requirements
 
-- Python **3.10+** and the optional `fastmcp` package. It is **not**
+- The optional `fastmcp` package. It is **not**
   installed by default: pull it in through the `mcp` extra of the toolbox:
 
   ```bash

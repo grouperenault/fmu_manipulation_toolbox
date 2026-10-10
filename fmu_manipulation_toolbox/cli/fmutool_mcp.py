@@ -15,7 +15,6 @@ import logging
 import secrets
 import sys
 from pathlib import Path
-from typing import Optional
 
 from .utils import close_logger, make_wide
 from ..assistant import DEFAULT_HOST, McpUnavailableError, build_server, resolve_port
@@ -27,7 +26,7 @@ from ..assistant.paths import PathPolicy, PathValidationError
 from ..version import __version__ as version
 
 
-def _resolve_cli_token(requested: Optional[str]) -> Optional[str]:
+def _resolve_cli_token(requested: str | None) -> str | None:
     """Resolve the bearer token from the command line, then the environment.
 
     ``--token generate`` is handled the same way as the environment value, so

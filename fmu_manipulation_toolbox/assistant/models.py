@@ -9,13 +9,13 @@ This module imports Pydantic, which ships with ``fastmcp``; it is therefore
 only imported when the server is actually built.
 """
 
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 #: Value kinds accepted for a start value, before conversion to the FMI
 #: textual representation.
-StartValue = Union[bool, int, float, str]
+StartValue = bool | int | float | str
 
 #: Maximum number of ports returned by a single call, to keep the answer
 #: readable and the context small on industrial FMUs.
@@ -31,62 +31,62 @@ class ContainerOptions(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    step_size: Optional[float] = Field(
+    step_size: float | None = Field(
         default=None, gt=0,
         description="Internal fixed time step, in seconds (e.g. 0.001). Leave "
                     "unset to let the toolbox derive it from the embedded FMUs.",
     )
-    mt: Optional[bool] = Field(
+    mt: bool | None = Field(
         default=None,
         description="Run the embedded FMUs in parallel threads.",
     )
-    profiling: Optional[bool] = Field(
+    profiling: bool | None = Field(
         default=None,
         description="Expose the real-time ratio of each embedded FMU during "
                     "simulation.",
     )
-    sequential: Optional[bool] = Field(
+    sequential: bool | None = Field(
         default=None,
         description="Use sequential scheduling instead of the default "
                     "Gauss-Seidel sweep. Mutually exclusive in intent with `mt`.",
     )
-    auto_link: Optional[bool] = Field(
+    auto_link: bool | None = Field(
         default=None,
         description="Automatically connect ports sharing the same name and "
                     "type. Enabled by default: explicit links are only needed "
                     "for ports whose names differ.",
     )
-    auto_input: Optional[bool] = Field(
+    auto_input: bool | None = Field(
         default=None,
         description="Automatically expose unconnected inputs as container "
                     "inputs. Enabled by default.",
     )
-    auto_output: Optional[bool] = Field(
+    auto_output: bool | None = Field(
         default=None,
         description="Automatically expose unconnected outputs as container "
                     "outputs. Enabled by default.",
     )
-    auto_parameter: Optional[bool] = Field(
+    auto_parameter: bool | None = Field(
         default=None,
         description="Also expose the parameters of the embedded FMUs.",
     )
-    auto_local: Optional[bool] = Field(
+    auto_local: bool | None = Field(
         default=None,
         description="Also expose the local variables of the embedded FMUs.",
     )
-    ts_multiplier: Optional[bool] = Field(
+    ts_multiplier: bool | None = Field(
         default=None,
         description="Add a TS_MULTIPLIER input to scale the time step at "
                     "runtime.",
     )
 
-    def changes(self) -> Dict[str, Any]:
+    def changes(self) -> dict[str, Any]:
         """Return only the options the client explicitly provided."""
         provided = self.model_dump(exclude_unset=True)
         return {key: value for key, value in provided.items() if value is not None}
 
 
-def option_reference() -> List[Dict[str, Any]]:
+def option_reference() -> list[dict[str, Any]]:
     """Describe the container options from the model's own JSON schema.
 
     Reading the schema rather than a hand-written list guarantees that the
@@ -139,12 +139,12 @@ class Port(BaseModel):
         description="'input', 'output', 'parameter', 'local', 'independent' or "
                     "'calculatedParameter'. Only 'output' ports can start a "
                     "link, only 'input' ports can end one.")
-    variability: Optional[str] = Field(
+    variability: str | None = Field(
         default=None, description="'constant', 'fixed', 'tunable', 'discrete' "
                                   "or 'continuous'.")
-    unit: Optional[str] = Field(default=None, description="Unit, when declared.")
-    start: Optional[str] = Field(default=None, description="Start value declared by the FMU.")
-    description: Optional[str] = Field(default=None, description="Free-text description.")
+    unit: str | None = Field(default=None, description="Unit, when declared.")
+    start: str | None = Field(default=None, description="Start value declared by the FMU.")
+    description: str | None = Field(default=None, description="Free-text description.")
 
 
 class FmuPorts(BaseModel):
@@ -155,14 +155,14 @@ class FmuPorts(BaseModel):
     """
 
     fmu: str
-    fmi_version: Optional[int] = None
+    fmi_version: int | None = None
     generator: str = ""
-    kinds: List[str] = Field(
+    kinds: list[str] = Field(
         default_factory=list,
         description="FMI kinds advertised by the FMU: 'CoSimulation' and/or "
                     "'ModelExchange'.")
-    terminals: List[str] = Field(default_factory=list)
-    counts: Dict[str, int] = Field(
+    terminals: list[str] = Field(default_factory=list)
+    counts: dict[str, int] = Field(
         default_factory=dict,
         description="Number of ports per causality, over the whole FMU, "
                     "regardless of the filter.")
@@ -172,7 +172,7 @@ class FmuPorts(BaseModel):
     truncated: bool = Field(
         description="True when more ports match: call again with a higher "
                     "`offset`, or narrow the filter.")
-    ports: List[Port] = Field(default_factory=list)
+    ports: list[Port] = Field(default_factory=list)
 
 
 class FmuSummary(BaseModel):
@@ -180,12 +180,12 @@ class FmuSummary(BaseModel):
 
     fmu: str = Field(description="Name to use in the other tools.")
     path: str
-    fmi_version: Optional[int] = None
+    fmi_version: int | None = None
     generator: str = ""
-    kinds: List[str] = Field(default_factory=list)
-    counts: Dict[str, int] = Field(
+    kinds: list[str] = Field(default_factory=list)
+    counts: dict[str, int] = Field(
         default_factory=dict, description="Number of ports per causality.")
-    terminals: List[str] = Field(default_factory=list)
+    terminals: list[str] = Field(default_factory=list)
 
 
 class RemovalReport(BaseModel):

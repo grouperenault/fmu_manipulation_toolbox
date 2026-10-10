@@ -5,7 +5,7 @@ Contains classes for displaying and editing wire connection mappings.
 """
 
 import csv
-from typing import *
+from collections.abc import Iterable
 
 from PySide6.QtCore import Qt, Signal, QModelIndex, QSortFilterProxyModel
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor
@@ -36,9 +36,9 @@ class _PortListSelectorDialog(QDialog):
         self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self.setGeometry(100, 100, 400, 400)
 
-        self._items: List[str] = []
-        self._causalities: Dict[str, str] = {}
-        self._aggregates: Set[str] = set()
+        self._items: list[str] = []
+        self._causalities: dict[str, str] = {}
+        self._aggregates: set[str] = set()
         self._selected_text = ""
 
         # -- Search bar --
@@ -85,12 +85,12 @@ class _PortListSelectorDialog(QDialog):
         lay.addWidget(self._list_widget, 1)
         lay.addLayout(btn_layout)
 
-    def set_items(self, items: List[str]):
+    def set_items(self, items: list[str]):
         """Set the list of available items."""
         self._items = list(items)
         self._update_list_widget()
 
-    def set_causalities(self, causalities: Dict[str, str]):
+    def set_causalities(self, causalities: dict[str, str]):
         """Set causality info for displaying parameter ports in italics."""
         self._causalities = causalities
         self._update_list_widget()
@@ -176,17 +176,17 @@ class _PortComboDelegate(QStyledItemDelegate):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._items: List[str] = []
-        self._causalities: Dict[str, str] = {}
-        self._aggregates: Set[str] = set()
+        self._items: list[str] = []
+        self._causalities: dict[str, str] = {}
+        self._aggregates: set[str] = set()
         # Ports that exist on the node but are currently invalid (e.g. an
         # inactive `ts_multiplier` port on the ConfigurationNode, GUI-only).
-        self._invalid_ports: Set[str] = set()
+        self._invalid_ports: set[str] = set()
 
-    def set_items(self, items: List[str]):
+    def set_items(self, items: list[str]):
         self._items = list(items)
 
-    def set_causalities(self, causalities: Dict[str, str]):
+    def set_causalities(self, causalities: dict[str, str]):
         """Set the causality info for ports."""
         self._causalities = causalities
 
@@ -282,8 +282,8 @@ class _WireDirectionTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._from_node: Optional[NodeItem] = None
-        self._to_node: Optional[NodeItem] = None
+        self._from_node: NodeItem | None = None
+        self._to_node: NodeItem | None = None
 
         # -- Table model (2 columns) --
         self._model = QStandardItemModel(0, 2)
@@ -354,7 +354,7 @@ class _WireDirectionTab(QWidget):
         self._input_delegate.set_invalid_ports(self._inactive_ts_multiplier_ports(to_node))
 
     @staticmethod
-    def _inactive_ts_multiplier_ports(node) -> Set[str]:
+    def _inactive_ts_multiplier_ports(node) -> set[str]:
         """Return the set of `ts_multiplier` ports on *node* (ConfigurationNode)
         that are currently inactive (owning container's checkbox unchecked)."""
         ports = getattr(node, "ts_multiplier_ports", None)
@@ -368,7 +368,7 @@ class _WireDirectionTab(QWidget):
         """Close any active cell editor to avoid commitData warnings."""
         self._table.setCurrentIndex(QModelIndex())
 
-    def mappings(self) -> List[tuple]:
+    def mappings(self) -> list[tuple]:
         """Return list of 4-tuples (from_fmu, output, to_fmu, input)."""
         if not self._from_node or not self._to_node:
             return []
@@ -382,7 +382,7 @@ class _WireDirectionTab(QWidget):
                 result.append((from_name, out_item.text(), to_name, in_item.text()))
         return result
 
-    def load_mappings(self, mappings: List[tuple]):
+    def load_mappings(self, mappings: list[tuple]):
         """Populate the table from 4-tuples (only keep rows matching this direction)."""
         self._close_editor()
         self._model.removeRows(0, self._model.rowCount())
@@ -475,9 +475,9 @@ class _TerminalComboDelegate(QStyledItemDelegate):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._items: List[str] = []
+        self._items: list[str] = []
 
-    def set_items(self, items: List[str]):
+    def set_items(self, items: list[str]):
         self._items = list(items)
 
     def createEditor(self, parent, option, index):
@@ -550,8 +550,8 @@ class _WireTerminalsTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._node_a: Optional[NodeItem] = None
-        self._node_b: Optional[NodeItem] = None
+        self._node_a: NodeItem | None = None
+        self._node_b: NodeItem | None = None
 
         # -- Table model (2 columns) --
         self._model = QStandardItemModel(0, 2)
@@ -623,7 +623,7 @@ class _WireTerminalsTab(QWidget):
     def _close_editor(self):
         self._table.setCurrentIndex(QModelIndex())
 
-    def terminal_mappings(self) -> List[tuple]:
+    def terminal_mappings(self) -> list[tuple]:
         """Return list of 4-tuples (fmu_a_name, terminal_a, fmu_b_name, terminal_b)."""
         if not self._node_a or not self._node_b:
             return []
@@ -637,7 +637,7 @@ class _WireTerminalsTab(QWidget):
                 result.append((a_name, item_a.text(), b_name, item_b.text()))
         return result
 
-    def load_terminal_mappings(self, mappings: List[tuple]):
+    def load_terminal_mappings(self, mappings: list[tuple]):
         """Populate from 4-tuples (fmu_a, terminal_a, fmu_b, terminal_b)."""
         self._close_editor()
         self._model.removeRows(0, self._model.rowCount())
@@ -696,7 +696,7 @@ class WireDetailWidget(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._wire: Optional[WireItem] = None
+        self._wire: WireItem | None = None
 
         # -- Title --
         self._name_label = QLabel()

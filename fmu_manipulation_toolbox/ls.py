@@ -2,14 +2,13 @@ import logging
 import xml.etree.ElementTree as ET
 
 from pathlib import Path
-from typing import *
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 class LayeredStandard:
-    def __init__(self, directory: Union[Path, str]):
+    def __init__(self, directory: Path | str):
         self.is_bus = False
-        self.standards: List[str] = []
+        self.standards: list[str] = []
 
         if isinstance(directory, Path):
             self.directory = directory

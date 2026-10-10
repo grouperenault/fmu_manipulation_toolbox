@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 
 from collections import Counter
 from pathlib import Path
-from typing import *
+from collections import OrderedDict
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -12,8 +12,8 @@ class Terminal:
         self.name = name
         self.kind = kind
         self.matching = matching
-        self.members:Dict[str, str] = {}
-        self.sub_terminals: Dict[str, Terminal] = {}
+        self.members:dict[str, str] = {}
+        self.sub_terminals: dict[str, Terminal] = {}
 
     def add_member(self, member_name, variable_name):
         self.members[member_name] = variable_name
@@ -27,7 +27,7 @@ class Terminal:
         else:
             return False
 
-    def connect(self, other) -> List[Tuple[str, str]]:
+    def connect(self, other) -> list[tuple[str, str]]:
         links = []
 
         for sub_terminal in self.sub_terminals.values():
@@ -51,7 +51,7 @@ class Terminal:
 
         return links
 
-    def connect_plug(self, other) -> List[Tuple[str, str]]:
+    def connect_plug(self, other) -> list[tuple[str, str]]:
         links = []
         if Counter(self.members.keys()) == Counter(other.members.keys()):
             for member_name, member in self.members.items():
@@ -62,7 +62,7 @@ class Terminal:
 
         return links
 
-    def connect_bus(self, other) -> List[Tuple[str, str]]:
+    def connect_bus(self, other) -> list[tuple[str, str]]:
         links = []
         for member_name, member in self.members.items():
             if member_name in other.members:
@@ -70,7 +70,7 @@ class Terminal:
                 links.append((member, other_member))
         return links
 
-    def connect_sequence(self, other) -> List[Tuple[str, str]]:
+    def connect_sequence(self, other) -> list[tuple[str, str]]:
         links = []
         if len(self.members) == len(other.members):
             for member, other_member in zip(self.members.values(), other.members.values()):
@@ -79,7 +79,7 @@ class Terminal:
             logger.error(f"SEQUENCE Terminal '{self.name}' does not exactly fit Terminal '{other.name}'")
         return links
 
-    def connect_transceiver(self, other) -> List[Tuple[str, str]]:
+    def connect_transceiver(self, other) -> list[tuple[str, str]]:
         return [(self.members["Tx_Data"], other.members["Rx_Data"]),
                 (self.members["Tx_Clock"], other.members["Rx_Clock"]),
                 (self.members["Rx_Data"], other.members["Tx_Data"]),
@@ -88,7 +88,7 @@ class Terminal:
 
 class Terminals:
     FILENAME = "terminalsAndIcons.xml"
-    def __init__(self, directory: Union[Path, str]):
+    def __init__(self, directory: Path | str):
         self.terminals: OrderedDict[str, Terminal] = OrderedDict()
 
         if isinstance(directory, str):

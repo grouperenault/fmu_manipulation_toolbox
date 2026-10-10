@@ -27,7 +27,7 @@ import csv
 import functools
 import logging
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple
+from collections.abc import Callable
 
 import pytest
 import xmlschema
@@ -63,7 +63,7 @@ def _fmu_id(path: Path) -> str:
     return path.relative_to(DATA_DIR).with_suffix("").as_posix().replace("/", "__")
 
 
-def _names(fmu_path: Path, tmp_path: Path) -> List[str]:
+def _names(fmu_path: Path, tmp_path: Path) -> list[str]:
     csv_filename = tmp_path / "names-for-rename.csv"
     FMU(str(fmu_path)).apply_operation(OperationSaveNamesToCSV(str(csv_filename)))
     with open(csv_filename, newline="") as file:
@@ -83,7 +83,7 @@ def _rename_from_csv(fmu_path: Path, tmp_path: Path) -> OperationAbstract:
 OperationFactory = Callable[[Path, Path], OperationAbstract]
 
 #: Operations that modify the descriptor: name -> (factory, apply_on).
-MODIFYING_CASES: Dict[str, Tuple[OperationFactory, Optional[List[str]]]] = {
+MODIFYING_CASES: dict[str, tuple[OperationFactory, list[str] | None]] = {
     "noop": (lambda fmu, tmp: OperationAbstract(), None),
     "strip_top_level": (lambda fmu, tmp: OperationStripTopLevel(), None),
     "merge_top_level": (lambda fmu, tmp: OperationMergeTopLevel(), None),
@@ -96,7 +96,7 @@ MODIFYING_CASES: Dict[str, Tuple[OperationFactory, Optional[List[str]]]] = {
 }
 
 #: Operations that must not change the meaning of the descriptor.
-READ_ONLY_CASES: Dict[str, OperationFactory] = {
+READ_ONLY_CASES: dict[str, OperationFactory] = {
     "summary": lambda fmu, tmp: OperationSummary(),
     "save_names_to_csv": lambda fmu, tmp: OperationSaveNamesToCSV(str(tmp / "dump.csv")),
     "generic_check": lambda fmu, tmp: OperationGenericCheck(),
@@ -104,7 +104,7 @@ READ_ONLY_CASES: Dict[str, OperationFactory] = {
 
 
 def _apply(fmu_path: Path, tmp_path: Path, factory: OperationFactory,
-           apply_on: Optional[List[str]] = None) -> FMU:
+           apply_on: list[str] | None = None) -> FMU:
     fmu = FMU(str(fmu_path))
     fmu.apply_operation(factory(fmu_path, tmp_path), apply_on)
     return fmu
@@ -176,13 +176,13 @@ def test_names_csv(fmu_path, tmp_path, update_refs):
                      compare=lambda ref: assert_identical_files(ref, csv_filename))
 
 
-def _normalized_summary(records: List[logging.LogRecord]) -> List[str]:
+def _normalized_summary(records: list[logging.LogRecord]) -> list[str]:
     """Summary report without the volatile lines; lists are sorted because some
     of them come from `os.listdir`, whose order depends on the file system."""
     volatile = ("| fmu filename = ", "| temporary directory = ")
     lines = [record.getMessage() for record in records if not record.getMessage().startswith(volatile)]
-    normalized: List[str] = []
-    bullets: List[str] = []
+    normalized: list[str] = []
+    bullets: list[str] = []
     for line in lines + [""]:
         if line.startswith("|  - "):
             bullets.append(line)
@@ -203,7 +203,7 @@ def test_summary(fmu_path, tmp_path, update_refs, caplog):
                      compare=lambda ref: _assert_lines(ref.read_text(encoding="utf-8").splitlines(), summary))
 
 
-def _assert_lines(expected: List[str], actual: List[str]) -> None:
+def _assert_lines(expected: list[str], actual: list[str]) -> None:
     assert actual == expected
 
 
@@ -215,7 +215,7 @@ def _schema(fmi_version: str) -> xmlschema.XMLSchema:
     return xmlschema.XMLSchema(str(XSD_DIR / f"fmi-{fmi_version}" / f"fmi{fmi_version[0]}ModelDescription.xsd"))
 
 
-def _xsd_errors(descriptor_filename: str, fmi_version: str) -> List[str]:
+def _xsd_errors(descriptor_filename: str, fmi_version: str) -> list[str]:
     return [error.reason or str(error) for error in _schema(fmi_version).iter_errors(descriptor_filename)]
 
 

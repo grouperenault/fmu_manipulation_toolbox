@@ -4,7 +4,6 @@ pure-build assertions in a test do not pay the import cost unless a simulation
 is actually requested.
 """
 from pathlib import Path
-from typing import Optional, Union
 
 import numpy as np
 from fmpy.simulation import simulate_fmu
@@ -12,7 +11,7 @@ from fmpy.simulation import simulate_fmu
 from _helpers.assertions import assert_identical_files
 
 
-def assert_simulation(filename: Union[Path, str], step_size: Optional[float] = None):
+def assert_simulation(filename: Path | str, step_size: float | None = None):
     """Simulate `filename` and compare the results CSV against its REF-* file."""
     if isinstance(filename, str):
         filename = Path(filename)
@@ -30,7 +29,7 @@ def assert_simulation(filename: Union[Path, str], step_size: Optional[float] = N
     assert_identical_files(result_filename, ref_filename)
 
 
-def assert_simulation_log(filename: Union[Path, str], step_size: Optional[float] = None):
+def assert_simulation_log(filename: Path | str, step_size: float | None = None):
     """Simulate `filename` with debug logging and compare the log against REF.
 
     The first lines of an FMI debug log carry volatile build/instance metadata

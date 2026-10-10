@@ -4,9 +4,9 @@ The server is built on top of an :class:`~fmu_manipulation_toolbox.assistant.bri
 implementation, so the very same tools can drive either the live Container
 Builder GUI or a headless assembly.
 
-The FastMCP SDK requires Python >= 3.10; it is therefore imported lazily by
-:func:`build_server` so that importing this package keeps working on Python 3.9
-(and without the optional ``mcp`` extra installed).
+The FastMCP SDK comes with the optional ``mcp`` extra; it is therefore imported
+lazily by :func:`build_server` so that importing this package keeps working
+without it.
 """
 
 import functools
@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Literal
 
 from .bridge import AssemblyBridge
 from .knowledge import (
@@ -115,7 +115,7 @@ def _is_actionable(exc: BaseException) -> bool:
             or type(exc).__module__.startswith(_TOOLBOX_PACKAGE))
 
 
-def _schema_node(schema: Dict[str, Any], node: Dict[str, Any]) -> Dict[str, Any]:
+def _schema_node(schema: dict[str, Any], node: dict[str, Any]) -> dict[str, Any]:
     """Follow `$ref` and pick the object branch of `anyOf` (optional fields) in a JSON schema."""
     while True:
         if "$ref" in node:
@@ -127,7 +127,7 @@ def _schema_node(schema: Dict[str, Any], node: Dict[str, Any]) -> Dict[str, Any]
             return node
 
 
-def _allowed_keys(schema: Dict[str, Any], path: List[str]) -> List[str]:
+def _allowed_keys(schema: dict[str, Any], path: list[str]) -> list[str]:
     """Keys accepted at `path` (e.g. `["options"]`) of a tool input schema."""
     node = _schema_node(schema, schema)
     for key in path:
@@ -135,7 +135,7 @@ def _allowed_keys(schema: Dict[str, Any], path: List[str]) -> List[str]:
     return sorted(node.get("properties", {}))
 
 
-def describe_argument_errors(tool: str, errors: List[Dict[str, Any]], schema: Dict[str, Any]) -> str:
+def describe_argument_errors(tool: str, errors: list[dict[str, Any]], schema: dict[str, Any]) -> str:
     """Turn Pydantic argument errors into one short, actionable message.
 
     FastMCP validates the arguments before the tool runs and reports the raw
@@ -239,7 +239,7 @@ async def _offload(fn, *args):
 
 
 def build_server(bridge: AssemblyBridge, name: str = "fmutool",
-                 policy: Optional[PathPolicy] = None):
+                 policy: PathPolicy | None = None):
     """Create the FastMCP server exposing ``bridge`` to an MCP client.
 
     Args:
@@ -259,11 +259,11 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         from fastmcp.exceptions import ToolError, ValidationError as FastMcpValidationError
         from fastmcp.server.middleware import Middleware
         from pydantic import Field, ValidationError as PydanticValidationError
-        from typing_extensions import Annotated
+        from typing import Annotated
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise McpUnavailableError(
             "The 'fastmcp' package is required for the AI assistant "
-            "(pip install 'fmu_manipulation_toolbox[mcp]', Python >= 3.10)."
+            "(pip install 'fmu_manipulation_toolbox[mcp]')."
         ) from exc
 
     # Imported here (rather than at module level) because it needs Pydantic,
@@ -304,10 +304,10 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
                     "'controller.fmu'. Use `list_fmus` if unsure.")]
     PortName = Annotated[str, Field(
         description="Port name exactly as reported by `list_fmu_ports`.")]
-    CausalityFilter = Annotated[Optional[List[str]], Field(
+    CausalityFilter = Annotated[list[str] | None, Field(
         description="Keep only these causalities, e.g. ['input', 'output']. "
                     "Omit to get them all.")]
-    PatternFilter = Annotated[Optional[str], Field(
+    PatternFilter = Annotated[str | None, Field(
         description="Keep only the ports whose name matches this regular "
                     "expression, e.g. '^engine_'.")]
     Offset = Annotated[int, Field(
@@ -316,11 +316,11 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     Limit = Annotated[int, Field(
         ge=1, le=1000, description="Maximum number of ports to return.")]
 
-    def _as_ports_page(description: Dict[str, Any], causality, pattern,
+    def _as_ports_page(description: dict[str, Any], causality, pattern,
                        offset: int, limit: int) -> FmuPorts:
         """Filter, count and paginate a raw bridge description."""
         ports = description.get("ports", [])
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for port in ports:
             key = port.get("causality") or "unknown"
             counts[key] = counts.get(key, 0) + 1
@@ -353,7 +353,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
     @mcp.tool(annotations=READ_ONLY)
     @_guard
-    def list_fmus() -> List[str]:
+    def list_fmus() -> list[str]:
         """List the FMUs currently in the assembly, by file name.
 
         Call this first: the canvas may already contain FMUs the user added
@@ -458,9 +458,9 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     @mcp.tool(annotations=IDEMPOTENT_WRITE)
     @_guard
     def add_links(
-        links: Annotated[List[Link], Field(
+        links: Annotated[list[Link], Field(
             description="Links to create, applied in order.", min_length=1)],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create several links in one call.
 
         Wiring two FMUs port by port costs one round-trip per link; this takes
@@ -548,7 +548,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
     @mcp.tool(annotations=IDEMPOTENT_WRITE)
     @_guard
-    def set_container_options(options: ContainerOptions) -> Dict[str, Any]:
+    def set_container_options(options: ContainerOptions) -> dict[str, Any]:
         """Update the runtime options of the root container.
 
         Only the options you provide are changed. Prefer leaving `step_size`
@@ -559,7 +559,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
     @mcp.tool(annotations=READ_ONLY)
     @_guard
-    def get_assembly_json() -> Dict[str, Any]:
+    def get_assembly_json() -> dict[str, Any]:
         """Return the whole assembly: FMUs, links, exposed ports and options.
 
         Use it to review the result with the user before building anything.
@@ -630,7 +630,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     @_guard
     def summarize_fmu(
         path: Annotated[str, Field(description="Path to an existing .fmu file.")],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Summarise an FMU: identity, capabilities, platforms, port counts.
 
         Use it to answer "what is this FMU?" without adding it anywhere. For
@@ -643,7 +643,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     @_guard
     def check_fmu(
         path: Annotated[str, Field(description="Path to an existing .fmu file.")],
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Validate an FMU against the FMI schema and the registered checkers.
 
         `compliant` reports the schema verdict only: always read `errors` as
@@ -661,7 +661,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
             description="Destination file, must end with '.csv'.")],
         overwrite: Annotated[bool, Field(
             description="Replace the file if it already exists.")] = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Export every port of an FMU to a CSV file, for bulk renaming.
 
         The `newName` column is the one to edit before feeding the file back
@@ -680,7 +680,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
             description="Destination .fmu file. The source is left untouched.")],
         overwrite: Annotated[bool, Field(
             description="Replace the output if it already exists.")] = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Rename — or drop — the ports of an FMU from a CSV mapping.
 
         An **empty** `newName` **removes** the port: say so explicitly when
@@ -708,15 +708,15 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
                         "turn 'Bus.sig' into 'Bus_sig'; trim_until: cut up to a "
                         "separator; remove_regexp/keep_only_regexp: filter ports "
                         "by name; remove_sources: drop the embedded sources.")],
-        argument: Annotated[Optional[str], Field(
+        argument: Annotated[str | None, Field(
             description="The separator or regular expression, for the "
                         "operations that need one.")] = None,
-        causality: Annotated[Optional[List[str]], Field(
+        causality: Annotated[list[str] | None, Field(
             description="Restrict the operation to these causalities, e.g. "
                         "['input', 'output'].")] = None,
         overwrite: Annotated[bool, Field(
             description="Replace the output if it already exists.")] = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Rewrite the port names of an FMU with one descriptor operation.
 
         These operations change the FMU **interface**: every consumer bound to

@@ -3,7 +3,8 @@ import logging
 import re
 import zipfile
 
-from typing import *
+from typing import Any
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from .container import EmbeddedFMUPort, Link
@@ -45,11 +46,11 @@ class FMUSplitterLink:
         # Ordered lists (with insertion-order deduplication) rather than sets:
         # this keeps the emitted JSON deterministic and reproducible, matching
         # the order in which ports are declared in container.txt.
-        self.writers: List[FMUSplitterPort] = []
-        self.readers: List[FMUSplitterPort] = []
+        self.writers: list[FMUSplitterPort] = []
+        self.readers: list[FMUSplitterPort] = []
 
     @staticmethod
-    def _append_unique(dst: List["FMUSplitterPort"], port: "FMUSplitterPort") -> None:
+    def _append_unique(dst: list["FMUSplitterPort"], port: "FMUSplitterPort") -> None:
         if port not in dst:
             dst.append(port)
 
@@ -83,7 +84,7 @@ class FMUSplitter:
         self.directory.mkdir(exist_ok=True)
         logger.info(f"Preparing to split '{self.fmu_filename}' into '{self.directory}'")
 
-    def get_dir_set(self) -> Set[str]:
+    def get_dir_set(self) -> set[str]:
         dir_set = set()
         for filename in self.filenames_list:
             parent = "/".join(filename.split("/")[:-1])
@@ -116,7 +117,7 @@ class FMUSplitter:
             json.dump(config, file, indent=2)
         logger.info(f"Container definition saved to '{config_filename}'")
 
-    def _split_fmu(self, fmu_filename: str, relative_path: str) -> Union[Dict[str, Any], str]:
+    def _split_fmu(self, fmu_filename: str, relative_path: str) -> dict[str, Any] | str:
         txt_filename = f"{relative_path}resources/container.txt"
 
         if txt_filename in self.filenames_list:
@@ -172,13 +173,13 @@ class FMUSplitterDescription:
 
     def __init__(self, handle):
         self.zip = handle
-        self.links: Dict[str, Dict[int, FMUSplitterLink]] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
-        self.vr_to_name: Dict[str, Dict[str, Dict[int, Dict[str, str]]]] = {} # name, fmi_type, vr <-> {name, causality}
+        self.links: dict[str, dict[int, FMUSplitterLink]] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
+        self.vr_to_name: dict[str, dict[str, dict[int, dict[str, str]]]] = {} # name, fmi_type, vr <-> {name, causality}
         # Terminals declared by each candidate FMU (loaded from its
         # embedded terminalsAndIcons.xml inside the outer container zip).
         # `None` means no such file was present.
-        self.terminals_by_fmu: Dict[str, Optional[Terminals]] = {}
-        self.config: Dict[str, Any] = {
+        self.terminals_by_fmu: dict[str, Terminals | None] = {}
+        self.config: dict[str, Any] = {
             "auto_input": False,
             "auto_output": False,
             "auto_parameter": False,
@@ -186,10 +187,10 @@ class FMUSplitterDescription:
             "auto_link": False,
         }
         self.file_format = 1
-        self.pending_conversions: List[tuple] = []  # (vr_from, vr_to, conversion_name)
-        self.local_to_vr: Dict[str, Dict[int, int]] = {}  # fmi_type → (local_slot → container_vr)
+        self.pending_conversions: list[tuple] = []  # (vr_from, vr_to, conversion_name)
+        self.local_to_vr: dict[str, dict[int, int]] = {}  # fmi_type → (local_slot → container_vr)
         # fmu_filename → fmi_type → basename → frozenset of element names
-        self.basename_map: Dict[str, Dict[str, Dict[str, FrozenSet[str]]]] = {}
+        self.basename_map: dict[str, dict[str, dict[str, frozenset[str]]]] = {}
 
 
     @staticmethod
@@ -244,7 +245,7 @@ class FMUSplitterDescription:
         self._build_basename_map(fmu_filename)
 
     @property
-    def supported_fmi_types(self) -> Tuple[str]:
+    def supported_fmi_types(self) -> tuple[str]:
         if self.file_format == 0 or self.file_format == 1:
             return tuple(EmbeddedFMUPort.CONTAINER_TO_FMI[2].keys())
         elif self.file_format == 2:
@@ -254,7 +255,7 @@ class FMUSplitterDescription:
             return EmbeddedFMUPort.ALL_TYPES
 
     @property
-    def supported_fmi_types_start(self) -> Tuple[str]:
+    def supported_fmi_types_start(self) -> tuple[str]:
         if self.file_format == 0 or self.file_format == 1:
             return tuple(EmbeddedFMUPort.CONTAINER_TO_FMI[2].keys())
         elif self.file_format == 2:
@@ -578,9 +579,9 @@ class FMUSplitterDescription:
         """For each fmi_type, scan variable names and build
         ``basename → frozenset(element_names)`` for variables that follow the
         FMI-2 array-element notation ``SomeName[k]``."""
-        bmap: Dict[str, Dict[str, FrozenSet[str]]] = {}
+        bmap: dict[str, dict[str, frozenset[str]]] = {}
         for fmi_type, vr_dict in self.vr_to_name[fmu_filename].items():
-            type_map: Dict[str, Set[str]] = {}
+            type_map: dict[str, set[str]] = {}
             for vr, info in vr_dict.items():
                 m = self._ARRAY_ELEM_RE.match(info["name"])
                 if m:
@@ -588,7 +589,7 @@ class FMUSplitterDescription:
             bmap[fmi_type] = {base: frozenset(elems) for base, elems in type_map.items()}
         self.basename_map[fmu_filename] = bmap
 
-    def _try_aggregate(self, ports: List['FMUSplitterPort']) -> List['FMUSplitterPort']:
+    def _try_aggregate(self, ports: list['FMUSplitterPort']) -> list['FMUSplitterPort']:
         """If all ports in *ports* belong to the same FMU and their names
         exactly match the element-name set of a known array basename for that
         FMU, return a singleton list containing the basename port. Otherwise,
@@ -636,7 +637,7 @@ class FMUSplitterDescription:
             return
 
         # Map (fmu_filename, variable_name) → owning terminal object.
-        var_to_terminal: Dict[Tuple[str, str], Terminal] = {}
+        var_to_terminal: dict[tuple[str, str], Terminal] = {}
         for fmu_filename, terms in self.terminals_by_fmu.items():
             if not terms:
                 continue
@@ -647,10 +648,10 @@ class FMUSplitterDescription:
         if not var_to_terminal:
             return
 
-        links: List[List[str]] = self.config["link"]
+        links: list[list[str]] = self.config["link"]
         # Group link indices by unordered (fmu, terminal_name) pair.
         # Keep the canonical order stable for deterministic output.
-        grouped: Dict[Tuple[str, str, str, str], List[int]] = {}
+        grouped: dict[tuple[str, str, str, str], list[int]] = {}
         for idx, link in enumerate(links):
             fmu_from, port_from, fmu_to, port_to = link
             if fmu_from == fmu_to:
@@ -671,8 +672,8 @@ class FMUSplitterDescription:
         if not grouped:
             return
 
-        removed: Set[int] = set()
-        added: List[List[str]] = []
+        removed: set[int] = set()
+        added: list[list[str]] = []
         for key, idx_list in grouped.items():
             for idx in idx_list:
                 removed.add(idx)
@@ -684,11 +685,11 @@ class FMUSplitterDescription:
         self.config["link"] = [l for i, l in enumerate(links) if i not in removed]
         self.config["link"].extend(added)
 
-    def _terminal_variables(self) -> Set[Tuple[str, str]]:
+    def _terminal_variables(self) -> set[tuple[str, str]]:
         """Return the set of ``(fmu_filename, variable_name)`` pairs that
         are declared as members (direct or through sub-terminals) of some
         terminal in any candidate FMU."""
-        result: Set[Tuple[str, str]] = set()
+        result: set[tuple[str, str]] = set()
         for fmu_filename, terms in self.terminals_by_fmu.items():
             if not terms:
                 continue

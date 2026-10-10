@@ -100,7 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest testable and newest Python (test tooling such as pytest>=9 needs >=3.10).
+        # Oldest supported and newest Python.
         python-version: ["3.10", "3.13"]
     steps:
     - uses: actions/checkout@v5
@@ -158,7 +158,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest testable and newest Python (test tooling such as pytest>=9 needs >=3.10).
+        # Oldest supported and newest Python.
         python-version: ["3.10", "3.13"]
     steps:
     - uses: actions/checkout@v5
@@ -254,7 +254,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest testable and newest Python (test tooling such as pytest>=9 needs >=3.10).
+        # Oldest supported and newest Python.
         python-version: ["3.10", "3.13"]
     steps:
     - uses: actions/checkout@v5
@@ -292,9 +292,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-latest, macos-latest]
-        # Minimum and maximum supported Python runtimes. The package itself must
-        # run on 3.9 even though the test tooling (pytest>=9) requires >=3.10.
-        python-version: ["3.9", "3.13"]
+        # Oldest supported and newest Python.
+        python-version: ["3.10", "3.13"]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/download-artifact@v5

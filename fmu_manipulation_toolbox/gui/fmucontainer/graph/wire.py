@@ -1,7 +1,6 @@
 """WireItem and helpers — connections between nodes in the graph."""
 
 import math
-from typing import List, Optional
 
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QPainterPath, QPainterPathStroker
@@ -92,12 +91,12 @@ class WireItem(QGraphicsPathItem):
         node_a.wires.append(self)
         node_b.wires.append(self)
 
-        self._waypoints: List[QPointF] = []
-        self._handles: List[_WaypointHandle] = []
-        self.mappings: List[tuple] = []
-        self.terminal_mappings: List[tuple] = []
+        self._waypoints: list[QPointF] = []
+        self._handles: list[_WaypointHandle] = []
+        self.mappings: list[tuple] = []
+        self.terminal_mappings: list[tuple] = []
         # Direction highlight from WireDetails tab: None, 'a_to_b', 'b_to_a', 'terminals'
-        self._highlight_mode: Optional[str] = None
+        self._highlight_mode: str | None = None
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -176,7 +175,7 @@ class WireItem(QGraphicsPathItem):
 
     # -- Highlight (from WireDetails tab selection) ---------------------------
 
-    def set_highlight_mode(self, mode: Optional[str]):
+    def set_highlight_mode(self, mode: str | None):
         """Set direction indicator shown on the wire.
 
         *mode* is one of: None, 'a_to_b', 'b_to_a', 'terminals'.
@@ -215,7 +214,7 @@ class WireItem(QGraphicsPathItem):
 
     # -- All points of the polyline -------------------------------------------
 
-    def _all_points(self) -> List[QPointF]:
+    def _all_points(self) -> list[QPointF]:
         """Return [anchor_a, wp0, wp1, …, anchor_b] in scene coords."""
         cb = self.node_b.center_scene_pos()
         ca = self.node_a.center_scene_pos()

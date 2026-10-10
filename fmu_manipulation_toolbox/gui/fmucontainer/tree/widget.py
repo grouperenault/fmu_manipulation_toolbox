@@ -9,7 +9,6 @@ from PySide6.QtGui import QStandardItem, QIcon
 from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog,
                                QMenu, QAbstractItemView)
 from pathlib import Path
-from typing import *
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, ConfigurationNode
@@ -39,7 +38,7 @@ class NodeTreeWidget(QWidget):
     def __init__(self, graph_widget, parent=None):
         super().__init__(parent)
         self._graph = graph_widget
-        self._pending_parent: Optional[QStandardItem] = None
+        self._pending_parent: QStandardItem | None = None
         resources_dir = Path(__file__).resolve().parent.parent.parent.parent / "resources"
         self._icon_container = QIcon(str(resources_dir / "container.png"))
         self._icon_fmu = QIcon(str(resources_dir / "icon_fmu.png"))
@@ -98,11 +97,11 @@ class NodeTreeWidget(QWidget):
         return self._tree
 
     @property
-    def pending_parent(self) -> Optional[QStandardItem]:
+    def pending_parent(self) -> QStandardItem | None:
         return self._pending_parent
 
     @pending_parent.setter
-    def pending_parent(self, value: Optional[QStandardItem]):
+    def pending_parent(self, value: QStandardItem | None):
         self._pending_parent = value
 
     def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
@@ -229,7 +228,7 @@ class NodeTreeWidget(QWidget):
                 return True
         return False
 
-    def _find_tree_item_by_uid(self, parent: QStandardItem, uid: str) -> Optional[QStandardItem]:
+    def _find_tree_item_by_uid(self, parent: QStandardItem, uid: str) -> QStandardItem | None:
         """Recursively find a Node item by UID."""
         for r in range(parent.rowCount()):
             child = parent.child(r, 0)
@@ -504,7 +503,7 @@ class NodeTreeWidget(QWidget):
             else:
                 self._remove_scene_node(child.data(_NodeTreeModel.ROLE_NODE_UID))
 
-    def _remove_scene_node(self, uid: Optional[str]):
+    def _remove_scene_node(self, uid: str | None):
         """Remove the matching node from the graphics scene."""
         if uid is None:
             return

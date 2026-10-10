@@ -19,7 +19,7 @@ Two design points are worth stating, because they shape the whole module:
 import logging
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..checker import get_checkers
 from ..operations import (
@@ -55,7 +55,7 @@ def _captured_logs(level: int = logging.DEBUG):
     it would return an empty answer while the interesting part scrolled past
     on the server's own output.
     """
-    records: List[logging.LogRecord] = []
+    records: list[logging.LogRecord] = []
 
     class _Collector(logging.Handler):
         def emit(self, record):
@@ -75,7 +75,7 @@ def _captured_logs(level: int = logging.DEBUG):
         logger.setLevel(previous_level)
 
 
-def _messages(records: List[logging.LogRecord], *levels: int) -> List[str]:
+def _messages(records: list[logging.LogRecord], *levels: int) -> list[str]:
     """Render the selected records, tolerating a malformed logging call.
 
     A ``logger.error(a, b)`` where ``b`` was meant as context (not as a
@@ -94,7 +94,7 @@ def _messages(records: List[logging.LogRecord], *levels: int) -> List[str]:
     return messages
 
 
-def summarize_fmu(path: Path) -> Dict[str, Any]:
+def summarize_fmu(path: Path) -> dict[str, Any]:
     """Summarise an FMU: identity, capabilities, platforms and port counts.
 
     Args:
@@ -109,7 +109,7 @@ def summarize_fmu(path: Path) -> Dict[str, Any]:
     with _captured_logs(logging.INFO) as records, FMU(str(path)) as fmu:
         fmu.apply_operation(operation)
 
-    summary: Dict[str, Any] = {
+    summary: dict[str, Any] = {
         "fmu": path.name,
         "fmi_version": operation.fmi_version,
         "counts": dict(operation.nb_port_per_causality),
@@ -123,7 +123,7 @@ def summarize_fmu(path: Path) -> Dict[str, Any]:
     return summary
 
 
-def check_fmu(path: Path) -> Dict[str, Any]:
+def check_fmu(path: Path) -> dict[str, Any]:
     """Validate an FMU against the FMI schema and the registered checkers.
 
     Args:
@@ -161,7 +161,7 @@ def check_fmu(path: Path) -> Dict[str, Any]:
     }
 
 
-def dump_ports_csv(fmu_path: Path, csv_path: Path) -> Dict[str, Any]:
+def dump_ports_csv(fmu_path: Path, csv_path: Path) -> dict[str, Any]:
     """Write every port of an FMU to a CSV file.
 
     The file has one row per port, with columns ``name``, ``newName``,
@@ -185,7 +185,7 @@ def dump_ports_csv(fmu_path: Path, csv_path: Path) -> Dict[str, Any]:
     return {"fmu": fmu_path.name, "csv": str(csv_path), "ports": max(len(rows) - 1, 0)}
 
 
-def rename_ports_from_csv(fmu_path: Path, csv_path: Path, output_path: Path) -> Dict[str, Any]:
+def rename_ports_from_csv(fmu_path: Path, csv_path: Path, output_path: Path) -> dict[str, Any]:
     """Rename (or drop) the ports of an FMU according to a CSV mapping.
 
     The CSV is the one produced by :func:`dump_ports_csv`: column 0 is the
@@ -219,8 +219,8 @@ def rename_ports_from_csv(fmu_path: Path, csv_path: Path, output_path: Path) -> 
 
 
 def apply_operation(fmu_path: Path, output_path: Path, operation: str,
-                    argument: Optional[str] = None,
-                    causality: Optional[List[str]] = None) -> Dict[str, Any]:
+                    argument: str | None = None,
+                    causality: list[str] | None = None) -> dict[str, Any]:
     """Apply one descriptor operation to an FMU and write the result.
 
     Args:

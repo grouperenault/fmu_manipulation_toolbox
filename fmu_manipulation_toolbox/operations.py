@@ -9,7 +9,7 @@ import weakref
 import xml.etree.ElementTree as ET
 import zipfile
 import hashlib
-from typing import *
+from collections.abc import MutableMapping
 
 from .model_description import ModelDescription, ModelDescriptionError, ModelVariable
 from .terminals import Terminals
@@ -57,8 +57,8 @@ class FMU:
         # Unlike `__del__`, a finalizer also runs at interpreter exit, and never on a half-built object.
         self._finalizer = weakref.finalize(self, shutil.rmtree, self.tmp_directory, ignore_errors=True)
         self.descriptor_filename = os.path.join(self.tmp_directory, "modelDescription.xml")
-        self._model_description: Optional[ModelDescription] = None
-        self._descriptor_signature: Optional[Tuple[int, int]] = None
+        self._model_description: ModelDescription | None = None
+        self._descriptor_signature: tuple[int, int] | None = None
 
         try:
             self._extract()
@@ -99,7 +99,7 @@ class FMU:
             self._descriptor_signature = signature
         return self._model_description
 
-    def _signature(self) -> Tuple[int, int]:
+    def _signature(self) -> tuple[int, int]:
         stat = os.stat(self.descriptor_filename)
         return stat.st_mtime_ns, stat.st_size
 
@@ -197,11 +197,11 @@ class FMUPort(ModelVariable):
         ElementTree implementation; it is deprecated.
     """
 
-    def __init__(self, element: Optional[ET.Element] = None, fmi_version: int = 0):
+    def __init__(self, element: ET.Element | None = None, fmi_version: int = 0):
         super().__init__(element, fmi_version)
-        self._detached_levels: Optional[List[Dict[str, str]]] = None
-        self._detached_type: Optional[str] = None
-        self._detached_dimensions: List[Tuple[str, int]] = []
+        self._detached_levels: list[dict[str, str]] | None = None
+        self._detached_type: str | None = None
+        self._detached_dimensions: list[tuple[str, int]] = []
         if element is None:
             warnings.warn("FMUPort() without element is deprecated: ports are views on the descriptor tree",
                           DeprecationWarning, stacklevel=2)
@@ -213,7 +213,7 @@ class FMUPort(ModelVariable):
         return self._detached_levels is not None
 
     @property
-    def fmi_type(self) -> Optional[str]:
+    def fmi_type(self) -> str | None:
         return self._detached_type if self.detached else ModelVariable.fmi_type.fget(self)
 
     @fmi_type.setter
@@ -224,17 +224,17 @@ class FMUPort(ModelVariable):
             ModelVariable.fmi_type.fset(self, fmi_type)
 
     @property
-    def attrs_list(self) -> List[MutableMapping[str, str]]:
+    def attrs_list(self) -> list[MutableMapping[str, str]]:
         return self._detached_levels if self.detached else ModelVariable.attrs_list.fget(self)
 
     @property
-    def dimensions(self) -> List[Tuple[str, int]]:
+    def dimensions(self) -> list[tuple[str, int]]:
         if self.detached:
             return [] if self._detached_dimensions == [("start", 1)] else self._detached_dimensions
         return ModelVariable.dimensions.fget(self)
 
     @dimensions.setter
-    def dimensions(self, attrs: Dict[str, str]):
+    def dimensions(self, attrs: dict[str, str]):
         """Deprecated: add the attributes of one `<Dimension>` element."""
         warnings.warn("Setting FMUPort.dimensions is deprecated", DeprecationWarning, stacklevel=2)
         if self.detached:
@@ -245,7 +245,7 @@ class FMUPort(ModelVariable):
             position = list(self.element).index(existing[-1]) + 1 if existing else 0
             self.element.insert(position, ET.Element("Dimension", dict(attrs)))
 
-    def push_attrs(self, attrs: Dict[str, str]):
+    def push_attrs(self, attrs: dict[str, str]):
         """Deprecated: add an attribute level to a detached port.
 
         Args:
@@ -313,13 +313,13 @@ class Manipulation:
     def __init__(self, operation, fmu):
         self.operation = operation
         self.fmu = fmu
-        self.model_description: Optional[ModelDescription] = None
+        self.model_description: ModelDescription | None = None
         self.apply_on = None
 
         self.current_port_number: int = 0
-        self.port_translation: List[Optional[int]] = []
-        self.port_names_list: List[str] = []
-        self.port_removed_vr: Set[str] = set()
+        self.port_translation: list[int | None] = []
+        self.port_names_list: list[str] = []
+        self.port_removed_vr: set[str] = set()
 
         self.operation.set_fmu(fmu)
 
@@ -381,7 +381,7 @@ class Manipulation:
                 except ManipulationSkipTag:
                     md.root.remove(element)
 
-    def handle_ports(self, md: ModelDescription) -> List[ET.Element]:
+    def handle_ports(self, md: ModelDescription) -> list[ET.Element]:
         """Call `port_attrs` on every port. Returns the elements to remove."""
         removed = []
         for element in md.variables():
@@ -410,7 +410,7 @@ class Manipulation:
 
     # ------------------------------------------------------- Conformity checks
     @staticmethod
-    def all_names(md: ModelDescription) -> List[str]:
+    def all_names(md: ModelDescription) -> list[str]:
         """Names of variables and FMI 3.0 aliases, which must all be unique."""
         names = [variable.get("name") for variable in md.variables()]
         if md.fmi_version == 3:
@@ -418,7 +418,7 @@ class Manipulation:
         return names
 
     @classmethod
-    def duplicate_names(cls, md: ModelDescription) -> Set[str]:
+    def duplicate_names(cls, md: ModelDescription) -> set[str]:
         seen, duplicates = set(), set()
         for name in cls.all_names(md):
             if name in seen:
@@ -426,8 +426,8 @@ class Manipulation:
             seen.add(name)
         return duplicates
 
-    def check_result(self, md: ModelDescription, variables: List[ET.Element], removed: List[ET.Element],
-                     names_before: Set[str]):
+    def check_result(self, md: ModelDescription, variables: list[ET.Element], removed: list[ET.Element],
+                     names_before: set[str]):
         """Refuse a result that breaks the FMI standard (only for what the operation changed)."""
         if variables and len(removed) == len(variables):
             raise OperationError("The operation would remove every variable: <ModelVariables> cannot be empty.")
@@ -453,8 +453,8 @@ class Manipulation:
                                  (" ..." if len(duplicates) > 10 else ""))
 
     @staticmethod
-    def broken_references(md: ModelDescription, variables: List[ET.Element],
-                          removed: List[ET.Element]) -> List[str]:
+    def broken_references(md: ModelDescription, variables: list[ET.Element],
+                          removed: list[ET.Element]) -> list[str]:
         """References from kept variables to removed ones, as human-readable strings."""
         if not removed:
             return []
@@ -522,7 +522,7 @@ class Manipulation:
             self.remove_children(structure, skipped)
 
     @staticmethod
-    def remove_children(parent: ET.Element, children: List[ET.Element]):
+    def remove_children(parent: ET.Element, children: list[ET.Element]):
         """Remove several children at once (`Element.remove` is linear: one call per child is quadratic)."""
         if children:
             removed = {id(child) for child in children}
@@ -561,7 +561,7 @@ class Manipulation:
             self.set_dependencies(attrs, kept)
 
     @staticmethod
-    def dependency_pairs(attrs) -> List[Tuple[str, Optional[str]]]:
+    def dependency_pairs(attrs) -> list[tuple[str, str | None]]:
         """`(dependency, dependencyKind)` pairs; the kind is `None` without `dependenciesKind`."""
         dependencies = attrs['dependencies'].split(' ')
         if 'dependenciesKind' in attrs:
@@ -569,7 +569,7 @@ class Manipulation:
         return [(dependency, None) for dependency in dependencies]
 
     @staticmethod
-    def set_dependencies(attrs, kept: List[Tuple[str, Optional[str]]]):
+    def set_dependencies(attrs, kept: list[tuple[str, str | None]]):
         """Write back filtered `dependencies` (and `dependenciesKind`), or drop them if empty."""
         if kept:
             attrs['dependencies'] = " ".join(dependency for dependency, _ in kept)
@@ -611,7 +611,7 @@ class OperationAbstract:
     """
 
     fmu: FMU = None
-    model_description: Optional[ModelDescription] = None
+    model_description: ModelDescription | None = None
     read_only: bool = False
 
     def set_fmu(self, fmu):
@@ -656,7 +656,7 @@ class OperationAbstract:
         """
         pass
 
-    def model_structure_attrs(self, section: str, attrs: Dict[str, str]):
+    def model_structure_attrs(self, section: str, attrs: dict[str, str]):
         """Called for each entry of the `<ModelStructure>` section.
 
         For FMI 2.0, `section` is the name of the enclosing sub-section

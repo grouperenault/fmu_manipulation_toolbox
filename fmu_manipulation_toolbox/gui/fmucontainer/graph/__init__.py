@@ -15,7 +15,7 @@ from .constants import (
     FONT_TITLE, FONT_PORT, FONT_PORT_PARAMETER,
 )
 from .node import NodeItem, ConfigurationNode
-from .wire import WireItem, _DragWireItem
+from .wire import WireItem
 from .scene import NodeGraphScene
 from .view import NodeGraphView
 from .widget import NodeGraphWidget

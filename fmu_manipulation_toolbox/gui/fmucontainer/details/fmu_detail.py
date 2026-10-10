@@ -4,7 +4,6 @@ FMU detail panel for FMU container builder.
 Contains classes for displaying and editing FMU node details (start values, output ports).
 """
 
-from typing import *
 
 from PySide6.QtCore import Qt, Signal, QSortFilterProxyModel
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor
@@ -80,7 +79,7 @@ class FMUDetailWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._current_node: Optional[NodeItem] = None
+        self._current_node: NodeItem | None = None
 
         self._name_label = QLabel()
         font = self._name_label.font()

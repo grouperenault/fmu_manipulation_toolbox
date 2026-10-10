@@ -2,6 +2,9 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* CHANGED (**breaking**): Python 3.10 or higher is required: Python 3.9 reached its end of life in
+         October 2025. On Python 3.9, pip installs 1.9.4.2, the last release supporting it. The
+         `importlib_metadata` dependency is removed.
 * CHANGED: packaging: the package is described by `pyproject.toml` (`setup.py` and `setup.cfg` are removed)
          and its version comes from the git tags (setuptools-scm). The version is displayed without
          the `V` prefix of the tags: `1.9.4.2` instead of `V1.9.4.2`.

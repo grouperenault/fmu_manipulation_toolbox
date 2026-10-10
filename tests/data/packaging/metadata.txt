@@ -20,18 +20,16 @@ Classifier: Operating System :: POSIX :: Linux
 Classifier: Operating System :: MacOS
 Classifier: Programming Language :: Python :: 3
 Classifier: Programming Language :: Python :: 3 :: Only
-Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3.13
-Requires-Python: >=3.9
+Requires-Python: >=3.10
 Requires-Dist: xmlschema>=3.3.1
 Requires-Dist: elementpath>=4.4.0
 Requires-Dist: colorama>=0.4.6
-Requires-Dist: importlib_metadata>=8.7.0; python_version < "3.10"
-Requires-Dist: fastmcp<5,>=4.0.3; python_version >= "3.10" and extra == "mcp"
-Requires-Dist: uvicorn>=0.30; python_version >= "3.10" and extra == "mcp"
+Requires-Dist: fastmcp<5,>=4.0.3; extra == "mcp"
+Requires-Dist: uvicorn>=0.30; extra == "mcp"
 Requires-Dist: PySide6>=6.8.0; extra == "gui"
 Requires-Dist: PySide6>=6.8.0; extra == "test"
 Requires-Dist: pytest>=9.0.3; extra == "test"

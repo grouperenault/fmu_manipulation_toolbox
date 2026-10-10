@@ -9,7 +9,6 @@ import asyncio
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -44,7 +43,7 @@ def _run(coro):
     return asyncio.run(coro)
 
 
-def _client(*extra_args, root: Optional[Path] = None):
+def _client(*extra_args, root: Path | None = None):
     """An MCP client bound to a freshly spawned stdio server."""
     args = ["-m", MODULE, "--transport", "stdio", *extra_args]
     if root is not None:
