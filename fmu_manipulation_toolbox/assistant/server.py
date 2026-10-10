@@ -17,6 +17,7 @@ import os
 import re
 from typing import Any, Literal
 
+from . import analysis
 from .bridge import AssemblyBridge
 from .knowledge import (
     FMI_CONVENTIONS, USAGE_GUIDE, build_container_prompt,
@@ -338,11 +339,11 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     PatternFilter = Annotated[str | None, Field(
         description="Keep only the ports whose name matches this regular "
                     "expression, e.g. '^engine_'.")]
+    # Shared by the port listings and the sections of `get_assembly_json`.
     Offset = Annotated[int, Field(
-        ge=0, description="Index of the first port to return, for paging "
-                          "through a large FMU.")]
+        ge=0, description="First item to return, for paging.")]
     Limit = Annotated[int, Field(
-        ge=1, le=MAX_PORT_LIMIT, description="Maximum number of ports to return.")]
+        ge=1, le=MAX_PORT_LIMIT, description="Most items to return.")]
 
     def _as_ports_page(description: dict[str, Any], causality, pattern,
                        offset: int, limit: int) -> FmuPorts:
@@ -567,14 +568,21 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
     @mcp.tool(annotations=READ_ONLY)
     @_guard
-    def get_assembly_json() -> dict[str, Any]:
-        """Return the whole assembly: FMUs, links, exposed ports and options.
+    def get_assembly_json(
+        node: Annotated[str | None, Field(
+            description="Container name; the root if omitted.")] = None,
+        section: Annotated[Literal["input", "output", "link", "start", "drop"] | None, Field(
+            description="Section to page through.")] = None,
+        offset: Offset = 0,
+        limit: Limit = DEFAULT_PORT_LIMIT,
+    ) -> dict[str, Any]:
+        """Return the assembly: FMUs, links, exposed ports and options.
 
-        Use it to review the result with the user before building anything.
-        Note that FMUs are referenced here by *path*, whereas the other tools
-        designate them by name.
+        Review it with the user before building. A large assembly comes one
+        container (`node`) at a time; if `truncated`, page its sections with
+        `section`.
         """
-        return bridge.get_assembly_json()
+        return analysis.assembly_page(bridge.get_assembly_json(), node, section, offset, limit)
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
@@ -749,8 +757,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     @mcp.resource("assembly://current")
     @_guard
     def current_assembly() -> str:
-        """The current assembly description (JSON)."""
-        return json.dumps(bridge.get_assembly_json(), indent=2)
+        """The current assembly description (JSON), bounded like `get_assembly_json`."""
+        return json.dumps(analysis.assembly_page(bridge.get_assembly_json()))
 
     @mcp.resource("fmu://{name}/ports")
     @_guard

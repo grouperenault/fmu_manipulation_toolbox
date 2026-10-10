@@ -88,14 +88,11 @@ def test_tool_definitions(texts):
     assert len(texts["definitions"]) <= DEFINITIONS_BUDGET
 
 
-OVER_BUDGET: dict[str, str] = {
-    "get_assembly_json-large": "get_assembly_json is not bounded (docs/local/assembly_analysis.md, phase 2)",
-    "resource assembly://current-large": "assembly://current is not bounded (docs/local/assembly_analysis.md, "
-                                         "phase 2)",
-}
+OVER_BUDGET: dict[str, str] = {}
 RESULTS = ["add_fmu", "list_fmu_ports", "inspect_fmu_file", "summarize_fmu", "check_fmu", "check_fmu-broken",
            "get_assembly_json", "resource fmu://large.fmu/ports", "get_assembly_json-large",
-           "resource assembly://current-large"]
+           "get_assembly_json-large vehicle.fmu", "get_assembly_json-large level2.fmu",
+           "get_assembly_json-large link page", "resource assembly://current-large"]
 
 
 @pytest.mark.parametrize("name", [

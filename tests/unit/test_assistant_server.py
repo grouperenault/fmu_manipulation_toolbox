@@ -52,7 +52,7 @@ EXPECTED_TOOLS = {
     "set_start_value": ["fmu", "port", "value"],
     "unset_start_value": ["fmu", "port"],
     "set_container_options": ["options"],
-    "get_assembly_json": [],
+    "get_assembly_json": ["node", "section", "offset", "limit"],
     "save_as_json": ["path", "overwrite"],
     "save_as_fmu": ["path", "fmi_version", "datalog", "overwrite"],
     # Single-FMU tools: they never touch the assembly (audit I8).
@@ -612,6 +612,50 @@ def test_current_assembly_resource_serves_json():
             return await client.read_resource("assembly://current")
 
     assert json.loads(_run(scenario())[0].text)["fmu"] == ["a.fmu"]
+
+
+class NestedBridge(FakeBridge):
+    """Serves the nested assembly of `tests/data/containers/arch`, its root FMUs designated by path."""
+
+    def __init__(self, assembly):
+        super().__init__()
+        self.assembly = assembly
+
+    def get_assembly_json(self):
+        return self.assembly
+
+
+def test_assembly_is_paged_by_container_and_section(data_dir):
+    """docs/local/assembly_analysis.md, phase 2: a large assembly is read one container, then one section, at a
+    time; the FMUs are designated by name, as in the other tools."""
+    assembly = json.loads((data_dir / "containers" / "arch" / "nested.json").read_text())
+    assembly["fmu"] = [f"/models/{fmu}" for fmu in assembly["fmu"]]
+
+    async def scenario():
+        async with fastmcp.Client(build_server(NestedBridge(assembly))) as client:
+            whole = (await client.call_tool("get_assembly_json", {})).data
+            level = (await client.call_tool("get_assembly_json", {"node": "level1.fmu"})).data
+            page = (await client.call_tool("get_assembly_json", {"node": "level1.fmu", "section": "input",
+                                                                 "limit": 2})).data
+            resource = json.loads((await client.read_resource("assembly://current"))[0].text)
+            return whole, level, page, resource
+
+    whole, level, page, resource = _run(scenario())
+    assert whole["fmu"] == ["fmu0a.fmu", "fmu0b.fmu"]
+    assert resource == whole
+    assert level["name"] == "level1.fmu" and level["counts"]["link"] == 4
+    assert page["total"] == 3 and page["returned"] == 2 and page["truncated"] is True
+
+
+def test_an_unknown_container_is_reported(data_dir):
+    assembly = json.loads((data_dir / "containers" / "arch" / "nested.json").read_text())
+
+    async def scenario():
+        async with fastmcp.Client(build_server(NestedBridge(assembly))) as client:
+            await client.call_tool("get_assembly_json", {"node": "nope.fmu"})
+
+    with pytest.raises(ToolError, match="No container is named 'nope.fmu'"):
+        _run(scenario())
 
 
 # --------------------------------------------------------------------------- #

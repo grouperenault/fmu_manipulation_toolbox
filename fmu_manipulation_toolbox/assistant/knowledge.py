@@ -236,7 +236,8 @@ Diagnose an FMU Container assembly that fails to build or behaves unexpectedly.
 Investigate in this order, reporting findings as you go:
 
 1. `get_assembly_json` — the whole picture: FMUs, links, exposed ports,
-   options. Note that FMUs appear here by *path*, whereas the tools use names.
+   options. A large assembly comes one container at a time (`node`); read
+   the sections it reports as `truncated` with `section`.
 2. `list_fmus` — confirm every FMU the user mentions is actually loaded.
 3. For each FMU involved, `list_fmu_ports(fmu)` and check:
    - every link source is an `output` and every destination an `input`;

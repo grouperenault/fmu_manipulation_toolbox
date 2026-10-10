@@ -1,6 +1,6 @@
 # Plan: help the MCP clients analyse an FMU assembly
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 and 1 done; D9' and D11 taken) — **Status**: in progress
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 to 2 done; D9', D11 to D13 taken) — **Status**: in progress
 
 Describing the content and the behaviour of a loaded assembly is a frequent request to the AI Assistant. On a real
 case (`bug.fmu`: 3 nested containers, 5 FMUs, 271 exposed ports, 295 links), the existing tools are not enough:
@@ -86,6 +86,8 @@ D1 to D4 chosen by the user; D5 to D10 taken as recommended.
 | D10 | Lint on the headless bridge (A6) | **Same tool**: only the root level exists there; nesting the headless bridge is out of scope |
 | D9' | Levels holding a sub-container (phase 0 investigation) | **Partial dry run, reported**: the engine is used as is; at a level holding a sub-container, the ports of the sub-container are not evaluated by the `auto_*` rules, and the lint emits an `info` finding saying so (no stand-in of the sub-container interface) |
 | D11 | Bounds of the summary (phase 1: 19 169 characters on the real `bug.fmu` with 30 groups per list) | **Both bounds**: per container, at most **15** groups per list, the elements alone in their group merged into `ungrouped` (count and examples); for the whole tree, beyond the result budget, the root only is detailed and the sub-containers are reduced to their name, options, FMUs and counts (`reduced`), the detail being reached with `node` (phase 4) |
+| D12 | A single container over the budget (phase 2: 24k to 57k characters per level of `bug.fmu`) | **Sections and paging**: without `section`, the container with its options, FMUs, `counts` per section and sub-containers (name and counts), its sections included only when they fit, otherwise `truncated`; with `section` (`input`, `output`, `link`, `start`, `drop`), `offset` and `limit` (default 50, maximum 200, as the port listings), one page of entries with `total` and `truncated` |
+| D13 | FMU paths in `get_assembly_json` (30 to 45 % of the volume) | **Names everywhere** in the result of the tool and of `assembly://current`, as the other tools; `save_as_json` still writes the complete file |
 
 ---
 
@@ -174,7 +176,31 @@ Checks performed: full suite **2042 passed, 2 skipped, 2 xfailed**; ruff not ava
 
 *Exit criterion*: `get_assembly_json` on the large assembly within the budget, with and without `node`.
 
-*Commit message*: `Page get_assembly_json by container node (assembly_analysis phase 2)`
+Items 2 and 4 adjusted: the pointer to `analyze_assembly` in the description waits for the tool (phase 4); D12 and
+D13 taken at the start of the phase, after measuring that one level of `bug.fmu` is still over the budget.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `find_container()` (D5: by name; unknown name → the known containers listed; ambiguous name → the paths of the candidates), `assembly_page()` (D6, D12, D13), `SECTIONS`; `MAX_SUMMARY_SIZE` renamed `MAX_RESULT_SIZE`, shared by the summary and the pages | `assistant/analysis.py` |
+| `get_assembly_json(node, section, offset, limit)` served by `assembly_page`; `assembly://current` too (compact JSON instead of `indent=2`); `Offset`/`Limit` descriptions made generic (ports and entries); `analysis` imported at module level (standard library only) | `assistant/server.py` |
+| `diagnose_assembly`: the note "FMUs appear here by *path*" replaced by how to read a large assembly | `assistant/knowledge.py` |
+| Tests: whole small assembly with names; container by name; unknown and ambiguous containers; section paging; names in every section; large assembly: every view within the budget and every entry of every section reached by paging. Through the client: paging by container and section, resource equal to the tool, unknown container reported. Signature of the tool in `EXPECTED_TOOLS` | `tests/unit/test_assistant_analysis.py`, `tests/unit/test_assistant_server.py` |
+| Budget: the two `xfail` removed; the views by container and a section page of the large assembly measured | `tests/_helpers/mcp_budget.py`, `tests/unit/test_assistant_budget.py` |
+
+Measured (characters): large assembly of the fixtures, `get_assembly_json` **56 512 → 396** (root, truncated),
+`vehicle.fmu` 384, `level2.fmu` 9 933 (sections included), a page of links 2 385; `assembly://current`
+**105 528 → 444**. Real `bug.fmu`: root 519, every level under 520 (truncated), largest page of a section 7 181
+(149 228 before). Tool definitions **15 664 → 15 987** (budget 16 000): the new descriptions were shortened, and the
+shared `Offset`/`Limit` ones too, to stay within it; phase 4 has no margin left (D1).
+
+Visible change for phase 6 (`CHANGELOG.md`, `ai-assistant.md`): `get_assembly_json` and `assembly://current`
+designate the FMUs by name, and a large assembly comes one container at a time.
+
+Checks performed: full suite **2058 passed, 2 skipped**; ruff not available in the environment (not run).
+
+*Commit message*: `Page get_assembly_json by container and section (assembly_analysis phase 2)`
 
 ### Phase 3 — Structural lint (A3, D8)
 

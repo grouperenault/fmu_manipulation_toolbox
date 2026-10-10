@@ -1,4 +1,4 @@
-"""Tests for the analysis of an assembly: bounded summary (docs/local/assembly_analysis.md, phase 1).
+"""Tests for the analysis of an assembly: bounded summary and paged views (docs/local/assembly_analysis.md).
 
 On a real assembly of 3 nested containers, `get_assembly_json` is over 100k characters: the model had to write its
 own scripts to see the container tree and the data flows. The summary reduces the JSON to that view, within the
@@ -11,7 +11,8 @@ import pytest
 pytestmark = [pytest.mark.unit]
 
 from fmu_manipulation_toolbox.assistant.analysis import (  # noqa: E402
-    MAX_EXAMPLES, MAX_GROUPS, MAX_SUMMARY_SIZE, fmu_name, port_prefix, summarize_assembly,
+    MAX_EXAMPLES, MAX_GROUPS, MAX_RESULT_SIZE, SECTIONS, assembly_page, find_container, fmu_name, port_prefix,
+    summarize_assembly,
 )
 
 from _helpers.mcp_budget import make_large_assembly  # noqa: E402
@@ -144,7 +145,7 @@ def test_the_large_assembly(tmp_path):
     assembly = make_large_assembly(tmp_path)
     summary = summarize_assembly(assembly)
 
-    assert len(json.dumps(summary)) <= MAX_SUMMARY_SIZE
+    assert len(json.dumps(summary)) <= MAX_RESULT_SIZE
 
     def check(node, json_node):
         assert "reduced" not in node
@@ -161,7 +162,7 @@ def test_the_large_assembly(tmp_path):
 
 
 def test_large_trees_are_reduced_below_the_root():
-    """Beyond `MAX_SUMMARY_SIZE`, the sub-containers keep their identity and counts only."""
+    """Beyond `MAX_RESULT_SIZE`, the sub-containers keep their identity and counts only."""
     def container(name, depth):
         links = [["a.fmu", f"signal{i}_{name}_x", "b.fmu", f"signal{i}_{name}_y"] for i in range(200)]
         links += [["a.fmu", f"p{i}.{name}", "b.fmu", f"p{i}.{name}"] for i in range(MAX_GROUPS) for _ in range(2)]
@@ -172,7 +173,7 @@ def test_large_trees_are_reduced_below_the_root():
 
     summary = summarize_assembly(container("root", 2))
 
-    assert len(json.dumps(summary)) <= MAX_SUMMARY_SIZE
+    assert len(json.dumps(summary)) <= MAX_RESULT_SIZE
     assert "reduced" not in summary and "links" in summary
     reduced = list(_nodes(summary))[1:]
     assert len(reduced) == 12
@@ -181,3 +182,101 @@ def test_large_trees_are_reduced_below_the_root():
         assert "links" not in node
         assert node["options"] == {"mt": True}
         assert node["counts"]["links"] == 200 + 2 * MAX_GROUPS
+
+
+# --------------------------------------------------------------------------- #
+#                     paged views of the JSON (phase 2)                        #
+# --------------------------------------------------------------------------- #
+def test_a_small_assembly_is_returned_whole_with_names(data_dir):
+    """Decision D6: no change for a small assembly, except the FMU paths of the root, replaced by names."""
+    assembly = _arch(data_dir, "nested.json")
+    assembly["fmu"] = [f"/models/{fmu}" for fmu in assembly["fmu"]]
+    assembly["link"][0][0] = r"C:\models\fmu0a.fmu"
+
+    page = assembly_page(assembly)
+
+    assert page == _arch(data_dir, "nested.json")
+
+
+def test_an_empty_assembly_gives_an_empty_page():
+    assert assembly_page({}) == {}
+
+
+def test_a_container_is_designated_by_name(data_dir):
+    page = assembly_page(_arch(data_dir, "nested.json"), node="level1.fmu")
+
+    assert page["name"] == "level1.fmu"
+    assert page["fmu"] == ["fmu1a.fmu", "fmu1b.fmu", "fmu1c.fmu"]
+    assert page["counts"] == {"input": 3, "output": 3, "link": 4, "start": 0, "drop": 0}
+    assert page["container"] == [
+        {"name": "level2a.fmu", "counts": {"input": 1, "output": 1, "link": 0, "start": 0, "drop": 0}},
+        {"name": "level2b.fmu", "counts": {"input": 1, "output": 1, "link": 0, "start": 0, "drop": 0}},
+    ]
+    assert len(page["link"]) == 4
+    assert page["truncated"] is False
+
+
+def test_an_unknown_container_lists_the_known_ones(data_dir):
+    with pytest.raises(ValueError, match=r"No container is named 'nope.fmu' \(containers: level0.fmu, level1.fmu, "
+                                         r"level2a.fmu, level2b.fmu\)"):
+        find_container(_arch(data_dir, "nested.json"), "nope.fmu")
+
+
+def test_an_ambiguous_container_is_refused_with_its_paths():
+    """Decision D5: names only; two containers with one name cannot be designated."""
+    assembly = {"name": "root.fmu", "container": [
+        {"name": "a.fmu", "container": [{"name": "same.fmu"}]},
+        {"name": "b.fmu", "container": [{"name": "same.fmu"}]},
+    ]}
+    with pytest.raises(ValueError, match="root.fmu/a.fmu/same.fmu, root.fmu/b.fmu/same.fmu"):
+        find_container(assembly, "same.fmu")
+
+
+def test_a_section_is_paged(data_dir):
+    page = assembly_page(_arch(data_dir, "nested.json"), node="level1.fmu", section="link", offset=1, limit=2)
+
+    assert page == {"node": "level1.fmu", "section": "link", "total": 4, "offset": 1, "returned": 2,
+                    "truncated": True, "entries": [["level2a.fmu", "level2a_out0", "fmu1b.fmu", "fmu1b_in2"],
+                                                   ["fmu1b.fmu", "fmu1b_out1", "fmu1c.fmu", "fmu1c_in0"]]}
+
+
+def test_an_unknown_section_is_refused(data_dir):
+    with pytest.raises(ValueError, match="Unknown section 'links'"):
+        assembly_page(_arch(data_dir, "nested.json"), section="links")
+
+
+def test_sections_use_fmu_names(tmp_path):
+    """The root level of the JSON designates its FMUs by path: every section is given with names."""
+    assembly = make_large_assembly(tmp_path)
+    for section in SECTIONS:
+        for entry in assembly_page(assembly, section=section, limit=1000)["entries"]:
+            assert str(tmp_path) not in json.dumps(entry)
+
+
+def test_a_large_assembly_is_given_one_container_at_a_time(tmp_path):
+    """Decision D6, then the sections: every view within the budget, and every entry reachable."""
+    assembly = make_large_assembly(tmp_path)
+
+    root = assembly_page(assembly)
+    assert len(json.dumps(root)) <= MAX_RESULT_SIZE
+    assert root["name"] == "large_assembly.fmu"
+    assert root["truncated"] is True
+    assert "input" not in root
+    assert root["counts"]["input"] == len(assembly["input"])
+    assert root["container"] == [{"name": "vehicle.fmu", "counts": {
+        "input": 7, "output": 52, "link": 265, "start": 0, "drop": 0}}]
+
+    for name in ("vehicle.fmu", "level2.fmu"):
+        node = find_container(assembly, name)
+        page = assembly_page(assembly, node=name)
+        assert len(json.dumps(page)) <= MAX_RESULT_SIZE
+        for section in SECTIONS:
+            entries, offset = [], 0
+            while True:
+                part = assembly_page(assembly, node=name, section=section, offset=offset)
+                assert len(json.dumps(part)) <= MAX_RESULT_SIZE
+                entries += part["entries"]
+                offset += part["returned"]
+                if not part["truncated"]:
+                    break
+            assert entries == node.get(section, [])

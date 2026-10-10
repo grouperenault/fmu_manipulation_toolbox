@@ -223,6 +223,11 @@ async def measure_assembly(assembly: dict) -> dict[str, str]:
     texts: dict[str, str] = {}
     async with fastmcp.Client(build_server(NestedAssemblyBridge())) as client:
         texts["get_assembly_json-large"] = result_text(await client.call_tool("get_assembly_json", {}))
+        for node in ("vehicle.fmu", "level2.fmu"):
+            texts[f"get_assembly_json-large {node}"] = result_text(
+                await client.call_tool("get_assembly_json", {"node": node}))
+        texts["get_assembly_json-large link page"] = result_text(
+            await client.call_tool("get_assembly_json", {"node": "vehicle.fmu", "section": "link"}))
         texts["resource assembly://current-large"] = (await client.read_resource("assembly://current"))[0].text
     return texts
 
