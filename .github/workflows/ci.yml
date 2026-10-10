@@ -123,7 +123,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        # The tests use the installed package (editable install, every extra).
+        pip install -e ".[all]"
     - name: Test suite run
       run: |
         cd tests
@@ -161,6 +162,10 @@ jobs:
         python-version: ["3.10", "3.13"]
     steps:
     - uses: actions/checkout@v5
+      with:
+        # The package version comes from the git tags (setuptools-scm): the whole history is needed, a shallow clone
+        # would give a wrong version.
+        fetch-depth: 0
     - uses: actions/download-artifact@v5
       with:
         name: remoting-win64
@@ -200,7 +205,8 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install build
-        pip install -r requirements.txt
+        # The tests use the installed package (editable install, every extra).
+        pip install -e ".[all]"
     - name: Test with pytest
       env:
         # QtWebEngine is unstable headless on the GitHub runners; disabling the
@@ -220,7 +226,20 @@ jobs:
     - name: Package
       if: matrix.python-version == '3.13'
       run: |
-        python -m build
+        # Build the sdist and the wheel separately from the sources: the sdist does not ship the prebuilt binaries,
+        # so a wheel built from it (the default of `python -m build`) would not contain them either.
+        python -m build --sdist --wheel
+    - name: Check the package
+      if: matrix.python-version == '3.13'
+      run: |
+        pip install twine "validate-pyproject[all]"
+        validate-pyproject pyproject.toml
+        # Metadata and README rendering, as PyPI checks them.
+        twine check --strict dist/*
+        # Content of the very files to be published: reference files of tests/data/packaging (data files and
+        # binaries of the wheel, metadata, entry points) and rules computed from the files tracked by git.
+        # On a deliberate change, update the reference with `--write` (see docs/local/packaging.md, phase 4).
+        python tools/dist_inventory.py --dist dist --check tests/data/packaging
     - name: Archive Artifacts
       if: matrix.python-version == '3.13'
       uses: actions/upload-artifact@v5
@@ -250,7 +269,8 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        # The tests use the installed package (editable install, every extra).
+        pip install -e ".[all]"
     # `windows_only` tests (remoting, container-mt) are skipped automatically by
     # the conftest hook; the remaining simulations use the darwin64 container
     # binary downloaded above.
@@ -309,6 +329,22 @@ jobs:
         for rel in binaries[key]:
             assert (res / rel).is_file(), f"bundled binary missing from wheel: {rel}"
         print("bundled resources OK for", key)
+        PY
+    - name: Check the version against the tag
+      # Releases only: the published version must be the one of the tag (V1.9.4.2 -> 1.9.4.2).
+      if: github.ref_type == 'tag'
+      shell: bash
+      run: |
+        python -m pip install packaging
+        python - <<'PY'
+        import os
+        from importlib.metadata import version
+        from packaging.version import Version
+        tag = os.environ["GITHUB_REF_NAME"]
+        expected = str(Version(tag.lstrip("vV")))
+        installed = version("fmu_manipulation_toolbox")
+        assert installed == expected, f"installed version {installed} differs from tag {tag} ({expected})"
+        print(f"version {installed} matches tag {tag}")
         PY
     - name: Smoke-test CLI entry point
       run: fmutool -h

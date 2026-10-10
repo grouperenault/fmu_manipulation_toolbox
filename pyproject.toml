@@ -1,0 +1,125 @@
+[build-system]
+# setuptools 77: SPDX license expression and `license-files` (PEP 639).
+# setuptools-scm: the version comes from the git tags (V1.9.4.2 -> 1.9.4.2).
+requires = ["setuptools >= 77", "setuptools-scm >= 8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fmu_manipulation_toolbox"
+# Computed by setuptools-scm from the git tags; see [tool.setuptools_scm].
+dynamic = ["version"]
+description = """FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate, combine or \
+split Functional Mock-up Units (FMUs) without recompilation, through a GUI, a CLI or a Python API."""
+readme = "README.md"
+requires-python = ">=3.9"
+license = "BSD-2-Clause"
+license-files = ["LICENSE.txt"]
+authors = [{ name = "Nicolas LAURENT", email = "Nicolas.LAURENT@Renault.com" }]
+keywords = ["FMI", "FMU", "co-simulation", "Functional Mock-up Interface", "Functional Mock-up Unit",
+            "model-based systems engineering", "simulation"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "xmlschema >= 3.3.1",
+    "elementpath >= 4.4.0",
+    "colorama >= 0.4.6",
+    "importlib_metadata >= 8.7.0; python_version<'3.10'",
+]
+
+[project.optional-dependencies]
+mcp = [
+    # Needed by the MCP server, both flavours: the standalone `fmutool-mcp` and the GUI assistant
+    # (`fmu_manipulation_toolbox.assistant`). Requires Python >= 3.10.
+    # Upper-bounded on the next major: FastMCP has already renamed public attributes across majors,
+    # so a new one is assumed to break us until proven otherwise.
+    "fastmcp >= 4.0.3, < 5; python_version>='3.10'",
+    # ASGI server backing the HTTP transport used by the GUI. It is pulled in transitively by fastmcp
+    # today, but the assistant imports it directly, so it is declared explicitly.
+    "uvicorn >= 0.30; python_version>='3.10'",
+]
+gui = [
+    # Only needed by `fmu_manipulation_toolbox.gui.*` (fmutool-gui, fmueditor, fmucontainer-gui,
+    # fmutoolbox launcher). The CLI (`fmutool`, `fmucontainer`, `fmusplit`, `datalog2pcap`) and the
+    # Python API never import PySide6.
+    "PySide6 >= 6.8.0",
+]
+test = [
+    # pytest-qt exercises the GUI, so PySide6 is required here too.
+    "PySide6 >= 6.8.0",
+    "pytest >= 9.0.3",
+    "pytest-qt >= 4.4.0",
+    "pytest-cov >= 7.0.0",
+    "coverage-badge >= 1.1.2",
+    "fmpy >= 0.3.20",
+    "numpy",
+]
+all = ["fmu_manipulation_toolbox[gui,mcp,test]"]
+
+[project.urls]
+Homepage = "https://github.com/grouperenault/fmu_manipulation_toolbox/"
+Documentation = "https://grouperenault.github.io/fmu_manipulation_toolbox/"
+Source = "https://github.com/grouperenault/fmu_manipulation_toolbox/"
+Changelog = "https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/CHANGELOG.md"
+"Bug Tracker" = "https://github.com/grouperenault/fmu_manipulation_toolbox/issues"
+
+[project.scripts]
+fmutool = "fmu_manipulation_toolbox.cli.fmutool:fmutool"
+fmucontainer = "fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer"
+fmutool-mcp = "fmu_manipulation_toolbox.cli.fmutool_mcp:main"
+fmusplit = "fmu_manipulation_toolbox.cli.fmusplit:fmusplit"
+datalog2pcap = "fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap"
+
+[project.gui-scripts]
+fmutool-gui = "fmu_manipulation_toolbox.gui.fmutool.__main__:main"
+fmucontainer-gui = "fmu_manipulation_toolbox.gui.fmucontainer.__main__:main"
+fmueditor = "fmu_manipulation_toolbox.gui.fmueditor.__main__:main"
+fmutoolbox = "fmu_manipulation_toolbox.gui.__main__:main"
+
+[tool.setuptools]
+# Data files are listed explicitly in package-data below (as setup.py did, where this was already the default).
+include-package-data = false
+
+[tool.setuptools.packages.find]
+include = ["fmu_manipulation_toolbox*"]
+# Only directories with an __init__.py are packages: resources/ and its sub-directories hold data files.
+namespaces = false
+
+[tool.setuptools.package-data]
+# Explicit patterns rather than "**/*": resources/ may contain stray local files (.DS_Store, .gitkeep).
+# The native binaries are built by the CI (build-native.yml) and are not tracked by git.
+fmu_manipulation_toolbox = [
+    "resources/win32/client_sm.dll",
+    "resources/win32/server_sm.exe",
+    "resources/win64/client_sm.dll",
+    "resources/win64/server_sm.exe",
+    "resources/win64/container.dll",
+    "resources/linux64/client_sm.so",
+    "resources/linux64/server_sm",
+    "resources/linux64/container.so",
+    "resources/linux32/client_sm.so",
+    "resources/linux32/server_sm",
+    "resources/darwin64/container.dylib",
+    "resources/license.txt",
+    "resources/*.png",
+    "resources/fmi-2.0/*.xsd",
+    "resources/fmi-3.0/*.xsd",
+]
+
+[tool.setuptools_scm]
+# Generated at build time (and by editable installs), read by fmu_manipulation_toolbox/version.py; not tracked by git.
+version_file = "fmu_manipulation_toolbox/_version.py"

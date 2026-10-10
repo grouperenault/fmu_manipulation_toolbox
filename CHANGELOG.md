@@ -2,6 +2,15 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* CHANGED: packaging: the package is described by `pyproject.toml` (`setup.py` and `setup.cfg` are removed)
+         and its version comes from the git tags (setuptools-scm). The version is displayed without
+         the `V` prefix of the tags: `1.9.4.2` instead of `V1.9.4.2`.
+* CHANGED: the source distribution (sdist) contains the Python package and the C sources of the
+         native binaries (`container/`, `remoting/`, `fmi/`); the test data, the documentation and
+         the prebuilt binaries are left out. The wheel is unchanged and embeds the binaries.
+* CHANGED: `requirements.txt` only contains `-e .[all]`: the dependencies are declared in
+         `pyproject.toml`. Development and tests need the package installed: `pip install -e ".[all]"`
+         (pip >= 21.3).
 * FIXED: text files are written and read in UTF-8 on every platform: assembly descriptions (CSV, JSON),
          the port names CSV (`-dump-csv`, `-rename-from-csv`), `container.txt` and `datalog.txt`, and the log
          saved by `fmutool-gui`. They used the platform encoding, cp1252 on most Windows installations, so

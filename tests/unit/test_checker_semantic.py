@@ -1,6 +1,6 @@
 """Semantic checker (`OperationSemanticCheck`) and XSD checker (`OperationGenericCheck`).
 
-Phase 5 of `docs/refactoring.md`. Each rule of the semantic checker comes from
+Phase 5 of `docs/local/refactoring.md`. Each rule of the semantic checker comes from
 the text of FMI 2.0.5 (§2.2.7, §2.2.8) or FMI 3.0.2 (§2.4, §2.4.7, §2.4.8): one
 test per rule makes sure it is reported, and the descriptors of the Reference
 FMUs and of the FMUs of `tests/data`, which follow the standard, must not

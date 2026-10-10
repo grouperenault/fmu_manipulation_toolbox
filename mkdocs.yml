@@ -8,6 +8,10 @@ repo_name: grouperenault/fmu_manipulation_toolbox
 repo_url: https://github.com/grouperenault/fmu_manipulation_toolbox
 edit_uri: edit/main/docs/
 
+# Internal plans and audits (docs/local) are kept with the sources but not published.
+exclude_docs: |
+  local/
+
 copyright: Copyright &copy; 2024-2026 Renault Group
 
 theme:

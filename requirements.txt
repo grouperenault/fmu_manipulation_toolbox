@@ -1,11 +1,4 @@
-PySide6 >= 6.8.0
-xmlschema >= 3.3.1
-elementpath >= 4.4.0
-colorama >= 0.4.6
-fastmcp >= 4.0.3, < 5; python_version>='3.10'
-uvicorn >= 0.30; python_version>='3.10'
-fmpy >= 0.3.20
-pytest >= 9.0.3
-pytest-qt >= 4.4.0
-pytest-cov >= 7.0.0
-coverage-badge >= 1.1.2
+# Development environment: the package in editable mode with every extra (GUI, MCP server, tests).
+# Kept for one release for existing habits; prefer `pip install -e ".[all]"` (docs/local/packaging.md, D4).
+# Run from the repository root.
+-e .[all]

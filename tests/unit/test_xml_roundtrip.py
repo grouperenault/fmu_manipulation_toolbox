@@ -2,7 +2,7 @@
 
 `FMU.apply_operation` rewrites the descriptor even for an operation that changes
 nothing; that rewrite must keep the meaning of the document. Each test below
-targets one defect listed in `docs/refactoring.md` (D1 to D9, D14). They were
+targets one defect listed in `docs/local/refactoring.md` (D1 to D9, D14). They were
 written as `xfail(strict=True)` tests in phase 0 and pass since phase 2.
 """
 import zipfile

@@ -1,0 +1,12 @@
+[console_scripts]
+datalog2pcap = fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap
+fmucontainer = fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer
+fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit
+fmutool = fmu_manipulation_toolbox.cli.fmutool:fmutool
+fmutool-mcp = fmu_manipulation_toolbox.cli.fmutool_mcp:main
+
+[gui_scripts]
+fmucontainer-gui = fmu_manipulation_toolbox.gui.fmucontainer.__main__:main
+fmueditor = fmu_manipulation_toolbox.gui.fmueditor.__main__:main
+fmutool-gui = fmu_manipulation_toolbox.gui.fmutool.__main__:main
+fmutoolbox = fmu_manipulation_toolbox.gui.__main__:main
