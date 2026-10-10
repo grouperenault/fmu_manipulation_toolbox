@@ -66,7 +66,7 @@ pip install "fmu-manipulation-toolbox[gui]"
 To let an AI agent assemble FMU containers for you through a
 [Model Context Protocol](https://modelcontextprotocol.io/) server
 (`fmutool-mcp`, or the Container Builder's *AI Assistant* menu), install the `mcp`
-extra (Python ≥ 3.10):
+extra:
 
 ```bash
 pip install "fmu-manipulation-toolbox[mcp]"
@@ -243,7 +243,7 @@ Key design points:
 
 ### Prerequisites
 
-- Python ≥ 3.9
+- Python ≥ 3.10
 - C compiler with C23 support (for the container) or C99 (for remoting) — only needed for building the container/remoting binaries
 - CMake ≥ 3.21 — only needed for building the C code
 

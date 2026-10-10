@@ -12,7 +12,7 @@ This guide walks you through installing **FMU Manipulation Toolbox** on your sys
 
 ### Required Dependencies
 
-- **Python 3.9 or higher**
+- **Python 3.10 or higher** (see [Supported Python Versions](#supported-python-versions))
 - **pip** (Python package manager); pip 21.3 or higher for an installation from source in development mode
 
 ### Optional Dependencies (for compilation from source)
@@ -50,8 +50,7 @@ pip install "fmu-manipulation-toolbox[gui]"
 The toolbox can expose its FMU Container assembly capabilities to an AI agent through an
 [MCP server](user-guide/fmucontainer/ai-assistant.md), either as a standalone command
 (`fmutool-mcp`, no GUI needed) or from the Container Builder window. This optional
-feature requires Python **3.10+** and the `fastmcp` package, available through the `mcp`
-extra:
+feature requires the `fastmcp` package, available through the `mcp` extra:
 
 ```bash
 # Standalone MCP server only (no GUI)
@@ -65,9 +64,9 @@ pip install "fmu-manipulation-toolbox[gui,mcp]"
 
     - **CLI / Python API only** (scripting, CI/CD, servers): `pip install fmu-manipulation-toolbox`
     - **GUI tools** (interactive use): `pip install "fmu-manipulation-toolbox[gui]"`
-    - **AI Assistant alone** (MCP server for Claude Desktop, VS Code, ...; Python 3.10+):
+    - **AI Assistant alone** (MCP server for Claude Desktop, VS Code, ...):
       `pip install "fmu-manipulation-toolbox[mcp]"`
-    - **GUI tools + AI Assistant** (MCP server, Python 3.10+): `pip install "fmu-manipulation-toolbox[gui,mcp]"`
+    - **GUI tools + AI Assistant** (MCP server): `pip install "fmu-manipulation-toolbox[gui,mcp]"`
 
 ### Installation with Upgrade
 
@@ -97,7 +96,7 @@ fmutool-gui        # FMU analysis & modification
 fmueditor          # FMU variable editor
 fmucontainer-gui   # FMU container builder
 
-# Test the MCP server (requires the `mcp` extra and Python 3.10+)
+# Test the MCP server (requires the `mcp` extra)
 fmutool-mcp --help
 ```
 
@@ -137,9 +136,9 @@ This installs the package in development mode (see [Step 4](#step-4-install-the-
 
 | Extra | Contents |
 |-------|----------|
-| *(none)* | `xmlschema`, `elementpath`, `colorama` (and `importlib_metadata` on Python 3.9): CLI and Python API |
+| *(none)* | `xmlschema`, `elementpath`, `colorama`: CLI and Python API |
 | `gui` | `PySide6`: graphical tools |
-| `mcp` | `fastmcp`, `uvicorn`: MCP server and AI Assistant (Python 3.10+) |
+| `mcp` | `fastmcp`, `uvicorn`: MCP server and AI Assistant |
 | `test` | `pytest`, `pytest-qt`, `pytest-cov`, `coverage-badge`, `fmpy`, `numpy`, `PySide6` |
 | `all` | `gui` + `mcp` + `test` |
 
@@ -219,7 +218,7 @@ pip install -e .
 # With GUI and/or test dependencies
 pip install -e ".[gui]"
 pip install -e ".[gui,test]"
-# With the AI Assistant (MCP server, Python 3.10+)
+# With the AI Assistant (MCP server)
 pip install -e ".[gui,mcp]"
 ```
 
@@ -363,11 +362,15 @@ pip uninstall fastmcp
 
 | Python Version | Support                   |
 |----------------|---------------------------|
-| 3.9            | ✅ Supported               |
+| 3.9            | ❌ Not supported: version 1.9.4.2 at most |
 | 3.10           | ✅ Supported               |
 | 3.11           | ✅ Supported               |
 | 3.12           | ✅ Supported               |
 | 3.13           | ✅ Supported (Recommended) |
+
+!!! note "Python 3.9"
+    Python 3.9 reached its end of life in October 2025. Version 2.0 requires Python 3.10 or higher; on Python 3.9,
+    `pip install fmu-manipulation-toolbox` automatically installs 1.9.4.2, the last release supporting it.
 
 
 ## Next Steps

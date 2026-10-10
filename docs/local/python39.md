@@ -1,6 +1,6 @@
 # Plan: drop Python 3.9 support
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 1 and 2 done) — **Starting branch**: `packaging` (after phase 5 of `packaging.md`) — **Roadmap**: 2.0
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 1 to 3 done) — **Starting branch**: `packaging` (after phase 5 of `packaging.md`) — **Roadmap**: 2.0
 
 Python 3.9 reached its end of life in October 2025. The test tooling already requires 3.10 (`pytest >= 9`): the test
 jobs run on 3.10 and 3.13 only, and 3.9 is exercised by a single job, `smoke-wheel`, which installs the wheel and runs
@@ -108,6 +108,19 @@ environment, `pip install -e ".[all]"`: full suite **1921 passed, 2 skipped**.
 
 *Exit criterion*: `git grep -n "3\.9"` outside `CHANGELOG.md` history, `docs/local/` and test data finds nothing
 about the supported Python versions.
+
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| Prerequisites "Python ≥ 3.10"; no version note left on the `mcp` extra | `README.md` |
+| Minimum version linked to the supported versions table; 3.9 row "Not supported: version 1.9.4.2 at most" and a note explaining that pip installs 1.9.4.2 on 3.9; extras table without `importlib_metadata`; the six "Python 3.10+" notes of the MCP sections removed | `docs/installation.md` |
+| Minimum version | `docs/tutorials/getting-started.md`, `docs/user-guide/fmucontainer/ai-assistant.md` |
+| `CHANGED` (**breaking**) entry | `CHANGELOG.md` |
+
+Exit criterion checked: outside `CHANGELOG.md`, `docs/local/` and the test data, `3.9` only appears in the supported
+versions table and its note; `3.10` only as the minimum version and in the conda example.
 
 ---
 
