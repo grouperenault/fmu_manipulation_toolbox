@@ -4,12 +4,10 @@ import os
 import re
 import shutil
 import tempfile
-import warnings
 import weakref
 import xml.etree.ElementTree as ET
 import zipfile
 import hashlib
-from collections.abc import MutableMapping
 
 from .model_description import ModelDescription, ModelDescriptionError, ModelVariable
 from .terminals import Terminals
@@ -169,101 +167,6 @@ class FMU:
             raise
 
 
-class FMUPort(ModelVariable):
-    """Represents a port (variable) of `modelDescription.xml`.
-
-    This is the object given to
-    [OperationAbstract.port_attrs][fmu_manipulation_toolbox.operations.OperationAbstract.port_attrs]:
-    a view on one variable of the descriptor tree (see
-    [ModelVariable][fmu_manipulation_toolbox.model_description.ModelVariable]).
-    Reading or changing an attribute through `[]` reads or changes the
-    descriptor itself.
-
-    Supports dict-like access to attributes across all levels: for FMI 2.0, the
-    `<ScalarVariable>` attributes and those of its type element (e.g. `<Real>`);
-    for FMI 3.0, the attributes of the variable element and the values of its
-    `<Start>` elements (`String` and `Binary` variables), under the key `start`.
-
-    Attributes:
-        fmi_type (str | None): The FMI type name (e.g. `"Real"`, `"Float64"`).
-            Setting it renames the type element.
-        attrs_list (list[dict[str, str]]): Attribute dictionaries, one per
-            XML nesting level.
-        dimensions (list[tuple[str, int]]): Array dimensions (FMI 3.0).
-
-    Note:
-        `FMUPort()` without element builds a *detached* port, filled with
-        `push_attrs()`. This was the only way to build a port before the
-        ElementTree implementation; it is deprecated.
-    """
-
-    def __init__(self, element: ET.Element | None = None, fmi_version: int = 0):
-        super().__init__(element, fmi_version)
-        self._detached_levels: list[dict[str, str]] | None = None
-        self._detached_type: str | None = None
-        self._detached_dimensions: list[tuple[str, int]] = []
-        if element is None:
-            warnings.warn("FMUPort() without element is deprecated: ports are views on the descriptor tree",
-                          DeprecationWarning, stacklevel=2)
-            self._detached_levels = []
-
-    @property
-    def detached(self) -> bool:
-        """True for a port built with `FMUPort()`, not attached to a descriptor."""
-        return self._detached_levels is not None
-
-    @property
-    def fmi_type(self) -> str | None:
-        return self._detached_type if self.detached else ModelVariable.fmi_type.fget(self)
-
-    @fmi_type.setter
-    def fmi_type(self, fmi_type: str):
-        if self.detached:
-            self._detached_type = fmi_type
-        else:
-            ModelVariable.fmi_type.fset(self, fmi_type)
-
-    @property
-    def attrs_list(self) -> list[MutableMapping[str, str]]:
-        return self._detached_levels if self.detached else ModelVariable.attrs_list.fget(self)
-
-    @property
-    def dimensions(self) -> list[tuple[str, int]]:
-        if self.detached:
-            return [] if self._detached_dimensions == [("start", 1)] else self._detached_dimensions
-        return ModelVariable.dimensions.fget(self)
-
-    @dimensions.setter
-    def dimensions(self, attrs: dict[str, str]):
-        """Deprecated: add the attributes of one `<Dimension>` element."""
-        warnings.warn("Setting FMUPort.dimensions is deprecated", DeprecationWarning, stacklevel=2)
-        if self.detached:
-            for key, value in attrs.items():
-                self._detached_dimensions.append((key, int(value)))
-        else:
-            existing = self.element.findall("Dimension")
-            position = list(self.element).index(existing[-1]) + 1 if existing else 0
-            self.element.insert(position, ET.Element("Dimension", dict(attrs)))
-
-    def push_attrs(self, attrs: dict[str, str]):
-        """Deprecated: add an attribute level to a detached port.
-
-        Args:
-            attrs (dict[str, str]): XML attributes of a nested element.
-
-        Raises:
-            FMUError: If the port is attached to a descriptor.
-        """
-        warnings.warn("FMUPort.push_attrs() is deprecated: ports are views on the descriptor tree",
-                      DeprecationWarning, stacklevel=2)
-        if not self.detached:
-            raise FMUError("push_attrs() is only available on a detached FMUPort")
-        self._detached_levels.append(attrs)
-
-    def __repr__(self):
-        return f"<FMUPort {self.fmi_type} '{self.get('name')}'>"
-
-
 class FMUError(Exception):
     """Exception raised for FMU-related errors.
 
@@ -385,7 +288,7 @@ class Manipulation:
         """Call `port_attrs` on every port. Returns the elements to remove."""
         removed = []
         for element in md.variables():
-            port = FMUPort(element, md.fmi_version)
+            port = ModelVariable(element, md.fmi_version)
             # name, valueReference and causality are attributes of <ScalarVariable> (FMI-2) or of
             # the variable element (FMI-3): read them directly, before the operation renames the port.
             name = element.get("name")

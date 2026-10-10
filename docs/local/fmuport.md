@@ -1,6 +1,6 @@
 # Plan: removal of `FMUPort`
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phase 1 done) — **Status**: in progress — **Roadmap**: 2.0 ("suppress FMUPort (API break)") —
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 1 and 2 done) — **Status**: in progress — **Roadmap**: 2.0 ("suppress FMUPort (API break)") —
 **Origin**: note "Removal of `FMUPort`" of `done/refactoring.md`
 
 `FMUPort` is the object given to `OperationAbstract.port_attrs()`, the callback of every operation and checker,
@@ -115,6 +115,20 @@ ruff `F` on the changed files: only `F541` already present; `mkdocs build`: no w
 
 *Exit criterion*: no `FMUPort` left in the package; the characterization references of the operations
 (`tests/data/refactoring/`) unchanged; suite green.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `FMUPort` class removed with the detached mode (`FMUPort()`, `push_attrs()`, `detached`, `dimensions` setter); `handle_ports` builds `ModelVariable`; `ModelVariable` stays importable from `operations` (D3); unused `warnings` and `MutableMapping` imports removed | `operations.py` |
+| `get_checkers()`: an addon checker (entry point) that raises `ImportError` is logged and skipped; `add_from_file()` catches `ImportError` instead of `ModuleNotFoundError` only; both add the hint "FMUPort was removed in 2.0: use ModelVariable, from fmu_manipulation_toolbox.operations" when the error names `FMUPort` | `checker.py` |
+| Detached-mode tests replaced by `test_fmuport_is_removed` (`ImportError`; `operations.ModelVariable is model_description.ModelVariable`); `_make_port` builds a `ModelVariable` | `tests/unit/test_operations_errors.py` |
+| Compatibility tests turned into tests of the view given to the operations (`port_attrs` reads like `iter_ports()`) | `tests/unit/test_model_description.py` |
+| New: checker using `ModelVariable` added from a file; checker importing `FMUPort` reported with the hint, built-in checkers kept; addon checker failing to import skipped (entry points monkeypatched). Two of the three fail on the former `checker.py` (the third, the valid checker, documents the normal case) | `tests/unit/test_checker_loading.py` |
+
+Checks performed: no `FMUPort` left in the package except the hint of `checker.py`; characterization references of
+the operations unchanged; full suite **2005 passed, 2 skipped** (clean Python 3.14 environment); ruff `F401`/`F821`
+on `operations.py`: clean; `mkdocs build`: no warning.
 
 ### Phase 3 — User documentation
 

@@ -17,7 +17,7 @@ import pytest
 import xmlschema
 
 from fmu_manipulation_toolbox.model_description import ModelDescription, ModelDescriptionError, ModelVariable
-from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
+from fmu_manipulation_toolbox.operations import FMU, OperationAbstract
 
 from _helpers.assertions import assert_equivalent_xml
 
@@ -273,19 +273,19 @@ def test_parent_of():
 
 
 # --------------------------------------------------------------------------- #
-#                 ModelVariable: compatibility with FMUPort                    #
+#             ModelVariable: the view given to the operations                  #
 # --------------------------------------------------------------------------- #
 class _CollectPorts(OperationAbstract):
     def __init__(self):
         self.ports = []
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         self.ports.append(_port_view(fmu_port))
         return 0
 
 
 def _port_view(port) -> dict:
-    """What an operation can read from an `FMUPort` or a `ModelVariable`."""
+    """What an operation can read from a port."""
     keys = {key for attrs in port.attrs_list for key in attrs}
     return {
         "fmi_type": port.fmi_type,
@@ -297,7 +297,7 @@ def _port_view(port) -> dict:
     }
 
 
-def _expat_ports(descriptor: bytes, tmp_path: Path) -> list[dict]:
+def _operation_ports(descriptor: bytes, tmp_path: Path) -> list[dict]:
     fmu_path = tmp_path / "test.fmu"
     with zipfile.ZipFile(fmu_path, "w") as fmu:
         fmu.writestr("modelDescription.xml", descriptor)
@@ -307,10 +307,10 @@ def _expat_ports(descriptor: bytes, tmp_path: Path) -> list[dict]:
 
 
 @pytest.mark.parametrize("name", DESCRIPTORS)
-def test_model_variable_reads_like_fmu_port(name, tmp_path):
-    """`ModelVariable` gives operations exactly what `FMUPort` gives them today."""
+def test_operations_read_the_views_of_iter_ports(name, tmp_path):
+    """The ports given to `port_attrs` read like the views of `ModelDescription.iter_ports()`."""
     descriptor = DESCRIPTORS[name]
-    expected = _expat_ports(descriptor, tmp_path)
+    expected = _operation_ports(descriptor, tmp_path)
     assert expected, "no variable collected: the comparison would be vacuous"
     actual = [_port_view(port) for port in ModelDescription.load(descriptor).iter_ports()]
     assert actual == expected
@@ -324,7 +324,7 @@ def test_model_variable_writes_go_to_the_tree():
     u.attrs_list[0]["description"] = "new"     # fmueditor creates attributes this way
     y.fmi_type = "Integer"                     # EmbeddedFMU turns enumerations into integers this way
     with pytest.raises(KeyError):
-        u["unit"] = "m"                        # FMUPort does not create attributes through []
+        u["unit"] = "m"                        # attributes are not created through []
     saved = ET.fromstring(md.to_bytes())
     first, second = saved.find("ModelVariables").findall("ScalarVariable")
     assert first.get("name") == "renamed" and first.get("description") == "new"
@@ -335,7 +335,7 @@ def test_model_variable_writes_go_to_the_tree():
 def test_model_variable_fmi3_start_elements():
     md = ModelDescription.load(EDGE_CASES["fmi3-string-array"])
     string = [port for port in md.iter_ports() if port.fmi_type == "String"][0]
-    assert string["start"] == 'a"b'            # first <Start>, as FMUPort
+    assert string["start"] == 'a"b'            # first <Start>
     assert string.dimensions == [("start", 2)]
     string["start"] = "changed"
     for attrs in string.attrs_list:
@@ -345,7 +345,7 @@ def test_model_variable_fmi3_start_elements():
 
 
 def test_model_variable_dimension_of_one_is_scalar():
-    """Same convention as `FMUPort.dimensions`."""
+    """A single dimension of size 1 is a scalar."""
     md = ModelDescription.load(fmi3(extra_variable='<Float64 name="a" valueReference="3"><Dimension start="1"/>'
                                                    '</Float64>'))
     assert [port.dimensions for port in md.iter_ports()] == [[], [], []]
