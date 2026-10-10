@@ -1,8 +1,17 @@
+"""Computes the version of the package; every other metadata lives in pyproject.toml.
+
+The version comes from the tag name (GITHUB_REF_NAME) when the CI builds a release. This file is meant to disappear
+when the version is taken from the git tags by setuptools-scm (docs/local/packaging.md, phase 2).
+"""
 import os
 import re
+import sys
 from setuptools import setup
 
-from fmu_manipulation_toolbox.version import __author__ as author, __version__ as default_version
+# The `setuptools.build_meta` backend, used since pyproject.toml exists, does not put the project directory on the
+# import path (the former legacy backend did).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fmu_manipulation_toolbox.version import __version__ as default_version  # noqa: E402
 
 try:
     version = os.environ["GITHUB_REF_NAME"]
@@ -24,147 +33,7 @@ except Exception as e:
     print(f"Cannot create __version__.py: {e}")
 
 try:
-    setup(
-        name="fmu_manipulation_toolbox",
-        version=version,
-        packages=["fmu_manipulation_toolbox",
-                  "fmu_manipulation_toolbox.assistant",
-                  "fmu_manipulation_toolbox.cli",
-                  "fmu_manipulation_toolbox.gui",
-                  "fmu_manipulation_toolbox.gui.fmucontainer",
-                  "fmu_manipulation_toolbox.gui.fmucontainer.details",
-                  "fmu_manipulation_toolbox.gui.fmucontainer.graph",
-                  "fmu_manipulation_toolbox.gui.fmucontainer.tree",
-                  "fmu_manipulation_toolbox.gui.fmueditor",
-                  "fmu_manipulation_toolbox.gui.fmutool"],
-        package_data={"fmu_manipulation_toolbox": [
-            "resources/win32/client_sm.dll",
-            "resources/win32/server_sm.exe",
-            "resources/win64/client_sm.dll",
-            "resources/win64/server_sm.exe",
-            "resources/win64/container.dll",
-            "resources/linux64/client_sm.so",
-            "resources/linux64/server_sm",
-            "resources/linux64/container.so",
-            "resources/linux32/client_sm.so",
-            "resources/linux32/server_sm",
-            "resources/darwin64/container.dylib",
-            "resources/license.txt",
-            "resources/*.png",
-            "resources/fmi-2.0/*.xsd",
-            "resources/fmi-3.0/*.xsd",
-        ]},
-        entry_points={"console_scripts": ["fmutool = fmu_manipulation_toolbox.cli.fmutool:fmutool",
-                                          "fmucontainer = fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer",
-                                          "fmutool-mcp = fmu_manipulation_toolbox.cli.fmutool_mcp:main",
-                                          "fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit",
-                                          "datalog2pcap = fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap",
-                                          ],
-                      "gui_scripts": ["fmutool-gui = fmu_manipulation_toolbox.gui.fmutool.__main__:main",
-                                      "fmucontainer-gui = fmu_manipulation_toolbox.gui.fmucontainer.__main__:main",
-                                      "fmueditor = fmu_manipulation_toolbox.gui.fmueditor.__main__:main",
-                                      "fmutoolbox = fmu_manipulation_toolbox.gui.__main__:main",
-                                      ]
-                      },
-        author=author,
-        url="https://github.com/grouperenault/fmu_manipulation_toolbox/",
-        project_urls={
-            "Documentation": "https://grouperenault.github.io/fmu_manipulation_toolbox/",
-            "Source": "https://github.com/grouperenault/fmu_manipulation_toolbox/",
-            "Changelog": "https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/CHANGELOG.md",
-            "Bug Tracker": "https://github.com/grouperenault/fmu_manipulation_toolbox/issues",
-        },
-        keywords=["FMI", "FMU", "co-simulation", "Functional Mock-up Interface", "Functional Mock-up Unit",
-                   "model-based systems engineering", "simulation"],
-        description="FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate, combine or "
-                    "split Functional Mock-up Units (FMUs) without recompilation, through a GUI, a CLI or a Python API.",
-        long_description="""FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate,
-combine or split [Functional Mock-up Units (FMUs)](https://fmi-standard.org/) without recompilation. It is highly
-customizable and comes with a Python API.
-
-FMU Manipulation Toolbox can be used in different ways:
-- Using a Graphical User Interface: suitable for end users (`fmutoolbox` launcher gives access to `fmutool-gui`,
-  `fmueditor` and `fmucontainer-gui`)
-- Using a Command Line Interface: useful for scripting and automation
-- Using a Python API: the most efficient option for automation (CI/CD, transformation scripts, ...)
-
-Major features:
-- Analyze FMU content: list ports and their attributes, check compliance of `ModelDescription.xml` with XSD, and
-  run built-in or custom validation rules with the Checker.
-- Alter FMU by modifying its `modelDescription.xml` file: batch rename ports from/to CSV, filter variables with
-  regular expressions, flatten hierarchy levels, edit variables and experiment settings with the `fmueditor`
-  spreadsheet-like editor. NOTE: manipulating this file can be risky. When possible, it is preferable to
-  communicate with the FMU developer and adapt the FMU generation process.
-- Remoting: add binary interfaces to port 32-bit FMUs to 64-bit systems (or vice versa), or run an FMU in a
-  separate process through a frontend wrapper.
-- Combine FMUs into FMU Containers (`fmucontainer`) with automatic or explicit routing, multi-threading,
-  performance profiling and CSV datalog, then let your favourite FMI tool orchestrate the resulting assembly.
-  A visual node-graph editor (`fmucontainer-gui`) is also available, as well as an MCP server
-  (`fmutool-mcp`) letting an AI agent assemble containers for you.
-- Split a Container FMU back into its embedded FMUs with `fmusplit`.
-
-FMI versions 2.0, 3.0 and LS-BUS are supported.
-    """,
-        long_description_content_type="text/markdown",
-        install_requires=[
-            "xmlschema >= 3.3.1",
-            "elementpath >= 4.4.0",
-            "colorama >= 0.4.6",
-            "importlib_metadata >= 8.7.0; python_version<'3.10'"
-        ],
-        extras_require={
-            "mcp": [
-                # Needed by the MCP server, both flavours: the standalone
-                # `fmutool-mcp` and the GUI assistant
-                # (`fmu_manipulation_toolbox.assistant`). Requires Python >= 3.10.
-                # Upper-bounded on the next major: FastMCP has already renamed
-                # public attributes across majors, so a new one is assumed to
-                # break us until proven otherwise.
-                "fastmcp >= 4.0.3, < 5; python_version>='3.10'",
-                # ASGI server backing the HTTP transport used by the GUI. It is
-                # pulled in transitively by fastmcp today, but the assistant
-                # imports it directly, so it is declared explicitly.
-                "uvicorn >= 0.30; python_version>='3.10'",
-            ],
-            "gui": [
-                # Only needed by `fmu_manipulation_toolbox.gui.*` (fmutool-gui, fmueditor,
-                # fmucontainer-gui, fmutoolbox launcher). The CLI (`fmutool`, `fmucontainer`,
-                # `fmusplit`, `datalog2pcap`) and the Python API never import PySide6.
-                "PySide6 >= 6.8.0",
-            ],
-            "test": [
-                # pytest-qt exercises the GUI, so PySide6 is required here too.
-                "PySide6 >= 6.8.0",
-                "pytest >= 9.0.3",
-                "pytest-qt >= 4.4.0",
-                "pytest-cov >= 7.0.0",
-                "coverage-badge >= 1.1.2",
-                "fmpy >= 0.3.20",
-                "numpy",
-            ],
-            "all": ["fmu_manipulation_toolbox[gui,mcp,test]"],
-        },
-        license="BSD-2-Clause",
-        license_files=["LICENSE.txt"],
-        python_requires=">=3.9",
-        classifiers=[
-            "Development Status :: 5 - Production/Stable",
-            "Intended Audience :: Developers",
-            "Intended Audience :: Science/Research",
-            "Topic :: Scientific/Engineering",
-            "Topic :: Software Development :: Libraries :: Python Modules",
-            "Operating System :: Microsoft :: Windows",
-            "Operating System :: POSIX :: Linux",
-            "Operating System :: MacOS",
-            "Programming Language :: Python :: 3",
-            "Programming Language :: Python :: 3 :: Only",
-            "Programming Language :: Python :: 3.9",
-            "Programming Language :: Python :: 3.10",
-            "Programming Language :: Python :: 3.11",
-            "Programming Language :: Python :: 3.12",
-            "Programming Language :: Python :: 3.13",
-        ],
-    )
+    setup(version=version)
 finally:
     # Best-effort cleanup even if `setup()` raised (e.g. invalid arguments,
     # missing dependency): avoid leaving a stray __version__.py behind.

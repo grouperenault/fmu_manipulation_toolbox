@@ -51,8 +51,9 @@ def assert_identical_files(filename1: PathLike, filename2: PathLike) -> None:
         )
 
 
-#: Attributes of `modelDescription.xml` that change on every container build.
-VOLATILE_XML_ATTRIBUTES = ("guid", "author", "generationDateAndTime", "instantiationToken")
+#: Attributes of `modelDescription.xml` that change on every container build, or with the version of the
+#: toolbox (`generationTool` carries it: "FMUContainer-<version>").
+VOLATILE_XML_ATTRIBUTES = ("guid", "author", "generationDateAndTime", "instantiationToken", "generationTool")
 
 
 def canonical_xml(source: Union[PathLike, bytes], *, ignore_attributes: Iterable[str] = (),

@@ -6,7 +6,7 @@ These tests drive the server through an in-memory ``fastmcp.Client`` against a
 applies the operations.
 
 The expected inventory below is the one measured on the pre-refactoring server
-(see ``docs/mcp_audit.md``); it is the regression net for the follow-up PRs.
+(see ``docs/local/mcp_audit.md``); it is the regression net for the follow-up PRs.
 """
 import asyncio
 import importlib

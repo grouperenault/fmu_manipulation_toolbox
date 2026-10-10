@@ -1,4 +1,4 @@
-![](fmu_manipulation_toolbox/resources/fmu_manipulation_toolbox.png)
+![](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/main/fmu_manipulation_toolbox/resources/fmu_manipulation_toolbox.png)
 
 ![](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/refs/heads/badges/.github/badges/python-version.svg)
 ![](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/refs/heads/badges/.github/badges/fmi-version.svg)
@@ -39,7 +39,7 @@ Major features:
 - Alter FMU by modifying its `modelDescription.xml` file. NOTE: manipulating this file can be risky.
   When possible, it is preferable to communicate with the FMU developer and adapt the FMU generation process.
 - Add binary interfaces. Typical use case is porting 32-bit FMUs to 64-bit systems (or vice versa). 
-- Combine FMUs into [FMU Containers](docs/user-guide/fmucontainer/container.md) and allow your favourite FMI tool to orchestrate complex assembly of FMUs.
+- Combine FMUs into [FMU Containers](https://grouperenault.github.io/fmu_manipulation_toolbox/user-guide/fmucontainer/container/) and allow your favourite FMI tool to orchestrate complex assembly of FMUs.
 
 FMI versions 2.0 and 3.0 are supported.
 
@@ -50,7 +50,7 @@ Two options available to install FMU Manipulation Toolbox:
 - (*Easiest option*) Install from PyPI: `pip install fmu-manipulation-toolbox`. This will install the latest
   version of FMU Manipulation Toolbox and all its dependencies. See [PyPI page](https://pypi.org/project/fmu-manipulation-toolbox/).
 - Compile and install from [GitHub repository](https://github.com/grouperenault/fmu_manipulation_toolbox). You will need 
-  - Python required packages. See [`requirements.txt`](requirements.txt).
+  - Python required packages. See [`requirements.txt`](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/requirements.txt).
   - C compiler with C23 support (for the container) or C99 (for remoting)
   - CMake ≥ 3.21
 
@@ -86,7 +86,7 @@ FMU Manipulation Toolbox is released with a GUI. It requires the `gui` extra
 (`pip install "fmu-manipulation-toolbox[gui]"`) to pull in [PySide6](https://pypi.org/project/PySide6/).
 You can launch it with the following command `fmutoolbox`
 
-![GUI](docs/gui-launcher.png "GUI")
+![GUI](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/main/docs/gui-launcher.png "GUI")
 
 Button color descriptions:
 - red: remove information from the `modelDescription.xml`
@@ -195,7 +195,7 @@ fmu.repack(r"bouncing_ball-renamed.fmu")
 
 ### Available Operations
 
-All operations are located in [`operations.py`](fmu_manipulation_toolbox/operations.py):
+All operations are located in [`operations.py`](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/fmu_manipulation_toolbox/operations.py):
 
 | Operation | Description |
 |---|---|
@@ -299,7 +299,7 @@ Then open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
 
 # 🤝 Contributing
 
-Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) for details on
+Contributions are welcome! Please read the [Contributing Guide](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/CONTRIBUTING.md) for details on
 how to report issues, suggest improvements, and interact with the development team.
 
 > **Note:** For legal reasons, pull requests cannot be accepted. If you have ideas for improvements,
@@ -308,11 +308,11 @@ how to report issues, suggest improvements, and interact with the development te
 
 # 📋 Changelog
 
-See the [Changelog](CHANGELOG.md) for a detailed list of changes across versions.
+See the [Changelog](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/CHANGELOG.md) for a detailed list of changes across versions.
 
 
 # 📄 License
 
-This project is licensed under the **BSD-2-Clause** license. See [LICENSE.txt](LICENSE.txt) for details.
+This project is licensed under the **BSD-2-Clause** license. See [LICENSE.txt](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/LICENSE.txt) for details.
 
 Copyright © 2024-2026 Renault SAS
