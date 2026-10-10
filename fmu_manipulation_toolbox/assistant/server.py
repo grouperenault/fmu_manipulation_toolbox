@@ -646,10 +646,12 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> dict[str, Any]:
         """Validate an FMU against the FMI schema and the registered checkers.
 
-        `compliant` reports the schema verdict only: always read `errors` as
-        well, and quote them to the user rather than summarising them away.
-        A non-compliant FMU may still load in some tools, so do not promise
-        that fixing it is required — report what was found.
+        `compliant` is true only if the schema validates and no checker reported
+        an error. Messages of the same rule are grouped (`count`, `examples`);
+        `error_count` is the total. Quote the messages rather than summarising
+        them away; when `truncated` is true, say that the list is incomplete
+        (the full report: `fmutool -input <fmu> -check`). A non-compliant FMU may
+        still load in some tools: report what was found, do not promise more.
         """
         return fmutools.check_fmu(policy.resolve_input(path))
 

@@ -12,9 +12,11 @@ import pytest
 pytestmark = [pytest.mark.unit]
 
 from fmu_manipulation_toolbox.assistant.fmutools import (  # noqa: E402
-    CAUSALITIES, OPERATIONS, apply_operation, check_fmu, dump_ports_csv,
-    rename_ports_from_csv, summarize_fmu,
+    CAUSALITIES, MAX_EXAMPLES, MAX_MESSAGE_GROUPS, OPERATIONS, _grouped, apply_operation, check_fmu,
+    dump_ports_csv, rename_ports_from_csv, summarize_fmu,
 )
+
+from _helpers.mcp_budget import make_large_fmu  # noqa: E402
 
 
 @pytest.fixture
@@ -84,6 +86,40 @@ def test_a_broken_descriptor_is_reported_with_its_errors(fmu, tmp_path):
 
     assert result["compliant"] is False
     assert result["errors"]
+
+
+def test_semantic_errors_make_the_fmu_non_compliant(tmp_path):
+    """`compliant` is the whole verdict, not the schema one only (docs/local/mcp_optimize.md, C8)."""
+    result = check_fmu(make_large_fmu(tmp_path / "broken.fmu", nb_variables=40, broken=True))
+
+    assert result["compliant_with"] == "2.0"             # the schema validates...
+    assert result["compliant"] is False                  # ...but the semantic rules do not
+    assert result["error_count"] == 21                   # 20 variables without start value, and the summary line
+
+
+def test_errors_of_the_same_rule_are_grouped(tmp_path):
+    result = check_fmu(make_large_fmu(tmp_path / "broken.fmu", broken=True))
+
+    assert result["error_count"] == 2501
+    assert result["truncated"] is False
+    start = result["errors"][0]
+    assert start["message"] == "Variable '…': a start value is required (FMI-2 §2.2.7)."
+    assert start["count"] == 2500
+    assert start["examples"][0] == ("Variable 'Subsystem0.Block0.signal_0': a start value is required "
+                                    "(FMI-2 §2.2.7).")
+    assert len(start["examples"]) == MAX_EXAMPLES
+    assert result["errors"][1] == {"message": "2500 semantic error(s) against the FMI-2 standard.", "count": 1}
+
+
+def test_message_groups_are_bounded():
+    messages = [f"Rule {i}: '{name}' is wrong" for i in range(MAX_MESSAGE_GROUPS + 10) for name in ("a", "b")]
+
+    groups, truncated = _grouped(messages)
+
+    assert truncated is True
+    assert len(groups) == MAX_MESSAGE_GROUPS
+    assert groups[0] == {"message": "Rule 0: '…' is wrong", "count": 2, "examples": ["Rule 0: 'a' is wrong",
+                                                                                   "Rule 0: 'b' is wrong"]}
 
 
 # --------------------------------------------------------------------------- #

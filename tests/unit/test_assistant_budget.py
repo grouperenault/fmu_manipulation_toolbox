@@ -30,7 +30,7 @@ def texts(tmp_path_factory):
 def test_the_fixture_is_large(texts):
     """The measurements are only meaningful on an FMU of industrial size."""
     assert f'"total":{LARGE_FMU_VARIABLES}' in texts["list_fmu_ports"].replace(" ", "")
-    assert texts["check_fmu-broken"].count("a start value is required") == LARGE_FMU_VARIABLES // 2
+    assert f'"error_count":{LARGE_FMU_VARIABLES // 2 + 1}' in texts["check_fmu-broken"].replace(" ", "")
 
 
 @pytest.mark.xfail(strict=True, reason="C4: 18k characters of tool definitions (phase 3)")
@@ -41,7 +41,6 @@ def test_tool_definitions(texts):
 OVER_BUDGET = {
     "list_fmu_ports": "C2/C3: 100 ports of ~175 characters per default page (phase 2)",
     "inspect_fmu_file": "C2/C3: 100 ports of ~175 characters per default page (phase 2)",
-    "check_fmu-broken": "C1: every error is returned, 2501 here (phase 1)",
     "resource fmu://large.fmu/ports": "C2/C3: default page, indented JSON (phase 2)",
 }
 RESULTS = ["add_fmu", "list_fmu_ports", "inspect_fmu_file", "summarize_fmu", "check_fmu", "check_fmu-broken",

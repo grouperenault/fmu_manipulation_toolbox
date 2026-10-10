@@ -1,6 +1,6 @@
 # Plan: optimize the MCP server for the context window
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phase 0 done) — **Status**: in progress
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 and 1 done) — **Status**: in progress
 
 The MCP server (`fmu_manipulation_toolbox/assistant/`, `fmutool-mcp` and the AI Assistant of the Container Builder)
 is meant to work with any MCP client, including local models (Qwen, Llama, Mistral...) served by Ollama or LM Studio.
@@ -125,8 +125,28 @@ Checks performed: full suite **2010 passed, 2 skipped, 5 xfailed**; ruff `F`: cl
    `truncated` is true.
 3. Same treatment for the other lists that grow with the FMU, if the measurements of phase 0 find any.
 
-*Exit criterion*: `check_fmu` on the broken FMU within the budget; its `xfail` removed; `compliant` and the totals
-unchanged.
+*Exit criterion*: `check_fmu` on the broken FMU within the budget; its `xfail` removed; the totals unchanged.
+
+**Status on 10 October 2026: done.** Decision on C8, taken at the start of the phase: **`compliant` becomes the whole
+verdict** (schema valid **and** no error from the checkers); `compliant_with` keeps the FMI version of the schema.
+
+| Item | File |
+|---|---|
+| `check_fmu`: `compliant` = schema valid and no error; new `error_count`, `warning_count`, `truncated`; `errors` and `warnings` grouped by `_grouped()`: messages differing only by their quoted parts (`'…'`) form one group `{"message", "count", "examples"}` (3 examples), a single message stays `{"message", "count": 1}`; at most `MAX_MESSAGE_GROUPS` = 50 groups per list | `assistant/fmutools.py` |
+| Tool description: meaning of `compliant`, groups, `error_count`, what to say when `truncated` (`fmutool -input <fmu> -check` for the full report) | `assistant/server.py` |
+| Inspection guide: `check_fmu` tells conformity to the FMI standard (schema and semantic rules), not to the schema only | `assistant/knowledge.py` |
+| Tests: semantic errors make the FMU non-compliant while the schema validates; grouping of the 2500 errors of the large FMU (template, count, examples, summary line kept apart); groups bounded (`_grouped` on 60 rules) | `tests/unit/test_assistant_fmutools.py` |
+| Budget: `xfail` of `check_fmu-broken` removed; the fixture test checks `error_count` | `tests/unit/test_assistant_budget.py` |
+
+Measured: `check_fmu` on the FMU with 2501 errors, **218 900 → 628 characters** (~72k → ~0.2k tokens); compliant FMU,
+152 → 204 characters. Residual worst case, not reached by the fixture: 50 different rules, each with 3 long examples,
+about 20k characters; acceptable, since FMUs breaking 50 different rules are unusual, and `MAX_MESSAGE_GROUPS` /
+`MAX_EXAMPLES` can be lowered if needed.
+
+Visible change for phase 4 (`CHANGELOG.md`, `ai-assistant.md`): `compliant` is now false when a checker reports an
+error; `errors`/`warnings` are lists of groups instead of lists of strings.
+
+Checks performed: full suite **2014 passed, 2 skipped, 4 xfailed**; ruff `F` on `assistant/` and the tests: clean.
 
 ### Phase 2 — Compact port pages (C2, C3, D2, D3)
 

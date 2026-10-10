@@ -269,7 +269,7 @@ Produce a readable identity card for an FMU.
    ModelExchange), `generator`, and `counts` — the number of ports per
    causality, over the whole FMU. `summarize_fmu(path)` adds the platforms,
    the embedded resources and the MD5 sum; `check_fmu(path)` tells whether
-   the FMU conforms to the FMI schema.
+   the FMU conforms to the FMI standard (schema and semantic rules).
 3. Then describe the interface, causality by causality, using filtered calls
    (`causality=['input']`, then `['output']`, then `['parameter']`) rather than
    dumping everything. Keep `local` variables for last, and only if relevant.
