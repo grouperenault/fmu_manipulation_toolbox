@@ -1,6 +1,6 @@
 # Plan: optimize the MCP server for the context window
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 and 1 done) — **Status**: in progress
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 2 done) — **Status**: in progress
 
 The MCP server (`fmu_manipulation_toolbox/assistant/`, `fmutool-mcp` and the AI Assistant of the Container Builder)
 is meant to work with any MCP client, including local models (Qwen, Llama, Mistral...) served by Ollama or LM Studio.
@@ -156,6 +156,28 @@ Checks performed: full suite **2014 passed, 2 skipped, 4 xfailed**; ruff `F` on 
 
 *Exit criterion*: default page on the 5000-variable FMU within the budget; the paging tests adapted
 (`test_assistant_server.py`); their `xfail` removed.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `DEFAULT_PORT_LIMIT` 100 → 50, new `MAX_PORT_LIMIT` = 200 (was 1000), `MAX_DESCRIPTION_LENGTH` = 80 | `assistant/models.py` |
+| `Port`: wrap `model_serializer` leaving out the `None` attributes; `Port.from_description()` cuts the description (`…`); used by `_as_ports_page`, hence by `list_fmu_ports`, `inspect_fmu_file`, `fmu://{name}/ports` and both bridges | `assistant/models.py`, `assistant/server.py` |
+| `fmu://{name}/ports`: compact JSON instead of `indent=2` | `assistant/server.py` |
+| Shorter descriptions of `list_fmu_ports` and `inspect_fmu_file` (the latter refers to the former) | `assistant/server.py` |
+| Tests: default page of 50; compact ports (no `null`, description cut); page bounded to 200 (201 refused); budget `xfail` of the three port results removed | `tests/unit/test_assistant_server.py`, `tests/unit/test_assistant_budget.py` |
+
+Measured (characters / tokens): default page **17 643 / 4 972 → 7 867 / 2 232**; resource `fmu://…/ports`
+**24 326 / 7 398 → 7 867 / 2 232**; tool definitions 18 028 → 17 986 (phase 3). A page of the maximum size (200)
+is about 31k characters (~9k tokens).
+
+**Pitfall met and avoided**: the serializer first had a return annotation (`-> dict[str, Any]`), which Pydantic
+published as the output schema of `Port`: the FastMCP client then rebuilt the ports as plain dictionaries (caught by
+`test_scenario_assemble_two_fmus_and_export_json`). Without annotation, the output schema keeps the fields and their
+descriptions.
+
+Checks performed: full suite **2019 passed, 2 skipped, 1 xfailed** (the tool definitions, phase 3); ruff `F`:
+clean.
 
 ### Phase 3 — Tool definitions (C4, D5)
 

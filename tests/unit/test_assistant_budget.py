@@ -38,11 +38,7 @@ def test_tool_definitions(texts):
     assert len(texts["definitions"]) <= DEFINITIONS_BUDGET
 
 
-OVER_BUDGET = {
-    "list_fmu_ports": "C2/C3: 100 ports of ~175 characters per default page (phase 2)",
-    "inspect_fmu_file": "C2/C3: 100 ports of ~175 characters per default page (phase 2)",
-    "resource fmu://large.fmu/ports": "C2/C3: default page, indented JSON (phase 2)",
-}
+OVER_BUDGET: dict[str, str] = {}
 RESULTS = ["add_fmu", "list_fmu_ports", "inspect_fmu_file", "summarize_fmu", "check_fmu", "check_fmu-broken",
            "get_assembly_json", "resource fmu://large.fmu/ports"]
 

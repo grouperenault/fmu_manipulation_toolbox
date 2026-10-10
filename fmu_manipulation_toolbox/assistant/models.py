@@ -11,7 +11,7 @@ only imported when the server is actually built.
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, model_serializer
 
 #: Value kinds accepted for a start value, before conversion to the FMI
 #: textual representation.
@@ -19,7 +19,14 @@ StartValue = bool | int | float | str
 
 #: Maximum number of ports returned by a single call, to keep the answer
 #: readable and the context small on industrial FMUs.
-DEFAULT_PORT_LIMIT = 100
+DEFAULT_PORT_LIMIT = 50
+
+#: Largest page of ports a client may ask for: about 31k characters (~9k tokens) of compact ports.
+MAX_PORT_LIMIT = 200
+
+#: Descriptions of the ports longer than this are cut (with `…`): they help to match ports by meaning, but some
+#: generators write whole paragraphs (docs/local/mcp_optimize.md, decision D3).
+MAX_DESCRIPTION_LENGTH = 80
 
 
 class ContainerOptions(BaseModel):
@@ -144,7 +151,25 @@ class Port(BaseModel):
                                   "or 'continuous'.")
     unit: str | None = Field(default=None, description="Unit, when declared.")
     start: str | None = Field(default=None, description="Start value declared by the FMU.")
-    description: str | None = Field(default=None, description="Free-text description.")
+    description: str | None = Field(
+        default=None, description=f"Free-text description, cut after {MAX_DESCRIPTION_LENGTH} characters.")
+
+    @model_serializer(mode="wrap")
+    def _compact(self, handler: SerializerFunctionWrapHandler):
+        """Leave out the attributes the FMU does not declare: a `null` costs tokens and says nothing.
+
+        No return annotation on purpose: Pydantic would publish it as the output schema of `Port`, and the clients
+        would lose the description of its fields.
+        """
+        return {key: value for key, value in handler(self).items() if value is not None}
+
+    @classmethod
+    def from_description(cls, port: dict[str, Any]) -> "Port":
+        """A port of a bridge description, its description cut to `MAX_DESCRIPTION_LENGTH` characters."""
+        description = port.get("description")
+        if description and len(description) > MAX_DESCRIPTION_LENGTH:
+            port = {**port, "description": description[:MAX_DESCRIPTION_LENGTH - 1].rstrip() + "…"}
+        return cls(**port)
 
 
 class FmuPorts(BaseModel):

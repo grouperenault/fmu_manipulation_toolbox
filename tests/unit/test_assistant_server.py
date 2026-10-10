@@ -30,6 +30,9 @@ from fmu_manipulation_toolbox.assistant import (  # noqa: E402
     PathPolicy, PathValidationError, build_server, resolve_port, resolve_timeout,
 )
 from fmu_manipulation_toolbox.assistant.bridge import SUPPORTED_FMI_VERSIONS  # noqa: E402
+from fmu_manipulation_toolbox.assistant.models import (  # noqa: E402
+    DEFAULT_PORT_LIMIT, MAX_DESCRIPTION_LENGTH, MAX_PORT_LIMIT,
+)
 from fmu_manipulation_toolbox.assistant.server import describe_argument_errors  # noqa: E402
 
 #: Tool name -> ordered parameter names.
@@ -368,8 +371,31 @@ def test_the_default_limit_keeps_the_answer_small():
 
     payload = _ports_call(bridge, fmu="big.fmu")
 
-    assert payload["returned"] <= 100
+    assert payload["returned"] == DEFAULT_PORT_LIMIT == 50
     assert payload["truncated"] is True
+
+
+def test_ports_are_compact():
+    """Undeclared attributes are left out, long descriptions cut (docs/local/mcp_optimize.md, phase 2)."""
+    bridge = FakeBridge()
+    bridge.add_fmu("a.fmu")
+    bridge.fmus["a.fmu"]["ports"][0]["description"] = "x" * 200
+    bridge.fmus["a.fmu"]["ports"][1]["description"] = "short"
+
+    ports = _ports_call(bridge, fmu="a.fmu")["ports"]
+
+    assert ports[0]["description"] == "x" * (MAX_DESCRIPTION_LENGTH - 1) + "…"
+    assert ports[1] == {"name": "y", "type": "Real", "causality": "output", "description": "short"}
+    assert "unit" not in ports[0] and "variability" not in ports[0]
+
+
+def test_the_page_size_is_bounded():
+    bridge = FakeBridge()
+    bridge.fmus["big.fmu"] = FakeBridge._description("big.fmu", port_count=500)
+
+    assert _ports_call(bridge, fmu="big.fmu", limit=MAX_PORT_LIMIT)["returned"] == MAX_PORT_LIMIT
+    with pytest.raises(ToolError, match="limit"):
+        _ports_call(bridge, fmu="big.fmu", limit=MAX_PORT_LIMIT + 1)
 
 
 def test_inspecting_a_file_does_not_add_it_to_the_assembly(tmp_path):

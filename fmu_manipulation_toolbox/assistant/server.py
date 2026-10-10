@@ -270,7 +270,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     # which ships with fastmcp: importing this package must stay possible
     # without the optional `mcp` extra.
     from .models import (
-        DEFAULT_PORT_LIMIT, ContainerOptions, FmuPorts, FmuSummary, Link, Port,
+        DEFAULT_PORT_LIMIT, MAX_PORT_LIMIT, ContainerOptions, FmuPorts, FmuSummary, Link, Port,
         RemovalReport, StartValue, format_start_value, option_reference,
     )
     # Same reasoning, different cost: `fmutools` pulls in the XSD validator and
@@ -314,7 +314,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         ge=0, description="Index of the first port to return, for paging "
                           "through a large FMU.")]
     Limit = Annotated[int, Field(
-        ge=1, le=1000, description="Maximum number of ports to return.")]
+        ge=1, le=MAX_PORT_LIMIT, description="Maximum number of ports to return.")]
 
     def _as_ports_page(description: dict[str, Any], causality, pattern,
                        offset: int, limit: int) -> FmuPorts:
@@ -348,7 +348,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
             returned=len(page),
             offset=offset,
             truncated=offset + len(page) < len(selected),
-            ports=[Port(**port) for port in page],
+            ports=[Port.from_description(port) for port in page],
         )
 
     @mcp.tool(annotations=READ_ONLY)
@@ -372,14 +372,10 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> FmuPorts:
         """List the ports of an FMU **already in the assembly**.
 
-        Always call this before `add_link`, `expose_input`, `expose_output` or
-        `set_start_value`: never guess a port name.
-
-        Large FMUs are paginated. Narrow the result with `causality` (for
-        instance `['output']` before wiring) or `name_pattern` rather than
-        paging blindly; check `truncated` to know whether ports are missing.
-
-        To look at a file that has not been added yet, use `inspect_fmu_file`.
+        Call it before `add_link`, `expose_input`, `expose_output` or
+        `set_start_value`: never guess a port name. The result is paginated:
+        filter with `causality` or `name_pattern` rather than paging, and check
+        `truncated`. For a file not added yet, use `inspect_fmu_file`.
         """
         return _as_ports_page(bridge.list_fmu_ports(fmu), causality, name_pattern,
                               offset, limit)
@@ -397,8 +393,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> FmuPorts:
         """Inspect an `.fmu` file **without** adding it to the assembly.
 
-        Use it to check what an FMU offers before committing to it, or to
-        compare a candidate with what is already on the canvas.
+        Same result and filters as `list_fmu_ports`.
         """
         description = bridge.inspect_fmu_file(str(policy.resolve_input(path)))
         return _as_ports_page(description, causality, name_pattern, offset, limit)
@@ -757,7 +752,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         """The ports of one FMU of the assembly, as JSON."""
         page = _as_ports_page(bridge.list_fmu_ports(name), None, None,
                               0, DEFAULT_PORT_LIMIT)
-        return page.model_dump_json(indent=2)
+        return page.model_dump_json()
 
     # -- prompts -----------------------------------------------------------
     # The procedures live here rather than in a repository file: they must
