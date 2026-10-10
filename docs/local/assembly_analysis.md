@@ -1,6 +1,6 @@
 # Plan: help the MCP clients analyse an FMU assembly
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phase 0 done; D9' taken) — **Status**: in progress
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 and 1 done; D9' and D11 taken) — **Status**: in progress
 
 Describing the content and the behaviour of a loaded assembly is a frequent request to the AI Assistant. On a real
 case (`bug.fmu`: 3 nested containers, 5 FMUs, 271 exposed ports, 295 links), the existing tools are not enough:
@@ -85,6 +85,7 @@ D1 to D4 chosen by the user; D5 to D10 taken as recommended.
 | D9 | Derived links and exposures (A7) | **Reuse the rule engine** of `container/builder.py` on a copy of the node (dry run, no build) if the investigation of phase 0 shows it is possible; otherwise **ignore the `auto_*` rules** and only report when they are all off, documented as a known limit |
 | D10 | Lint on the headless bridge (A6) | **Same tool**: only the root level exists there; nesting the headless bridge is out of scope |
 | D9' | Levels holding a sub-container (phase 0 investigation) | **Partial dry run, reported**: the engine is used as is; at a level holding a sub-container, the ports of the sub-container are not evaluated by the `auto_*` rules, and the lint emits an `info` finding saying so (no stand-in of the sub-container interface) |
+| D11 | Bounds of the summary (phase 1: 19 169 characters on the real `bug.fmu` with 30 groups per list) | **Both bounds**: per container, at most **15** groups per list, the elements alone in their group merged into `ungrouped` (count and examples); for the whole tree, beyond the result budget, the root only is detailed and the sub-containers are reduced to their name, options, FMUs and counts (`reduced`), the detail being reached with `node` (phase 4) |
 
 ---
 
@@ -138,12 +139,28 @@ New module `assistant/analysis.py`, pure functions on the assembly JSON (both br
    `sequential`, `profiling`, `auto_*`, `ts_multiplier`), FMUs (base names), sub-containers; counts of exposed
    inputs, outputs, links, start values, dropped ports.
 2. Groups: exposed ports per (FMU, prefix), links per (source FMU, prefix, destination FMU, prefix), each with a
-   `count` and at most 3 `examples`; at most 30 groups per list, with `truncated`.
+   `count` and at most 3 `examples`; at most 15 groups per list, with `truncated`, the elements alone in their
+   group merged into `ungrouped`; sub-containers reduced beyond the result budget (D11).
 3. FMUs designated by base name in the result (the JSON uses paths at the root level, names below).
 4. Tests on `tests/data/containers/arch/{flat,hierarchical,nested}.json` and on the large assembly: structure,
    counts, grouping, bounds.
 
 *Exit criterion*: the summary of the large assembly within the result budget; the counts equal to those of the JSON.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| New module, standard library only: `fmu_name()` (base name, both separators), `port_prefix()` (D7), `summarize_assembly()`: per container `name`, `options` (those of the JSON), `fmus`, `counts` (inputs, outputs, links, start values, dropped ports), `inputs`/`outputs`/`links` grouped (`total`, `truncated`, `groups` with `count` and `examples`, `ungrouped`), `containers`; `MAX_GROUPS` = 15, `MAX_EXAMPLES` = 3, `MAX_SUMMARY_SIZE` = 12 000 (D11) | `assistant/analysis.py` |
+| Tests: prefixes and names; `flat`, `hierarchical`, `nested` fixtures; grouping (merge of the elements alone, order, bounds, renamed links); the large assembly within the budget with every count equal to the JSON; a tree of 13 containers reduced below the root | `tests/unit/test_assistant_analysis.py` |
+
+Measured (characters of `json.dumps`): large assembly of the fixtures **4 946**; real `bug.fmu` **11 924**, not
+reduced (149 228 for its `get_assembly_json`). The first version, with 30 groups per list and no merge, gave 19 169
+on `bug.fmu` but 6 264 on the fixture: real names (`Tout`, `ratio1`, `HV_aux_current`...) form many small groups,
+which the regular names of the fixture do not show; the bounds are therefore tested on a synthetic tree of irregular
+names.
+
+Checks performed: full suite **2042 passed, 2 skipped, 2 xfailed**; ruff not available in the environment (not run).
 
 *Commit message*: `Summarise an assembly by container, FMU pair and port prefix (assembly_analysis phase 1)`
 
