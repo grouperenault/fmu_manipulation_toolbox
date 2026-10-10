@@ -1,8 +1,7 @@
 """Characterization tests of the container builder internals (docs/local/container.md, phase 0).
 
-They pin the current behaviour of the classes of `container.py` before its refactoring. The tests marked
-`xfail(strict=True)` reproduce latent bugs (B1 to B3, B6): they must start passing when the bug is fixed, and the
-marker be removed then.
+They pinned the behaviour of the classes of `container.py` before its refactoring, and cover the bugs fixed since
+(B1 to B3, B5 to B7, C2, C4).
 """
 import importlib
 import io
@@ -161,23 +160,22 @@ def _container_with(tmp_path, *fmus) -> FMUContainer:
     ([(0.1, False), (0.25, False)], 0.5),
     ([(0.1, False), (0.5, True)], 0.1),            # variable steps ignored when one is fixed
     ([(None, True), (None, True)], 0.1),           # no step size at all: default
-], ids=["variable", "fixed", "fixed-lcm", "mixed", "none"])
+    ([(0.2, False), (0.3, False)], 0.6),           # exact least common multiple (D5)
+    ([(0.1, False), (0.3, False), (None, False)], 0.3),
+], ids=["variable", "fixed", "fixed-lcm", "mixed", "none", "exact-lcm", "exact-without-step"])
 def test_default_step_size(tmp_path, fmus, expected):
     assert _container_with(tmp_path, *fmus).default_step_size() == pytest.approx(expected)
 
 
-@pytest.mark.xfail(strict=True, reason="B1: one FMU without step size discards the others (TypeError -> 0.1)")
 def test_default_step_size_ignores_fmus_without_step_size(tmp_path):
     assert _container_with(tmp_path, (None, True), (0.5, True)).default_step_size() == pytest.approx(0.5)
 
 
-@pytest.mark.xfail(strict=True, reason="B2: frequencies truncated by int(1.0 / step_size)")
 @pytest.mark.parametrize("step_size", [0.3, 2.0])
 def test_default_step_size_is_exact(tmp_path, step_size):
     assert _container_with(tmp_path, (step_size, False)).default_step_size() == pytest.approx(step_size)
 
 
-@pytest.mark.xfail(strict=True, reason="B3: the ratio of the step sizes is compared as a float")
 def test_sanity_check_accepts_a_multiple_step_size(tmp_path, caplog):
     container = _container_with(tmp_path, (0.1, False))
     container.involved_fmu["0.fmu"].ports = {}
@@ -221,18 +219,22 @@ def test_duplicate_output_name(bouncing):
 
 
 @pytest.mark.area("containers/bouncing_ball")
-def test_input_exposed_twice(bouncing):
-    bouncing.add_input("v", "bb_position.fmu", "velocity")
-    with pytest.raises(FMUContainerError, match="already INPUT"):
-        bouncing.add_input("w", "bb_position.fmu", "velocity")
-
-
-@pytest.mark.area("containers/bouncing_ball")
-@pytest.mark.xfail(strict=True, reason="B6: an FMU input fed by a container input and by a link is accepted")
-def test_input_fed_twice(bouncing):
-    bouncing.add_input("v", "bb_position.fmu", "velocity")
-    with pytest.raises(FMUContainerError):
-        bouncing.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity")
+@pytest.mark.parametrize("first, second, message", [
+    (lambda c: c.add_input("v", "bb_position.fmu", "velocity"),
+     lambda c: c.add_input("w", "bb_position.fmu", "velocity"), "the container input 'v'"),
+    (lambda c: c.add_input("v", "bb_position.fmu", "velocity"),
+     lambda c: c.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"), "the container input 'v'"),
+    (lambda c: c.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"),
+     lambda c: c.add_input("v", "bb_position.fmu", "velocity"), "a link from Port bb_velocity.fmu/velocity"),
+    (lambda c: c.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"),
+     lambda c: c.add_link("bb_position.fmu", "position1", "bb_position.fmu", "velocity"),
+     "a link from Port bb_velocity.fmu/velocity"),
+], ids=["input-input", "input-link", "link-input", "link-link"])
+def test_input_fed_twice(bouncing, first, second, message):
+    """B6: an input of an embedded FMU has one feeder, a container input or a link."""
+    first(bouncing)
+    with pytest.raises(FMUContainerError, match=f"Port bb_position.fmu/velocity is already fed by {message}"):
+        second(bouncing)
 
 
 @pytest.mark.area("containers/bouncing_ball")

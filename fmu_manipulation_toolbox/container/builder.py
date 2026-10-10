@@ -8,10 +8,11 @@ import shutil
 import uuid
 import xml.etree.ElementTree as ET
 import zipfile
-from dataclasses import dataclass
 from collections import defaultdict
 from collections.abc import Generator
+from dataclasses import dataclass
 from datetime import datetime
+from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,11 @@ from .types import ALL_TYPES
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+
+
+def _exact(value: float) -> Fraction:
+    """A step size as a fraction, from its shortest decimal representation: `0.3` is 3/10, not the binary float."""
+    return Fraction(repr(float(value)))
 
 
 @dataclass
@@ -104,6 +110,8 @@ class FMUContainer:
 
         self.rules: dict[ContainerPort, str] = {}
         self.start_values: dict[ContainerPort, str] = {}
+        # What feeds each input of the embedded FMUs: a container input or a link, never both, never two (B6).
+        self.input_feeders: dict[ContainerPort, str] = {}
 
     def get_fmu(self, fmu_filename: str) -> EmbeddedFMU:
         """Load an embedded FMU from the FMU directory.
@@ -150,6 +158,18 @@ class FMUContainer:
 
         self.rules[cport] = rule
 
+    def check_not_fed(self, cport: ContainerPort, feeder: str):
+        """Refuse a second feeder (container input or link) for an input of an embedded FMU.
+
+        Clocks are excepted: LS-BUS connects input clocks together.
+
+        Raises:
+            FMUContainerError: If the input is already fed.
+        """
+        if cport.port.type_name != "clock" and cport in self.input_feeders:
+            raise FMUContainerError(f"{cport} is already fed by {self.input_feeders[cport]}: "
+                                    f"it cannot also be fed by {feeder}.")
+
     def get_all_cports(self):
         cport_list = []
         for fmu in self.involved_fmu.values():
@@ -191,11 +211,14 @@ class FMUContainer:
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
                                     f"'{cport_to.port.causality}'.")
 
+        feeder = f"the container input '{container_port_name}'"
+        self.check_not_fed(cport_to, feeder)
         try:
             input_port = self.inputs[container_port_name]
             input_port.add_cport(cport_to)
         except KeyError:
             self.inputs[container_port_name] = ContainerInput(container_port_name, cport_to)
+        self.input_feeders[cport_to] = feeder
 
         logger.debug(f"INPUT: {to_fmu_filename}:{to_port_name}")
         self.mark_ruled(cport_to, 'INPUT')
@@ -307,6 +330,8 @@ class FMUContainer:
             cport_to = cport_from
             cport_from = tmp
 
+        feeder = f"a link from {cport_from}"
+        self.check_not_fed(cport_to, feeder)
         try:
             local = self.links[cport_from]
         except KeyError:
@@ -314,6 +339,7 @@ class FMUContainer:
             self.links[cport_from] = local
 
         local.add_target(cport_to)  # Causality is check in the add() function
+        self.input_feeders[cport_to] = feeder
 
         logger.debug(f"LINK: {cport_from} -> {cport_to}")
         self.mark_ruled(cport_from, 'LINK')
@@ -467,40 +493,32 @@ class FMUContainer:
     def default_step_size(self) -> float:
         """Compute the default step size from embedded FMUs.
 
-        Uses the GCD of the frequencies of FMUs that cannot handle variable
-        step sizes. If all FMUs support variable steps, returns the largest
-        step size.
+        The step size is the least common multiple of the step sizes of the FMUs that
+        cannot handle variable step sizes, computed exactly (`0.1` and `0.25` give
+        `0.5`). If all FMUs support variable steps, returns the largest step size.
+        FMUs without step size are ignored; without any step size, the default is 0.1 s.
 
         Returns:
             float: Computed step size in seconds.
         """
         default_step_size = 0.1
-        freq_set = set()
-        for fmu in self.involved_fmu.values():
-            if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
-                freq_set.add(int(1.0/fmu.step_size))
+        step_sizes = {fmu.name: fmu.step_size for fmu in self.involved_fmu.values() if fmu.step_size}
+        for name, step_size in list(step_sizes.items()):
+            if step_size < 0:
+                logger.warning(f"FMU '{name}' declares a negative step size ({step_size}s): ignored.")
+                del step_sizes[name]
 
-        if not freq_set:
+        fixed = [_exact(step_sizes[fmu.name]) for fmu in self.involved_fmu.values()
+                 if fmu.name in step_sizes and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false"]
+        if fixed:
+            # lcm(a/b, c/d) = lcm(a, c) / gcd(b, d)
+            return float(Fraction(math.lcm(*(f.numerator for f in fixed)), math.gcd(*(f.denominator for f in fixed))))
+        if step_sizes:
             # all involved FMUs can Handle Variable Communication StepSize
-            try:
-                step_size_max = 0
-                for fmu in self.involved_fmu.values():
-                    if fmu.step_size > step_size_max:
-                        step_size_max = fmu.step_size
-                return step_size_max
-            except TypeError:
-                # all involved FMUs do not specify step_size
-                logger.warning(f"Defaulting to step_size={default_step_size}")
-                step_size = default_step_size
-        else:
-            common_freq = math.gcd(*freq_set)
-            try:
-                step_size = 1.0 / float(common_freq)
-            except ZeroDivisionError:
-                logger.warning(f"Defaulting to step_size={default_step_size}")
-                step_size = default_step_size
+            return max(step_sizes.values())
 
-        return step_size
+        logger.warning(f"Defaulting to step_size={default_step_size}")
+        return default_step_size
 
     def sanity_check(self, step_size: float | None):
         """Validate the container configuration before building.
@@ -512,13 +530,13 @@ class FMUContainer:
         """
         for fmu in self.involved_fmu.values():
             if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
-                ts_ratio = step_size / fmu.step_size
-                logger.debug(f"container step_size: {step_size} = {fmu.step_size} x {ts_ratio} for {fmu.name}")
-                if ts_ratio < 1.0:
+                ts_ratio = _exact(step_size) / _exact(fmu.step_size)   # exact: 0.3 / 0.1 is 3
+                logger.debug(f"container step_size: {step_size} = {fmu.step_size} x {float(ts_ratio)} for {fmu.name}")
+                if ts_ratio < 1:
                     logger.warning(f"Container step_size={step_size}s is lower than FMU '{fmu.name}' "
                                    f"step_size={fmu.step_size}s.")
-                if ts_ratio != int(ts_ratio):
-                    logger.warning(f"Container step_size={step_size}s should divisible by FMU '{fmu.name}' "
+                if ts_ratio.denominator != 1:
+                    logger.warning(f"Container step_size={step_size}s should be divisible by FMU '{fmu.name}' "
                                    f"step_size={fmu.step_size}s.")
             for port_name, fmu_port in fmu.ports.items():
                 if fmu_port.is_fmi2_aggregate:

@@ -1,6 +1,6 @@
 # Plan: refactoring of `container.py`
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 4 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 5 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
 
 `fmu_manipulation_toolbox/container.py` builds FMU Containers: it loads the embedded FMUs, records the wiring rules,
 allocates the value references, then writes `modelDescription.xml`, `resources/container.txt` (read by the C runtime,
@@ -309,6 +309,29 @@ satisfied; `mkdocs build`: no warning.
 
 *Exit criterion*: B1 to B3 and B6 tests pass; golden files unchanged except where a fix changes a deduced step size (reviewed
 one by one).
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `default_step_size` (D5): least common multiple of the fixed step sizes computed with `fractions.Fraction` from the shortest decimal representation (`_exact(0.3)` is 3/10), `lcm(a/b, c/d) = lcm(a, c) / gcd(b, d)`; FMUs without step size ignored (B1), negative step sizes ignored with a warning; no truncation of the frequencies (B2) | `container/builder.py` |
+| `sanity_check`: exact ratio of the step sizes (B3); message "should be divisible by" | `container/builder.py` |
+| `input_feeders` and `check_not_fed()`: an input of an embedded FMU is fed by one container input or one link; a second feeder raises `FMUContainerError` naming the first one, before any rule is recorded (B6). Outputs can still be exposed and linked. Input clocks are excepted (LS-BUS connects them together) | `container/builder.py` |
+| `xfail` markers removed (B1, B2 twice, B3, B6); tests: B6 in the four orders (input/input, input/link, link/input, link/link), two more exact step sizes (`0.2`/`0.3` → `0.6`, FMU without step size among fixed ones) | `tests/unit/test_container_internals.py` |
+
+Notes:
+
+- **Golden files unchanged**: no golden scenario deduces its step size from values where the former computation was
+  wrong; the change is visible only for step sizes that are not 1/n of a second (B2) or with an FMU without step size
+  (B1).
+- **B6 also refuses a link declared twice** (same output, same input): it used to add the target twice, i.e. two
+  identical exchanges.
+- **The clock exception is not exercised** by the current scenarios (the LS-BUS golden files pass without it); it is
+  kept so that LS-BUS assemblies connecting input clocks together keep building.
+
+Checks performed: golden files unchanged; full suite **1998 passed, 2 skipped**, no `xfail` left (clean Python 3.14
+environment); ruff `F`: clean; `tools/dist_inventory.py --check --untracked`: rules satisfied; `mkdocs build`: no
+warning.
 
 ### Phase 6 — User documentation
 
