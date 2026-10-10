@@ -1,6 +1,6 @@
 # Plan: removal of `FMUPort`
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 1 and 2 done) — **Status**: in progress — **Roadmap**: 2.0 ("suppress FMUPort (API break)") —
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 1 to 3 done) — **Status**: done — **Roadmap**: 2.0 ("suppress FMUPort (API break)") —
 **Origin**: note "Removal of `FMUPort`" of `done/refactoring.md`
 
 `FMUPort` is the object given to `OperationAbstract.port_attrs()`, the callback of every operation and checker,
@@ -143,6 +143,18 @@ on `operations.py`: clean; `mkdocs build`: no warning.
 
 *Exit criterion*: no `FMUPort` in the user documentation except the migration note; `mkdocs build` without
 warning.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| Custom operation example with `ModelVariable`; the `fmu_port` argument described (levels of attributes, `start` of `String`/`Binary`, no creation through `[]`) with a link to the API reference; note "Migrating from version 1.x" | `docs/user-guide/fmutool/python-api.md` |
+| Example checker with `ModelVariable`; a checker that cannot be imported is reported and skipped, with the `FMUPort` case | `docs/user-guide/fmutool/checker.md` |
+| `CHANGED` (**breaking**): `FMUPort` removed, replaced by `ModelVariable`; `FIXED`: checker that cannot be imported. The unreleased entry announcing the deprecation of the detached mode (ElementTree migration) now points to the removal | `CHANGELOG.md` |
+
+Checks performed: `FMUPort` only appears in the migration notes of the user documentation; the custom operation of
+`python-api.md` runs on `bb_position.fmu`; `mkdocs build`: no warning (one INFO about an anchor of
+`gui-usage.md`, already present).
 
 ---
 

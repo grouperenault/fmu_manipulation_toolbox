@@ -1,4 +1,4 @@
-"""Loading of the checkers added by users (docs/local/fmuport.md, phase 2).
+"""Loading of the checkers added by users (docs/local/done/fmuport.md, phase 2).
 
 A checker that cannot be imported, for instance because it still imports `FMUPort` (removed in 2.0), is reported
 and skipped: it must never stop `fmutool`.

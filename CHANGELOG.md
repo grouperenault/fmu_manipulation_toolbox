@@ -2,6 +2,16 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* CHANGED (**breaking**): `FMUPort` is removed. The ports given to `OperationAbstract.port_attrs`
+         are `ModelVariable` objects (`fmu_manipulation_toolbox.model_description`, also
+         importable from `fmu_manipulation_toolbox.operations`), with the same interface (`[]`,
+         `get()`, `in`, `fmi_type`, `attrs_list`, `dimensions`): replace `FMUPort` by
+         `ModelVariable` in the imports and annotations of custom operations and checkers.
+         Ports can no longer be built by hand (`FMUPort()`, `push_attrs()`); they print as
+         `<ModelVariable Float64 'x'>`.
+* FIXED: a custom checker that cannot be imported (from a file or an entry point) is reported and
+         skipped instead of stopping `fmutool`; the message points to `ModelVariable` when the
+         checker still imports `FMUPort`.
 * CHANGED (**breaking**): `fmucontainer` and `FMUContainer` stop with an error (`FMUContainerError`)
          when a rule names an unknown FMU or port, or sets a start value on a `binary` or `clock`
          port. Such rules used to be logged and ignored, so a typo silently produced a container
@@ -105,8 +115,8 @@ This package was formerly known as `fmutool`.
          valueReference>`), or giving the same name to several variables (or FMI-3 aliases).
 * FIXED: `-remove-sources` also removes the `<SourceFiles>` elements of the descriptor, and now
          works on Model Exchange-only FMUs.
-* CHANGED: `FMUPort` is now a view on the descriptor tree. Building a detached `FMUPort()` and
-         `push_attrs()` are deprecated. Operations can reach the whole tree through their new
+* CHANGED: the ports given to `port_attrs` are views on the descriptor tree (see `FMUPort`
+         removal above). Operations can reach the whole tree through their new
          `model_description` attribute. Namespaced attributes are still given to the callbacks as
          `prefix:name`, but the `xmlns:*` declarations are no longer listed (`-summary` no
          longer prints them).
