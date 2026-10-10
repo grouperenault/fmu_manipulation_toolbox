@@ -1,6 +1,6 @@
 # Plan: modern packaging (`pyproject.toml`)
 
-**Created**: 9 October 2026 — **Updated**: 10 October 2026 (phases 0 to 3 done; pre-release 0.0.dev3 published to PyPI) — **Starting branch**: `integration`
+**Created**: 9 October 2026 — **Updated**: 10 October 2026 (phases 0 to 4 done; pre-release 0.0.dev3 published to PyPI) — **Starting branch**: `integration`
 **Scope**: `setup.py`, `setup.cfg`, `requirements.txt`, `fmu_manipulation_toolbox/version.py`, `tests/pytest.ini`, the
 `ci.yml` and `release.yml` workflows, the user documentation about installation.
 
@@ -254,14 +254,55 @@ ignored).
 
 *Exit criterion*: a mistake in `package-data` or a wrong version fails the CI before publication.
 
+**Status on 10 October 2026: done** (green CI on the next push to be confirmed).
+
+| Item | File |
+|---|---|
+| New step *Check the package* after *Package* (Linux job, Python 3.13): `validate-pyproject pyproject.toml`, `twine check --strict dist/*`, `tools/dist_inventory.py --dist dist --check tests/data/packaging` on the very archives uploaded as artifacts | `.github/workflows/ci.yml` |
+| New step *Check the version against the tag* in `smoke-wheel`, on tags only: installed version == normalized tag (`V1.9.4.2` → `1.9.4.2`, `V2.0.0rc1` → `2.0.0rc1`) | `.github/workflows/ci.yml` |
+| Inventory redesigned (see below); `--dist DIR` inventories already-built archives, without `build` | `tools/dist_inventory.py` |
+| `wheel-files.txt` and `sdist-files.txt` replaced by `wheel-data-files.txt` | `tests/data/packaging/` |
+
+**Deviation from the plan: the inventory no longer lists every file.** A strict comparison of the complete file lists
+would fail at every added module or C source, and the reference would be regenerated without review. The tool now
+combines:
+
+- **reference files**, compared strictly, for what changes only on purpose: `wheel-data-files.txt` (every wheel entry
+  except the Python modules tracked by git: binaries, XSD, images, licence, `_version.py`, `dist-info`),
+  `wheel-tag.txt`, `metadata.txt` (version excluded), `entry-points.txt`;
+- **rules computed from `git ls-files`**: the wheel holds exactly the tracked `.py` modules of the package; the sdist
+  holds every tracked file of `fmu_manipulation_toolbox/`, `container/`, `remoting/`, `fmi/`, plus `pyproject.toml`,
+  `README.md` and `LICENSE.txt`; the sdist holds nothing from `tests/data/`, `docs/`, `.github/` or the prebuilt
+  binaries (D3).
+
+Locally, the tool builds in a temporary `git clone` of the repository overlaid with the working copy (setuptools-scm
+needs the git metadata); `--untracked` adds the files not yet tracked, `--placeholder-binaries` replaces the missing
+binaries by empty files.
+
+Checks performed (Python 3.14, clean virtual environment):
+
+- the CI step reproduced on locally built archives (placeholder binaries): `validate-pyproject`, `twine check --strict`
+  and `dist_inventory.py --dist` pass;
+- mutations, each restored afterwards: new module → "Inventory unchanged, rules satisfied."; `prune container` in
+  `MANIFEST.in` → 29 rule violations; `win64` binaries in the sdist → 4 violations; FMI-3 XSD dropped from
+  `package-data` → reference difference;
+- tag normalization: `V1.9.4.2` → `1.9.4.2`, `V0.0dev3` → `0.0.dev3`, `V2.0.0rc1` → `2.0.0rc1`.
+
+**Incident: the `V0.0dev3` tag broke the version of the later commits.** setuptools-scm cannot compute the next version
+from a `.devN` tag ("choosing custom numbers for the .devX distance is not supported"): every build after `c572ec0`
+failed. The local tag was deleted (`git describe` → `V1.9.4.2-79-g230faf6`, built version
+`1.9.4.3.dev79+g230faf664`); the remote tag and the GitHub pre-release remain to be deleted by hand. The 0.0.dev3
+release stays on PyPI (no default installation selects it). **Test releases must use `rc` tags** (`V2.0.0rc1`), never
+`dev` tags; to be stated in the contribution guide (phase 5).
+
 ### Phase 5 — User documentation
 
 - `README.md`: installation and development sections (`requirements.txt` is mentioned there), images with absolute URLs
   if D1 (a) is chosen.
 - `docs/installation.md`: `requirements.txt` is described line by line; replace with the extras.
 - `CONTRIBUTING.md` and `docs/help/contributing.md`: development installation (`pip install -e ".[all]"`, pip ≥ 21.3 for
-  editable installs with `pyproject.toml`), how to run `tools/dist_inventory.py`, how a release gets its version from the
-  tag.
+  editable installs with `pyproject.toml`), how to run `tools/dist_inventory.py` (and update the reference with `--write`), how a release
+  gets its version from the tag, `rc` tags only for test releases (never `dev`, see phase 4).
 - `CHANGELOG.md`: displayed version without the `V` prefix (D2), new sdist content (D3), `requirements.txt` (D4).
 
 *Exit criterion*: no reference to `setup.py` or to the former `requirements.txt` content left in the user documentation.
