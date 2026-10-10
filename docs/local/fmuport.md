@@ -1,6 +1,6 @@
 # Plan: removal of `FMUPort`
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken) — **Status**: not started — **Roadmap**: 2.0 ("suppress FMUPort (API break)") —
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phase 1 done) — **Status**: in progress — **Roadmap**: 2.0 ("suppress FMUPort (API break)") —
 **Origin**: note "Removal of `FMUPort`" of `done/refactoring.md`
 
 `FMUPort` is the object given to `OperationAbstract.port_attrs()`, the callback of every operation and checker,
@@ -80,6 +80,21 @@ class (**D2 (a)** by consequence), **D3 (a)**, and D4 is without object.
 
 *Exit criterion*: `FMUPort` only appears in its class, in `handle_ports` and in the tests of the compatibility;
 suite green.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `OperationAbstract.port_attrs(fmu_port: ModelVariable)`, docstring pointing to `ModelVariable`; `OperationSaveNamesToCSV.port_attrs` annotation | `operations.py` |
+| `ModelVariable` imported from `operations` (D3) instead of `FMUPort`, annotations of the `port_attrs` callbacks | `assistant/headless.py`, `gui/fmucontainer/graph/node.py`, `gui/fmueditor/__main__.py` |
+| `ModelVariable` described for itself (object given to `port_attrs`, levels of attributes, start values of `String`/`Binary`), no comparison with `FMUPort` left; `_StartValue`, `dimensions`, `__setitem__` and `iter_ports()` docstrings | `model_description.py` |
+
+`FMUPort` now only appears in its class and in `Manipulation.handle_ports` (`operations.py`), and in the tests of
+the compatibility and of the detached mode (`test_model_description.py`, `test_operations_errors.py`), handled in
+phase 2.
+
+Checks performed: full suite **2003 passed, 2 skipped** (clean Python 3.14 environment, GUI tests included);
+ruff `F` on the changed files: only `F541` already present; `mkdocs build`: no warning.
 
 ### Phase 2 — Removal (D1, D2, D3)
 

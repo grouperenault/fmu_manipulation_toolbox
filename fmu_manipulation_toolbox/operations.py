@@ -674,14 +674,16 @@ class OperationAbstract:
         """
         pass
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         """Called for each port (variable) in the descriptor.
 
         Override this to inspect or modify port attributes.
 
         Args:
-            fmu_port (FMUPort): The port being processed. Attributes can be
-                modified in place.
+            fmu_port (ModelVariable): The port being processed: a view on the
+                variable of the descriptor tree (see
+                [ModelVariable][fmu_manipulation_toolbox.model_description.ModelVariable]).
+                Attributes can be modified in place.
 
         Returns:
             int: `0` to keep the port, non-zero to remove it.
@@ -725,7 +727,7 @@ class OperationSaveNamesToCSV(OperationAbstract):
     def closure(self):
         self.csvfile.close()
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         self.writer.writerow([fmu_port["name"],
                               fmu_port["name"],
                               fmu_port["valueReference"],

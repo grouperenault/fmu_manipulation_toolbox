@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QPainter, QPainterPath, QPen, QBrush, QColor, QFontMetrics, QPixmap, QImage
 from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem, QStyleOptionGraphicsItem
 
-from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
+from fmu_manipulation_toolbox.operations import FMU, ModelVariable, OperationAbstract
 from fmu_manipulation_toolbox.terminals import Terminals
 from fmu_manipulation_toolbox.container import ArrayAggregate
 from fmu_manipulation_toolbox.gui.helper import load_scaled_pixmap, crop_transparent_border, get_fmu_icon_path
@@ -224,7 +224,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
     def modelexchange_attrs(self, attrs):
         self.fmu_is_model_exchange = True
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         causality = fmu_port.get("causality", "local")
         name = fmu_port.get("name", "")
         if causality in ("input", "parameter"):

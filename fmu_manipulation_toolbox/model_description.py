@@ -87,7 +87,7 @@ class _TreeBuilder(ET.TreeBuilder):
 class _StartValue(MutableMapping):
     """FMI-3 `<Start value="..."/>` element seen as the `{"start": value}` mapping.
 
-    `FMUPort` exposes the start values of `String`/`Binary` variables as an
+    `ModelVariable` exposes the start values of `String`/`Binary` variables as an
     extra attribute level holding the key `start`; this proxy keeps that view
     while reading from and writing to the `<Start>` element itself.
     """
@@ -166,10 +166,15 @@ class PrefixedAttributes(MutableMapping):
 
 
 class ModelVariable:
-    """View on one variable of `<ModelVariables>`, compatible with `FMUPort`.
+    """View on one variable of `<ModelVariables>`.
 
-    It offers the same interface as `operations.FMUPort` (`[]`, `get()`, `in`,
-    `fmi_type`, `attrs_list`, `dimensions`), but reads and writes the tree
+    This is the object given to
+    [OperationAbstract.port_attrs][fmu_manipulation_toolbox.operations.OperationAbstract.port_attrs]
+    for each variable. It gives dict-like access to the attributes of every
+    level (`[]`, `get()`, `in`): for FMI 2.0, the `<ScalarVariable>` attributes
+    and those of its type element (e.g. `<Real>`); for FMI 3.0, the attributes
+    of the variable element and the values of its `<Start>` elements (`String`
+    and `Binary` variables), under the key `start`. It reads and writes the tree
     directly: `attrs_list` holds the `attrib` dictionaries of the underlying
     elements, so a change made through this view is a change of the document.
 
@@ -222,8 +227,7 @@ class ModelVariable:
     def dimensions(self) -> list[tuple[str, int]]:
         """FMI-3 `<Dimension>` elements as `("start", size)` or `("valueReference", vr)`.
 
-        A single dimension of size 1 is reported as a scalar (`[]`), as
-        `FMUPort.dimensions` does.
+        A single dimension of size 1 is reported as a scalar (`[]`).
         """
         if self.fmi_version == 2:
             return []
@@ -242,7 +246,7 @@ class ModelVariable:
         raise KeyError(item)
 
     def __setitem__(self, key, value):
-        """Change an existing attribute. Raises `KeyError` if no level holds `key` (as `FMUPort`)."""
+        """Change an existing attribute. Raises `KeyError` if no level holds `key`: attributes are not created."""
         for attrs in self.attrs_list:
             if key in attrs:
                 attrs[key] = value
@@ -394,7 +398,7 @@ class ModelDescription:
         return [element for element in self.model_variables if element.tag in tags]
 
     def iter_ports(self) -> Iterator[ModelVariable]:
-        """`FMUPort`-compatible views on the variables, in document order."""
+        """Views on the variables, in document order."""
         for element in self.variables():
             yield ModelVariable(element, self.fmi_version)
 
