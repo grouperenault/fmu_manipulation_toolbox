@@ -221,7 +221,7 @@ fmu_manipulation_toolbox/      # Python package
 ├── gui/                       #   Graphical User Interface (PySide6)
 ├── resources/                 #   Pre-built binaries, XSD schemas, icons
 ├── operations.py              #   FMU operations (rename, filter, etc.)
-├── container.py               #   FMU Container logic
+├── container/                 #   FMU Container builder (writes container.txt for the C runtime)
 ├── assembly.py                #   Assembly description parsing
 ├── checker.py                 #   FMU compliance checker
 ├── remoting.py                #   32/64-bit remoting support

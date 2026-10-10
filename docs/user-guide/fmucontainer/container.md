@@ -21,7 +21,8 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
 
 - *time_step*: a FMU Container acts as a fixed step time "solver" for its embedded FMU's. For
   [Model-Exchange](#model-exchange-support) FMU's, this time step is also used as the integration
-  step of the built-in solver.
+  step of the built-in solver. When it is not given, it is deduced from the embedded FMU's (see
+  [Default time step](#default-time-step)).
 - optional features
   - *multi-threading*: each embedded FMU will use its own thread to parallelize `doStep()` operation.  
   - *profiling*: performance indicators can be calculated by the container to help to identify the bottlenecks among 
@@ -29,7 +30,12 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
 - routing table
   - Input ports: the list of the Container's inputs. Each input is linked to one input (or more) of one of the embedded FMU's.
   - Output ports: the list of the container's outputs. Each output is linked to one output of one of the embedded FMU's.
-  - Connections between embedded FMU's
+  - Connections between embedded FMU's. When the types differ, the value is converted (lossy conversions, such as
+    `Float64` to `Float32` or a number to a boolean, are reported by a warning).
+
+  Each input of an embedded FMU is fed by **one** source: a container input or a connection, not both, and not
+  two connections. An output can be exposed and connected at the same time. Every port named in the routing table
+  must exist: an unknown FMU or port stops the build with an error.
   - Explicitly ignored ports (only port with `causality = "output"` can be ignored)
 - Automation of routing table
   - *auto_input* exposes automatically the (unconnected) ports of embedded FMU's with `causality = "input"`
@@ -40,6 +46,18 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
     names and types
 
 Some of these parameters can be defined by Command Line Interface or by the input files.
+
+## Default time step
+
+When no time step is given, the container deduces it from the `stepSize` of the embedded FMU's
+(`<DefaultExperiment>` of their `modelDescription.xml`):
+
+- the FMU's which cannot handle a variable communication step size impose their step: the container step is
+  their **least common multiple**, computed exactly (`0.1` and `0.25` give `0.5`, `0.2` and `0.3` give `0.6`);
+- if all FMU's handle a variable step size, the container step is the largest of their step sizes;
+- FMU's without `stepSize` are ignored; if none declares one, the step is `0.1` second.
+
+When the time step is given, a warning is reported for each FMU with a fixed step that does not divide it.
 
 Several formats are supported as description files:
 - a `CSV` format: define only the routing table. Other options should be defined as command line options.
@@ -67,7 +85,7 @@ The `fmucontainer` command supports the following options:
 | `-no-auto-link`                     | auto           | Disable automatic linking of ports with matching names and types.                                                                                                                                                                    |
 | `-auto-local`                       | off            | Expose local variables of the embedded FMUs.                                                                                                                                                                                         |
 | `-auto-parameter`                   | off            | Expose parameters of the embedded FMUs.                                                                                                                                                                                              |
-| `-debug`                            | off            | Enable verbose logging during the build process.                                                                                                                                                                                     |
+| `-debug`                            | off            | Enable verbose logging during the build process, and keep the build directory (`<container name>/` in the FMU directory).                                                                                                             |
 
 **Example:**
 
@@ -207,7 +225,13 @@ container.add_implicit_rule(auto_input=True, auto_output=True, auto_link=True)
 container.make_fmu("bouncing.fmu", step_size=0.1, mt=True)
 ```
 
-The resulting `bouncing.fmu` is generated in the `fmu_directory`.
+The resulting `bouncing.fmu` is generated in the `fmu_directory`. The container is assembled in the
+directory `fmu_directory/<container name without .fmu>` (`bouncing/` here), which is **deleted** after the build,
+unless `debug=True`: make sure no directory of yours has that name. `make_fmu` can be called several times on the
+same `FMUContainer`, e.g. to build several variants.
+
+The methods defining the topology raise `FMUContainerError` when a rule cannot be applied: unknown FMU or port,
+wrong causality, incompatible types or dimensions, input already fed, start value of the wrong format.
 
 ## FMUContainer Reference
 

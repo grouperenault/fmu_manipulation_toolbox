@@ -164,7 +164,7 @@ class AssemblyIOMixin:
             # Special case: the link's endpoint is a *child container* name
             # (not a real FMU) referencing the reserved `container.ts_multiplier`
             # runtime input exposed internally by that container when its
-            # `ts_multiplier` parameter is enabled (see container.py
+            # `ts_multiplier` parameter is enabled (see container/builder.py
             # `make_fmu_xml`). Visually, this corresponds to a wire ending on
             # the GUI-only `ConfigurationNode`'s dynamic port for that
             # sub-container (`<child_without_.fmu>.ts_multiplier`), never to a
@@ -551,7 +551,7 @@ class AssemblyIOMixin:
                 # A mapping targeting the (GUI-only) ConfigurationNode's
                 # `ts_multiplier` port is, in fact, a real link driving the
                 # target sub-container's reserved `container.ts_multiplier`
-                # runtime input (see container.py `make_fmu_xml`). Reverse the
+                # runtime input (see container/builder.py `make_fmu_xml`). Reverse the
                 # visual routing back to that real link so it round-trips
                 # correctly on export. Inactive ports (checkbox unchecked,
                 # shown in red) are skipped: the target port would not even

@@ -1,0 +1,41 @@
+# Datalog filename
+bus+nodes-datalog.csv
+# real64: <VR> <NAME>
+1
+1 BusErrorProbability
+# real32: <VR> <NAME>
+0
+# integer8: <VR> <NAME>
+0
+# uinteger8: <VR> <NAME>
+0
+# integer16: <VR> <NAME>
+0
+# uinteger16: <VR> <NAME>
+0
+# integer32: <VR> <NAME>
+0
+# uinteger32: <VR> <NAME>
+0
+# integer64: <VR> <NAME>
+0
+# uinteger64: <VR> <NAME>
+0
+# boolean: <VR> <NAME>
+0
+# boolean1: <VR> <NAME>
+0
+# string: <VR> <NAME>
+0
+# binary: <VR> <NAME>
+4
+218103808 node1.CanChannel.Tx_Data
+218103809 bus.Node1.Tx_Data
+218103810 node2.CanChannel.Tx_Data
+218103811 bus.Node2.Tx_Data
+# clock: <VR> <NAME>
+4
+234881024 node1.CanChannel.Tx_Clock
+234881025 node1.CanChannel.Rx_Clock
+234881026 node2.CanChannel.Tx_Clock
+234881027 node2.CanChannel.Rx_Clock

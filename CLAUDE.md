@@ -2,3 +2,4 @@
 - plans should be stored in docs/local folder.
 - include the update of the user documentation at last step of plans.
 - At the end of each step of a plan, prepare a commit message
+- Move fully implemented plans to docs/local/done

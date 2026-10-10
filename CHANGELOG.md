@@ -2,6 +2,40 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* CHANGED (**breaking**): `fmucontainer` and `FMUContainer` stop with an error (`FMUContainerError`)
+         when a rule names an unknown FMU or port, or sets a start value on a `binary` or `clock`
+         port. Such rules used to be logged and ignored, so a typo silently produced a container
+         without the connection.
+* CHANGED (**breaking**): an input of an embedded FMU is fed by one source only: a container input
+         and a connection to the same input, two connections, or the same connection declared
+         twice are refused (`FMUContainerError`). The container used to write the input twice per
+         step. Input clocks (LS-BUS) are not concerned.
+* FIXED: `fmucontainer`: the default time step (when none is given) is the exact least common
+         multiple of the step sizes of the FMUs with a fixed step (`0.2` and `0.3` give `0.6`).
+         A step size that is not 1/n second was truncated (`0.3` gave `0.333`), a step size above
+         1 second was ignored, and a single FMU without `stepSize` made the container fall back
+         to 0.1 second.
+* FIXED: `fmucontainer`: no more "should be divisible" warning for a time step that is an exact
+         multiple of an FMU step size (`0.3` and `0.1`).
+* FIXED: `fmucontainer`: a connection feeding several inputs of the same converted type (e.g. a
+         `Real` output to two `Boolean` inputs) produced an invalid `container.txt`.
+* FIXED: `fmusplit`: containers built with the current `container.txt` format (version 6) and
+         array ports were split with missing connections and wrong port names.
+* CHANGED: the container builder is a package, `fmu_manipulation_toolbox.container` (`builder`,
+         `embedded`, `rules`, `layout`, `txt`, `types`, ...); every class is still importable from
+         `fmu_manipulation_toolbox.container`. The container types and conversions are defined in
+         `fmu_manipulation_toolbox.container.types`.
+* CHANGED: `FMUContainer.make_fmu` no longer modifies the container: the value references are
+         allocated at each build by `ContainerLayout`, so `make_fmu` can be called several times,
+         and `start_time`/`stop_time` stay as set. Removed: `ContainerPort.vr`,
+         `ContainerInput.vr`, `Link.vr`, `FMUContainer.vr_table`,
+         `ValueReferenceTable.set_link_vr` (replaced by `add_link`, which returns the value
+         references); `Link.vr_converted` becomes `Link.conversions` (target type -> conversion);
+         `make_fmu_xml`, `make_fmu_txt` and `make_datalog` take the `ContainerLayout`;
+         `Clock.container_vr`/`Clock.fmu_vr` become `Clock.fmu_vr`/`Clock.vr`.
+* CHANGED: `EmbeddedFMU` removes the temporary directory of its FMU once analysed (only
+         `EmbeddedFMU.fmu.fmu_filename` remains usable), and `EmbeddedFMUPort` accepts a
+         `ModelVariable`.
 * CHANGED (**breaking**): Python 3.10 or higher is required: Python 3.9 reached its end of life in
          October 2025. On Python 3.9, pip installs 1.9.4.2, the last release supporting it. The
          `importlib_metadata` dependency is removed.
