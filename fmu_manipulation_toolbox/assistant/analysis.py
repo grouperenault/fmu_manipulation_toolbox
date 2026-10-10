@@ -1,4 +1,4 @@
-"""Analysis of an assembly: bounded summary and paged views of its containers (docs/local/assembly_analysis.md).
+"""Analysis of an assembly: summary, paged views and lint of its containers (docs/local/assembly_analysis.md).
 
 The assembly JSON (the format of `Assembly.json_encode`, produced by both bridges) grows with the number of ports:
 a real assembly of 3 nested containers is over 100k characters, far more than a tool result can carry. The
@@ -11,10 +11,14 @@ sub-containers are reduced to their name, options, FMUs and counts.
 The same JSON is also served as is, but paged (`assembly_page`): one container at a time, and one section of it
 (exposed inputs, links...) at a time when the container alone is too large.
 
+Finally, `lint_assembly` reports the known traps of the structure (options, steps, wiring), grouped per rule like the
+report of `check_fmu`.
+
 Pure functions on plain data: this module depends on the standard library only, like the bridge protocol.
 """
 
 import json
+from fractions import Fraction
 from pathlib import PureWindowsPath
 from typing import Any
 
@@ -247,3 +251,150 @@ def assembly_page(assembly: dict[str, Any], node: str | None = None, section: st
         for key in SECTIONS:
             level.pop(key, None)
     return level
+
+
+# ---------------------------------------------------------------------------
+# Structural lint
+# ---------------------------------------------------------------------------
+
+#: Most groups of findings returned by `lint_assembly`, as `check_fmu` (docs/local/done/mcp_optimize.md, D1).
+MAX_FINDING_GROUPS = 50
+
+#: Ratio between the step of a container and the step of a sub-container above which it is reported as a warning.
+STEP_RATIO_THRESHOLD = 10
+
+#: Value of an `auto_*` option absent from the JSON: the default of `Assembly` when it reads the file.
+AUTO_DEFAULTS = {"auto_link": True, "auto_input": True, "auto_output": True, "auto_parameter": False,
+                 "auto_local": False}
+
+SEVERITIES = ("error", "warning", "info")
+
+#: Rules of the lint: what each one means, as given to the model with its findings.
+RULES = {
+    "input-fed-twice": "An input of an embedded FMU is fed more than once (links and/or exposed inputs): the "
+                       "container build refuses it.",
+    "duplicate-output": "Several ports are exposed under the same container output name: the container build "
+                        "refuses it.",
+    "nested-mt": "Multi-threading (`mt`) is enabled on a container and on one of its ancestors.",
+    "mt-sequential": "Both `mt` and `sequential` are enabled on a container.",
+    "step-ratio": "The step of a sub-container differs from the step of its container: a warning when their ratio "
+                  f"is above {STEP_RATIO_THRESHOLD} or is not an integer.",
+    "auto-off-nothing-exposed": "An `auto_*` rule is off and the root container exposes no port of that kind: the "
+                                "container will have no input, or no output.",
+    "fan-out": "One output, or one container input, feeds several inputs.",
+    "source-fmu": "Nothing feeds this FMU (no exposed input, no incoming link): it is a source of the assembly, e.g. "
+                  "a scenario or a stub of constants.",
+}
+
+
+def _auto(node: dict[str, Any], option: str) -> bool:
+    return bool(node.get(option, AUTO_DEFAULTS[option]))
+
+
+def _ancestry(node: dict[str, Any], ancestors: tuple = ()):
+    """Every container of the tree, with its ancestors (root first)."""
+    yield node, ancestors
+    for child in node.get("container", []):
+        yield from _ancestry(child, ancestors + (node,))
+
+
+def _lint_node(node: dict[str, Any], ancestors: tuple, report) -> None:
+    """Findings of one container: `report(rule, severity, example)` for each."""
+    where = str(node.get("name"))
+
+    if node.get("mt"):
+        mt_ancestors = [ancestor for ancestor in ancestors if ancestor.get("mt")]
+        if mt_ancestors:
+            report("nested-mt", "warning", f"{where} inside {mt_ancestors[-1].get('name')}")
+        if node.get("sequential"):
+            report("mt-sequential", "warning", where)
+
+    if ancestors and node.get("step_size") and ancestors[-1].get("step_size"):
+        parent = ancestors[-1]
+        ratio = Fraction(str(parent["step_size"])) / Fraction(str(node["step_size"]))
+        if ratio != 1:
+            text = (f"{where} ({node['step_size']} s) in {parent.get('name')} ({parent['step_size']} s): "
+                    f"ratio {float(ratio):g}")
+            integer = ratio.denominator == 1
+            report("step-ratio", "info" if integer and ratio <= STEP_RATIO_THRESHOLD else "warning",
+                   text if integer else f"{text}, not an integer")
+
+    # What feeds each input of the embedded FMUs, and what each output or container input feeds.
+    feeders: dict[tuple[str, str], list[str]] = {}
+    fed_by_output: dict[tuple[str, str], list[str]] = {}
+    fed_by_input: dict[str, list[str]] = {}
+    for exposed, fmu, port in node.get("input", []):
+        target = (fmu_name(fmu), port)
+        feeders.setdefault(target, []).append(f"container input '{exposed}'")
+        fed_by_input.setdefault(exposed, []).append(f"{target[0]}/{port}")
+    for from_fmu, from_port, to_fmu, to_port in node.get("link", []):
+        source = (fmu_name(from_fmu), from_port)
+        feeders.setdefault((fmu_name(to_fmu), to_port), []).append(f"link from {source[0]}/{from_port}")
+        fed_by_output.setdefault(source, []).append(f"{fmu_name(to_fmu)}/{to_port}")
+
+    for (fmu, port), sources in feeders.items():
+        if len(sources) > 1:
+            report("input-fed-twice", "error", f"{where}: {fmu}/{port} fed by {', '.join(sources)}")
+
+    exposed_outputs: dict[str, list[str]] = {}
+    for fmu, port, exposed in node.get("output", []):
+        exposed_outputs.setdefault(exposed, []).append(f"{fmu_name(fmu)}/{port}")
+    for exposed, ports in exposed_outputs.items():
+        if len(ports) > 1:
+            report("duplicate-output", "error", f"{where}: output '{exposed}' exposes {', '.join(ports)}")
+
+    for (fmu, port), targets in fed_by_output.items():
+        if len(targets) > 1:
+            report("fan-out", "info", f"{where}: {fmu}/{port} -> {', '.join(targets)}")
+    for exposed, targets in fed_by_input.items():
+        if len(targets) > 1:
+            report("fan-out", "info", f"{where}: container input '{exposed}' -> {', '.join(targets)}")
+
+    # Derived links and exposures are not in the JSON: a source can only be told when no rule may feed the FMU.
+    if not _auto(node, "auto_link") and not _auto(node, "auto_input"):
+        fed = {fmu for fmu, _ in feeders}
+        for fmu in [fmu_name(fmu) for fmu in node.get("fmu", [])] + [str(child.get("name"))
+                                                                     for child in node.get("container", [])]:
+            if fmu not in fed:
+                report("source-fmu", "info", f"{where}: {fmu}")
+
+    if not ancestors:
+        for option, section, kind in (("auto_input", "input", "input"), ("auto_output", "output", "output")):
+            if not _auto(node, option) and not node.get(section):
+                report("auto-off-nothing-exposed", "warning", f"{where}: {option} off, no {kind} exposed")
+
+
+def lint_assembly(assembly: dict[str, Any]) -> dict[str, Any]:
+    """Report the known structural traps of an assembly, from its JSON only (decision D8).
+
+    Args:
+        assembly: The assembly, in the format of `Assembly.json_encode`.
+
+    Returns:
+        ``error_count``, ``warning_count`` and ``info_count`` (findings, not groups); ``findings``: one group per
+        rule and severity, errors first, with ``rule``, ``severity``, ``message`` (what the rule means), ``count``
+        and at most `MAX_EXAMPLES` ``examples``, each naming its container; ``truncated`` when groups beyond
+        `MAX_FINDING_GROUPS` were left out. An empty assembly has no finding.
+    """
+    groups: dict[tuple[str, str], list[str]] = {}
+
+    def report(rule: str, severity: str, example: str) -> None:
+        groups.setdefault((rule, severity), []).append(example)
+
+    if assembly:
+        for node, ancestors in _ancestry(assembly):
+            _lint_node(node, ancestors, report)
+
+    rule_order = list(RULES)
+    ordered = sorted(groups.items(), key=lambda item: (SEVERITIES.index(item[0][1]), rule_order.index(item[0][0])))
+    counts = {severity: sum(len(examples) for (_, level), examples in groups.items() if level == severity)
+              for severity in SEVERITIES}
+    return {
+        "error_count": counts["error"],
+        "warning_count": counts["warning"],
+        "info_count": counts["info"],
+        "truncated": len(ordered) > MAX_FINDING_GROUPS,
+        "findings": [{"rule": rule, "severity": severity, "message": RULES[rule], "count": len(examples),
+                      "examples": examples[:MAX_EXAMPLES]}
+                     for (rule, severity), examples in ordered[:MAX_FINDING_GROUPS]],
+    }

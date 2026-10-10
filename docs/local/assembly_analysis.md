@@ -1,6 +1,6 @@
 # Plan: help the MCP clients analyse an FMU assembly
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 to 2 done; D9', D11 to D13 taken) — **Status**: in progress
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 to 3 done; D9', D11 to D14 taken) — **Status**: in progress
 
 Describing the content and the behaviour of a loaded assembly is a frequent request to the AI Assistant. On a real
 case (`bug.fmu`: 3 nested containers, 5 FMUs, 271 exposed ports, 295 links), the existing tools are not enough:
@@ -88,6 +88,7 @@ D1 to D4 chosen by the user; D5 to D10 taken as recommended.
 | D11 | Bounds of the summary (phase 1: 19 169 characters on the real `bug.fmu` with 30 groups per list) | **Both bounds**: per container, at most **15** groups per list, the elements alone in their group merged into `ungrouped` (count and examples); for the whole tree, beyond the result budget, the root only is detailed and the sub-containers are reduced to their name, options, FMUs and counts (`reduced`), the detail being reached with `node` (phase 4) |
 | D12 | A single container over the budget (phase 2: 24k to 57k characters per level of `bug.fmu`) | **Sections and paging**: without `section`, the container with its options, FMUs, `counts` per section and sub-containers (name and counts), its sections included only when they fit, otherwise `truncated`; with `section` (`input`, `output`, `link`, `start`, `drop`), `offset` and `limit` (default 50, maximum 200, as the port listings), one page of entries with `total` and `truncated` |
 | D13 | FMU paths in `get_assembly_json` (30 to 45 % of the volume) | **Names everywhere** in the result of the tool and of `assembly://current`, as the other tools; `save_as_json` still writes the complete file |
+| D14 | Structural rules checked against the builder (phase 3) | **`input-fed-twice`** (error) instead of `link-to-exposed-input`: the builder refuses any second feeder (link and exposed input, two links, two exposed inputs); **`duplicate-output`** (error) instead of `duplicate-exposure`: one container input feeding several ports is an allowed fan-out, reported by `fan-out`; **`source-fmu`** (info: nothing feeds the FMU) instead of `constant-stub`, which gave false positives from the JSON alone and moves to phase 4 with the port variabilities |
 
 ---
 
@@ -204,23 +205,38 @@ Checks performed: full suite **2058 passed, 2 skipped**; ruff not available in t
 
 ### Phase 3 — Structural lint (A3, D8)
 
-`lint_assembly(assembly_json)` in `assistant/analysis.py`, from the JSON only. Proposed rules (D8):
+`lint_assembly(assembly_json)` in `assistant/analysis.py`, from the JSON only. Rules (D8, revised by D14):
 
 | Rule | Severity | Detail |
 |---|---|---|
-| `nested-mt` | warning | `mt` enabled on a container and on one of its sub-containers |
+| `input-fed-twice` | error | an input of an embedded FMU fed more than once: link and exposed input, two links, or two exposed inputs (the builder refuses it) |
+| `duplicate-output` | error | several ports exposed under the same container output name (the builder refuses it) |
+| `nested-mt` | warning | `mt` enabled on a container and on one of its ancestors |
 | `mt-sequential` | warning | `mt` and `sequential` both enabled |
-| `step-ratio` | info / warning | ratio between the step of a container and of a sub-container; warning above the threshold (10), or when not an integer |
-| `fan-out` | info | one output feeding several inputs |
-| `constant-stub` | info | an FMU whose outputs only feed other FMUs and that has no exposed input (stub of constants) |
-| `duplicate-exposure` | error | two ports exposed under the same container name |
-| `link-to-exposed-input` | warning | an input both linked and exposed |
+| `step-ratio` | info / warning | ratio between the step of a container and of a sub-container, both given; warning above the threshold (10), or when not an integer |
 | `auto-off-nothing-exposed` | warning | `auto_input`/`auto_output` off and no exposed port of that kind on the root container |
+| `fan-out` | info | one output, or one container input, feeding several inputs |
+| `source-fmu` | info | an FMU or sub-container that nothing feeds (no exposed input, no incoming link); only when `auto_link` and `auto_input` are off, since derived rules are not in the JSON |
 
 Result shaped like `check_fmu`: findings grouped per rule (`rule`, `severity`, `message`, `count`, `examples`),
 `error_count`, `warning_count`, `truncated`; at most 50 groups.
 
 Tests: one fixture per rule (small JSON written in the test), no finding on `flat.json`, bounds on the large assembly.
+
+Rules revised by D14, taken at the start of the phase after checking them against `container/builder.py`.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `lint_assembly()`: the 8 rules above, `RULES` (meaning of each rule, returned as the `message` of its group), `STEP_RATIO_THRESHOLD` = 10 (ratios compared as exact fractions of the decimal steps), `AUTO_DEFAULTS` (value of an `auto_*` option absent from the JSON, as `Assembly` reads it), `MAX_FINDING_GROUPS` = 50; result `error_count`, `warning_count`, `info_count`, `truncated`, `findings` (one group per rule and severity, errors first, `count`, at most 3 `examples` naming their container) | `assistant/analysis.py` |
+| Tests: no finding on `flat.json` nor on an empty assembly; one case per rule (the three ways to feed an input twice, step ratios integer / large / non-integer / inverted, `source-fmu` only without `auto_*` rule); order, counts and bounds; the large assembly gives exactly nested `mt`, a step ratio of 100 and a fan-out | `tests/unit/test_assistant_analysis.py` |
+
+Measured (characters of `json.dumps`): large assembly of the fixtures 824; real `bug.fmu` **1 448**: nested `mt`
+(`level2.fmu` inside the level 1 container), step ratio 100, and 6 fan-outs (`Twheel_fr`, `Twheel_re`,
+`fr_velocity`...), the patterns spotted by hand in the case study.
+
+Checks performed: full suite **2074 passed, 2 skipped**; ruff not available in the environment (not run).
 
 *Commit message*: `Lint the structure of an assembly (assembly_analysis phase 3)`
 
@@ -237,6 +253,10 @@ Tests: one fixture per rule (small JSON written in the test), no finding on `fla
    | `dangling-input` | warning | an input neither linked nor exposed, without start value; the `auto_*` rules are evaluated by a dry run of the engine (D9) |
    | `auto-rules-partial` | info | a level holding a sub-container and an `auto_*` rule on: the ports of the sub-container are not evaluated by the dry run (D9') |
    | `parameter-not-set` | info | a parameter neither exposed nor given a start value (only when `auto_parameter` is off) |
+   | `constant-stub` | info | an FMU whose linked outputs all have a `constant` or `fixed` variability (D14) |
+
+   `input-fed-twice` (phase 3) is refined with the port types: the builder lets several feeders reach an input
+   clock (LS-BUS), which the JSON alone cannot tell.
 
 2. Tool `analyze_assembly(mode: "summary" | "lint" = "summary", node: str | None = None)` in `assistant/server.py`
    (`READ_ONLY`), `node` restricting the analysis to one container (same designation as D5).

@@ -11,8 +11,8 @@ import pytest
 pytestmark = [pytest.mark.unit]
 
 from fmu_manipulation_toolbox.assistant.analysis import (  # noqa: E402
-    MAX_EXAMPLES, MAX_GROUPS, MAX_RESULT_SIZE, SECTIONS, assembly_page, find_container, fmu_name, port_prefix,
-    summarize_assembly,
+    MAX_EXAMPLES, MAX_GROUPS, MAX_RESULT_SIZE, RULES, SECTIONS, assembly_page, find_container, fmu_name,
+    lint_assembly, port_prefix, summarize_assembly,
 )
 
 from _helpers.mcp_budget import make_large_assembly  # noqa: E402
@@ -280,3 +280,133 @@ def test_a_large_assembly_is_given_one_container_at_a_time(tmp_path):
                 if not part["truncated"]:
                     break
             assert entries == node.get(section, [])
+
+
+# --------------------------------------------------------------------------- #
+#                          structural lint (phase 3)                           #
+# --------------------------------------------------------------------------- #
+#: Options of an explicit assembly: every `auto_*` rule off, so that nothing is derived at build time.
+EXPLICIT = {"auto_link": False, "auto_input": False, "auto_output": False}
+
+
+def _findings(assembly):
+    """`(rule, severity) -> examples` of the lint of `assembly`."""
+    return {(group["rule"], group["severity"]): group["examples"] for group in lint_assembly(assembly)["findings"]}
+
+
+def test_no_finding_on_a_flat_assembly(data_dir):
+    report = lint_assembly(_arch(data_dir, "flat.json"))
+
+    assert report == {"error_count": 0, "warning_count": 0, "info_count": 0, "truncated": False, "findings": []}
+    assert lint_assembly({}) == report
+
+
+def test_input_fed_twice():
+    """The builder refuses a second feeder: link and exposed input, two links, or two exposed inputs."""
+    assembly = {"name": "c.fmu", "fmu": ["a.fmu", "b.fmu"],
+                "input": [["u", "b.fmu", "u"], ["v1", "b.fmu", "v"], ["v2", "b.fmu", "v"]],
+                "link": [["a.fmu", "y", "b.fmu", "u"], ["a.fmu", "y1", "b.fmu", "w"], ["a.fmu", "y2", "b.fmu", "w"]]}
+
+    assert _findings(assembly)[("input-fed-twice", "error")] == [
+        "c.fmu: b.fmu/u fed by container input 'u', link from a.fmu/y",
+        "c.fmu: b.fmu/v fed by container input 'v1', container input 'v2'",
+        "c.fmu: b.fmu/w fed by link from a.fmu/y1, link from a.fmu/y2",
+    ]
+    assert lint_assembly(assembly)["error_count"] == 3
+
+
+def test_duplicate_output():
+    assembly = {"name": "c.fmu", "fmu": ["/models/a.fmu", "b.fmu"],
+                "output": [["/models/a.fmu", "y", "out"], ["b.fmu", "y", "out"], ["b.fmu", "z", "z"]]}
+
+    assert _findings(assembly)[("duplicate-output", "error")] == ["c.fmu: output 'out' exposes a.fmu/y, b.fmu/y"]
+
+
+def test_nested_mt_and_mt_sequential():
+    assembly = {"name": "root.fmu", "mt": True, "container": [
+        {"name": "mid.fmu", "container": [{"name": "leaf.fmu", "mt": True, "sequential": True}]}]}
+
+    findings = _findings(assembly)
+    assert findings[("nested-mt", "warning")] == ["leaf.fmu inside root.fmu"]
+    assert findings[("mt-sequential", "warning")] == ["leaf.fmu"]
+
+
+@pytest.mark.parametrize("parent, child, severity, example", [
+    (0.5, 0.1, "info", "sub.fmu (0.1 s) in root.fmu (0.5 s): ratio 5"),
+    (0.5, 0.005, "warning", "sub.fmu (0.005 s) in root.fmu (0.5 s): ratio 100"),
+    (0.5, 0.2, "warning", "sub.fmu (0.2 s) in root.fmu (0.5 s): ratio 2.5, not an integer"),
+    (0.1, 0.3, "warning", "sub.fmu (0.3 s) in root.fmu (0.1 s): ratio 0.333333, not an integer"),
+])
+def test_step_ratio(parent, child, severity, example):
+    """Exact ratios (decimal steps compared as fractions, 0.5 / 0.1 is 5)."""
+    assembly = {"name": "root.fmu", "step_size": parent, "container": [{"name": "sub.fmu", "step_size": child}]}
+
+    assert _findings(assembly) == {("step-ratio", severity): [example]}
+
+
+@pytest.mark.parametrize("child", [{"name": "sub.fmu", "step_size": 0.5}, {"name": "sub.fmu"}])
+def test_no_step_ratio_for_equal_or_derived_steps(child):
+    assert _findings({"name": "root.fmu", "step_size": 0.5, "container": [child]}) == {}
+
+
+def test_fan_out():
+    assembly = {"name": "c.fmu", "fmu": ["a.fmu", "b.fmu"],
+                "input": [["u", "a.fmu", "u"], ["u", "b.fmu", "u"]],
+                "link": [["a.fmu", "y", "b.fmu", "v"], ["a.fmu", "y", "b.fmu", "w"]]}
+
+    assert _findings(assembly)[("fan-out", "info")] == [
+        "c.fmu: a.fmu/y -> b.fmu/v, b.fmu/w",
+        "c.fmu: container input 'u' -> a.fmu/u, b.fmu/u",
+    ]
+
+
+def test_source_fmu():
+    """Only when no `auto_*` rule may feed the FMU: derived links and exposures are not in the JSON."""
+    assembly = {"name": "c.fmu", **EXPLICIT, "fmu": ["a.fmu", "b.fmu"], "container": [{"name": "sub.fmu"}],
+                "link": [["a.fmu", "y", "b.fmu", "u"], ["sub.fmu", "y", "b.fmu", "v"]],
+                "output": [["b.fmu", "z", "z"]]}
+
+    assert _findings(assembly)[("source-fmu", "info")] == ["c.fmu: a.fmu", "c.fmu: sub.fmu"]
+    assert ("source-fmu", "info") not in _findings({**assembly, "auto_link": True})
+    assert ("source-fmu", "info") not in _findings({key: value for key, value in assembly.items()
+                                                    if key != "auto_input"})
+
+
+def test_auto_off_nothing_exposed():
+    """On the root container only: a sub-container exposes what its parent links."""
+    assembly = {"name": "c.fmu", **EXPLICIT, "fmu": ["a.fmu"], "input": [["u", "a.fmu", "u"]],
+                "container": [{"name": "sub.fmu", **EXPLICIT}]}
+
+    assert _findings(assembly)[("auto-off-nothing-exposed", "warning")] == ["c.fmu: auto_output off, no output exposed"]
+
+
+def test_findings_are_ordered_counted_and_bounded():
+    """Errors first; each group with the meaning of its rule, its count and a few examples."""
+    links = [["a.fmu", f"y{i}", "b.fmu", "u"] for i in range(10)] + [["a.fmu", "y0", "b.fmu", "v"]]
+    report = lint_assembly({"name": "root.fmu", "mt": True, "fmu": ["a.fmu", "b.fmu"], "link": links,
+                            "container": [{"name": "sub.fmu", "mt": True}]})
+
+    assert [(group["rule"], group["severity"]) for group in report["findings"]] == [
+        ("input-fed-twice", "error"), ("nested-mt", "warning"), ("fan-out", "info")]
+    assert (report["error_count"], report["warning_count"], report["info_count"]) == (1, 1, 1)
+    assert report["findings"][0]["message"] == RULES["input-fed-twice"]
+    assert len(report["findings"][0]["examples"]) == 1
+
+
+def test_examples_are_bounded():
+    links = [["a.fmu", f"y{i}", "b.fmu", f"u{i}"] for i in range(10)] + [["a.fmu", f"z{i}", "b.fmu", f"u{i}"]
+                                                                         for i in range(10)]
+    [group] = lint_assembly({"name": "c.fmu", "fmu": ["a.fmu", "b.fmu"], "link": links})["findings"]
+
+    assert group["count"] == 10
+    assert len(group["examples"]) == MAX_EXAMPLES
+
+
+def test_the_large_assembly_is_linted(tmp_path):
+    """The patterns of the case study: nested `mt`, a step ratio of 100 and a fan-out; within the budget."""
+    report = lint_assembly(make_large_assembly(tmp_path))
+
+    assert len(json.dumps(report)) <= MAX_RESULT_SIZE
+    assert set(_findings(make_large_assembly(tmp_path))) == {
+        ("nested-mt", "warning"), ("step-ratio", "warning"), ("fan-out", "info")}
+    assert report["error_count"] == 0
