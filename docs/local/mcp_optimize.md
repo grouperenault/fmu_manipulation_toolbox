@@ -1,6 +1,6 @@
 # Plan: optimize the MCP server for the context window
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions D1 to D5 taken) — **Status**: not started
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phase 0 done) — **Status**: in progress
 
 The MCP server (`fmu_manipulation_toolbox/assistant/`, `fmutool-mcp` and the AI Assistant of the Container Builder)
 is meant to work with any MCP client, including local models (Qwen, Llama, Mistral...) served by Ollama or LM Studio.
@@ -45,6 +45,7 @@ client normally gives one of them to the model.
 | C4 | The tool definitions cost ~4.8k tokens at every request: more than a whole 4k window; the port tools repeat long descriptions | `assistant/server.py` |
 | C5 | All 21 tools are always exposed, although a session usually needs either the assembly tools (15) or the single-FMU tools (6). *Kept by D4 (a)* | `assistant/server.py` |
 | C6 | Nothing tells the user that a local model needs a larger context; a truncated context fails silently (the runtime drops the beginning of the conversation: tools, instructions) | `docs/user-guide/fmucontainer/ai-assistant.md` |
+| C8 | *(found in phase 0)* `check_fmu` answers `"compliant": true` for the FMU with 2501 semantic errors: `compliant` is the XSD verdict only (documented in the tool description), so a model reading the first field may report a compliant FMU | `assistant/fmutools.py`, `check_fmu` |
 | C7 | No test bounds the size of the definitions or of the results; only `test_the_default_limit_keeps_the_answer_small` checks the number of ports | `tests/unit/test_assistant_server.py` |
 
 ---
@@ -61,8 +62,8 @@ client normally gives one of them to the model.
 ## 3. Decisions
 
 Decided on 10 October 2026: **D1 (b)**, **D2 (b)**, **D3 (c)**, **D4 (a)** (no tool subsets: the 21 tools stay
-exposed, the cost of the definitions is reduced by phase 3 only), **D5 (a)**. D6 not decided yet: the plan assumes
-its recommendation.
+exposed, the cost of the definitions is reduced by phase 3 only), **D5 (a)**, **D6** as recommended (validated by
+starting phase 0).
 
 
 | # | Question | Options | Recommendation |
@@ -88,10 +89,38 @@ its recommendation.
 
 *Exit criterion*: the measurements of §1 reproduced by the helper; suite green.
 
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `make_large_fmu()` (5000 variables, `broken=True` for the variant without start values), `measure()` through an in-memory FastMCP client with the headless bridge, budgets `DEFINITIONS_BUDGET` = 16 000 and `RESULT_BUDGET` = 12 000 characters; `python tests/_helpers/mcp_budget.py` prints the report (tokens when `tiktoken` is installed) | `tests/_helpers/mcp_budget.py` |
+| Budget tests: the fixture is of industrial size; tool definitions; eight results with default arguments (including the resource `fmu://{name}/ports`). Five `xfail(strict=True)`, each checked to fail on its budget (`--runxfail`) | `tests/unit/test_assistant_budget.py` |
+
+Baseline measured by the helper (characters, then tokens with `cl100k_base`):
+
+| Item | Characters | Tokens | Budget |
+|---|---|---|---|
+| Tool definitions (name, description, input schema) | 18 028 | 4 785 | over (16 000) |
+| `add_fmu` | 255 | 89 | |
+| `list_fmu_ports` (default page) | 17 643 | 4 972 | over |
+| `inspect_fmu_file` (default page) | 17 643 | 4 972 | over |
+| `summarize_fmu` | 731 | 282 | |
+| `check_fmu` (compliant) | 152 | 43 | |
+| `check_fmu` (2501 errors) | 218 900 | 72 057 | over |
+| `get_assembly_json` | 257 | 85 | |
+| Resource `fmu://large.fmu/ports` (indented JSON) | 24 326 | 7 398 | over |
+
+About 3.5 characters per token on these results: the 12 000-character budget is ~3.4k tokens. New finding C8
+(`compliant` is the XSD verdict only), to be addressed with the bounded report of phase 1 (totals next to the
+verdict).
+
+Checks performed: full suite **2010 passed, 2 skipped, 5 xfailed**; ruff `F`: clean.
+
 ### Phase 1 — Bounded `check_fmu` (C1, D1)
 
 1. `fmutools.check_fmu`: `errors` and `warnings` limited to N entries, with `error_count`, `warning_count`,
-   `truncated`; messages of the same rule grouped (`{"message": ..., "count": ..., "examples": [...]}`).
+   `truncated`; messages of the same rule grouped (`{"message": ..., "count": ..., "examples": [...]}`); the
+   description of `compliant` made explicit in the result itself (C8), e.g. `schema_compliant` next to the counts.
 2. Tool description: how to get the full list (`fmutool -check` in a terminal), never to promise completeness when
    `truncated` is true.
 3. Same treatment for the other lists that grow with the FMU, if the measurements of phase 0 find any.
