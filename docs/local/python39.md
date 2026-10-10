@@ -1,6 +1,6 @@
 # Plan: drop Python 3.9 support
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phase 1 done) — **Starting branch**: `packaging` (after phase 5 of `packaging.md`) — **Roadmap**: 2.0
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 1 and 2 done) — **Starting branch**: `packaging` (after phase 5 of `packaging.md`) — **Roadmap**: 2.0
 
 Python 3.9 reached its end of life in October 2025. The test tooling already requires 3.10 (`pytest >= 9`): the test
 jobs run on 3.10 and 3.13 only, and 3.9 is exercised by a single job, `smoke-wheel`, which installs the wheel and runs
@@ -86,6 +86,17 @@ from now on (never taken on 3.10+), removed in phase 2.
 3. Search again for `3.9`, `3.10`, `version_info` in the code and the tests.
 
 *Exit criterion*: no Python version test left in the package; suite green, `get_checkers()` tests included.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `from importlib.metadata import entry_points` at module level; the `sys.version_info` branch and the `import sys` it was the only user of removed | `fmu_manipulation_toolbox/checker.py` |
+| Module docstring: fastmcp is imported lazily because the `mcp` extra is optional; `McpUnavailableError` message without "Python >= 3.10" | `fmu_manipulation_toolbox/assistant/server.py` |
+
+Checks performed: `git grep -E "3\.9|3\.10|version_info|importlib_metadata"` on the package, the tests and the tools
+finds nothing; `get_checkers()` returns `OperationGenericCheck` and `OperationSemanticCheck`; clean Python 3.14
+environment, `pip install -e ".[all]"`: full suite **1921 passed, 2 skipped**.
 
 ### Phase 3 — User documentation
 

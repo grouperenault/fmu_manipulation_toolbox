@@ -4,9 +4,9 @@ The server is built on top of an :class:`~fmu_manipulation_toolbox.assistant.bri
 implementation, so the very same tools can drive either the live Container
 Builder GUI or a headless assembly.
 
-The FastMCP SDK requires Python >= 3.10; it is therefore imported lazily by
-:func:`build_server` so that importing this package keeps working on Python 3.9
-(and without the optional ``mcp`` extra installed).
+The FastMCP SDK comes with the optional ``mcp`` extra; it is therefore imported
+lazily by :func:`build_server` so that importing this package keeps working
+without it.
 """
 
 import functools
@@ -263,7 +263,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise McpUnavailableError(
             "The 'fastmcp' package is required for the AI assistant "
-            "(pip install 'fmu_manipulation_toolbox[mcp]', Python >= 3.10)."
+            "(pip install 'fmu_manipulation_toolbox[mcp]')."
         ) from exc
 
     # Imported here (rather than at module level) because it needs Pydantic,

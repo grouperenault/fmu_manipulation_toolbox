@@ -1,8 +1,8 @@
 import importlib.util
+from importlib.metadata import entry_points
 import inspect
 import logging
 import os
-import sys
 import xmlschema
 from typing import *
 
@@ -328,10 +328,6 @@ def get_checkers() -> List[type[OperationAbstract]]:
             subclass of
             [OperationAbstract][fmu_manipulation_toolbox.operations.OperationAbstract].
     """
-    if sys.version_info < (3, 10):
-        from importlib_metadata import entry_points
-    else:
-        from importlib.metadata import entry_points
     checkers: List[type[OperationAbstract]] = list(_checkers_list)  # a copy: repeated calls must not pile up
     discovered_checkers = entry_points(group='fmu_manipulation_toolbox.checkers')
 
