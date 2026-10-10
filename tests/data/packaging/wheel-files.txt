@@ -6,7 +6,7 @@
 <name>-<version>.dist-info/top_level.txt
 fmu_manipulation_toolbox/__init__.py
 fmu_manipulation_toolbox/__main__.py
-fmu_manipulation_toolbox/__version__.py
+fmu_manipulation_toolbox/_version.py
 fmu_manipulation_toolbox/assembly.py
 fmu_manipulation_toolbox/assistant/__init__.py
 fmu_manipulation_toolbox/assistant/auth.py

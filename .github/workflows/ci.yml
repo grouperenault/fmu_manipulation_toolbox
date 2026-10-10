@@ -161,6 +161,10 @@ jobs:
         python-version: ["3.10", "3.13"]
     steps:
     - uses: actions/checkout@v5
+      with:
+        # The package version comes from the git tags (setuptools-scm): the whole history is needed, a shallow clone
+        # would give a wrong version.
+        fetch-depth: 0
     - uses: actions/download-artifact@v5
       with:
         name: remoting-win64
@@ -220,7 +224,9 @@ jobs:
     - name: Package
       if: matrix.python-version == '3.13'
       run: |
-        python -m build
+        # Build the sdist and the wheel separately from the sources: the sdist does not ship the prebuilt binaries,
+        # so a wheel built from it (the default of `python -m build`) would not contain them either.
+        python -m build --sdist --wheel
     - name: Archive Artifacts
       if: matrix.python-version == '3.13'
       uses: actions/upload-artifact@v5

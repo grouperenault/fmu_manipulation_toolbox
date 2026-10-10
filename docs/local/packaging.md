@@ -1,6 +1,6 @@
 # Plan: modern packaging (`pyproject.toml`)
 
-**Created**: 9 October 2026 — **Updated**: 10 October 2026 (phases 0 and 1 done) — **Starting branch**: `integration`
+**Created**: 9 October 2026 — **Updated**: 10 October 2026 (phases 0, 1 and 2 done; phase 2 dry-run release pending) — **Starting branch**: `integration`
 **Scope**: `setup.py`, `setup.cfg`, `requirements.txt`, `fmu_manipulation_toolbox/version.py`, `tests/pytest.ini`, the
 `ci.yml` and `release.yml` workflows, the user documentation about installation.
 
@@ -51,8 +51,8 @@ files), building per-platform wheels (see C9), the supported Python versions (§
 | # | Decision | Options | Recommendation |
 |---|---|---|---|
 | D1 | **PyPI description** | (a) `README.md`; (b) a dedicated file (`docs/pypi.md`); (c) keep the string of `setup.py` | **Decided: (a)** (10 October 2026). The relative images and links of the README need absolute URLs, otherwise they are broken on PyPI (done in phase 1) |
-| D2 | **Displayed version** (banners, `generationTool`) | (a) normalized PEP 440 version (`1.9.4rc4`); (b) keep the prefix (`V1.9.4rc4`) | **(a)**: it is the one shown by pip and PyPI. Visible change, to be announced in `CHANGELOG.md` |
-| D3 | **sdist content** | Today: package, 11 prebuilt binaries, no C sources (C11). With `setuptools-scm`, **every file tracked by git** goes into the sdist by default: 1.5 MB of package, but also 10.8 MB of `tests/`, 3.7 MB of `docs/` and the C sources (`container/`, `remoting/`, `fmi/`, 0.6 MB) | Include the C sources (the sdist must allow rebuilding the binaries); exclude `tests/data`, `docs/` and `.github/`; decide whether the prebuilt binaries stay in the sdist |
+| D2 | **Displayed version** (banners, `generationTool`) | (a) normalized PEP 440 version (`1.9.4rc4`); (b) keep the prefix (`V1.9.4rc4`) | **Decided: (a)** (10 October 2026): it is the one shown by pip and PyPI. Visible change, to be announced in `CHANGELOG.md` (phase 5) |
+| D3 | **sdist content** | Today: package, 11 prebuilt binaries, no C sources (C11). With `setuptools-scm`, **every file tracked by git** goes into the sdist by default: 1.5 MB of package, but also 10.8 MB of `tests/`, 3.7 MB of `docs/` and the C sources (`container/`, `remoting/`, `fmi/`, 0.6 MB) | **Decided** (10 October 2026): Python package + C sources; exclude `tests/data`, `docs/`, `.github/` **and the prebuilt binaries**. Consequence: the wheel must be built from the sources, not from the sdist (`python -m build --sdist --wheel`) |
 | D4 | **`requirements.txt`** | (a) delete it; (b) reduce it to `-e .[all]` | **(b)** for one release, so as not to break habits and documentation, then (a) |
 | D5 | **Python versions** | Python 3.9 reached end of life in October 2025 but is still declared and tested (`smoke-wheel`); Python 3.14 is missing from the CI and the classifiers | **Out of this plan**: to be decided separately; this plan only carries over the current `requires-python` (`>=3.9`) |
 | D6 | **Test tools** | (a) `test` extra (current); (b) *dependency groups* (PEP 735, `pip install --group test`, pip ≥ 25.1) | **(a)** for now: the extra is documented for users; (b) once the CI can assume a recent pip |
@@ -157,6 +157,43 @@ Checks performed:
 
 *Exit criterion*: on a tag, package version = normalized tag; between two tags, development version
 (`1.9.5.devN+g<commit>`); `pip install -e .` gives a version; dry-run release succeeds (§5).
+
+**Status on 10 October 2026: done, except the dry-run release on TestPyPI** (needs a TestPyPI *Trusted Publisher*, to be
+configured by the maintainer) and the confirmation of `smoke-wheel` by the CI.
+
+| Item | File |
+|---|---|
+| `setuptools-scm >= 8` in `[build-system]`; `[tool.setuptools_scm] version_file = "fmu_manipulation_toolbox/_version.py"` (ignored by git) | `pyproject.toml`, `.gitignore` |
+| `version.py`: `_version.py`, then `importlib.metadata`, then `0.0.dev0` (source tree neither built nor installed, e.g. the test suite) | `fmu_manipulation_toolbox/version.py` |
+| `setup.py` removed | — |
+| Version of archives without git (`git archive`, "Source code" of the GitHub releases) | `.git_archival.txt`, `.gitattributes` |
+| D3: sdist content | `MANIFEST.in` |
+| CI: `fetch-depth: 0` on the job that builds the package; `python -m build --sdist --wheel`; release comment updated | `.github/workflows/ci.yml`, `release.yml` |
+| Inventory script: builds in a temporary local clone (setuptools-scm needs the history, and lists the files tracked by git for the sdist), overlaid with the working copy and indexed in the clone (its index is independent); `--sdist --wheel` | `tools/dist_inventory.py` |
+| Reference inventory updated | `tests/data/packaging/` |
+
+Findings during the phase:
+
+- **`V…` tags need no configuration**: `setuptools-scm` 10.3.4 reads `V1.9.4.2` as `1.9.4.2` and `V1.9.4rc4` as
+  `1.9.4rc4`; between tags it gives e.g. `1.9.4.3.dev77+gb774220fb`.
+- **D3 changes how the wheel must be built.** By default, `python -m build` builds the sdist, then the wheel *from the
+  sdist*: without binaries in the sdist, the wheel would have none either. The CI and the inventory script now build both
+  from the sources. `smoke-wheel` (which checks the binaries in the wheel) guards against a regression.
+- **The former wheels shipped `__version__.py`** (written by `setup.py` during the build); the new ones ship `_version.py`.
+- **`package.py`** (repository root, tracked): an old script zipping the `build/` directory. It is now part of the sdist
+  like every tracked file, and looks obsolete; to be removed or documented (not done, pending a decision).
+
+Checks performed:
+
+- simulation in a temporary clone, binaries present but untracked as in the CI: tag `V9.9.9` → `9.9.9` (wheel and sdist,
+  11 binaries in the wheel); tag `V9.9.10rc1` → `9.9.10rc1`; no tag → `9.9.10rc2.dev1+g<commit>`; `git archive` of the tag,
+  without git → `9.9.9` (from `.git_archival.txt`);
+- displayed version (D2): the `fmutool` banner of the installed wheel shows `version 9.9.9`; an editable install
+  (`pip install -e .`) gives `9.9.9`;
+- inventory: wheel identical except `__version__.py` → `_version.py`; sdist: C sources (`container/`, `remoting/`, `fmi/`),
+  test code, `MANIFEST.in`, `.git_archival.txt`, `.gitattributes`, `CHANGELOG.md`… added, the 11 prebuilt binaries and
+  `setup.py` removed, `tests/data`, `docs/` and `.github/` excluded; metadata unchanged;
+- both workflows are valid YAML; full suite: 1921 tests passed.
 
 ### Phase 3 — Dependencies and development environment
 

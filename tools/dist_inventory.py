@@ -5,12 +5,18 @@ inventory records what the distributions contain (file names) and declare
 (metadata, entry points), so that a change of build configuration can be
 checked to produce the same package.
 
-The distributions are built from a temporary copy of the files tracked by git,
-so that untracked local files never leak into the inventory. The native
-binaries are built by the CI and are not tracked: `--placeholder-binaries`
-creates empty files with their expected names, which is enough for an
-inventory of names. In the CI, where the real binaries are present, run
-without this option.
+The distributions are built in a temporary local clone of the repository, onto
+which the working copy of the files tracked by git is copied, so that untracked
+local files never leak into the inventory. A clone is needed because
+setuptools-scm reads the version from the git tags and puts the files tracked by
+git into the sdist. The native binaries are built by the CI and are not tracked:
+`--placeholder-binaries` creates empty files with their expected names, which is
+enough for an inventory of names. In the CI, where the real binaries are
+present, run without this option.
+
+The sdist and the wheel are both built from the sources (`--sdist --wheel`):
+the sdist does not contain the prebuilt binaries, so a wheel built from it
+would not either.
 
 Requires the `build` package (`pip install build`).
 
@@ -64,8 +70,12 @@ def tracked_files(untracked: bool = False) -> List[str]:
 
 
 def build(source: Path, outdir: Path):
-    subprocess.run([sys.executable, "-m", "build", "--outdir", str(outdir), str(source)], check=True,
-                   stdout=subprocess.DEVNULL)
+    subprocess.run([sys.executable, "-m", "build", "--sdist", "--wheel", "--outdir", str(outdir), str(source)],
+                   check=True, stdout=subprocess.DEVNULL)
+
+
+def git(*args: str, cwd: Path):
+    subprocess.run(["git", *args], cwd=cwd, check=True, capture_output=True)
 
 
 def wheel_inventory(wheel: Path) -> Dict[str, str]:
@@ -99,11 +109,15 @@ def sdist_inventory(sdist: Path) -> Dict[str, str]:
 def inventory(placeholder_binaries: bool, untracked: bool = False) -> Dict[str, str]:
     with tempfile.TemporaryDirectory() as tmp:
         source, outdir = Path(tmp) / "source", Path(tmp) / "dist"
+        # The clone brings the history and the tags; its index is independent from the one of the repository.
+        git("clone", "--quiet", "--no-checkout", str(REPOSITORY), str(source), cwd=Path(tmp))
         for name in tracked_files(untracked):
             target = source / name
             target.parent.mkdir(parents=True, exist_ok=True)
             if (REPOSITORY / name).is_file():
                 shutil.copy2(REPOSITORY / name, target)
+        git("add", "--all", cwd=source)
+        # Added after `git add`: like in the CI, the binaries are present but not tracked.
         for name in BINARIES:
             target = source / name
             if (REPOSITORY / name).is_file() and not placeholder_binaries:

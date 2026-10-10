@@ -25,7 +25,7 @@ concurrency:
 jobs:
   # Run the exact same build + test + package pipeline as CI. The `package`
   # artifact it uploads is consumed by the publish job below. Because this runs
-  # on the tag ref, setup.py derives the version from the tag name.
+  # on the tag ref, setuptools-scm derives the version from the tag (V1.9.4.2 -> 1.9.4.2).
   ci:
     uses: ./.github/workflows/ci.yml
     # The called workflow's `tests-win64` job requests `contents: write` (coverage

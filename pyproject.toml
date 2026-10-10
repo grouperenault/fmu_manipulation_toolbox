@@ -1,11 +1,12 @@
 [build-system]
-# 77: SPDX license expression and `license-files` (PEP 639).
-requires = ["setuptools >= 77"]
+# setuptools 77: SPDX license expression and `license-files` (PEP 639).
+# setuptools-scm: the version comes from the git tags (V1.9.4.2 -> 1.9.4.2).
+requires = ["setuptools >= 77", "setuptools-scm >= 8"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "fmu_manipulation_toolbox"
-# Still computed by setup.py from the tag name (GITHUB_REF_NAME); see docs/local/packaging.md, phase 2.
+# Computed by setuptools-scm from the git tags; see [tool.setuptools_scm].
 dynamic = ["version"]
 description = """FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate, combine or \
 split Functional Mock-up Units (FMUs) without recompilation, through a GUI, a CLI or a Python API."""
@@ -118,3 +119,7 @@ fmu_manipulation_toolbox = [
     "resources/fmi-2.0/*.xsd",
     "resources/fmi-3.0/*.xsd",
 ]
+
+[tool.setuptools_scm]
+# Generated at build time (and by editable installs), read by fmu_manipulation_toolbox/version.py; not tracked by git.
+version_file = "fmu_manipulation_toolbox/_version.py"
