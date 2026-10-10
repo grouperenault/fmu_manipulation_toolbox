@@ -49,6 +49,113 @@ def make_large_fmu(path: Path, nb_variables: int = LARGE_FMU_VARIABLES, broken: 
     return path
 
 
+def make_fmu(path: Path, inputs: list[str] = (), outputs: list[str] = (), step_size: float = 0.01) -> Path:
+    """FMI-2 FMU (descriptor only) with the given Real inputs (start value 0.0) and outputs."""
+    variables = [f'<ScalarVariable name="{name}" valueReference="{i}" causality="input"><Real start="0.0"/>'
+                 f'</ScalarVariable>' for i, name in enumerate(inputs)]
+    variables += [f'<ScalarVariable name="{name}" valueReference="{len(inputs) + i}" causality="output"><Real/>'
+                  f'</ScalarVariable>' for i, name in enumerate(outputs)]
+    unknowns = "".join(f'<Unknown index="{len(inputs) + i + 1}"/>' for i in range(len(outputs)))
+    descriptor = (f'<?xml version="1.0" encoding="UTF-8"?>\n'
+                  f'<fmiModelDescription fmiVersion="2.0" modelName="{path.stem}" guid="{{{path.stem}}}" '
+                  f'generationTool="synthetic"><CoSimulation modelIdentifier="{path.stem}"/>'
+                  f'<DefaultExperiment stepSize="{step_size}"/><ModelVariables>{"".join(variables)}</ModelVariables>'
+                  f'<ModelStructure><Outputs>{unknowns}</Outputs><InitialUnknowns>{unknowns}</InitialUnknowns>'
+                  f'</ModelStructure></fmiModelDescription>')
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as fmu:
+        fmu.writestr("modelDescription.xml", descriptor)
+    return path
+
+
+def _options(step_size: float, mt: bool) -> dict:
+    """Options of a node as `Assembly.json_encode` writes them, every `auto_*` rule off (explicit assembly)."""
+    return {"mt": mt, "profiling": False, "sequential": False, "auto_link": False, "auto_input": False,
+            "auto_output": False, "auto_parameter": False, "auto_local": False, "step_size": step_size}
+
+
+def make_large_assembly(directory: Path) -> dict:
+    """Nested assembly of the size of a real one (docs/local/assembly_analysis.md), its FMUs written in `directory`.
+
+    Same shape as the case study of the plan: a scenario driving a vehicle container, which couples a plant with a
+    traction sub-container (3 levels, 5 FMUs, ~300 exposed inputs, ~290 exposed outputs, ~290 links), every `auto_*`
+    rule off. Port names follow both conventions met in practice: dotted buses (`Sc_2_DV.speed`) and underscore
+    prefixes (`SNR_time3`). It also holds the patterns the lint must report: `mt` on two nested levels, a step ratio
+    of 100, a fan-out and a stub FMU of constants. As in the JSON of the GUI, the FMUs of the root level are
+    referenced by absolute path, the others by name.
+
+    Returns the assembly in the format of `Assembly.json_encode`.
+    """
+    def path(name: str) -> str:
+        return str(directory / name)
+
+    quantities = ["Acceleration", "OverFriction", "Pamb", "Paux", "Pmeca_totalMot_limit", "Pmeca_totalRegen_limit",
+                  "Rho", "RoadSlope", "Speed", "SolarIrr", "Tamb", "Wind", "Mass", "Hvac", "Charge"]
+    scenario_inputs = ([f"scenario.{q}{p}" for q in quantities for p in range(1, 11)]
+                       + [f"SNR_{q}{p}" for q in ("time", "distance", "SOCmin", "SOCmax", "vehicle_state", "phase")
+                          for p in range(1, 11)]
+                       + [f"run_parameters.{p}" for p in ("maxTimeStep", "tolerance", "fixedStep", "integratorType",
+                                                          "errorType", "solverType", "integrationMethod",
+                                                          "fixedOrder")])
+    sc_2_dv = [f"Sc_2_DV.{s}" for s in ("VehicleSpeedTarget", "road_slope", "Rho", "Paux", "Acceleration",
+                                         "VehicleState", "VehiclePhase")]
+    dv_2_sc = [f"DV_2_Sc.{s}" for s in ("USOC", "BSOC", "Battery_voltage", "Vehicle_velocity")]
+    parameters = [f"DV_Parameters.custom_{i}" for i in range(24)]
+    plant_assessment = [f"DV_2_Assessment.plant_{i}" for i in range(19)]
+    control_assessment = [f"DV_2_Assessment.control_{i}" for i in range(5)]
+    boundary = [f"CS_{i}" for i in range(92)]                    # plant -> level2 (cooling, road...)
+    control_traction = [f"Tq_{i}" for i in range(116)]           # level2 (control) -> plant
+    carbody_traction = [f"Fx_{i}" for i in range(55)]            # level2 (carbody) -> plant
+    stub_traction = ["veh_vel_ms"]                                # level2 (stub) -> plant
+    traction = control_traction + carbody_traction + stub_traction
+    carbody_to_control = ["veh_vel", "Fslope", "ratio", "Tloss", "MotorFront_Speed", "MotorRear_Speed"]
+    stub_to_carbody = ["Tbrk", "Twheel_req", "EM2_torque", "EM2_inertia", "HV_aux_volt", "EM1_inertia", "Dummy_volt"]
+
+    make_fmu(directory / "scenario.fmu", inputs=scenario_inputs + dv_2_sc, outputs=sc_2_dv, step_size=0.5)
+    # The plant reads every traction signal, plus a second copy of the first one (fan-out).
+    make_fmu(directory / "plant.fmu", inputs=sc_2_dv + [f"in_{name}" for name in traction] + ["in_fanout"],
+             outputs=dv_2_sc + parameters + plant_assessment + boundary, step_size=0.5)
+    make_fmu(directory / "control.fmu", inputs=boundary[:86] + carbody_to_control,
+             outputs=control_traction + control_assessment + ["EM1_torque"], step_size=0.005)
+    make_fmu(directory / "carbody.fmu", inputs=boundary[86:] + ["EM1_torque"] + stub_to_carbody,
+             outputs=carbody_traction + carbody_to_control + ["veh_vel_kmph"], step_size=0.005)
+    make_fmu(directory / "stub.fmu", inputs=["veh_vel_kmph"], outputs=stub_to_carbody + stub_traction,
+             step_size=0.005)
+
+    level2 = {
+        "name": "level2.fmu", **_options(0.005, mt=True),
+        "fmu": ["carbody.fmu", "control.fmu", "stub.fmu"],
+        "input": ([[name, "control.fmu", name] for name in boundary[:86]]
+                  + [[name, "carbody.fmu", name] for name in boundary[86:]]),
+        "output": ([["control.fmu", name, name] for name in control_traction + control_assessment]
+                   + [["carbody.fmu", name, name] for name in carbody_traction]
+                   + [["stub.fmu", name, name] for name in stub_traction]),
+        "link": ([["carbody.fmu", name, "control.fmu", name] for name in carbody_to_control]
+                 + [["control.fmu", "EM1_torque", "carbody.fmu", "EM1_torque"],
+                    ["carbody.fmu", "veh_vel_kmph", "stub.fmu", "veh_vel_kmph"]]
+                 + [["stub.fmu", name, "carbody.fmu", name] for name in stub_to_carbody]),
+    }
+    vehicle = {
+        "name": "vehicle.fmu", **_options(0.5, mt=True),
+        "container": [level2],
+        "fmu": ["plant.fmu"],
+        "input": [[name, "plant.fmu", name] for name in sc_2_dv],
+        "output": ([["plant.fmu", name, name] for name in dv_2_sc + parameters + plant_assessment]
+                   + [["level2.fmu", name, name] for name in control_assessment]),
+        "link": ([["level2.fmu", name, "plant.fmu", f"in_{name}"] for name in traction]
+                 + [["level2.fmu", traction[0], "plant.fmu", "in_fanout"]]
+                 + [["plant.fmu", name, "level2.fmu", name] for name in boundary]),
+    }
+    return {
+        "name": "large_assembly.fmu", **_options(0.5, mt=False),
+        "container": [vehicle],
+        "fmu": [path("scenario.fmu")],
+        "input": [[name, path("scenario.fmu"), name] for name in scenario_inputs],
+        "output": [["vehicle.fmu", name, name] for name in parameters + plant_assessment + control_assessment],
+        "link": ([[path("scenario.fmu"), name, "vehicle.fmu", name] for name in sc_2_dv]
+                 + [["vehicle.fmu", name, path("scenario.fmu"), name] for name in dv_2_sc]),
+    }
+
+
 def tokens(text: str) -> int | None:
     """Tokens of `text` with `cl100k_base` (same order as the Qwen tokenizer), or `None` without `tiktoken`."""
     try:
@@ -99,12 +206,34 @@ async def measure(directory: Path) -> dict[str, str]:
     return texts
 
 
+async def measure_assembly(assembly: dict) -> dict[str, str]:
+    """Texts of the assembly tools on `assembly` (see `make_large_assembly`).
+
+    The headless bridge only builds flat assemblies: its `get_assembly_json` is replaced to serve a nested one, as
+    the GUI bridge does.
+    """
+    import fastmcp
+    from fmu_manipulation_toolbox.assistant import build_server
+    from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
+
+    class NestedAssemblyBridge(HeadlessAssemblyBridge):
+        def get_assembly_json(self):
+            return assembly
+
+    texts: dict[str, str] = {}
+    async with fastmcp.Client(build_server(NestedAssemblyBridge())) as client:
+        texts["get_assembly_json-large"] = result_text(await client.call_tool("get_assembly_json", {}))
+        texts["resource assembly://current-large"] = (await client.read_resource("assembly://current"))[0].text
+    return texts
+
+
 def main():
     with tempfile.TemporaryDirectory() as tmp:
         directory = Path(tmp)
         make_large_fmu(directory / "large.fmu")
         make_large_fmu(directory / "broken.fmu", broken=True)
         texts = asyncio.run(measure(directory))
+        texts.update(asyncio.run(measure_assembly(make_large_assembly(directory))))
     print(f"{'item':32} {'characters':>10} {'budget':>8} {'tokens':>8}")
     for name, text in texts.items():
         budget = DEFINITIONS_BUDGET if name == "definitions" else RESULT_BUDGET

@@ -1,6 +1,6 @@
 # Plan: help the MCP clients analyse an FMU assembly
 
-**Created**: 10 October 2026 — **Status**: ready (all decisions taken; D9 settled by the investigation of phase 0)
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phase 0 done; D9' taken) — **Status**: in progress
 
 Describing the content and the behaviour of a loaded assembly is a frequent request to the AI Assistant. On a real
 case (`bug.fmu`: 3 nested containers, 5 FMUs, 271 exposed ports, 295 links), the existing tools are not enough:
@@ -84,6 +84,7 @@ D1 to D4 chosen by the user; D5 to D10 taken as recommended.
 | D8 | Rule set and severities (lint) | The rules of the phase 3 and 4 tables; step ratio threshold of **10** (warning above it, or when the ratio is not an integer) |
 | D9 | Derived links and exposures (A7) | **Reuse the rule engine** of `container/builder.py` on a copy of the node (dry run, no build) if the investigation of phase 0 shows it is possible; otherwise **ignore the `auto_*` rules** and only report when they are all off, documented as a known limit |
 | D10 | Lint on the headless bridge (A6) | **Same tool**: only the root level exists there; nesting the headless bridge is out of scope |
+| D9' | Levels holding a sub-container (phase 0 investigation) | **Partial dry run, reported**: the engine is used as is; at a level holding a sub-container, the ports of the sub-container are not evaluated by the `auto_*` rules, and the lint emits an `info` finding saying so (no stand-in of the sub-container interface) |
 
 ---
 
@@ -99,6 +100,33 @@ D1 to D4 chosen by the user; D5 to D10 taken as recommended.
    container? Result recorded in this plan.
 
 *Exit criterion*: baseline of `get_assembly_json` on the large assembly recorded here; D9 settled (engine reused, or limit documented); suite green.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `make_fmu()` (FMI-2 descriptor with given Real inputs and outputs); `make_large_assembly()`: nested assembly of the shape of the case study (`large_assembly.fmu` → `vehicle.fmu` → `level2.fmu`; FMUs `scenario`, `plant`, `control`, `carbody`, `stub`), 318 exposed inputs, 277 exposed outputs, 291 links, every `auto_*` off, root FMUs by absolute path; it holds nested `mt`, a step ratio of 100, a fan-out and a stub of constants. `measure_assembly()` serves it through a headless bridge whose `get_assembly_json` is replaced (the headless bridge is flat, D10) | `tests/_helpers/mcp_budget.py` |
+| `test_the_large_assembly_is_consistent`: the JSON reads back as an `Assembly` unchanged, and every port it designates exists (in the FMU descriptor, or among the exposed ports of a sub-container). Budget tests of `get_assembly_json` and `assembly://current` on it, `xfail(strict=True)`, each checked to fail on its budget (`--runxfail`) | `tests/unit/test_assistant_budget.py` |
+
+Baseline (characters; the absolute paths make it depend on the temporary directory, measured with the helper):
+
+| Item | Characters | Budget |
+|---|---|---|
+| `get_assembly_json` on the large assembly | 56 512 | over (12 000) |
+| Resource `assembly://current` on the large assembly (indented JSON) | 105 528 | over |
+| Tool definitions (unchanged) | 15 664 | 16 000 |
+
+**D9 investigation.** The rule engine can run without building: per node, an `FMUContainer` fed with the FMUs, the
+explicit inputs, outputs and links, then `add_implicit_rule()`, returns the derived rules (`AutoWired`) without
+writing any file and without touching the `AssemblyNode` (the write-back is done by `AssemblyNode.make_fmu`, not by
+the engine). Measured: a few milliseconds on `tests/data/containers/arch`; 0.7 s for the two largest FMUs of the case
+study (194 MB and 57 MB: `EmbeddedFMU` extracts the whole archive). **Limit**: a node that holds a sub-container
+cannot load it, since the sub-container only exists once built: on `hierarchical.json`, the engine sees neither the
+ports of `level1.fmu` nor the auto-links between it and `gain.fmu`. Taking those levels into account requires a
+stand-in of the sub-container interface (its exposed ports, typed after the embedded ports), built bottom-up from the
+dry run of the child. Decision **D9'** (§3): partial dry run, reported by an `info` finding.
+
+Checks performed: full suite **2024 passed, 2 skipped, 2 xfailed**; ruff not available in the environment (not run).
 
 *Commit message*: `Add a large nested assembly to the MCP budget fixtures (assembly_analysis phase 0)`
 
@@ -153,7 +181,7 @@ Tests: one fixture per rule (small JSON written in the test), no finding on `fla
 
 *Commit message*: `Lint the structure of an assembly (assembly_analysis phase 3)`
 
-### Phase 4 — Port-level lint and the `analyze_assembly` tool (A3, A4, D1, D9, D10)
+### Phase 4 — Port-level lint and the `analyze_assembly` tool (A3, A4, D1, D9, D9', D10)
 
 1. Port-level rules, fed with the descriptions given by `bridge.list_fmu_ports(name)` (read once per FMU):
 
@@ -163,7 +191,8 @@ Tests: one fixture per rule (small JSON written in the test), no finding on `fla
    | `link-causality` | error | link source not an `output`, or destination not an `input` |
    | `link-type` | warning / error | type conversion (warning), or conversion refused by the container (error) |
    | `link-unit` | warning | linked ports with different units: the toolbox does not convert |
-   | `dangling-input` | warning | an input neither linked nor exposed, without start value (D9 decides how the `auto_*` rules are taken into account) |
+   | `dangling-input` | warning | an input neither linked nor exposed, without start value; the `auto_*` rules are evaluated by a dry run of the engine (D9) |
+   | `auto-rules-partial` | info | a level holding a sub-container and an `auto_*` rule on: the ports of the sub-container are not evaluated by the dry run (D9') |
    | `parameter-not-set` | info | a parameter neither exposed nor given a start value (only when `auto_parameter` is off) |
 
 2. Tool `analyze_assembly(mode: "summary" | "lint" = "summary", node: str | None = None)` in `assistant/server.py`
@@ -196,7 +225,7 @@ Tests: one fixture per rule (small JSON written in the test), no finding on `fla
 
 1. `docs/user-guide/fmucontainer/ai-assistant.md`: `analyze_assembly` in the tool table, a section "Analysing an
    assembly" (modes, rules and severities, `node`), `get_assembly_json` paging, the new prompt in the prompt table,
-   known limits (D9, D10).
+   known limits (D9', D10).
 2. `CHANGELOG.md`: new tool, new prompt, `get_assembly_json` behaviour on large assemblies.
 3. This plan moved to `docs/local/done/`.
 
