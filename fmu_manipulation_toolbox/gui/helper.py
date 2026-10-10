@@ -3,7 +3,7 @@ import os
 
 from collections.abc import Callable
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
-                               QHBoxLayout, QPushButton, QMessageBox, QMainWindow, QTableView, QHeaderView)
+                               QHBoxLayout, QPushButton, QMessageBox, QTableView, QHeaderView)
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl, QRect
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage, QGuiApplication

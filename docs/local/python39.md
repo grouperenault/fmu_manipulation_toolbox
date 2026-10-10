@@ -155,9 +155,11 @@ Checks performed: ruff `UP006`, `UP007`, `UP035`, `UP045` and `F821`: nothing; n
 `QT_QPA_PLATFORM=offscreen`); clean Python 3.14 environment: full suite **1921 passed, 2 skipped**. Python 3.10 itself
 is only exercised by the CI (no local interpreter).
 
-Left as found (out of scope): the star import of `operations` in `gui/fmutool/__main__.py` (it also brings `logging`),
-and three unused imports reported by `F401` (`gui/helper.py`: `QMainWindow`; `tests/unit/test_assembly_errors.py`:
-`Path`; `gui/fmucontainer/graph/__init__.py`: `_DragWireItem`).
+Also fixed after review: the three imports reported unused by `F401` (`gui/helper.py`: `QMainWindow`, only named in a
+docstring; `tests/unit/test_assembly_errors.py`: `Path`; `gui/fmucontainer/graph/__init__.py`: the private
+`_DragWireItem`, which `scene.py` imports from `.wire` directly); ruff `F401` and `F821` now pass on the whole code
+base, suite still green. Left as found: the star import of `operations` in `gui/fmutool/__main__.py` (it also brings
+`logging`).
 
 ---
 

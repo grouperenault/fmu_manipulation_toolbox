@@ -6,7 +6,6 @@ leaking low-level exception and never a silent success. These tests build tiny
 descriptor files in ``tmp_path`` and assert on the exception type plus a stable
 fragment of its message.
 """
-from pathlib import Path
 
 import pytest
 
