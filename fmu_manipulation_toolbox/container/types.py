@@ -1,6 +1,6 @@
 """Types of the container and conversions between them.
 
-Shared by the container builder (`container.py`), which writes `container.txt`, and by `split.py`, which reads it
+Shared by the container builder, which writes `container.txt`, and by `split.py`, which reads it
 back. The C runtime (`container/`) uses the same type order and conversion names: `container.txt` lists its
 sections in the order of `ALL_TYPES`, and every value of `CONVERSION_FUNCTION` is a `CASE(...)` of
 `container/convert.c`.

@@ -7,7 +7,7 @@ from typing import Any
 from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from .container_types import (ALL_TYPES, CONTAINER_TO_FMI, CONVERSION_FUNCTION, FMI_TO_CONTAINER,
+from .container.types import (ALL_TYPES, CONTAINER_TO_FMI, CONVERSION_FUNCTION, FMI_TO_CONTAINER,
                               START_VALUE_TYPES)
 from .model_description import ModelDescription, ModelDescriptionError
 from .terminals import Terminals, Terminal

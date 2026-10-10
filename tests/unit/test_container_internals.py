@@ -12,7 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from fmu_manipulation_toolbox import container_types
+from fmu_manipulation_toolbox.container import types as container_types
 from fmu_manipulation_toolbox.container import (ArrayAggregate, EmbeddedFMUPort, FMUContainer, FMUContainerError,
                                                 Link, ValueReferenceTable)
 
@@ -58,7 +58,7 @@ def test_lossy_conversions_are_prefixed():
 #                                Container types                                #
 # --------------------------------------------------------------------------- #
 def test_type_tables_are_shared():
-    """The class attributes of `EmbeddedFMUPort` and `Link` are aliases of `container_types` (compatibility)."""
+    """The class attributes of `EmbeddedFMUPort` and `Link` are aliases of `container.types` (compatibility)."""
     assert EmbeddedFMUPort.ALL_TYPES is container_types.ALL_TYPES
     assert EmbeddedFMUPort.FMI_TO_CONTAINER is container_types.FMI_TO_CONTAINER
     assert EmbeddedFMUPort.CONTAINER_TO_FMI is container_types.CONTAINER_TO_FMI

@@ -534,7 +534,7 @@ class ConfigurationNode(NodeItem):
         return f"{base}.ts_multiplier"
 
     # Reserved runtime port name statically exposed by a container FMU when
-    # its `ts_multiplier` parameter is enabled (see container.py `make_fmu_xml`).
+    # its `ts_multiplier` parameter is enabled (see container/builder.py `make_fmu_xml`).
     RUNTIME_PORT_NAME = "container.ts_multiplier"
 
     @staticmethod

@@ -1,6 +1,6 @@
 # Plan: refactoring of `container.py`
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 and 1 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 2 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
 
 `fmu_manipulation_toolbox/container.py` builds FMU Containers: it loads the embedded FMUs, records the wiring rules,
 allocates the value references, then writes `modelDescription.xml`, `resources/container.txt` (read by the C runtime,
@@ -192,6 +192,41 @@ One commit with moves only, so that `git diff --color-moved` shows nothing else.
 
 *Exit criterion*: every former `from fmu_manipulation_toolbox.container import X` works (test listing them); suite and
 packaging check green.
+
+**Status on 10 October 2026: done.**
+
+| Module | Content | Lines |
+|---|---|---|
+| `container/__init__.py` | re-exports of the 18 former names, `__all__` | 19 |
+| `container/types.py` | `container_types.py` of phase 1 (`git mv`) | 236 |
+| `container/arrays.py` | `ArrayAggregate` | 153 |
+| `container/errors.py` | `FMUContainerError` | 14 |
+| `container/embedded.py` | `EmbeddedFMUPort`, `EmbeddedFMU` | 366 |
+| `container/rules.py` | `ContainerPort`, `ContainerInput`, `Link`, `AutoWired` | 234 |
+| `container/layout.py` | `ValueReferenceTable` | 116 |
+| `container/txt.py` | `IOReference`, `FMUIOList`, `InvolvedFMU`, `Clock`, `ClockList`, `LocalVariable`, `Port` | 315 |
+| `container/builder.py` | `Platform`, `FMUContainer` | 1011 |
+
+Deviations from the table above: **`FMUContainerError` has its own module** (`errors.py`) instead of `rules.py`:
+`EmbeddedFMU` raises it and `rules.py` imports `embedded.py`, so the plan's layout made an import cycle. `Platform`
+stays with `FMUContainer` (only used by `get_platforms`).
+
+**One change besides the moves**: `make_fmu_skeleton` located the toolbox resources with
+`Path(__file__).parent / "resources"`, one level up now (`parent.parent`). The suite caught it (54 failures, missing
+`fmucontainer.png`). Other edits: the import of `split.py` (`.container.types`), the test of the types, and comments
+naming `container.py` or `container_types` (GUI, docstrings).
+
+Checks performed:
+
+- every class of the former module compared with its new source (`ast.get_source_segment`): identical, except two
+  docstring/comment lines naming `container_types` and the `resources` path;
+- each sub-module imports on its own (no cycle);
+- full suite **1985 passed, 2 skipped, 6 xfailed** (golden files unchanged), clean Python 3.14 environment;
+- `tools/dist_inventory.py --check --untracked`: rules satisfied (the new modules are packaged);
+- `mkdocs build` of the former and of the new tree: the API reference of the container has the same 44 anchors.
+
+`git` does not see `builder.py` as a rename of `container.py` (less than 50 % similar): use
+`git diff --cached -M --color-moved` to review the moves.
 
 ### Phase 3 — Explicit build pipeline (C1 to C4)
 
