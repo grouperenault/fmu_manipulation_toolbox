@@ -1,4 +1,4 @@
-"""Context budget of the MCP server (docs/local/mcp_optimize.md).
+"""Context budget of the MCP server (docs/local/done/mcp_optimize.md).
 
 What the server puts in the context of the model, measured in characters: the tool definitions (sent with every
 request) and the tool results (kept in the conversation). Tokens are only reported when `tiktoken` is installed,

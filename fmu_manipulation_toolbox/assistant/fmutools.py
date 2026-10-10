@@ -125,7 +125,7 @@ def summarize_fmu(path: Path) -> dict[str, Any]:
 
 
 #: Most groups of messages returned by `check_fmu` per list: an industrial FMU can produce thousands of errors,
-#: which would fill the context window of the model (docs/local/mcp_optimize.md, phase 1).
+#: which would fill the context window of the model (docs/local/done/mcp_optimize.md, phase 1).
 MAX_MESSAGE_GROUPS = 50
 
 #: Examples kept for a group of messages of the same rule.

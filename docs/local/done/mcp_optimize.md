@@ -1,6 +1,6 @@
 # Plan: optimize the MCP server for the context window
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 3 done) — **Status**: in progress
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 4 done) — **Status**: done
 
 The MCP server (`fmu_manipulation_toolbox/assistant/`, `fmutool-mcp` and the AI Assistant of the Container Builder)
 is meant to work with any MCP client, including local models (Qwen, Llama, Mistral...) served by Ollama or LM Studio.
@@ -215,6 +215,17 @@ Checks performed: full suite **2023 passed, 2 skipped**, no `xfail` left; ruff `
 - `CHANGELOG.md`: `CHANGED` entries (page size, compact ports, bounded `check_fmu`, shorter tool descriptions).
 
 *Exit criterion*: the documentation gives the numbers of the implementation; `mkdocs build` without warning.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| Single-FMU tools: `check_fmu` described as conformity to the FMI standard; paragraph on the whole verdict `compliant`, the grouped messages (`count`, `examples`), the 50 groups, `error_count`/`warning_count`/`truncated`, and `fmutool -input model.fmu -check` for the full report | `docs/user-guide/fmucontainer/ai-assistant.md` |
+| "Reading port listings": undeclared attributes left out, descriptions cut after 80 characters, 50 ports by default and 200 at most | `docs/user-guide/fmucontainer/ai-assistant.md` |
+| New section "Local models": cost of the tool definitions (~4k tokens) and of a page of ports (~2k); context of 16k at least, 32k recommended; `num_ctx` in Ollama (`Modelfile` or API options), *Context Length* in LM Studio; symptoms of a too small context (the assistant forgets its tools); narrow requests | `docs/user-guide/fmucontainer/ai-assistant.md` |
+| Three entries: `check_fmu` (**breaking** for MCP clients: groups, whole `compliant`), port pages, tool definitions | `CHANGELOG.md` |
+
+Checks performed: no former page size left in the documentation; `mkdocs build`: no warning.
 
 ---
 

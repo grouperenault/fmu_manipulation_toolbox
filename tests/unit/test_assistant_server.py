@@ -376,7 +376,7 @@ def test_the_default_limit_keeps_the_answer_small():
 
 
 def test_ports_are_compact():
-    """Undeclared attributes are left out, long descriptions cut (docs/local/mcp_optimize.md, phase 2)."""
+    """Undeclared attributes are left out, long descriptions cut (docs/local/done/mcp_optimize.md, phase 2)."""
     bridge = FakeBridge()
     bridge.add_fmu("a.fmu")
     bridge.fmus["a.fmu"]["ports"][0]["description"] = "x" * 200
@@ -390,7 +390,7 @@ def test_ports_are_compact():
 
 
 def test_optional_parameters_are_published_without_null():
-    """`anyOf: [X, null]` and `default: null` cost tokens at every request (docs/local/mcp_optimize.md, phase 3)."""
+    """`anyOf: [X, null]` and `default: null` cost tokens at every request (docs/local/done/mcp_optimize.md, phase 3)."""
     async def scenario():
         async with fastmcp.Client(build_server(FakeBridge())) as client:
             return await client.list_tools()

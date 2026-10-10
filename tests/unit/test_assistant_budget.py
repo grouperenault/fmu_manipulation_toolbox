@@ -1,4 +1,4 @@
-"""Context budget of the MCP server (docs/local/mcp_optimize.md, decision D6).
+"""Context budget of the MCP server (docs/local/done/mcp_optimize.md, decision D6).
 
 The tool definitions are sent with every request and the tool results stay in the conversation: with a local model
 whose context is small, an unbounded result fills the window and the runtime silently drops the beginning of the

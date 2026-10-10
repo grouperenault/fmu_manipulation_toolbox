@@ -173,7 +173,7 @@ def describe_argument_errors(tool: str, errors: list[dict[str, Any]], schema: di
 def compact_schema(schema: Any) -> Any:
     """Copy of a JSON schema where `anyOf: [X, null]` becomes `X` and `default: null` is dropped.
 
-    The tool definitions are sent with every request (docs/local/mcp_optimize.md): an optional parameter is
+    The tool definitions are sent with every request (docs/local/done/mcp_optimize.md): an optional parameter is
     published by its type only, as omitting it is the way to leave it unset. Only the published schema changes:
     the arguments are still validated against the signatures, so a client sending `null` is accepted.
     """
@@ -327,7 +327,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     mcp.add_middleware(ArgumentErrors())
     mcp.add_middleware(CompactSchemas())
 
-    # Repeated in the schema of many tools: keep these descriptions short (docs/local/mcp_optimize.md).
+    # Repeated in the schema of many tools: keep these descriptions short (docs/local/done/mcp_optimize.md).
     FmuName = Annotated[str, Field(
         description="Name of an FMU of the assembly, e.g. 'controller.fmu' (see `list_fmus`).")]
     PortName = Annotated[str, Field(

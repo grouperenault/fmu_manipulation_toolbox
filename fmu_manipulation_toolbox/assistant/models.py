@@ -25,7 +25,7 @@ DEFAULT_PORT_LIMIT = 50
 MAX_PORT_LIMIT = 200
 
 #: Descriptions of the ports longer than this are cut (with `…`): they help to match ports by meaning, but some
-#: generators write whole paragraphs (docs/local/mcp_optimize.md, decision D3).
+#: generators write whole paragraphs (docs/local/done/mcp_optimize.md, decision D3).
 MAX_DESCRIPTION_LENGTH = 80
 
 
