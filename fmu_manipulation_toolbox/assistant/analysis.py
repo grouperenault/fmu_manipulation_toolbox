@@ -1,4 +1,4 @@
-"""Analysis of an assembly: summary, paged views and lint of its containers (docs/local/assembly_analysis.md).
+"""Analysis of an assembly: summary, paged views and lint of its containers (docs/local/done/assembly_analysis.md).
 
 The assembly JSON (the format of `Assembly.json_encode`, produced by both bridges) grows with the number of ports:
 a real assembly of 3 nested containers is over 100k characters, far more than a tool result can carry. The

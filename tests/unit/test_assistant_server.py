@@ -627,7 +627,7 @@ class NestedBridge(FakeBridge):
 
 
 def test_assembly_is_paged_by_container_and_section(data_dir):
-    """docs/local/assembly_analysis.md, phase 2: a large assembly is read one container, then one section, at a
+    """docs/local/done/assembly_analysis.md, phase 2: a large assembly is read one container, then one section, at a
     time; the FMUs are designated by name, as in the other tools."""
     assembly = json.loads((data_dir / "containers" / "arch" / "nested.json").read_text())
     assembly["fmu"] = [f"/models/{fmu}" for fmu in assembly["fmu"]]
@@ -649,7 +649,7 @@ def test_assembly_is_paged_by_container_and_section(data_dir):
 
 
 def test_analyze_assembly_summarises_and_lints(data_dir):
-    """docs/local/assembly_analysis.md, phase 4: one read-only tool, two modes, optionally one container."""
+    """docs/local/done/assembly_analysis.md, phase 4: one read-only tool, two modes, optionally one container."""
     assembly = json.loads((data_dir / "containers" / "arch" / "hierarchical.json").read_text())
 
     async def scenario():
@@ -750,7 +750,7 @@ TOOL_VERBS = ("list_", "add_", "remove_", "expose_", "set_", "unset_", "get_", "
 
 
 def test_the_know_how_only_names_existing_tools():
-    """docs/local/assembly_analysis.md, phase 5: a prompt or the guide naming a tool that does not exist (renamed,
+    """docs/local/done/assembly_analysis.md, phase 5: a prompt or the guide naming a tool that does not exist (renamed,
     removed) sends the model after it."""
     import re
     from fmu_manipulation_toolbox.assistant import knowledge

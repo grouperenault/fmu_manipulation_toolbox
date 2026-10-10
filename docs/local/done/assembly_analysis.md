@@ -1,6 +1,6 @@
 # Plan: help the MCP clients analyse an FMU assembly
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 to 5 done; D1 settled, D9', D11 to D16 taken) — **Status**: in progress
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 to 6 done; D1 settled, D9', D11 to D16 taken) — **Status**: done
 
 Describing the content and the behaviour of a loaded assembly is a frequent request to the AI Assistant. On a real
 case (`bug.fmu`: 3 nested containers, 5 FMUs, 271 exposed ports, 295 links), the existing tools are not enough:
@@ -332,5 +332,19 @@ of them); ruff not available in the environment (not run).
    known limits (D9', D10).
 2. `CHANGELOG.md`: new tool, new prompt, `get_assembly_json` behaviour on large assemblies.
 3. This plan moved to `docs/local/done/`.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| Tool table: `analyze_assembly`, `get_assembly_json` by container and section; new sections *Reading the assembly* (names instead of paths, D6, `node`, `section`/`offset`/`limit`, `truncated`) and *Analysing an assembly* (both modes, grouping and bounds, the 20 rules with their severity, replay into the builder, limits D9'); *Local models*: ~4,400 tokens of definitions, start with `analyze_assembly`; fourth prompt; `assembly://current` bounded; *Known limits*: nested containers cannot be created but are read in the GUI (D10), the lint does not see the ports of sub-containers | `docs/user-guide/fmucontainer/ai-assistant.md` |
+| *AI Assistant* section of *Upstream*: the server being unreleased, the existing entries are completed (four prompts; `get_assembly_json` by container and section; ~4,400 tokens) and one entry added for the assembly analysis (tool, prompt, `diagnose_assembly`, FMUs by name) | `CHANGELOG.md` |
+| Plan moved | `docs/local/done/assembly_analysis.md` |
+
+Tokens of the definitions estimated from the characters (16 571, at the 3.77 characters per token measured with
+`cl100k_base` in docs/local/done/mcp_optimize.md): `tiktoken` is not installed here. The documentation site was not
+built: `mkdocs` is not installed in the environment.
+
+Checks performed: full suite **2091 passed, 2 skipped**.
 
 *Commit message*: `Document the assembly analysis of the AI Assistant (assembly_analysis phase 6)`

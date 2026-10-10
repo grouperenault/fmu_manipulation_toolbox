@@ -19,7 +19,7 @@ from pathlib import Path
 LARGE_FMU_VARIABLES = 5000
 
 #: Budgets checked by the tests (decision D6); the definitions budget raised from 16 000 for `analyze_assembly`
-#: (docs/local/assembly_analysis.md, decision D1).
+#: (docs/local/done/assembly_analysis.md, decision D1).
 DEFINITIONS_BUDGET = 17_000
 RESULT_BUDGET = 12_000
 
@@ -75,7 +75,7 @@ def _options(step_size: float, mt: bool) -> dict:
 
 
 def make_large_assembly(directory: Path) -> dict:
-    """Nested assembly of the size of a real one (docs/local/assembly_analysis.md), its FMUs written in `directory`.
+    """Nested assembly of the size of a real one, its FMUs in `directory` (docs/local/done/assembly_analysis.md).
 
     Same shape as the case study of the plan: a scenario driving a vehicle container, which couples a plant with a
     traction sub-container (3 levels, 5 FMUs, ~300 exposed inputs, ~290 exposed outputs, ~290 links), every `auto_*`

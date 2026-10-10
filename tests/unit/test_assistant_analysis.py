@@ -1,4 +1,4 @@
-"""Tests for the analysis of an assembly: bounded summary and paged views (docs/local/assembly_analysis.md).
+"""Tests for the analysis of an assembly: bounded summary and paged views (docs/local/done/assembly_analysis.md).
 
 On a real assembly of 3 nested containers, `get_assembly_json` is over 100k characters: the model had to write its
 own scripts to see the container tree and the data flows. The summary reduces the JSON to that view, within the

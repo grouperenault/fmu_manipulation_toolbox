@@ -46,16 +46,25 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   `unset_start_value`, `set_container_options`, `save_as_json`, `save_as_fmu` reporting its
   progress), port introspection filterable by causality or name pattern and paginated, and
   **single-FMU tools** (`summarize_fmu`, `check_fmu`, `dump_ports_csv`, `rename_ports_from_csv`,
-  `apply_operation`), which never modify their source FMU. Three prompts (`build_container`,
-  `diagnose_assembly`, `inspect_fmu`) and reference resources (`guide://usage`,
+  `apply_operation`), which never modify their source FMU. Four prompts (`build_container`,
+  `diagnose_assembly`, `inspect_fmu`, `analyze_assembly`) and reference resources (`guide://usage`,
   `fmi://conventions`, `container://options`, `assembly://current`, `fmu://{name}/ports`) carry
   the know-how of the tool to any MCP client. Invalid arguments are reported with a short,
   actionable message.
 - 🟢 **ADDED** MCP answers sized for small contexts (local models such as Qwen): pages of 50 ports (200 at
   most), without the undeclared attributes and with descriptions cut after 80 characters;
   `check_fmu` reports a whole verdict (`compliant`: schema valid and no checker error) and
-  groups the messages of the same rule; the tool definitions take about 4,200 tokens. See the
+  groups the messages of the same rule; `get_assembly_json` gives a large assembly one container,
+  then one section, at a time; the tool definitions take about 4,400 tokens. See the
   *Local models* section of the [AI Assistant guide](docs/user-guide/fmucontainer/ai-assistant.md).
+- 🟢 **ADDED** MCP **assembly analysis**, nested containers included: the `analyze_assembly` tool summarises an
+  assembly (container tree, options, exposed ports and links grouped by FMU and name prefix) or lints it:
+  structural traps (nested `mt`, step ratios, inputs fed twice, duplicate outputs, fan-outs...) and the ports,
+  checked by replaying the assembly into the container builder without building it (refused entries, lossy
+  conversions, different units, inputs left unfed). The `analyze_assembly` prompt describes the content and the
+  behaviour of the loaded assembly; `diagnose_assembly` starts from the lint. `get_assembly_json` and
+  `assembly://current` designate the FMUs by name, like the other tools. See *Analysing an assembly* in the
+  [AI Assistant guide](docs/user-guide/fmucontainer/ai-assistant.md).
 - 🟢 **ADDED** optional **bearer-token authentication** for the HTTP transport (`--token generate`, or
   `FMUCONTAINER_MCP_TOKEN`). The loopback interface keeps remote machines out, but not the other
   processes of the same machine, which can otherwise read and write files through the server.
