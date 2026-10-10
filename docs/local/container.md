@@ -1,6 +1,6 @@
 # Plan: refactoring of `container.py`
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 5 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 6 done) — **Status**: done — **Roadmap**: 2.0 ("refactor container.py")
 
 `fmu_manipulation_toolbox/container.py` builds FMU Containers: it loads the embedded FMUs, records the wiring rules,
 allocates the value references, then writes `modelDescription.xml`, `resources/container.txt` (read by the C runtime,
@@ -61,6 +61,7 @@ Latent bugs (found by reading, to be confirmed by tests in phase 0):
 | B4 | The build directory is `fmu_directory / <output name without suffix>`, created with `exist_ok=True` and **removed with `rmtree`** at the end: a user directory with that name is mixed with the build and deleted | `make_fmu`, `make_fmu_cleanup` |
 | B6 | *(found in phase 0)* An FMU input can be fed twice: exposed as a container input **and** target of a link (or target of two links). `mark_ruled` accepts any rule combined with `LINK`, so both writers update the same input at every step | `FMUContainer.mark_ruled` |
 | B7 | *(found in phase 4)* A link feeding **several targets of the same converted type** (e.g. a `Real` output to two `Boolean` inputs) writes the converted local variable once per target in `container.txt` while the count line counts it once, and duplicates the conversion table: the runtime then reads the following sections shifted | `make_fmu_txt` |
+| B8 | *(found in phase 6)* `fmusplit` reads the local storage offsets of the per-FMU lines only for format 5 (`file_format == 5`): a container of the current format 6 with array ports was split with a missing link and element names instead of array names. Not seen by the tests, which split frozen format-5 containers | `split.py`, `get_pivot` |
 | B5 | `Clock(container_vr, fmu_vr)` is called as `Clock(cport.port.vr, vr)`: the names are swapped (the output is right, because the writer prints them in the swapped order too); the `ClockList` docstring describes tuples | `ClockList` |
 
 Minor: dead `try/except KeyError` around a `defaultdict` (`make_fmu_txt`, conversion table); `flag == True`;
@@ -346,6 +347,25 @@ warning.
   unchanged).
 
 *Exit criterion*: the documentation describes the 2.0 behaviour; `mkdocs build` without warning.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| Intro: the writer is the `container` package, types and conversions in `container/types.py`, `split.py` reads the file back; version table completed with **5** (1.9.4: local variables addressed by their storage offset) and **6** (2.0: Model Exchange, solver slot; it said 1.9.5); reserved slots corrected (`integer32` slots are `100663296`/`100663297`, not `0`; profiling `-2`; order of the lines); `<FMU_VR>` of the local lines is a storage offset; per-FMU lines are `<LOCAL_OFFSET> <DIM> <FMU_VR>` (they said `<VR>`); conversion table: listed under the producing FMU, one copy per target type, the 132 conversions described by their naming rule instead of a partial list of 27, lossy `_` prefix; example rewritten from the bouncing ball golden file (format 6) | `docs/developer/container-txt-format.md` |
+| Default time step (D5), one feeder per FMU input (B6), unknown FMU or port stops the build (D2), lossy conversion warning; build directory deleted unless `debug` (B4, kept by D3), `make_fmu` callable several times, `FMUContainerError` of the topology methods; `-debug` keeps the build directory | `docs/user-guide/fmucontainer/container.md` |
+| The `types` module rendered in the API reference after the package | `docs/API/container.md` |
+| Architecture tree: `container/` package instead of `container.py` | `README.md` |
+| Two breaking `CHANGED` entries (D2, B6), four `FIXED` (B1/B2, B3, B7, B8), three `CHANGED` (package, `ContainerLayout` and the removed attributes, `EmbeddedFMU`/`ModelVariable`) | `CHANGELOG.md` |
+
+**B8 found and fixed during this phase** (see §1): comparing the format documentation with `split.py` showed
+that the storage offsets were only read for format 5. Fix: `file_format >= 5` (`split.py`). Test: the three array
+assemblies are built with the current format and split, the JSON must equal the references of the frozen format-5
+containers (`test_fmusplit_array_current_format`, checked to fail without the fix).
+
+Checks performed: full suite **2003 passed, 2 skipped** (clean Python 3.14 environment); `mkdocs build`: no warning
+(the conversion table of `types` rendered); ruff `F` on the package: clean (3 `F541` left in `split.py`, outside the
+scope).
 
 ---
 

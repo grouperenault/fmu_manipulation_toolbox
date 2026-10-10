@@ -403,7 +403,7 @@ class FMUSplitterDescription:
         return nb
 
     def get_pivot(self, fmi_type, local: str):
-        if self.file_format == 5:
+        if self.file_format >= 5:  # format 5: per-FMU lines give the local storage offset, not the local VR
             try:
                 return self.local_to_vr[fmi_type][int(local) & 0xFFFFFF]
             except KeyError:

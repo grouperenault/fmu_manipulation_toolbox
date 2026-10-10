@@ -10,11 +10,14 @@ from pathlib import Path
 
 import pytest
 
+from fmu_manipulation_toolbox.assembly import Assembly
 from fmu_manipulation_toolbox.cli.fmusplit import fmusplit
 
 from _helpers.assertions import assert_identical_files
 
 pytestmark = [pytest.mark.integration, pytest.mark.area("split")]
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def _run_fmusplit(stem: str):
@@ -50,3 +53,18 @@ def test_fmusplit_lsbus(area_dir):
     out_dir = _run_fmusplit(stem)
     assert_identical_files(out_dir / f"{stem}.json", f"REF-{stem}.json")
 
+
+
+@pytest.mark.fmi3
+@pytest.mark.area("array")
+@pytest.mark.parametrize("dims", ["3", "23", "32"])
+def test_fmusplit_array_current_format(area_dir, dims):
+    """Containers built with the current container.txt format split like the frozen format 5 ones.
+
+    The per-FMU lines give local storage offsets since format 5: format 6 lost a link and named array
+    elements instead of the array (container phase 6, B8).
+    """
+    stem = f"container-array-{dims}"
+    Assembly(f"array-{dims}.json").make_fmu(fmi_version=3, filename=f"{stem}.fmu")
+    out_dir = _run_fmusplit(stem)
+    assert_identical_files(out_dir / f"{stem}.json", DATA_DIR / "split" / f"REF-{stem}.json")
