@@ -1,6 +1,6 @@
 # 2.0
 - [ ] suppress FMUPort (API break)
-- [ ] modern packaging
+- [X] modern packaging
 - [X] MCP server
 - [X] Support ModelExchange
 - [ ] support multiple instances of an FMU into an Assembly (GUI)
