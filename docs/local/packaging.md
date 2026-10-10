@@ -1,6 +1,6 @@
 # Plan: modern packaging (`pyproject.toml`)
 
-**Created**: 9 October 2026 — **Updated**: 10 October 2026 (phases 0, 1 and 2 done; phase 2 dry-run release pending) — **Starting branch**: `integration`
+**Created**: 9 October 2026 — **Updated**: 10 October 2026 (phases 0 to 3 done; pre-release 0.0.dev3 published to PyPI) — **Starting branch**: `integration`
 **Scope**: `setup.py`, `setup.cfg`, `requirements.txt`, `fmu_manipulation_toolbox/version.py`, `tests/pytest.ini`, the
 `ci.yml` and `release.yml` workflows, the user documentation about installation.
 
@@ -53,7 +53,7 @@ files), building per-platform wheels (see C9), the supported Python versions (§
 | D1 | **PyPI description** | (a) `README.md`; (b) a dedicated file (`docs/pypi.md`); (c) keep the string of `setup.py` | **Decided: (a)** (10 October 2026). The relative images and links of the README need absolute URLs, otherwise they are broken on PyPI (done in phase 1) |
 | D2 | **Displayed version** (banners, `generationTool`) | (a) normalized PEP 440 version (`1.9.4rc4`); (b) keep the prefix (`V1.9.4rc4`) | **Decided: (a)** (10 October 2026): it is the one shown by pip and PyPI. Visible change, to be announced in `CHANGELOG.md` (phase 5) |
 | D3 | **sdist content** | Today: package, 11 prebuilt binaries, no C sources (C11). With `setuptools-scm`, **every file tracked by git** goes into the sdist by default: 1.5 MB of package, but also 10.8 MB of `tests/`, 3.7 MB of `docs/` and the C sources (`container/`, `remoting/`, `fmi/`, 0.6 MB) | **Decided** (10 October 2026): Python package + C sources; exclude `tests/data`, `docs/`, `.github/` **and the prebuilt binaries**. Consequence: the wheel must be built from the sources, not from the sdist (`python -m build --sdist --wheel`) |
-| D4 | **`requirements.txt`** | (a) delete it; (b) reduce it to `-e .[all]` | **(b)** for one release, so as not to break habits and documentation, then (a) |
+| D4 | **`requirements.txt`** | (a) delete it; (b) reduce it to `-e .[all]` | **Applied: (b)** (10 October 2026, as recommended) for one release, so as not to break habits and documentation, then (a) |
 | D5 | **Python versions** | Python 3.9 reached end of life in October 2025 but is still declared and tested (`smoke-wheel`); Python 3.14 is missing from the CI and the classifiers | **Out of this plan**: to be decided separately; this plan only carries over the current `requires-python` (`>=3.9`) |
 | D6 | **Test tools** | (a) `test` extra (current); (b) *dependency groups* (PEP 735, `pip install --group test`, pip ≥ 25.1) | **(a)** for now: the extra is documented for users; (b) once the CI can assume a recent pip |
 
@@ -105,7 +105,7 @@ Checks performed:
 *Exit criterion*: `python tools/dist_inventory.py --placeholder-binaries --check tests/data/packaging` reports no
 difference except the intended ones (PyPI description, D1); `smoke-wheel` green on the 3 OS.
 
-**Status on 10 October 2026: done** (`smoke-wheel` to be confirmed by the CI).
+**Status on 10 October 2026: done** (`smoke-wheel` confirmed by the release of 0.0.dev3, see phase 2).
 
 | Item | File |
 |---|---|
@@ -158,8 +158,8 @@ Checks performed:
 *Exit criterion*: on a tag, package version = normalized tag; between two tags, development version
 (`1.9.5.devN+g<commit>`); `pip install -e .` gives a version; dry-run release succeeds (§5).
 
-**Status on 10 October 2026: done, except the dry-run release on TestPyPI** (needs a TestPyPI *Trusted Publisher*, to be
-configured by the maintainer) and the confirmation of `smoke-wheel` by the CI.
+**Status on 10 October 2026: done.** The dry-run release was made on PyPI itself with a development pre-release
+(§5): tag `V0.0dev3`, version `0.0.dev3`.
 
 | Item | File |
 |---|---|
@@ -195,6 +195,22 @@ Checks performed:
   `setup.py` removed, `tests/data`, `docs/` and `.github/` excluded; metadata unchanged;
 - both workflows are valid YAML; full suite: 1921 tests passed.
 
+**Release of `0.0.dev3` (10 October 2026).** The tag `V0.0dev3` went through the whole `release.yml` pipeline: native
+builds, tests, package, `smoke-wheel` on the 3 OS (the publish job depends on the whole CI), publication to PyPI through
+*Trusted Publishing*, GitHub pre-release. Checks on the published files, downloaded from PyPI:
+
+- PyPI metadata: version `0.0.dev3`, `License-Expression: BSD-2-Clause`, `Requires-Python: >=3.9`, the 5 project URLs,
+  description = the README (Markdown, absolute image URLs);
+- the wheel (1,002,318 bytes) and the sdist (793,710 bytes) are **identical to the reference inventory** on the five
+  inventory files (wheel files, wheel tag, metadata, entry points, sdist files);
+- the wheel contains the 11 real binaries (none empty) and `_version.py` = `0.0.dev3`;
+- the sdist contains 39 C sources, no prebuilt binary, no `tests/data`, no `docs/`;
+- the published wheel, installed in a clean environment, shows `FMU Manipulation Toolbox version 0.0.dev3` and `fmucontainer
+  -h` works.
+
+`0.0.dev3` is a development pre-release lower than `1.9.4.2`: neither `pip install fmu-manipulation-toolbox` nor
+`pip install --pre` select it; only an explicit `==0.0.dev3` does.
+
 ### Phase 3 — Dependencies and development environment
 
 1. `requirements.txt` → `-e .[all]` (D4).
@@ -202,6 +218,32 @@ Checks performed:
    installed package replaces the `..`) (C6, C8).
 
 *Exit criterion*: suite green in the CI with the installed package.
+
+**Status on 10 October 2026: done** (green CI on the next push to be confirmed).
+
+| Item | File |
+|---|---|
+| `requirements.txt` reduced to `-e .[all]`, with a comment (D4); `[all]` holds everything the former file listed, plus `numpy` and `importlib_metadata` (Python < 3.10 only) | `requirements.txt` |
+| CI: the three test jobs run `pip install -e ".[all]"` instead of `pip install -r requirements.txt` | `.github/workflows/ci.yml` |
+| `pytest.ini`: `pythonpath = .` (only `tests/`, for `_helpers` and `conftest`); the package comes from the installation | `tests/pytest.ini` |
+| `*.egg-info` ignored (written by editable installs, like `_version.py`) | `.gitignore` |
+
+Findings during the phase:
+
+- **The test jobs keep a shallow clone.** The editable install runs setuptools-scm, which does not fail on a shallow clone:
+  without the tags it gives `0.1.dev1+g<commit>`. This version only shows in the logs of the test jobs, and the container
+  references ignore it since phase 0 (`generationTool` is volatile); the job that builds the package fetches the whole
+  history (phase 2).
+- **The integration test of the stdio MCP server** sets its own `PYTHONPATH` to the repository root for its subprocess: it
+  works with or without installation, unchanged.
+- **Local development changes**: running the tests now requires the package to be installed in the environment
+  (`pip install -e ".[all]"`, or `pip install -r requirements.txt`, from the repository root); without it, pytest stops
+  with `ModuleNotFoundError: No module named 'fmu_manipulation_toolbox'`. To be documented in phase 5.
+
+Checks performed, reproducing the CI: shallow clone of the current changes, macOS binaries added, clean Python 3.14 virtual
+environment, `pip install -r requirements.txt`: install succeeds; the package is imported from the clone (editable);
+full suite **1921 passed, 2 skipped**, GUI tests included; `git status` stays clean (`_version.py` and `*.egg-info`
+ignored).
 
 ### Phase 4 — Automatic checks
 
@@ -238,6 +280,9 @@ Publication cannot be tested locally. Before merging phase 2:
 
 PyPI rejects local versions (`+g<commit>`): a publication outside a tag on TestPyPI needs
 `local_scheme = "no-local-version"`.
+
+**Done on 10 October 2026** with a variant: rather than TestPyPI, a development pre-release (`V0.0dev3` → `0.0.dev3`) was
+published to PyPI itself, which no default installation selects. Results in phase 2.
 
 ---
 
