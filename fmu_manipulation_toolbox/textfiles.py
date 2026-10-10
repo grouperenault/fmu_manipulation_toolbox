@@ -15,13 +15,12 @@ import io
 import locale
 import logging
 from pathlib import Path
-from typing import Union
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 ENCODING = "utf-8"
 
-PathLike = Union[str, Path]
+PathLike = str | Path
 
 
 def read_text(path: PathLike) -> str:

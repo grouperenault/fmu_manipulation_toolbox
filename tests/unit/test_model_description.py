@@ -12,7 +12,6 @@ Three sets of descriptors are used:
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
-from typing import Dict, List
 
 import pytest
 import xmlschema
@@ -28,7 +27,7 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 XSD_DIR = Path(__file__).parent.parent.parent / "fmu_manipulation_toolbox" / "resources"
 
 
-def _toolbox_descriptors() -> Dict[str, bytes]:
+def _toolbox_descriptors() -> dict[str, bytes]:
     descriptors = {}
     for fmu_path in sorted(DATA_DIR.rglob("*.fmu")):
         with zipfile.ZipFile(fmu_path) as fmu:
@@ -36,12 +35,12 @@ def _toolbox_descriptors() -> Dict[str, bytes]:
     return descriptors
 
 
-def _reference_descriptors() -> Dict[str, bytes]:
+def _reference_descriptors() -> dict[str, bytes]:
     return {path.relative_to(DATA_DIR).as_posix(): path.read_bytes()
             for path in sorted((DATA_DIR / "reference-fmus").rglob("modelDescription.xml"))}
 
 
-DESCRIPTORS: Dict[str, bytes] = {**_toolbox_descriptors(), **_reference_descriptors()}
+DESCRIPTORS: dict[str, bytes] = {**_toolbox_descriptors(), **_reference_descriptors()}
 
 FMI2 = """<?xml version="1.0" encoding="UTF-8"?>
 <fmiModelDescription fmiVersion="2.0" modelName="m" guid="{{8c4e810f-3df3-4a00-8276-176fa3c9f000}}">
@@ -84,7 +83,7 @@ def fmi3(variable="", extra_variable="") -> bytes:
 
 
 #: Hand-written descriptors exercising what the expat implementation loses (D1 to D5).
-EDGE_CASES: Dict[str, bytes] = {
+EDGE_CASES: dict[str, bytes] = {
     "escaped-text": fmi2(header='<VendorAnnotations><Tool name="T"><Info>x &lt; y &amp; z</Info></Tool>'
                                 '</VendorAnnotations>'),
     "escaped-attribute": fmi2().replace(b'description="input"', b'description="a &amp;lt; b &quot;c&quot;"'),
@@ -100,7 +99,7 @@ EDGE_CASES: Dict[str, bytes] = {
     "non-ascii": fmi2().replace(b'description="input"', 'description="débit µ ≤ 1"'.encode("utf-8")),
 }
 
-ALL_DESCRIPTORS: Dict[str, bytes] = {**DESCRIPTORS, **{f"edge/{k}": v for k, v in EDGE_CASES.items()}}
+ALL_DESCRIPTORS: dict[str, bytes] = {**DESCRIPTORS, **{f"edge/{k}": v for k, v in EDGE_CASES.items()}}
 
 
 # --------------------------------------------------------------------------- #
@@ -187,7 +186,7 @@ def test_roundtrip_keeps_xsd_validity(name, tmp_path):
     assert [error.reason for error in schema.iter_errors(str(path))] == []
 
 
-_SCHEMAS: Dict[int, xmlschema.XMLSchema] = {}
+_SCHEMAS: dict[int, xmlschema.XMLSchema] = {}
 
 
 def _schema(fmi_version: int) -> xmlschema.XMLSchema:
@@ -298,7 +297,7 @@ def _port_view(port) -> dict:
     }
 
 
-def _expat_ports(descriptor: bytes, tmp_path: Path) -> List[dict]:
+def _expat_ports(descriptor: bytes, tmp_path: Path) -> list[dict]:
     fmu_path = tmp_path / "test.fmu"
     with zipfile.ZipFile(fmu_path, "w") as fmu:
         fmu.writestr("modelDescription.xml", descriptor)

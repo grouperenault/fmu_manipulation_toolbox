@@ -16,7 +16,7 @@ protocol, so the MCP tools are strictly identical either way.
 import logging
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from ..assembly import Assembly, AssemblyError, AssemblyNode
 from ..operations import FMU, FMUPort, OperationAbstract
@@ -28,7 +28,7 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 #: Container options, with the defaults of :class:`AssemblyNode`. Keeping the
 #: list here (rather than reading it off ``AssemblyNode.__init__``) makes the
 #: accepted keys explicit and their defaults reviewable.
-DEFAULT_OPTIONS: Dict[str, Any] = {
+DEFAULT_OPTIONS: dict[str, Any] = {
     "step_size": None,
     "mt": False,
     "profiling": False,
@@ -56,12 +56,12 @@ class _FmuDescriptor(OperationAbstract):
     read_only = True
 
     def __init__(self):
-        self.fmi_version: Optional[int] = None
+        self.fmi_version: int | None = None
         self.generator: str = ""
         self.is_cosimulation = False
         self.is_model_exchange = False
-        self.terminals: List[str] = []
-        self.ports: List[Dict[str, Any]] = []
+        self.terminals: list[str] = []
+        self.ports: list[dict[str, Any]] = []
 
     def fmi_attrs(self, attrs):
         self.generator = attrs.get("generationTool", "")
@@ -93,7 +93,7 @@ class _FmuDescriptor(OperationAbstract):
         self.terminals = [terminal.name for terminal in Terminals(self.fmu.tmp_directory)]
 
     @property
-    def kinds(self) -> List[str]:
+    def kinds(self) -> list[str]:
         kinds = []
         if self.is_cosimulation:
             kinds.append("CoSimulation")
@@ -102,7 +102,7 @@ class _FmuDescriptor(OperationAbstract):
         return kinds
 
 
-def describe_fmu(path: Path) -> Dict[str, Any]:
+def describe_fmu(path: Path) -> dict[str, Any]:
     """Describe an ``.fmu`` file, in the shape the MCP server expects.
 
     Args:
@@ -136,8 +136,8 @@ def describe_fmu(path: Path) -> Dict[str, Any]:
     }
 
 
-def _count_by_causality(ports: List[Dict[str, Any]]) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
+def _count_by_causality(ports: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
     for port in ports:
         key = port.get("causality") or "unknown"
         counts[key] = counts.get(key, 0) + 1
@@ -155,17 +155,17 @@ class HeadlessAssemblyBridge:
 
     def __init__(self, name: str = DEFAULT_CONTAINER_NAME):
         self._name = name
-        self._paths: Dict[str, Path] = {}
-        self._descriptions: Dict[str, Dict[str, Any]] = {}
-        self._links: List[Tuple[str, str, str, str]] = []
-        self._exposed_inputs: List[Tuple[str, str]] = []
-        self._exposed_outputs: List[Tuple[str, str]] = []
-        self._start_values: Dict[Tuple[str, str], str] = {}
-        self._options: Dict[str, Any] = dict(DEFAULT_OPTIONS)
+        self._paths: dict[str, Path] = {}
+        self._descriptions: dict[str, dict[str, Any]] = {}
+        self._links: list[tuple[str, str, str, str]] = []
+        self._exposed_inputs: list[tuple[str, str]] = []
+        self._exposed_outputs: list[tuple[str, str]] = []
+        self._start_values: dict[tuple[str, str], str] = {}
+        self._options: dict[str, Any] = dict(DEFAULT_OPTIONS)
 
     # -- helpers -----------------------------------------------------------
 
-    def _description(self, fmu: str) -> Dict[str, Any]:
+    def _description(self, fmu: str) -> dict[str, Any]:
         """Return the cached description of an FMU of the assembly."""
         if fmu not in self._descriptions:
             known = ", ".join(sorted(self._descriptions)) or "none"
@@ -175,13 +175,13 @@ class HeadlessAssemblyBridge:
             )
         return self._descriptions[fmu]
 
-    def _port(self, fmu: str, port: str) -> Dict[str, Any]:
+    def _port(self, fmu: str, port: str) -> dict[str, Any]:
         for candidate in self._description(fmu)["ports"]:
             if candidate["name"] == port:
                 return candidate
         raise ValueError(f"'{port}' is not a port of '{fmu}'.")
 
-    def _check_causality(self, fmu: str, port: str, expected: Tuple[str, ...]) -> None:
+    def _check_causality(self, fmu: str, port: str, expected: tuple[str, ...]) -> None:
         causality = self._port(fmu, port)["causality"]
         if causality not in expected:
             wanted = " or ".join(expected)
@@ -192,10 +192,10 @@ class HeadlessAssemblyBridge:
 
     # -- introspection -----------------------------------------------------
 
-    def list_fmus(self) -> List[str]:
+    def list_fmus(self) -> list[str]:
         return sorted(self._paths)
 
-    def list_fmu_ports(self, fmu: str) -> Dict[str, Any]:
+    def list_fmu_ports(self, fmu: str) -> dict[str, Any]:
         description = dict(self._description(fmu))
         # Report the start values the client has set, not only the declared
         # ones: otherwise `set_start_value` looks like it did nothing.
@@ -205,17 +205,17 @@ class HeadlessAssemblyBridge:
         ]
         return description
 
-    def inspect_fmu_file(self, path: str) -> Dict[str, Any]:
+    def inspect_fmu_file(self, path: str) -> dict[str, Any]:
         return describe_fmu(Path(path))
 
-    def get_assembly_json(self) -> Dict[str, Any]:
+    def get_assembly_json(self) -> dict[str, Any]:
         if not self._paths:
             return {}
         return self._assembly().json_encode()
 
     # -- mutations ---------------------------------------------------------
 
-    def add_fmu(self, path: str) -> Dict[str, Any]:
+    def add_fmu(self, path: str) -> dict[str, Any]:
         fmu_path = Path(path)
         description = describe_fmu(fmu_path)
         name = description["fmu"]
@@ -242,7 +242,7 @@ class HeadlessAssemblyBridge:
             "terminals": description["terminals"],
         }
 
-    def remove_fmu(self, name: str) -> Dict[str, Any]:
+    def remove_fmu(self, name: str) -> dict[str, Any]:
         self._description(name)  # raises if unknown
         removed = [link for link in self._links if name in (link[0], link[2])]
         self._links = [link for link in self._links if link not in removed]
@@ -309,7 +309,7 @@ class HeadlessAssemblyBridge:
         logger.info(f"[AI] Start value cleared on {fmu}/{port}")
         return f"{fmu}/{port}"
 
-    def set_container_options(self, options: Dict[str, Any]) -> Dict[str, Any]:
+    def set_container_options(self, options: dict[str, Any]) -> dict[str, Any]:
         unknown = set(options) - set(DEFAULT_OPTIONS)
         if unknown:
             raise ValueError(f"Unknown container option(s): {sorted(unknown)}. "

@@ -19,7 +19,7 @@ agent that should not roam the whole filesystem.
 
 import os
 from pathlib import Path
-from typing import Optional, Sequence
+from collections.abc import Sequence
 
 #: Environment variable restricting the assistant to a directory tree.
 ROOT_ENV_VAR = "FMUCONTAINER_MCP_ROOT"
@@ -41,7 +41,7 @@ class PathPolicy:
         PathValidationError: If ``root`` is not an existing directory.
     """
 
-    def __init__(self, root: Optional[Path] = None):
+    def __init__(self, root: Path | None = None):
         if root is None:
             self.root = None
         else:

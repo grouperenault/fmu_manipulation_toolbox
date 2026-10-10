@@ -4,7 +4,6 @@ Tree model and role accessors for FMU container builder.
 Contains _NodeTreeModel and TreeItemRoles.
 """
 
-from typing import *
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QStandardItemModel, QStandardItem
@@ -42,33 +41,33 @@ class TreeItemRoles:
     IS_ROOT = _NodeTreeModel.ROLE_IS_ROOT
 
     @staticmethod
-    def get_container_params(item: Optional[QStandardItem]) -> Optional[ContainerParameters]:
+    def get_container_params(item: QStandardItem | None) -> ContainerParameters | None:
         """Get ContainerParameters from item (type-safe)."""
         if item is None:
             return None
         return item.data(TreeItemRoles.CONTAINER_PARAMETERS)
 
     @staticmethod
-    def get_node_uid(item: Optional[QStandardItem]) -> Optional[str]:
+    def get_node_uid(item: QStandardItem | None) -> str | None:
         """Get NODE_UID from item (type-safe)."""
         if item is None:
             return None
         return item.data(TreeItemRoles.NODE_UID)
 
     @staticmethod
-    def is_root(item: Optional[QStandardItem]) -> bool:
+    def is_root(item: QStandardItem | None) -> bool:
         """Check if item is a root node (type-safe)."""
         if item is None:
             return False
         return bool(item.data(TreeItemRoles.IS_ROOT))
 
     @staticmethod
-    def is_container(item: Optional[QStandardItem]) -> bool:
+    def is_container(item: QStandardItem | None) -> bool:
         """Check if item is a container (type-safe)."""
         return TreeItemRoles.get_container_params(item) is not None
 
     @staticmethod
-    def is_fmu_node(item: Optional[QStandardItem]) -> bool:
+    def is_fmu_node(item: QStandardItem | None) -> bool:
         """Check if item is an FMU node (type-safe)."""
         return (
             TreeItemRoles.get_node_uid(item) is not None

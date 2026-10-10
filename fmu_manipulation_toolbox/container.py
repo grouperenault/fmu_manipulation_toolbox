@@ -11,7 +11,9 @@ import zipfile
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import *
+from typing import IO, Any
+from collections import OrderedDict
+from collections.abc import Generator, Iterable
 
 from .ls import LayeredStandard
 from .model_description import ModelDescription
@@ -56,7 +58,7 @@ class ArrayAggregate:
     # bracket with comma-separated indices) at the end of a name.
     _ARRAY_ELEM_RE = re.compile(r"^(.+)\[(\d+(?:,\d+)*)]$")
 
-    def __init__(self, basename: str, dims: Tuple[int, ...], ordered_element_names: List[str]):
+    def __init__(self, basename: str, dims: tuple[int, ...], ordered_element_names: list[str]):
         self.basename = basename
         self.dims = dims
         self.ordered_element_names = ordered_element_names
@@ -82,7 +84,7 @@ class ArrayAggregate:
     # -- Alternative constructors / parsers ------------------------------------
 
     @classmethod
-    def parse_element_name(cls, name: str) -> Optional[Tuple[str, Tuple[int, ...]]]:
+    def parse_element_name(cls, name: str) -> tuple[str, tuple[int, ...]] | None:
         """Return `(basename, indices)` if `name` has the form `basename[i,j,...]`
         (Modelica-style comma notation, conforming to FMI-2.0 array-element
         naming). Returns `None` if `name` is not a recognized array element
@@ -99,9 +101,9 @@ class ArrayAggregate:
     def detect_all(
             cls,
             port_names: Iterable[str],
-            existing_names: Optional[Set[str]] = None,
+            existing_names: set[str] | None = None,
             log_prefix: str = "",
-    ) -> List["ArrayAggregate"]:
+    ) -> list["ArrayAggregate"]:
         """Detect FMI-2 array-element families among `port_names` and return the
         valid N-D aggregates as `ArrayAggregate` instances.
 
@@ -116,7 +118,7 @@ class ArrayAggregate:
         if existing_names is None:
             existing_names = set()
 
-        groups: Dict[str, List[Tuple[Tuple[int, ...], str]]] = defaultdict(list)
+        groups: dict[str, list[tuple[tuple[int, ...], str]]] = defaultdict(list)
         for name in port_names:
             parsed = cls.parse_element_name(name)
             if parsed is None:
@@ -124,7 +126,7 @@ class ArrayAggregate:
             basename, indices = parsed
             groups[basename].append((indices, name))
 
-        aggregates: List[ArrayAggregate] = []
+        aggregates: list[ArrayAggregate] = []
         for basename, elements in groups.items():
             if basename in existing_names:
                 continue
@@ -250,7 +252,7 @@ class EmbeddedFMUPort:
         "binary", "clock"
     )
 
-    def __init__(self, fmi_type, attrs: Union[FMUPort, Dict[str, Any]], fmi_version=0):
+    def __init__(self, fmi_type, attrs: FMUPort | dict[str, Any], fmi_version=0):
         self.causality = attrs.get("causality", "local")
         self.variability = attrs.get("variability", None)
         self.interval_variability = attrs.get("intervalVariability", None)
@@ -270,7 +272,7 @@ class EmbeddedFMUPort:
         # Names of the underlying scalar element ports (e.g. `basename[1]`, ...),
         # used to mark each individual scalar port as LINK when the aggregate is
         # connected, so the checker does not report them as unconnected.
-        self.element_names: List[str] = []
+        self.element_names: list[str] = []
 
         if fmi_version > 0:
             self.type_name = self.FMI_TO_CONTAINER[fmi_version][fmi_type]
@@ -291,7 +293,7 @@ class EmbeddedFMUPort:
                                f"which is not supported")
         return size
 
-    def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> Optional[ET.Element]:
+    def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> ET.Element | None:
         """Generate the XML element for this port in `modelDescription.xml`.
 
         Produces a `<ScalarVariable>` element (FMI 2.0) or a typed element
@@ -366,7 +368,7 @@ class EmbeddedFMUPort:
             return None
 
     @staticmethod
-    def _element(tag: str, attrs: Dict[str, Any]) -> ET.Element:
+    def _element(tag: str, attrs: dict[str, Any]) -> ET.Element:
         """Element with the attributes whose value is not `None`, converted to strings."""
         return ET.Element(tag, {key: str(value) for key, value in attrs.items() if value is not None})
 
@@ -434,10 +436,10 @@ class EmbeddedFMU(OperationAbstract):
         self.number_of_continuous_states = 0
         self.number_of_event_indicators = 0
         self.platforms = set()
-        self.ports: Dict[str, EmbeddedFMUPort] = {}
+        self.ports: dict[str, EmbeddedFMUPort] = {}
 
         self.has_event_mode = False
-        self.capabilities: Dict[str, str] = {}
+        self.capabilities: dict[str, str] = {}
         self.current_port = None  # used during apply_operation()
 
         self.fmu.apply_operation(self)  # Should be the last command in constructor!
@@ -504,7 +506,7 @@ class EmbeddedFMU(OperationAbstract):
             self.fmi_version = 3
 
 
-    def cosimulation_attrs(self, attrs: Dict[str, str]):
+    def cosimulation_attrs(self, attrs: dict[str, str]):
         # Co-Simulation takes precedence over Model-Exchange for dual-mode FMUs.
         self.is_me = False
         self.model_identifier = attrs['modelIdentifier']
@@ -521,7 +523,7 @@ class EmbeddedFMU(OperationAbstract):
             self.capabilities[capability] = attrs.get(capability, "false")
         logger.debug(f"FMU '{self.name}' provides Model-Exchange mode.")
 
-    def experiment_attrs(self, attrs: Dict[str, str]):
+    def experiment_attrs(self, attrs: dict[str, str]):
         try:
             self.step_size = float(attrs['stepSize'])
         except KeyError:
@@ -864,10 +866,10 @@ class Link:
     def __init__(self, cport_from: ContainerPort):
         self.name = cport_from.fmu.id + "." + cport_from.port.name  # strip .fmu suffix
         self.cport_from = cport_from
-        self.cport_to_list: List[ContainerPort] = []
+        self.cport_to_list: list[ContainerPort] = []
         self.size = cport_from.port.size()
-        self.vr: Optional[int] = None
-        self.vr_converted: Dict[str, Optional[int]] = {}
+        self.vr: int | None = None
+        self.vr_converted: dict[str, int | None] = {}
 
         if not cport_from.port.causality == "output":
             if cport_from.port.type_name == "clock":
@@ -908,7 +910,7 @@ class Link:
             else:
                 raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
 
-    def get_conversion(self, cport_to: ContainerPort) -> Optional[str]:
+    def get_conversion(self, cport_to: ContainerPort) -> str | None:
         """Look up the conversion function for connecting to a different type.
 
         Args:
@@ -949,11 +951,11 @@ class ValueReferenceTable:
     """
 
     def __init__(self):
-        self.vr_table:Dict[str, int] = {}
-        self.masks: Dict[str, int] = {}
-        self.nb_local_variable:Dict[str, int] = {}
-        self.nb_local_storage: Dict[str, int] = {}
-        self.vr_to_local:Dict[int, int] = {}
+        self.vr_table:dict[str, int] = {}
+        self.masks: dict[str, int] = {}
+        self.nb_local_variable:dict[str, int] = {}
+        self.nb_local_storage: dict[str, int] = {}
+        self.vr_to_local:dict[int, int] = {}
 
         self.local_clock = {}
         for i, type_name in enumerate(EmbeddedFMUPort.ALL_TYPES):
@@ -962,7 +964,7 @@ class ValueReferenceTable:
             self.nb_local_variable[type_name] = 0
             self.nb_local_storage[type_name] = 0
 
-    def add_vr(self, port_or_type_name: Union[ContainerPort, str], local: bool = False, port_size=1) -> int:
+    def add_vr(self, port_or_type_name: ContainerPort | str, local: bool = False, port_size=1) -> int:
         """Allocate a new value reference.
 
         Args:
@@ -1304,9 +1306,9 @@ class InvolvedFMU:
             return self[fmu_name]
         return default
 
-    def write_txt(self, txt_file: IO) -> Dict[str, int]:
+    def write_txt(self, txt_file: IO) -> dict[str, int]:
         print(f"{len(self.fmu_cs)} {len(self.fmu_me)}", file=txt_file)
-        fmu_rank: Dict[str, int] = {}
+        fmu_rank: dict[str, int] = {}
         for i, fmu in enumerate(self.values()):
             if fmu.is_me:
                 # ME entries: <filename> <fmi_version> <nx> <nz> / <identifier> / <guid>
@@ -1342,8 +1344,8 @@ class ClockList:
     """
 
     def __init__(self, involved_fmu: InvolvedFMU):
-        self.clocks_per_fmu: DefaultDict[int, List[Clock]] = defaultdict(list)
-        self.fmu_index: Dict[str, int] = {}
+        self.clocks_per_fmu: defaultdict[int, list[Clock]] = defaultdict(list)
+        self.fmu_index: dict[str, int] = {}
         for i, fmu_name in enumerate(involved_fmu):
             self.fmu_index[fmu_name] = i
 
@@ -1432,7 +1434,7 @@ class FMUContainer:
         FMUContainerError: If the FMU directory is invalid.
     """
 
-    def __init__(self, identifier: str, fmu_directory: Union[str, Path], description_pathname=None, fmi_version=2):
+    def __init__(self, identifier: str, fmu_directory: str | Path, description_pathname=None, fmi_version=2):
         self.fmu_directory = Path(fmu_directory)
         self.identifier = identifier
         if not self.fmu_directory.is_dir():
@@ -1448,12 +1450,12 @@ class FMUContainer:
         self.have_me = False
 
         # Rules
-        self.inputs: Dict[str, ContainerInput] = {}
-        self.outputs: Dict[str, ContainerPort] = {}
-        self.links: Dict[ContainerPort, Link] = {}
+        self.inputs: dict[str, ContainerInput] = {}
+        self.outputs: dict[str, ContainerPort] = {}
+        self.links: dict[ContainerPort, Link] = {}
 
-        self.rules: Dict[ContainerPort, str] = {}
-        self.start_values: Dict[ContainerPort, str] = {}
+        self.rules: dict[ContainerPort, str] = {}
+        self.start_values: dict[ContainerPort, str] = {}
 
         self.vr_table = ValueReferenceTable()
 
@@ -1733,7 +1735,7 @@ class FMUContainer:
 
         self.start_values[cport] = value
 
-    def find_inputs(self, port_to_connect: EmbeddedFMUPort) -> List[ContainerPort]:
+    def find_inputs(self, port_to_connect: EmbeddedFMUPort) -> list[ContainerPort]:
         candidates = []
         for cport in self.get_all_cports():
             if (cport.port.causality == 'input' and cport not in self.rules and cport.port.name == port_to_connect.name
@@ -1846,7 +1848,7 @@ class FMUContainer:
 
         return step_size
 
-    def sanity_check(self, step_size: Optional[float]):
+    def sanity_check(self, step_size: float | None):
         """Validate the container configuration before building.
 
         Warns about step size mismatches and unconnected ports.
@@ -1874,7 +1876,7 @@ class FMUContainer:
                     if cport.port.causality == 'output':
                         logger.warning(f"Output '{cport}' is not connected")
 
-    def make_fmu(self, fmu_filename: Union[str, Path], step_size: Optional[float] = None, debug=False, mt=False,
+    def make_fmu(self, fmu_filename: str | Path, step_size: float | None = None, debug=False, mt=False,
                  profiling=False, sequential=False, ts_multiplier=False, datalog=False):
         """Build the FMU Container archive.
 
@@ -2017,7 +2019,7 @@ class FMUContainer:
             ET.SubElement(model_variables, "Float64",
                           {"valueReference": "0", "name": "time", "causality": "independent"})
 
-        def add_variable(variable: Optional[ET.Element]) -> Optional[ET.Element]:
+        def add_variable(variable: ET.Element | None) -> ET.Element | None:
             if variable is not None:
                 model_variables.append(variable)
             return variable
@@ -2118,14 +2120,14 @@ class FMUContainer:
 
 
         # Prepare data structure
-        inputs_per_type: Dict[str, List[ContainerInput]] = defaultdict(list) # Container's INPUT
-        outputs_per_type: Dict[str, List[ContainerPort]] = defaultdict(list) # Container's OUTPUT
+        inputs_per_type: dict[str, list[ContainerInput]] = defaultdict(list) # Container's INPUT
+        outputs_per_type: dict[str, list[ContainerPort]] = defaultdict(list) # Container's OUTPUT
 
         fmu_io_list = FMUIOList(self.vr_table)
         clock_list = ClockList(self.involved_fmu)
 
-        local_per_type: Dict[str, List[LocalVariable]] = defaultdict(list)
-        links_per_fmu: Dict[str, List[Link]] = defaultdict(list)
+        local_per_type: dict[str, list[LocalVariable]] = defaultdict(list)
+        links_per_fmu: dict[str, list[Link]] = defaultdict(list)
 
         # Fill data structure
         # Inputs
@@ -2248,7 +2250,7 @@ class FMUContainer:
                 print(f"{port.vr} {port.name}", file=datalog_file)
 
     @staticmethod
-    def long_path(path: Union[str, Path]) -> str:
+    def long_path(path: str | Path) -> str:
         # https://stackoverflow.com/questions/14075465/copy-a-file-with-a-too-long-path-to-another-directory-in-python
         if os.name == 'nt':
             return "\\\\?\\" + os.path.abspath(str(path))

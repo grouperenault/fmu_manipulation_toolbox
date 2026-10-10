@@ -4,7 +4,6 @@ import inspect
 import logging
 import os
 import xmlschema
-from typing import *
 
 from .model_description import ModelDescription, ModelVariable
 from .operations import OperationAbstract
@@ -134,7 +133,7 @@ class OperationSemanticCheck(OperationAbstract):
     PARAMETERS = ("parameter", "structuralParameter", "calculatedParameter")
 
     def __init__(self):
-        self.errors: List[str] = []
+        self.errors: list[str] = []
 
     def __repr__(self):
         return "FMU Semantic Checks"
@@ -166,7 +165,7 @@ class OperationSemanticCheck(OperationAbstract):
             logger.info(f"No semantic error against the FMI-{md.fmi_version} standard.")
 
     # --------------------------------------------------------------- Variables
-    def causality_variability(self, fmi_version: int, port: ModelVariable) -> Tuple[str, str]:
+    def causality_variability(self, fmi_version: int, port: ModelVariable) -> tuple[str, str]:
         causality = port.get("causality", "local")
         variability = port.get("variability", None)
         if variability is None:  # defaults: FMI-2 §2.2.7, FMI-3 §2.4.7.4
@@ -178,7 +177,7 @@ class OperationSemanticCheck(OperationAbstract):
                 variability = "continuous" if port.fmi_type in self.CONTINUOUS_TYPES[3] else "discrete"
         return causality, variability
 
-    def check_unique_names(self, md: ModelDescription, ports: List[ModelVariable]):
+    def check_unique_names(self, md: ModelDescription, ports: list[ModelVariable]):
         names = [port.get("name") for port in ports]
         if md.fmi_version == 3:
             names += [alias.get("name") for alias in md.model_variables.iter("Alias")]
@@ -190,8 +189,8 @@ class OperationSemanticCheck(OperationAbstract):
                            f"({'FMI-2 §2.2.7' if md.fmi_version == 2 else 'FMI-3 §2.4'}).")
             seen.add(name)
 
-    def check_unique_value_references(self, ports: List[ModelVariable]):
-        seen: Dict[str, str] = {}
+    def check_unique_value_references(self, ports: list[ModelVariable]):
+        seen: dict[str, str] = {}
         for port in ports:
             vr = port.get("valueReference")
             if vr in seen:
@@ -242,7 +241,7 @@ class OperationSemanticCheck(OperationAbstract):
             self.error(f"Variable '{name}': a start value is required ({section}).")
 
     # --------------------------------------------------------- Model structure
-    def check_model_structure(self, md: ModelDescription, ports: List[ModelVariable]):
+    def check_model_structure(self, md: ModelDescription, ports: list[ModelVariable]):
         names = [port.get("name") for port in ports]
         outputs = [index for index, port in enumerate(ports) if port.get("causality", "local") == "output"]
         derivatives = [index for index, port in enumerate(ports) if "derivative" in port]
@@ -251,7 +250,7 @@ class OperationSemanticCheck(OperationAbstract):
         if md.fmi_version == 2:
             section = "FMI-2 §2.2.8"
 
-            def resolve(reference: str) -> Optional[int]:
+            def resolve(reference: str) -> int | None:
                 index = int(reference) - 1 if reference.isdigit() else -1
                 return index if 0 <= index < len(ports) else None
 
@@ -274,7 +273,7 @@ class OperationSemanticCheck(OperationAbstract):
             section = "FMI-3 §2.4.8"
             by_vr = {port.get("valueReference"): index for index, port in enumerate(ports)}
 
-            def resolve(reference: str) -> Optional[int]:
+            def resolve(reference: str) -> int | None:
                 return by_vr.get(reference)
 
             for index in derivatives:
@@ -312,10 +311,10 @@ class OperationSemanticCheck(OperationAbstract):
             self.error(f"{what}: dependencies and dependenciesKind have different lengths ({section}).")
 
 
-_checkers_list: List[type[OperationAbstract]] = [OperationGenericCheck, OperationSemanticCheck]
+_checkers_list: list[type[OperationAbstract]] = [OperationGenericCheck, OperationSemanticCheck]
 
 
-def get_checkers() -> List[type[OperationAbstract]]:
+def get_checkers() -> list[type[OperationAbstract]]:
     """Collect all registered FMU checkers.
 
     Returns the built-in checkers combined with any additional checkers
@@ -328,7 +327,7 @@ def get_checkers() -> List[type[OperationAbstract]]:
             subclass of
             [OperationAbstract][fmu_manipulation_toolbox.operations.OperationAbstract].
     """
-    checkers: List[type[OperationAbstract]] = list(_checkers_list)  # a copy: repeated calls must not pile up
+    checkers: list[type[OperationAbstract]] = list(_checkers_list)  # a copy: repeated calls must not pile up
     discovered_checkers = entry_points(group='fmu_manipulation_toolbox.checkers')
 
     for checker in discovered_checkers:

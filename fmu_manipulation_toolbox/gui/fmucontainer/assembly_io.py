@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
 from fmu_manipulation_toolbox.container import FMUContainerError
@@ -45,8 +45,8 @@ class AssemblyIOMixin:
     # ──────────────────────────────────────────────────────────────────
 
     def _assembly_node_to_items(self, parent, assembly_node: AssemblyNode, folder: Path,
-                                links_list: List[List[str]], start_values_list: List[List[str]],
-                                output_ports_list: List[List[str]], input_ports_list: List[List[str]],
+                                links_list: list[list[str]], start_values_list: list[list[str]],
+                                output_ports_list: list[list[str]], input_ports_list: list[list[str]],
                                 x=0, y=0):
         """Recursively convert an AssemblyNode into tree items and graph nodes."""
         # Add FMU nodes
@@ -105,7 +105,7 @@ class AssemblyIOMixin:
             logger.debug(f"ADD INPUT PORT: {input_port}")
             input_ports_list.append(input_port)
 
-        child_items_by_name: Dict[str, object] = {}
+        child_items_by_name: dict[str, object] = {}
         for child_node in assembly_node.children.values():
             logger.debug(f"ADD CONTAINER: {child_node.name}")
             child = self._tree.make_container_item(child_node.name)
@@ -214,16 +214,16 @@ class AssemblyIOMixin:
             logger.warning("Assembly has no root node, nothing to import.")
             return
 
-        links_list: List[List[str]] = []
-        start_values_list: List[List[str]] = []
-        output_ports_list: List[List[str]] = []
-        input_ports_list: List[List[str]] = []
+        links_list: list[list[str]] = []
+        start_values_list: list[list[str]] = []
+        output_ports_list: list[list[str]] = []
+        input_ports_list: list[list[str]] = []
         self._assembly_node_to_items(self._tree.root, assembly.root, fmu_directory,
                                      links_list, start_values_list, output_ports_list, input_ports_list)
 
         # Build a map from FMU filename to its NodeItem (real FMUs only, excludes
         # the virtual ConfigurationNode which is never part of the Assembly model)
-        nodes_by_name: Dict[str, NodeItem] = {}
+        nodes_by_name: dict[str, NodeItem] = {}
         for node in self._graph.scene.fmu_nodes():
             nodes_by_name[str(node.fmu_path.resolve())] = node
 
@@ -240,7 +240,7 @@ class AssemblyIOMixin:
                 return ConfigurationNode.TITLE
             return str((fmu_directory / name).resolve())
 
-        def _resolve_node(name: str) -> Optional[NodeItem]:
+        def _resolve_node(name: str) -> NodeItem | None:
             """Return the NodeItem (real FMU or the singleton ConfigurationNode)
             matching *name*."""
             if name == ConfigurationNode.TITLE:
@@ -248,7 +248,7 @@ class AssemblyIOMixin:
             return nodes_by_name.get(str((fmu_directory / name).resolve()))
 
         # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
-        wire_key_mappings: Dict[Tuple[str, str], List[Tuple[str, str, str, str]]] = {}
+        wire_key_mappings: dict[tuple[str, str], list[tuple[str, str, str, str]]] = {}
         for link in links_list:
             fmu_from_name, port_from, fmu_to_name, port_to = link[0], link[1], link[2], link[3]
             key_from = _resolve_key(fmu_from_name)
@@ -274,8 +274,8 @@ class AssemblyIOMixin:
                 # Split mappings into port-links and terminal-links. A link is
                 # considered a terminal-link when *both* endpoints are declared
                 # as terminals on their respective FMUs (see terminalsAndIcons).
-                port_mappings: List[Tuple[str, str, str, str]] = []
-                terminal_mappings: List[Tuple[str, str, str, str]] = []
+                port_mappings: list[tuple[str, str, str, str]] = []
+                terminal_mappings: list[tuple[str, str, str, str]] = []
                 for m in mappings:
                     fmu_a, name_a, fmu_b, name_b = m
                     # Resolve which node hosts which endpoint (mappings preserve
@@ -433,7 +433,7 @@ class AssemblyIOMixin:
 
     @staticmethod
     def _apply_links_on_assembly_node(assembly_node: AssemblyNode,
-                                      links_list: List[Tuple]) -> List[Tuple]:
+                                      links_list: list[tuple]) -> list[tuple]:
         """Distribute links into the correct assembly nodes recursively."""
         for sub_assembly_node in assembly_node.children.values():
             links_list = AssemblyIOMixin._apply_links_on_assembly_node(
@@ -468,19 +468,19 @@ class AssemblyIOMixin:
 
         return remaining_links_list
 
-    def create_assembly(self) -> Optional[Assembly]:
+    def create_assembly(self) -> Assembly | None:
         """Build an Assembly object from the current scene and tree state."""
         # Flush any in-progress edits from detail panels
         self._tree.wire_detail.sync_to_wire()
         self._tree.fmu_detail.sync_to_node()
         # Only real FMU nodes are eligible: the virtual ConfigurationNode
         # (ts_multiplier, GUI-only) is never part of the Assembly model.
-        nodes_by_uid: Dict[str, NodeItem] = {
+        nodes_by_uid: dict[str, NodeItem] = {
             node.uid: node for node in self._graph.scene.fmu_nodes()
         }
 
-        def _item_to_assembly_node(parent_assembly_node: Optional[AssemblyNode],
-                                    item) -> Optional[AssemblyNode]:
+        def _item_to_assembly_node(parent_assembly_node: AssemblyNode | None,
+                                    item) -> AssemblyNode | None:
             container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
             if container_parameters:
                 logger.debug(f"ADD Container: {container_parameters.name}")
@@ -529,9 +529,9 @@ class AssemblyIOMixin:
             logger.fatal(f"{e}")
             return None
 
-        links_list: List[Tuple[str, str, str, str]] = []
+        links_list: list[tuple[str, str, str, str]] = []
         # Build fmu_path lookup by fmu_path.name (real FMUs only)
-        path_by_name: Dict[str, str] = {}
+        path_by_name: dict[str, str] = {}
         for node in self._graph.scene.fmu_nodes():
             path_by_name[node.fmu_path.name] = str(node.fmu_path)
 

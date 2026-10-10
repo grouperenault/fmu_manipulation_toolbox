@@ -1,7 +1,7 @@
 import logging
 import os
 
-from typing import *
+from collections.abc import Callable
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
                                QHBoxLayout, QPushButton, QMessageBox, QMainWindow, QTableView, QHeaderView)
 from PySide6.QtGui import QDesktopServices, QIcon
@@ -16,7 +16,7 @@ from fmu_manipulation_toolbox.operations import FMU
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
-def get_fmu_icon_path(fmu: FMU, fmi_version: Optional[int]) -> Optional[Path]:
+def get_fmu_icon_path(fmu: FMU, fmi_version: int | None) -> Path | None:
     """Return the path to the FMU model icon inside its extraction directory.
 
     The icon location depends on the FMI version:
@@ -60,7 +60,7 @@ class LastDirectory:
         return cls._directory
 
     @classmethod
-    def update(cls, path: Optional[Union[str, "Path"]]) -> None:
+    def update(cls, path: str | Path | None) -> None:
         """Update the remembered directory from a file (or directory) path."""
         if not path:
             return
@@ -79,7 +79,7 @@ class LastDirectory:
         return filename
 
     @classmethod
-    def get_open_file_names(cls, parent=None, caption: str = "", filter: str = "") -> List[str]:
+    def get_open_file_names(cls, parent=None, caption: str = "", filter: str = "") -> list[str]:
         """Wrapper around QFileDialog.getOpenFileNames using/updating the last directory."""
         filenames, _ = QFileDialog.getOpenFileNames(parent, caption, cls.get(), filter)
         if filenames:
@@ -145,10 +145,10 @@ def crop_transparent_border(image: QImage) -> QImage:
     return img.copy(QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1))
 
 
-def load_scaled_pixmap(source: Union[Path, str, QImage], max_width: int, max_height: int,
+def load_scaled_pixmap(source: Path | str | QImage, max_width: int, max_height: int,
                        keep_aspect_ratio: bool = True,
-                       mask_path: Optional[Path] = None,
-                       trim_transparent: bool = False) -> Optional[QPixmap]:
+                       mask_path: Path | None = None,
+                       trim_transparent: bool = False) -> QPixmap | None:
     """Load *source* and scale it to fit within *max_width* x *max_height*.
 
     The pixmap is rendered at the screen device-pixel-ratio and tagged with it,
@@ -276,7 +276,7 @@ class DropZoneWidget(QLabel):
 
     # -- Display ----------------------------------------------------------------
 
-    def set_image(self, filename:Optional[Path]=None):
+    def set_image(self, filename:Path | None=None):
         """Display the FMU thumbnail (with rounded mask) or the placeholder."""
         resources = Path(__file__).parent.parent / "resources"
 

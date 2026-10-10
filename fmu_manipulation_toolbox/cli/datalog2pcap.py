@@ -4,7 +4,6 @@ import logging
 import sys
 
 from pathlib import Path
-from typing import *
 
 from .utils import setup_logger, close_logger, make_wide
 from ..version import __version__ as version
@@ -12,7 +11,7 @@ from ..version import __version__ as version
 logger = setup_logger()
 
 class DatalogConverter:
-    def __init__(self, cvs_filename: Union[Path, str]):
+    def __init__(self, cvs_filename: Path | str):
         self.csv_filename = Path(cvs_filename)
         self.pcap_filename = self.csv_filename.with_suffix(".pcap")
         self.opcode_name = {

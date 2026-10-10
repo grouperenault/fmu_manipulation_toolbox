@@ -9,14 +9,14 @@ import difflib
 import hashlib
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Iterable, List, Union
+from collections.abc import Iterable
 
 from fmu_manipulation_toolbox.operations import FMU, OperationSaveNamesToCSV
 
-PathLike = Union[str, Path]
+PathLike = str | Path
 
 
-def _read_lines(path: PathLike, *, strip: bool) -> List[str]:
+def _read_lines(path: PathLike, *, strip: bool) -> list[str]:
     """Read a text file (universal newlines) into a list of lines.
 
     Each line is either fully stripped (``strip=True``) or only has its trailing
@@ -56,7 +56,7 @@ def assert_identical_files(filename1: PathLike, filename2: PathLike) -> None:
 VOLATILE_XML_ATTRIBUTES = ("guid", "author", "generationDateAndTime", "instantiationToken", "generationTool")
 
 
-def canonical_xml(source: Union[PathLike, bytes], *, ignore_attributes: Iterable[str] = (),
+def canonical_xml(source: PathLike | bytes, *, ignore_attributes: Iterable[str] = (),
                   with_comments: bool = False) -> str:
     """Return a canonical, line-oriented form of an XML document.
 
@@ -88,7 +88,7 @@ def canonical_xml(source: Union[PathLike, bytes], *, ignore_attributes: Iterable
     return ET.canonicalize(ET.tostring(root, encoding="unicode"), with_comments=with_comments)
 
 
-def assert_equivalent_xml(filename1: Union[PathLike, bytes], filename2: Union[PathLike, bytes], *,
+def assert_equivalent_xml(filename1: PathLike | bytes, filename2: PathLike | bytes, *,
                           ignore_attributes: Iterable[str] = (), with_comments: bool = False) -> None:
     """Assert two XML documents are equivalent once canonicalised.
 

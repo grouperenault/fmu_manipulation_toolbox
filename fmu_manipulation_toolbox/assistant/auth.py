@@ -28,7 +28,6 @@ import hmac
 import logging
 import os
 import secrets
-from typing import Optional
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -39,7 +38,7 @@ TOKEN_ENV_VAR = "FMUCONTAINER_MCP_TOKEN"
 GENERATE = "generate"
 
 
-def resolve_token() -> Optional[str]:
+def resolve_token() -> str | None:
     """Return the token the HTTP transport requires, if any.
 
     ``FMUCONTAINER_MCP_TOKEN=generate`` asks for a fresh random token, which

@@ -14,7 +14,7 @@ This module only depends on the standard library so that
 the optional ``fastmcp`` package is not installed.
 """
 
-from typing import Any, Dict, List, Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 #: FMI versions a container interface can be built for.
 SUPPORTED_FMI_VERSIONS = (2, 3)
@@ -34,10 +34,10 @@ class AssemblyBridge(Protocol):
     """
 
     # -- introspection -----------------------------------------------------
-    def list_fmus(self) -> List[str]:
+    def list_fmus(self) -> list[str]:
         """Return the file names of the FMUs currently in the assembly."""
 
-    def list_fmu_ports(self, fmu: str) -> Dict[str, Any]:
+    def list_fmu_ports(self, fmu: str) -> dict[str, Any]:
         """Describe an FMU of the assembly, designated by its name.
 
         Returns a mapping with ``fmu``, ``fmi_version``, ``generator``,
@@ -46,24 +46,24 @@ class AssemblyBridge(Protocol):
         applied by the server, not here.
         """
 
-    def inspect_fmu_file(self, path: str) -> Dict[str, Any]:
+    def inspect_fmu_file(self, path: str) -> dict[str, Any]:
         """Describe an ``.fmu`` file without adding it to the assembly.
 
         Same shape as :meth:`list_fmu_ports`.
         """
 
-    def get_assembly_json(self) -> Dict[str, Any]:
+    def get_assembly_json(self) -> dict[str, Any]:
         """Return the current assembly as a JSON-serialisable description."""
 
     # -- mutations ---------------------------------------------------------
-    def add_fmu(self, path: str) -> Dict[str, Any]:
+    def add_fmu(self, path: str) -> dict[str, Any]:
         """Add the FMU found at ``path``.
 
         Returns a summary: ``fmu`` (the name to use afterwards), ``path``,
         ``fmi_version``, ``generator``, ``kinds``, ``counts``, ``terminals``.
         """
 
-    def remove_fmu(self, name: str) -> Dict[str, Any]:
+    def remove_fmu(self, name: str) -> dict[str, Any]:
         """Remove ``name`` and the links attached to it.
 
         Returns ``fmu`` and ``removed_links``.
@@ -95,7 +95,7 @@ class AssemblyBridge(Protocol):
         ``ValueError`` when no start value was set.
         """
 
-    def set_container_options(self, options: Dict[str, Any]) -> Dict[str, Any]:
+    def set_container_options(self, options: dict[str, Any]) -> dict[str, Any]:
         """Update the root container options and return them all."""
 
     # -- build / export ----------------------------------------------------

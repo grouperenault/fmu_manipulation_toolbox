@@ -25,13 +25,14 @@ import logging
 import xml.etree.ElementTree as ET
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, IO, Iterator, List, MutableMapping, Optional, Tuple, Union
+from typing import IO
+from collections.abc import Iterator, MutableMapping
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 __all__ = ["ModelDescription", "ModelDescriptionError", "ModelVariable", "PrefixedAttributes"]
 
-PathOrBytes = Union[str, Path, bytes]
+PathOrBytes = str | Path | bytes
 
 XML_DECLARATION = b'<?xml version="1.0" encoding="UTF-8"?>\n'
 
@@ -51,9 +52,9 @@ class _TreeBuilder(ET.TreeBuilder):
 
     def __init__(self):
         super().__init__(insert_comments=True, insert_pis=True)
-        self.namespaces: List[Tuple[str, str]] = []
-        self.prolog: List[ET.Element] = []
-        self.epilog: List[ET.Element] = []
+        self.namespaces: list[tuple[str, str]] = []
+        self.prolog: list[ET.Element] = []
+        self.epilog: list[ET.Element] = []
         self._depth = 0
         self._root_seen = False
 
@@ -79,7 +80,7 @@ class _TreeBuilder(ET.TreeBuilder):
             return super().pi(target, text)
         self._outside_root().append(ET.ProcessingInstruction(target, text))
 
-    def _outside_root(self) -> List[ET.Element]:
+    def _outside_root(self) -> list[ET.Element]:
         return self.epilog if self._root_seen else self.prolog
 
 
@@ -127,7 +128,7 @@ class PrefixedAttributes(MutableMapping):
     reads from / writes to the element's `attrib`.
     """
 
-    def __init__(self, attrib: Dict[str, str], namespaces: List[Tuple[str, str]]):
+    def __init__(self, attrib: dict[str, str], namespaces: list[tuple[str, str]]):
         self.attrib = attrib
         self._prefixes = {uri: prefix for prefix, uri in namespaces if prefix}
         self._uris = {prefix: uri for prefix, uri in namespaces if prefix}
@@ -183,7 +184,7 @@ class ModelVariable:
         self.fmi_version = fmi_version
 
     @property
-    def typed_element(self) -> Optional[ET.Element]:
+    def typed_element(self) -> ET.Element | None:
         """Element carrying the type: the child `<Real>`, `<Integer>`... (FMI-2) or the variable itself (FMI-3)."""
         if self.fmi_version == 3:
             return self.element
@@ -193,7 +194,7 @@ class ModelVariable:
         return None
 
     @property
-    def fmi_type(self) -> Optional[str]:
+    def fmi_type(self) -> str | None:
         typed = self.typed_element
         return typed.tag if typed is not None else None
 
@@ -205,7 +206,7 @@ class ModelVariable:
         typed.tag = fmi_type
 
     @property
-    def attrs_list(self) -> List[MutableMapping[str, str]]:
+    def attrs_list(self) -> list[MutableMapping[str, str]]:
         """Attribute dictionaries, outermost element first.
 
         FMI-2: `[<ScalarVariable> attributes, <Real>/<Integer>/... attributes]`.
@@ -218,7 +219,7 @@ class ModelVariable:
         return [self.element.attrib] + [_StartValue(start) for start in self.element.findall("Start")]
 
     @property
-    def dimensions(self) -> List[Tuple[str, int]]:
+    def dimensions(self) -> list[tuple[str, int]]:
         """FMI-3 `<Dimension>` elements as `("start", size)` or `("valueReference", vr)`.
 
         A single dimension of size 1 is reported as a scalar (`[]`), as
@@ -285,14 +286,14 @@ class ModelDescription:
         if root.tag != "fmiModelDescription":
             raise ModelDescriptionError(f"Root element is <{root.tag}>, expected <fmiModelDescription>")
         self.root = root
-        self.namespaces: List[Tuple[str, str]] = list(namespaces)
-        self.prolog: List[ET.Element] = list(prolog)
-        self.epilog: List[ET.Element] = list(epilog)
+        self.namespaces: list[tuple[str, str]] = list(namespaces)
+        self.prolog: list[ET.Element] = list(prolog)
+        self.epilog: list[ET.Element] = list(epilog)
         self.fmi_version = self._major_version(root.get("fmiVersion"))
-        self._parents: Dict[ET.Element, ET.Element] = {}
+        self._parents: dict[ET.Element, ET.Element] = {}
 
     @staticmethod
-    def _major_version(fmi_version: Optional[str]) -> int:
+    def _major_version(fmi_version: str | None) -> int:
         try:
             major = int(fmi_version.split(".", 1)[0])
         except (AttributeError, ValueError):
@@ -325,7 +326,7 @@ class ModelDescription:
                                         f"is not well-formed XML: {error}") from error
         return cls(root, builder.namespaces, builder.prolog, builder.epilog)
 
-    def save(self, destination: Union[str, Path, IO[bytes]]) -> None:
+    def save(self, destination: str | Path | IO[bytes]) -> None:
         """Write the descriptor in UTF-8, with the XML declaration on the first line."""
         if isinstance(destination, (str, Path)):
             with open(destination, "wb") as file:
@@ -360,7 +361,7 @@ class ModelDescription:
 
     # ------------------------------------------------------------ Structure
     @property
-    def variable_types(self) -> Tuple[str, ...]:
+    def variable_types(self) -> tuple[str, ...]:
         return self.FMI2_VARIABLE_TYPES if self.fmi_version == 2 else self.FMI3_VARIABLE_TYPES
 
     @property
@@ -371,19 +372,19 @@ class ModelDescription:
         return model_variables
 
     @property
-    def model_structure(self) -> Optional[ET.Element]:
+    def model_structure(self) -> ET.Element | None:
         return self.root.find("ModelStructure")
 
     @property
-    def default_experiment(self) -> Optional[ET.Element]:
+    def default_experiment(self) -> ET.Element | None:
         return self.root.find("DefaultExperiment")
 
     @property
-    def interfaces(self) -> Dict[str, ET.Element]:
+    def interfaces(self) -> dict[str, ET.Element]:
         """Interface type elements present in the document, e.g. `{"CoSimulation": <element>}`."""
         return {child.tag: child for child in self.root if child.tag in self.INTERFACE_TYPES}
 
-    def variables(self) -> List[ET.Element]:
+    def variables(self) -> list[ET.Element]:
         """Variable elements, in document order (comments excluded).
 
         For FMI-2, the position in this list plus one is the `index` used by
@@ -397,7 +398,7 @@ class ModelDescription:
         for element in self.variables():
             yield ModelVariable(element, self.fmi_version)
 
-    def model_structure_entries(self) -> List[Tuple[str, ET.Element]]:
+    def model_structure_entries(self) -> list[tuple[str, ET.Element]]:
         """Entries of `<ModelStructure>` as `(section, element)`, in document order.
 
         FMI-2: `section` is the enclosing list (`"Outputs"`, `"Derivatives"`,
@@ -419,7 +420,7 @@ class ModelDescription:
         """Attributes of `element`, namespaced ones named `prefix:name` as in the file."""
         return PrefixedAttributes(element.attrib, self.namespaces)
 
-    def model_exchange_sizes(self, label: str = "") -> Tuple[int, int]:
+    def model_exchange_sizes(self, label: str = "") -> tuple[int, int]:
         """Number of continuous states (`nx`) and of event indicators (`nz`).
 
         - FMI 2.0: `nx` is the number of `<Unknown>` entries of `<Derivatives>`
@@ -452,7 +453,7 @@ class ModelDescription:
         return sizes["ContinuousStateDerivative"], sizes["EventIndicator"]
 
     @staticmethod
-    def _size_of(section: str, vr: Optional[str], ports: Dict[str, "ModelVariable"], label: str) -> int:
+    def _size_of(section: str, vr: str | None, ports: dict[str, "ModelVariable"], label: str) -> int:
         """Number of elements of the FMI 3.0 variable `vr` (1 if it cannot be resolved)."""
         if vr is None:
             logger.warning(f"'{label}': <{section}> without valueReference. Assuming 1 element.")
@@ -477,7 +478,7 @@ class ModelDescription:
                 return 1
         return size
 
-    def parent_of(self, element: ET.Element) -> Optional[ET.Element]:
+    def parent_of(self, element: ET.Element) -> ET.Element | None:
         """Parent of `element`, or `None` for the root. Raises `KeyError` if not in the document."""
         if element is self.root:
             return None

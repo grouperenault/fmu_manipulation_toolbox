@@ -1,6 +1,6 @@
 # Plan: drop Python 3.9 support
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 1 to 3 done) — **Starting branch**: `packaging` (after phase 5 of `packaging.md`) — **Roadmap**: 2.0
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 1 to 4 done) — **Starting branch**: `packaging` (after phase 5 of `packaging.md`) — **Roadmap**: 2.0
 
 Python 3.9 reached its end of life in October 2025. The test tooling already requires 3.10 (`pytest >= 9`): the test
 jobs run on 3.10 and 3.13 only, and 3.9 is exercised by a single job, `smoke-wheel`, which installs the wheel and runs
@@ -35,13 +35,16 @@ No other version-dependent code: `checker.py` holds the only `sys.version_info` 
 
 ---
 
-## 3. Decisions to take
+## 3. Decisions
+
+Decided on 10 October 2026: **D1 (b)**, the annotations are modernized now (phase 4); **D2 (a)**; **D3 (a)**, planned
+in `python314.md` for a later execution.
 
 | # | Question | Options | Recommendation |
 |---|---|---|---|
 | D1 | Modernize the annotations (C7)? | (a) not in this plan; (b) mechanically (`pyupgrade --py310-plus` or `ruff --select UP`) in a dedicated phase | **(a)**: 587 changes in 41 files would conflict with the planned refactoring of `container.py` and with the FMUPort removal; new code may use the 3.10 syntax, and a mechanical pass can follow those refactorings |
 | D2 | Maintenance of the 3.9 line? | (a) none: 1.9.4.2 is the last 3.9 release; (b) a `1.9.x` branch for fixes | **(a)**: 3.9 is end-of-life; `requires-python` makes pip pick 1.9.4.2 automatically |
-| D3 | Add Python 3.14 (classifier, CI)? | (a) not in this plan; (b) here | **(a)**: independent change, and the GUI tests already segfault under 3.13 on the Linux runner; to be planned separately |
+| D3 | Add Python 3.14 (classifier, CI)? | (a) not in this plan; (b) here | **(a)**: independent change, and the GUI tests already segfault under 3.13 on the Linux runner; to be planned separately (`python314.md`) |
 
 ---
 
@@ -122,6 +125,40 @@ about the supported Python versions.
 Exit criterion checked: outside `CHANGELOG.md`, `docs/local/` and the test data, `3.9` only appears in the supported
 versions table and its note; `3.10` only as the minimum version and in the conda example.
 
+
+### Phase 4 — Annotations in the Python 3.10 syntax (D1)
+
+Added after the decision on D1. Mechanical rewrite, without change of behaviour:
+
+1. Replace the 16 `from typing import *` by explicit imports (the names reported by ruff `F405`), so that the
+   rewrite tools can resolve the names.
+2. `ruff check --target-version py310 --select UP006,UP007,UP035,UP045 --fix`: `List[...]` → `list[...]`,
+   `Optional[X]` → `X | None`, `Union[X, Y]` → `X | Y`, `Callable`, `Iterable`, ... from `collections.abc`.
+3. Remove the `typing` imports left unused (`F401`, restricted to them); rewrite by hand what ruff leaves (type
+   aliases assigned at module level).
+
+No user documentation change: the API reference is generated from the code.
+
+*Exit criterion*: ruff `UP006`, `UP007`, `UP035`, `UP045` find nothing; every module imports; suite green.
+
+**Status on 10 October 2026: done.**
+
+| Item | Files |
+|---|---|
+| The 16 `from typing import *` replaced by explicit imports (`help.py` used no `typing` name: line removed) | `assembly.py`, `checker.py`, `container.py`, `help.py`, `ls.py`, `operations.py`, `split.py`, `terminals.py`, `cli/datalog2pcap.py`, `gui/helper.py`, `gui/fmucontainer/details/*`, `gui/fmucontainer/tree/*` |
+| 594 annotations rewritten by ruff, unused `typing` imports removed (41 files: package, tests, `tools/dist_inventory.py`) | whole code base |
+| By hand: the aliases `StartValue`, `PathOrBytes`, `PathLike` (twice) as `X \| Y`; `LastDirectory.update(path: str \| Path \| None)` instead of `Union[str, "Path"] \| None` | `assistant/models.py`, `model_description.py`, `textfiles.py`, `tests/_helpers/assertions.py`, `gui/helper.py` |
+| `gui/fmutool/__main__.py` got `Optional` through `from fmu_manipulation_toolbox.operations import *`, which no longer exports it: annotation rewritten by hand (`list[str] \| None`) | `gui/fmutool/__main__.py` |
+
+Checks performed: ruff `UP006`, `UP007`, `UP035`, `UP045` and `F821`: nothing; no `List[`, `Dict[`, `Optional[`,
+`Union[` left in the code (only in a comment and a test docstring); every module of the package imports (GUI included,
+`QT_QPA_PLATFORM=offscreen`); clean Python 3.14 environment: full suite **1921 passed, 2 skipped**. Python 3.10 itself
+is only exercised by the CI (no local interpreter).
+
+Left as found (out of scope): the star import of `operations` in `gui/fmutool/__main__.py` (it also brings `logging`),
+and three unused imports reported by `F401` (`gui/helper.py`: `QMainWindow`; `tests/unit/test_assembly_errors.py`:
+`Path`; `gui/fmucontainer/graph/__init__.py`: `_DragWireItem`).
+
 ---
 
 ## 5. Risks
@@ -134,4 +171,5 @@ versions table and its note; `3.10` only as the minimum version and in the conda
 
 ## 6. Delivery
 
-One PR for the three phases (small change), merged before the 2.0 release.
+One PR for phases 1 to 3 (small change), merged before the 2.0 release; phase 4 in its own commit, so that it can be
+reviewed (or reverted) apart from the functional changes.

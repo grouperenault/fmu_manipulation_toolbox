@@ -20,7 +20,7 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
 class FilterWidget(QPushButton):
-    def __init__(self, items: Optional[list[str]] = (), parent=None):
+    def __init__(self, items: list[str] | None = (), parent=None):
         super().__init__(parent)
         self.items_selected = set(items)
         self.nb_items = len(items)

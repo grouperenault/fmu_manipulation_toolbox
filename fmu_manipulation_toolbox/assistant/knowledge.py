@@ -11,7 +11,7 @@ The module only depends on the standard library, so importing the package
 stays cheap and possible without the optional ``mcp`` extra.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Usage guide — the single source of truth for the workflow
@@ -139,7 +139,7 @@ only the ports you chose to expose.
 """
 
 
-def container_options_reference(options: List[Dict[str, Any]]) -> str:
+def container_options_reference(options: list[dict[str, Any]]) -> str:
     """Render the container options as a Markdown reference table.
 
     The table is built from the schema of the option model itself, so it
@@ -181,8 +181,8 @@ def container_options_reference(options: List[Dict[str, Any]]) -> str:
 # Prompts — procedures the user can invoke explicitly
 # ---------------------------------------------------------------------------
 
-def build_container_prompt(fmus: Optional[str] = None,
-                           output: Optional[str] = None) -> str:
+def build_container_prompt(fmus: str | None = None,
+                           output: str | None = None) -> str:
     """Procedure for assembling FMUs into a container."""
     target = f"\nFMUs to combine: {fmus}." if fmus else ""
     destination = f"\nRequested output file: {output}." if output else ""
@@ -226,7 +226,7 @@ Red flags to raise rather than resolve on your own:
 """
 
 
-def diagnose_assembly_prompt(symptom: Optional[str] = None) -> str:
+def diagnose_assembly_prompt(symptom: str | None = None) -> str:
     """Procedure for investigating an assembly that does not behave."""
     reported = f"\nReported symptom: {symptom}." if symptom else ""
     return f"""\
@@ -255,7 +255,7 @@ If a tool reports an error, quote it verbatim — the messages are actionable.
 """
 
 
-def inspect_fmu_prompt(fmu: Optional[str] = None) -> str:
+def inspect_fmu_prompt(fmu: str | None = None) -> str:
     """Procedure for producing the identity card of an FMU."""
     subject = f"\nFMU to inspect: {fmu}." if fmu else ""
     return f"""\

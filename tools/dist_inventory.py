@@ -46,7 +46,6 @@ import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 REPOSITORY = Path(__file__).resolve().parents[1]
 
@@ -71,7 +70,7 @@ METADATA_FIELDS = ["Metadata-Version", "Name", "Summary", "Home-page", "Author",
                    "Requires-Python", "Requires-Dist", "Provides-Extra", "Description-Content-Type"]
 
 
-def tracked_files(untracked: bool = False) -> List[str]:
+def tracked_files(untracked: bool = False) -> list[str]:
     """Files tracked by git; with `untracked`, also the untracked files that are not ignored."""
     command = ["git", "ls-files", "-z"] + (["--cached", "--others", "--exclude-standard"] if untracked else [])
     output = subprocess.run(command, cwd=REPOSITORY, check=True, capture_output=True).stdout
@@ -95,11 +94,11 @@ SDIST_EXCLUDED = ("tests/data/", "docs/", ".github/") + tuple(
     f"{PACKAGE}resources/{platform}/" for platform in ("win32", "win64", "linux32", "linux64", "darwin64"))
 
 
-def package_modules(tracked: List[str]) -> List[str]:
+def package_modules(tracked: list[str]) -> list[str]:
     return sorted(name for name in tracked if name.startswith(PACKAGE) and name.endswith(".py"))
 
 
-def wheel_inventory(wheel: Path, tracked: List[str]) -> Tuple[Dict[str, str], List[str]]:
+def wheel_inventory(wheel: Path, tracked: list[str]) -> tuple[dict[str, str], list[str]]:
     """Reference files of the wheel, and the list of its files."""
     with zipfile.ZipFile(wheel) as archive:
         names = archive.namelist()
@@ -123,14 +122,14 @@ def wheel_inventory(wheel: Path, tracked: List[str]) -> Tuple[Dict[str, str], Li
     return references, files
 
 
-def sdist_files(sdist: Path) -> List[str]:
+def sdist_files(sdist: Path) -> list[str]:
     with tarfile.open(sdist) as archive:
         names = [member.name for member in archive.getmembers() if member.isfile()]
     # Drop the top directory, which carries the version.
     return sorted(name.split("/", 1)[1] for name in names)
 
 
-def rule_violations(wheel: List[str], sdist: List[str], tracked: List[str]) -> List[str]:
+def rule_violations(wheel: list[str], sdist: list[str], tracked: list[str]) -> list[str]:
     """Rules computed from the files tracked by git (see the module docstring)."""
     violations = []
     modules = package_modules(tracked)
@@ -148,7 +147,7 @@ def rule_violations(wheel: List[str], sdist: List[str], tracked: List[str]) -> L
 
 
 def inventory(placeholder_binaries: bool, untracked: bool = False,
-              dist: Optional[Path] = None) -> Tuple[Dict[str, str], List[str]]:
+              dist: Path | None = None) -> tuple[dict[str, str], list[str]]:
     """Reference files and rule violations of the distributions."""
     tracked = tracked_files(untracked)
     with tempfile.TemporaryDirectory() as tmp:
