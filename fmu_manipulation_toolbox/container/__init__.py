@@ -8,12 +8,12 @@ from .arrays import ArrayAggregate
 from .builder import FMUContainer, Platform
 from .embedded import EmbeddedFMU, EmbeddedFMUPort
 from .errors import FMUContainerError
-from .layout import ValueReferenceTable
+from .layout import ContainerLayout, ValueReferenceTable
 from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import Clock, ClockList, FMUIOList, InvolvedFMU, IOReference, LocalVariable, Port
 
 __all__ = [
-    "ArrayAggregate", "AutoWired", "Clock", "ClockList", "ContainerInput", "ContainerPort", "EmbeddedFMU",
+    "ArrayAggregate", "AutoWired", "Clock", "ClockList", "ContainerInput", "ContainerLayout", "ContainerPort", "EmbeddedFMU",
     "EmbeddedFMUPort", "FMUContainer", "FMUContainerError", "FMUIOList", "IOReference", "InvolvedFMU", "Link",
     "LocalVariable", "Platform", "Port", "ValueReferenceTable",
 ]

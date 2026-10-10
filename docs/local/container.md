@@ -1,6 +1,6 @@
 # Plan: refactoring of `container.py`
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 2 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 3 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
 
 `fmu_manipulation_toolbox/container.py` builds FMU Containers: it loads the embedded FMUs, records the wiring rules,
 allocates the value references, then writes `modelDescription.xml`, `resources/container.txt` (read by the C runtime,
@@ -238,6 +238,33 @@ Checks performed:
 4. `EmbeddedFMUPort.xml()` without side effect (C4).
 
 *Exit criterion*: golden files unchanged; the "`make_fmu` twice" test passes (`xfail` removed).
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `ContainerLayout` (dataclass): `allocate(links, inputs, outputs, nb_profiling)` allocates, on a fresh `ValueReferenceTable` and in the former order, time, `ts_multiplier`, solver, profiling slots, local variables of the links and their converted copies, container inputs, container outputs; `local_offset(vr)` | `container/layout.py` |
+| `ValueReferenceTable.set_link_vr(link)` (wrote on the link) replaced by `add_link(link)`, which returns the value references | `container/layout.py` |
+| No value reference on the rules any more: `ContainerPort.vr`, `ContainerInput.vr`, `Link.vr` removed; `Link.vr_converted` (target type → `None`, filled at build time) becomes `Link.conversions` (target type → conversion name, filled by `add_target`) | `container/rules.py` |
+| `make_fmu` allocates a layout at each call and gives it to `make_fmu_xml`, `make_fmu_txt`, `make_datalog` (new `layout` parameter); `FMUContainer.vr_table` removed; `start_time`/`stop_time` no longer overwritten (documented as attributes) | `container/builder.py` |
+| `container.txt`: the reserved lines come from the layout (`<VR> 1 1 -1 <local offset>`, `-2` for profiling) instead of the literals `0`, `100663296`, `100663297` and `1..n`; the C runtime reads `<FMU_VR>` as a local storage offset whenever `<FMU_INDEX>` is negative (`container/fmi2.c`, `fmi3.c`) | `container/builder.py` |
+| `EmbeddedFMUPort.xml()` computes the default variability without storing it on the port (C4) | `container/embedded.py` |
+| `ContainerLayout` exported by `fmu_manipulation_toolbox.container` | `container/__init__.py` |
+| Tests: `make_fmu` twice (`xfail` removed), rules and ports unchanged by a build, layout allocation order and local offsets, `xml()` without side effect (checked to fail without the fix) | `tests/unit/test_container_internals.py` |
+
+Visible API change for phase 6 (`CHANGELOG.md`): the removed attributes and methods above (`vr` of the rules,
+`Link.vr_converted`, `ValueReferenceTable.set_link_vr`, `FMUContainer.vr_table`) and the new `layout` parameter of
+the three `make_*` writers. `FMUContainer.make_fmu` itself is unchanged.
+
+**Suspected bug, to be checked in phase 4** (not reproducible with the FMUs of the golden scenarios): when one link
+feeds **several targets of the same converted type**, `make_fmu_txt` appends the converted local variable, and the
+link to `links_per_fmu`, once per target. The local lines of `container.txt` would then list the variable twice while
+their count (`nb_local`) counts it once, and the conversion table would be duplicated. Phase 3 keeps this behaviour
+(identical output).
+
+Checks performed: golden files unchanged (byte comparison, 12 scenarios + determinism); full suite **1988 passed,
+2 skipped, 5 xfailed** (clean Python 3.14 environment); `tools/dist_inventory.py --check --untracked`: rules
+satisfied; `mkdocs build`: no warning, `ContainerLayout` rendered in the API reference.
 
 ### Phase 4 — Rules and simplifications (C7 to C11, D2, D4)
 

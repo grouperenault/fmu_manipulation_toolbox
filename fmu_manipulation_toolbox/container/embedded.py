@@ -116,11 +116,12 @@ class EmbeddedFMUPort:
             start = self.start_value
             if start is None and self.type_name == "binary" and self.initial == "exact":
                 start = ""
-        if self.variability is None:
+        variability = self.variability
+        if variability is None:
             if self.causality == "parameter":
-                self.variability = "fixed"
+                variability = "fixed"
             else:
-                self.variability = "continuous" if "real" in self.type_name else "discrete"
+                variability = "continuous" if "real" in self.type_name else "discrete"
 
         try:
             fmi_type = CONTAINER_TO_FMI[fmi_version][self.type_name]
@@ -138,7 +139,7 @@ class EmbeddedFMUPort:
             "name": name,
             "valueReference": vr,
             "causality": causality,
-            "variability": self.variability,
+            "variability": variability,
             "initial": self.initial,
             "description": self.description,
         }

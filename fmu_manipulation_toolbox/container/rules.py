@@ -15,14 +15,13 @@ class ContainerPort:
 
     Wraps an [EmbeddedFMUPort][fmu_manipulation_toolbox.container.EmbeddedFMUPort]
     together with its parent
-    [EmbeddedFMU][fmu_manipulation_toolbox.container.EmbeddedFMU], and tracks
-    the value reference assigned by the container.
+    [EmbeddedFMU][fmu_manipulation_toolbox.container.EmbeddedFMU]. The value
+    references of the container are not stored on the rules: they are allocated
+    at each build, see [ContainerLayout][fmu_manipulation_toolbox.container.ContainerLayout].
 
     Attributes:
         fmu (EmbeddedFMU): The embedded FMU owning this port.
         port (EmbeddedFMUPort): The port descriptor.
-        vr (int | None): Value reference assigned by the container, or `None`
-            if not yet assigned.
 
     Raises:
         FMUContainerError: If the port name does not exist in the FMU.
@@ -34,7 +33,6 @@ class ContainerPort:
             self.port = fmu.ports[port_name]
         except KeyError:
             raise FMUContainerError(f"Port '{fmu.name}/{port_name}' does not exist")
-        self.vr = None
 
     def __repr__(self):
         return f"Port {self.fmu.name}/{self.port.name}"
@@ -58,7 +56,6 @@ class ContainerInput:
         causality (str): Port causality (`"input"` or `"parameter"`).
         cport_list (list[ContainerPort]): List of embedded FMU ports connected
             to this input.
-        vr (int | None): Value reference assigned by the container.
     """
 
     def __init__(self, name: str, cport_to: ContainerPort):
@@ -66,7 +63,6 @@ class ContainerInput:
         self.type_name = cport_to.port.type_name
         self.causality = cport_to.port.causality
         self.cport_list = [cport_to]
-        self.vr = None
         self.size = cport_to.port.size()
 
     def add_cport(self, cport_to: ContainerPort):
@@ -112,9 +108,8 @@ class Link:
         cport_from (ContainerPort | None): Source output port, or `None` for
             importer-generated clocks.
         cport_to_list (list[ContainerPort]): Destination input ports.
-        vr (int | None): Value reference for the local variable holding the link value.
-        vr_converted (dict[str, int | None]): Value references for type-converted
-            copies, keyed by target type name.
+        conversions (dict[str, str]): Conversion function, keyed by the type of
+            the targets that need a converted copy of the value.
     """
 
     CONVERSION_FUNCTION = CONVERSION_FUNCTION
@@ -124,8 +119,7 @@ class Link:
         self.cport_from = cport_from
         self.cport_to_list: list[ContainerPort] = []
         self.size = cport_from.port.size()
-        self.vr: int | None = None
-        self.vr_converted: dict[str, int | None] = {}
+        self.conversions: dict[str, str] = {}
 
         if not cport_from.port.causality == "output":
             if cport_from.port.type_name == "clock":
@@ -162,7 +156,7 @@ class Link:
                     logger.warning(f"Lossy conversion {conversion.lstrip('_')} applied "
                                    f"from {self.cport_from} to {cport_to}.")
                 self.cport_to_list.append(cport_to)
-                self.vr_converted[cport_to.port.type_name] = None
+                self.conversions[cport_to.port.type_name] = conversion
             else:
                 raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due to type.")
 
@@ -189,7 +183,7 @@ class Link:
         Returns:
             int: `1` for the main value plus one per type-converted copy.
         """
-        return 1+len(self.vr_converted)
+        return 1+len(self.conversions)
 
 
 class AutoWired:

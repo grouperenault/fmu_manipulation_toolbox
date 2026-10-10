@@ -20,7 +20,7 @@ from ..textfiles import ENCODING
 from ..version import __version__ as tool_version
 from .embedded import EmbeddedFMU, EmbeddedFMUPort
 from .errors import FMUContainerError
-from .layout import ValueReferenceTable
+from .layout import ContainerLayout
 from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import ClockList, FMUIOList, InvolvedFMU, LocalVariable, Port
 from .types import ALL_TYPES
@@ -70,7 +70,10 @@ class FMUContainer:
             exposed name.
         links (dict[ContainerPort, Link]): Internal links between embedded FMUs.
         start_values (dict[ContainerPort, str]): Start values for embedded FMU ports.
-        vr_table (ValueReferenceTable): Value reference allocator.
+        start_time (float | None): Start time of the default experiment; `None` to take
+            the one of the first embedded FMU.
+        stop_time (float | None): Stop time of the default experiment; `None` to take
+            the one of the first embedded FMU.
 
     Raises:
         FMUContainerError: If the FMU directory is invalid.
@@ -98,8 +101,6 @@ class FMUContainer:
 
         self.rules: dict[ContainerPort, str] = {}
         self.start_values: dict[ContainerPort, str] = {}
-
-        self.vr_table = ValueReferenceTable()
 
     def get_fmu(self, fmu_filename: str) -> EmbeddedFMU:
         """Load an embedded FMU from the FMU directory.
@@ -553,24 +554,30 @@ class FMUContainer:
         base_directory = self.fmu_directory / fmu_filename.with_suffix('')
         resources_directory = self.make_fmu_skeleton(base_directory)
 
-        self.make_fmu_xml(base_directory / "modelDescription.xml", step_size, profiling, ts_multiplier)
+        # Allocated again at each build: the rules are never modified by a build.
+        layout = ContainerLayout.allocate(self.links.values(), self.inputs, self.outputs,
+                                          nb_profiling=len(self.involved_fmu) if profiling else 0)
+
+        self.make_fmu_xml(base_directory / "modelDescription.xml", step_size, profiling, ts_multiplier, layout)
         with open(resources_directory / "container.txt", "wt", encoding=ENCODING) as txt_file:
-            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential)
+            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential, layout)
 
         if datalog:
             with open(resources_directory / "datalog.txt", "wt", encoding=ENCODING) as datalog_file:
-                self.make_datalog(datalog_file)
+                self.make_datalog(datalog_file, layout)
 
         self.make_fmu_package(base_directory, fmu_filename)
         if not debug:
             self.make_fmu_cleanup(base_directory)
 
-    def make_fmu_xml(self, xml_filename: Path, step_size: float, profiling: bool, ts_multiplier: bool):
+    def make_fmu_xml(self, xml_filename: Path, step_size: float, profiling: bool, ts_multiplier: bool,
+                     layout: ContainerLayout):
         """Build the container `modelDescription.xml` and write it (UTF-8, see `ModelDescription.save`).
 
         The document is built as an ElementTree, so that names and descriptions
         coming from the embedded FMUs are escaped. FMI 2.0 `<Unknown index>`
         entries are computed from the actual position of the output variables.
+        The value references come from `layout`.
         """
         timestamp = datetime.now().strftime('%Y-%m-%dT%H:%M:%SZ')
         guid = str(uuid.uuid4())
@@ -588,17 +595,19 @@ class FMUContainer:
                     capabilities[capability] = "true"
 
         first_fmu = next(iter(self.involved_fmu.values()))
-        if self.start_time is None:
-            self.start_time = first_fmu.start_time
-            logger.info(f"start_time={self.start_time} (deduced from '{first_fmu.name}')")
+        start_time = self.start_time
+        if start_time is None:
+            start_time = first_fmu.start_time
+            logger.info(f"start_time={start_time} (deduced from '{first_fmu.name}')")
         else:
-            logger.info(f"start_time={self.start_time}")
+            logger.info(f"start_time={start_time}")
 
-        if self.stop_time is None:
-            self.stop_time = first_fmu.stop_time
-            logger.info(f"stop_time={self.stop_time} (deduced from '{first_fmu.name}')")
+        stop_time = self.stop_time
+        if stop_time is None:
+            stop_time = first_fmu.stop_time
+            logger.info(f"stop_time={stop_time} (deduced from '{first_fmu.name}')")
         else:
-            logger.info(f"stop_time={self.stop_time}")
+            logger.info(f"stop_time={stop_time}")
 
         root = ET.Element("fmiModelDescription", {
             "fmiVersion": f"{self.fmi_version}.0",
@@ -646,30 +655,29 @@ class FMUContainer:
         ET.SubElement(log_categories, "Category", {"name": "Error", "description": "Error log messages."})
 
         default_experiment = {"stepSize": str(step_size)}
-        if self.start_time is not None:
-            default_experiment["startTime"] = str(self.start_time)
-        if self.stop_time is not None:
-            default_experiment["stopTime"] = str(self.stop_time)
+        if start_time is not None:
+            default_experiment["startTime"] = str(start_time)
+        if stop_time is not None:
+            default_experiment["stopTime"] = str(stop_time)
         ET.SubElement(root, "DefaultExperiment", default_experiment)
 
         model_variables = ET.SubElement(root, "ModelVariables")
         if self.fmi_version == 2:
             time = ET.SubElement(model_variables, "ScalarVariable",
-                                 {"valueReference": "0", "name": "time", "causality": "independent"})
+                                 {"valueReference": str(layout.time), "name": "time", "causality": "independent"})
             ET.SubElement(time, "Real")
         else:
             ET.SubElement(model_variables, "Float64",
-                          {"valueReference": "0", "name": "time", "causality": "independent"})
+                          {"valueReference": str(layout.time), "name": "time", "causality": "independent"})
 
         def add_variable(variable: ET.Element | None) -> ET.Element | None:
             if variable is not None:
                 model_variables.append(variable)
             return variable
 
-        vr_time = self.vr_table.add_vr("real64", local=True)
-        logger.debug(f"Time vr = {vr_time}")
+        logger.debug(f"Time vr = {layout.time}")
 
-        vr_ts_multiplier = self.vr_table.add_vr("integer32", local=True)
+        vr_ts_multiplier = layout.ts_multiplier
         if ts_multiplier:
             logger.debug(f"TS Multiplier vr = {vr_ts_multiplier}")
             port = EmbeddedFMUPort("integer32", {"valueReference": vr_ts_multiplier,
@@ -681,7 +689,7 @@ class FMUContainer:
                                                  "initial": "exact"})
             add_variable(port.xml(vr_ts_multiplier, fmi_version=self.fmi_version))
 
-        vr_solver = self.vr_table.add_vr("integer32", local=True)
+        vr_solver = layout.solver
         if self.have_me:
             logger.debug(f"Solver config vr = {vr_solver}")
             port = EmbeddedFMUPort("integer32", {"valueReference": vr_solver,
@@ -694,43 +702,38 @@ class FMUContainer:
             add_variable(port.xml(vr_solver, fmi_version=self.fmi_version))
 
         if profiling:
-            for fmu in self.involved_fmu.values():
-                vr = self.vr_table.add_vr("real64", local=True)
+            for fmu, vr in zip(self.involved_fmu.values(), layout.profiling):
                 port = EmbeddedFMUPort("real64", {"valueReference": vr,
                                         "name": f"container.{fmu.id}.rt_ratio",
                                         "description": f"RT ratio for embedded FMU '{fmu.name}'"})
                 add_variable(port.xml(vr, fmi_version=self.fmi_version))
 
-        # Local variable should be first to ensure to attribute them the lowest VR.
         nb_clocks = 0
         for link in self.links.values():
-            self.vr_table.set_link_vr(link)
             if link.cport_from:
-                add_variable(link.cport_from.port.xml(link.vr, name=link.name, causality='local',
+                add_variable(link.cport_from.port.xml(layout.links[link], name=link.name, causality='local',
                                                       fmi_version=self.fmi_version))
             else:
                 # LS-BUS allow Clock generated by fmi-importer
                 port = EmbeddedFMUPort("Clock",
                                        {"name": "", "valueReference": -1, "intervalVariability": "triggered"},
                                        fmi_version=3)
-                add_variable(port.xml(link.vr, name=f"container.clock{nb_clocks}", causality='local',
+                add_variable(port.xml(layout.links[link], name=f"container.clock{nb_clocks}", causality='local',
                                       fmi_version=self.fmi_version))
                 nb_clocks += 1
 
         for input_port_name, input_port in self.inputs.items():
-            input_port.vr = self.vr_table.add_vr(input_port.type_name)
             # Get Start and XML from first connected input
             start = self.start_values.get(input_port.cport_list[0], None)
-            add_variable(input_port.cport_list[0].port.xml(input_port.vr, name=input_port_name,
+            add_variable(input_port.cport_list[0].port.xml(layout.inputs[input_port_name], name=input_port_name,
                                                            start=start, fmi_version=self.fmi_version))
 
-        outputs = []    # (container output, its variable element), for <ModelStructure>
+        outputs = []    # (value reference of a container output, its variable element), for <ModelStructure>
         for output_port_name, output_port in self.outputs.items():
-            output_port.vr = self.vr_table.add_vr(output_port)
-            variable = add_variable(output_port.port.xml(output_port.vr, name=output_port_name,
+            variable = add_variable(output_port.port.xml(layout.outputs[output_port_name], name=output_port_name,
                                                          fmi_version=self.fmi_version))
             if variable is not None:
-                outputs.append((output_port, variable))
+                outputs.append((layout.outputs[output_port_name], variable))
 
         model_structure = ET.SubElement(root, "ModelStructure")
         if self.fmi_version == 2:
@@ -743,12 +746,13 @@ class FMUContainer:
                         ET.SubElement(unknowns, "Unknown", {"index": str(positions[id(variable)])})
         else:
             for tag in ("Output", "InitialUnknown"):
-                for output_port, _ in outputs:
-                    ET.SubElement(model_structure, tag, {"valueReference": str(output_port.vr)})
+                for output_vr, _ in outputs:
+                    ET.SubElement(model_structure, tag, {"valueReference": str(output_vr)})
 
         ModelDescription(root).save(xml_filename)
 
-    def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool):
+    def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
+                     layout: ContainerLayout):
         print("# Version 6", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
         flags = [ str(int(flag == True)) for flag in (mt, profiling, sequential)]
@@ -763,9 +767,9 @@ class FMUContainer:
 
         # Prepare data structure
         inputs_per_type: dict[str, list[ContainerInput]] = defaultdict(list) # Container's INPUT
-        outputs_per_type: dict[str, list[ContainerPort]] = defaultdict(list) # Container's OUTPUT
+        outputs_per_type: dict[str, list[tuple[str, ContainerPort]]] = defaultdict(list) # Container's OUTPUT
 
-        fmu_io_list = FMUIOList(self.vr_table)
+        fmu_io_list = FMUIOList(layout.table)
         clock_list = ClockList(self.involved_fmu)
 
         local_per_type: dict[str, list[LocalVariable]] = defaultdict(list)
@@ -782,20 +786,20 @@ class FMUContainer:
 
         # Outputs
         for output_port_name, output_port in self.outputs.items():
-            outputs_per_type[output_port.port.type_name].append(output_port)
+            outputs_per_type[output_port.port.type_name].append((output_port_name, output_port))
 
         # Links
         for link in self.links.values():
             # FMU Outputs
             if link.cport_from:
-                local_per_type[link.cport_from.port.type_name].append(LocalVariable(link.vr, link.size))
-                fmu_io_list.add_output(link.cport_from, link.vr)
+                local_per_type[link.cport_from.port.type_name].append(LocalVariable(layout.links[link], link.size))
+                fmu_io_list.add_output(link.cport_from, layout.links[link])
             else:
-                local_per_type["clock"].append(LocalVariable(link.vr, link.size))
+                local_per_type["clock"].append(LocalVariable(layout.links[link], link.size))
                 for cport_to in link.cport_to_list:
                     if cport_to.port.interval_variability == "countdown":
-                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, vr={link.vr})")
-                        clock_list.append(cport_to, link.vr)
+                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, vr={layout.links[link]})")
+                        clock_list.append(cport_to, layout.links[link])
                         break
 
             # FMU Inputs
@@ -804,16 +808,16 @@ class FMUContainer:
                     # LS-BUS allows, importer to feed clock signal. In this case, cport_from is None
                     # FMU will be fed directly by importer, no need to add input link!
                     if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
-                        local_vr = link.vr
+                        local_vr = layout.links[link]
                     else:
-                        local_per_type[cport_to.port.type_name].append(LocalVariable(link.vr_converted[cport_to.port.type_name], link.size))
+                        local_vr = layout.converted[link][cport_to.port.type_name]
+                        local_per_type[cport_to.port.type_name].append(LocalVariable(local_vr, link.size))
                         links_per_fmu[link.cport_from.fmu.name].append(link)
-                        local_vr = link.vr_converted[cport_to.port.type_name]
 
                     fmu_io_list.add_input(cport_to, local_vr)
 
         print(f"# NB local variables:", ", ".join(ALL_TYPES), file=txt_file)
-        nb_storage = [f"{self.vr_table.nb_storage(type_name)}" for type_name in ALL_TYPES]
+        nb_storage = [f"{layout.table.nb_storage(type_name)}" for type_name in ALL_TYPES]
         print(" ".join(nb_storage), file=txt_file, end='')
         print("", file=txt_file)
 
@@ -822,25 +826,26 @@ class FMUContainer:
             print(f"# {type_name}" , file=txt_file)
             nb_local = (len(inputs_per_type[type_name]) +
                         len(outputs_per_type[type_name]) +
-                        self.vr_table.nb_local(type_name))
+                        layout.table.nb_local(type_name))
             nb_input_link = 0
             for input_port in inputs_per_type[type_name]:
                 nb_input_link += len(input_port.cport_list) - 1
             print(f"{nb_local} {nb_local + nb_input_link}", file=txt_file)
+            # Reserved variables, stored locally: <FMU_INDEX> is -1 (-2 for profiling) and <FMU_VR> the local offset.
             if type_name == "real64":
-                print(f"0 1 1 -1 0", file=txt_file)  # Time slot
-                if profiling:
-                    for profiling_port, _ in enumerate(self.involved_fmu.values()):
-                        print(f"{profiling_port + 1} 1 1 -2 {profiling_port + 1}", file=txt_file)
+                print(f"{layout.time} 1 1 -1 {layout.local_offset(layout.time)}", file=txt_file)
+                for vr in layout.profiling:
+                    print(f"{vr} 1 1 -2 {layout.local_offset(vr)}", file=txt_file)
             elif type_name == "integer32":
-                print(f"100663296 1 1 -1 0", file=txt_file)  # TS Multiplier
-                print(f"100663297 1 1 -1 1", file=txt_file)  # ME Solver config
+                for vr in (layout.ts_multiplier, layout.solver):
+                    print(f"{vr} 1 1 -1 {layout.local_offset(vr)}", file=txt_file)
 
             for input_port in inputs_per_type[type_name]:
                 cport_string = [f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list]
-                print(f"{input_port.vr} {input_port.size} {len(input_port.cport_list)}", " ".join(cport_string), file=txt_file)
-            for output_port in outputs_per_type[type_name]:
-                print(f"{output_port.vr} {output_port.port.size()} 1 {fmu_rank[output_port.fmu.name]} "
+                print(f"{layout.inputs[input_port.name]} {input_port.size} {len(input_port.cport_list)}",
+                      " ".join(cport_string), file=txt_file)
+            for output_port_name, output_port in outputs_per_type[type_name]:
+                print(f"{layout.outputs[output_port_name]} {output_port.port.size()} 1 {fmu_rank[output_port.fmu.name]} "
                       f"{output_port.port.vr}", file=txt_file)
             offset_storage = 0
             for local_variable in local_per_type[type_name]:
@@ -855,13 +860,13 @@ class FMUContainer:
             try:
                 nb = 0
                 for link in links_per_fmu[fmu.name]:
-                    nb += len(link.vr_converted)
+                    nb += len(link.conversions)
                 print(f"{nb}", file=txt_file)
                 for link in links_per_fmu[fmu.name]:
                     for cport_to in link.cport_to_list:
                         conversion =  link.get_conversion(cport_to)
                         if conversion:
-                            print(f"{link.vr} {link.vr_converted[cport_to.port.type_name]} {conversion}",
+                            print(f"{layout.links[link]} {layout.converted[link][cport_to.port.type_name]} {conversion}",
                                   file=txt_file)
             except KeyError:
                 print("0", file=txt_file)
@@ -869,21 +874,21 @@ class FMUContainer:
         # CLOCKS
         clock_list.write_txt(txt_file)
 
-    def make_datalog(self, datalog_file):
+    def make_datalog(self, datalog_file, layout: ContainerLayout):
         print(f"# Datalog filename", file=datalog_file)
         print(f"{self.identifier}-datalog.csv", file=datalog_file)
 
         ports = defaultdict(list)
         for input_port_name, input_port in self.inputs.items():
-            ports[input_port.type_name].append(Port(input_port.vr, input_port_name))
+            ports[input_port.type_name].append(Port(layout.inputs[input_port_name], input_port_name))
         for output_port_name, output_port in self.outputs.items():
-            ports[output_port.port.type_name].append(Port(output_port.vr, output_port_name))
+            ports[output_port.port.type_name].append(Port(layout.outputs[output_port_name], output_port_name))
         for link in self.links.values():
             if link.cport_from is None:
                 # LS-BUS allows connected input clocks.
-                ports[link.cport_to_list[0].port.type_name].append(Port(link.vr, link.name))
+                ports[link.cport_to_list[0].port.type_name].append(Port(layout.links[link], link.name))
             else:
-                ports[link.cport_from.port.type_name].append(Port(link.vr, link.name))
+                ports[link.cport_from.port.type_name].append(Port(layout.links[link], link.name))
 
         for type_name in ALL_TYPES:
             print(f"# {type_name}: <VR> <NAME>" , file=datalog_file)

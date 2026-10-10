@@ -1,8 +1,8 @@
 """Characterization tests of the container builder internals (docs/local/container.md, phase 0).
 
 They pin the current behaviour of the classes of `container.py` before its refactoring. The tests marked
-`xfail(strict=True)` reproduce latent bugs (B1 to B3, B6) and the non-idempotent `make_fmu` (C2): they must start passing
-when the bug is fixed, and the marker be removed then.
+`xfail(strict=True)` reproduce latent bugs (B1 to B3, B6): they must start passing when the bug is fixed, and the
+marker be removed then.
 """
 import importlib
 import logging
@@ -13,8 +13,8 @@ from types import SimpleNamespace
 import pytest
 
 from fmu_manipulation_toolbox.container import types as container_types
-from fmu_manipulation_toolbox.container import (ArrayAggregate, EmbeddedFMUPort, FMUContainer, FMUContainerError,
-                                                Link, ValueReferenceTable)
+from fmu_manipulation_toolbox.container import (ArrayAggregate, ContainerLayout, EmbeddedFMUPort, FMUContainer,
+                                                FMUContainerError, Link, ValueReferenceTable)
 
 pytestmark = [pytest.mark.unit]
 
@@ -261,7 +261,6 @@ def test_lossy_link_is_accepted_with_a_warning(bouncing, caplog):
 #                                   Build                                       #
 # --------------------------------------------------------------------------- #
 @pytest.mark.area("containers/bouncing_ball")
-@pytest.mark.xfail(strict=True, reason="C2: make_fmu allocates the value references again on the same table")
 def test_make_fmu_twice(bouncing):
     bouncing.add_link("bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset")
     bouncing.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity")
@@ -269,3 +268,31 @@ def test_make_fmu_twice(bouncing):
     bouncing.make_fmu("first.fmu", step_size=0.001, debug=True)
     bouncing.make_fmu("second.fmu", step_size=0.001, debug=True)
     assert Path("first/resources/container.txt").read_text() == Path("second/resources/container.txt").read_text()
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_make_fmu_leaves_the_rules_unchanged(bouncing):
+    """The value references live in the layout of each build; start and stop times stay unset."""
+    bouncing.add_link("bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity")
+    bouncing.add_input("reset", "bb_velocity.fmu", "reset")
+    bouncing.add_output("bb_position.fmu", "position1", "position")
+    ports = {name: dict(vars(port)) for name, port in bouncing.involved_fmu["bb_position.fmu"].ports.items()}
+    bouncing.make_fmu("container.fmu", step_size=0.001)
+    assert (bouncing.start_time, bouncing.stop_time) == (None, None)
+    assert {name: dict(vars(port)) for name, port in bouncing.involved_fmu["bb_position.fmu"].ports.items()} == ports
+
+
+def test_layout_allocation_order():
+    """Reserved variables first, then the links, then the container inputs and outputs."""
+    layout = ContainerLayout.allocate([], {}, {}, nb_profiling=2)
+    assert (layout.time, layout.ts_multiplier, layout.solver, layout.profiling) == (0, 6 << 24, (6 << 24) | 1, [1, 2])
+    assert [layout.local_offset(vr) for vr in (layout.time, *layout.profiling, layout.ts_multiplier, layout.solver)] \
+        == [0, 1, 2, 0, 1]
+
+
+def test_port_xml_has_no_side_effect():
+    """The default variability is computed for the XML element only (C4)."""
+    port = EmbeddedFMUPort("real64", {"name": "x", "valueReference": 1, "causality": "output"})
+    variable = port.xml(7, fmi_version=3)
+    assert variable.get("variability") == "continuous" and variable.get("valueReference") == "7"
+    assert port.variability is None
