@@ -20,7 +20,7 @@ from typing import Any, Literal
 from . import analysis
 from .bridge import AssemblyBridge
 from .knowledge import (
-    FMI_CONVENTIONS, USAGE_GUIDE, build_container_prompt,
+    FMI_CONVENTIONS, USAGE_GUIDE, analyze_assembly_prompt, build_container_prompt,
     container_options_reference, diagnose_assembly_prompt, inspect_fmu_prompt,
 )
 from .paths import PathPolicy
@@ -809,6 +809,15 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> str:
         """Investigate a container that fails to build or misbehaves."""
         return diagnose_assembly_prompt(symptom or None)
+
+    # Same name as the tool it relies on: prompts and tools are separate namespaces in MCP.
+    @mcp.prompt(name="analyze_assembly")
+    def analyze_assembly_procedure(
+        focus: Annotated[str, Field(
+            description="Optional aspect to focus on, e.g. 'thermal loop'.")] = "",
+    ) -> str:
+        """Describe the content and the behaviour of the loaded assembly."""
+        return analyze_assembly_prompt(focus or None)
 
     @mcp.prompt
     def inspect_fmu(

@@ -65,8 +65,8 @@ def test_the_server_starts_without_any_gui():
 
     tools, prompts = _run(scenario())
     assert {tool.name for tool in tools} >= {"add_fmu", "add_link", "save_as_fmu"}
-    assert {prompt.name for prompt in prompts} == {"build_container",
-                                                   "diagnose_assembly", "inspect_fmu"}
+    assert {prompt.name for prompt in prompts} == {"build_container", "diagnose_assembly",
+                                                   "inspect_fmu", "analyze_assembly"}
 
 
 def test_it_assembles_fmus_over_stdio(ball, tmp_path):

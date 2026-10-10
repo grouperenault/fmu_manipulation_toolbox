@@ -69,7 +69,7 @@ EXPECTED_RESOURCES = {"guide://usage", "assembly://current",
 
 EXPECTED_RESOURCE_TEMPLATES = {"fmu://{name}/ports"}
 
-EXPECTED_PROMPTS = {"build_container", "diagnose_assembly", "inspect_fmu"}
+EXPECTED_PROMPTS = {"build_container", "diagnose_assembly", "inspect_fmu", "analyze_assembly"}
 
 
 def _port(name, causality, type_="Real", **extra):
@@ -731,6 +731,9 @@ def test_prompt_inventory_matches_reference():
     ("diagnose_assembly", {"symptom": "step too large"}, "step too large"),
     ("inspect_fmu", {"fmu": "controller.fmu"}, "controller.fmu"),
     ("inspect_fmu", {}, "inspect_fmu_file"),
+    ("diagnose_assembly", {}, "analyze_assembly(mode='lint')"),
+    ("analyze_assembly", {"focus": "thermal loop"}, "thermal loop"),
+    ("analyze_assembly", {}, "list_fmus"),
 ])
 def test_prompts_render_with_and_without_arguments(prompt, arguments, expected):
     async def scenario():
@@ -739,6 +742,27 @@ def test_prompts_render_with_and_without_arguments(prompt, arguments, expected):
 
     rendered = _run(scenario()).messages[0].content.text
     assert expected in rendered
+
+
+#: Prefixes of the tool names: a back-quoted word starting with one of them, in the know-how, designates a tool.
+TOOL_VERBS = ("list_", "add_", "remove_", "expose_", "set_", "unset_", "get_", "save_", "inspect_", "summarize_",
+              "check_", "dump_", "rename_", "apply_", "analyze_")
+
+
+def test_the_know_how_only_names_existing_tools():
+    """docs/local/assembly_analysis.md, phase 5: a prompt or the guide naming a tool that does not exist (renamed,
+    removed) sends the model after it."""
+    import re
+    from fmu_manipulation_toolbox.assistant import knowledge
+
+    tools, _ = _run(_inventory(FakeBridge()))
+    names = {tool.name for tool in tools}
+    texts = [knowledge.USAGE_GUIDE, knowledge.build_container_prompt(), knowledge.diagnose_assembly_prompt(),
+             knowledge.analyze_assembly_prompt(), knowledge.inspect_fmu_prompt()]
+    for text in texts:
+        called = set(re.findall(r"`([a-z][a-z0-9_]*)\(", text))
+        mentioned = {word for word in re.findall(r"`([a-z][a-z0-9_]*)[(`]", text) if word.startswith(TOOL_VERBS)}
+        assert called | mentioned <= names, (called | mentioned) - names
 
 
 def test_reference_resources_are_served():

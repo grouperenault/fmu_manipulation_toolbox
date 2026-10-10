@@ -43,7 +43,10 @@ Recommended workflow:
 7. `set_start_value(fmu, port, value)` for initial values / parameters.
 8. `set_container_options({...})` for step_size, mt, profiling, sequential,
    auto_link, auto_input, auto_output, auto_parameter, auto_local.
-9. `get_assembly_json` to review the whole assembly before building.
+9. `analyze_assembly` to review the assembly before building: `mode='summary'`
+   for its structure, `mode='lint'` for its known traps. `get_assembly_json`
+   gives the details, one container (`node`) and one section at a time when
+   the assembly is large.
 10. `save_as_json(path)` to save the description, or
     `save_as_fmu(path, fmi_version=2|3, datalog=False)` to build the container.
 
@@ -65,9 +68,11 @@ Tips:
 - `save_as_fmu` is slow and reports its progress: wait for it rather than
   retrying, and never start a second build while one is running.
 
-Known limit: **nested containers** cannot be built from here. The tools
-describe a single, flat container. If the user needs a hierarchy, say so and
-point them at the Container Builder GUI or a JSON description.
+Known limit: **nested containers** cannot be created from here. The tools
+add FMUs to a single, flat container. If the user needs a hierarchy, say so and
+point them at the Container Builder GUI or a JSON description. An assembly
+with sub-containers loaded in the GUI can still be read: `analyze_assembly`
+and `get_assembly_json` take the name of a container as `node`.
 
 Reference material:
 - `fmi://conventions` — what causality, variability and types mean here.
@@ -213,7 +218,9 @@ Follow this procedure:
 7. **Options** — `set_container_options`. See `container://options`. Leave
    `step_size` unset unless the user gave one.
 8. **Review** — `get_assembly_json`, then summarise for the user: FMUs, links,
-   exposed ports, options. **Stop here and ask for confirmation.**
+   exposed ports, options. Run `analyze_assembly(mode='lint')` and report its
+   errors and warnings: an error means the build will fail. **Stop here and
+   ask for confirmation.**
 9. **Build** — `save_as_fmu(path, fmi_version=2|3)` once confirmed. The call
    refuses to overwrite an existing file unless `overwrite=True`, so confirm
    the destination rather than forcing it.
@@ -235,24 +242,78 @@ Diagnose an FMU Container assembly that fails to build or behaves unexpectedly.
 
 Investigate in this order, reporting findings as you go:
 
-1. `get_assembly_json` — the whole picture: FMUs, links, exposed ports,
-   options. A large assembly comes one container at a time (`node`); read
-   the sections it reports as `truncated` with `section`.
-2. `list_fmus` — confirm every FMU the user mentions is actually loaded.
-3. For each FMU involved, `list_fmu_ports(fmu)` and check:
-   - every link source is an `output` and every destination an `input`;
-   - linked ports have compatible types (`fmi://conventions`);
-   - linked ports share the same unit — the toolbox does **not** convert;
-   - no input is left both unlinked and unexposed, unless its start value is
-     intentional.
+1. `analyze_assembly(mode='lint')` — the known traps, grouped by rule, each
+   with what the rule means and a few examples naming their container:
+   - **errors** (`invalid-*`, `input-fed-twice`, `duplicate-output`,
+     `auto-rules-error`): the container build refuses them. Quote the message
+     of the builder;
+   - **warnings**: lossy conversions, different units on a link (the toolbox
+     does **not** convert units), inputs left unfed, options (`nested-mt`,
+     `mt-sequential`, `step-ratio`, `auto-off-nothing-exposed`);
+   - **info**: fan-outs, sources, and what the lint could not check.
+2. Close the gaps the lint reports: `sub-container-unchecked` and
+   `auto-rules-partial` mean that the entries of a sub-container were not
+   checked against its ports, `not-checked` that an FMU file could not be
+   read. Check those entries by hand: `get_assembly_json(node=..., section=...)`
+   for the entries, `list_fmu_ports(fmu)` on both ends (causality, type, unit,
+   see `fmi://conventions`).
+3. Follow the symptom through the structure: `analyze_assembly()` for the
+   container tree and the flows between FMUs, then
+   `get_assembly_json(node=..., section='link')` to trace one signal from its
+   source to its destination.
 4. Review the options against `container://options`. The usual suspects are a
-   hand-picked `step_size`, `auto_link` disabled while links are missing, and
-   `mt` combined with `sequential`.
-5. Only then propose a fix, one change at a time, and explain what it should
+   hand-picked `step_size` and `auto_link` disabled while links are missing.
+5. The lint only reads the description of the assembly: it cannot see the
+   simulation results nor the inside of the FMUs. Ask the user for what it
+   cannot see (which output is wrong, a log, a plot).
+6. Only then propose a fix, one change at a time, and explain what it should
    change in the user's observations.
 
 Do not rebuild the container without asking: `save_as_fmu` writes to disk.
 If a tool reports an error, quote it verbatim — the messages are actionable.
+"""
+
+
+def analyze_assembly_prompt(focus: str | None = None) -> str:
+    """Procedure for describing the content and the behaviour of an assembly."""
+    requested = f"\nFocus requested by the user: {focus}." if focus else ""
+    return f"""\
+Describe the content and the behaviour of the FMU assembly currently loaded.
+{requested}
+
+1. **Inventory** — `list_fmus`. If the assembly is empty, say so and stop.
+2. **Overview** — `analyze_assembly()`: the container tree, the options of
+   every container (`step_size`, `mt`, `auto_*`...), its FMUs and counts, and
+   its exposed ports and links grouped by FMU and name prefix, with examples.
+   A sub-container marked `reduced` is detailed by
+   `analyze_assembly(node='<container name>')`.
+3. **Details, only where they matter** — `get_assembly_json(node=...)` for
+   one container; when it is `truncated`, read one section with
+   `section='link'` (or `input`, `output`, `start`, `drop`), paging with
+   `offset`. Pick what supports the description rather than reading
+   everything.
+4. **Key FMUs** — `list_fmu_ports(fmu)` filtered with `causality` or
+   `name_pattern`, for the generator, the FMI version, and the units and
+   descriptions of the ports that carry the main flows.
+5. **Traps** — `analyze_assembly(mode='lint')`.
+
+Reading the names:
+- ports sharing a prefix usually form a signal bus (`Sc_2_DV.speed`,
+  `Sc_2_DV.slope`...); `A_2_B` or `A2B` in a name usually reads "from A to B".
+  This is an interpretation: confirm it with the direction of the links;
+- `ungrouped` gathers the ports that share their prefix with no other port.
+
+Answer with:
+1. the container tree, with the step and the options of every level;
+2. for every level, the data flows between FMUs (who sends what to whom, how
+   many signals) and the interface of the container (exposed inputs and
+   outputs);
+3. how the assembly works: the role of every FMU and the loops they form;
+4. the findings of the lint, errors first, and the limits it reports.
+
+Make clear what is read from the assembly and what is your interpretation.
+When a result was `truncated` or `reduced` and you did not read the rest, say
+what was not seen.
 """
 
 

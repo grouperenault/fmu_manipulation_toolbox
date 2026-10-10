@@ -1,6 +1,6 @@
 # Plan: help the MCP clients analyse an FMU assembly
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 to 4 done; D1 settled, D9', D11 to D16 taken) — **Status**: in progress
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 to 5 done; D1 settled, D9', D11 to D16 taken) — **Status**: in progress
 
 Describing the content and the behaviour of a loaded assembly is a frequent request to the AI Assistant. On a real
 case (`bug.fmu`: 3 nested containers, 5 FMUs, 271 exposed ports, 295 links), the existing tools are not enough:
@@ -305,6 +305,23 @@ Checks performed: full suite **2087 passed, 2 skipped**; ruff not available in t
 3. `guide://usage` updated (new tool, `node` argument).
 4. Tests: the prompts are listed, render with and without arguments, and only name existing tools (test checking the
    back-quoted tool names against the server).
+
+Item 1 adjusted: `summarize_fmu` takes a path, while the tools now give FMU names only (D13): the prompt relies on
+`list_fmu_ports` (generator, FMI version, units, descriptions) instead.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `analyze_assembly_prompt(focus)`: inventory, `analyze_assembly()` (`node` for a `reduced` sub-container), `get_assembly_json(node, section)` only where it matters, `list_fmu_ports` filtered for the key FMUs, the lint; reading of the names (prefixes as buses, `A_2_B` as a direction, to be confirmed by the links; `ungrouped`); expected answer (tree and options, flows per level, behaviour, lint findings), read facts kept apart from interpretation, unread parts stated | `assistant/knowledge.py` |
+| `diagnose_assembly` rewritten around `analyze_assembly(mode='lint')`: reading of errors, warnings and info; the gaps the lint reports (`sub-container-unchecked`, `auto-rules-partial`, `not-checked`) checked by hand; tracing a signal with `get_assembly_json(node, section='link')`; options; what the lint cannot see asked to the user | `assistant/knowledge.py` |
+| `build_container`, step *Review*: the lint run before asking for confirmation (an error means the build fails) — not in the plan, added because the lint errors are exactly the refusals of the builder | `assistant/knowledge.py` |
+| `guide://usage`: step 9 (`analyze_assembly`, `get_assembly_json` by container and section); the known limit on nested containers made precise (they cannot be created from the tools, but an assembly loaded in the GUI is read with `node`) | `assistant/knowledge.py` |
+| Prompt `analyze_assembly` registered (same name as the tool: prompts and tools are separate MCP namespaces; Python function `analyze_assembly_procedure`) | `assistant/server.py` |
+| Tests: prompt inventory (unit and stdio); rendering of `analyze_assembly` with and without `focus`, of `diagnose_assembly` without symptom; `test_the_know_how_only_names_existing_tools`: every back-quoted call, and every back-quoted word starting with a tool verb, in the guide and the four prompts, is a tool of the server | `tests/unit/test_assistant_server.py`, `tests/integration/test_assistant_stdio_server.py` |
+
+Checks performed: full suite **2091 passed, 2 skipped**; tool definitions unchanged (16 571, the prompts are not part
+of them); ruff not available in the environment (not run).
 
 *Commit message*: `Add the analyze_assembly prompt and base diagnose_assembly on the lint (assembly_analysis phase 5)`
 
