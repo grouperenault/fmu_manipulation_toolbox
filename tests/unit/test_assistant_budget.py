@@ -33,7 +33,6 @@ def test_the_fixture_is_large(texts):
     assert f'"error_count":{LARGE_FMU_VARIABLES // 2 + 1}' in texts["check_fmu-broken"].replace(" ", "")
 
 
-@pytest.mark.xfail(strict=True, reason="C4: 18k characters of tool definitions (phase 3)")
 def test_tool_definitions(texts):
     assert len(texts["definitions"]) <= DEFINITIONS_BUDGET
 

@@ -1,6 +1,6 @@
 # Plan: optimize the MCP server for the context window
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 2 done) — **Status**: in progress
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phases 0 to 3 done) — **Status**: in progress
 
 The MCP server (`fmu_manipulation_toolbox/assistant/`, `fmutool-mcp` and the AI Assistant of the Container Builder)
 is meant to work with any MCP client, including local models (Qwen, Llama, Mistral...) served by Ollama or LM Studio.
@@ -188,6 +188,22 @@ clean.
 
 *Exit criterion*: the 21 tool definitions ≤ 16k characters (name, description, input schema); budget test without
 `xfail`.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `compact_schema()` and the `CompactSchemas` middleware (`on_list_tools`): the published input schemas lose the `null` variant of the optional parameters (`anyOf: [X, null]` → `X`) and `default: null`. Only the published schema changes: the arguments are still validated against the signatures, so `null` is accepted (models often send it for unset parameters) | `assistant/server.py` |
+| Shared parameter descriptions shortened (`FmuName`, repeated in 10 tools: 95 → 70 characters; `PortName`; path of an existing FMU) | `assistant/server.py` |
+| Shorter descriptions of `add_fmu`, `add_link`, `add_links`, `unset_start_value`, `save_as_fmu`, `check_fmu`, `rename_ports_from_csv`, `apply_operation`, keeping the instructions that prevent mistakes (never guess a port name, confirm destructive or interface-changing operations, read `failed`, say when a report is truncated) | `assistant/server.py` |
+| `ContainerOptions` docstring and three option descriptions shortened (`step_size`, `sequential`, `auto_link`) | `assistant/models.py` |
+| Tests: no `null` variant nor `default: null` in the published schemas; `null` still accepted for an option and for a filter; `compact_schema` unit test (original schema untouched); budget `xfail` of the definitions removed | `tests/unit/test_assistant_server.py`, `tests/unit/test_assistant_budget.py` |
+
+Measured: tool definitions **18 028 / 4 785 → 15 664 / 4 176** (characters / tokens), about 340 characters under
+the budget: of the 2 364 characters saved, ~770 come from the compact schemas and the rest from the descriptions.
+Output schemas kept (D5).
+
+Checks performed: full suite **2023 passed, 2 skipped**, no `xfail` left; ruff `F`: clean.
 
 ### Phase 4 — User documentation
 

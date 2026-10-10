@@ -30,18 +30,14 @@ MAX_DESCRIPTION_LENGTH = 80
 
 
 class ContainerOptions(BaseModel):
-    """Runtime options of the root container.
-
-    Every field is optional: only the ones explicitly provided are updated,
-    the others keep their current value.
-    """
+    """Container options to change; the others keep their value."""
 
     model_config = ConfigDict(extra="forbid")
 
     step_size: float | None = Field(
         default=None, gt=0,
-        description="Internal fixed time step, in seconds (e.g. 0.001). Leave "
-                    "unset to let the toolbox derive it from the embedded FMUs.",
+        description="Internal time step, in seconds (e.g. 0.001). Leave unset to "
+                    "derive it from the embedded FMUs.",
     )
     mt: bool | None = Field(
         default=None,
@@ -54,14 +50,13 @@ class ContainerOptions(BaseModel):
     )
     sequential: bool | None = Field(
         default=None,
-        description="Use sequential scheduling instead of the default "
-                    "Gauss-Seidel sweep. Mutually exclusive in intent with `mt`.",
+        description="Sequential scheduling instead of the default Gauss-Seidel "
+                    "sweep; not with `mt`.",
     )
     auto_link: bool | None = Field(
         default=None,
-        description="Automatically connect ports sharing the same name and "
-                    "type. Enabled by default: explicit links are only needed "
-                    "for ports whose names differ.",
+        description="Connect the ports with the same name and type. Enabled by "
+                    "default: explicit links are for the other ports.",
     )
     auto_input: bool | None = Field(
         default=None,

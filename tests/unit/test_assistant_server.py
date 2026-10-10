@@ -33,7 +33,7 @@ from fmu_manipulation_toolbox.assistant.bridge import SUPPORTED_FMI_VERSIONS  # 
 from fmu_manipulation_toolbox.assistant.models import (  # noqa: E402
     DEFAULT_PORT_LIMIT, MAX_DESCRIPTION_LENGTH, MAX_PORT_LIMIT,
 )
-from fmu_manipulation_toolbox.assistant.server import describe_argument_errors  # noqa: E402
+from fmu_manipulation_toolbox.assistant.server import compact_schema, describe_argument_errors  # noqa: E402
 
 #: Tool name -> ordered parameter names.
 #: Starts from the inventory measured before the refactoring; the ``overwrite``
@@ -387,6 +387,40 @@ def test_ports_are_compact():
     assert ports[0]["description"] == "x" * (MAX_DESCRIPTION_LENGTH - 1) + "…"
     assert ports[1] == {"name": "y", "type": "Real", "causality": "output", "description": "short"}
     assert "unit" not in ports[0] and "variability" not in ports[0]
+
+
+def test_optional_parameters_are_published_without_null():
+    """`anyOf: [X, null]` and `default: null` cost tokens at every request (docs/local/mcp_optimize.md, phase 3)."""
+    async def scenario():
+        async with fastmcp.Client(build_server(FakeBridge())) as client:
+            return await client.list_tools()
+
+    schemas = json.dumps([tool.input_schema for tool in _run(scenario())])
+    assert '{"type": "null"}' not in schemas and '"default": null' not in schemas
+
+
+def test_null_is_still_accepted_for_an_optional_parameter():
+    """Only the published schema is compact: models that send `null` for an unset option keep working."""
+    bridge = FakeBridge()
+
+    async def scenario():
+        async with fastmcp.Client(build_server(bridge)) as client:
+            await client.call_tool("set_container_options", {"options": {"mt": None, "auto_link": False}})
+            return await client.call_tool("list_fmu_ports", {"fmu": "a.fmu", "causality": None})
+
+    bridge.add_fmu("a.fmu")
+    assert _run(scenario()).structured_content["total"] == 4
+
+
+def test_compact_schema():
+    schema = {"properties": {"a": {"anyOf": [{"type": "string"}, {"type": "null"}], "default": None,
+                                   "description": "d"},
+                             "b": {"anyOf": [{"type": "string"}, {"type": "integer"}]},
+                             "c": {"type": "integer", "default": 2}}}
+    assert compact_schema(schema) == {"properties": {"a": {"type": "string", "description": "d"},
+                                              "b": {"anyOf": [{"type": "string"}, {"type": "integer"}]},
+                                              "c": {"type": "integer", "default": 2}}}
+    assert schema["properties"]["a"]["default"] is None      # the original is left untouched
 
 
 def test_the_page_size_is_bounded():
