@@ -7,6 +7,7 @@ implementation silently ignored such length differences).
 """
 import difflib
 import hashlib
+import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from collections.abc import Iterable
@@ -49,6 +50,23 @@ def assert_identical_files(filename1: PathLike, filename2: PathLike) -> None:
             f"vs.\n\n"
             f"{lineB}"
         )
+
+
+def assert_identical_text(filename1: PathLike, filename2: PathLike, *, ignore: re.Pattern | None = None) -> None:
+    """Assert two text files have the same lines, whitespace included (only the end of line convention may differ).
+
+    Lines matching `ignore` in both files are considered equal.
+    """
+    assert Path(filename1).exists(), f"{filename1} does not exist"
+    assert Path(filename2).exists(), f"{filename2} does not exist"
+
+    lines1 = _read_lines(filename1, strip=False)
+    lines2 = _read_lines(filename2, strip=False)
+    for lineno, (lineA, lineB) in enumerate(zip(lines1, lines2), start=1):
+        if ignore is not None and ignore.match(lineA) and ignore.match(lineB):
+            continue
+        assert lineA == lineB, f"files {filename1} and {filename2} mismatch at line {lineno}:\n{lineA!r}\nvs.\n{lineB!r}"
+    assert len(lines1) == len(lines2), f"files {filename1} and {filename2} mismatch: {len(lines1)} vs {len(lines2)} lines"
 
 
 #: Attributes of `modelDescription.xml` that change on every container build, or with the version of the

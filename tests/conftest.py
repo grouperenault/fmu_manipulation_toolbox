@@ -32,8 +32,8 @@ def _sanitize(name: str) -> str:
 def pytest_addoption(parser):
     parser.addoption(
         "--update-refs", action="store_true", default=False,
-        help="(Re)generate the characterization references under tests/data/refactoring/ "
-             "instead of comparing against them.")
+        help="(Re)generate the characterization references (tests/data/refactoring/) and the container golden "
+             "files (REF-golden-*) instead of comparing against them.")
 
 
 # --------------------------------------------------------------------------- #

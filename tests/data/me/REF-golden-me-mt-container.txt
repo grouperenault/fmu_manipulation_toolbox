@@ -1,0 +1,346 @@
+# Version 6
+# Container flags <MT> <Profiling> <Sequential>
+1 0 0
+# Internal time step in seconds
+0.1
+# NB of embedded FMU's
+0 2
+position_me.fmu 2 1 5
+position
+{7b736af6-8ff5-87d1-1fe7-5939d3346dfd}
+velocity_me.fmu 2 1 1
+velocity
+{6051dd04-89f4-c6f1-257a-c204b266056a}
+# NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
+2 0 0 0 0 0 2 0 0 0 1 0 0 0 0
+# CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
+# real64
+3 3
+0 1 1 -1 0
+2 1 1 0 1
+1 1 1 -1 1
+# real32
+0 0
+# integer8
+0 0
+# uinteger8
+0 0
+# integer16
+0 0
+# uinteger16
+0 0
+# integer32
+2 2
+100663296 1 1 -1 0
+100663297 1 1 -1 1
+# uinteger32
+0 0
+# integer64
+0 0
+# uinteger64
+0 0
+# boolean
+1 1
+167772160 1 1 -1 0
+# boolean1
+0 0
+# string
+0 0
+# binary
+0 0
+# clock
+0 0
+# Inputs of position_me.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+1
+1 1 0
+# Clocked Inputs of position_me.fmu - real64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - real32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - real32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - integer8: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - integer8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - uinteger8: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - uinteger8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - integer16: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - integer16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - uinteger16: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - uinteger16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - integer32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - integer32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - uinteger32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - uinteger32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - integer64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - integer64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - uinteger64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - uinteger64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - boolean: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - boolean1: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - boolean1: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - string: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - string: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - binary: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of position_me.fmu - binary: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of position_me.fmu - clock: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Start values of position_me.fmu - real64: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - real32: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - integer8: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - uinteger8: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - integer16: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - uinteger16: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - integer32: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - uinteger32: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - integer64: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - uinteger64: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - boolean: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - boolean1: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of position_me.fmu - string: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Outputs of position_me.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - real64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - real32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - real32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - integer8: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - integer8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - uinteger8: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - uinteger8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - integer16: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - integer16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - uinteger16: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - uinteger16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - integer32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - integer32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - uinteger32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - uinteger32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - integer64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - integer64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - uinteger64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - uinteger64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>
+1
+0 1 0
+# Clocked Outputs of position_me.fmu - boolean: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - boolean1: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - boolean1: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - string: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - string: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - binary: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of position_me.fmu - binary: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of position_me.fmu - clock: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Conversion table of position_me.fmu: <VR_FROM> <VR_TO> <CONVERSION>
+0
+# Inputs of velocity_me.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - real64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - real32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - real32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - integer8: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - integer8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - uinteger8: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - uinteger8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - integer16: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - integer16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - uinteger16: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - uinteger16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - integer32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - integer32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - uinteger32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - uinteger32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - integer64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - integer64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - uinteger64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - uinteger64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>
+1
+0 1 0
+# Clocked Inputs of velocity_me.fmu - boolean: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - boolean1: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - boolean1: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - string: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - string: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - binary: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Inputs of velocity_me.fmu - binary: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Inputs of velocity_me.fmu - clock: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Start values of velocity_me.fmu - real64: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - real32: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - integer8: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - uinteger8: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - integer16: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - uinteger16: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - integer32: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - uinteger32: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - integer64: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - uinteger64: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - boolean: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - boolean1: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Start values of velocity_me.fmu - string: <FMU_VR> <DIM> <RESET> <VALUE>
+0 0
+# Outputs of velocity_me.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+1
+1 1 0
+# Clocked Outputs of velocity_me.fmu - real64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - real32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - real32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - integer8: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - integer8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - uinteger8: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - uinteger8: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - integer16: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - integer16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - uinteger16: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - uinteger16: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - integer32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - integer32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - uinteger32: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - uinteger32: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - integer64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - integer64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - uinteger64: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - uinteger64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - boolean: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - boolean1: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - boolean1: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - string: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - string: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - binary: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Clocked Outputs of velocity_me.fmu - binary: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
+0 0
+# Outputs of velocity_me.fmu - clock: <LOCAL_OFFSET> <DIM> <FMU_VR>
+0
+# Conversion table of velocity_me.fmu: <VR_FROM> <VR_TO> <CONVERSION>
+0
+# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
+0 0

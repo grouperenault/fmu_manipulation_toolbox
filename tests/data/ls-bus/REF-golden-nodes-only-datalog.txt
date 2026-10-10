@@ -1,0 +1,36 @@
+# Datalog filename
+nodes-only-datalog.csv
+# real64: <VR> <NAME>
+0
+# real32: <VR> <NAME>
+0
+# integer8: <VR> <NAME>
+0
+# uinteger8: <VR> <NAME>
+0
+# integer16: <VR> <NAME>
+0
+# uinteger16: <VR> <NAME>
+0
+# integer32: <VR> <NAME>
+0
+# uinteger32: <VR> <NAME>
+0
+# integer64: <VR> <NAME>
+0
+# uinteger64: <VR> <NAME>
+0
+# boolean: <VR> <NAME>
+0
+# boolean1: <VR> <NAME>
+0
+# string: <VR> <NAME>
+0
+# binary: <VR> <NAME>
+2
+218103808 node1.CanChannel.Tx_Data
+218103809 node2.CanChannel.Tx_Data
+# clock: <VR> <NAME>
+2
+234881024 node1.CanChannel.Tx_Clock
+234881025 node2.CanChannel.Tx_Clock

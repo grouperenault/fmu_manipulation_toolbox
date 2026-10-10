@@ -1,6 +1,6 @@
 # Plan: refactoring of `container.py`
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken) — **Status**: not started — **Roadmap**: 2.0 ("refactor container.py")
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (decisions taken; phase 0 done) — **Status**: in progress — **Roadmap**: 2.0 ("refactor container.py")
 
 `fmu_manipulation_toolbox/container.py` builds FMU Containers: it loads the embedded FMUs, records the wiring rules,
 allocates the value references, then writes `modelDescription.xml`, `resources/container.txt` (read by the C runtime,
@@ -59,6 +59,7 @@ Latent bugs (found by reading, to be confirmed by tests in phase 0):
 | B2 | `default_step_size`: frequencies are truncated, `int(1.0 / step)`: a fixed step of 0.3 s gives a frequency of 3, a container step of 0.333 s and a warning; a step above 1 s gives a frequency of 0 | `default_step_size` |
 | B3 | `sanity_check`: `ts_ratio != int(ts_ratio)` on floats warns for valid ratios (`0.3 / 0.1 = 2.9999999999999996`) | `sanity_check` |
 | B4 | The build directory is `fmu_directory / <output name without suffix>`, created with `exist_ok=True` and **removed with `rmtree`** at the end: a user directory with that name is mixed with the build and deleted | `make_fmu`, `make_fmu_cleanup` |
+| B6 | *(found in phase 0)* An FMU input can be fed twice: exposed as a container input **and** target of a link (or target of two links). `mark_ruled` accepts any rule combined with `LINK`, so both writers update the same input at every step | `FMUContainer.mark_ruled` |
 | B5 | `Clock(container_vr, fmu_vr)` is called as `Clock(cport.port.vr, vr)`: the names are swapped (the output is right, because the writer prints them in the swapped order too); the `ClockList` docstring describes tuples | `ClockList` |
 
 Minor: dead `try/except KeyError` around a `defaultdict` (`make_fmu_txt`, conversion table); `flag == True`;
@@ -71,7 +72,8 @@ Golden files (`assert_identical_files` for `container.txt`, `assert_equivalent_x
 bouncing ball (default, sequential, profiling, FMI-3), `start`, FMI-3 passthrough, arrays 2→3 and 3→2, datalog.
 **Not covered** by a golden file: Model Exchange and mixed CS/ME containers, LS-BUS (`bus+nodes`, `nodes-only`), FMI-2
 and FMI-3 array containers (`array-2`, `array-3`: XML only), multi-threaded flag, `ts_multiplier`, type conversions
-(only through simulations, which need the compiled runtime and are skipped otherwise).
+(only through simulations, which need the compiled runtime and are skipped otherwise). *Correction after phase 0*:
+type conversions were already covered by the `array-23`, `array-32` and FMI-3 passthrough golden files.
 
 The conversion names are consistent today: the 132 values of `CONVERSION_FUNCTION` are exactly the 132 `CASE(...)` of
 `container/convert.c`.
@@ -87,7 +89,7 @@ The conversion names are consistent today: the 132 values of `CONVERSION_FUNCTIO
    layout, without side effects; `make_fmu` can be called twice.
 3. One definition of the container types and conversions, shared with `split.py`.
 4. Smaller modules with unit tests.
-5. The latent bugs B1 to B3 and B5 fixed, each with a test (B4 kept, D3).
+5. The latent bugs B1 to B3, B5 and B6 fixed, each with a test (B4 kept, D3).
 6. Public API unchanged: `from fmu_manipulation_toolbox.container import X` keeps working for every class of today.
 
 ---
@@ -122,6 +124,27 @@ stays `fmu_directory/<name>` and B4 is not fixed by this plan (documented instea
    D3).
 
 *Exit criterion*: every scenario of §1 covered by a golden file; suite green.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| 11 golden scenarios: Model Exchange (plain, multi-threaded), mixed CS/ME, LS-BUS (`bus+nodes`, `nodes-only`, with datalog), arrays `array-2` and `array-3`, multi-threaded FMI-2 and FMI-3 (`containers/mt`), profiling with datalog (`VanDerPol`), `ts_multiplier` (nested container and its parent); `container.txt`, `datalog.txt` compared line by line, whitespace included; `modelDescription.xml` in canonical form without the volatile attributes; determinism test (two builds of `bouncing.csv`) | `tests/integration/test_container_golden.py` |
+| 27 references `REF-golden-<scenario>[-<container>]-{container.txt,modelDescription.xml,datalog.txt}`, next to the input data; regenerated with `--update-refs` (option help updated) | `tests/data/{me,ls-bus,array,containers/mt,containers/VanDerPol}/`, `tests/conftest.py` |
+| `assert_identical_text`: exact line comparison (only the end of line convention may differ), with an optional pattern of lines to ignore | `tests/_helpers/assertions.py` |
+| Characterization unit tests: the 18 public names, conversions == `CASE(...)` of `container/convert.c`, lossy prefix, value reference masks (`100663296` = `6 << 24`) and local storage offsets, `ArrayAggregate` (names, row-major order, rejected families, name collision), `default_step_size` (5 cases), rules API errors (7 causality/format cases, duplicate output, input exposed twice), missing port ignored with an error log (current behaviour, to be inverted in phase 4 by D2), lossy link warning | `tests/unit/test_container_internals.py` |
+| `xfail(strict=True)`: B1, B2 (0.3 s and 2 s), B3, B6, C2 (`make_fmu` twice); each checked to fail on its assertion (`--runxfail`), not on an unrelated error | `tests/unit/test_container_internals.py` |
+
+Findings during the phase:
+
+- **New bug B6** (see §1): `add_input` then `add_link` to the same FMU input is accepted.
+- **Generated GUID**: a nested container writes its random GUID (`uuid4`, without braces) in the `container.txt`
+  of its parent; the golden comparison ignores the lines matching it. The GUIDs of the embedded FMUs (with braces)
+  stay compared.
+- `VanDerPol.json` asks for `mt` with a single FMU: the builder falls back to mono-thread (flag `0`), as expected.
+
+Checks performed: the golden tests pass three times in a row against freshly generated references; clean Python 3.14
+environment: full suite **1982 passed, 2 skipped, 6 xfailed**; ruff `F` on the new test files: clean.
 
 ### Phase 1 — Container types (`types.py`)
 
@@ -176,12 +199,14 @@ packaging check green.
 
 *Exit criterion*: golden files unchanged; suite green.
 
-### Phase 5 — Bug fixes (B1 to B3, D5)
+### Phase 5 — Bug fixes (B1 to B3, B6, D5)
 
 1. `default_step_size` with `Fraction` (D5); `sanity_check` with a tolerance (B3).
-2. Remove the `xfail` markers of phase 0.
+2. `mark_ruled`: an input port accepts one feeder only (container input or link); an output can still be exposed
+   and linked (B6).
+3. Remove the `xfail` markers of phase 0.
 
-*Exit criterion*: B1 to B3 tests pass; golden files unchanged except where a fix changes a deduced step size (reviewed
+*Exit criterion*: B1 to B3 and B6 tests pass; golden files unchanged except where a fix changes a deduced step size (reviewed
 one by one).
 
 ### Phase 6 — User documentation
@@ -193,7 +218,7 @@ one by one).
   kept by D3).
 - `docs/developer/container-txt-format.md`: the version table stops at 4 while the writer emits version 6; complete
   it, and point to `container/types.py` for the type list and conversions.
-- `CHANGELOG.md`: `CHANGED` (**breaking**) for D2; `FIXED` for B1 to B3; `CHANGED` for the package layout (imports
+- `CHANGELOG.md`: `CHANGED` (**breaking**) for D2; `FIXED` for B1 to B3 and B6; `CHANGED` for the package layout (imports
   unchanged).
 
 *Exit criterion*: the documentation describes the 2.0 behaviour; `mkdocs build` without warning.
