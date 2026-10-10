@@ -1,4 +1,4 @@
-# Content of the sdist (docs/local/packaging.md, decision D3).
+# Content of the sdist (docs/local/done/packaging.md, decision D3).
 # With setuptools-scm, every file tracked by git goes into the sdist by default. Keep the Python package and the C
 # sources of the native binaries (container/, remoting/, fmi/); leave out the test data, the documentation, the CI
 # configuration and the prebuilt binaries.

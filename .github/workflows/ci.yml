@@ -238,7 +238,7 @@ jobs:
         twine check --strict dist/*
         # Content of the very files to be published: reference files of tests/data/packaging (data files and
         # binaries of the wheel, metadata, entry points) and rules computed from the files tracked by git.
-        # On a deliberate change, update the reference with `--write` (see docs/local/packaging.md, phase 4).
+        # On a deliberate change, update the reference with `--write` (see docs/local/done/packaging.md, phase 4).
         python tools/dist_inventory.py --dist dist --check tests/data/packaging
     - name: Archive Artifacts
       if: matrix.python-version == '3.13'

@@ -1,7 +1,7 @@
 """Conformity of the operations with the FMI 2.0.5 and 3.0.2 specifications.
 
 Defects found while checking `model_description.py` against the standard
-(`docs/local/refactoring.md`, phase 1) and fixed in phase 2. Unlike D1 to D9, they are
+(`docs/local/done/refactoring.md`, phase 1) and fixed in phase 2. Unlike D1 to D9, they are
 not caused by the XML serialisation: the operations themselves broke rules of
 the standard that the XSD does not check.
 

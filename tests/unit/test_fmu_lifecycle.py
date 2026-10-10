@@ -1,6 +1,6 @@
 """Life cycle of `FMU`: errors when opening, temporary directory clean-up.
 
-Phase 3 of `docs/local/refactoring.md`: every failure to open an FMU is an
+Phase 3 of `docs/local/done/refactoring.md`: every failure to open an FMU is an
 `FMUError`, and the temporary extraction directory is removed by `close()`, at
 the end of a `with` block, when the object is garbage-collected, or when
 opening fails, instead of relying on `__del__`.

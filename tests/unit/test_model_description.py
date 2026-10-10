@@ -1,4 +1,4 @@
-"""Unit tests of `model_description.py` (phase 1 of `docs/local/refactoring.md`).
+"""Unit tests of `model_description.py` (phase 1 of `docs/local/done/refactoring.md`).
 
 Three sets of descriptors are used:
 

@@ -1,4 +1,4 @@
-"""Characterization tests of the container builder internals (docs/local/container.md, phase 0).
+"""Characterization tests of the container builder internals (docs/local/done/container.md, phase 0).
 
 They pinned the behaviour of the classes of `container.py` before its refactoring, and cover the bugs fixed since
 (B1 to B3, B5 to B7, C2, C4).

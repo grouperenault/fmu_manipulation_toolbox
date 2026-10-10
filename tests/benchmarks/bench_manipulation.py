@@ -1,11 +1,11 @@
 """Benchmark of `FMU.apply_operation` on large synthetic descriptors.
 
 Baseline for the switch of `Manipulation` to ElementTree (see
-`docs/local/refactoring.md`, phases 0 and 2): building a full tree must stay within a
+`docs/local/done/refactoring.md`, phases 0 and 2): building a full tree must stay within a
 reasonable factor of the current SAX implementation, in time and in memory.
 
 Not part of the test suite (it is not collected by pytest). Run it from the
-repository root and paste its Markdown output into `docs/local/refactoring.md`:
+repository root and paste its Markdown output into `docs/local/done/refactoring.md`:
 
     python tests/benchmarks/bench_manipulation.py [--variables 1000 10000 100000] [--repeat 3]
 """

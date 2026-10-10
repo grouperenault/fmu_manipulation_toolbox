@@ -1,7 +1,7 @@
 # Plan: support Python 3.14
 
 **Created**: 10 October 2026 — **Status**: not started, for a later execution — **Origin**: decision D3 of
-`python39.md`
+`done/python39.md`
 
 Python 3.14 was released in October 2025. The package does not declare it (no classifier) and the CI does not test it:
 every matrix stops at 3.13. Locally, the full suite already passes on 3.14 (macOS, clean environment with
@@ -92,4 +92,4 @@ reason).
 
 ## 6. Delivery
 
-One PR, after the `python39.md` plan. Phase 1 needs CI runs, so it cannot be done locally only.
+One PR, after the `done/python39.md` plan. Phase 1 needs CI runs, so it cannot be done locally only.
