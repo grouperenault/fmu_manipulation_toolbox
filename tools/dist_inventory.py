@@ -1,6 +1,6 @@
 """Inventory of the distributions (wheel and sdist) of fmu_manipulation_toolbox.
 
-Safety net of the packaging migration (docs/local/packaging.md, phases 0 and 4).
+Safety net of the packaging migration (docs/local/done/packaging.md, phases 0 and 4).
 Two kinds of checks:
 
 - **Reference files** (`--write` / `--check DIR`), compared line by line, for what

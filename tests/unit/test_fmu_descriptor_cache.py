@@ -1,6 +1,6 @@
 """`FMU` parses `modelDescription.xml` once and writes it only when needed.
 
-Phase 5 of `docs/local/refactoring.md`: the descriptor tree is shared by the
+Phase 5 of `docs/local/done/refactoring.md`: the descriptor tree is shared by the
 successive operations applied to an `FMU`, and it is not written back after an
 operation declared `read_only`, so that read-only operations (summary, CSV
 dump, checker) leave the file exactly as it was in the archive.

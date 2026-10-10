@@ -1,4 +1,4 @@
 # Development environment: the package in editable mode with every extra (GUI, MCP server, tests).
-# Kept for one release for existing habits; prefer `pip install -e ".[all]"` (docs/local/packaging.md, D4).
+# Kept for one release for existing habits; prefer `pip install -e ".[all]"` (docs/local/done/packaging.md, D4).
 # Run from the repository root.
 -e .[all]

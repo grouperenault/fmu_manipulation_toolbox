@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from ..assembly import Assembly, AssemblyError, AssemblyNode
-from ..operations import FMU, FMUPort, OperationAbstract
+from ..operations import FMU, ModelVariable, OperationAbstract
 from ..terminals import Terminals
 from .bridge import SUPPORTED_FMI_VERSIONS
 
@@ -77,7 +77,7 @@ class _FmuDescriptor(OperationAbstract):
     def modelexchange_attrs(self, attrs):
         self.is_model_exchange = True
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         self.ports.append({
             "name": fmu_port.get("name", ""),
             "type": fmu_port.fmi_type or "",

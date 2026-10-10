@@ -1,4 +1,4 @@
-"""Golden files of the container builder (docs/local/container.md, phase 0).
+"""Golden files of the container builder (docs/local/done/container.md, phase 0).
 
 Each scenario builds a container from a description file and compares the generated `container.txt`, `datalog.txt`
 and `modelDescription.xml` with references stored next to the input data (`REF-golden-<scenario>-...`). They cover

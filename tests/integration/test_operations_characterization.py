@@ -1,7 +1,7 @@
 """Characterization tests of the built-in operations (refactoring safety net).
 
 These tests pin down what `FMU.apply_operation` produces today, so that the
-switch of `Manipulation` to ElementTree (see `docs/local/refactoring.md`, phase 2)
+switch of `Manipulation` to ElementTree (see `docs/local/done/refactoring.md`, phase 2)
 can be checked for equivalence. For every FMU of `tests/data` and every
 built-in operation, they compare against references stored in
 `tests/data/refactoring/<fmu>/`:
@@ -18,7 +18,7 @@ the no-op operation does; they are compared to `noop.xml`.
 
 The references were generated with the expat-based implementation (phase 0),
 then deliberately updated by phase 2 for the defects it fixes (see
-`docs/local/refactoring.md`). Regenerate them only on purpose, after reviewing the
+`docs/local/done/refactoring.md`). Regenerate them only on purpose, after reviewing the
 change in behaviour:
 
     cd tests && pytest integration/test_operations_characterization.py --update-refs

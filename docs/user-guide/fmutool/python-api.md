@@ -313,7 +313,7 @@ fmu.repack("module-transformed.fmu")
 You can create your own operation by subclassing `OperationAbstract`:
 
 ```python
-from fmu_manipulation_toolbox.operations import FMU, OperationAbstract, FMUPort
+from fmu_manipulation_toolbox.operations import FMU, OperationAbstract, ModelVariable
 
 class OperationCountPorts(OperationAbstract):
     """Count ports by type."""
@@ -321,7 +321,7 @@ class OperationCountPorts(OperationAbstract):
     def __init__(self):
         self.counts = {}
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         fmi_type = fmu_port.fmi_type
         self.counts[fmi_type] = self.counts.get(fmi_type, 0) + 1
         return 0  # 0 = keep port, non-zero = remove port
@@ -353,10 +353,15 @@ FMI standard: removing every variable, removing a variable still referenced by a
 derivative, clock, structural parameter of an array, `previous`), or giving the same name to several
 variables.
 
-The `fmu_port` argument is an `FMUPort` object that supports dict-like access to attributes:
+The `fmu_port` argument is a
+[`ModelVariable`](../../API/model_description.md#fmu_manipulation_toolbox.model_description.ModelVariable): a view
+on the variable of the descriptor, with dict-like access to the attributes of every level (for FMI 2.0, those of
+`<ScalarVariable>` and of its type element, e.g. `<Real>`; for FMI 3.0, those of the variable element, and the
+`<Start>` values of `String` and `Binary` variables under the key `start`). Changing an existing attribute changes
+the FMU; `[]` does not create attributes.
 
 ```python
-def port_attrs(self, fmu_port: FMUPort) -> int:
+def port_attrs(self, fmu_port: ModelVariable) -> int:
     name = fmu_port["name"]
     causality = fmu_port.get("causality", "local")
     value_ref = fmu_port["valueReference"]
@@ -367,6 +372,12 @@ def port_attrs(self, fmu_port: FMUPort) -> int:
 
     return 0
 ```
+
+!!! note "Migrating from version 1.x"
+    `FMUPort` was removed in 2.0. The ports given to `port_attrs` are `ModelVariable` objects, with the same
+    interface: replace `FMUPort` by `ModelVariable` in the imports and annotations of your operations and
+    checkers. Building a port by hand (`FMUPort()` and `push_attrs()`) is no longer possible: a port is always a
+    view on a descriptor (`ModelDescription.load(...).iter_ports()`).
 
 ## Automation and Scripts
 

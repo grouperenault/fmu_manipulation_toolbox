@@ -331,13 +331,25 @@ def get_checkers() -> list[type[OperationAbstract]]:
     discovered_checkers = entry_points(group='fmu_manipulation_toolbox.checkers')
 
     for checker in discovered_checkers:
-        entry = checker.load()
+        try:
+            entry = checker.load()
+        except ImportError as error:
+            # A third-party checker must not stop the tool (e.g. one still importing `FMUPort`, removed in 2.0).
+            logger.error(f"Cannot load the addon checker '{checker.name}': {error}{_import_hint(error)}")
+            continue
         checker_class = entry()
         if issubclass(checker_class, OperationAbstract):
             logger.debug(f"Addon checker: {checker.name}")
             checkers.append(checker_class)
 
     return checkers
+
+
+def _import_hint(error: Exception) -> str:
+    """Migration hint for the names removed from the API."""
+    if "'FMUPort'" in str(error):
+        return " (FMUPort was removed in 2.0: use ModelVariable, from fmu_manipulation_toolbox.operations)"
+    return ""
 
 
 def add_from_file(checker_filename: str):
@@ -360,8 +372,8 @@ def add_from_file(checker_filename: str):
         checker_module = importlib.util.module_from_spec(spec)
         try:
             spec.loader.exec_module(checker_module)
-        except (ModuleNotFoundError, SyntaxError) as error:
-            logger.error(f"Cannot load '{checker_filename}': {error})")
+        except (ImportError, SyntaxError) as error:
+            logger.error(f"Cannot load '{checker_filename}': {error}{_import_hint(error)}")
             return
 
         for checker_name, checker_class in inspect.getmembers(checker_module, inspect.isclass):

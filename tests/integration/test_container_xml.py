@@ -1,4 +1,4 @@
-"""`modelDescription.xml` of FMU Containers (phase 4 of `docs/local/refactoring.md`).
+"""`modelDescription.xml` of FMU Containers (phase 4 of `docs/local/done/refactoring.md`).
 
 The container descriptor is built as an ElementTree since phase 4. These tests
 pin down what the former f-string generation got wrong:

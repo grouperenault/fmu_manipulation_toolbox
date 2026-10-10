@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QGridLayout, QPlainTextEdit, QSizePolicy,
 )
 
-from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
+from fmu_manipulation_toolbox.operations import FMU, ModelVariable, OperationAbstract
 from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, StatusBar,
                                                  UnsavedChangesWindowMixin, LastDirectory,
                                                  get_fmu_icon_path)
@@ -93,7 +93,7 @@ class OperationCollectPorts(OperationAbstract):
         self.stop_time = attrs.get("stopTime", "")
         self.step_size = attrs.get("stepSize", "")
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         causality_str = fmu_port.get("causality", "local")
         try:
             causality = Causality(causality_str)
@@ -152,14 +152,14 @@ class OperationApplyEdits(OperationAbstract):
 
 
     @staticmethod
-    def _set_port_attr(fmu_port: FMUPort, key: str, value: str):
+    def _set_port_attr(fmu_port: ModelVariable, key: str, value: str):
         """Modify a port attribute, creating it if it does not exist."""
         try:
             fmu_port[key] = value
         except KeyError:
             fmu_port.attrs_list[0][key] = value
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         original_name = fmu_port["name"]
         var = self.edits.get(original_name)
         if var is None:
