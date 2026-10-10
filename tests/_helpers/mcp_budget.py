@@ -18,8 +18,9 @@ from pathlib import Path
 #: Size of the synthetic FMU: the order of magnitude of industrial FMUs.
 LARGE_FMU_VARIABLES = 5000
 
-#: Budgets checked by the tests (decision D6).
-DEFINITIONS_BUDGET = 16_000
+#: Budgets checked by the tests (decision D6); the definitions budget raised from 16 000 for `analyze_assembly`
+#: (docs/local/assembly_analysis.md, decision D1).
+DEFINITIONS_BUDGET = 17_000
 RESULT_BUDGET = 12_000
 
 
@@ -206,8 +207,8 @@ async def measure(directory: Path) -> dict[str, str]:
     return texts
 
 
-async def measure_assembly(assembly: dict) -> dict[str, str]:
-    """Texts of the assembly tools on `assembly` (see `make_large_assembly`).
+async def measure_assembly(assembly: dict, directory: Path) -> dict[str, str]:
+    """Texts of the assembly tools on `assembly` (see `make_large_assembly`), its FMUs being in `directory`.
 
     The headless bridge only builds flat assemblies: its `get_assembly_json` is replaced to serve a nested one, as
     the GUI bridge does.
@@ -220,6 +221,11 @@ async def measure_assembly(assembly: dict) -> dict[str, str]:
         def get_assembly_json(self):
             return assembly
 
+        def list_fmu_ports(self, fmu):
+            """Every FMU of the nested assembly, read from its directory, as the GUI bridge does."""
+            from fmu_manipulation_toolbox.assistant.headless import describe_fmu
+            return describe_fmu(directory / fmu)
+
     texts: dict[str, str] = {}
     async with fastmcp.Client(build_server(NestedAssemblyBridge())) as client:
         texts["get_assembly_json-large"] = result_text(await client.call_tool("get_assembly_json", {}))
@@ -229,6 +235,9 @@ async def measure_assembly(assembly: dict) -> dict[str, str]:
         texts["get_assembly_json-large link page"] = result_text(
             await client.call_tool("get_assembly_json", {"node": "vehicle.fmu", "section": "link"}))
         texts["resource assembly://current-large"] = (await client.read_resource("assembly://current"))[0].text
+        for mode in ("summary", "lint"):
+            texts[f"analyze_assembly-large {mode}"] = result_text(
+                await client.call_tool("analyze_assembly", {"mode": mode}))
     return texts
 
 
@@ -238,7 +247,7 @@ def main():
         make_large_fmu(directory / "large.fmu")
         make_large_fmu(directory / "broken.fmu", broken=True)
         texts = asyncio.run(measure(directory))
-        texts.update(asyncio.run(measure_assembly(make_large_assembly(directory))))
+        texts.update(asyncio.run(measure_assembly(make_large_assembly(directory), directory)))
     print(f"{'item':32} {'characters':>10} {'budget':>8} {'tokens':>8}")
     for name, text in texts.items():
         budget = DEFINITIONS_BUDGET if name == "definitions" else RESULT_BUDGET

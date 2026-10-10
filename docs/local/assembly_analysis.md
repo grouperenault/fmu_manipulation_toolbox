@@ -1,6 +1,6 @@
 # Plan: help the MCP clients analyse an FMU assembly
 
-**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 to 3 done; D9', D11 to D14 taken) — **Status**: in progress
+**Created**: 10 October 2026 — **Updated**: 10 October 2026 (phases 0 to 4 done; D1 settled, D9', D11 to D16 taken) — **Status**: in progress
 
 Describing the content and the behaviour of a loaded assembly is a frequent request to the AI Assistant. On a real
 case (`bug.fmu`: 3 nested containers, 5 FMUs, 271 exposed ports, 295 links), the existing tools are not enough:
@@ -74,7 +74,7 @@ D1 to D4 chosen by the user; D5 to D10 taken as recommended.
 
 | # | Question | Decision |
 |---|---|---|
-| D1 | Definitions budget (A4) | **One parametrised tool**, `analyze_assembly(mode="summary" \| "lint", ...)`, instead of two tools; the budget is raised slightly or kept by shortening other descriptions (measured in phase 4) |
+| D1 | Definitions budget (A4) | **One parametrised tool**, `analyze_assembly(mode="summary" \| "lint", ...)`, instead of two tools; settled in phase 4 with the measurement (16 534 characters): **`DEFINITIONS_BUDGET` raised from 16 000 to 17 000** (~4.3k tokens) |
 | D2 | `get_assembly_json` unbounded (A1) | **Paged by node**: a `node` argument returns one container at a time |
 | D3 | Lint scope (A3) | **Structural and port-level** rules; the port rules read the FMU descriptors through the bridge |
 | D4 | Distribution of the skills (A5) | **MCP prompts**: a new prompt `analyze_assembly`, and `diagnose_assembly` updated to rely on the summary and the lint |
@@ -89,6 +89,8 @@ D1 to D4 chosen by the user; D5 to D10 taken as recommended.
 | D12 | A single container over the budget (phase 2: 24k to 57k characters per level of `bug.fmu`) | **Sections and paging**: without `section`, the container with its options, FMUs, `counts` per section and sub-containers (name and counts), its sections included only when they fit, otherwise `truncated`; with `section` (`input`, `output`, `link`, `start`, `drop`), `offset` and `limit` (default 50, maximum 200, as the port listings), one page of entries with `total` and `truncated` |
 | D13 | FMU paths in `get_assembly_json` (30 to 45 % of the volume) | **Names everywhere** in the result of the tool and of `assembly://current`, as the other tools; `save_as_json` still writes the complete file |
 | D14 | Structural rules checked against the builder (phase 3) | **`input-fed-twice`** (error) instead of `link-to-exposed-input`: the builder refuses any second feeder (link and exposed input, two links, two exposed inputs); **`duplicate-output`** (error) instead of `duplicate-exposure`: one container input feeding several ports is an allowed fan-out, reported by `fan-out`; **`source-fmu`** (info: nothing feeds the FMU) instead of `constant-stub`, which gave false positives from the JSON alone and moves to phase 4 with the port variabilities |
+| D15 | How the ports are checked (phase 4) | **Replay into the builder**: per container, every rule of the JSON is replayed into an `FMUContainer` that is never built, each in its own `try`: a refusal of the builder is an error (`invalid-input`, `invalid-output`, `invalid-link`, `invalid-drop`, `invalid-start`) with the message of the builder, a lossy conversion logged by the builder a warning (`lossy-link`); no re-implementation of the types and conversions, hence no drift; the entries with a sub-container are not checked (`sub-container-unchecked`, info, D9') |
+| D16 | Port-level rules of D8 checked against real FMUs (phase 4) | **`constant-stub` dropped**: the stub of `bug.fmu` declares its constant outputs `continuous`, the metadata cannot tell a stub; **`parameter-not-set` dropped**: FMI requires a start value for parameters, `check_fmu` already reports their absence; **`dangling-input` kept as in D8**: an input neither linked nor exposed (the `auto_*` rules dry-run) and without start value |
 
 ---
 
@@ -242,21 +244,23 @@ Checks performed: full suite **2074 passed, 2 skipped**; ruff not available in t
 
 ### Phase 4 — Port-level lint and the `analyze_assembly` tool (A3, A4, D1, D9, D9', D10)
 
-1. Port-level rules, fed with the descriptions given by `bridge.list_fmu_ports(name)` (read once per FMU):
+1. Port-level rules (D15, D16), by `replay.PortChecker`: the FMU files located with `bridge.list_fmu_ports(name)`
+   (read once per FMU), every container replayed into the builder without building:
 
    | Rule | Severity | Detail |
    |---|---|---|
-   | `unknown-port` | error | a linked, exposed or started port absent from the FMU |
-   | `link-causality` | error | link source not an `output`, or destination not an `input` |
-   | `link-type` | warning / error | type conversion (warning), or conversion refused by the container (error) |
-   | `link-unit` | warning | linked ports with different units: the toolbox does not convert |
+   | `invalid-input`, `invalid-output`, `invalid-link`, `invalid-drop`, `invalid-start` | error | an entry the builder refuses (unknown port, causality, type without conversion, malformed start value...), with its message |
+   | `auto-rules-error` | error | the dry run of the `auto_*` rules fails (e.g. two outputs auto-exposed under one name) |
+   | `lossy-link` | warning | a lossy conversion, as logged by the builder |
+   | `link-unit` | warning | linked ports with two different declared units (units from the bridge descriptions) |
    | `dangling-input` | warning | an input neither linked nor exposed, without start value; the `auto_*` rules are evaluated by a dry run of the engine (D9) |
    | `auto-rules-partial` | info | a level holding a sub-container and an `auto_*` rule on: the ports of the sub-container are not evaluated by the dry run (D9') |
-   | `parameter-not-set` | info | a parameter neither exposed nor given a start value (only when `auto_parameter` is off) |
-   | `constant-stub` | info | an FMU whose linked outputs all have a `constant` or `fixed` variability (D14) |
+   | `sub-container-unchecked` | info | entries involving a sub-container, not checked (D9') |
+   | `not-checked` | info | an FMU whose file cannot be found or loaded |
 
    `input-fed-twice` (phase 3) is refined with the port types: the builder lets several feeders reach an input
-   clock (LS-BUS), which the JSON alone cannot tell.
+   clock (LS-BUS), which the JSON alone cannot tell. A second feeder or a duplicate output, already reported by the
+   structural lint, is not replayed.
 
 2. Tool `analyze_assembly(mode: "summary" | "lint" = "summary", node: str | None = None)` in `assistant/server.py`
    (`READ_ONLY`), `node` restricting the analysis to one container (same designation as D5).
@@ -266,6 +270,26 @@ Checks performed: full suite **2074 passed, 2 skipped**; ruff not available in t
    nested cases; budget tests for both modes on the large assembly.
 
 *Exit criterion*: both modes within the result budget on the large assembly; definitions within their budget.
+
+Rules revised by D15 and D16, taken at the start of the phase after checking them against the builder and the FMUs
+of `bug.fmu`; D1 settled with the measurement.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| New module `replay`: `PortChecker` (descriptions read once, `is_clock`, `lint_node`: FMUs loaded from the path given by the bridge, entries replayed in the order of `AssemblyNode.make_fmu`, builder warnings captured with `fmutools._captured_logs`, `auto_*` rules dry-run, inputs left unfed); imported only when the ports are checked | `assistant/replay.py` |
+| `lint_assembly(assembly, node=None, describe=None)`: `node` restricts it to one container (ancestors still known, for `nested-mt` and `step-ratio`); with `describe`, the port-level rules; `RULES` completed (20 rules); `container_label()` names an unnamed root `(root)` in the messages | `assistant/analysis.py` |
+| Tool `analyze_assembly(mode="summary" \| "lint", node=None)`, read-only, synchronous (FastMCP runs it in a worker thread); `ContainerName` shared with `get_assembly_json`, whose description now points to it | `assistant/server.py` |
+| `DEFINITIONS_BUDGET` 16 000 → 17 000 (D1); `make_fmu` reused; `measure_assembly(assembly, directory)` lets the nested bridge describe the FMUs; both modes measured on the large assembly | `tests/_helpers/mcp_budget.py`, `tests/unit/test_assistant_budget.py` |
+| Tests: every port-level rule on two synthetic FMUs (units, types, start values); `auto_*` dry run; `auto-rules-error`; sub-container not checked; unknown FMU; input clocks fed twice; restriction to one container; the large assembly accepted by the builder. Through the client: both modes and `node` on `hierarchical.json`; the port lint through the headless bridge. `analyze_assembly` in `EXPECTED_TOOLS` | `tests/unit/test_assistant_analysis.py`, `tests/unit/test_assistant_server.py` |
+
+Measured: tool definitions **16 571** characters (budget 17 000); large assembly of the fixtures, `analyze_assembly`
+summary 4 521, lint (ports included) 1 014. Real `bug.fmu`, lint with the ports: **1.6 s** (250 MB of FMUs loaded),
+1 770 characters, no error: nested `mt`, step ratio 100, 6 fan-outs, and 333 entries with a sub-container not
+checked (59 at the root, 274 at level 1).
+
+Checks performed: full suite **2087 passed, 2 skipped**; ruff not available in the environment (not run).
 
 *Commit message*: `Add the analyze_assembly tool, with port-level lint rules (assembly_analysis phase 4)`
 

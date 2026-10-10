@@ -28,7 +28,7 @@ def texts(tmp_path_factory):
     make_large_fmu(directory / "large.fmu")
     make_large_fmu(directory / "broken.fmu", broken=True)
     texts = asyncio.run(measure(directory))
-    texts.update(asyncio.run(measure_assembly(make_large_assembly(directory))))
+    texts.update(asyncio.run(measure_assembly(make_large_assembly(directory), directory)))
     return texts
 
 
@@ -92,7 +92,8 @@ OVER_BUDGET: dict[str, str] = {}
 RESULTS = ["add_fmu", "list_fmu_ports", "inspect_fmu_file", "summarize_fmu", "check_fmu", "check_fmu-broken",
            "get_assembly_json", "resource fmu://large.fmu/ports", "get_assembly_json-large",
            "get_assembly_json-large vehicle.fmu", "get_assembly_json-large level2.fmu",
-           "get_assembly_json-large link page", "resource assembly://current-large"]
+           "get_assembly_json-large link page", "resource assembly://current-large", "analyze_assembly-large summary",
+           "analyze_assembly-large lint"]
 
 
 @pytest.mark.parametrize("name", [

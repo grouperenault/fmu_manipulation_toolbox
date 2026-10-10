@@ -5,6 +5,7 @@ own scripts to see the container tree and the data flows. The summary reduces th
 result budget of a tool.
 """
 import json
+import zipfile
 
 import pytest
 
@@ -410,3 +411,136 @@ def test_the_large_assembly_is_linted(tmp_path):
     assert set(_findings(make_large_assembly(tmp_path))) == {
         ("nested-mt", "warning"), ("step-ratio", "warning"), ("fan-out", "info")}
     assert report["error_count"] == 0
+
+
+# --------------------------------------------------------------------------- #
+#               port-level lint: replay into the builder (phase 4)             #
+# --------------------------------------------------------------------------- #
+def _write_fmu(path, variables):
+    """FMI-2 FMU (descriptor only); `variables` are `(name, causality, type, unit, start)`."""
+    xml = []
+    for i, (name, causality, type_, unit, start) in enumerate(variables):
+        attributes = (f' unit="{unit}"' if unit else "") + (f' start="{start}"' if start is not None else "")
+        xml.append(f'<ScalarVariable name="{name}" valueReference="{i}" causality="{causality}">'
+                   f'<{type_}{attributes}/></ScalarVariable>')
+    outputs = "".join(f'<Unknown index="{i + 1}"/>' for i, variable in enumerate(variables) if variable[1] == "output")
+    descriptor = (f'<?xml version="1.0" encoding="UTF-8"?>\n<fmiModelDescription fmiVersion="2.0" '
+                  f'modelName="{path.stem}" guid="{{{path.stem}}}"><CoSimulation modelIdentifier="{path.stem}"/>'
+                  f'<ModelVariables>{"".join(xml)}</ModelVariables><ModelStructure><Outputs>{outputs}</Outputs>'
+                  f'</ModelStructure></fmiModelDescription>')
+    with zipfile.ZipFile(path, "w") as fmu:
+        fmu.writestr("modelDescription.xml", descriptor)
+    return path
+
+
+def _describer(directory):
+    """`describe` of the bridges, reading the FMUs of `directory`; an unknown FMU is refused as by the bridges."""
+    from fmu_manipulation_toolbox.assistant.headless import describe_fmu
+
+    def describe(name):
+        path = directory / name
+        if not path.is_file():
+            raise ValueError(f"FMU '{name}' is not in the assembly.")
+        return describe_fmu(path)
+
+    return describe
+
+
+@pytest.fixture
+def two_fmus(tmp_path):
+    _write_fmu(tmp_path / "a.fmu", [("y", "output", "Real", "m", None), ("r", "output", "Real", None, None),
+                                    ("s", "output", "String", None, None), ("dup", "output", "Real", None, None)])
+    _write_fmu(tmp_path / "b.fmu", [("u", "input", "Real", "km", "0"), ("i", "input", "Integer", None, "0"),
+                                    ("w", "input", "Real", None, "0"), ("free", "input", "Real", None, None),
+                                    ("dup", "output", "Real", None, None)])
+    return tmp_path
+
+
+def test_the_builder_checks_the_ports(two_fmus):
+    """Each refusal of the builder is an error with its message; conversions, units and unfed inputs are warned."""
+    assembly = {"name": "c.fmu", **EXPLICIT, "fmu": [str(two_fmus / "a.fmu"), "b.fmu"],
+                "input": [["x", "a.fmu", "y"]],
+                "output": [["b.fmu", "u", "o"], ["a.fmu", "dup", "dup"]],
+                "link": [["a.fmu", "y", "b.fmu", "u"], ["a.fmu", "r", "b.fmu", "i"], ["a.fmu", "s", "b.fmu", "w"],
+                         ["a.fmu", "nope", "b.fmu", "w"]],
+                "start": [["b.fmu", "i", "not a number"]]}
+
+    findings = _findings_with(assembly, two_fmus)
+
+    assert set(findings) == {("invalid-input", "error"), ("invalid-output", "error"), ("invalid-link", "error"),
+                             ("invalid-start", "error"), ("lossy-link", "warning"), ("link-unit", "warning"),
+                             ("dangling-input", "warning"), ("input-fed-twice", "error")}
+    assert len(findings[("invalid-link", "error")]) == 1  # The second feeder of 'w' is reported once, structurally.
+    assert findings[("link-unit", "warning")] == ["c.fmu: a.fmu/y (m) -> b.fmu/u (km)"]
+    assert findings[("dangling-input", "warning")] == ["c.fmu: b.fmu/free"]
+    assert all(example.startswith("c.fmu: ") for examples in findings.values() for example in examples)
+
+
+def _findings_with(assembly, directory, **arguments):
+    report = lint_assembly(assembly, describe=_describer(directory), **arguments)
+    return {(group["rule"], group["severity"]): group["examples"] for group in report["findings"]}
+
+
+def test_the_auto_rules_are_dry_run(two_fmus):
+    """`auto_input` exposes the free input at build time: it is not dangling."""
+    assembly = {"name": "c.fmu", **EXPLICIT, "auto_input": True, "fmu": ["a.fmu", "b.fmu"]}
+
+    assert ("dangling-input", "warning") not in _findings_with(assembly, two_fmus)
+
+
+def test_an_auto_rule_refused_by_the_builder(two_fmus):
+    """`auto_output` exposes both 'dup' outputs under the same name: the build fails."""
+    assembly = {"name": "c.fmu", "fmu": ["a.fmu", "b.fmu"]}
+
+    [example] = _findings_with(assembly, two_fmus)[("auto-rules-error", "error")]
+    assert "dup" in example
+
+
+def test_entries_with_a_sub_container_are_not_checked(two_fmus):
+    """Decision D9': a sub-container only exists once built."""
+    assembly = {"name": "c.fmu", "fmu": ["a.fmu"], "container": [{"name": "sub.fmu", **EXPLICIT, "fmu": ["b.fmu"]}],
+                "link": [["a.fmu", "y", "sub.fmu", "u"], ["a.fmu", "r", "sub.fmu", "i"]]}
+
+    findings = _findings_with(assembly, two_fmus)
+
+    assert findings[("sub-container-unchecked", "info")] == ["c.fmu: 2 entries with sub.fmu"]
+    assert findings[("auto-rules-partial", "info")] == ["c.fmu: sub.fmu"]
+
+
+def test_an_fmu_the_bridge_does_not_know_is_not_checked(tmp_path):
+    assembly = {"name": "c.fmu", "fmu": ["ghost.fmu"]}
+
+    assert _findings_with(assembly, tmp_path)[("not-checked", "info")] == ["c.fmu: ghost.fmu, file not found"]
+
+
+def test_input_clocks_may_be_fed_twice():
+    """The builder lets several feeders reach an input clock (LS-BUS): no structural error for them."""
+    def describe(name):
+        return {"path": f"/nowhere/{name}", "ports": [{"name": "tick", "type": "Clock", "causality": "input"}]}
+
+    assembly = {"name": "c.fmu", "fmu": ["a.fmu", "b.fmu"],
+                "link": [["a.fmu", "t1", "b.fmu", "tick"], ["a.fmu", "t2", "b.fmu", "tick"]]}
+
+    assert ("input-fed-twice", "error") in _findings(assembly)
+    report = lint_assembly(assembly, describe=describe)
+    assert "input-fed-twice" not in {group["rule"] for group in report["findings"]}
+
+
+def test_the_lint_can_be_restricted_to_one_container(data_dir):
+    report = lint_assembly(_arch(data_dir, "hierarchical.json"), node="level1.fmu")
+
+    assert [(group["rule"], group["severity"], group["examples"]) for group in report["findings"]] == [
+        ("step-ratio", "warning", ["level1.fmu (0.01 s) in (root) (0.5 s): ratio 50"])]
+    with pytest.raises(ValueError, match="No container is named"):
+        lint_assembly(_arch(data_dir, "hierarchical.json"), node="nope.fmu")
+
+
+def test_the_large_assembly_passes_the_builder(tmp_path):
+    """Every rule of the large assembly is accepted by the builder; the report stays within the budget."""
+    assembly = make_large_assembly(tmp_path)
+    report = lint_assembly(assembly, describe=_describer(tmp_path))
+
+    assert len(json.dumps(report)) <= MAX_RESULT_SIZE
+    assert report["error_count"] == 0
+    assert {group["rule"] for group in report["findings"]} == {
+        "nested-mt", "step-ratio", "fan-out", "sub-container-unchecked"}

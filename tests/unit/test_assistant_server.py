@@ -53,6 +53,7 @@ EXPECTED_TOOLS = {
     "unset_start_value": ["fmu", "port"],
     "set_container_options": ["options"],
     "get_assembly_json": ["node", "section", "offset", "limit"],
+    "analyze_assembly": ["mode", "node"],
     "save_as_json": ["path", "overwrite"],
     "save_as_fmu": ["path", "fmi_version", "datalog", "overwrite"],
     # Single-FMU tools: they never touch the assembly (audit I8).
@@ -645,6 +646,49 @@ def test_assembly_is_paged_by_container_and_section(data_dir):
     assert resource == whole
     assert level["name"] == "level1.fmu" and level["counts"]["link"] == 4
     assert page["total"] == 3 and page["returned"] == 2 and page["truncated"] is True
+
+
+def test_analyze_assembly_summarises_and_lints(data_dir):
+    """docs/local/assembly_analysis.md, phase 4: one read-only tool, two modes, optionally one container."""
+    assembly = json.loads((data_dir / "containers" / "arch" / "hierarchical.json").read_text())
+
+    async def scenario():
+        async with fastmcp.Client(build_server(NestedBridge(assembly))) as client:
+            summary = (await client.call_tool("analyze_assembly", {})).data
+            sub = (await client.call_tool("analyze_assembly", {"node": "level1.fmu"})).data
+            lint = (await client.call_tool("analyze_assembly", {"mode": "lint"})).data
+            return summary, sub, lint
+
+    summary, sub, lint = _run(scenario())
+    assert summary["fmus"] == ["gain.fmu"]
+    assert summary["containers"][0]["name"] == "level1.fmu"
+    assert sub["name"] == "level1.fmu" and sub["options"] == {"step_size": 0.01}
+    rules = {group["rule"] for group in lint["findings"]}
+    assert "step-ratio" in rules
+    # The fake bridge knows none of these FMUs: their ports are reported as not checked.
+    assert "not-checked" in rules
+
+
+def test_analyze_assembly_lints_the_ports_with_the_builder(tmp_path):
+    """Through the headless bridge (flat, D10): a wired assembly passes the builder."""
+    from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
+    from _helpers.mcp_budget import make_fmu
+
+    make_fmu(tmp_path / "a.fmu", outputs=["y"])
+    make_fmu(tmp_path / "b.fmu", inputs=["y", "free"], outputs=["z"])
+
+    async def scenario():
+        server = build_server(HeadlessAssemblyBridge(), policy=PathPolicy(tmp_path))
+        async with fastmcp.Client(server) as client:
+            for name in ("a.fmu", "b.fmu"):
+                await client.call_tool("add_fmu", {"path": str(tmp_path / name)})
+            await client.call_tool("add_link", {"from_fmu": "a.fmu", "from_port": "y",
+                                                "to_fmu": "b.fmu", "to_port": "y"})
+            return (await client.call_tool("analyze_assembly", {"mode": "lint"})).data
+
+    report = _run(scenario())
+    assert report["error_count"] == 0
+    assert "not-checked" not in {group["rule"] for group in report["findings"]}
 
 
 def test_an_unknown_container_is_reported(data_dir):

@@ -339,6 +339,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     PatternFilter = Annotated[str | None, Field(
         description="Keep only the ports whose name matches this regular "
                     "expression, e.g. '^engine_'.")]
+    ContainerName = Annotated[str | None, Field(
+        description="Container name; the root if omitted.")]
     # Shared by the port listings and the sections of `get_assembly_json`.
     Offset = Annotated[int, Field(
         ge=0, description="First item to return, for paging.")]
@@ -569,8 +571,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     @mcp.tool(annotations=READ_ONLY)
     @_guard
     def get_assembly_json(
-        node: Annotated[str | None, Field(
-            description="Container name; the root if omitted.")] = None,
+        node: ContainerName = None,
         section: Annotated[Literal["input", "output", "link", "start", "drop"] | None, Field(
             description="Section to page through.")] = None,
         offset: Offset = 0,
@@ -580,9 +581,28 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
         Review it with the user before building. A large assembly comes one
         container (`node`) at a time; if `truncated`, page its sections with
-        `section`.
+        `section`. For an overview: `analyze_assembly`.
         """
         return analysis.assembly_page(bridge.get_assembly_json(), node, section, offset, limit)
+
+    @mcp.tool(annotations=READ_ONLY)
+    @_guard
+    def analyze_assembly(
+        mode: Annotated[Literal["summary", "lint"], Field(
+            description="summary: tree, options, grouped ports and links. "
+                        "lint: known traps.")] = "summary",
+        node: ContainerName = None,
+    ) -> dict[str, Any]:
+        """Analyse the assembly, without building it.
+
+        Start here to describe or diagnose an assembly. The lint checks the
+        ports with the container builder; quote its findings.
+        """
+        assembly = bridge.get_assembly_json()
+        if mode == "summary":
+            return analysis.summarize_assembly(
+                assembly if node is None or not assembly else analysis.find_container(assembly, node))
+        return analysis.lint_assembly(assembly, node, bridge.list_fmu_ports)
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard

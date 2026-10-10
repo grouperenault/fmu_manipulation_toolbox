@@ -12,12 +12,14 @@ The same JSON is also served as is, but paged (`assembly_page`): one container a
 (exposed inputs, links...) at a time when the container alone is too large.
 
 Finally, `lint_assembly` reports the known traps of the structure (options, steps, wiring), grouped per rule like the
-report of `check_fmu`.
+report of `check_fmu`; given the descriptions of the FMUs, it also replays the assembly into the container builder
+(`replay`, imported only then) to check the ports.
 
 Pure functions on plain data: this module depends on the standard library only, like the bridge protocol.
 """
 
 import json
+from collections.abc import Callable
 from fractions import Fraction
 from pathlib import PureWindowsPath
 from typing import Any
@@ -44,6 +46,11 @@ OPTIONS = ("step_size", "mt", "profiling", "sequential", "auto_link", "auto_inpu
 def fmu_name(reference: str) -> str:
     """Base name of an FMU of the JSON: the root level designates the FMUs by path, the other levels by name."""
     return PureWindowsPath(reference).name  # Understands both separators.
+
+
+def container_label(node: dict[str, Any]) -> str:
+    """Name of a container in a message: a hand-written description may leave the root unnamed."""
+    return str(node.get("name") or "(root)")
 
 
 def port_prefix(name: str) -> str:
@@ -176,7 +183,7 @@ def _named(node: dict[str, Any]) -> dict[str, Any]:
 
 def _containers(node: dict[str, Any], path: str = ""):
     """Every container of the tree, with the path of names that leads to it."""
-    path = f"{path}/{node.get('name')}" if path else str(node.get("name"))
+    path = f"{path}/{container_label(node)}" if path else container_label(node)
     yield path, node
     for child in node.get("container", []):
         yield from _containers(child, path)
@@ -193,7 +200,7 @@ def find_container(assembly: dict[str, Any], name: str) -> dict[str, Any]:
     if len(matches) == 1:
         return matches[0]
     if not matches:
-        known = ", ".join(str(node.get("name")) for _, node in containers)
+        known = ", ".join(container_label(node) for _, node in containers)
         raise ValueError(f"No container is named '{name}' (containers: {known}).")
     paths = ", ".join(path for path, node in containers if node.get("name") == name)
     raise ValueError(f"Several containers are named '{name}' ({paths}): rename one of them to designate it.")
@@ -269,21 +276,37 @@ AUTO_DEFAULTS = {"auto_link": True, "auto_input": True, "auto_output": True, "au
 
 SEVERITIES = ("error", "warning", "info")
 
-#: Rules of the lint: what each one means, as given to the model with its findings.
+#: Rules of the lint: what each one means, as given to the model with its findings. The structural rules read the
+#: JSON only; the port-level ones (`replay.PortChecker`) replay it into the container builder.
 RULES = {
     "input-fed-twice": "An input of an embedded FMU is fed more than once (links and/or exposed inputs): the "
                        "container build refuses it.",
     "duplicate-output": "Several ports are exposed under the same container output name: the container build "
                         "refuses it.",
+    "invalid-input": "The container build refuses this exposed input (message of the builder).",
+    "invalid-output": "The container build refuses this exposed output (message of the builder).",
+    "invalid-link": "The container build refuses this link: unknown port, causality, type... (message of the "
+                    "builder).",
+    "invalid-drop": "The container build refuses this dropped port (message of the builder).",
+    "invalid-start": "The container build refuses this start value (message of the builder).",
+    "auto-rules-error": "An `auto_*` rule fails at build time (message of the builder).",
     "nested-mt": "Multi-threading (`mt`) is enabled on a container and on one of its ancestors.",
     "mt-sequential": "Both `mt` and `sequential` are enabled on a container.",
     "step-ratio": "The step of a sub-container differs from the step of its container: a warning when their ratio "
                   f"is above {STEP_RATIO_THRESHOLD} or is not an integer.",
     "auto-off-nothing-exposed": "An `auto_*` rule is off and the root container exposes no port of that kind: the "
                                 "container will have no input, or no output.",
+    "lossy-link": "A link converts its value with a possible loss of information (message of the builder).",
+    "link-unit": "Linked ports declare different units: the toolbox does not convert units.",
+    "dangling-input": "An input is neither linked nor exposed, even by the `auto_*` rules, and has no start value.",
     "fan-out": "One output, or one container input, feeds several inputs.",
     "source-fmu": "Nothing feeds this FMU (no exposed input, no incoming link): it is a source of the assembly, e.g. "
                   "a scenario or a stub of constants.",
+    "auto-rules-partial": "This container holds sub-containers and an `auto_*` rule is on: the dry run of the rules "
+                          "does not see the ports of the sub-containers, which only exist once built.",
+    "sub-container-unchecked": "Entries involving a sub-container are not checked against its ports, which only "
+                               "exist once built.",
+    "not-checked": "The ports of this FMU could not be checked.",
 }
 
 
@@ -298,14 +321,17 @@ def _ancestry(node: dict[str, Any], ancestors: tuple = ()):
         yield from _ancestry(child, ancestors + (node,))
 
 
-def _lint_node(node: dict[str, Any], ancestors: tuple, report) -> None:
-    """Findings of one container: `report(rule, severity, example)` for each."""
-    where = str(node.get("name"))
+def _lint_node(node: dict[str, Any], ancestors: tuple, report, is_clock) -> None:
+    """Structural findings of one container: `report(rule, severity, example)` for each.
+
+    `is_clock(fmu, port)` tells the input clocks, which several feeders may reach (LS-BUS).
+    """
+    where = container_label(node)
 
     if node.get("mt"):
         mt_ancestors = [ancestor for ancestor in ancestors if ancestor.get("mt")]
         if mt_ancestors:
-            report("nested-mt", "warning", f"{where} inside {mt_ancestors[-1].get('name')}")
+            report("nested-mt", "warning", f"{where} inside {container_label(mt_ancestors[-1])}")
         if node.get("sequential"):
             report("mt-sequential", "warning", where)
 
@@ -313,7 +339,7 @@ def _lint_node(node: dict[str, Any], ancestors: tuple, report) -> None:
         parent = ancestors[-1]
         ratio = Fraction(str(parent["step_size"])) / Fraction(str(node["step_size"]))
         if ratio != 1:
-            text = (f"{where} ({node['step_size']} s) in {parent.get('name')} ({parent['step_size']} s): "
+            text = (f"{where} ({node['step_size']} s) in {container_label(parent)} ({parent['step_size']} s): "
                     f"ratio {float(ratio):g}")
             integer = ratio.denominator == 1
             report("step-ratio", "info" if integer and ratio <= STEP_RATIO_THRESHOLD else "warning",
@@ -333,7 +359,7 @@ def _lint_node(node: dict[str, Any], ancestors: tuple, report) -> None:
         fed_by_output.setdefault(source, []).append(f"{fmu_name(to_fmu)}/{to_port}")
 
     for (fmu, port), sources in feeders.items():
-        if len(sources) > 1:
+        if len(sources) > 1 and not is_clock(fmu, port):
             report("input-fed-twice", "error", f"{where}: {fmu}/{port} fed by {', '.join(sources)}")
 
     exposed_outputs: dict[str, list[str]] = {}
@@ -364,17 +390,25 @@ def _lint_node(node: dict[str, Any], ancestors: tuple, report) -> None:
                 report("auto-off-nothing-exposed", "warning", f"{where}: {option} off, no {kind} exposed")
 
 
-def lint_assembly(assembly: dict[str, Any]) -> dict[str, Any]:
-    """Report the known structural traps of an assembly, from its JSON only (decision D8).
+def lint_assembly(assembly: dict[str, Any], node: str | None = None,
+                  describe: Callable[[str], dict[str, Any]] | None = None) -> dict[str, Any]:
+    """Report the known traps of an assembly (decisions D8, D14, D15).
 
     Args:
         assembly: The assembly, in the format of `Assembly.json_encode`.
+        node: Name of the only container to lint (`find_container`); the whole tree when omitted.
+        describe: Description of an FMU by name, as `AssemblyBridge.list_fmu_ports` gives it. With it, the rules of
+            every container are also replayed into the container builder (`replay.PortChecker`); without it, only
+            the structural rules, read from the JSON, are checked.
 
     Returns:
         ``error_count``, ``warning_count`` and ``info_count`` (findings, not groups); ``findings``: one group per
         rule and severity, errors first, with ``rule``, ``severity``, ``message`` (what the rule means), ``count``
         and at most `MAX_EXAMPLES` ``examples``, each naming its container; ``truncated`` when groups beyond
         `MAX_FINDING_GROUPS` were left out. An empty assembly has no finding.
+
+    Raises:
+        ValueError: For a container `find_container` cannot designate.
     """
     groups: dict[tuple[str, str], list[str]] = {}
 
@@ -382,8 +416,17 @@ def lint_assembly(assembly: dict[str, Any]) -> dict[str, Any]:
         groups.setdefault((rule, severity), []).append(example)
 
     if assembly:
-        for node, ancestors in _ancestry(assembly):
-            _lint_node(node, ancestors, report)
+        selected = None if node is None else find_container(assembly, node)
+        checker = None
+        if describe is not None:
+            from .replay import PortChecker  # The container builder: only loaded when the ports are checked.
+            checker = PortChecker(describe)
+        for container, ancestors in _ancestry(assembly):
+            if selected is not None and container is not selected:
+                continue
+            _lint_node(container, ancestors, report, checker.is_clock if checker else lambda fmu, port: False)
+            if checker is not None:
+                checker.lint_node(container, report)
 
     rule_order = list(RULES)
     ordered = sorted(groups.items(), key=lambda item: (SEVERITIES.index(item[0][1]), rule_order.index(item[0][0])))
