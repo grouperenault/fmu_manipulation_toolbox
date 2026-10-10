@@ -47,11 +47,16 @@ by test type:
 
 ### Install the test dependencies
 
+The tests run against the installed package. From the repository root, install it in editable mode
+(pip ≥ 21.3):
+
 ```bash
+pip install -e ".[all]"       # full dev setup: GUI, MCP and test dependencies
+# or, the test dependencies only:
 pip install -e ".[test]"      # pytest, pytest-qt, pytest-cov, fmpy, numpy, PySide6
-# or, for a full dev setup:
-pip install -r requirements.txt
 ```
+
+`pip install -r requirements.txt` is equivalent to the first command.
 
 ### Run the suite
 
@@ -101,4 +106,47 @@ prerequisites are missing — they never fail silently.
    generated artefacts are easy to inspect when debugging a failure.
 4. Reuse the shared helpers in `tests/_helpers/` (`assertions.py`, `simulation.py`).
 
+## Packaging and releases
 
+The package is described by `pyproject.toml` (built with setuptools); `MANIFEST.in` selects the content of the
+source distribution.
+
+### Version
+
+The version comes from the git tags, through [setuptools-scm](https://setuptools-scm.readthedocs.io/): a
+release tagged `V1.9.4.2` is published as `1.9.4.2`, and any other commit gets a development version such as
+`1.9.4.3.dev79+g230faf6`. There is no version number to edit in the sources. A clone needs the tags
+(`git fetch --tags`) to compute it; a shallow clone gives `0.1.dev1+g<commit>`.
+
+Pre-releases use `rc` tags (`V2.0.0rc1`). Never use `dev` tags (`V0.0dev3`): setuptools-scm cannot compute the
+version of the later commits from them, and every build fails.
+
+### Building
+
+```bash
+pip install build
+python -m build --sdist --wheel
+```
+
+Build both archives from the source tree: the wheel embeds the prebuilt native binaries of every platform
+(`fmu_manipulation_toolbox/resources/<platform>/`, produced by the CI), which the sdist leaves out. A wheel built
+from the sdist would have no binaries.
+
+### Content check
+
+`tools/dist_inventory.py` builds the archives and compares them with the reference of `tests/data/packaging/`
+(data files and binaries of the wheel, metadata, entry points) and with rules computed from the files tracked by
+git (Python modules of the wheel, content of the sdist). The CI runs it on every build.
+
+```bash
+pip install build
+python tools/dist_inventory.py --check tests/data/packaging                          # needs the binaries
+python tools/dist_inventory.py --check tests/data/packaging --placeholder-binaries   # without them
+```
+
+Add `--untracked` to take files not yet added to git into account. After a deliberate change (new data file,
+dependency, entry point), review the difference and update the reference:
+
+```bash
+python tools/dist_inventory.py --write tests/data/packaging --placeholder-binaries
+```

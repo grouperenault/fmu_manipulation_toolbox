@@ -1,6 +1,6 @@
 # Plan: modern packaging (`pyproject.toml`)
 
-**Created**: 9 October 2026 — **Updated**: 10 October 2026 (phases 0 to 4 done; pre-release 0.0.dev3 published to PyPI) — **Starting branch**: `integration`
+**Created**: 9 October 2026 — **Updated**: 10 October 2026 (phases 0 to 5 done; pre-release 0.0.dev3 published to PyPI) — **Starting branch**: `integration`
 **Scope**: `setup.py`, `setup.cfg`, `requirements.txt`, `fmu_manipulation_toolbox/version.py`, `tests/pytest.ini`, the
 `ci.yml` and `release.yml` workflows, the user documentation about installation.
 
@@ -181,7 +181,8 @@ Findings during the phase:
   from the sources. `smoke-wheel` (which checks the binaries in the wheel) guards against a regression.
 - **The former wheels shipped `__version__.py`** (written by `setup.py` during the build); the new ones ship `_version.py`.
 - **`package.py`** (repository root, tracked): an old script zipping the `build/` directory. It is now part of the sdist
-  like every tracked file, and looks obsolete; to be removed or documented (not done, pending a decision).
+  like every tracked file, and looks obsolete. **Removed after phase 5** (10 October 2026): no workflow, tool or document
+  uses it.
 
 Checks performed:
 
@@ -306,6 +307,18 @@ release stays on PyPI (no default installation selects it). **Test releases must
 - `CHANGELOG.md`: displayed version without the `V` prefix (D2), new sdist content (D3), `requirements.txt` (D4).
 
 *Exit criterion*: no reference to `setup.py` or to the former `requirements.txt` content left in the user documentation.
+
+**Status on 10 October 2026: done.**
+
+| Item | File |
+|---|---|
+| Installation from source: pip ≥ 21.3, dependencies declared in `pyproject.toml`; development setup with `pip install -e ".[all]"` and why the package must be installed; test commands fixed (`tests/test_suite.py` no longer exists) | `README.md` |
+| Step 2 rewritten: `pip install -e ".[all]"` and a table of the extras instead of the former content of `requirements.txt`; pip ≥ 21.3 for development mode; `pip show` output updated (normalized name, version without `V`, `License-Expression`) and development versions explained | `docs/installation.md` |
+| Test dependencies: `pip install -e ".[all]"` first; new section *Packaging and releases*: version from the tags, `rc` tags only, building both archives from the source tree, `tools/dist_inventory.py` (`--check`, `--write`, `--placeholder-binaries`, `--untracked`) | `CONTRIBUTING.md`, `docs/help/contributing.md` |
+| Three `CHANGED` entries: `pyproject.toml` and version without `V` (D2), sdist content (D3), `requirements.txt` and installed package for development (D4) | `CHANGELOG.md` |
+
+Exit criterion checked: `setup.py` and `setup.cfg` are only named in the `CHANGELOG.md` entry announcing their removal;
+the former content of `requirements.txt` is no longer listed anywhere.
 
 ---
 

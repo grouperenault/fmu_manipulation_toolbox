@@ -13,7 +13,7 @@ This guide walks you through installing **FMU Manipulation Toolbox** on your sys
 ### Required Dependencies
 
 - **Python 3.9 or higher**
-- **pip** (Python package manager)
+- **pip** (Python package manager); pip 21.3 or higher for an installation from source in development mode
 
 ### Optional Dependencies (for compilation from source)
 
@@ -101,15 +101,17 @@ fmucontainer-gui   # FMU container builder
 fmutool-mcp --help
 ```
 
-**Expected Output:**
+**Expected Output** (excerpt):
 ```
-Name: fmu-manipulation-toolbox
-Version: 1.9.2
-Summary: FMU Manipulation Toolbox
-Home-page: https://github.com/grouperenault/fmu_manipulation_toolbox
-Author: Renault
-License: BSD-2-Clause
+Name: fmu_manipulation_toolbox
+Version: 1.9.4.2
+Summary: FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate, combine or split ...
+License-Expression: BSD-2-Clause
 ```
+
+!!! note
+    The version is displayed without the `V` prefix of the git tags (`V1.9.4.2` → `1.9.4.2`). A package installed
+    from a git checkout gets a development version computed from the last tag, e.g. `1.9.4.3.dev79+g230faf6`.
 
 ## Method 2: Installation from Source
 
@@ -125,28 +127,27 @@ git clone https://github.com/grouperenault/fmu_manipulation_toolbox.git
 cd fmu_manipulation_toolbox
 ```
 
-### Step 2: Install Python Dependencies
+### Step 2: Install the Package and its Dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[all]"
 ```
 
-**Contents of requirements.txt:**
-```
-PySide6 >= 6.8.0
-xmlschema >= 3.3.1
-elementpath >= 4.4.0
-colorama >= 0.4.6
-fmpy >= 0.3.20
-pytest >= 8.4.2
-pytest-cov >= 7.0.0
-coverage-badge >= 1.1.2
-```
+This installs the package in development mode (see [Step 4](#step-4-install-the-package)) with all its extras:
+
+| Extra | Contents |
+|-------|----------|
+| *(none)* | `xmlschema`, `elementpath`, `colorama` (and `importlib_metadata` on Python 3.9): CLI and Python API |
+| `gui` | `PySide6`: graphical tools |
+| `mcp` | `fastmcp`, `uvicorn`: MCP server and AI Assistant (Python 3.10+) |
+| `test` | `pytest`, `pytest-qt`, `pytest-cov`, `coverage-badge`, `fmpy`, `numpy`, `PySide6` |
+| `all` | `gui` + `mcp` + `test` |
+
+The dependencies and their versions are declared in `pyproject.toml`.
 
 !!! note
-    `requirements.txt` installs everything needed for development, including the GUI toolkit
-    (PySide6) and the test dependencies. This corresponds to the `gui` and `test` extras of the
-    package (see below).
+    `pip install -r requirements.txt` is equivalent: the file only contains `-e .[all]`. The package must be
+    installed to run the tests: they import the installed `fmu_manipulation_toolbox`.
 
 ### Step 3: Compile C Components
 
@@ -207,6 +208,9 @@ cd ..
 ### Step 4: Install the Package
 
 #### Development Mode Installation (changes take effect immediately)
+
+Requires pip 21.3 or higher (editable installation of a `pyproject.toml` project). Skip this step if you ran
+`pip install -e ".[all]"` at step 2.
 
 ```bash
 # CLI/API only

@@ -50,7 +50,8 @@ Two options available to install FMU Manipulation Toolbox:
 - (*Easiest option*) Install from PyPI: `pip install fmu-manipulation-toolbox`. This will install the latest
   version of FMU Manipulation Toolbox and all its dependencies. See [PyPI page](https://pypi.org/project/fmu-manipulation-toolbox/).
 - Compile and install from [GitHub repository](https://github.com/grouperenault/fmu_manipulation_toolbox). You will need 
-  - Python required packages. See [`requirements.txt`](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/requirements.txt).
+  - pip ≥ 21.3. The Python dependencies are declared in [`pyproject.toml`](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/pyproject.toml)
+    and installed by `pip install .` (see [Development](#-development)).
   - C compiler with C23 support (for the container) or C99 (for remoting)
   - CMake ≥ 3.21
 
@@ -253,13 +254,14 @@ Key design points:
 git clone https://github.com/grouperenault/fmu_manipulation_toolbox.git
 cd fmu_manipulation_toolbox
 
-# Install dependencies (includes the GUI toolkit and test dependencies)
-pip install -r requirements.txt
+# Install the package in editable mode, with every extra (GUI, MCP, tests); needs pip >= 21.3
+pip install -e ".[all]"
 ```
 
-> **Note:** `requirements.txt` installs everything needed for development (GUI + tests). If you only
-> need the CLI/API dependencies, install the package with `pip install -e .` (add `[gui]`
-> and/or `[test]` as needed, e.g. `pip install -e ".[gui,test]"`).
+> **Note:** the tests run against the installed package: without this step, pytest stops with
+> `ModuleNotFoundError: No module named 'fmu_manipulation_toolbox'`. `pip install -r requirements.txt` is
+> equivalent (the file only contains `-e .[all]`). If you only need the CLI/API dependencies, use
+> `pip install -e .` (add `[gui]`, `[mcp]` and/or `[test]` as needed, e.g. `pip install -e ".[gui,test]"`).
 
 ### Building C code (optional)
 
@@ -277,12 +279,13 @@ Same process applies for the `remoting/` directory.
 ### Running tests
 
 ```bash
-pytest tests/test_suite.py
+cd tests
+pytest
 ```
 
 With coverage report:
 ```bash
-pytest tests/test_suite.py --cov=fmu_manipulation_toolbox --cov-report=html
+pytest --cov=fmu_manipulation_toolbox --cov-report=html
 ```
 
 ### Building documentation locally
