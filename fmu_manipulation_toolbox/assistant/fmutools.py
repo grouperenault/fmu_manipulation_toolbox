@@ -17,6 +17,7 @@ Two design points are worth stating, because they shape the whole module:
 """
 
 import logging
+import re
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -123,6 +124,35 @@ def summarize_fmu(path: Path) -> dict[str, Any]:
     return summary
 
 
+#: Most groups of messages returned by `check_fmu` per list: an industrial FMU can produce thousands of errors,
+#: which would fill the context window of the model (docs/local/done/mcp_optimize.md, phase 1).
+MAX_MESSAGE_GROUPS = 50
+
+#: Examples kept for a group of messages of the same rule.
+MAX_EXAMPLES = 3
+
+_QUOTED = re.compile(r"'[^']*'")
+
+
+def _grouped(messages: list[str]) -> tuple[list[dict[str, Any]], bool]:
+    """Group the messages that differ only by their quoted parts (variable names...), in order of appearance.
+
+    Returns at most `MAX_MESSAGE_GROUPS` groups, and whether some were left out. A group of one message is
+    `{"message": m, "count": 1}`; a larger one carries the common text, with `'…'` for the quoted parts, and a
+    few complete examples.
+    """
+    groups: dict[str, list[str]] = {}
+    for message in messages:
+        groups.setdefault(_QUOTED.sub("'…'", message), []).append(message)
+    result = []
+    for template, members in groups.items():
+        if len(members) == 1:
+            result.append({"message": members[0], "count": 1})
+        else:
+            result.append({"message": template, "count": len(members), "examples": members[:MAX_EXAMPLES]})
+    return result[:MAX_MESSAGE_GROUPS], len(result) > MAX_MESSAGE_GROUPS
+
+
 def check_fmu(path: Path) -> dict[str, Any]:
     """Validate an FMU against the FMI schema and the registered checkers.
 
@@ -130,15 +160,13 @@ def check_fmu(path: Path) -> dict[str, Any]:
         path: Path to an existing ``.fmu`` file.
 
     Returns:
-        A mapping with ``fmu``, ``compliant`` (the verdict of the built-in
-        XSD check), ``compliant_with`` (the FMI version it validates against,
-        if any), ``errors``, ``warnings`` and ``checkers`` (what was run).
-
-    Note:
-        ``compliant`` reflects the **schema** check only. A checker added
-        through the plugin entry point reports through ``errors``: a non-empty
-        ``errors`` list means something is wrong even when ``compliant`` is
-        true.
+        A mapping with ``fmu``; ``compliant``, true only when the descriptor
+        validates against the FMI schema **and** no checker reported an error;
+        ``compliant_with`` (the FMI version of the schema it validates against,
+        if any); ``error_count`` and ``warning_count`` (messages); ``errors``
+        and ``warnings``, the messages grouped by rule (see `_grouped`), at
+        most `MAX_MESSAGE_GROUPS` groups each; ``truncated`` when groups were
+        left out; ``checkers`` (what was run).
     """
     checkers = [checker() for checker in get_checkers()]
     with _captured_logs(logging.WARNING) as records, FMU(str(path)) as fmu:
@@ -151,12 +179,19 @@ def check_fmu(path: Path) -> dict[str, Any]:
                            for checker in checkers
                            if getattr(checker, "compliant_with_version", None)), None)
 
+    errors = _messages(records, logging.ERROR, logging.CRITICAL)
+    warnings = _messages(records, logging.WARNING)
+    error_groups, errors_truncated = _grouped(errors)
+    warning_groups, warnings_truncated = _grouped(warnings)
     return {
         "fmu": path.name,
-        "compliant": compliant_with is not None,
+        "compliant": compliant_with is not None and not errors,
         "compliant_with": compliant_with,
-        "errors": _messages(records, logging.ERROR, logging.CRITICAL),
-        "warnings": _messages(records, logging.WARNING),
+        "error_count": len(errors),
+        "warning_count": len(warnings),
+        "errors": error_groups,
+        "warnings": warning_groups,
+        "truncated": errors_truncated or warnings_truncated,
         "checkers": [repr(checker) for checker in checkers],
     }
 

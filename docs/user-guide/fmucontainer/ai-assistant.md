@@ -200,7 +200,7 @@ These come from `fmutool` and the `Checker`. They read or rewrite **one**
 | Tool | Description |
 |------|-------------|
 | `summarize_fmu` | Identity, capabilities, platforms, embedded resources, port counts |
-| `check_fmu` | FMI schema conformity, plus any registered checker |
+| `check_fmu` | Conformity to the FMI standard: schema and semantic rules, plus any registered checker |
 | `dump_ports_csv` | Export every port to a CSV file, for bulk renaming |
 | `rename_ports_from_csv` | Rename — or drop — ports from that CSV |
 | `apply_operation` | Strip/merge a `Bus.` prefix, trim, or filter ports by regexp |
@@ -208,6 +208,13 @@ These come from `fmutool` and the `Checker`. They read or rewrite **one**
 The three that rewrite an FMU always produce a **new** file and leave the
 source untouched. They change the FMU interface, so anything already
 connected to the old port names will break.
+
+`check_fmu` answers `compliant: true` only when the descriptor validates against the FMI schema **and** no
+checker reports an error (`compliant_with` gives the FMI version of the schema). To keep the answer small, the
+messages of the same rule are grouped, with their `count` and a few `examples` — 2500 variables without start
+value make one entry — and at most 50 groups are returned per list; `error_count` and `warning_count` give the
+totals and `truncated` tells whether groups were left out. The full report is printed by
+`fmutool -input model.fmu -check`.
 
 !!! warning "An empty `newName` removes the port"
 
@@ -219,11 +226,13 @@ connected to the old port names will break.
 
 `list_fmu_ports` and `inspect_fmu_file` report **every** variable of the FMU —
 inputs, outputs, parameters and locals alike — each with its `causality`,
-`variability`, `type`, `unit`, `start` value and `description`.
+`variability`, `type`, `unit`, `start` value and `description`. Attributes the
+FMU does not declare are left out, and descriptions are cut after 80
+characters.
 
-Industrial FMUs have thousands of variables, so the answer is bounded: at most
-100 ports are returned per call. Rather than paging blindly, narrow the
-request:
+Industrial FMUs have thousands of variables, so the answer is bounded: 50
+ports are returned per call by default, at most 200 with `limit`. Rather than
+paging blindly, narrow the request:
 
 - `causality=["output"]` before looking for something to wire,
 - `name_pattern="^engine_"` to search by name (a regular expression),
@@ -235,6 +244,22 @@ The `counts` field always describes the whole FMU, whatever the filter, and
 
 Two resources are also exposed: `guide://usage` (how to drive the tool) and
 `assembly://current` (the current assembly as JSON).
+
+## Local models
+
+The tools also work with models run locally, e.g. Qwen, Llama or Mistral served by
+[Ollama](https://ollama.com/) or [LM Studio](https://lmstudio.ai/), provided their **context window** is large
+enough. The definitions of the tools alone take about 4,000 tokens, sent with every request, and every tool
+result stays in the conversation: a page of ports is about 2,000 tokens.
+
+- Use a context of **16k tokens at least, 32k recommended**. Local runtimes often start with a much smaller
+  one: in Ollama, raise `num_ctx` (e.g. `PARAMETER num_ctx 32768` in a `Modelfile`, or the `options` of the
+  API request); in LM Studio, raise the *Context Length* of the model.
+- When the context is too small, the runtime silently drops the beginning of the conversation: the assistant
+  **forgets its tools** or its instructions, calls tools that do not exist, or answers without using them.
+  Increase the context, or start a new conversation.
+- Keep the requests narrow: filter the port listings (`causality`, `name_pattern`) rather than paging through a
+  whole FMU.
 
 ## Prompts and reference resources
 

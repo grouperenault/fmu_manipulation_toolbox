@@ -2,6 +2,17 @@
 This package was formerly known as `fmutool`.
 
 # Upstream
+* CHANGED (**breaking** for MCP clients): MCP server: `check_fmu` groups the messages of the same
+         rule (`count`, `examples`) and returns at most 50 groups per list, with `error_count`,
+         `warning_count` and `truncated`: `errors` and `warnings` are lists of groups instead of
+         strings. `compliant` is false when a checker reports an error (it reflected the FMI schema
+         only). A non-compliant FMU of 5000 variables gave a 72k-token answer.
+* CHANGED: MCP server: `list_fmu_ports`, `inspect_fmu_file` and the `fmu://{name}/ports` resource
+         return 50 ports by default (was 100), at most 200 (was 1000); attributes the FMU does not
+         declare are left out instead of `null`, and descriptions are cut after 80 characters.
+* CHANGED: MCP server: shorter tool descriptions, and optional parameters published without their
+         `null` variant (still accepted): the tool definitions take about 4,200 tokens instead of
+         4,800, which matters for local models with a small context (see the AI Assistant guide).
 * CHANGED (**breaking**): `FMUPort` is removed. The ports given to `OperationAbstract.port_attrs`
          are `ModelVariable` objects (`fmu_manipulation_toolbox.model_description`, also
          importable from `fmu_manipulation_toolbox.operations`), with the same interface (`[]`,

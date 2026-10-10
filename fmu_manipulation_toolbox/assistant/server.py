@@ -170,6 +170,26 @@ def describe_argument_errors(tool: str, errors: list[dict[str, Any]], schema: di
             f"Fix the arguments and call the tool again.")
 
 
+def compact_schema(schema: Any) -> Any:
+    """Copy of a JSON schema where `anyOf: [X, null]` becomes `X` and `default: null` is dropped.
+
+    The tool definitions are sent with every request (docs/local/done/mcp_optimize.md): an optional parameter is
+    published by its type only, as omitting it is the way to leave it unset. Only the published schema changes:
+    the arguments are still validated against the signatures, so a client sending `null` is accepted.
+    """
+    if isinstance(schema, list):
+        return [compact_schema(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+    compact = {key: compact_schema(value) for key, value in schema.items()
+               if not (key == "default" and value is None)}
+    variants = compact.get("anyOf")
+    if isinstance(variants, list) and len(variants) == 2 and {"type": "null"} in variants:
+        del compact["anyOf"]
+        compact.update(next(variant for variant in variants if variant != {"type": "null"}))
+    return compact
+
+
 def _guard(fn):
     """Turn backend exceptions into actionable MCP errors.
 
@@ -270,7 +290,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     # which ships with fastmcp: importing this package must stay possible
     # without the optional `mcp` extra.
     from .models import (
-        DEFAULT_PORT_LIMIT, ContainerOptions, FmuPorts, FmuSummary, Link, Port,
+        DEFAULT_PORT_LIMIT, MAX_PORT_LIMIT, ContainerOptions, FmuPorts, FmuSummary, Link, Port,
         RemovalReport, StartValue, format_start_value, option_reference,
     )
     # Same reasoning, different cost: `fmutools` pulls in the XSD validator and
@@ -297,13 +317,21 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
                 schema = tool.parameters if tool is not None else {}
                 raise ToolError(describe_argument_errors(tool_name, cause.errors(), schema)) from None
 
-    mcp.add_middleware(ArgumentErrors())
+    class CompactSchemas(Middleware):
+        """Publish the input schemas without the `null` variant of the optional parameters (see `compact_schema`)."""
 
+        async def on_list_tools(self, context, call_next):
+            tools = await call_next(context)
+            return [tool.model_copy(update={"parameters": compact_schema(tool.parameters)}) for tool in tools]
+
+    mcp.add_middleware(ArgumentErrors())
+    mcp.add_middleware(CompactSchemas())
+
+    # Repeated in the schema of many tools: keep these descriptions short (docs/local/done/mcp_optimize.md).
     FmuName = Annotated[str, Field(
-        description="File name of an FMU already in the assembly, e.g. "
-                    "'controller.fmu'. Use `list_fmus` if unsure.")]
+        description="Name of an FMU of the assembly, e.g. 'controller.fmu' (see `list_fmus`).")]
     PortName = Annotated[str, Field(
-        description="Port name exactly as reported by `list_fmu_ports`.")]
+        description="Port name, as given by `list_fmu_ports`.")]
     CausalityFilter = Annotated[list[str] | None, Field(
         description="Keep only these causalities, e.g. ['input', 'output']. "
                     "Omit to get them all.")]
@@ -314,7 +342,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         ge=0, description="Index of the first port to return, for paging "
                           "through a large FMU.")]
     Limit = Annotated[int, Field(
-        ge=1, le=1000, description="Maximum number of ports to return.")]
+        ge=1, le=MAX_PORT_LIMIT, description="Maximum number of ports to return.")]
 
     def _as_ports_page(description: dict[str, Any], causality, pattern,
                        offset: int, limit: int) -> FmuPorts:
@@ -348,7 +376,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
             returned=len(page),
             offset=offset,
             truncated=offset + len(page) < len(selected),
-            ports=[Port(**port) for port in page],
+            ports=[Port.from_description(port) for port in page],
         )
 
     @mcp.tool(annotations=READ_ONLY)
@@ -372,14 +400,10 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> FmuPorts:
         """List the ports of an FMU **already in the assembly**.
 
-        Always call this before `add_link`, `expose_input`, `expose_output` or
-        `set_start_value`: never guess a port name.
-
-        Large FMUs are paginated. Narrow the result with `causality` (for
-        instance `['output']` before wiring) or `name_pattern` rather than
-        paging blindly; check `truncated` to know whether ports are missing.
-
-        To look at a file that has not been added yet, use `inspect_fmu_file`.
+        Call it before `add_link`, `expose_input`, `expose_output` or
+        `set_start_value`: never guess a port name. The result is paginated:
+        filter with `causality` or `name_pattern` rather than paging, and check
+        `truncated`. For a file not added yet, use `inspect_fmu_file`.
         """
         return _as_ports_page(bridge.list_fmu_ports(fmu), causality, name_pattern,
                               offset, limit)
@@ -388,8 +412,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     @_guard
     def inspect_fmu_file(
         path: Annotated[str, Field(
-            description="Path to an existing .fmu file, e.g. "
-                        "'/home/me/models/controller.fmu'.")],
+            description="Path to an existing .fmu file.")],
         causality: CausalityFilter = None,
         name_pattern: PatternFilter = None,
         offset: Offset = 0,
@@ -397,8 +420,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> FmuPorts:
         """Inspect an `.fmu` file **without** adding it to the assembly.
 
-        Use it to check what an FMU offers before committing to it, or to
-        compare a candidate with what is already on the canvas.
+        Same result and filters as `list_fmu_ports`.
         """
         description = bridge.inspect_fmu_file(str(policy.resolve_input(path)))
         return _as_ports_page(description, causality, name_pattern, offset, limit)
@@ -407,18 +429,13 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     @_guard
     def add_fmu(
         path: Annotated[str, Field(
-            description="Path to an existing .fmu file, e.g. "
-                        "'/home/me/models/controller.fmu'.")],
+            description="Path to an existing .fmu file.")],
     ) -> FmuSummary:
-        """Add an FMU to the assembly and summarise what it brings.
+        """Add an FMU to the assembly and summarise it.
 
-        The returned `fmu` name is what every other tool expects afterwards,
-        and `counts` tells you how many inputs/outputs/parameters it has, so
-        you often do not need a separate `list_fmu_ports` call to decide what
-        to do next.
-
-        Adding two files with the same base name is ambiguous: ask the user to
-        rename one.
+        The returned `fmu` name is what the other tools expect; `counts` gives
+        the number of ports per causality. Two files with the same base name
+        are ambiguous: ask the user to rename one.
         """
         return FmuSummary(**bridge.add_fmu(str(policy.resolve_input(path))))
 
@@ -444,14 +461,9 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> str:
         """Connect an OUTPUT port of one FMU to an INPUT port of another.
 
-        Direction matters: `from_port` must be an output and `to_port` an
-        input. Types should be compatible; numeric conversions are applied but
-        may lose precision, and a real-to-boolean link is worth confirming with
-        the user.
-
-        `auto_link` is enabled by default and already connects ports sharing
-        the same name and type, so you usually only need this for ports whose
-        names differ.
+        Numeric conversions are applied but may lose precision: confirm a
+        real-to-boolean link with the user. `auto_link` (on by default) already
+        connects ports with the same name and type: this is for the others.
         """
         return bridge.add_link(from_fmu, from_port, to_fmu, to_port)
 
@@ -461,12 +473,10 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         links: Annotated[list[Link], Field(
             description="Links to create, applied in order.", min_length=1)],
     ) -> dict[str, Any]:
-        """Create several links in one call.
+        """Create several links in one call (see `add_link`).
 
-        Wiring two FMUs port by port costs one round-trip per link; this takes
-        them all at once. Links are applied **in order and independently**: a
-        rejected link does not undo the previous ones, so read `failed` before
-        telling the user the wiring is done.
+        Links are applied in order and independently: a rejected link does not
+        undo the others, so read `failed` before reporting the wiring as done.
         """
         created, failed = [], []
         for link in links:
@@ -537,12 +547,10 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
     def unset_start_value(fmu: FmuName, port: PortName) -> str:
-        """Drop a start value previously set with `set_start_value`.
+        """Drop a start value set with `set_start_value`.
 
-        The port falls back to the value declared by the FMU itself — which
-        may be none at all, in which case the solver uses the FMI default for
-        the type. Only values *you* set can be dropped: this cannot override
-        what the FMU declares.
+        The port falls back to the value declared by the FMU, if any; what the
+        FMU declares cannot be dropped.
         """
         return bridge.unset_start_value(fmu, port)
 
@@ -606,9 +614,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         path with the user before calling this: it is the final step and it
         writes to disk.
 
-        This is by far the slowest tool — every embedded FMU is unzipped,
-        rewritten and re-zipped — so it reports progress as it goes. Do not
-        start a second build while one is running.
+        This is the slowest tool (it reports progress): do not start a second
+        build while one is running.
         """
         destination = policy.resolve_output(path, (".fmu",), overwrite)
         # Progress notifications carry the status message rather than
@@ -646,10 +653,10 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> dict[str, Any]:
         """Validate an FMU against the FMI schema and the registered checkers.
 
-        `compliant` reports the schema verdict only: always read `errors` as
-        well, and quote them to the user rather than summarising them away.
-        A non-compliant FMU may still load in some tools, so do not promise
-        that fixing it is required — report what was found.
+        `compliant` is true only if the schema validates and no checker reported
+        an error. Messages of one rule are grouped (`count`, `examples`). Quote
+        them; if `truncated`, say the list is incomplete (full report:
+        `fmutool -input <fmu> -check`).
         """
         return fmutools.check_fmu(policy.resolve_input(path))
 
@@ -683,12 +690,9 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> dict[str, Any]:
         """Rename — or drop — the ports of an FMU from a CSV mapping.
 
-        An **empty** `newName` **removes** the port: say so explicitly when
-        reporting the result, since `removed` is rarely what the user meant
-        when they only asked for renaming.
-
-        Renaming ports changes the FMU interface: anything already connected
-        to the old names will break.
+        An **empty** `newName` **removes** the port: say so when reporting
+        `removed`. Renaming changes the FMU interface: what is connected to the
+        old names breaks.
         """
         return fmutools.rename_ports_from_csv(
             policy.resolve_input(fmu),
@@ -719,9 +723,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> dict[str, Any]:
         """Rewrite the port names of an FMU with one descriptor operation.
 
-        These operations change the FMU **interface**: every consumer bound to
-        the old names breaks. Confirm with the user, and never write over the
-        source file — the output is a separate FMU on purpose.
+        This changes the FMU **interface**: confirm with the user. The output is
+        a separate FMU, never the source.
         """
         return fmutools.apply_operation(
             policy.resolve_input(fmu),
@@ -755,7 +758,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         """The ports of one FMU of the assembly, as JSON."""
         page = _as_ports_page(bridge.list_fmu_ports(name), None, None,
                               0, DEFAULT_PORT_LIMIT)
-        return page.model_dump_json(indent=2)
+        return page.model_dump_json()
 
     # -- prompts -----------------------------------------------------------
     # The procedures live here rather than in a repository file: they must

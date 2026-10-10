@@ -11,7 +11,7 @@ only imported when the server is actually built.
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, model_serializer
 
 #: Value kinds accepted for a start value, before conversion to the FMI
 #: textual representation.
@@ -19,22 +19,25 @@ StartValue = bool | int | float | str
 
 #: Maximum number of ports returned by a single call, to keep the answer
 #: readable and the context small on industrial FMUs.
-DEFAULT_PORT_LIMIT = 100
+DEFAULT_PORT_LIMIT = 50
+
+#: Largest page of ports a client may ask for: about 31k characters (~9k tokens) of compact ports.
+MAX_PORT_LIMIT = 200
+
+#: Descriptions of the ports longer than this are cut (with `…`): they help to match ports by meaning, but some
+#: generators write whole paragraphs (docs/local/done/mcp_optimize.md, decision D3).
+MAX_DESCRIPTION_LENGTH = 80
 
 
 class ContainerOptions(BaseModel):
-    """Runtime options of the root container.
-
-    Every field is optional: only the ones explicitly provided are updated,
-    the others keep their current value.
-    """
+    """Container options to change; the others keep their value."""
 
     model_config = ConfigDict(extra="forbid")
 
     step_size: float | None = Field(
         default=None, gt=0,
-        description="Internal fixed time step, in seconds (e.g. 0.001). Leave "
-                    "unset to let the toolbox derive it from the embedded FMUs.",
+        description="Internal time step, in seconds (e.g. 0.001). Leave unset to "
+                    "derive it from the embedded FMUs.",
     )
     mt: bool | None = Field(
         default=None,
@@ -47,14 +50,13 @@ class ContainerOptions(BaseModel):
     )
     sequential: bool | None = Field(
         default=None,
-        description="Use sequential scheduling instead of the default "
-                    "Gauss-Seidel sweep. Mutually exclusive in intent with `mt`.",
+        description="Sequential scheduling instead of the default Gauss-Seidel "
+                    "sweep; not with `mt`.",
     )
     auto_link: bool | None = Field(
         default=None,
-        description="Automatically connect ports sharing the same name and "
-                    "type. Enabled by default: explicit links are only needed "
-                    "for ports whose names differ.",
+        description="Connect the ports with the same name and type. Enabled by "
+                    "default: explicit links are for the other ports.",
     )
     auto_input: bool | None = Field(
         default=None,
@@ -144,7 +146,25 @@ class Port(BaseModel):
                                   "or 'continuous'.")
     unit: str | None = Field(default=None, description="Unit, when declared.")
     start: str | None = Field(default=None, description="Start value declared by the FMU.")
-    description: str | None = Field(default=None, description="Free-text description.")
+    description: str | None = Field(
+        default=None, description=f"Free-text description, cut after {MAX_DESCRIPTION_LENGTH} characters.")
+
+    @model_serializer(mode="wrap")
+    def _compact(self, handler: SerializerFunctionWrapHandler):
+        """Leave out the attributes the FMU does not declare: a `null` costs tokens and says nothing.
+
+        No return annotation on purpose: Pydantic would publish it as the output schema of `Port`, and the clients
+        would lose the description of its fields.
+        """
+        return {key: value for key, value in handler(self).items() if value is not None}
+
+    @classmethod
+    def from_description(cls, port: dict[str, Any]) -> "Port":
+        """A port of a bridge description, its description cut to `MAX_DESCRIPTION_LENGTH` characters."""
+        description = port.get("description")
+        if description and len(description) > MAX_DESCRIPTION_LENGTH:
+            port = {**port, "description": description[:MAX_DESCRIPTION_LENGTH - 1].rstrip() + "…"}
+        return cls(**port)
 
 
 class FmuPorts(BaseModel):
