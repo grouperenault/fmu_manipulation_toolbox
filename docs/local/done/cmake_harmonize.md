@@ -122,6 +122,8 @@ Fix the compiler warnings of remoting (cmake_harmonize step 3)
 
 - `docs/installation.md`, "Compile C Components": both components require a C23 compiler; the build options
   (`FMUTOOL_WARNINGS_AS_ERRORS`, `FMUTOOL_STRICT_CONVERSION`, `FMUTOOL_PGO`, `BUILD_32`) and the PGO workflow.
+- `docs/installation.md`: the documented builds use `cmake --build . --config Release` (with Visual Studio, the default
+  configuration is Debug, which now also writes into `resources/<FMI_PLATFORM>`).
 - `CHANGELOG.md`: one entry.
 - Move this plan to `docs/local/done/`.
 
