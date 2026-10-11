@@ -280,7 +280,21 @@ def test_container_with_instances_simulates_alike(area_dir, caplog, kind, fmi_ve
 
     if WIN:
         from fmpy import simulate_fmu
-        result = simulate_fmu(f"two_balls_{kind}.fmu", stop_time=5, output=["position", "position_2"])
+
+        # TEMPORARY instrumentation: the FMI-2 containers crashed in `fmi2Instantiate` here. The debug log of the
+        # container is kept in memory: with Python 3.10 the access violation is an `OSError`, and the last lines of
+        # the log tell at which step it happened (loading of the n-th library, `fmi2Instantiate` of the n-th FMU...).
+        log: list[str] = []
+
+        def logger(*args):
+            message = args[-1].decode("utf-8", "replace") if isinstance(args[-1], bytes) else str(args[-1])
+            log.append(message)
+
+        try:
+            result = simulate_fmu(f"two_balls_{kind}.fmu", stop_time=5, output=["position", "position_2"],
+                                  debug_logging=True, logger=logger)
+        except OSError as error:
+            pytest.fail(f"{error}; last lines of the container log:\n" + "\n".join(log[-40:]))
         assert len(result) > 1
         assert list(result["position"]) == list(result["position_2"])
 
