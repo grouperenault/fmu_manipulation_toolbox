@@ -36,10 +36,12 @@ by test type:
 
 | Directory | Contents |
 |-----------|----------|
-| `tests/unit/` | fast, pure-Python tests (operations, checker) — no FMI simulation |
-| `tests/integration/` | container / split / CLI tests, file I/O, optional FMI simulation (`fmpy`) |
+| `tests/unit/` | fast, pure-Python tests (model description, operations, checkers, container internals, MCP server) — no FMI simulation |
+| `tests/integration/` | container / split / CLI tests, invariants of the operations, file I/O, optional FMI simulation (`fmpy`) |
 | `tests/gui/` | PySide6 GUI tests (require `pytest-qt`) |
 | `tests/data/<area>/` | read-only reference data (FMUs, JSON, CSV, …) per functional area |
+| `tests/_helpers/` | helpers shared by the tests (see below) |
+| `tests/benchmarks/` | performance measurements, not collected by pytest (see below) |
 
 ### Install the test dependencies
 
@@ -93,14 +95,33 @@ prerequisites are missing — they never fail silently.
 ### Adding a test
 
 1. Put reference data under `tests/data/<area>/` (inputs and `REF-*` files only — never commit
-   generated outputs).
+   generated outputs). Every FMU of `tests/data/` is picked up automatically by
+   `integration/test_operations_invariants.py`, which checks that each built-in operation keeps an
+   XSD-valid descriptor valid and that read-only operations leave it unchanged.
 2. Add the test to the matching module in `tests/unit/`, `tests/integration/` or `tests/gui/`.
 3. Decorate it with the relevant markers, e.g. `@pytest.mark.area("<area>")`. The `area_dir`
    fixture copies that data directory into `tests/tmp/<test>/` and `chdir`s into it, so your test
    can refer to files by their bare names and write outputs without polluting the source tree.
    The `tests/tmp/` tree is wiped at the start of every session and kept afterwards, so the
    generated artefacts are easy to inspect when debugging a failure.
-4. Reuse the shared helpers in `tests/_helpers/` (`assertions.py`, `simulation.py`).
+4. Reuse the shared helpers in `tests/_helpers/`:
+    - `assertions.py`: file and XML comparisons (`assert_identical_files`, `assert_equivalent_xml`, …);
+    - `simulation.py`: FMI simulation with `fmpy` and comparison with a reference;
+    - `mcp_budget.py`: synthetic FMUs and assemblies of industrial size, and the context budget of the MCP
+      server (`python tests/_helpers/mcp_budget.py` prints its measurements);
+    - `assistant_bridge.py`: `FakeBridge`, an in-memory bridge to drive the MCP server without Qt.
+5. Write the docstrings and comments of a test about the behaviour it checks and why it matters, not about
+   the plan, the phase or the issue that introduced it: the history belongs to git.
+
+### Benchmarks
+
+`tests/benchmarks/bench_manipulation.py` measures the time and the peak memory of `FMU.apply_operation` on
+large synthetic descriptors, to spot a performance regression. It is not part of the test suite; run it from
+the repository root, it prints a Markdown table:
+
+```bash
+python tests/benchmarks/bench_manipulation.py [--variables 1000 10000 100000] [--repeat 3]
+```
 
 ## Packaging and releases
 

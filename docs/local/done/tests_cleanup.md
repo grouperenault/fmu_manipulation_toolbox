@@ -307,6 +307,10 @@ determinism of the container build moves to test_container.py. The
   - state the convention adopted here: test docstrings describe the behaviour, never a plan or a phase.
 - Move this plan to `docs/local/done/`.
 
+**Result:** `CONTRIBUTING.md` and `docs/help/contributing.md` (same "Running tests" section) updated: directory
+table (`unit/`, `integration/`, `_helpers/`, `benchmarks/`), automatic check of every FMU of `tests/data/` by the
+invariants, list of the shared helpers, convention on test docstrings, and a "Benchmarks" section.
+
 Commit message:
 
 ```
