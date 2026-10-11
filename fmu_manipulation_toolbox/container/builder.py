@@ -454,13 +454,14 @@ class FMUContainer:
             if cport.port.causality == 'input':
                 inputs_by_signature[(cport.port.name, cport.port.type_name)].append(cport)
 
-        # Auto Link outputs
+        # Auto Link outputs. The instances of an FMU share its port names: they are never auto-linked, otherwise an
+        # output would feed the inputs of every instance.
         for cport in all_cports:
             if cport.port.causality == 'output':
                 candidates_cport_list = [candidate for candidate in
                                          inputs_by_signature[(cport.port.name, cport.port.type_name)]
-                                         if candidate not in self.rules]
-                if auto_link and candidates_cport_list:
+                                         if candidate not in self.rules and not candidate.fmu.is_instance]
+                if auto_link and candidates_cport_list and not cport.fmu.is_instance:
                     for candidate_cport in candidates_cport_list:
                         logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
                         self.add_link(cport.fmu.name, cport.port.name,
@@ -468,9 +469,10 @@ class FMUContainer:
                         auto_wired.add_link(cport.fmu.name, cport.port.name,
                                             candidate_cport.fmu.name, candidate_cport.port.name)
                 elif auto_output and cport not in self.rules:
-                    logger.info(f"AUTO OUTPUT: Expose {cport}")
-                    self.add_output(cport.fmu.name, cport.port.name, cport.port.name)
-                    auto_wired.add_output(cport.fmu.name, cport.port.name, cport.port.name)
+                    output_name = self._auto_name(cport)
+                    logger.info(f"AUTO OUTPUT: Expose {cport} as {output_name}")
+                    self.add_output(cport.fmu.name, cport.port.name, output_name)
+                    auto_wired.add_output(cport.fmu.name, cport.port.name, output_name)
             elif cport.port.causality == 'local':
                 local_portname = None
                 if cport.port.name.startswith("container."):
@@ -492,13 +494,22 @@ class FMUContainer:
                     self.add_input(parameter_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
                 elif auto_input and cport.port.causality == 'input' :
-                    logger.info(f"AUTO INPUT: Expose {cport}")
-                    self.add_input(cport.port.name, cport.fmu.name, cport.port.name)
-                    auto_wired.add_input(cport.port.name, cport.fmu.name, cport.port.name)
+                    input_name = self._auto_name(cport)
+                    logger.info(f"AUTO INPUT: Expose {cport} as {input_name}")
+                    self.add_input(input_name, cport.fmu.name, cport.port.name)
+                    auto_wired.add_input(input_name, cport.fmu.name, cport.port.name)
 
         logger.info(f"Auto-wiring: {auto_wired}")
 
         return auto_wired
+
+    def _auto_name(self, cport: ContainerPort) -> str:
+        """Name under which `auto_input` / `auto_output` expose `cport`: its port name, or `<id>.<port>` when the
+        port name is already exposed, as an input or as an output (the instances of an FMU share its port names,
+        and the variables of the container need distinct names)."""
+        if cport.port.name in self.inputs or cport.port.name in self.outputs:
+            return f"{cport.fmu.id}.{cport.port.name}"
+        return cport.port.name
 
     def default_step_size(self) -> float:
         """Compute the default step size from embedded FMUs.

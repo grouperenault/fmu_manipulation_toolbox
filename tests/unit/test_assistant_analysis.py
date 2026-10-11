@@ -502,11 +502,11 @@ def test_the_auto_rules_are_dry_run(two_fmus):
 
 
 def test_an_auto_rule_refused_by_the_builder(two_fmus):
-    """`auto_output` exposes both 'dup' outputs under the same name: the build fails."""
-    assembly = {"name": "c.fmu", "fmu": ["a.fmu", "b.fmu"]}
+    """`auto_output` exposes the second 'dup' output as 'b.dup', a name an explicit output already uses."""
+    assembly = {"name": "c.fmu", "fmu": ["a.fmu", "b.fmu"], "output": [["a.fmu", "y", "b.dup"]]}
 
     [example] = _findings_with(assembly, two_fmus)[("auto-rules-error", "error")]
-    assert "dup" in example
+    assert "b.dup" in example
 
 
 def test_entries_with_a_sub_container_are_not_checked(two_fmus):

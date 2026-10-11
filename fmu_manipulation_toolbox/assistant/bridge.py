@@ -25,8 +25,9 @@ SUPPORTED_FMI_VERSIONS = (2, 3)
 class AssemblyBridge(Protocol):
     """Assembly operations an MCP client can drive.
 
-    Embedded FMUs are designated by their **file name** (e.g. ``controller.fmu``),
-    not by their full path.
+    Embedded FMUs are designated by their **name**: the file name (e.g.
+    ``controller.fmu``), not the full path, or the name of an instance
+    (``controller-1.fmu``) when a file is embedded several times.
 
     Implementations raise plain exceptions on invalid requests
     (``ValueError`` for an unknown FMU/port, ``FileNotFoundError`` for a missing
@@ -35,7 +36,7 @@ class AssemblyBridge(Protocol):
 
     # -- introspection -----------------------------------------------------
     def list_fmus(self) -> list[str]:
-        """Return the file names of the FMUs currently in the assembly."""
+        """Return the names of the FMUs currently in the assembly."""
 
     def list_fmu_ports(self, fmu: str) -> dict[str, Any]:
         """Describe an FMU of the assembly, designated by its name.
@@ -58,6 +59,10 @@ class AssemblyBridge(Protocol):
     # -- mutations ---------------------------------------------------------
     def add_fmu(self, path: str) -> dict[str, Any]:
         """Add the FMU found at ``path``.
+
+        A file already in the assembly, or another file with the same base
+        name, is added as a new instance, named ``<stem>-<n>.fmu`` with the
+        smallest free ``n``.
 
         Returns a summary: ``fmu`` (the name to use afterwards), ``path``,
         ``fmi_version``, ``generator``, ``kinds``, ``counts``, ``terminals``.

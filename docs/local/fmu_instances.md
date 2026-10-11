@@ -35,6 +35,8 @@ file name.
 | 10 | MCP `add_fmu` on a file already in the assembly | Creates a new instance and returns its name |
 | 11 | SSP | In scope: each component becomes an instance (first one named after the file, then `-1`, `-2`, …) |
 | 12 | `replace_fmu` on an instance | This node only; its name is recomputed from the new file (smallest free name) |
+| 13 | `auto_output` / `auto_input` when the exposed name is already taken (step 4) | Prefix on collision: the first port keeps its name, the next ones are exposed as `<id>.<port>` (as `auto_parameter` / `auto_local`). A name counts as taken when it is exposed as an input *or* an output, so that the container variables keep distinct names. Replaces the "Duplicate OUTPUT" error and the silent merge of same-name inputs |
+| 14 | `auto_link` with instances (step 4) | Instances (`EmbeddedFMU.is_instance`: name different from the file name) are never auto-linked, neither as source nor as target: they are linked explicitly |
 
 Consequences, confirmed by the user (2026-10-11):
 
@@ -167,6 +169,24 @@ Support FMU instances in fmusplit and in the SSP reader (fmu_instances step 3)
 Tests: `unit/test_assistant_headless.py` (second add, same base name), `unit/test_assistant_server_*.py` (contract
 and descriptions), `unit/test_assistant_analysis.py` (assembly with a `"path"` block).
 
+**Result:**
+- Headless bridge: `add_fmu` names the FMU with `instance_name` (so another file with a used base name also gets an
+  instance name, C1) and references each FMU in the `Assembly` as a sibling of its file (C2).
+- Server: `add_fmu` is annotated as a non-idempotent, non-destructive write (`WRITE`), since a retry adds an
+  instance; its description, the `AssemblyBridge` protocol and the know-how (`knowledge.py`) explain the instances.
+- Builder (found while testing the default options, decisions 13 and 14): with the `auto_*` rules on by default,
+  two instances exposed the same output name (build error), merged their inputs, and `auto_link` cross-wired them.
+  `add_implicit_rule` now skips the instances for `auto_link` and qualifies a taken name (`FMUContainer._auto_name`).
+  This also fixes a former defect: a container input and output could share one name, giving two variables with
+  the same name in `modelDescription.xml`.
+- The analysis needed no change: the lint reads the ports of an instance through `list_fmu_ports(name)`, which the
+  headless bridge serves for instances.
+
+Tests: `unit/test_assistant_headless.py` (second add, other file with the same base name, `path` block, build, lint),
+`unit/test_assistant_server_contract.py` (`add_fmu` not idempotent), `unit/test_container_internals.py` (auto rules
+with instances), `unit/test_assistant_analysis.py` (auto rule refused: updated, the former collision is now
+prefixed). Suite: 1 589 passed, 2 skipped.
+
 Commit message:
 
 ```
@@ -210,6 +230,8 @@ follow the node by its name.
 - `docs/user-guide/fmucontainer/gui-usage.md`, "Adding FMU Nodes": adding an FMU twice, naming of the instances,
   replacing the FMU of an instance.
 - `docs/user-guide/fmucontainer/ai-assistant.md`: `add_fmu` and instances.
+- `docs/user-guide/fmucontainer/container.md`: the `auto_*` rules with instances (no auto-link, `<id>.<port>` names
+  on collision).
 - `docs/local/ROADMAP.md`: tick "support multiple instances of an FMU into an Assembly (GUI)".
 - Move this plan to `docs/local/done/`.
 

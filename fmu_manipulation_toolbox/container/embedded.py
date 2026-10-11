@@ -189,6 +189,8 @@ class EmbeddedFMU(OperationAbstract):
         name (str): Name of the embedded FMU: its filename (e.g. `"model.fmu"`), or the name of an instance of an
             FMU embedded several times (e.g. `"model-1.fmu"`).
         id (str): Lowercase stem of the name, used as an identifier (e.g. `"model-1"`).
+        is_instance (bool): Whether the name differs from the filename: an instance of an FMU embedded several
+            times, or another file with an already used filename.
         terminals (Terminals): FMI Terminals defined by this FMU.
         ls (LayeredStandard): LS-BUS layered standard information.
         step_size (float | None): Preferred step size in seconds, or `None`.
@@ -221,6 +223,7 @@ class EmbeddedFMU(OperationAbstract):
         self.fmu = FMU(filename)
         self.name = Path(name or filename).name
         self.id = Path(self.name).stem.lower()
+        self.is_instance = self.name != Path(filename).name
 
         logger.debug(f"Analysing {self.name}")
         self.terminals = Terminals(self.fmu.tmp_directory)

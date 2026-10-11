@@ -54,7 +54,8 @@ To undo: `remove_link` drops a link, `unset_start_value` drops a start value
 you set, `remove_fmu` drops an FMU and everything attached to it.
 
 Tips:
-- FMU names are the file base names (e.g. `controller.fmu`).
+- FMU names are the file base names (e.g. `controller.fmu`). Adding a file
+  again adds another instance of it, named `controller-1.fmu`, `-2`...
 - Port listings are paginated. Filter with `causality=['output']` or
   `name_pattern='^engine_'` rather than paging through an industrial FMU, and
   check the `truncated` flag before concluding that a port does not exist.
@@ -201,9 +202,10 @@ standalone, the assembly only materialises when you export or build it.
 Follow this procedure:
 
 1. **Inventory** — call `list_fmus`. Never assume the canvas is empty.
-2. **Add** — `add_fmu(path)` per file. Afterwards, FMUs are designated by their
-   **base name** (`controller.fmu`), not by their path. If two different files
-   share the same base name, stop and ask the user to rename one.
+2. **Add** — `add_fmu(path)` per FMU, once per instance: a second call on the
+   same file adds a second instance. Afterwards, FMUs are designated by the
+   name `add_fmu` returns (`controller.fmu`, then `controller-1.fmu`...), not
+   by their path.
 3. **Introspect** — `list_fmu_ports(fmu)` before wiring anything. Filter with
    `causality=['output']` or `name_pattern` on large FMUs, and never guess a
    port name.

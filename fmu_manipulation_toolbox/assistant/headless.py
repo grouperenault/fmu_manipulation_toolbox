@@ -18,7 +18,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from ..assembly import Assembly, AssemblyError, AssemblyNode
+from ..assembly import Assembly, AssemblyError, AssemblyNode, instance_name
 from ..operations import FMU, ModelVariable, OperationAbstract
 from ..terminals import Terminals
 from .bridge import SUPPORTED_FMI_VERSIONS
@@ -147,15 +147,16 @@ def _count_by_causality(ports: list[dict[str, Any]]) -> dict[str, int]:
 class HeadlessAssemblyBridge:
     """:class:`AssemblyBridge` implementation without any GUI.
 
-    FMUs are designated by their **file name**, as everywhere else in the MCP
-    interface; the bridge keeps the full path internally so the FMUs do not
-    have to live in the same directory. Two files sharing a base name are
-    refused, since the name would no longer identify one of them.
+    FMUs are designated by their **name**, as everywhere else in the MCP
+    interface: the base name of their file, or the name of an instance
+    (``model-1.fmu``) when the same file — or another file with the same base
+    name — is added again. The bridge keeps the full path internally so the
+    FMUs do not have to live in the same directory.
     """
 
     def __init__(self, name: str = DEFAULT_CONTAINER_NAME):
         self._name = name
-        self._paths: dict[str, Path] = {}
+        self._paths: dict[str, Path] = {}      # name -> FMU file
         self._descriptions: dict[str, dict[str, Any]] = {}
         self._links: list[tuple[str, str, str, str]] = []
         self._exposed_inputs: list[tuple[str, str]] = []
@@ -218,19 +219,12 @@ class HeadlessAssemblyBridge:
     def add_fmu(self, path: str) -> dict[str, Any]:
         fmu_path = Path(path)
         description = describe_fmu(fmu_path)
-        name = description["fmu"]
-
-        known = self._paths.get(name)
-        if known is not None and known != fmu_path:
-            raise ValueError(
-                f"Another file is already embedded as '{name}' ('{known}'). "
-                f"FMUs are designated by their file name, so two different "
-                f"files cannot share one: rename one of them."
-            )
+        name = Path(instance_name(fmu_path.name, self._paths)).name
+        description["fmu"] = name
 
         self._paths[name] = fmu_path
         self._descriptions[name] = description
-        logger.info(f"[AI] Added FMU '{name}'")
+        logger.info(f"[AI] Added FMU '{name}'" + (f" (instance of '{fmu_path.name}')" if name != fmu_path.name else ""))
 
         return {
             "fmu": name,
@@ -333,18 +327,20 @@ class HeadlessAssemblyBridge:
 
         node = AssemblyNode(self._name, **self._options)
         # FMUs are referenced by absolute path, as the GUI does: the container
-        # resolves them against `fmu_directory`, and an absolute path wins.
+        # resolves them against `fmu_directory`, and an absolute path wins. An
+        # instance is referenced as a sibling of its file, which the `path`
+        # block of the assembly gives.
+        ref = {name: str(path.with_name(name)) for name, path in self._paths.items()}
         for name in sorted(self._paths):
-            node.add_fmu(str(self._paths[name]))
+            node.add_fmu(ref[name], str(self._paths[name]))
         for from_fmu, from_port, to_fmu, to_port in self._links:
-            node.add_link(str(self._paths[from_fmu]), from_port,
-                          str(self._paths[to_fmu]), to_port)
+            node.add_link(ref[from_fmu], from_port, ref[to_fmu], to_port)
         for fmu, port in self._exposed_inputs:
-            node.add_input(port, str(self._paths[fmu]), port)
+            node.add_input(port, ref[fmu], port)
         for fmu, port in self._exposed_outputs:
-            node.add_output(str(self._paths[fmu]), port, port)
+            node.add_output(ref[fmu], port, port)
         for (fmu, port), value in self._start_values.items():
-            node.add_start_value(str(self._paths[fmu]), port, value)
+            node.add_start_value(ref[fmu], port, value)
 
         assembly = Assembly()
         assembly.root = node

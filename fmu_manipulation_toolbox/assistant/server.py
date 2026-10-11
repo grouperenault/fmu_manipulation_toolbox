@@ -243,6 +243,7 @@ def _guard(fn):
 #: confirmation and what can be retried safely.
 READ_ONLY = {"readOnlyHint": True, "idempotentHint": True}
 IDEMPOTENT_WRITE = {"readOnlyHint": False, "idempotentHint": True}
+WRITE = {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False}
 DESTRUCTIVE_WRITE = {"readOnlyHint": False, "destructiveHint": True, "idempotentHint": False}
 
 
@@ -428,7 +429,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         description = bridge.inspect_fmu_file(str(policy.resolve_input(path)))
         return _as_ports_page(description, causality, name_pattern, offset, limit)
 
-    @mcp.tool(annotations=IDEMPOTENT_WRITE)
+    @mcp.tool(annotations=WRITE)
     @_guard
     def add_fmu(
         path: Annotated[str, Field(
@@ -437,8 +438,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         """Add an FMU to the assembly and summarise it.
 
         The returned `fmu` name is what the other tools expect; `counts` gives
-        the number of ports per causality. Two files with the same base name
-        are ambiguous: ask the user to rename one.
+        the number of ports per causality. Adding a file again adds another
+        instance of it, named `<stem>-<n>.fmu`: call it once per instance.
         """
         return FmuSummary(**bridge.add_fmu(str(policy.resolve_input(path))))
 
