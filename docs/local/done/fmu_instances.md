@@ -252,6 +252,12 @@ follow the node by its name.
 - `docs/local/ROADMAP.md`: tick "support multiple instances of an FMU into an Assembly (GUI)".
 - Move this plan to `docs/local/done/`.
 
+**Result:** `container.md` (auto rules with instances, "Embedding the same FMU several times" section of the JSON
+format, CSV refusal, SSP components sharing a source, `get_fmu(fmu_filename, name)`), `gui-usage.md` (instances
+when adding a node, automatic rules, replacing the FMU of one node), `ai-assistant.md` (`add_fmu`), `API/assembly.md`
+(`instance_name`; `AssemblyNode.add_fmu` is documented from its docstring), ROADMAP item ticked. The site was not
+built locally (`mkdocs` is not installed in `.venv`).
+
 Commit message:
 
 ```

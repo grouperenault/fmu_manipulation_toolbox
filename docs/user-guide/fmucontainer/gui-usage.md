@@ -36,7 +36,17 @@ There are three ways to add FMUs to the canvas:
 - **Right-click → Add FMU…**: opens a file dialog to select one or more `.fmu` files.
 - **Tree View → Right-click → Add FMU…**: adds FMUs under a specific container in the hierarchy.
 
-Each FMU node displays its filename as a title.
+Each FMU node displays its name as a title: the filename of its FMU. The same FMU can be added several
+times: each new node is an **instance** of it, named `<stem>-<n>.fmu` with the smallest free `n`
+(`bb_position-1.fmu`, `bb_position-2.fmu`...); another file with an already used filename is named the same way.
+The FMU detail panel of an instance shows the FMU it is an instance of. Wires, start values and exposed ports
+belong to one node, and a saved JSON keeps the file of each instance (see
+[Embedding the same FMU several times](container.md#embedding-the-same-fmu-several-times)).
+
+!!! note "Instances and automatic rules"
+    The instances of an FMU are never linked by `auto_link`: wire them explicitly. When `auto_input` or
+    `auto_output` exposes a port whose name is already used, it is exposed as `<fmu>.<port>`
+    (e.g. `bb_position-1.position1`).
 
 !!! note "Title bar color — Co-Simulation vs Model-Exchange"
     The color of a node's title bar reflects the FMI interface used to embed the FMU:
@@ -120,8 +130,9 @@ To replace an FMU with a different version or an alternative file:
 3. Click **Browse…** to select a new `.fmu` file
 4. Click **OK** to apply the replacement
 
-The replacement is done **in place**: all wires, start values, and exposed input/output ports are
-preserved. If a port name referenced by a start value, a wire mapping, or an exposed input/output
+The replacement is done **in place**, for the selected node only, even when it is an instance of an FMU
+added several times: all wires, start values, and exposed input/output ports are preserved. The node is renamed
+after the new file (with the smallest free `-<n>` suffix if that name is used). If a port name referenced by a start value, a wire mapping, or an exposed input/output
 no longer exists in the new FMU, it appears in **red** in the detail panels — allowing you to
 review and correct invalid references. The affected wire itself is also drawn in **red** on the
 canvas, so broken connections are immediately visible without having to open every wire's details.

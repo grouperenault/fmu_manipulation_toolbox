@@ -43,7 +43,12 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
   - *auto_local* expose automatically the ports of embedded FMU's with `causality = "local"`
   - *auto_parameter* expose automatically the ports of embedded FMU's with `causality = "parameter"`
   - *auto_link* links automatically ports of embedded FMU's which are left previously unconnected and have the same
-    names and types
+    names and types. The [instances](#embedding-the-same-fmu-several-times) of an FMU are never auto-linked: they
+    share the port names of the FMU, so an output would feed the inputs of every instance.
+
+  When *auto_input* or *auto_output* exposes a port whose name is already used by an input or an output of the
+  container, the port is exposed as `<fmu>.<port>` instead (e.g. `bb_position-1.position1`), so that every
+  variable of the container keeps a distinct name.
 
 Some of these parameters can be defined by Command Line Interface or by the input files.
 
@@ -99,7 +104,9 @@ and profiling active. The source FMUs are located in the `./my_fmus` directory.
 ![Routing](routing.png "Routing table")
 
 ## CSV Input file
-This is the historic input file format. It has been superseded by the Json input file format.
+This is the historic input file format. It has been superseded by the Json input file format. It cannot describe
+an FMU [embedded several times](#embedding-the-same-fmu-several-times): exporting such an assembly to CSV is
+refused.
 
 Example: 
   * Two FMU's to be assembled: `bb_position.fmu` and `bb_velocity.fmu`
@@ -138,6 +145,35 @@ Note: the optional `:0.1` suffix means the timestep should be `0.1` second.
 fmucontainer -container container.json
 ```
 
+### Embedding the same FMU several times
+
+Each embedded FMU is designated by its name in the `link`, `input`, `output`, `start` and `drop` blocks. Usually,
+the name is the path of the FMU file. To embed the same FMU several times in one container, give each instance its
+own name, and its file in the optional `path` block:
+
+```json
+{
+  "name": "two_balls.fmu",
+  "fmu": ["bb_position.fmu", "bb_velocity.fmu", "bb_position-1.fmu", "bb_velocity-1.fmu"],
+  "path": {"bb_position-1.fmu": "bb_position.fmu", "bb_velocity-1.fmu": "bb_velocity.fmu"},
+  "link": [["bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset"],
+           ["bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"],
+           ["bb_position-1.fmu", "is_ground", "bb_velocity-1.fmu", "reset"],
+           ["bb_velocity-1.fmu", "velocity", "bb_position-1.fmu", "velocity"]],
+  "output": [["bb_position.fmu", "position1", "position"],
+             ["bb_position-1.fmu", "position1", "position_2"]]
+}
+```
+
+- The `path` block maps an instance name to its FMU file; a name absent from it is its own file. It is written
+  only when the assembly has instances, so other descriptions are unchanged.
+- The tools name the instances `<stem>-<n>.fmu` (`bb_position-1.fmu`, `bb_position-2.fmu`...), with the smallest
+  free `n`; any name unique in its container is accepted.
+- Each instance is a distinct embedded FMU: it is extracted in its own directory of the container and has its own
+  state, even if the FMU supports only one instance per process.
+- `fmusplit` writes one FMU file per instance (`bb_position.fmu`, `bb_position-1.fmu`...), so the JSON it produces
+  needs no `path` block.
+
 ## SSP Input file
  
 This feature is still alpha. User interface may change in the future.
@@ -153,6 +189,9 @@ will generate an FMU container :
 2. build a container accordingly to the SSP
 
 Note: the optional `:0.1` suffix means the timestep should be `0.1` second.
+
+Several components of the SSP may share one FMU source: each of them is embedded as an
+[instance](#embedding-the-same-fmu-several-times) of that FMU (`model.fmu`, then `model-1.fmu`...).
 
 # Python API
 
@@ -247,7 +286,7 @@ The following methods define the container topology:
 
 | Method | Description |
 |--------|-------------|
-| `get_fmu(fmu_filename)` | Load an embedded FMU from `fmu_directory` |
+| `get_fmu(fmu_filename, name=None)` | Load an embedded FMU from `fmu_directory`; `name` designates an [instance](#embedding-the-same-fmu-several-times) of an FMU embedded several times (e.g. `get_fmu("model.fmu", "model-1.fmu")`), then used by the other methods |
 | `add_input(exposed_name, fmu_name, port_name)` | Expose a port of an embedded FMU as a container input |
 | `add_output(fmu_name, port_name, exposed_name)` | Expose a port of an embedded FMU as a container output |
 | `add_link(from_fmu, from_port, to_fmu, to_port)` | Connect an output to an input between embedded FMUs |

@@ -181,7 +181,7 @@ Create `.vscode/mcp.json` at the root of your workspace:
 | `list_fmus` | List FMUs currently in the assembly |
 | `list_fmu_ports` | List the ports of an FMU on the canvas, with filters and paging |
 | `inspect_fmu_file` | Describe an `.fmu` file without adding it to the assembly |
-| `add_fmu` | Add an FMU file to the assembly |
+| `add_fmu` | Add an FMU file to the assembly; adding a file again adds another instance of it (`model-1.fmu`), whose name is returned |
 | `remove_fmu` | Remove an FMU and its wires |
 | `add_link` / `add_links` | Connect an output port to an input port, one at a time or in bulk |
 | `remove_link` | Disconnect an explicit link |
