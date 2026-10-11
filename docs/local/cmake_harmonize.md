@@ -94,6 +94,9 @@ Rewrite `remoting/CMakeLists.txt` on top of `cmake/fmutool.cmake`:
 
 The new warning flags are active from this step on; the warnings are fixed in step 3.
 
+Result: `client_sm.dylib` exports the same 44 `fmi2*` functions; the 14 internal `communication_*` / `process_*`
+symbols are no longer exported (hidden visibility). 69 warnings with Clang.
+
 Commit message:
 
 ```
