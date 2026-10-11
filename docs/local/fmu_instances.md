@@ -108,6 +108,15 @@ Tests: build a container with two instances of `bouncing_ball` linked to each ot
 simulation of the result where the container binary is available (`needs_container`, Windows CI), which also checks
 that the runtime C loads the two copies of the library independently.
 
+**Result:** `FMUContainer.get_fmu(fmu_filename, name=None)` and `EmbeddedFMU(filename, name=None)`; a name already
+loaded from another file raises `FMUContainerError`. `AssemblyNode.make_fmu` loads each FMU with its file and its
+name; `replay.py` reads the file of an instance from the `"path"` block. No other change was needed: the extraction
+loop, `container.txt` and the generated variables follow the instance name. Tests: 2 in
+`unit/test_container_internals.py`, 1 in `unit/test_assistant_analysis.py`, 2 in `integration/test_container.py` —
+one builds two independent bouncing balls (simulated and compared on Windows only: these FMUs only have win64
+binaries), the other simulates two instances of `containers/mt/1.fmu`, built for every platform (run on macOS). The
+`container.txt` references of the existing tests are unchanged. Suite: 1 583 passed, 2 skipped.
+
 Commit message:
 
 ```
@@ -142,6 +151,8 @@ Support FMU instances in fmusplit and in the SSP reader (fmu_instances step 3)
   `list_fmu_ports`, links and start values work on names; `get_assembly_json` carries the `"path"` block.
 - Qt bridge (`gui/fmucontainer/mcp_bridge.py`): same behaviour, through the GUI of step 5 (its tests run in step 5).
 - Analysis (`assistant/analysis.py`): `fmu_name` and the lint resolve files through the `"path"` block.
+  The unit check of a link (`replay.py`, `_check_units`) reads the ports through `describe(name)` of the bridge:
+  it covers instances once the bridges describe them by instance name.
 - Know-how and tool descriptions (`assistant/knowledge.py`, `server.py`): `add_fmu` documents that a second add
   creates a new instance and returns its name.
 

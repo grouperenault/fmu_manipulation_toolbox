@@ -67,15 +67,17 @@ class PortChecker:
 
         container = FMUContainer(Path(where).stem or "container", Path(tempfile.gettempdir()))
         loaded: set[str] = set()
+        files = node.get("path", {})
         for reference in node.get("fmu", []):
             name = fmu_name(reference)
             description = self.description(name)
-            path = Path(description["path"]) if description and description.get("path") else Path(reference)
+            path = Path(description["path"]) if description and description.get("path") \
+                else Path(files.get(reference, reference))
             if not path.is_absolute() or not path.is_file():
                 report("not-checked", "info", f"{where}: {name}, file not found")
                 continue
             try:
-                container.get_fmu(str(path))
+                container.get_fmu(str(path), name)
                 loaded.add(name)
             except FMUContainerError as error:
                 report("not-checked", "info", f"{where}: {name}, {error.reason}")

@@ -113,26 +113,36 @@ class FMUContainer:
         # What feeds each input of the embedded FMUs: a container input or a link, never both, never two (B6).
         self.input_feeders: dict[ContainerPort, str] = {}
 
-    def get_fmu(self, fmu_filename: str) -> EmbeddedFMU:
+    def get_fmu(self, fmu_filename: str, name: str | None = None) -> EmbeddedFMU:
         """Load an embedded FMU from the FMU directory.
 
-        If the FMU has already been loaded, returns the cached instance.
+        An embedded FMU is designated by its name: its filename, or the name of an instance when the same FMU is
+        embedded several times. Each instance is a distinct embedded FMU, extracted in its own directory of the
+        container. If the FMU has already been loaded, returns the cached instance.
 
         Args:
             fmu_filename (str): Filename of the FMU (e.g. `"model.fmu"`).
+            name (str | None): Name of the instance (e.g. `"model-1.fmu"`). Defaults to the filename. Once loaded,
+                the instance is designated by this name in every rule.
 
         Returns:
             EmbeddedFMU: The loaded and analysed FMU.
 
         Raises:
-            FMUContainerError: If the FMU cannot be loaded.
+            FMUContainerError: If the FMU cannot be loaded, or if `name` already designates another file.
         """
-        fmu_name = Path(fmu_filename).name
+        fmu_name = Path(name or fmu_filename).name
         if fmu_name in self.involved_fmu:
-            return self.involved_fmu[fmu_name]
-        
+            fmu = self.involved_fmu[fmu_name]
+            if name is not None:  # a rule designates the FMU by name only: no file to compare with
+                loaded_from = Path(fmu.fmu.fmu_filename).resolve()
+                if loaded_from != (self.fmu_directory / fmu_filename).resolve():
+                    raise FMUContainerError(f"'{fmu_name}' already designates '{fmu.fmu.fmu_filename}': "
+                                            f"it cannot also designate '{fmu_filename}'.")
+            return fmu
+
         try:
-            fmu = EmbeddedFMU(self.fmu_directory / fmu_filename)
+            fmu = EmbeddedFMU(self.fmu_directory / fmu_filename, name=fmu_name)
         except (FMUContainerError, FMUError) as e:
             raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}")
 

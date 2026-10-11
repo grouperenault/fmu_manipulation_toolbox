@@ -6,7 +6,9 @@ of its ``tests/data/<area>`` subtree (see the ``area_dir`` fixture); it therefor
 names. Simulation steps that need the platform-specific compiled container binary
 only run on win32; `test_container_mt` is fully ``windows_only``.
 """
+import json
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -196,3 +198,64 @@ def test_container_mt(area_dir):
     assembly.make_fmu(fmi_version=2, filename="bb-2.fmu")
     assert_simulation("bb-2.fmu", 0.1)
 
+
+
+# --------------------------------------------------------------------------- #
+#                      several instances of the same FMU                       #
+# --------------------------------------------------------------------------- #
+#: Two independent bouncing balls: each instance of `bb_position.fmu` is linked to its own `bb_velocity.fmu`.
+TWO_BALLS = {
+    "name": "two_balls.fmu", "profiling": True, "auto_link": False, "auto_input": False, "auto_output": False,
+    "fmu": ["bb_position.fmu", "bb_velocity.fmu", "bb_position-1.fmu", "bb_velocity-1.fmu"],
+    "path": {"bb_position-1.fmu": "bb_position.fmu", "bb_velocity-1.fmu": "bb_velocity.fmu"},
+    "link": [["bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset"],
+             ["bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"],
+             ["bb_position-1.fmu", "is_ground", "bb_velocity-1.fmu", "reset"],
+             ["bb_velocity-1.fmu", "velocity", "bb_position-1.fmu", "velocity"]],
+    "output": [["bb_position.fmu", "position1", "position"],
+               ["bb_position-1.fmu", "position1", "position_2"]],
+}
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_container_with_instances_of_one_fmu(area_dir):
+    """Each instance is a distinct embedded FMU, extracted in its own directory and named after the instance."""
+    Path("two_balls.json").write_text(json.dumps(TWO_BALLS))
+    Assembly("two_balls.json", debug=True).make_fmu()
+
+    resources = Path("two_balls/resources")
+    lines = (resources / "container.txt").read_text().splitlines()
+    declarations = lines[lines.index("# NB of embedded FMU's") + 1:]
+    assert declarations[0] == "4 0"
+    assert [declarations[1 + 3 * i].split()[0] for i in range(4)] == TWO_BALLS["fmu"]
+    assert sorted(path.name for path in resources.iterdir() if path.is_dir()) == ["00", "01", "02", "03"]
+    assert (resources / "00" / "modelDescription.xml").read_bytes() == \
+           (resources / "02" / "modelDescription.xml").read_bytes()
+
+    variables = [variable.get("name") for variable in
+                 ET.parse("two_balls/modelDescription.xml").getroot().find("ModelVariables")]
+    assert "container.bb_position.rt_ratio" in variables and "container.bb_position-1.rt_ratio" in variables
+
+    if WIN:
+        from fmpy import simulate_fmu
+        result = simulate_fmu("two_balls.fmu", stop_time=10, output=["position", "position_2"])
+        assert list(result["position"]) == list(result["position_2"])
+
+
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.area("containers/mt")
+def test_container_with_instances_simulates(area_dir):
+    """Both instances are loaded from their own directory, instantiated and simulated: the FMUs of this area are
+    built for every platform and their libraries share one name (`model`)."""
+    from fmpy import simulate_fmu
+
+    Path("twice.json").write_text(json.dumps({
+        "name": "twice.fmu", "auto_link": False, "auto_input": False, "auto_output": False, "step_size": 0.01,
+        "fmu": ["1.fmu", "1-1.fmu"], "path": {"1-1.fmu": "1.fmu"},
+        "output": [["1.fmu", "y0", "first"], ["1-1.fmu", "y0", "second"]],
+    }))
+    Assembly("twice.json").make_fmu(fmi_version=3)
+
+    result = simulate_fmu("twice.fmu", stop_time=1, output=["first", "second"])
+    assert result["time"][-1] == pytest.approx(1)

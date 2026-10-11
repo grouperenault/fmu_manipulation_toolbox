@@ -481,6 +481,19 @@ def _findings_with(assembly, directory, **arguments):
     return {(group["rule"], group["severity"]): group["examples"] for group in report["findings"]}
 
 
+def test_the_instances_of_one_fmu_are_checked_apart(two_fmus):
+    """The file of an instance comes from the `path` block; each instance is replayed as a distinct FMU."""
+    assembly = {"name": "c.fmu", **EXPLICIT, "fmu": ["a.fmu", "b.fmu", "b-1.fmu"],
+                "path": {"b-1.fmu": str(two_fmus / "b.fmu")},
+                "link": [["a.fmu", "y", "b-1.fmu", "u"]]}
+
+    findings = _findings_with(assembly, two_fmus)
+
+    assert ("not-checked", "info") not in findings
+    assert ("invalid-link", "error") not in findings
+    assert findings[("dangling-input", "warning")] == ["c.fmu: b.fmu/free", "c.fmu: b-1.fmu/free"]
+
+
 def test_the_auto_rules_are_dry_run(two_fmus):
     """`auto_input` exposes the free input at build time: it is not dangling."""
     assembly = {"name": "c.fmu", **EXPLICIT, "auto_input": True, "fmu": ["a.fmu", "b.fmu"]}

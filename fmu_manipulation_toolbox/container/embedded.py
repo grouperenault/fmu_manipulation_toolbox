@@ -186,8 +186,9 @@ class EmbeddedFMU(OperationAbstract):
         fmu (FMU): The underlying
             [FMU][fmu_manipulation_toolbox.operations.FMU] object, closed once
             analysed (only its `fmu_filename` remains usable).
-        name (str): Filename of the FMU (e.g. `"model.fmu"`).
-        id (str): Lowercase stem of the filename, used as an identifier.
+        name (str): Name of the embedded FMU: its filename (e.g. `"model.fmu"`), or the name of an instance of an
+            FMU embedded several times (e.g. `"model-1.fmu"`).
+        id (str): Lowercase stem of the name, used as an identifier (e.g. `"model-1"`).
         terminals (Terminals): FMI Terminals defined by this FMU.
         ls (LayeredStandard): LS-BUS layered standard information.
         step_size (float | None): Preferred step size in seconds, or `None`.
@@ -216,10 +217,10 @@ class EmbeddedFMU(OperationAbstract):
                        "canBeInstantiatedOnlyOncePerProcess",
                        "canHandleVariableCommunicationStepSize")
 
-    def __init__(self, filename):
+    def __init__(self, filename, name: str | None = None):
         self.fmu = FMU(filename)
-        self.name = Path(filename).name
-        self.id = Path(filename).stem.lower()
+        self.name = Path(name or filename).name
+        self.id = Path(self.name).stem.lower()
 
         logger.debug(f"Analysing {self.name}")
         self.terminals = Terminals(self.fmu.tmp_directory)

@@ -379,7 +379,7 @@ class AssemblyNode:
             container.get_fmu(node.name)
 
         for fmu_name in self.fmu_names_list:
-            container.get_fmu(fmu_name)
+            container.get_fmu(self.fmu_path(fmu_name), fmu_name)
 
         for port, source in self.input_ports.items():
             container.add_input(source, port.fmu_name, port.port_name)
