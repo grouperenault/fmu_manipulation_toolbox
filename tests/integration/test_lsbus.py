@@ -1,6 +1,6 @@
 """Integration tests for the LS-BUS feature (bus/node FMU containers).
 
-Migrated from the legacy ``test_suite.py``. Runs in an isolated copy of
+Runs in an isolated copy of
 ``tests/data/ls-bus``; the container is built with datalog enabled and the
 simulation log / datalog CSV are compared against their REF-* counterparts.
 """

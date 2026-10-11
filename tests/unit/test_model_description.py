@@ -1,4 +1,4 @@
-"""Unit tests of `model_description.py` (phase 1 of `docs/local/done/refactoring.md`).
+"""Unit tests of `model_description.py`.
 
 Three sets of descriptors are used:
 
@@ -82,7 +82,8 @@ def fmi3(variable="", extra_variable="") -> bytes:
     return FMI3.format(variable=variable, extra_variable=extra_variable).encode("utf-8")
 
 
-#: Hand-written descriptors exercising what the expat implementation loses (D1 to D5).
+#: Hand-written descriptors exercising what a naive rewrite of the XML loses (escaping, annotations, comments,
+#: namespaces, non-ASCII text).
 EDGE_CASES: dict[str, bytes] = {
     "escaped-text": fmi2(header='<VendorAnnotations><Tool name="T"><Info>x &lt; y &amp; z</Info></Tool>'
                                 '</VendorAnnotations>'),
@@ -172,6 +173,18 @@ def test_namespace_prefixes_are_kept():
     saved = ModelDescription.load(EDGE_CASES["namespaces"]).to_bytes()
     assert b"<v:Data" in saved and b'xmlns:v="urn:vendor"' in saved
     assert b"ns0:" not in saved
+
+
+def test_namespaced_attributes_are_named_with_their_prefix():
+    """The operations read and write a namespaced attribute under the name found in the file (`xsi:...`)."""
+    descriptor = fmi2().replace(b'fmiVersion="2.0"', b'fmiVersion="2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-'
+                                b'instance" xsi:noNamespaceSchemaLocation="fmi2ModelDescription.xsd"')
+    md = ModelDescription.load(descriptor)
+    attributes = md.attributes(md.root)
+    assert "xsi:noNamespaceSchemaLocation" in list(attributes)
+    assert attributes["xsi:noNamespaceSchemaLocation"] == "fmi2ModelDescription.xsd"
+    attributes["xsi:noNamespaceSchemaLocation"] = "other.xsd"
+    assert b'xsi:noNamespaceSchemaLocation="other.xsd"' in md.to_bytes()
 
 
 @pytest.mark.parametrize("name", DESCRIPTORS)

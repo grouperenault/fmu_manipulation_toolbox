@@ -1,9 +1,8 @@
-"""Regression tests of the `modelDescription.xml` rewriting defects.
+"""Rewriting `modelDescription.xml` keeps its meaning.
 
 `FMU.apply_operation` rewrites the descriptor even for an operation that changes
 nothing; that rewrite must keep the meaning of the document. Each test below
-targets one defect listed in `docs/local/done/refactoring.md` (D1 to D9, D14). They were
-written as `xfail(strict=True)` tests in phase 0 and pass since phase 2.
+targets one way of losing information when the descriptor is rewritten.
 """
 import zipfile
 from pathlib import Path

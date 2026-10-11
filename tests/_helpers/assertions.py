@@ -2,12 +2,10 @@
 
 The file comparisons normalise trailing blank lines and line endings so that a
 spurious final newline does not trigger a failure, while still detecting a
-genuine difference in the number of meaningful lines (the legacy ``zip``-based
-implementation silently ignored such length differences).
+genuine difference in the number of meaningful lines.
 """
 import difflib
 import hashlib
-import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from collections.abc import Iterable
@@ -17,15 +15,14 @@ from fmu_manipulation_toolbox.operations import FMU, OperationSaveNamesToCSV
 PathLike = str | Path
 
 
-def _read_lines(path: PathLike, *, strip: bool) -> list[str]:
-    """Read a text file (universal newlines) into a list of lines.
+def _read_lines(path: PathLike) -> list[str]:
+    """Read a text file (universal newlines) into a list of stripped lines.
 
-    Each line is either fully stripped (``strip=True``) or only has its trailing
-    newline removed (``strip=False``). Trailing blank lines are dropped so that a
-    missing/extra final newline is not reported as a mismatch.
+    Trailing blank lines are dropped so that a missing/extra final newline is
+    not reported as a mismatch.
     """
     with open(path, mode="rt", newline=None) as f:
-        lines = [line.strip() if strip else line.rstrip("\n") for line in f]
+        lines = [line.strip() for line in f]
     while lines and lines[-1] == "":
         lines.pop()
     return lines
@@ -36,8 +33,8 @@ def assert_identical_files(filename1: PathLike, filename2: PathLike) -> None:
     assert Path(filename1).exists(), f"{filename1} does not exist"
     assert Path(filename2).exists(), f"{filename2} does not exist"
 
-    lines1 = _read_lines(filename1, strip=True)
-    lines2 = _read_lines(filename2, strip=True)
+    lines1 = _read_lines(filename1)
+    lines2 = _read_lines(filename2)
 
     assert len(lines1) == len(lines2), (
         f"files {filename1} and {filename2} mismatch: "
@@ -50,23 +47,6 @@ def assert_identical_files(filename1: PathLike, filename2: PathLike) -> None:
             f"vs.\n\n"
             f"{lineB}"
         )
-
-
-def assert_identical_text(filename1: PathLike, filename2: PathLike, *, ignore: re.Pattern | None = None) -> None:
-    """Assert two text files have the same lines, whitespace included (only the end of line convention may differ).
-
-    Lines matching `ignore` in both files are considered equal.
-    """
-    assert Path(filename1).exists(), f"{filename1} does not exist"
-    assert Path(filename2).exists(), f"{filename2} does not exist"
-
-    lines1 = _read_lines(filename1, strip=False)
-    lines2 = _read_lines(filename2, strip=False)
-    for lineno, (lineA, lineB) in enumerate(zip(lines1, lines2), start=1):
-        if ignore is not None and ignore.match(lineA) and ignore.match(lineB):
-            continue
-        assert lineA == lineB, f"files {filename1} and {filename2} mismatch at line {lineno}:\n{lineA!r}\nvs.\n{lineB!r}"
-    assert len(lines1) == len(lines2), f"files {filename1} and {filename2} mismatch: {len(lines1)} vs {len(lines2)} lines"
 
 
 #: Attributes of `modelDescription.xml` that change on every container build, or with the version of the

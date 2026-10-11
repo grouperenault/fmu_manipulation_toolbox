@@ -1,5 +1,4 @@
-"""Simulation helpers (require `fmpy` and `numpy`), extracted from the legacy
-``test_suite.py``. Imports of fmpy/numpy are kept at call time friendly so that
+"""Simulation helpers (require `fmpy` and `numpy`). Imports of fmpy/numpy are kept at call time friendly so that
 pure-build assertions in a test do not pay the import cost unless a simulation
 is actually requested.
 """

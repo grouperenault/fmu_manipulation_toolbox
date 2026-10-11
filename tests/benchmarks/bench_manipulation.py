@@ -1,11 +1,10 @@
 """Benchmark of `FMU.apply_operation` on large synthetic descriptors.
 
-Baseline for the switch of `Manipulation` to ElementTree (see
-`docs/local/done/refactoring.md`, phases 0 and 2): building a full tree must stay within a
-reasonable factor of the current SAX implementation, in time and in memory.
+Measures the time and the peak memory of rewriting `modelDescription.xml`, to
+spot a performance regression on descriptors of the size of industrial FMUs.
 
 Not part of the test suite (it is not collected by pytest). Run it from the
-repository root and paste its Markdown output into `docs/local/done/refactoring.md`:
+repository root; it prints a Markdown table:
 
     python tests/benchmarks/bench_manipulation.py [--variables 1000 10000 100000] [--repeat 3]
 """
@@ -16,7 +15,6 @@ import sys
 import tempfile
 import time
 import tracemalloc
-import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
 
@@ -61,26 +59,10 @@ def fmi3_descriptor(nb_variables: int) -> str:
     return "\n".join(lines)
 
 
-class ElementTreeRoundTrip:
-    """Not an operation: parses and rewrites the descriptor with ElementTree, to
-    estimate the cost of a full tree before phase 2 exists."""
-
-    def apply(self, fmu: FMU):
-        ET.parse(fmu.descriptor_filename).write(fmu.descriptor_filename, encoding="UTF-8", xml_declaration=True)
-
-
 OPERATIONS = {
     "noop": lambda: OperationAbstract(),
     "remove 10%": lambda: OperationRemoveRegexp("bus0"),
-    "*ET parse+write (estimate)*": lambda: ElementTreeRoundTrip(),
 }
-
-
-def run(fmu: FMU, operation) -> None:
-    if isinstance(operation, ElementTreeRoundTrip):
-        operation.apply(fmu)
-    else:
-        fmu.apply_operation(operation)
 
 
 def measure(fmu_filename: Path, operation_factory, repeat: int):
@@ -89,13 +71,13 @@ def measure(fmu_filename: Path, operation_factory, repeat: int):
     for _ in range(repeat):
         fmu = FMU(str(fmu_filename))
         start = time.perf_counter()
-        run(fmu, operation_factory())
+        fmu.apply_operation(operation_factory())
         best = min(best, time.perf_counter() - start)
         del fmu
 
     fmu = FMU(str(fmu_filename))
     tracemalloc.start()
-    run(fmu, operation_factory())
+    fmu.apply_operation(operation_factory())
     _, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     del fmu

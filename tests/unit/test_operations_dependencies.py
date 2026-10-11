@@ -128,3 +128,24 @@ def test_fmi3_removing_middle_port_drops_its_dependency_only(tmp_path):
 
     assert root.get("modelName") == "dep"
 
+
+def test_fmi3_removing_an_output_drops_its_structure_entry(tmp_path):
+    root = _remove_and_parse(tmp_path, FMI3_DESCRIPTOR, "out1")
+
+    assert [v.get("name") for v in root.iter("Float64")] == ["in1", "mid"]
+    assert root.find("ModelStructure/Output") is None
+
+
+# --------------------------------------------------------------------------- #
+#                        no dependency left after removal                      #
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("descriptor, entry", [(FMI2_DESCRIPTOR, "ModelStructure/Outputs/Unknown"),
+                                               (FMI3_DESCRIPTOR, "ModelStructure/Output")], ids=["fmi2", "fmi3"])
+def test_removing_every_dependency_drops_the_attributes(tmp_path, descriptor, entry):
+    """An empty `dependencies` would mean "depends on nothing": the attributes are dropped instead."""
+    root = _remove_and_parse(tmp_path, descriptor, "in1|mid")
+
+    output = root.find(entry)
+    assert output is not None
+    assert "dependencies" not in output.attrib
+    assert "dependenciesKind" not in output.attrib

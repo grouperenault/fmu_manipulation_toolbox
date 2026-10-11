@@ -1,9 +1,9 @@
 """`FMU` parses `modelDescription.xml` once and writes it only when needed.
 
-Phase 5 of `docs/local/done/refactoring.md`: the descriptor tree is shared by the
-successive operations applied to an `FMU`, and it is not written back after an
-operation declared `read_only`, so that read-only operations (summary, CSV
-dump, checker) leave the file exactly as it was in the archive.
+The descriptor tree is shared by the successive operations applied to an
+`FMU`, and it is not written back after an operation declared `read_only`, so
+that read-only operations (summary, CSV dump, checker) leave the file exactly as
+it was in the archive.
 """
 import zipfile
 from pathlib import Path
@@ -99,7 +99,7 @@ def test_descriptor_changed_on_disk_is_parsed_again(fmu, loads):
 
 
 def test_refused_operation_does_not_leave_a_half_modified_tree(fmu):
-    """Stripping the top level would give 'y' twice: refused (D13) after the ports were renamed in memory."""
+    """Stripping the top level would give 'y' twice: refused after the ports were renamed in memory."""
     with pytest.raises(OperationError):
         fmu.apply_operation(OperationStripTopLevel())
     assert _names(fmu) == ["a.y", "b.y", "b.z"]

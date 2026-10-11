@@ -1,6 +1,6 @@
 """Tests for the 3 GUI interfaces (FMU Tool, FMU Editor, FMU Container Builder).
 
-Migrated from the legacy ``test_suite.py``. These tests verify that the windows
+These tests verify that the windows
 can be instantiated and that basic programmatic interactions work. They require
 `PySide6` and `pytest-qt`; the whole module is skipped if the GUI stack (or a
 usable Qt platform) is unavailable. Qt is forced to the offscreen platform in

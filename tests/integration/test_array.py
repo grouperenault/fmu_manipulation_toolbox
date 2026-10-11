@@ -1,6 +1,6 @@
 """Integration tests for array-port support (operation summary + containers).
 
-Migrated from the legacy ``test_suite.py``. Runs in an isolated copy of
+Runs in an isolated copy of
 ``tests/data/array``; FMI-2/FMI-3 array containers are built, validated with
 `fmpy`, and (on Windows) simulated against their REF-* references.
 """

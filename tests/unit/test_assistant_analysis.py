@@ -1,4 +1,4 @@
-"""Tests for the analysis of an assembly: bounded summary and paged views (docs/local/done/assembly_analysis.md).
+"""Tests for the analysis of an assembly: bounded summary, paged views and lint.
 
 On a real assembly of 3 nested containers, `get_assembly_json` is over 100k characters: the model had to write its
 own scripts to see the container tree and the data flows. The summary reduces the JSON to that view, within the
@@ -41,7 +41,7 @@ def _nodes(summary):
     ("Tout", ""),
 ])
 def test_port_prefix(name, prefix):
-    """Decision D7: the segment before `.`, otherwise the part before the first `_`."""
+    """The segment before `.`, otherwise the part before the first `_`."""
     assert port_prefix(name) == prefix
 
 
@@ -142,7 +142,7 @@ def test_a_renamed_link_shows_both_ends():
 #                                   bounds                                     #
 # --------------------------------------------------------------------------- #
 def test_the_large_assembly(tmp_path):
-    """Exit criterion of phase 1: within the budget, and every count equal to the JSON."""
+    """Within the budget, and every count equal to the JSON."""
     assembly = make_large_assembly(tmp_path)
     summary = summarize_assembly(assembly)
 
@@ -186,10 +186,10 @@ def test_large_trees_are_reduced_below_the_root():
 
 
 # --------------------------------------------------------------------------- #
-#                     paged views of the JSON (phase 2)                        #
+#                           paged views of the JSON                            #
 # --------------------------------------------------------------------------- #
 def test_a_small_assembly_is_returned_whole_with_names(data_dir):
-    """Decision D6: no change for a small assembly, except the FMU paths of the root, replaced by names."""
+    """No change for a small assembly, except the FMU paths of the root, replaced by names."""
     assembly = _arch(data_dir, "nested.json")
     assembly["fmu"] = [f"/models/{fmu}" for fmu in assembly["fmu"]]
     assembly["link"][0][0] = r"C:\models\fmu0a.fmu"
@@ -224,7 +224,7 @@ def test_an_unknown_container_lists_the_known_ones(data_dir):
 
 
 def test_an_ambiguous_container_is_refused_with_its_paths():
-    """Decision D5: names only; two containers with one name cannot be designated."""
+    """Containers are designated by name only; two containers with one name cannot be designated."""
     assembly = {"name": "root.fmu", "container": [
         {"name": "a.fmu", "container": [{"name": "same.fmu"}]},
         {"name": "b.fmu", "container": [{"name": "same.fmu"}]},
@@ -255,7 +255,7 @@ def test_sections_use_fmu_names(tmp_path):
 
 
 def test_a_large_assembly_is_given_one_container_at_a_time(tmp_path):
-    """Decision D6, then the sections: every view within the budget, and every entry reachable."""
+    """One container, then one section at a time: every view within the budget, and every entry reachable."""
     assembly = make_large_assembly(tmp_path)
 
     root = assembly_page(assembly)
@@ -284,7 +284,7 @@ def test_a_large_assembly_is_given_one_container_at_a_time(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-#                          structural lint (phase 3)                           #
+#                               structural lint                                #
 # --------------------------------------------------------------------------- #
 #: Options of an explicit assembly: every `auto_*` rule off, so that nothing is derived at build time.
 EXPLICIT = {"auto_link": False, "auto_input": False, "auto_output": False}
@@ -414,7 +414,7 @@ def test_the_large_assembly_is_linted(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-#               port-level lint: replay into the builder (phase 4)             #
+#                  port-level lint: replay into the builder                    #
 # --------------------------------------------------------------------------- #
 def _write_fmu(path, variables):
     """FMI-2 FMU (descriptor only); `variables` are `(name, causality, type, unit, start)`."""
@@ -497,7 +497,7 @@ def test_an_auto_rule_refused_by_the_builder(two_fmus):
 
 
 def test_entries_with_a_sub_container_are_not_checked(two_fmus):
-    """Decision D9': a sub-container only exists once built."""
+    """A sub-container only exists once built: its entries are not checked."""
     assembly = {"name": "c.fmu", "fmu": ["a.fmu"], "container": [{"name": "sub.fmu", **EXPLICIT, "fmu": ["b.fmu"]}],
                 "link": [["a.fmu", "y", "sub.fmu", "u"], ["a.fmu", "r", "sub.fmu", "i"]]}
 
