@@ -288,3 +288,20 @@ Document the FMU instances (fmu_instances step 6)
   and compares both positions; `test_container_with_instances_of_a_single_instance_fmu` keeps the build of the former
   Simulink FMUs and checks the warning, without simulation. `test_instances_diagnostics.py` is to be removed once
   the Windows CI passes with the new test.
+
+### Root cause (2026-10-11): fmpy, not the instances
+
+- The crash is a defect of fmpy 0.3.32, reproduced on macOS with one FMU and no instance, and with the released
+  packages only (fmpy 0.3.32, fmu-manipulation-toolbox 1.9.4.2, Reference FMU BouncingBall): fmpy keeps in its native
+  logger proxy (`fmpy/logging`, static `s_logger`) the ctypes callback of the last simulation given a logger; the
+  callback is freed when that simulation returns, but the default callbacks of fmpy still go through the proxy. An
+  FMI-2 FMU simulated without logger afterwards crashes as soon as it logs; the container logs a warning (its version)
+  in `fmi2Instantiate`. Our two-ball tests were the only FMI-2 simulations without logger, after the
+  `assert_simulation` of the other tests (which give one): hence the apparent link with the instances. FMI 3 does
+  not use the proxy.
+- Decision 15 is revoked: the warning about `canBeInstantiatedOnlyOncePerProcess` and the `single-instance-fmu`
+  lint rule are removed, as well as the documentation that blamed such FMUs. The distinct instance names of the
+  runtime are kept. The solver messages of the runtime are kept as they are.
+- The tests simulate through `_helpers.simulation.simulate`, which always gives a logger to fmpy;
+  `test_instances_diagnostics.py` and the temporary instrumentation are removed. The former Simulink FMUs are
+  simulated again, in the pytest process, as well as the multi-instance ones.

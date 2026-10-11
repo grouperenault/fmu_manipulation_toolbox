@@ -220,28 +220,6 @@ def test_auto_rules_with_instances(bouncing):
 
 
 @pytest.mark.area("containers/bouncing_ball")
-def test_instances_of_a_single_instance_fmu_are_warned(bouncing, caplog):
-    """These Simulink FMUs declare `canBeInstantiatedOnlyOncePerProcess`: their instances are reported, by model."""
-    assert bouncing.single_instance_groups() == []
-    bouncing.get_fmu("bb_position.fmu", "bb_position-1.fmu")
-    bouncing.get_fmu("bb_position.fmu", "bb_position-2.fmu")
-    assert bouncing.single_instance_groups() == [["bb_position.fmu", "bb_position-1.fmu", "bb_position-2.fmu"]]
-
-    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
-        bouncing.sanity_check(0.1)
-    assert "bb_position.fmu, bb_position-1.fmu, bb_position-2.fmu are instances of one FMU which declares " \
-           "canBeInstantiatedOnlyOncePerProcess" in caplog.text
-
-
-@pytest.mark.area("containers/mt")
-def test_instances_of_a_multi_instance_fmu_are_not_warned(area_dir):
-    container = FMUContainer("twice", area_dir)
-    container.get_fmu("1.fmu")
-    container.get_fmu("1.fmu", "1-1.fmu")
-    assert container.single_instance_groups() == []
-
-
-@pytest.mark.area("containers/bouncing_ball")
 def test_one_name_cannot_designate_two_files(bouncing):
     bouncing.get_fmu("bb_position.fmu", "model-1.fmu")
     with pytest.raises(FMUContainerError, match="already designates"):

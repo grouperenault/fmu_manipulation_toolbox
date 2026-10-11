@@ -296,7 +296,6 @@ container. `node="sub.fmu"` restricts it to one container.
 | `mt-sequential` | warning | `mt` and `sequential` both enabled |
 | `step-ratio` | info / warning | The step of a sub-container differs from the step of its container; a warning above a ratio of 10, or when the ratio is not an integer |
 | `auto-off-nothing-exposed` | warning | `auto_input` or `auto_output` off, and nothing of that kind exposed by the root container |
-| `single-instance-fmu` | warning | Several instances of one FMU which declares `canBeInstantiatedOnlyOncePerProcess`: may crash in a process that already used it |
 | `lossy-link` | warning | A link converts its value with a possible loss of information |
 | `link-unit` | warning | Linked ports declare different units: the toolbox does not convert them |
 | `dangling-input` | warning | An input neither linked nor exposed, even by the `auto_*` rules, and without start value |

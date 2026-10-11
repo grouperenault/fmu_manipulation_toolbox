@@ -354,5 +354,3 @@ def test_the_lint_checks_each_instance(loaded, ball):
 
     assert ("not-checked", "info") not in findings
     assert report["error_count"] == 0
-    # These Simulink FMUs declare `canBeInstantiatedOnlyOncePerProcess`.
-    assert findings[("single-instance-fmu", "warning")] == ["container.fmu: bb_position-1.fmu, bb_position.fmu"]

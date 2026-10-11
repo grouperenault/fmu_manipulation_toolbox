@@ -7,7 +7,6 @@ names. Simulation steps that need the platform-specific compiled container binar
 only run on win32; `test_container_mt` is fully ``windows_only``.
 """
 import json
-import logging
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -18,7 +17,7 @@ from fmu_manipulation_toolbox.assembly import Assembly
 from fmu_manipulation_toolbox.container import FMUContainer
 
 from _helpers.assertions import VOLATILE_XML_ATTRIBUTES, assert_equivalent_xml, assert_identical_files
-from _helpers.simulation import assert_simulation
+from _helpers.simulation import assert_simulation, simulate
 
 pytestmark = [pytest.mark.integration]
 
@@ -226,14 +225,11 @@ def _declared_fmus(resources: Path) -> list[str]:
 
 
 @pytest.mark.area("containers/bouncing_ball")
-def test_container_with_instances_of_a_single_instance_fmu(area_dir, caplog):
+def test_container_with_instances_of_one_fmu(area_dir):
     """Each instance is a distinct embedded FMU, extracted in its own directory and named after the instance. These
-    Simulink FMUs declare `canBeInstantiatedOnlyOncePerProcess`: the build warns about their instances. (On Windows,
-    their simulation crashed in a process that had already used them: the simulation is covered by
-    `test_container_with_instances_simulates_alike`, with FMUs that support several instances.)"""
+    Simulink FMUs declare `canBeInstantiatedOnlyOncePerProcess`: each instance has its own copy of the library."""
     Path("two_balls.json").write_text(json.dumps(TWO_BALLS))
-    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
-        Assembly("two_balls.json", debug=True).make_fmu()
+    Assembly("two_balls.json", debug=True).make_fmu()
 
     resources = Path("two_balls/resources")
     assert _declared_fmus(resources) == TWO_BALLS["fmu"]
@@ -244,8 +240,10 @@ def test_container_with_instances_of_a_single_instance_fmu(area_dir, caplog):
     variables = [variable.get("name") for variable in
                  ET.parse("two_balls/modelDescription.xml").getroot().find("ModelVariables")]
     assert "container.bb_position.rt_ratio" in variables and "container.bb_position-1.rt_ratio" in variables
-    assert "bb_position.fmu, bb_position-1.fmu are instances of one FMU which declares " \
-           "canBeInstantiatedOnlyOncePerProcess" in caplog.text
+
+    if WIN:
+        result = simulate("two_balls.fmu", stop_time=10, output=["position", "position_2"])
+        assert list(result["position"]) == list(result["position_2"])
 
 
 def _two_balls(kind: str) -> dict:
@@ -266,35 +264,17 @@ def _two_balls(kind: str) -> dict:
 
 @pytest.mark.area("containers/bouncing_ball")
 @pytest.mark.parametrize("kind, fmi_version", [("cs2", 2), ("me2", 2), ("cs3", 3)])
-def test_container_with_instances_simulates_alike(area_dir, caplog, kind, fmi_version):
-    """Two instances of FMUs which support several instances per process (Windows binaries only): the build does
-    not warn, and on Windows both balls bounce alike. The simulation runs in the pytest process, after the other
-    simulations of these FMUs: the configuration in which FMUs supporting one instance per process crashed."""
+def test_container_with_instances_simulates_alike(area_dir, kind, fmi_version):
+    """Two instances of FMUs which support several instances per process (Windows binaries only), for each kind of
+    FMU: on Windows, both balls bounce alike."""
     assembly = _two_balls(kind)
     Path(f"two_balls_{kind}.json").write_text(json.dumps(assembly))
-    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
-        Assembly(f"two_balls_{kind}.json", debug=True).make_fmu(fmi_version=fmi_version)
+    Assembly(f"two_balls_{kind}.json", debug=True).make_fmu(fmi_version=fmi_version)
 
     assert _declared_fmus(Path(f"two_balls_{kind}/resources")) == assembly["fmu"]
-    assert "canBeInstantiatedOnlyOncePerProcess" not in caplog.text
 
     if WIN:
-        from fmpy import simulate_fmu
-
-        # TEMPORARY instrumentation: the FMI-2 containers crashed in `fmi2Instantiate` here. The debug log of the
-        # container is kept in memory: with Python 3.10 the access violation is an `OSError`, and the last lines of
-        # the log tell at which step it happened (loading of the n-th library, `fmi2Instantiate` of the n-th FMU...).
-        log: list[str] = []
-
-        def logger(*args):
-            message = args[-1].decode("utf-8", "replace") if isinstance(args[-1], bytes) else str(args[-1])
-            log.append(message)
-
-        try:
-            result = simulate_fmu(f"two_balls_{kind}.fmu", stop_time=5, output=["position", "position_2"],
-                                  debug_logging=True, logger=logger)
-        except OSError as error:
-            pytest.fail(f"{error}; last lines of the container log:\n" + "\n".join(log[-40:]))
+        result = simulate(f"two_balls_{kind}.fmu", stop_time=5, output=["position", "position_2"])
         assert len(result) > 1
         assert list(result["position"]) == list(result["position_2"])
 
@@ -305,8 +285,6 @@ def test_container_with_instances_simulates_alike(area_dir, caplog, kind, fmi_ve
 def test_container_with_instances_simulates(area_dir):
     """Both instances are loaded from their own directory, instantiated and simulated: the FMUs of this area are
     built for every platform and their libraries share one name (`model`)."""
-    from fmpy import simulate_fmu
-
     Path("twice.json").write_text(json.dumps({
         "name": "twice.fmu", "auto_link": False, "auto_input": False, "auto_output": False, "step_size": 0.01,
         "fmu": ["1.fmu", "1-1.fmu"], "path": {"1-1.fmu": "1.fmu"},
@@ -314,5 +292,5 @@ def test_container_with_instances_simulates(area_dir):
     }))
     Assembly("twice.json").make_fmu(fmi_version=3)
 
-    result = simulate_fmu("twice.fmu", stop_time=1, output=["first", "second"])
+    result = simulate("twice.fmu", stop_time=1, output=["first", "second"])
     assert result["time"][-1] == pytest.approx(1)
