@@ -109,15 +109,15 @@ jobs:
         python-version: ["3.10", "3.14"]
     steps:
     - uses: actions/checkout@v5
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: remoting-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: remoting-win32
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: container-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
@@ -171,31 +171,31 @@ jobs:
         # The package version comes from the git tags (setuptools-scm): the whole history is needed, a shallow clone
         # would give a wrong version.
         fetch-depth: 0
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: remoting-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: remoting-win32
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: remoting-linux32
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux32/
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: remoting-linux64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: container-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: container-linux64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: container-darwin64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
@@ -240,7 +240,7 @@ jobs:
         python tools/dist_inventory.py --dist dist --check tests/data/packaging
     - name: Archive Artifacts
       if: matrix.python-version == env.NEWEST_PYTHON
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: package
         path: ${{ github.workspace }}/dist
@@ -256,7 +256,7 @@ jobs:
         python-version: ["3.10", "3.14"]
     steps:
     - uses: actions/checkout@v5
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: container-darwin64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
@@ -294,7 +294,7 @@ jobs:
         python-version: ["3.10", "3.14"]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/download-artifact@v5
+    - uses: actions/download-artifact@v7
       with:
         name: package
         path: dist
