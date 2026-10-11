@@ -303,3 +303,20 @@ def test_building_gets_a_longer_budget_than_editing(qapp):
     bridge = QtAssemblyBridge(window=None, invoker=_invoker(timeout=2.0))
 
     assert bridge._build_timeout == 2.0 * BUILD_TIMEOUT_FACTOR
+
+
+def test_adding_a_file_again_adds_an_instance(mcp_server, data_dir):
+    """As in the GUI, a second `add_fmu` on a file adds an instance, designated by the name it returns."""
+    server, window = mcp_server
+    source = data_dir / "containers" / "bouncing_ball" / "bb_position.fmu"
+
+    async def scenario():
+        async with fastmcp.Client(server) as client:
+            first = (await client.call_tool("add_fmu", {"path": str(source)})).data
+            second = (await client.call_tool("add_fmu", {"path": str(source)})).data
+            listed = (await client.call_tool("list_fmus", {})).data
+            ports = (await client.call_tool("list_fmu_ports", {"fmu": second.fmu})).data
+            return first.fmu, second.fmu, sorted(listed), ports.fmu
+
+    assert _drive(scenario) == ("bb_position.fmu", "bb_position-1.fmu",
+                                ["bb_position-1.fmu", "bb_position.fmu"], "bb_position-1.fmu")

@@ -48,15 +48,27 @@ class AssemblyIOMixin:
                                 links_list: list[list[str]], start_values_list: list[list[str]],
                                 output_ports_list: list[list[str]], input_ports_list: list[list[str]],
                                 x=0, y=0):
-        """Recursively convert an AssemblyNode into tree items and graph nodes."""
+        """Recursively convert an AssemblyNode into tree items and graph nodes.
+
+        The names of the FMUs are unique in a container only, but the nodes of the scene are designated by a name
+        unique in the scene: each FMU of this level gets a scene name (`NodeGraphScene.free_name`), and the links,
+        start values and exposed ports collected here refer to the nodes by these names.
+        """
         # Add FMU nodes
+        scene_names: dict[str, str] = {}  # name in the assembly node -> name of the node in the scene
         self._tree.pending_parent = parent
         for fmu in assembly_node.fmu_names_list:
-            logger.debug(f"ADD FMU: {folder} / {fmu}")
-            self._graph.add_node(fmu_path=folder / fmu, x=x, y=y)
+            fmu_path = folder / assembly_node.fmu_path(fmu)
+            logger.debug(f"ADD FMU: {fmu} ({fmu_path})")
+            node = self._graph.add_node(fmu_path=fmu_path, x=x, y=y, name=Path(fmu).name)
+            scene_names[fmu] = node.name
             x = x + 100
             y = y + 100
         self._tree.pending_parent = None
+
+        def scene_name(name: str) -> str:
+            """Name of the node of the FMU `name` of this level; sub-container names are kept."""
+            return scene_names.get(name, name)
 
         # Add Container in tree View
         container_name = assembly_node.name
@@ -85,23 +97,23 @@ class AssemblyIOMixin:
             self._tree.set_ts_multiplier(parent, True)
 
         for connection in assembly_node.links:
-            link = [connection.from_port.fmu_name, connection.from_port.port_name,
-                    connection.to_port.fmu_name, connection.to_port.port_name]
+            link = [scene_name(connection.from_port.fmu_name), connection.from_port.port_name,
+                    scene_name(connection.to_port.fmu_name), connection.to_port.port_name]
             logger.debug(f"ADD LINK: {link}")
             links_list.append(link)
 
         for port, value in assembly_node.start_values.items():
-            start = [port.fmu_name, port.port_name, value]
+            start = [scene_name(port.fmu_name), port.port_name, value]
             logger.debug(f"ADD START VALUE: {start}")
             start_values_list.append(start)
 
         for port, target in assembly_node.output_ports.items():
-            output = [port.fmu_name, port.port_name, target]
+            output = [scene_name(port.fmu_name), port.port_name, target]
             logger.debug(f"ADD OUTPUT PORT: {output}")
             output_ports_list.append(output)
 
         for port, source in assembly_node.input_ports.items():
-            input_port = [source, port.fmu_name, port.port_name]
+            input_port = [source, scene_name(port.fmu_name), port.port_name]
             logger.debug(f"ADD INPUT PORT: {input_port}")
             input_ports_list.append(input_port)
 
@@ -149,14 +161,14 @@ class AssemblyIOMixin:
             if link[2] == container_name:
                 for port, input_name in assembly_node.input_ports.items():
                     if link[3] == input_name:
-                        link[2] = port.fmu_name
+                        link[2] = scene_name(port.fmu_name)
                         link[3] = port.port_name
                         logger.debug(f"MODIFIED LINK: {link}")
                         break
             if link[0] == container_name:
                 for port, output_name in assembly_node.output_ports.items():
                     if link[1] == output_name:
-                        link[0] = port.fmu_name
+                        link[0] = scene_name(port.fmu_name)
                         link[1] = port.port_name
                         logger.debug(f"MODIFIED LINK: {link}")
                         break
@@ -221,11 +233,9 @@ class AssemblyIOMixin:
         self._assembly_node_to_items(self._tree.root, assembly.root, fmu_directory,
                                      links_list, start_values_list, output_ports_list, input_ports_list)
 
-        # Build a map from FMU filename to its NodeItem (real FMUs only, excludes
+        # Map from node name (unique in the scene) to its NodeItem (real FMUs only, excludes
         # the virtual ConfigurationNode which is never part of the Assembly model)
-        nodes_by_name: dict[str, NodeItem] = {}
-        for node in self._graph.scene.fmu_nodes():
-            nodes_by_name[str(node.fmu_path.resolve())] = node
+        nodes_by_name: dict[str, NodeItem] = {node.name: node for node in self._graph.scene.fmu_nodes()}
 
         # The GUI-only ConfigurationNode (ts_multiplier), if already created by
         # `_assembly_node_to_items` above (via `set_ts_multiplier`). Links may
@@ -233,33 +243,21 @@ class AssemblyIOMixin:
         # TS_MULTIPLIER special-case) instead of a real FMU path.
         configuration_node = self._graph.scene.configuration_node()
 
-        def _resolve_key(name: str) -> str:
-            """Return a canonical lookup key for *name*: either the reserved
-            ConfigurationNode sentinel, or the resolved FMU path string."""
-            if name == ConfigurationNode.TITLE:
-                return ConfigurationNode.TITLE
-            return str((fmu_directory / name).resolve())
-
         def _resolve_node(name: str) -> NodeItem | None:
             """Return the NodeItem (real FMU or the singleton ConfigurationNode)
             matching *name*."""
             if name == ConfigurationNode.TITLE:
                 return configuration_node
-            return nodes_by_name.get(str((fmu_directory / name).resolve()))
+            return nodes_by_name.get(name)
 
-        # Group links by (source_fmu, dest_fmu) pair to create one wire per pair
+        # Group links by (source_fmu, dest_fmu) pair to create one wire per pair. The links refer to the nodes by
+        # their name in the scene (see `_assembly_node_to_items`).
         wire_key_mappings: dict[tuple[str, str], list[tuple[str, str, str, str]]] = {}
         for link in links_list:
             fmu_from_name, port_from, fmu_to_name, port_to = link[0], link[1], link[2], link[3]
-            key_from = _resolve_key(fmu_from_name)
-            key_to = _resolve_key(fmu_to_name)
-            basename_from = fmu_from_name if fmu_from_name == ConfigurationNode.TITLE else Path(fmu_from_name).name
-            basename_to = fmu_to_name if fmu_to_name == ConfigurationNode.TITLE else Path(fmu_to_name).name
-
             # Canonical key: sorted pair so A→B and B→A end up on the same wire
-            key = tuple(sorted([key_from, key_to]))
-            wire_key_mappings.setdefault(key, []).append(
-                (basename_from, port_from, basename_to, port_to))
+            key = tuple(sorted([fmu_from_name, fmu_to_name]))
+            wire_key_mappings.setdefault(key, []).append((fmu_from_name, port_from, fmu_to_name, port_to))
 
         # Create wires with their port-level mappings
         self._graph.scene.blockSignals(True)
@@ -311,29 +309,26 @@ class AssemblyIOMixin:
 
         # Apply start values to scene nodes
         for fmu_name, port_name, value in start_values_list:
-            resolved_key = str((fmu_directory / fmu_name).resolve())
-            node = nodes_by_name.get(resolved_key)
+            node = nodes_by_name.get(fmu_name)
             if node:
                 node.user_start_values[port_name] = value
-                logger.debug(f"Start value: {Path(fmu_name).name}/{port_name} = {value}")
+                logger.debug(f"Start value: {fmu_name}/{port_name} = {value}")
             else:
                 logger.warning(f"Cannot apply start value: node not found for {fmu_name}")
 
         # Apply exposed output ports to scene nodes
         for fmu_name, port_name, _exposed_name in output_ports_list:
-            resolved_key = str((fmu_directory / fmu_name).resolve())
-            node = nodes_by_name.get(resolved_key)
+            node = nodes_by_name.get(fmu_name)
             if node:
                 node.user_exposed_outputs[port_name] = True
-                logger.debug(f"Exposed output: {Path(fmu_name).name}/{port_name}")
+                logger.debug(f"Exposed output: {fmu_name}/{port_name}")
 
         # Apply exposed input ports to scene nodes
         for _exposed_name, fmu_name, port_name in input_ports_list:
-            resolved_key = str((fmu_directory / fmu_name).resolve())
-            node = nodes_by_name.get(resolved_key)
+            node = nodes_by_name.get(fmu_name)
             if node:
                 node.user_exposed_inputs[port_name] = True
-                logger.debug(f"Exposed input: {Path(fmu_name).name}/{port_name}")
+                logger.debug(f"Exposed input: {fmu_name}/{port_name}")
 
         # Reset the detail panels so that the next sync_to_node/sync_to_wire
         # does not overwrite the just-loaded data with stale empty table content.
@@ -479,6 +474,11 @@ class AssemblyIOMixin:
             node.uid: node for node in self._graph.scene.fmu_nodes()
         }
 
+        def _reference(node: NodeItem) -> str:
+            """Name of `node` in the Assembly: its FMU file, or, for an instance, a sibling of the file named after
+            the node (the `path` block of the assembly gives the file)."""
+            return str(node.fmu_path.with_name(node.name))
+
         def _item_to_assembly_node(parent_assembly_node: AssemblyNode | None,
                                     item) -> AssemblyNode | None:
             container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
@@ -499,23 +499,23 @@ class AssemblyIOMixin:
                 if node is None:
                     logger.warning(f"Node with uid {uid} not found in scene, skipping.")
                     return None
-                fmu_path = node.fmu_path
-                logger.info(f"ADD: FMU: {fmu_path.name}")
-                parent_assembly_node.add_fmu(str(fmu_path))
+                reference = _reference(node)
+                logger.info(f"ADD: FMU: {node.name} ({node.fmu_path})")
+                parent_assembly_node.add_fmu(reference, str(node.fmu_path))
                 # Apply user-defined start values
                 for port_name, value in node.user_start_values.items():
-                    logger.debug(f"START VALUE: {fmu_path.name}/{port_name} = {value}")
-                    parent_assembly_node.add_start_value(str(fmu_path), port_name, value)
+                    logger.debug(f"START VALUE: {node.name}/{port_name} = {value}")
+                    parent_assembly_node.add_start_value(reference, port_name, value)
                 # Apply user-exposed output ports
                 for port_name, exposed in node.user_exposed_outputs.items():
                     if exposed:
-                        logger.debug(f"EXPOSE OUTPUT: {fmu_path.name}/{port_name}")
-                        parent_assembly_node.add_output(str(fmu_path), port_name, port_name)
+                        logger.debug(f"EXPOSE OUTPUT: {node.name}/{port_name}")
+                        parent_assembly_node.add_output(reference, port_name, port_name)
                 # Apply user-exposed input ports
                 for port_name, exposed in node.user_exposed_inputs.items():
                     if exposed:
-                        logger.debug(f"EXPOSE INPUT: {fmu_path.name}/{port_name}")
-                        parent_assembly_node.add_input(port_name, str(fmu_path), port_name)
+                        logger.debug(f"EXPOSE INPUT: {node.name}/{port_name}")
+                        parent_assembly_node.add_input(port_name, reference, port_name)
                 return None
 
         root_item = self._tree.root
@@ -530,10 +530,8 @@ class AssemblyIOMixin:
             return None
 
         links_list: list[tuple[str, str, str, str]] = []
-        # Build fmu_path lookup by fmu_path.name (real FMUs only)
-        path_by_name: dict[str, str] = {}
-        for node in self._graph.scene.fmu_nodes():
-            path_by_name[node.fmu_path.name] = str(node.fmu_path)
+        # Name in the Assembly of each node, by node name (real FMUs only)
+        path_by_name: dict[str, str] = {node.name: _reference(node) for node in self._graph.scene.fmu_nodes()}
 
         for wire in self._graph.scene.wires():
             is_cfg_a = isinstance(wire.node_a, ConfigurationNode)
@@ -543,7 +541,7 @@ class AssemblyIOMixin:
                     fmu_from_name, port_from, fmu_to_name, port_to = link
                 elif len(link) == 2:
                     # Legacy 2-tuple: assume node_a → node_b
-                    fmu_from_name, fmu_to_name = wire.node_a.fmu_path.name, wire.node_b.fmu_path.name
+                    fmu_from_name, fmu_to_name = wire.node_a.name, wire.node_b.name
                     port_from, port_to = link
                 else:
                     continue

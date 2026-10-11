@@ -109,8 +109,8 @@ class WireItem(QGraphicsPathItem):
 
     def _directions(self) -> tuple:
         """Return (a_to_b, b_to_a) booleans from mappings."""
-        a_name = self.node_a.fmu_path.name
-        b_name = self.node_b.fmu_path.name
+        a_name = self.node_a.name
+        b_name = self.node_b.name
         a_to_b = any(m[0] == a_name and m[2] == b_name for m in self.mappings)
         b_to_a = any(m[0] == b_name and m[2] == a_name for m in self.mappings)
         return a_to_b, b_to_a
@@ -129,7 +129,7 @@ class WireItem(QGraphicsPathItem):
             ports = getattr(node, "ts_multiplier_ports", None)
             if not ports:
                 continue
-            my_name = node.fmu_path.name
+            my_name = node.name
             for m in self.mappings:
                 if len(m) < 4:
                     continue
@@ -139,8 +139,8 @@ class WireItem(QGraphicsPathItem):
                 if fmu_to == my_name and port_to in ports and not ports[port_to]:
                     return True
 
-        name_a = self.node_a.fmu_path.name
-        name_b = self.node_b.fmu_path.name
+        name_a = self.node_a.name
+        name_b = self.node_b.name
 
         def _node_for(fmu_name):
             if fmu_name == name_a:

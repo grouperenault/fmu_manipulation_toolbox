@@ -373,8 +373,8 @@ class _WireDirectionTab(QWidget):
         if not self._from_node or not self._to_node:
             return []
         result = []
-        from_name = self._from_node.fmu_path.name
-        to_name = self._to_node.fmu_path.name
+        from_name = self._from_node.name
+        to_name = self._to_node.name
         for r in range(self._model.rowCount()):
             out_item = self._model.item(r, 0)
             in_item = self._model.item(r, 1)
@@ -388,8 +388,8 @@ class _WireDirectionTab(QWidget):
         self._model.removeRows(0, self._model.rowCount())
         if not self._from_node or not self._to_node:
             return
-        from_name = self._from_node.fmu_path.name
-        to_name = self._to_node.fmu_path.name
+        from_name = self._from_node.name
+        to_name = self._to_node.name
         for m in mappings:
             if len(m) >= 4 and m[0] == from_name and m[2] == to_name:
                 out_item = QStandardItem(m[1])
@@ -419,8 +419,8 @@ class _WireDirectionTab(QWidget):
         if not self._from_node or not self._to_node:
             return
         self._close_editor()
-        from_name = self._from_node.fmu_path.name
-        to_name = self._to_node.fmu_path.name
+        from_name = self._from_node.name
+        to_name = self._to_node.name
         to_inputs = set(self._to_node.fmu_input_names)
         for name in self._from_node.fmu_output_names:
             if name in to_inputs:
@@ -628,8 +628,8 @@ class _WireTerminalsTab(QWidget):
         if not self._node_a or not self._node_b:
             return []
         result = []
-        a_name = self._node_a.fmu_path.name
-        b_name = self._node_b.fmu_path.name
+        a_name = self._node_a.name
+        b_name = self._node_b.name
         for r in range(self._model.rowCount()):
             item_a = self._model.item(r, 0)
             item_b = self._model.item(r, 1)
@@ -643,8 +643,8 @@ class _WireTerminalsTab(QWidget):
         self._model.removeRows(0, self._model.rowCount())
         if not self._node_a or not self._node_b:
             return
-        a_name = self._node_a.fmu_path.name
-        b_name = self._node_b.fmu_path.name
+        a_name = self._node_a.name
+        b_name = self._node_b.name
         for m in mappings:
             if len(m) >= 4 and m[0] == a_name and m[2] == b_name:
                 self._model.appendRow([QStandardItem(m[1]), QStandardItem(m[3])])

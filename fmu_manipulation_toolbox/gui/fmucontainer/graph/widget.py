@@ -37,8 +37,9 @@ class NodeGraphWidget(QWidget):
         x: float = 0,
         y: float = 0,
         fmu_path: Path = Path(""),
-    ) -> NodeItem | None:
-        return self.scene.add_node(fmu_path, x, y)
+        name: str | None = None,
+    ) -> NodeItem:
+        return self.scene.add_node(fmu_path, x, y, name=name)
 
     def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> WireItem | None:
         return self.scene.add_wire(node_a, node_b)

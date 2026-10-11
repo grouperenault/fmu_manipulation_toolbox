@@ -213,6 +213,23 @@ Tests (`gui/`, pytest-qt): add the same FMU twice (names, independent wires), sa
 start values, exposed ports kept), replace the FMU of an instance, remove an instance then add again (smallest free
 number), same base name in two directories; `gui/test_assistant_qt_bridge.py`: second `add_fmu`.
 
+**Result:**
+- `NodeItem.name` (the title) is distinct from `fmu_path`; every identification by `fmu_path.name` (wires, wire
+  details, Qt MCP bridge, `ConfigurationNode`) uses it.
+- `NodeGraphScene.add_node(fmu_path, x, y, name=None)` names the node with `free_name` (`instance_name` over the
+  FMU nodes of the scene); the duplicate refusal is gone. `NodeGraphScene.replace_node_fmu` replaces the file of one
+  node and recomputes its name; `NodeItem.replace_fmu(path, new_name)` renames the wire mappings.
+- Export: each node is added to the `Assembly` as `fmu_path.with_name(node.name)` with its file (C2). Import: each
+  FMU of a container gets a name unique in the scene, and the links, start values and exposed ports of that
+  container are renamed accordingly; the nodes are then found by name instead of by resolved path. This also
+  imports an assembly with the same FMU in two sub-containers, which the former path-based identity could not.
+- The FMU detail panel shows "instance of <file>"; the node information dialog already showed the name and the file.
+
+Tests: 7 in `gui/test_fmucontainer_instances.py` (instances, JSON written, save and reload, replace, smallest free
+name after a removal, same base name in another directory, same FMU in two sub-containers), 1 in
+`gui/test_assistant_qt_bridge.py` (second `add_fmu`). Suite: 1 597 passed, 2 skipped. Not checked by hand in the
+running GUI (drag and drop, display).
+
 Commit message:
 
 ```
