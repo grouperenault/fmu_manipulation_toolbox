@@ -209,6 +209,13 @@ finding identifiers, nor to the removed legacy test_suite.py.
 
 Check: same test count, same coverage of `fmu_manipulation_toolbox/assistant/` as step 3.
 
+**Result:** three files, as planned — `contract` (342 lines, 26 tests: inventories including the resource template,
+schemas, argument errors, error reporting, strict typing), `tools` (596 lines, 41 tests) and `runtime` (231 lines,
+16 tests). The shared helpers moved to `_helpers/assistant_bridge.py` under explicit names (`make_port`, `run`,
+`input_schema`, `fmu_file`, `inventory`, `call_tool`, `read_resource`, `resolve_ref`); the docstrings of
+`unit/test_assistant_headless.py` and `gui/test_assistant_qt_bridge.py` point to the new modules. Suite: 2 091
+passed, 2 skipped; coverage unchanged (89 %, 4 470 / 4 927 lines).
+
 Commit message:
 
 ```

@@ -1,6 +1,6 @@
 """Tests for the headless assembly bridge (``fmutool-mcp`` backend).
 
-The unit tests in ``test_assistant_server.py`` pin the MCP contract against a
+The unit tests in ``test_assistant_server_*.py`` pin the MCP contract against a
 fake bridge; these ones check that the **real** GUI-less backend applies what
 the tools ask for, using actual FMU files, through the public ``Assembly`` API
 and without the Container Builder GUI.

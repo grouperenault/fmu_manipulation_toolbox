@@ -1,6 +1,6 @@
 """Integration test: the MCP server driving the real Container Builder GUI.
 
-The unit tests in ``tests/unit/test_assistant_server.py`` pin the MCP contract
+The unit tests in ``tests/unit/test_assistant_server_*.py`` pin the MCP contract
 against a fake bridge. This module checks the other half: that the Qt bridge
 really applies what the tools ask for, on actual FMUs, up to a built container.
 
