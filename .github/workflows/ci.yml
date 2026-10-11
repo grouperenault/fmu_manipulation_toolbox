@@ -21,6 +21,11 @@ on:
 permissions:
   contents: read
 
+# Newest supported Python: the single leg that refreshes the coverage badge, builds, checks and uploads the
+# package. Keep it in sync with the last entry of the `python-version` matrices (a matrix cannot read `env`).
+env:
+  NEWEST_PYTHON: "3.14"
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -100,8 +105,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest supported and newest Python.
-        python-version: ["3.10", "3.13"]
+        # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
+        python-version: ["3.10", "3.14"]
     steps:
     - uses: actions/checkout@v5
     - uses: actions/download-artifact@v5
@@ -129,9 +134,9 @@ jobs:
       run: |
         cd tests
         pytest --cov=fmu_manipulation_toolbox
-    # The coverage badge is refreshed from a single leg (3.13) on `main` only.
+    # The coverage badge is refreshed from a single leg (NEWEST_PYTHON) on `main` only.
     - name: Switch to `badges` branch and copy badge
-      if: github.ref == 'refs/heads/main' && matrix.python-version == '3.13'
+      if: github.ref == 'refs/heads/main' && matrix.python-version == env.NEWEST_PYTHON
       run: |
         cd tests
         coverage-badge -f -o /coverage.svg
@@ -145,7 +150,7 @@ jobs:
         cp /coverage.svg .github/badges/coverage.svg
 
     - name: Commit badge to `badges` branch
-      if: github.ref == 'refs/heads/main' && matrix.python-version == '3.13'
+      if: github.ref == 'refs/heads/main' && matrix.python-version == env.NEWEST_PYTHON
       uses: stefanzweifel/git-auto-commit-action@v7
       with:
         commit_message: "Update coverage badge"
@@ -158,8 +163,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest supported and newest Python.
-        python-version: ["3.10", "3.13"]
+        # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
+        python-version: ["3.10", "3.14"]
     steps:
     - uses: actions/checkout@v5
       with:
@@ -215,22 +220,15 @@ jobs:
         QTWEBENGINE_CHROMIUM_FLAGS: "--no-sandbox --disable-gpu"
       run: |
         cd tests
-        # The PySide6 GUI tests segfault under Python 3.13 on the Linux runner
-        # (QtWebEngine). They are still exercised by the Windows job, so skip
-        # them on the 3.13 Linux leg only.
-        if [ "${{ matrix.python-version }}" = "3.13" ]; then
-          pytest -v -m "not gui"
-        else
-          pytest -v
-        fi
+        pytest -v
     - name: Package
-      if: matrix.python-version == '3.13'
+      if: matrix.python-version == env.NEWEST_PYTHON
       run: |
         # Build the sdist and the wheel separately from the sources: the sdist does not ship the prebuilt binaries,
         # so a wheel built from it (the default of `python -m build`) would not contain them either.
         python -m build --sdist --wheel
     - name: Check the package
-      if: matrix.python-version == '3.13'
+      if: matrix.python-version == env.NEWEST_PYTHON
       run: |
         pip install twine "validate-pyproject[all]"
         validate-pyproject pyproject.toml
@@ -241,7 +239,7 @@ jobs:
         # On a deliberate change, update the reference with `--write` (see docs/local/done/packaging.md, phase 4).
         python tools/dist_inventory.py --dist dist --check tests/data/packaging
     - name: Archive Artifacts
-      if: matrix.python-version == '3.13'
+      if: matrix.python-version == env.NEWEST_PYTHON
       uses: actions/upload-artifact@v5
       with:
         name: package
@@ -254,8 +252,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest supported and newest Python.
-        python-version: ["3.10", "3.13"]
+        # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
+        python-version: ["3.10", "3.14"]
     steps:
     - uses: actions/checkout@v5
     - uses: actions/download-artifact@v5
@@ -292,8 +290,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-latest, macos-latest]
-        # Oldest supported and newest Python.
-        python-version: ["3.10", "3.13"]
+        # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
+        python-version: ["3.10", "3.14"]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/download-artifact@v5

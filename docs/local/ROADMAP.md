@@ -5,8 +5,8 @@
 - [X] MCP server
 - [X] Support ModelExchange
 - [ ] support multiple instances of an FMU into an Assembly (GUI)
-- [ ] Harmonize CMakeList.txt from `container` and `remoting` (C23)
+- [X] Harmonize CMakeList.txt from `container` and `remoting` (C23)
 - [X] refactor container.py
 - [X] Drop python 3.9 support (which is end-of-life)
-- [ ] Support python 3.14
+- [X] Support python 3.14
 

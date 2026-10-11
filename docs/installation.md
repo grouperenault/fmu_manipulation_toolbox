@@ -386,6 +386,7 @@ pip uninstall fastmcp
 | 3.11           | ✅ Supported               |
 | 3.12           | ✅ Supported               |
 | 3.13           | ✅ Supported (Recommended) |
+| 3.14           | ✅ Supported               |
 
 !!! note "Python 3.9"
     Python 3.9 reached its end of life in October 2025. Version 2.0 requires Python 3.10 or higher; on Python 3.9,
