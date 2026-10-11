@@ -1,9 +1,8 @@
 """Tests for the single-FMU tools: summary, checker and descriptor operations.
 
-Audit reference I8 / scenarios S4-S7 — the assistant used to cover only the
-container assembly: nothing of `fmutool`, nothing of the `Checker`, so an
-agent could not answer "what is in this FMU?", "is it compliant?" or "rename
-these ports for me".
+Besides the container assembly, the assistant exposes what `fmutool` and the
+`Checker` do on a single FMU, so that an agent can answer "what is in this
+FMU?", "is it compliant?" or "rename these ports for me".
 """
 import logging
 
@@ -89,7 +88,7 @@ def test_a_broken_descriptor_is_reported_with_its_errors(fmu, tmp_path):
 
 
 def test_semantic_errors_make_the_fmu_non_compliant(tmp_path):
-    """`compliant` is the whole verdict, not the schema one only (docs/local/done/mcp_optimize.md, C8)."""
+    """`compliant` is the whole verdict, not the schema one only."""
     result = check_fmu(make_large_fmu(tmp_path / "broken.fmu", nb_variables=40, broken=True))
 
     assert result["compliant_with"] == "2.0"             # the schema validates...

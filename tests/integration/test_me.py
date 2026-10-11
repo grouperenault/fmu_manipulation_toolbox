@@ -1,8 +1,6 @@
 """Integration tests for Model-Exchange container support.
 
-Migrated from the legacy ``test_suite.py``. The legacy tests looped over three
-orchestration configurations; they are now expanded with
-``@pytest.mark.parametrize`` for clearer reporting (one test id per config).
+Three orchestration configurations are tested, one test id per configuration.
 Each case runs in an isolated copy of ``tests/data/me``.
 """
 import sys

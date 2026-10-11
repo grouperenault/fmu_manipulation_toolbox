@@ -1,7 +1,7 @@
 """Integration tests for `fmusplit` (splitting a container FMU back into its
 embedded FMUs and reconstructing the assembly JSON).
 
-Migrated from the legacy ``test_suite.py``. Each test runs in an isolated copy
+Each test runs in an isolated copy
 of ``tests/data/split`` (see the ``area_dir`` fixture); the split outputs land
 in ``<container>.dir/`` inside ``tmp_path``.
 """
@@ -61,8 +61,8 @@ def test_fmusplit_lsbus(area_dir):
 def test_fmusplit_array_current_format(area_dir, dims):
     """Containers built with the current container.txt format split like the frozen format 5 ones.
 
-    The per-FMU lines give local storage offsets since format 5: format 6 lost a link and named array
-    elements instead of the array (container phase 6, B8).
+    The per-FMU lines give local storage offsets since format 5: the split must keep every link and name the
+    array, not its elements.
     """
     stem = f"container-array-{dims}"
     Assembly(f"array-{dims}.json").make_fmu(fmi_version=3, filename=f"{stem}.fmu")

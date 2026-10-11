@@ -180,6 +180,10 @@ The wording of the reference tests (characterization / golden) is left to step 5
 Check: `grep -rnE "docs/local|phase [0-9]|legacy|audit|\bD[0-9]+\b" tests/` returns only the hits of step 5;
 same test count as step 2.
 
+**Result:** 35 files reworded. The remaining hits are `conftest.py` (`--update-refs`, removed in step 5b), the two
+modules removed in step 5b, and `unit/test_split_parsing.py:28`, where "legacy" names a `container.txt` format, not
+the old test suite. Suite: 2 091 passed, 2 skipped.
+
 Commit message:
 
 ```

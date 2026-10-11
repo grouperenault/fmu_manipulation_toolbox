@@ -1,7 +1,7 @@
 """Integration test for the Remoting feature (adding a win64 interface to a
 win32 FMU).
 
-Migrated from the legacy ``test_suite.py``. Requires win32 and the compiled
+Requires win32 and the compiled
 remoting binaries shipped under ``resources/``; it runs in an isolated copy of
 ``tests/data/remoting``.
 """

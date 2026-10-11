@@ -1,6 +1,6 @@
 """Unit test for the FMU compliance checker.
 
-Migrated from the legacy ``test_suite.py``. Runs in an isolated copy of
+Runs in an isolated copy of
 ``tests/data/operations``.
 """
 import pytest

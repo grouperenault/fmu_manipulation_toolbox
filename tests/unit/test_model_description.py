@@ -1,4 +1,4 @@
-"""Unit tests of `model_description.py` (phase 1 of `docs/local/done/refactoring.md`).
+"""Unit tests of `model_description.py`.
 
 Three sets of descriptors are used:
 
@@ -82,7 +82,8 @@ def fmi3(variable="", extra_variable="") -> bytes:
     return FMI3.format(variable=variable, extra_variable=extra_variable).encode("utf-8")
 
 
-#: Hand-written descriptors exercising what the expat implementation loses (D1 to D5).
+#: Hand-written descriptors exercising what a naive rewrite of the XML loses (escaping, annotations, comments,
+#: namespaces, non-ASCII text).
 EDGE_CASES: dict[str, bytes] = {
     "escaped-text": fmi2(header='<VendorAnnotations><Tool name="T"><Info>x &lt; y &amp; z</Info></Tool>'
                                 '</VendorAnnotations>'),

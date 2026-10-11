@@ -5,8 +5,8 @@ These tests drive the server through an in-memory ``fastmcp.Client`` against a
 (tool/resource inventory and signatures) independently of the backend that
 applies the operations.
 
-The expected inventory below is the one measured on the pre-refactoring server
-(see ``docs/local/done/mcp_audit.md``); it is the regression net for the follow-up PRs.
+The expected inventories below are the published MCP contract: a change of tool,
+parameter, resource or prompt must be deliberate, and update them.
 """
 import asyncio
 import importlib
@@ -36,8 +36,6 @@ from fmu_manipulation_toolbox.assistant.models import (  # noqa: E402
 from fmu_manipulation_toolbox.assistant.server import compact_schema, describe_argument_errors  # noqa: E402
 
 #: Tool name -> ordered parameter names.
-#: Starts from the inventory measured before the refactoring; the ``overwrite``
-#: flags were added when the write guard-rails landed (B3).
 EXPECTED_TOOLS = {
     "list_fmus": [],
     "list_fmu_ports": ["fmu", "causality", "name_pattern", "offset", "limit"],
@@ -56,7 +54,7 @@ EXPECTED_TOOLS = {
     "analyze_assembly": ["mode", "node"],
     "save_as_json": ["path", "overwrite"],
     "save_as_fmu": ["path", "fmi_version", "datalog", "overwrite"],
-    # Single-FMU tools: they never touch the assembly (audit I8).
+    # Single-FMU tools: they never touch the assembly.
     "summarize_fmu": ["path"],
     "check_fmu": ["path"],
     "dump_ports_csv": ["fmu", "path", "overwrite"],
@@ -295,7 +293,7 @@ def test_tools_are_forwarded_to_the_bridge(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-#             structured, bounded port listings (audit I3, M6 and M8)           #
+#                     structured, bounded port listings                        #
 # --------------------------------------------------------------------------- #
 def _ports_call(bridge, tool="list_fmu_ports", **arguments):
     """Call a port-listing tool and return its structured payload as a dict."""
@@ -307,8 +305,8 @@ def _ports_call(bridge, tool="list_fmu_ports", **arguments):
 
 
 def test_port_listing_reports_every_causality(tmp_path):
-    """Regression test for M8: parameters and locals used to be invisible,
-    inputs and parameters being merged into a single `inputs` list."""
+    """Every causality is reported in its own list: parameters and locals are
+    visible, and parameters are not merged with the inputs."""
     bridge = FakeBridge()
     bridge.add_fmu("a.fmu")
 
@@ -350,7 +348,7 @@ def test_an_invalid_pattern_is_reported_rather_than_crashing():
 
 
 def test_port_listing_is_paginated(tmp_path):
-    """Regression test for I3: a 2000-port FMU used to be dumped whole."""
+    """A large FMU is listed page by page, never dumped whole."""
     bridge = FakeBridge()
     bridge.fmus["big.fmu"] = FakeBridge._description("big.fmu", port_count=500)
 
@@ -377,7 +375,7 @@ def test_the_default_limit_keeps_the_answer_small():
 
 
 def test_ports_are_compact():
-    """Undeclared attributes are left out, long descriptions cut (docs/local/done/mcp_optimize.md, phase 2)."""
+    """Undeclared attributes are left out, long descriptions cut."""
     bridge = FakeBridge()
     bridge.add_fmu("a.fmu")
     bridge.fmus["a.fmu"]["ports"][0]["description"] = "x" * 200
@@ -391,7 +389,7 @@ def test_ports_are_compact():
 
 
 def test_optional_parameters_are_published_without_null():
-    """`anyOf: [X, null]` and `default: null` cost tokens at every request (docs/local/done/mcp_optimize.md, phase 3)."""
+    """`anyOf: [X, null]` and `default: null` would cost tokens at every request."""
     async def scenario():
         async with fastmcp.Client(build_server(FakeBridge())) as client:
             return await client.list_tools()
@@ -434,8 +432,8 @@ def test_the_page_size_is_bounded():
 
 
 def test_inspecting_a_file_does_not_add_it_to_the_assembly(tmp_path):
-    """Regression test for M6: `list_fmu_ports` used to accept both a canvas
-    name and a file path, hiding which of the two the caller meant."""
+    """A file is inspected with `inspect_fmu_file`, without being added to the
+    assembly; `list_fmu_ports` only takes the name of an FMU of the assembly."""
     bridge = FakeBridge()
     candidate = _fmu_file(tmp_path, "candidate.fmu")
 
@@ -457,8 +455,8 @@ def test_listing_the_ports_of_a_file_path_is_refused(tmp_path):
 
 
 def test_adding_an_fmu_summarises_what_it_brings(tmp_path):
-    """Regression test for M6: `add_fmu` only returned a name, forcing an
-    extra round-trip to learn anything about the FMU."""
+    """`add_fmu` describes the added FMU, so that no extra round-trip is needed
+    to learn what it brings."""
     bridge = FakeBridge()
     source = _fmu_file(tmp_path, "model.fmu")
 
@@ -473,8 +471,7 @@ def test_adding_an_fmu_summarises_what_it_brings(tmp_path):
 
 
 def test_removing_an_fmu_reports_the_discarded_links(tmp_path):
-    """Regression test for M6: `remove_fmu` returned a constant `True`, which
-    told the caller nothing about the collateral damage."""
+    """`remove_fmu` reports the links removed with the FMU."""
     bridge = FakeBridge()
     bridge.add_fmu("a.fmu")
 
@@ -513,7 +510,7 @@ def test_save_as_fmu_accepts_supported_fmi_versions(tmp_path, fmi_version):
 
 @pytest.mark.parametrize("fmi_version", [0, 1, 7, 42, "2"])
 def test_save_as_fmu_rejects_unsupported_fmi_versions(tmp_path, fmi_version):
-    """Regression test for B6: `fmi_version=7` used to build a corrupted FMU
+    """An unsupported version is refused, instead of building a corrupted FMU
     (empty ``modelDescription.xml``) while reporting success."""
     bridge = FakeBridge()
 
@@ -571,8 +568,8 @@ def _call_error(tool, arguments, tmp_path=None) -> str:
     ("list_fmus", {"verbose": True}, "unknown argument 'verbose'"),
 ], ids=["unknown-option", "constraint", "literal", "missing", "unknown-argument"])
 def test_invalid_arguments_are_reported_without_pydantic_noise(tool, arguments, expected):
-    """The audit's S8 message ("Unknown container option(s) ... Allowed: [...]") was lost when the
-    options became a Pydantic model: FastMCP reported the raw Pydantic text instead."""
+    """Invalid arguments are reported in a short message the client can act upon (e.g. "Unknown container
+    option(s) ... Allowed: [...]"), not as the raw Pydantic text."""
     message = _call_error(tool, arguments)
     assert expected in message
     assert message.startswith(f"Invalid arguments for '{tool}': ")
@@ -627,8 +624,8 @@ class NestedBridge(FakeBridge):
 
 
 def test_assembly_is_paged_by_container_and_section(data_dir):
-    """docs/local/done/assembly_analysis.md, phase 2: a large assembly is read one container, then one section, at a
-    time; the FMUs are designated by name, as in the other tools."""
+    """A large assembly is read one container, then one section, at a time; the FMUs are designated by name, as in
+    the other tools."""
     assembly = json.loads((data_dir / "containers" / "arch" / "nested.json").read_text())
     assembly["fmu"] = [f"/models/{fmu}" for fmu in assembly["fmu"]]
 
@@ -649,7 +646,7 @@ def test_assembly_is_paged_by_container_and_section(data_dir):
 
 
 def test_analyze_assembly_summarises_and_lints(data_dir):
-    """docs/local/done/assembly_analysis.md, phase 4: one read-only tool, two modes, optionally one container."""
+    """`analyze_assembly`: one read-only tool, two modes (summary, lint), optionally on one container."""
     assembly = json.loads((data_dir / "containers" / "arch" / "hierarchical.json").read_text())
 
     async def scenario():
@@ -670,7 +667,7 @@ def test_analyze_assembly_summarises_and_lints(data_dir):
 
 
 def test_analyze_assembly_lints_the_ports_with_the_builder(tmp_path):
-    """Through the headless bridge (flat, D10): a wired assembly passes the builder."""
+    """Through the headless bridge (flat assembly): a wired assembly passes the builder."""
     from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
     from _helpers.mcp_budget import make_fmu
 
@@ -703,7 +700,7 @@ def test_an_unknown_container_is_reported(data_dir):
 
 
 # --------------------------------------------------------------------------- #
-#          portable know-how: prompts and reference resources (I4, I6)          #
+#              portable know-how: prompts and reference resources              #
 # --------------------------------------------------------------------------- #
 def _read(bridge, uri):
     async def scenario():
@@ -714,8 +711,8 @@ def _read(bridge, uri):
 
 
 def test_prompt_inventory_matches_reference():
-    """Regression test for I6: the know-how only lived in a resource no client
-    consults spontaneously."""
+    """The know-how is also published as prompts, since no client consults a
+    resource spontaneously."""
     async def scenario():
         async with fastmcp.Client(build_server(FakeBridge())) as client:
             return await client.list_prompts()
@@ -750,8 +747,7 @@ TOOL_VERBS = ("list_", "add_", "remove_", "expose_", "set_", "unset_", "get_", "
 
 
 def test_the_know_how_only_names_existing_tools():
-    """docs/local/done/assembly_analysis.md, phase 5: a prompt or the guide naming a tool that does not exist (renamed,
-    removed) sends the model after it."""
+    """A prompt or the guide naming a tool that does not exist (renamed, removed) would send the model after it."""
     import re
     from fmu_manipulation_toolbox.assistant import knowledge
 
@@ -766,7 +762,7 @@ def test_the_know_how_only_names_existing_tools():
 
 
 def test_reference_resources_are_served():
-    """Regression test for I4: reference material was missing entirely."""
+    """The FMI reference material is served as resources."""
     bridge = FakeBridge()
     assert "Causality" in _read(bridge, "fmi://conventions")
     assert "step_size" in _read(bridge, "container://options")
@@ -806,7 +802,7 @@ def test_the_usage_guide_has_a_single_source():
 
 
 # --------------------------------------------------------------------------- #
-#                       write guard-rails (audit finding B3)                    #
+#                              write guard-rails                               #
 # --------------------------------------------------------------------------- #
 def _call(bridge, tool, arguments, policy=None):
     async def scenario():
@@ -821,8 +817,8 @@ def _call(bridge, tool, arguments, policy=None):
                                         ("save_as_fmu", "out.json"),
                                         ("save_as_fmu", "out.txt")])
 def test_saving_rejects_a_foreign_extension(tmp_path, tool, name):
-    """Regression test for B3: `save_as_json` used to happily write JSON into
-    a versioned `.csv` file."""
+    """A file is only written with the extension of its format: `save_as_json`
+    must not overwrite a versioned `.csv` file, for instance."""
     bridge = FakeBridge()
     with pytest.raises(Exception, match="must end with"):
         _call(bridge, tool, {"path": str(tmp_path / name)})
@@ -910,10 +906,10 @@ def test_policy_rejects_a_root_that_is_not_a_directory(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-#               completing assembly edition (audit §4 "manques")               #
+#                               assembly edition                               #
 # --------------------------------------------------------------------------- #
 def test_links_can_be_created_in_bulk(tmp_path):
-    """Wiring used to cost one round-trip per link."""
+    """Several links are created in one call, not one round-trip per link."""
     bridge = FakeBridge()
     bridge.add_fmu("a.fmu")
     bridge.add_fmu("b.fmu")
@@ -989,7 +985,7 @@ def test_unsetting_a_start_value_that_was_never_set_is_reported():
 
 
 # --------------------------------------------------------------------------- #
-#                       port resolution (audit finding M1)                      #
+#                               port resolution                                #
 # --------------------------------------------------------------------------- #
 def test_port_defaults_when_the_variable_is_unset(monkeypatch):
     monkeypatch.delenv(PORT_ENV_VAR, raising=False)
@@ -1003,8 +999,8 @@ def test_port_honours_the_environment(monkeypatch):
 
 @pytest.mark.parametrize("value", ["", "abc", "80.5", "0", "-1", "65536"])
 def test_invalid_port_is_reported_at_startup_not_at_import(monkeypatch, value):
-    """Regression test for M1: the port used to be parsed at import time, so a
-    malformed value broke an unrelated ``import`` of the package."""
+    """The port is parsed at startup, not at import time: a malformed value
+    must not break an unrelated ``import`` of the package."""
     monkeypatch.setenv(PORT_ENV_VAR, value)
 
     importlib.reload(importlib.import_module("fmu_manipulation_toolbox.assistant"))
@@ -1014,7 +1010,7 @@ def test_invalid_port_is_reported_at_startup_not_at_import(monkeypatch, value):
 
 
 # --------------------------------------------------------------------------- #
-#                     configurable timeout (audit finding I5)                   #
+#                             configurable timeout                             #
 # --------------------------------------------------------------------------- #
 def test_timeout_defaults_when_the_variable_is_unset(monkeypatch):
     monkeypatch.delenv(TIMEOUT_ENV_VAR, raising=False)
@@ -1034,7 +1030,7 @@ def test_an_invalid_timeout_is_reported(monkeypatch, value):
 
 
 # --------------------------------------------------------------------------- #
-#                      progress reporting (audit finding I5)                    #
+#                              progress reporting                              #
 # --------------------------------------------------------------------------- #
 class SlowBridge(FakeBridge):
     """Bridge whose build blocks, the way a real one does."""
@@ -1051,8 +1047,8 @@ class SlowBridge(FakeBridge):
 
 
 def test_building_reports_progress(tmp_path):
-    """Regression test for I5: the longest tool used to run silently, leaving
-    the client unable to tell a slow build from a hung one."""
+    """The build reports its progress, so that the client can tell a slow build
+    from a hung one."""
     bridge = FakeBridge()
     updates = []
 
@@ -1105,10 +1101,10 @@ def test_a_slow_build_does_not_starve_other_requests(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-#                    end-to-end scenarios (audit S1, S2 and S8)                 #
+#                             end-to-end scenarios                             #
 # --------------------------------------------------------------------------- #
 def test_scenario_assemble_two_fmus_and_export_json(tmp_path):
-    """Audit scenario S1: add two FMUs, wire them, review and export."""
+    """Add two FMUs, wire them, review and export."""
     bridge = FakeBridge()
     first, second = _fmu_file(tmp_path, "position.fmu"), _fmu_file(tmp_path, "velocity.fmu")
     destination = tmp_path / "assembly.json"
@@ -1137,7 +1133,7 @@ def test_scenario_assemble_two_fmus_and_export_json(tmp_path):
 
 
 def test_scenario_build_a_container(tmp_path):
-    """Audit scenario S2: assemble, then build the container FMU."""
+    """Assemble, then build the container FMU."""
     bridge = FakeBridge()
     source = _fmu_file(tmp_path, "model.fmu")
     destination = tmp_path / "container.fmu"
@@ -1166,7 +1162,7 @@ def test_scenario_build_a_container(tmp_path):
     ("remove_fmu", {"name": "ghost.fmu"}, "is not in the assembly"),
 ])
 def test_scenario_errors_are_actionable(tmp_path, tool, arguments, expected):
-    """Audit scenario S8: the client must get a message it can act upon."""
+    """The client must get a message it can act upon."""
     bridge = FakeBridge()
     bridge.add_fmu("a.fmu")
 
@@ -1179,7 +1175,7 @@ def test_scenario_errors_are_actionable(tmp_path, tool, arguments, expected):
 
 
 # --------------------------------------------------------------------------- #
-#                   error reporting and annotations (B5, I1)                    #
+#                       error reporting and annotations                        #
 # --------------------------------------------------------------------------- #
 class BrokenBridge(FakeBridge):
     """Bridge whose internals blow up the way a real bug would."""
@@ -1194,9 +1190,8 @@ def test_domain_errors_keep_their_message():
 
 
 def test_internal_errors_are_not_leaked_verbatim(caplog):
-    """Regression test for B5: an internal ``AttributeError`` used to reach the
-    client as "'NoneType' object has no attribute ...", which no model can act
-    upon."""
+    """An internal error (e.g. an ``AttributeError``) does not reach the client
+    as "'NoneType' object has no attribute ...", which no model can act upon."""
     with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
         with pytest.raises(ToolError) as excinfo:
             _call(BrokenBridge(), "list_fmus", {})
@@ -1245,7 +1240,7 @@ def test_idempotent_writes_are_flagged(tool):
 
 
 # --------------------------------------------------------------------------- #
-#                    strict input typing (audit I2 and M5)                      #
+#                             strict input typing                              #
 # --------------------------------------------------------------------------- #
 def _resolve(schema, node):
     """Follow a ``$ref`` if the model was not inlined by FastMCP."""
@@ -1256,8 +1251,8 @@ def _resolve(schema, node):
 
 
 def test_container_options_advertise_their_keys():
-    """Regression test for I2: the options used to be an opaque
-    ``Dict[str, Any]``, so the model could not know which keys exist."""
+    """The options are typed, not an opaque ``Dict[str, Any]``: the model knows
+    which keys exist."""
     tools, _ = _run(_inventory(FakeBridge()))
     schema = _input_schema(next(t for t in tools if t.name == "set_container_options"))
     options = _resolve(schema, schema["properties"]["options"])
@@ -1301,7 +1296,7 @@ def test_start_values_are_rendered_the_fmi_way(value, expected):
 
 
 def test_every_tool_parameter_is_documented():
-    """Regression test for M5: parameters used to carry no description."""
+    """Every parameter carries a description."""
     tools, _ = _run(_inventory(FakeBridge()))
     undocumented = []
     for tool in tools:

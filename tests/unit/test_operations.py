@@ -1,6 +1,6 @@
 """Unit tests for FMU operations (modelDescription.xml manipulations).
 
-Migrated from the legacy ``test_suite.py``. Each test runs in an isolated copy
+Each test runs in an isolated copy
 of ``tests/data/operations`` (see the ``area_dir`` fixture) so generated files
 never pollute the source tree.
 """

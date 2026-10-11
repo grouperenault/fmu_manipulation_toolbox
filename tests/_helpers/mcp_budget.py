@@ -1,4 +1,4 @@
-"""Context budget of the MCP server (docs/local/done/mcp_optimize.md).
+"""Context budget of the MCP server.
 
 What the server puts in the context of the model, measured in characters: the tool definitions (sent with every
 request) and the tool results (kept in the conversation). Tokens are only reported when `tiktoken` is installed,
@@ -18,8 +18,7 @@ from pathlib import Path
 #: Size of the synthetic FMU: the order of magnitude of industrial FMUs.
 LARGE_FMU_VARIABLES = 5000
 
-#: Budgets checked by the tests (decision D6); the definitions budget raised from 16 000 for `analyze_assembly`
-#: (docs/local/done/assembly_analysis.md, decision D1).
+#: Budgets checked by the tests.
 DEFINITIONS_BUDGET = 17_000
 RESULT_BUDGET = 12_000
 
@@ -75,9 +74,9 @@ def _options(step_size: float, mt: bool) -> dict:
 
 
 def make_large_assembly(directory: Path) -> dict:
-    """Nested assembly of the size of a real one, its FMUs in `directory` (docs/local/done/assembly_analysis.md).
+    """Nested assembly of the size of a real one, its FMUs in `directory`.
 
-    Same shape as the case study of the plan: a scenario driving a vehicle container, which couples a plant with a
+    Same shape as a real case: a scenario driving a vehicle container, which couples a plant with a
     traction sub-container (3 levels, 5 FMUs, ~300 exposed inputs, ~290 exposed outputs, ~290 links), every `auto_*`
     rule off. Port names follow both conventions met in practice: dotted buses (`Sc_2_DV.speed`) and underscore
     prefixes (`SNR_time3`). It also holds the patterns the lint must report: `mt` on two nested levels, a step ratio

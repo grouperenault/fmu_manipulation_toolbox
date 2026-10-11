@@ -1,7 +1,7 @@
-"""Characterization tests of the container builder internals (docs/local/done/container.md, phase 0).
+"""Unit tests of the container builder internals.
 
-They pinned the behaviour of the classes of `container.py` before its refactoring, and cover the bugs fixed since
-(B1 to B3, B5 to B7, C2, C4).
+They check the classes of the `container` package one by one: public API, conversions (against the C runtime),
+container types, value references, FMI-2 array families, step size, rules API and build.
 """
 import importlib
 import io
@@ -159,7 +159,7 @@ def _container_with(tmp_path, *fmus) -> FMUContainer:
     ([(0.1, False), (0.25, False)], 0.5),
     ([(0.1, False), (0.5, True)], 0.1),            # variable steps ignored when one is fixed
     ([(None, True), (None, True)], 0.1),           # no step size at all: default
-    ([(0.2, False), (0.3, False)], 0.6),           # exact least common multiple (D5)
+    ([(0.2, False), (0.3, False)], 0.6),           # exact least common multiple, no float rounding
     ([(0.1, False), (0.3, False), (None, False)], 0.3),
 ], ids=["variable", "fixed", "fixed-lcm", "mixed", "none", "exact-lcm", "exact-without-step"])
 def test_default_step_size(tmp_path, fmus, expected):
@@ -230,7 +230,7 @@ def test_duplicate_output_name(bouncing):
      "a link from Port bb_velocity.fmu/velocity"),
 ], ids=["input-input", "input-link", "link-input", "link-link"])
 def test_input_fed_twice(bouncing, first, second, message):
-    """B6: an input of an embedded FMU has one feeder, a container input or a link."""
+    """An input of an embedded FMU has one feeder, a container input or a link."""
     first(bouncing)
     with pytest.raises(FMUContainerError, match=f"Port bb_position.fmu/velocity is already fed by {message}"):
         second(bouncing)
@@ -245,7 +245,7 @@ def test_input_fed_twice(bouncing, first, second, message):
     lambda c: c.add_start_value("bb_position.fmu", "missing", "1"),
 ], ids=["input", "output", "drop", "link", "start"])
 def test_missing_port_is_an_error(bouncing, rule):
-    """Decision D2: a rule on a missing port raises instead of being logged and ignored."""
+    """A rule on a missing port raises instead of being logged and ignored."""
     with pytest.raises(FMUContainerError, match="Port 'bb_position.fmu/missing' does not exist"):
         rule(bouncing)
     assert not bouncing.rules and not bouncing.start_values
@@ -298,7 +298,7 @@ def test_layout_allocation_order():
 
 
 def test_port_xml_has_no_side_effect():
-    """The default variability is computed for the XML element only (C4)."""
+    """The default variability is computed for the XML element only."""
     port = EmbeddedFMUPort("real64", {"name": "x", "valueReference": 1, "causality": "output"})
     variable = port.xml(7, fmi_version=3)
     assert variable.get("variability") == "continuous" and variable.get("valueReference") == "7"
@@ -315,7 +315,7 @@ def _fake_fmu(name: str, ports):
 
 
 def test_one_converted_copy_per_target_type(tmp_path):
-    """B7: a link feeding two inputs of the same converted type gets one converted copy and one conversion."""
+    """A link feeding two inputs of the same converted type gets one converted copy and one conversion."""
     container = FMUContainer("test", tmp_path)
     container.involved_fmu["a.fmu"] = _fake_fmu("a.fmu", [("y", "real64", "output", 1)])
     container.involved_fmu["b.fmu"] = _fake_fmu("b.fmu", [("u1", "boolean", "input", 1), ("u2", "boolean", "input", 2)])

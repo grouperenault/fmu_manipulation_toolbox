@@ -1,4 +1,4 @@
-"""Tests for the HTTP transport authentication (audit finding B4).
+"""Tests for the HTTP transport authentication.
 
 The stdio transport needs none of this: the client is the parent process. The
 HTTP one binds to loopback, which keeps remote machines out but not the other

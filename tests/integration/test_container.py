@@ -1,10 +1,10 @@
 """Integration tests for the FMU Container builder (`Assembly` / `FMUContainer`).
 
-Migrated from the legacy ``test_suite.py``. Each test runs in an isolated copy
+Each test runs in an isolated copy
 of its ``tests/data/<area>`` subtree (see the ``area_dir`` fixture); it therefore
 ``cd``s into that directory and refers to files by their bare, directory-relative
 names. Simulation steps that need the platform-specific compiled container binary
-keep the original win32 guard; `test_container_mt` is fully ``windows_only``.
+only run on win32; `test_container_mt` is fully ``windows_only``.
 """
 import sys
 from pathlib import Path

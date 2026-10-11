@@ -1,9 +1,9 @@
 """Integration test: the standalone ``fmutool-mcp`` server over stdio.
 
-Audit reference B2 — the assistant used to require a running GUI, which ruled
-out every MCP client that *launches* its server (Claude Desktop, Cline, a
-``mcp.json`` with a ``command``). These tests spawn the real console script as
-a subprocess and talk to it the way such a client would.
+The server runs without the GUI, so that MCP clients that *launch* their
+server (Claude Desktop, Cline, a ``mcp.json`` with a ``command``) can use it.
+These tests spawn the real console script as a subprocess and talk to it the
+way such a client would.
 """
 import asyncio
 import subprocess

@@ -96,7 +96,7 @@ def mcp_server(qapp, data_dir):
 
 @pytest.mark.needs_container
 def test_build_a_container_through_mcp(mcp_server, data_dir, tmp_path):
-    """Audit scenario S2, end to end: add two FMUs, link them, build the FMU."""
+    """End to end: add two FMUs, link them, build the FMU."""
     import zipfile
 
     server, window = mcp_server
@@ -141,8 +141,8 @@ def test_build_a_container_through_mcp(mcp_server, data_dir, tmp_path):
 
     assert _drive(scenario) == str(destination.resolve())
 
-    # The produced archive must be a real FMI-2 container, not an empty shell:
-    # `fmi_version=7` used to yield a 0-byte modelDescription.xml (audit B6).
+    # The produced archive must be a real FMI-2 container, not an empty shell
+    # with a 0-byte modelDescription.xml.
     with zipfile.ZipFile(destination) as archive:
         descriptor = archive.read("modelDescription.xml").decode("utf-8", "replace")
     assert 'fmiVersion="2.0"' in descriptor
@@ -249,7 +249,7 @@ def test_unsetting_a_start_value_restores_the_declared_one(mcp_server, data_dir)
 
 
 # --------------------------------------------------------------------------- #
-#               main-thread marshalling and timeout (audit I5)                  #
+#                     main-thread marshalling and timeout                      #
 # --------------------------------------------------------------------------- #
 def _invoker(**kwargs):
     from fmu_manipulation_toolbox.gui.fmucontainer.mcp_bridge import MainThreadInvoker
@@ -258,9 +258,8 @@ def _invoker(**kwargs):
 
 
 def test_the_timeout_is_configurable(qapp, monkeypatch):
-    """Regression test for I5: the budget used to be hard-coded at 60 s, which
-    is both too short for a big assembly and too long for an interactive
-    session."""
+    """The timeout is configurable: no single value is both long enough for a
+    big assembly and short enough for an interactive session."""
     from fmu_manipulation_toolbox.assistant import DEFAULT_TIMEOUT, TIMEOUT_ENV_VAR
 
     monkeypatch.delenv(TIMEOUT_ENV_VAR, raising=False)

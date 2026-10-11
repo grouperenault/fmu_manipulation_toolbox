@@ -1,6 +1,6 @@
 """Integration tests for the container datalog feature and `datalog2pcap`.
 
-Migrated from the legacy ``test_suite.py``. `test_datalog` / `test_datalog3`
+`test_datalog` / `test_datalog3`
 reuse the ``containers/bouncing_ball`` and ``containers/VanDerPol`` data sets;
 `test_datalog_pcap` converts an LS-BUS datalog CSV to a PCAP file. Each test runs
 in an isolated copy of its data area (see the ``area_dir`` fixture).

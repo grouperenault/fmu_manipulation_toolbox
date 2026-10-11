@@ -2,8 +2,7 @@
 
 The file comparisons normalise trailing blank lines and line endings so that a
 spurious final newline does not trigger a failure, while still detecting a
-genuine difference in the number of meaningful lines (the legacy ``zip``-based
-implementation silently ignored such length differences).
+genuine difference in the number of meaningful lines.
 """
 import difflib
 import hashlib
