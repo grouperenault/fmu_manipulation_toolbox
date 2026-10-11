@@ -278,6 +278,12 @@ optional sections of the summary and the removal of absent sources.
 
 Check: expected test count 2 091 − 1 104 − 12 + 576 + 1 + (tests of step 5a); coverage equal to step 5a.
 
+**Result:** as planned. 1 558 passed, 2 skipped (= 2 097 − 1 104 − 12 + 576 + 1); coverage unchanged from step 5a
+(4 472 / 4 927 lines, 89 %). 48 reference directories and 27 `REF-golden-*` files removed. `_read_lines` of
+`_helpers/assertions.py` lost its `strip` parameter, only `assert_identical_text` used `strip=False`. No reference in
+`MANIFEST.in`, `tools/` or the CI. Run time without coverage: about 21 s (25 s at step 0); the invariants take about
+6 s, most of it the XSD validation.
+
 Commit message:
 
 ```

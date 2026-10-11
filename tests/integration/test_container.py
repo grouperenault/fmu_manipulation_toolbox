@@ -173,6 +173,16 @@ def test_fmi3_pt2(area_dir):
         assert_simulation("container-passthrough.fmu")
 
 
+@pytest.mark.area("containers/bouncing_ball")
+def test_container_build_is_deterministic(area_dir):
+    """Two builds of the same assembly give the same files (the descriptor up to its volatile attributes)."""
+    for filename in ("first.fmu", "second.fmu"):
+        Assembly("bouncing.csv", debug=True).make_fmu(filename=filename)
+    assert_identical_files("first/resources/container.txt", "second/resources/container.txt")
+    assert_equivalent_xml("first/modelDescription.xml", "second/modelDescription.xml",
+                          ignore_attributes=VOLATILE_XML_ATTRIBUTES)
+
+
 # --------------------------------------------------------------------------- #
 #                                   mt                                          #
 # --------------------------------------------------------------------------- #

@@ -48,9 +48,8 @@ def sv(name, vr, child="<Real/>", **attrs) -> str:
 # --------------------------------------------------------------------------- #
 def _descriptors():
     for path in sorted(DATA_DIR.rglob("*.fmu")):
-        if "refactoring" not in path.parts:
-            with zipfile.ZipFile(path) as fmu:
-                yield path.relative_to(DATA_DIR).as_posix(), fmu.read("modelDescription.xml")
+        with zipfile.ZipFile(path) as fmu:
+            yield path.relative_to(DATA_DIR).as_posix(), fmu.read("modelDescription.xml")
     for path in sorted((DATA_DIR / "reference-fmus").rglob("modelDescription.xml")):
         yield path.relative_to(DATA_DIR).as_posix(), path.read_bytes()
 
