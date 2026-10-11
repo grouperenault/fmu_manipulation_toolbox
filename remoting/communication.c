@@ -38,6 +38,8 @@ static char* concat(const char* prefix, const char* name) {
 
 #if !defined _WIN32 && !defined HAVE_SEMTIMEDOP
 static void communication_alarm_handler(int sig) {
+    (void)sig; /* unused parameter */
+
     /* this nop signal handler is needed to make semop() interruptible */
     return;
 }
@@ -92,8 +94,10 @@ static void communication_sem_free(sem_handle_t sem, const char *sem_name) {
 
 static void communication_shm_free(shm_handle_t map_file, const char *shm_name) {
 #ifdef _WIN32
+    (void)shm_name; /* unused parameter */
     CloseHandle(map_file);
 #else
+    (void)map_file; /* unused parameter */
     shm_unlink(shm_name);
 #endif
 }

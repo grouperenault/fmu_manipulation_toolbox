@@ -108,6 +108,10 @@ Build remoting with the shared CMake module, in C23 (cmake_harmonize step 2)
 Fix the warnings raised by the shared flags in `remoting/*.c` (unused parameters, prototypes without `(void)`, and
 any other one reported). No behaviour change. Target: 0 warning with Clang, like `container`.
 
+Result: 0 warning with Clang. `fmi2GetTypesPlatform()` / `fmi2GetVersion()` get a `(void)` prototype;
+`communication_shm_free()` marks its platform-specific unused parameter. The runtime test of remoting
+(`tests/integration/test_remoting.py`) only runs on Windows: checked by the CI.
+
 Commit message:
 
 ```
