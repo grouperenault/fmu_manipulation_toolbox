@@ -245,6 +245,13 @@ Add unit tests reaching the 25 lines and 14 branches listed in step 1, on small 
 Check: with `integration/test_operations_characterization.py` ignored, the coverage is back to the step 0 figure
 (89 %, 4 470 lines, 1 409 branches); without ignoring it, unchanged.
 
+**Result:** 6 tests added — `test_namespaced_attributes_are_named_with_their_prefix` (`unit/test_model_description.py`),
+`test_fmi3_removing_an_output_drops_its_structure_entry` and `test_removing_every_dependency_drops_the_attributes`
+(FMI 2 and 3, `unit/test_operations_dependencies.py`), `test_summary_lists_resources_extra_data_and_terminals` and
+`test_removing_absent_sources_is_reported` (`unit/test_operations.py`, on a hand-built FMU). Suite: 2 097 passed,
+2 skipped. Coverage is now the same with or without the characterization and golden modules: 4 472 / 4 927 lines
+covered (89 %), 135 partial branches — 2 lines more than step 0.
+
 Commit message:
 
 ```

@@ -175,6 +175,18 @@ def test_namespace_prefixes_are_kept():
     assert b"ns0:" not in saved
 
 
+def test_namespaced_attributes_are_named_with_their_prefix():
+    """The operations read and write a namespaced attribute under the name found in the file (`xsi:...`)."""
+    descriptor = fmi2().replace(b'fmiVersion="2.0"', b'fmiVersion="2.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-'
+                                b'instance" xsi:noNamespaceSchemaLocation="fmi2ModelDescription.xsd"')
+    md = ModelDescription.load(descriptor)
+    attributes = md.attributes(md.root)
+    assert "xsi:noNamespaceSchemaLocation" in list(attributes)
+    assert attributes["xsi:noNamespaceSchemaLocation"] == "fmi2ModelDescription.xsd"
+    attributes["xsi:noNamespaceSchemaLocation"] = "other.xsd"
+    assert b'xsi:noNamespaceSchemaLocation="other.xsd"' in md.to_bytes()
+
+
 @pytest.mark.parametrize("name", DESCRIPTORS)
 def test_roundtrip_keeps_xsd_validity(name, tmp_path):
     original = DESCRIPTORS[name]
