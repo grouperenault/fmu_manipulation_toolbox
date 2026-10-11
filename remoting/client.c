@@ -418,6 +418,9 @@ static client_t* client_new(const char *filename, const char *instanceName, cons
 fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2String fmuGUID,
                               fmi2String fmuResourceLocation, const fmi2CallbackFunctions* functions,
                               fmi2Boolean visible, fmi2Boolean loggingOn) {
+    (void)fmuType; /* unused parameter */
+    (void)visible; /* unused parameter */
+
     char filename[MAX_PATH];
     if (strncmp(fmuResourceLocation, "file://", 7) == 0)
         fmuResourceLocation += 7;
@@ -462,12 +465,12 @@ void fmi2FreeInstance(fmi2Component c) {
 }
 
 
-const char* fmi2GetTypesPlatform() {
+const char* fmi2GetTypesPlatform(void) {
     return fmi2TypesPlatform;
 }
 
 
-const char* fmi2GetVersion() {
+const char* fmi2GetVersion(void) {
     return fmi2Version;
 }
 
@@ -584,6 +587,10 @@ fmi2Status fmi2GetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t
 
 
 fmi2Status fmi2GetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2String  value[]) {
+    (void)vr; /* unused parameter */
+    (void)nvr; /* unused parameter */
+    (void)value; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -644,6 +651,10 @@ fmi2Status fmi2SetBoolean(fmi2Component c, const fmi2ValueReference vr[], size_t
 
 
 fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String  value[]) {
+    (void)vr; /* unused parameter */
+    (void)nvr; /* unused parameter */
+    (void)value; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -652,6 +663,8 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
 
 /* Getting and setting the internal FMU state */
 fmi2Status fmi2GetFMUstate(fmi2Component c, fmi2FMUstate* FMUstate) {
+    (void)FMUstate; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -659,6 +672,8 @@ fmi2Status fmi2GetFMUstate(fmi2Component c, fmi2FMUstate* FMUstate) {
 
 
 fmi2Status fmi2SetFMUstate(fmi2Component c, fmi2FMUstate  FMUstate) {
+    (void)FMUstate; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -666,6 +681,8 @@ fmi2Status fmi2SetFMUstate(fmi2Component c, fmi2FMUstate  FMUstate) {
 
 
 fmi2Status fmi2FreeFMUstate(fmi2Component c, fmi2FMUstate* FMUstate) {
+    (void)FMUstate; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -673,6 +690,9 @@ fmi2Status fmi2FreeFMUstate(fmi2Component c, fmi2FMUstate* FMUstate) {
 
 
 fmi2Status fmi2SerializedFMUstateSize(fmi2Component c, fmi2FMUstate  FMUstate, size_t* size) {
+    (void)FMUstate; /* unused parameter */
+    (void)size; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -680,6 +700,10 @@ fmi2Status fmi2SerializedFMUstateSize(fmi2Component c, fmi2FMUstate  FMUstate, s
 
 
 fmi2Status fmi2SerializeFMUstate(fmi2Component c, fmi2FMUstate  FMUstate, fmi2Byte none[], size_t size) {
+    (void)FMUstate; /* unused parameter */
+    (void)none; /* unused parameter */
+    (void)size; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -690,12 +714,20 @@ fmi2Status  fmi2SetDebugLogging(fmi2Component c,
     fmi2Boolean loggingOn,
     size_t nCategories,
     const fmi2String categories[]) {
+    (void)c; /* unused parameter */
+    (void)loggingOn; /* unused parameter */
+    (void)nCategories; /* unused parameter */
+    (void)categories; /* unused parameter */
 
     return fmi2OK;
 }
 
 
 fmi2Status fmi2DeSerializeFMUstate(fmi2Component c, const fmi2Byte serializedState[], size_t size, fmi2FMUstate* FMUstate) {
+    (void)serializedState; /* unused parameter */
+    (void)size; /* unused parameter */
+    (void)FMUstate; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -704,6 +736,13 @@ fmi2Status fmi2DeSerializeFMUstate(fmi2Component c, const fmi2Byte serializedSta
 
 /* Getting partial derivatives */
 fmi2Status fmi2GetDirectionalDerivative(fmi2Component c, const fmi2ValueReference vUnknown_ref[], size_t nUnknown, const fmi2ValueReference vKnown_ref[], size_t nKnown, const fmi2Real dvKnown[], fmi2Real dvUnknown[]) {
+    (void)vUnknown_ref; /* unused parameter */
+    (void)nUnknown; /* unused parameter */
+    (void)vKnown_ref; /* unused parameter */
+    (void)nKnown; /* unused parameter */
+    (void)dvKnown; /* unused parameter */
+    (void)dvUnknown; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -723,6 +762,8 @@ fmi2Status fmi2EnterEventMode(fmi2Component c) {
 
 
 fmi2Status fmi2NewDiscreteStates(fmi2Component c, fmi2EventInfo* eventInfo) {
+    (void)eventInfo; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -739,6 +780,10 @@ fmi2Status fmi2EnterContinuousTimeMode(fmi2Component c) {
 fmi2Status fmi2CompletedIntegratorStep(fmi2Component c,
     fmi2Boolean  noSetFMUStatePriorToCurrentPoint, fmi2Boolean* enterEventMode,
     fmi2Boolean* terminateSimulation) {
+    (void)noSetFMUStatePriorToCurrentPoint; /* unused parameter */
+    (void)enterEventMode; /* unused parameter */
+    (void)terminateSimulation; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -747,6 +792,8 @@ fmi2Status fmi2CompletedIntegratorStep(fmi2Component c,
 
 /* Providing independent variables and re-initialization of caching */
 fmi2Status fmi2SetTime(fmi2Component c, fmi2Real time) {
+    (void)time; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -754,6 +801,9 @@ fmi2Status fmi2SetTime(fmi2Component c, fmi2Real time) {
 
 
 fmi2Status fmi2SetContinuousStates(fmi2Component c, const fmi2Real x[], size_t nx) {
+    (void)x; /* unused parameter */
+    (void)nx; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -762,6 +812,9 @@ fmi2Status fmi2SetContinuousStates(fmi2Component c, const fmi2Real x[], size_t n
 
 /* Evaluation of the model equations */
 fmi2Status fmi2GetDerivatives(fmi2Component c, fmi2Real derivatives[], size_t nx) {
+    (void)derivatives; /* unused parameter */
+    (void)nx; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -769,6 +822,9 @@ fmi2Status fmi2GetDerivatives(fmi2Component c, fmi2Real derivatives[], size_t nx
 
 
 fmi2Status fmi2GetEventIndicators(fmi2Component c, fmi2Real eventIndicators[], size_t ni) {
+    (void)eventIndicators; /* unused parameter */
+    (void)ni; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -776,6 +832,9 @@ fmi2Status fmi2GetEventIndicators(fmi2Component c, fmi2Real eventIndicators[], s
 
 
 fmi2Status fmi2GetContinuousStates(fmi2Component c, fmi2Real x[], size_t nx) {
+    (void)x; /* unused parameter */
+    (void)nx; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -783,6 +842,9 @@ fmi2Status fmi2GetContinuousStates(fmi2Component c, fmi2Real x[], size_t nx) {
 
 
 fmi2Status fmi2GetNominalsOfContinuousStates(fmi2Component c, fmi2Real x_nominal[], size_t nx) {
+    (void)x_nominal; /* unused parameter */
+    (void)nx; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -795,6 +857,11 @@ fmi2Status fmi2GetNominalsOfContinuousStates(fmi2Component c, fmi2Real x_nominal
 
 /* Simulating the slave */
 fmi2Status fmi2SetRealInputDerivatives(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Integer order[], const fmi2Real value[]) {
+    (void)vr; /* unused parameter */
+    (void)nvr; /* unused parameter */
+    (void)order; /* unused parameter */
+    (void)value; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -802,6 +869,11 @@ fmi2Status fmi2SetRealInputDerivatives(fmi2Component c, const fmi2ValueReference
 
 
 fmi2Status fmi2GetRealOutputDerivatives(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2Integer order[], fmi2Real value[]) {
+    (void)vr; /* unused parameter */
+    (void)nvr; /* unused parameter */
+    (void)order; /* unused parameter */
+    (void)value; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -828,6 +900,9 @@ fmi2Status fmi2CancelStep(fmi2Component c) {
 
 /* Inquire slave status */
 fmi2Status fmi2GetStatus(fmi2Component c, const fmi2StatusKind s, fmi2Status* value) {
+    (void)s; /* unused parameter */
+    (void)value; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -835,6 +910,9 @@ fmi2Status fmi2GetStatus(fmi2Component c, const fmi2StatusKind s, fmi2Status* va
 
 
 fmi2Status fmi2GetRealStatus(fmi2Component c, const fmi2StatusKind s, fmi2Real* value) {
+    (void)s; /* unused parameter */
+    (void)value; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -842,6 +920,9 @@ fmi2Status fmi2GetRealStatus(fmi2Component c, const fmi2StatusKind s, fmi2Real* 
 
 
 fmi2Status fmi2GetIntegerStatus(fmi2Component c, const fmi2StatusKind s, fmi2Integer* value) {
+    (void)s; /* unused parameter */
+    (void)value; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -849,6 +930,9 @@ fmi2Status fmi2GetIntegerStatus(fmi2Component c, const fmi2StatusKind s, fmi2Int
 
 
 fmi2Status fmi2GetBooleanStatus(fmi2Component c, const fmi2StatusKind s, fmi2Boolean* value) {
+    (void)s; /* unused parameter */
+    (void)value; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__
@@ -856,6 +940,9 @@ fmi2Status fmi2GetBooleanStatus(fmi2Component c, const fmi2StatusKind s, fmi2Boo
 
 
 fmi2Status fmi2GetStringStatus(fmi2Component c, const fmi2StatusKind s, fmi2String* value) {
+    (void)s; /* unused parameter */
+    (void)value; /* unused parameter */
+
     client_t* client = (client_t*)c;
 
     __NOT_IMPLEMENTED__

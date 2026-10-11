@@ -35,6 +35,10 @@ static void server_logger(fmi2ComponentEnvironment componentEnvironment,
     fmi2String category,
     fmi2String message,
     ...) {
+    (void)instanceName; /* unused parameter */
+    (void)status; /* unused parameter */
+    (void)category; /* unused parameter */
+
     server_t *server = (server_t*)componentEnvironment;
     va_list params;
 

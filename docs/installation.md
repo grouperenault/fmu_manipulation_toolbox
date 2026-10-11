@@ -150,8 +150,27 @@ The dependencies and their versions are declared in `pyproject.toml`.
 
 ### Step 3: Compile C Components
 
-Two native components are written in C and should be compiled. The container requires a C23 compatible compiler, while the remoting
-code requires a C99 compatible compiler that should be able to produce 64-bit and 32-bit objects.
+Two native components are written in C and should be compiled. Both require a C23 compatible compiler; the remoting code
+also needs a compiler able to produce 64-bit and 32-bit objects. The binaries are written to
+`fmu_manipulation_toolbox/resources/<platform>/` (`win32`, `win64`, `linux32`, `linux64` or `darwin64`).
+
+Both CMake projects share their build settings, located in the `cmake/` folder at the root of the repository. The
+build type defaults to `Release`. The following options can be given at configuration time (`cmake .. -D<option>=<value>`):
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `FMUTOOL_WARNINGS_AS_ERRORS` | `OFF` | Treat compiler warnings as errors |
+| `FMUTOOL_STRICT_CONVERSION` | `OFF` | Warn about implicit conversions (`-Wconversion`, `-Wsign-conversion`) |
+| `FMUTOOL_PGO` | `OFF` | Profile-Guided Optimization: `OFF`, `GENERATE` or `USE` (see below) |
+| `BUILD_32` | `OFF` | Remoting only, Linux only: build 32-bit binaries |
+
+??? note "Profile-Guided Optimization"
+    1. Configure with `-DFMUTOOL_PGO=GENERATE` and build. The binaries are instrumented and write profile data to
+       `<build folder>/pgo-data/` when they run.
+    2. Run a representative simulation with these binaries.
+    3. With Clang only, merge the profiles:
+       `llvm-profdata merge -output=pgo-data/default.profdata pgo-data/*.profraw`.
+    4. Reconfigure with `-DFMUTOOL_PGO=USE` and rebuild.
 
 
 #### Container code
@@ -162,7 +181,7 @@ cd container
 mkdir build
 cd build
 cmake ..
-cmake --build .
+cmake --build . --config Release
 cd ..
 ```
 
@@ -175,12 +194,12 @@ cd ..
     mkdir build32
     cd build32
     cmake .. -A Win32
-    cmake --build .
+    cmake --build . --config Release
     cd ..
     mkdir build64
     cd build64
     cmake .. -A x64
-    cmake --build .
+    cmake --build . --config Release
     cd ..
     ```
 
@@ -191,12 +210,12 @@ cd ..
     mkdir build32
     cd build32
     cmake .. -DBUILD_32=ON
-    cmake --build .
+    cmake --build . --config Release
     cd ..
     mkdir build64
     cd build64
     cmake ..
-    cmake --build .
+    cmake --build . --config Release
     cd ..
     ```
 

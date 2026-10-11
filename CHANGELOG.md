@@ -25,6 +25,10 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 - 🔵 **CHANGED** development: `requirements.txt` only contains `-e .[all]`, the dependencies being declared
   in `pyproject.toml`; the tests need the package installed (`pip install -e ".[all]"`,
   pip >= 21.3). CI and test suite improved.
+- 🔵 **CHANGED** native code: `container` and `remoting` share their CMake settings (`cmake/` folder, included in the
+  sdist). The remoting code is now compiled in C23 with the same warnings and optimizations as the container
+  (IPO/LTO, optional PGO). The build options are renamed `FMUTOOL_WARNINGS_AS_ERRORS`, `FMUTOOL_STRICT_CONVERSION`
+  and `FMUTOOL_PGO` (formerly `CONTAINER_*`). See the [Installation Guide](docs/installation.md).
 
 ## AI Assistant (MCP server)
 
