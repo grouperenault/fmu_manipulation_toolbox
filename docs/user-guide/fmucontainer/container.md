@@ -169,8 +169,15 @@ own name, and its file in the optional `path` block:
   only when the assembly has instances, so other descriptions are unchanged.
 - The tools name the instances `<stem>-<n>.fmu` (`bb_position-1.fmu`, `bb_position-2.fmu`...), with the smallest
   free `n`; any name unique in its container is accepted.
-- Each instance is a distinct embedded FMU: it is extracted in its own directory of the container and has its own
-  state, even if the FMU supports only one instance per process.
+- Each instance is a distinct embedded FMU: it is extracted in its own directory of the container, its library is
+  loaded from there, and it is instantiated under its own name (`<container instance>.<instance name>`).
+
+!!! warning "FMUs which declare `canBeInstantiatedOnlyOncePerProcess`"
+    An FMU which declares `canBeInstantiatedOnlyOncePerProcess="true"` does not support several instances in one
+    process. Since each instance has its own copy of the library, a container with several instances of such an FMU
+    may work in a new process, but it may crash in a process that already used this FMU (observed with FMUs
+    exported by Simulink). The build and the lint of the AI assistant report it with a warning. If possible, export
+    the FMU again with the support of multiple instances (Simulink: "Support multiple instantiation per process").
 - `fmusplit` writes one FMU file per instance (`bb_position.fmu`, `bb_position-1.fmu`...), so the JSON it produces
   needs no `path` block.
 

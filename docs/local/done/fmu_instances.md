@@ -263,3 +263,21 @@ Commit message:
 ```
 Document the FMU instances (fmu_instances step 6)
 ```
+
+## Addendum — Windows CI and `canBeInstantiatedOnlyOncePerProcess` (2026-10-11)
+
+- The simulation of two instances of the Simulink bouncing-ball FMUs crashed on Windows (access violation in the
+  `fmi2Instantiate` of the container). These FMUs declare `canBeInstantiatedOnlyOncePerProcess="true"`, which
+  neither the builder nor the runtime checked.
+- The runtime now instantiates each embedded FMU under its own name, `<container instance>.<FMU name>` (it gave the
+  container instance name to every embedded FMU); the LS-BUS log references were updated. It did not fix the crash.
+- Diagnostics (`tests/integration/test_instances_diagnostics.py`, temporary): the simulation passes in a new process
+  (alone in a pytest process, or in a subprocess, with or without debug log), with identical results for both
+  instances; it only crashed in the pytest process after the other tests, which had loaded, simulated and freed
+  these FMUs. The copies of the library are isolated from each other, but these FMUs do not come back to a clean
+  state in a process that already used them. Editing the attribute in `modelDescription.xml` would change nothing:
+  neither fmpy nor the runtime use it, and the library is unchanged.
+- Decision 15: several instances of an FMU which declares `canBeInstantiatedOnlyOncePerProcess` are allowed, with a
+  warning at build time (`FMUContainer.single_instance_groups`, `sanity_check`) and a lint rule
+  (`single-instance-fmu`). The documentation no longer claims that such FMUs work as instances.
+- The two-ball simulation test runs in a subprocess, with the debug log of the container.

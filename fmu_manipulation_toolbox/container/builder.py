@@ -541,14 +541,29 @@ class FMUContainer:
         logger.warning(f"Defaulting to step_size={default_step_size}")
         return default_step_size
 
+    def single_instance_groups(self) -> list[list[str]]:
+        """Names of the embedded FMUs that are instances of one model declaring `canBeInstantiatedOnlyOncePerProcess`,
+        grouped by model (GUID): only the groups of two FMUs or more."""
+        groups: dict[str, list[str]] = {}
+        for fmu in self.involved_fmu.values():
+            if fmu.capabilities.get("canBeInstantiatedOnlyOncePerProcess") == "true":
+                groups.setdefault(fmu.guid, []).append(fmu.name)
+        return [names for names in groups.values() if len(names) > 1]
+
     def sanity_check(self, step_size: float | None):
         """Validate the container configuration before building.
 
-        Warns about step size mismatches and unconnected ports.
+        Warns about step size mismatches, unconnected ports, and several instances of an FMU that declares
+        `canBeInstantiatedOnlyOncePerProcess`.
 
         Args:
             step_size (float | None): The container's internal step size.
         """
+        for names in self.single_instance_groups():
+            logger.warning(f"{', '.join(names)} are instances of one FMU which declares "
+                           f"canBeInstantiatedOnlyOncePerProcess: each instance has its own copy of the library, "
+                           f"which works in a new process, but may crash in a process that already used this FMU. "
+                           f"If possible, export the FMU again with the support of multiple instances.")
         for fmu in self.involved_fmu.values():
             if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
                 ts_ratio = _exact(step_size) / _exact(fmu.step_size)   # exact: 0.3 / 0.1 is 3

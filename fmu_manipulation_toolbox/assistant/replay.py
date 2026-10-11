@@ -82,6 +82,9 @@ class PortChecker:
             except FMUContainerError as error:
                 report("not-checked", "info", f"{where}: {name}, {error.reason}")
 
+        for names in container.single_instance_groups():
+            report("single-instance-fmu", "warning", f"{where}: {', '.join(names)}")
+
         skipped: dict[str, int] = {}
 
         def checkable(*fmus: str) -> bool:

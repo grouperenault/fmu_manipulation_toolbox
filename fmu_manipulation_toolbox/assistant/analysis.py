@@ -296,6 +296,9 @@ RULES = {
                   f"is above {STEP_RATIO_THRESHOLD} or is not an integer.",
     "auto-off-nothing-exposed": "An `auto_*` rule is off and the root container exposes no port of that kind: the "
                                 "container will have no input, or no output.",
+    "single-instance-fmu": "Several instances of one FMU which declares `canBeInstantiatedOnlyOncePerProcess`: "
+                           "each has its own copy of the library, which works in a new process, but may crash in "
+                           "a process that already used this FMU.",
     "lossy-link": "A link converts its value with a possible loss of information (message of the builder).",
     "link-unit": "Linked ports declare different units: the toolbox does not convert units.",
     "dangling-input": "An input is neither linked nor exposed, even by the `auto_*` rules, and has no start value.",
