@@ -7,6 +7,7 @@ names. Simulation steps that need the platform-specific compiled container binar
 only run on win32; `test_container_mt` is fully ``windows_only``.
 """
 import json
+import subprocess
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -237,9 +238,29 @@ def test_container_with_instances_of_one_fmu(area_dir):
     assert "container.bb_position.rt_ratio" in variables and "container.bb_position-1.rt_ratio" in variables
 
     if WIN:
-        from fmpy import simulate_fmu
-        result = simulate_fmu("two_balls.fmu", stop_time=10, output=["position", "position_2"])
-        assert list(result["position"]) == list(result["position_2"])
+        # Run in a subprocess, with the debug log of the container: a crash in a native library then fails this
+        # test only, and the last lines of the log tell at which step (loading, instantiating...) it happened.
+        completed = subprocess.run([sys.executable, "-c", SIMULATE_TWO_BALLS], capture_output=True, text=True)
+        log = (completed.stdout + completed.stderr).splitlines()
+        assert completed.returncode == 0, f"simulation crashed ({completed.returncode}), last lines:\n" + \
+            "\n".join(log[-40:])
+        assert "SAME POSITIONS" in log, "\n".join(log[-40:])
+
+
+#: Simulation of `two_balls.fmu` with the debug log of the container written as it comes.
+SIMULATE_TWO_BALLS = """
+import sys
+from fmpy import simulate_fmu
+
+def log(*args):
+    message = args[-1].decode("utf-8", "replace") if isinstance(args[-1], bytes) else str(args[-1])
+    print(message, flush=True)
+
+result = simulate_fmu("two_balls.fmu", stop_time=10, output=["position", "position_2"],
+                      debug_logging=True, logger=log)
+print("SAME POSITIONS" if list(result["position"]) == list(result["position_2"]) else "DIFFERENT POSITIONS",
+      flush=True)
+"""
 
 
 @pytest.mark.needs_fmpy
