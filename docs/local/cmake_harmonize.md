@@ -69,6 +69,12 @@ Create `cmake/` at the repository root:
 Rewrite `container/CMakeLists.txt` on top of it: project, include, FMI sanity check, `add_library`, platform libraries
 (`Threads`, `Imagehlp`), `fmutool_native_target(container)`, `fmutool_summary()`.
 
+Note: the output directory is now the same for every configuration. With Visual Studio, a Debug build also writes into
+`resources/<FMI_PLATFORM>` (it already did on Linux and macOS); before, only the Release build did.
+
+Result: compile flags and exported symbols of `container.dylib` identical to the previous build; `container/CMakeLists.txt`
+goes from 260 to 44 lines.
+
 Commit message:
 
 ```
