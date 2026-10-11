@@ -1,15 +1,12 @@
-"""`modelDescription.xml` of FMU Containers (phase 4 of `docs/local/done/refactoring.md`).
+"""`modelDescription.xml` of FMU Containers.
 
-The container descriptor is built as an ElementTree since phase 4. These tests
-pin down what the former f-string generation got wrong:
+These tests check that:
 
-- D7: names and descriptions coming from the embedded FMUs were written
-  unescaped (invalid XML as soon as one contained `&`, `<` or `"`);
-- D8: the file declared ISO-8859-1 but was written with the locale encoding;
-  FMI 2.0 and 3.0 require UTF-8;
-- D15: FMI-2 `<Unknown index>` entries were computed by hand and ignored the
-  `ts_multiplier`, `solver` and profiling variables, so that `<Outputs>` listed
-  local variables instead of the outputs as soon as one of them was present.
+- names and descriptions coming from the embedded FMUs are escaped, so that the
+  descriptor stays well-formed when one contains `&`, `<` or `"`;
+- the file is encoded in UTF-8, as FMI 2.0 and 3.0 require, whatever the locale;
+- the FMI-2 `<Unknown index>` entries of `<Outputs>` point to the outputs, also
+  when `ts_multiplier`, `solver` or profiling variables are present.
 """
 import getpass
 import xml.etree.ElementTree as ET
@@ -68,10 +65,10 @@ def test_container_descriptor_is_escaped_utf8(special_assembly, fmi_version):
     descriptor = Path("special/modelDescription.xml")
 
     raw = descriptor.read_bytes()
-    assert raw.startswith(b'<?xml version="1.0" encoding="UTF-8"?>\n')     # D8
+    assert raw.startswith(b'<?xml version="1.0" encoding="UTF-8"?>\n')     # UTF-8, whatever the locale
     raw.decode("utf-8")
 
-    root = ET.fromstring(raw)                                               # D7: well-formed
+    root = ET.fromstring(raw)                                               # well-formed: special characters escaped
     assert root.get("author") == SPECIAL_AUTHOR
     output = [v for v in root.find("ModelVariables") if v.get("name") == SPECIAL_OUTPUT]
     assert len(output) == 1 and output[0].get("description") == SPECIAL_DESCRIPTION

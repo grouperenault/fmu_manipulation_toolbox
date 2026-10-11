@@ -1,7 +1,7 @@
 """Integration tests for the Command Line Interfaces (`fmutool`, `fmucontainer`,
 `fmusplit`).
 
-Migrated from the legacy ``test_suite.py``. Each test runs in an isolated copy of
+Each test runs in an isolated copy of
 its data area (see the ``area_dir`` fixture) and drives the CLI by setting
 ``sys.argv`` (restored automatically by the ``clean_argv`` fixture).
 """
@@ -45,9 +45,8 @@ def test_fmucontainer_json(area_dir):
 
 @pytest.mark.area("containers/ssp")
 def test_fmusplit_ssp(area_dir):
-    # Build the SSP container first. The legacy test relied on `test_container_ssp`
-    # running earlier and leaving `bouncing.fmu` behind (an execution-order
-    # dependency); building it here makes the test self-contained.
+    # Build the SSP container first, so that the test does not depend on
+    # another one leaving `bouncing.fmu` behind.
     Assembly("bouncing.ssp").make_fmu()
     sys.argv = ["fmusplit", "-fmu", "bouncing.fmu"]
     fmusplit()

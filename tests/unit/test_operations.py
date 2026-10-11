@@ -1,9 +1,12 @@
 """Unit tests for FMU operations (modelDescription.xml manipulations).
 
-Migrated from the legacy ``test_suite.py``. Each test runs in an isolated copy
+Each test runs in an isolated copy
 of ``tests/data/operations`` (see the ``area_dir`` fixture) so generated files
 never pollute the source tree.
 """
+import logging
+import zipfile
+
 import pytest
 
 from fmu_manipulation_toolbox.operations import (
@@ -11,7 +14,9 @@ from fmu_manipulation_toolbox.operations import (
     OperationStripTopLevel,
     OperationRenameFromCSV,
     OperationRemoveRegexp,
+    OperationRemoveSources,
     OperationKeepOnlyRegexp,
+    OperationSummary,
 )
 
 from _helpers.assertions import assert_names_match_ref
@@ -48,3 +53,55 @@ def test_remove_regexp(area_dir):
 def test_keep_only_regexp(area_dir):
     _apply_and_match_ref("bouncing_ball-keeponly.fmu", OperationKeepOnlyRegexp("e"))
 
+
+# --------------------------------------------------------------------------- #
+#                  summary and sources, on a hand-built FMU                    #
+# --------------------------------------------------------------------------- #
+DESCRIPTOR = """<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="3.0" modelName="m" instantiationToken="{8c4e810f-3df3-4a00-8276-176fa3c9f000}">
+  <CoSimulation modelIdentifier="m"/>
+  <ModelVariables>
+    <Float64 name="CanChannel.Rx_Data" valueReference="1" causality="input" start="0"/>
+  </ModelVariables>
+  <ModelStructure/>
+</fmiModelDescription>
+"""
+
+TERMINALS = """<?xml version="1.0" encoding="UTF-8"?>
+<fmiTerminalsAndIcons fmiVersion="3.0">
+  <Terminals>
+    <Terminal terminalKind="org.fmi-ls-bus.network-terminal" matchingRule="org.fmi-ls-bus.transceiver"
+              name="CanChannel">
+      <TerminalMemberVariable variableName="CanChannel.Rx_Data" memberName="Rx_Data"/>
+    </Terminal>
+  </Terminals>
+</fmiTerminalsAndIcons>
+"""
+
+
+def _make_fmu(tmp_path, files: dict[str, str]) -> str:
+    fmu_path = tmp_path / "model.fmu"
+    with zipfile.ZipFile(fmu_path, "w") as fmu:
+        fmu.writestr("modelDescription.xml", DESCRIPTOR)
+        for name, content in files.items():
+            fmu.writestr(name, content)
+    return str(fmu_path)
+
+
+def test_summary_lists_resources_extra_data_and_terminals(tmp_path, caplog):
+    fmu = FMU(_make_fmu(tmp_path, {"resources/table.csv": "t;x\n",
+                                   "extra/org.example/notes.txt": "notes",
+                                   "terminalsAndIcons/terminalsAndIcons.xml": TERMINALS}))
+    with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
+        fmu.apply_operation(OperationSummary())
+    report = [record.getMessage() for record in caplog.records]
+    assert report[report.index("| Embedded resources:") + 1] == "|  - table.csv"
+    assert report[report.index("| Additional (meta-)data:") + 1] == "|  - org.example"
+    assert report[report.index("| Terminals:") + 1].startswith("|  - CanChannel (1 signals")
+
+
+def test_removing_absent_sources_is_reported(tmp_path, caplog):
+    fmu = FMU(_make_fmu(tmp_path, {}))
+    with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
+        fmu.apply_operation(OperationRemoveSources())
+    assert "This FMU does not embed sources." in caplog.text

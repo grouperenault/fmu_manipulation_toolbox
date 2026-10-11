@@ -1,10 +1,9 @@
-"""Context budget of the MCP server (docs/local/done/mcp_optimize.md, decision D6).
+"""Context budget of the MCP server.
 
 The tool definitions are sent with every request and the tool results stay in the conversation: with a local model
 whose context is small, an unbounded result fills the window and the runtime silently drops the beginning of the
 conversation. Budgets are in characters (~4 characters per token for this JSON), measured on a synthetic FMU of the
-size of industrial ones (`_helpers/mcp_budget.py`). The `xfail` markers are removed by the phases that bring the
-server within budget.
+size of industrial ones (`_helpers/mcp_budget.py`).
 """
 import asyncio
 import json
@@ -88,7 +87,6 @@ def test_tool_definitions(texts):
     assert len(texts["definitions"]) <= DEFINITIONS_BUDGET
 
 
-OVER_BUDGET: dict[str, str] = {}
 RESULTS = ["add_fmu", "list_fmu_ports", "inspect_fmu_file", "summarize_fmu", "check_fmu", "check_fmu-broken",
            "get_assembly_json", "resource fmu://large.fmu/ports", "get_assembly_json-large",
            "get_assembly_json-large vehicle.fmu", "get_assembly_json-large level2.fmu",
@@ -96,8 +94,6 @@ RESULTS = ["add_fmu", "list_fmu_ports", "inspect_fmu_file", "summarize_fmu", "ch
            "analyze_assembly-large lint"]
 
 
-@pytest.mark.parametrize("name", [
-    pytest.param(name, marks=pytest.mark.xfail(strict=True, reason=OVER_BUDGET[name])) if name in OVER_BUDGET
-    else name for name in RESULTS])
+@pytest.mark.parametrize("name", RESULTS)
 def test_results_with_default_arguments(texts, name):
     assert len(texts[name]) <= RESULT_BUDGET

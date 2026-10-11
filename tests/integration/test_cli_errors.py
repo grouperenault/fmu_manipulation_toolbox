@@ -103,7 +103,7 @@ def test_fmutool_unreadable_descriptor_exits(area_dir, caplog):
 
 @pytest.mark.area("operations")
 def test_fmutool_refused_operation_exits(area_dir, caplog):
-    # Keeping no port at all would leave an empty <ModelVariables>: refused (D10).
+    # Keeping no port at all would leave an empty <ModelVariables>: refused.
     sys.argv = ["fmutool", "-input", "bouncing_ball.fmu", "-keep-only-regexp", "nothing-matches",
                 "-output", "out.fmu"]
 

@@ -1,12 +1,9 @@
 """Tests for the headless assembly bridge (``fmutool-mcp`` backend).
 
-The unit tests in ``test_assistant_server.py`` pin the MCP contract against a
+The unit tests in ``test_assistant_server_*.py`` pin the MCP contract against a
 fake bridge; these ones check that the **real** GUI-less backend applies what
-the tools ask for, using actual FMU files.
-
-Audit reference: B2/I7 — the assistant used to exist only while the Container
-Builder GUI was running, and re-implemented assembly by driving a Qt scene
-instead of using the public ``Assembly`` API.
+the tools ask for, using actual FMU files, through the public ``Assembly`` API
+and without the Container Builder GUI.
 """
 import json
 from typing import Any
@@ -268,7 +265,7 @@ def test_exporting_an_empty_assembly_is_refused(bridge, tmp_path):
 @pytest.mark.parametrize("fmi_version", [0, 1, 7, "2"])
 def test_building_rejects_an_unsupported_fmi_version(loaded, tmp_path, fmi_version: Any):
     """`"2"` is deliberately a string: a client may well send one, and the
-    bridge must reject it rather than build a corrupted archive (audit B6)."""
+    bridge must reject it rather than build a corrupted archive."""
     with pytest.raises(ValueError, match="Unsupported FMI version"):
         loaded.save_as_fmu(str(tmp_path / "out.fmu"), fmi_version=fmi_version)
 

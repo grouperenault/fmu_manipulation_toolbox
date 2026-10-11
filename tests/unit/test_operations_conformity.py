@@ -1,12 +1,10 @@
 """Conformity of the operations with the FMI 2.0.5 and 3.0.2 specifications.
 
-Defects found while checking `model_description.py` against the standard
-(`docs/local/done/refactoring.md`, phase 1) and fixed in phase 2. Unlike D1 to D9, they are
-not caused by the XML serialisation: the operations themselves broke rules of
-the standard that the XSD does not check.
-
-D11 is fixed by renumbering. For D10, D12 and D13 the chosen policy is to
-refuse the operation (`OperationError`) and to leave the descriptor unchanged.
+The operations must not break rules of the standard that the XSD does not
+check. The FMI-2 `derivative` indices are renumbered after a removal. For the
+other rules (a removed variable still referenced, duplicate names, an empty
+`<ModelVariables>`), the operation is refused (`OperationError`) and the
+descriptor is left unchanged.
 """
 import xml.etree.ElementTree as ET
 import zipfile
@@ -86,7 +84,7 @@ FMI3_REFERENCES = """<?xml version="1.0" encoding="UTF-8"?>
 
 
 # --------------------------------------------------------------------------- #
-#                  D11: FMI-2 `derivative` index renumbering                   #
+#                    FMI-2 `derivative` index renumbering                      #
 # --------------------------------------------------------------------------- #
 def test_d11_fmi2_derivative_index_is_renumbered(tmp_path):
     """FMI-2 §2.2.7: `derivative` is the `ScalarVariable` index (1-based position) of the state."""
@@ -99,7 +97,7 @@ def test_d11_fmi2_derivative_index_is_renumbered(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-#               D12: removal of a variable that is still referenced            #
+#                 removal of a variable that is still referenced               #
 # --------------------------------------------------------------------------- #
 def test_d12_fmi2_removing_a_state_is_refused(tmp_path):
     assert_refused(make_fmu(tmp_path, FMI2_ME), OperationRemoveRegexp("x"),
@@ -135,7 +133,7 @@ def test_d12_existing_dangling_references_are_not_reported(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-#                         D13: names must stay unique                          #
+#                            names must stay unique                            #
 # --------------------------------------------------------------------------- #
 def test_d13_duplicate_names_are_refused(tmp_path):
     """FMI-2 §2.2.7 and FMI-3 §2.4 (uniqueNameAttribute): variable (and FMI-3 alias) names are unique."""
@@ -158,7 +156,7 @@ def test_d13_existing_duplicates_are_not_reported(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
-#                    D10: <ModelVariables> cannot become empty                 #
+#                      <ModelVariables> cannot become empty                    #
 # --------------------------------------------------------------------------- #
 def test_d10_removing_every_variable_is_refused(tmp_path):
     assert_refused(make_fmu(tmp_path, FMI2_ME), OperationKeepOnlyRegexp("nothing"),

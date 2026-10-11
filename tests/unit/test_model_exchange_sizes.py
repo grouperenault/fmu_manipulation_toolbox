@@ -5,9 +5,6 @@ on minimal descriptors, covering FMI-2 (always scalar), FMI-3 scalar, FMI-3
 fixed-size arrays, FMI-3 arrays whose dimension is given by a structural
 parameter, and the defensive "assume 1 element" fallbacks (each of which must
 emit a warning rather than fail silently or crash).
-
-The counting used to be done by ``ModelStructureCounter`` from the operation
-callbacks; it is now computed from the descriptor tree.
 """
 import logging
 from pathlib import Path

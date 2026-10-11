@@ -1,8 +1,7 @@
 """Unit tests for the canonical XML comparison helper (`assert_equivalent_xml`).
 
 The helper replaces line-by-line comparisons of `modelDescription.xml` files so
-that a change of serialiser (see `docs/local/done/refactoring.md`) does not break the
-suite. These tests make sure it ignores formatting only, never meaning.
+that a change of serialiser does not break the suite. These tests make sure it ignores formatting only, never meaning.
 """
 import pytest
 
