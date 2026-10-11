@@ -30,6 +30,7 @@ the traces left by the plans now archived in `docs/local/done/` (`refactoring.md
 | 10 | Container golden tests (after step 1) | Remove them and their `REF-golden-*` files; keep the determinism test |
 | 11 | FMUs of the kept invariants | All the FMUs of `tests/data/`, discovered automatically (no reference file, so no maintenance cost) |
 | 12 | Location of the kept tests | Invariants in `integration/test_operations_invariants.py`; determinism test in `integration/test_container.py` |
+| 13 | `tests/benchmarks/bench_manipulation.py` (step 2) | Keep it as a performance measurement tool, reworded; documented in step 6 |
 
 Rule for every step: no test is weakened silently. A step changes comments, names or file layout only, unless it
 says otherwise; the number of collected tests and the coverage stay the same (except in step 5, by decision).
@@ -148,13 +149,18 @@ golden files none. Decision: replace them by invariants and targeted unit tests.
 
 Check: same number of tests passed as step 0 (the formerly parametrised budget tests are still collected).
 
+**Result:** the only other leftover found is `tests/benchmarks/bench_manipulation.py` (decision 13): its docstring
+is reworded, and its `ElementTreeRoundTrip` row, an estimate of the ElementTree cost made before the operations
+used it, is removed (the `noop` row now measures exactly that). Suite: 2 091 passed, 2 skipped.
+
 Commit message:
 
 ```
 Remove the test scaffolding left by finished plans (tests_cleanup step 2)
 
-The MCP budget tests no longer need their xfail machinery, and the import check of
-the container package is now presented as its public API.
+The MCP budget tests no longer need their xfail machinery, the import check of
+the container package is now presented as its public API, and the benchmark of
+apply_operation drops its pre-ElementTree estimate.
 ```
 
 ## Step 3 — Comments describe the behaviour
@@ -273,6 +279,7 @@ determinism of the container build moves to test_container.py. The
     description, container internals, MCP server, …);
   - list the shared helpers of `tests/_helpers/` (`assertions.py`, `simulation.py`, `mcp_budget.py`,
     `assistant_bridge.py`);
+  - mention the benchmark `tests/benchmarks/bench_manipulation.py` (not collected by pytest) and how to run it;
   - state the convention adopted here: test docstrings describe the behaviour, never a plan or a phase.
 - Move this plan to `docs/local/done/`.
 

@@ -22,8 +22,7 @@ REPOSITORY = Path(__file__).resolve().parent.parent.parent
 CONVERT_C = REPOSITORY / "container" / "convert.c"
 
 
-#: Every class importable from `fmu_manipulation_toolbox.container` before its refactoring (phase 2 turns the module
-#: into a package: these imports must keep working).
+#: Public API of the `fmu_manipulation_toolbox.container` package: these classes must stay importable from it.
 PUBLIC_NAMES = ("ArrayAggregate", "AutoWired", "Clock", "ClockList", "ContainerInput", "ContainerPort", "EmbeddedFMU",
                 "EmbeddedFMUPort", "FMUContainer", "FMUContainerError", "FMUIOList", "IOReference", "InvolvedFMU",
                 "Link", "LocalVariable", "Platform", "Port", "ValueReferenceTable")
