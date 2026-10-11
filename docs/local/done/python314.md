@@ -1,6 +1,6 @@
 # Plan: support Python 3.14
 
-**Created**: 10 October 2026 — **Status**: phases 1 to 3 done (phase 3 CI run pending), phase 4 to do — **Origin**: decision D3 of
+**Created**: 10 October 2026 — **Status**: done (11 October 2026) — **Origin**: decision D3 of
 `done/python39.md`
 
 Python 3.14 was released in October 2025. The package does not declare it (no classifier) and the CI does not test it:
@@ -113,7 +113,8 @@ no commit if phase 1 found nothing.
   The matrices keep literal values: `matrix` cannot read the `env` context, hence a comment to keep them in sync.
 - `release.yml` (reuses `ci.yml`, downloads the `package` artifact still uploaded by the newest leg),
   `build-native.yml` (no Python) and `make_doc.yml` (`3.x`): no change.
-- CI run: pending.
+- CI run 38145352796 on `c2c9c3b`: **success**, 19 jobs green (tests on the three OS and `smoke-wheel` on 3.10 and
+  3.14, GUI tests included on Linux 3.14).
 
 ### Phase 4 — User documentation
 
@@ -125,6 +126,10 @@ no commit if phase 1 found nothing.
 *Commit message*: `Document Python 3.14 support (python314 phase 4)`
 
 Then move this plan to `docs/local/done/` and tick "Support python 3.14" in `ROADMAP.md`.
+
+*Results* (11 October 2026): `docs/installation.md` lists 3.14 as supported (3.13 stays recommended);
+`CHANGELOG.md` has the `ADDED` entry under "Installation and platforms". `README.md` and
+`docs/tutorials/getting-started.md` only state "Python 3.10 or higher": no change.
 
 ---
 
