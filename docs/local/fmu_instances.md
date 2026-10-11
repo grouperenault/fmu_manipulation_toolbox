@@ -36,7 +36,7 @@ file name.
 | 11 | SSP | In scope: each component becomes an instance (first one named after the file, then `-1`, `-2`, …) |
 | 12 | `replace_fmu` on an instance | This node only; its name is recomputed from the new file (smallest free name) |
 
-Consequences, to be confirmed by the user before step 1:
+Consequences, confirmed by the user (2026-10-11):
 
 - **C1 — Same base name, different files.** Since names are unique over the scene (decision 6) and derived from
   the file name (decision 3), adding `b/model.fmu` when `a/model.fmu` is present also gives `model-1.fmu` (with a
@@ -73,6 +73,13 @@ Tests (`unit/`): JSON round trip with and without `"path"` (an assembly without 
 today, checked on the JSON files of `tests/data`); relativisation and `basenames_only` of the block; key of `"path"`
 missing from `"fmu"`; same name with two paths; CSV export refused; `instance_name` (free name, smallest free
 number, different directories with one base name).
+
+**Result:** `AssemblyNode.add_fmu(fmu_name, fmu_path=None)`, `fmu_paths`, `fmu_path(name)`; `instance_name` in
+`assembly.py` (keeps the separator of the given path); `"path"` block read (in any order with `"fmu"`) and written;
+`write_csv` refuses instances. `AssemblyNode.make_fmu` is unchanged: until step 2, building an assembly with
+instances fails on the missing file of the instance name. 20 tests in `unit/test_assembly_instances.py`. The JSON
+written for every description file of `tests/data` (relative and `basenames_only`) is byte-identical before and
+after the change. Suite: 1 578 passed, 2 skipped.
 
 Commit message:
 
