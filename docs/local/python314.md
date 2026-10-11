@@ -1,6 +1,6 @@
 # Plan: support Python 3.14
 
-**Created**: 10 October 2026 — **Status**: decisions taken (11 October 2026), not started — **Origin**: decision D3 of
+**Created**: 10 October 2026 — **Status**: phase 1 in progress (CI run pending) — **Origin**: decision D3 of
 `done/python39.md`
 
 Python 3.14 was released in October 2025. The package does not declare it (no classifier) and the CI does not test it:
@@ -56,6 +56,23 @@ fastmcp 4.1, pydantic 2.14, numpy 2.5 and xmlschema 4.3.
 *Exit criterion*: a list of the failures, each with its cause (our code, a dependency, the runner).
 
 *Commit message*: `Try Python 3.14 in the CI matrices (python314 phase 1)`
+
+*Results* (11 October 2026):
+
+- `ci.yml`: 3.14 added to the four matrices (`["3.10", "3.13", "3.14"]`); the 3.14 Linux leg runs the full suite,
+  GUI included. The `== '3.13'` conditions are unchanged (handled in phase 3).
+- Pre-check without CI (`pip install --dry-run --only-binary=:all: --python-version 3.14`, every `[all]`
+  dependency): resolves on `manylinux_2_34_x86_64` (ubuntu-24.04), `win_amd64` and `macosx_14_0_arm64`, with binary
+  wheels only: PySide6/shiboken6 6.12.0 (`cp310-abi3`; Linux wheel is `manylinux_2_34`), FMPy 0.3.32 (pure Python),
+  numpy 2.5.4, lxml 6.1.3 and rpds-py 2026.9.1 (`cp314`), cryptography 50.0.2 (`abi3`).
+- CI run: pending.
+
+| OS | Job | 3.14 result | Cause if failing |
+|---|---|---|---|
+| Windows | `tests-windows` | pending | |
+| Linux | `tests-linux` (GUI included) | pending | |
+| macOS | `tests-macos` | pending | |
+| all | `smoke-wheel` | pending | |
 
 ### Phase 2 — Fixes
 

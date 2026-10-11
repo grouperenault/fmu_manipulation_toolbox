@@ -100,8 +100,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest supported and newest Python.
-        python-version: ["3.10", "3.13"]
+        # Oldest supported and newest Python; 3.14 under trial (python314 phase 1).
+        python-version: ["3.10", "3.13", "3.14"]
     steps:
     - uses: actions/checkout@v5
     - uses: actions/download-artifact@v5
@@ -158,8 +158,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest supported and newest Python.
-        python-version: ["3.10", "3.13"]
+        # Oldest supported and newest Python; 3.14 under trial (python314 phase 1).
+        python-version: ["3.10", "3.13", "3.14"]
     steps:
     - uses: actions/checkout@v5
       with:
@@ -217,7 +217,8 @@ jobs:
         cd tests
         # The PySide6 GUI tests segfault under Python 3.13 on the Linux runner
         # (QtWebEngine). They are still exercised by the Windows job, so skip
-        # them on the 3.13 Linux leg only.
+        # them on the 3.13 Linux leg only. The 3.14 leg runs them, to measure
+        # whether the crash is gone (python314 phase 1, decision D2).
         if [ "${{ matrix.python-version }}" = "3.13" ]; then
           pytest -v -m "not gui"
         else
@@ -254,8 +255,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest supported and newest Python.
-        python-version: ["3.10", "3.13"]
+        # Oldest supported and newest Python; 3.14 under trial (python314 phase 1).
+        python-version: ["3.10", "3.13", "3.14"]
     steps:
     - uses: actions/checkout@v5
     - uses: actions/download-artifact@v5
@@ -292,8 +293,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-24.04, windows-latest, macos-latest]
-        # Oldest supported and newest Python.
-        python-version: ["3.10", "3.13"]
+        # Oldest supported and newest Python; 3.14 under trial (python314 phase 1).
+        python-version: ["3.10", "3.13", "3.14"]
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/download-artifact@v5
