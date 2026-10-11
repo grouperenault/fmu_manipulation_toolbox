@@ -7,7 +7,7 @@ names. Simulation steps that need the platform-specific compiled container binar
 only run on win32; `test_container_mt` is fully ``windows_only``.
 """
 import json
-import subprocess
+import logging
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -218,17 +218,25 @@ TWO_BALLS = {
 }
 
 
-@pytest.mark.area("containers/bouncing_ball")
-def test_container_with_instances_of_one_fmu(area_dir):
-    """Each instance is a distinct embedded FMU, extracted in its own directory and named after the instance."""
-    Path("two_balls.json").write_text(json.dumps(TWO_BALLS))
-    Assembly("two_balls.json", debug=True).make_fmu()
-
-    resources = Path("two_balls/resources")
+def _declared_fmus(resources: Path) -> list[str]:
+    """Names of the embedded FMUs declared by `container.txt`, in order."""
     lines = (resources / "container.txt").read_text().splitlines()
     declarations = lines[lines.index("# NB of embedded FMU's") + 1:]
-    assert declarations[0] == "4 0"
-    assert [declarations[1 + 3 * i].split()[0] for i in range(4)] == TWO_BALLS["fmu"]
+    return [declarations[1 + 3 * i].split()[0] for i in range(sum(int(n) for n in declarations[0].split()))]
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_container_with_instances_of_a_single_instance_fmu(area_dir, caplog):
+    """Each instance is a distinct embedded FMU, extracted in its own directory and named after the instance. These
+    Simulink FMUs declare `canBeInstantiatedOnlyOncePerProcess`: the build warns about their instances. (On Windows,
+    their simulation crashed in a process that had already used them: the simulation is covered by
+    `test_container_with_instances_simulates_alike`, with FMUs that support several instances.)"""
+    Path("two_balls.json").write_text(json.dumps(TWO_BALLS))
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        Assembly("two_balls.json", debug=True).make_fmu()
+
+    resources = Path("two_balls/resources")
+    assert _declared_fmus(resources) == TWO_BALLS["fmu"]
     assert sorted(path.name for path in resources.iterdir() if path.is_dir()) == ["00", "01", "02", "03"]
     assert (resources / "00" / "modelDescription.xml").read_bytes() == \
            (resources / "02" / "modelDescription.xml").read_bytes()
@@ -236,31 +244,45 @@ def test_container_with_instances_of_one_fmu(area_dir):
     variables = [variable.get("name") for variable in
                  ET.parse("two_balls/modelDescription.xml").getroot().find("ModelVariables")]
     assert "container.bb_position.rt_ratio" in variables and "container.bb_position-1.rt_ratio" in variables
+    assert "bb_position.fmu, bb_position-1.fmu are instances of one FMU which declares " \
+           "canBeInstantiatedOnlyOncePerProcess" in caplog.text
+
+
+def _two_balls(kind: str) -> dict:
+    """Two independent bouncing balls made of the FMUs `position_<kind>_multiple.fmu` and
+    `velocity_<kind>_multiple.fmu`, which support several instances per process."""
+    position, velocity = f"position_{kind}_multiple.fmu", f"velocity_{kind}_multiple.fmu"
+    position_1, velocity_1 = f"position_{kind}_multiple-1.fmu", f"velocity_{kind}_multiple-1.fmu"
+    return {
+        "name": f"two_balls_{kind}.fmu", "auto_link": False, "auto_input": False, "auto_output": False,
+        "step_size": 0.1,
+        "fmu": [position, velocity, position_1, velocity_1],
+        "path": {position_1: position, velocity_1: velocity},
+        "link": [[position, "reset", velocity, "reset"], [velocity, "velocity", position, "velocity"],
+                 [position_1, "reset", velocity_1, "reset"], [velocity_1, "velocity", position_1, "velocity"]],
+        "output": [[position, "position", "position"], [position_1, "position", "position_2"]],
+    }
+
+
+@pytest.mark.area("containers/bouncing_ball")
+@pytest.mark.parametrize("kind, fmi_version", [("cs2", 2), ("me2", 2), ("cs3", 3)])
+def test_container_with_instances_simulates_alike(area_dir, caplog, kind, fmi_version):
+    """Two instances of FMUs which support several instances per process (Windows binaries only): the build does
+    not warn, and on Windows both balls bounce alike. The simulation runs in the pytest process, after the other
+    simulations of these FMUs: the configuration in which FMUs supporting one instance per process crashed."""
+    assembly = _two_balls(kind)
+    Path(f"two_balls_{kind}.json").write_text(json.dumps(assembly))
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        Assembly(f"two_balls_{kind}.json", debug=True).make_fmu(fmi_version=fmi_version)
+
+    assert _declared_fmus(Path(f"two_balls_{kind}/resources")) == assembly["fmu"]
+    assert "canBeInstantiatedOnlyOncePerProcess" not in caplog.text
 
     if WIN:
-        # Run in a subprocess, with the debug log of the container: a crash in a native library then fails this
-        # test only, and the last lines of the log tell at which step (loading, instantiating...) it happened.
-        completed = subprocess.run([sys.executable, "-c", SIMULATE_TWO_BALLS], capture_output=True, text=True)
-        log = (completed.stdout + completed.stderr).splitlines()
-        assert completed.returncode == 0, f"simulation crashed ({completed.returncode}), last lines:\n" + \
-            "\n".join(log[-40:])
-        assert "SAME POSITIONS" in log, "\n".join(log[-40:])
-
-
-#: Simulation of `two_balls.fmu` with the debug log of the container written as it comes.
-SIMULATE_TWO_BALLS = """
-import sys
-from fmpy import simulate_fmu
-
-def log(*args):
-    message = args[-1].decode("utf-8", "replace") if isinstance(args[-1], bytes) else str(args[-1])
-    print(message, flush=True)
-
-result = simulate_fmu("two_balls.fmu", stop_time=10, output=["position", "position_2"],
-                      debug_logging=True, logger=log)
-print("SAME POSITIONS" if list(result["position"]) == list(result["position_2"]) else "DIFFERENT POSITIONS",
-      flush=True)
-"""
+        from fmpy import simulate_fmu
+        result = simulate_fmu(f"two_balls_{kind}.fmu", stop_time=5, output=["position", "position_2"])
+        assert len(result) > 1
+        assert list(result["position"]) == list(result["position_2"])
 
 
 @pytest.mark.needs_fmpy

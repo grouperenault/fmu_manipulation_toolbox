@@ -281,3 +281,10 @@ Document the FMU instances (fmu_instances step 6)
   warning at build time (`FMUContainer.single_instance_groups`, `sanity_check`) and a lint rule
   (`single-instance-fmu`). The documentation no longer claims that such FMUs work as instances.
 - The two-ball simulation test runs in a subprocess, with the debug log of the container.
+- Bouncing-ball FMUs exported by Simulink R2024b with the support of multiple instances
+  (`canBeInstantiatedOnlyOncePerProcess="false"`; FMI 2 CS, FMI 2 ME, FMI 3 CS; Windows binaries only) were added
+  to `tests/data/containers/bouncing_ball/` (`*_multiple.fmu`). `test_container_with_instances_simulates_alike`
+  (parametrised on the three kinds) builds two balls with them and, on Windows, simulates them in the pytest process
+  and compares both positions; `test_container_with_instances_of_a_single_instance_fmu` keeps the build of the former
+  Simulink FMUs and checks the warning, without simulation. `test_instances_diagnostics.py` is to be removed once
+  the Windows CI passes with the new test.
