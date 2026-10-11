@@ -6,6 +6,7 @@ the tools ask for, using actual FMU files, through the public ``Assembly`` API
 and without the Container Builder GUI.
 """
 import json
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -88,23 +89,56 @@ def test_adding_an_fmu_summarises_it(bridge, ball):
     assert bridge.list_fmus() == ["bb_position.fmu"]
 
 
-def test_adding_the_same_file_twice_is_harmless(bridge, ball):
+def test_adding_the_same_file_twice_adds_an_instance(bridge, ball):
     bridge.add_fmu(str(ball / "bb_position.fmu"))
-    bridge.add_fmu(str(ball / "bb_position.fmu"))
-    assert bridge.list_fmus() == ["bb_position.fmu"]
+    summary = bridge.add_fmu(str(ball / "bb_position.fmu"))
+
+    assert summary["fmu"] == "bb_position-1.fmu"
+    assert summary["path"] == str(ball / "bb_position.fmu")
+    assert bridge.list_fmus() == ["bb_position-1.fmu", "bb_position.fmu"]
+    assert bridge.list_fmu_ports("bb_position-1.fmu")["fmu"] == "bb_position-1.fmu"
 
 
-def test_two_files_sharing_a_name_are_refused(bridge, ball, tmp_path):
-    """FMUs are designated by file name: a duplicate would make the name
-    ambiguous, so it is refused rather than silently resolved."""
+def test_another_file_with_the_same_name_is_an_instance(bridge, ball, tmp_path):
+    """FMUs are designated by name: another file with an already used base name gets an instance name."""
     import shutil
 
     twin = tmp_path / "bb_position.fmu"
     shutil.copy(ball / "bb_position.fmu", twin)
     bridge.add_fmu(str(ball / "bb_position.fmu"))
 
-    with pytest.raises(ValueError, match="rename one of them"):
-        bridge.add_fmu(str(twin))
+    assert bridge.add_fmu(str(twin))["fmu"] == "bb_position-1.fmu"
+    assert bridge.list_fmu_ports("bb_position-1.fmu")["path"] == str(twin)
+
+
+def test_the_instances_are_distinct_in_the_assembly(loaded, ball, tmp_path):
+    """Each instance has its own rules; the file of an instance is given by the `path` block."""
+    loaded.add_fmu(str(ball / "bb_position.fmu"))
+    loaded.add_fmu(str(ball / "bb_velocity.fmu"))
+    loaded.add_link("bb_velocity-1.fmu", "velocity", "bb_position-1.fmu", "velocity")
+    loaded.set_start_value("bb_position-1.fmu", "position1", "2")
+
+    assembly = loaded.get_assembly_json()
+    assert assembly["path"] == {str(ball / "bb_position-1.fmu"): str(ball / "bb_position.fmu"),
+                                str(ball / "bb_velocity-1.fmu"): str(ball / "bb_velocity.fmu")}
+    assert assembly["link"] == [[str(ball / "bb_velocity-1.fmu"), "velocity",
+                                 str(ball / "bb_position-1.fmu"), "velocity"]]
+
+    loaded.save_as_json(str(tmp_path / "two.json"))
+    written = json.loads((tmp_path / "two.json").read_text())
+    assert sorted(Path(name).name for name in written["path"]) == ["bb_position-1.fmu", "bb_velocity-1.fmu"]
+
+
+def test_building_with_instances(loaded, ball, tmp_path):
+    import zipfile
+
+    loaded.add_fmu(str(ball / "bb_position.fmu"))
+    loaded.set_container_options({"step_size": 0.01})
+    loaded.save_as_fmu(str(tmp_path / "container.fmu"))
+
+    with zipfile.ZipFile(tmp_path / "container.fmu") as archive:
+        txt = archive.read("resources/container.txt").decode()
+    assert "bb_position-1.fmu 2 0" in txt.splitlines()
 
 
 def test_an_unknown_fmu_is_reported_with_what_is_loaded(loaded):
@@ -305,3 +339,18 @@ def test_building_twice_stays_consistent(loaded, tmp_path):
 
 
 
+
+
+def test_the_lint_checks_each_instance(loaded, ball):
+    """The lint reads the ports of an instance through the bridge, by its name, and replays it as a distinct FMU."""
+    from fmu_manipulation_toolbox.assistant.analysis import lint_assembly
+
+    loaded.add_fmu(str(ball / "bb_position.fmu"))
+    loaded.set_container_options({"auto_link": False, "auto_input": False, "auto_output": False})
+    loaded.add_link("bb_velocity.fmu", "velocity", "bb_position-1.fmu", "velocity")
+
+    report = lint_assembly(loaded.get_assembly_json(), describe=loaded.list_fmu_ports)
+    findings = {(group["rule"], group["severity"]): group["examples"] for group in report["findings"]}
+
+    assert ("not-checked", "info") not in findings
+    assert report["error_count"] == 0

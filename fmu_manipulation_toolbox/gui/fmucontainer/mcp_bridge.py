@@ -159,7 +159,7 @@ class QtAssemblyBridge:
     def _node_by_name(self, name: str) -> NodeItem | None:
         target = Path(name).name
         for node in self._scene.fmu_nodes():
-            if node.fmu_path.name == target:
+            if node.name == target:
                 return node
         return None
 
@@ -196,7 +196,7 @@ class QtAssemblyBridge:
         return self._invoker.call(self._list_fmus_impl)
 
     def _list_fmus_impl(self) -> list[str]:
-        return [node.fmu_path.name for node in self._scene.fmu_nodes()]
+        return [node.name for node in self._scene.fmu_nodes()]
 
     @staticmethod
     def _node_ports(node: NodeItem) -> dict[str, Any]:
@@ -226,7 +226,7 @@ class QtAssemblyBridge:
             })
 
         return {
-            "fmu": node.fmu_path.name,
+            "fmu": node.name,
             "path": str(node.fmu_path),
             "fmi_version": node.fmu_fmi_version,
             "generator": node.fmu_generator,
@@ -279,10 +279,9 @@ class QtAssemblyBridge:
         if not fmu_path.is_file():
             raise FileNotFoundError(f"FMU file not found: '{path}'")
         node = self._scene.add_node(fmu_path)
-        if node is None:
-            raise ValueError(f"'{fmu_path.name}' could not be added (already present?).")
         self._mark_dirty()
-        tree_logger.info(f"[AI] Added FMU '{fmu_path.name}'")
+        tree_logger.info(f"[AI] Added FMU '{node.name}'"
+                         + (f" (instance of '{fmu_path.name}')" if node.name != fmu_path.name else ""))
 
         description = self._node_ports(node)
         return {
@@ -308,7 +307,7 @@ class QtAssemblyBridge:
         self._scene.removeItem(node)
         self._mark_dirty()
         tree_logger.info(f"[AI] Removed FMU '{name}' ({removed_links} link(s))")
-        return {"fmu": node.fmu_path.name, "removed_links": removed_links}
+        return {"fmu": node.name, "removed_links": removed_links}
 
     def add_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
         return self._invoker.call(lambda: self._add_link_impl(from_fmu, from_port, to_fmu, to_port))
@@ -321,9 +320,9 @@ class QtAssemblyBridge:
         if node_to is None:
             raise ValueError(f"Destination FMU '{to_fmu}' is not in the assembly.")
         if from_port not in node_from.fmu_output_names:
-            raise ValueError(f"'{from_port}' is not an output of '{node_from.fmu_path.name}'.")
+            raise ValueError(f"'{from_port}' is not an output of '{node_from.name}'.")
         if to_port not in node_to.fmu_input_names:
-            raise ValueError(f"'{to_port}' is not an input of '{node_to.fmu_path.name}'.")
+            raise ValueError(f"'{to_port}' is not an input of '{node_to.name}'.")
 
         wire = self._scene.add_wire(node_from, node_to)
         if wire is None:  # a wire already connects the two nodes
@@ -331,7 +330,7 @@ class QtAssemblyBridge:
         if wire is None:
             raise ValueError(f"Cannot create a wire between '{from_fmu}' and '{to_fmu}'.")
 
-        mapping = (node_from.fmu_path.name, from_port, node_to.fmu_path.name, to_port)
+        mapping = (node_from.name, from_port, node_to.name, to_port)
         if mapping not in wire.mappings:
             wire.mappings.append(mapping)
             self._scene.wire_added.emit(wire)
@@ -348,7 +347,7 @@ class QtAssemblyBridge:
         if wire_detail._wire is wire:
             wire_detail._load_from_wire()
         self._mark_dirty()
-        link = f"{node_from.fmu_path.name}/{from_port} -> {node_to.fmu_path.name}/{to_port}"
+        link = f"{node_from.name}/{from_port} -> {node_to.name}/{to_port}"
         tree_logger.info(f"[AI] Linked {link}")
         return link
 
@@ -365,7 +364,7 @@ class QtAssemblyBridge:
             raise ValueError(f"Destination FMU '{to_fmu}' is not in the assembly.")
 
         wire = self._existing_wire(node_from, node_to)
-        mapping = (node_from.fmu_path.name, from_port, node_to.fmu_path.name, to_port)
+        mapping = (node_from.name, from_port, node_to.name, to_port)
         if wire is None or mapping not in wire.mappings:
             raise ValueError(
                 f"There is no link {from_fmu}/{from_port} -> {to_fmu}/{to_port}. "
@@ -388,7 +387,7 @@ class QtAssemblyBridge:
             wire.update()
 
         self._mark_dirty()
-        link = f"{node_from.fmu_path.name}/{from_port} -> {node_to.fmu_path.name}/{to_port}"
+        link = f"{node_from.name}/{from_port} -> {node_to.name}/{to_port}"
         tree_logger.info(f"[AI] Unlinked {link}")
         return link
 
@@ -400,12 +399,12 @@ class QtAssemblyBridge:
         if node is None:
             raise ValueError(f"FMU '{fmu}' is not in the assembly.")
         if port not in node.fmu_input_names:
-            raise ValueError(f"'{port}' is not an input of '{node.fmu_path.name}'.")
+            raise ValueError(f"'{port}' is not an input of '{node.name}'.")
         node.user_exposed_inputs[port] = True
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Exposed input {node.fmu_path.name}/{port}")
-        return f"{node.fmu_path.name}/{port}"
+        tree_logger.info(f"[AI] Exposed input {node.name}/{port}")
+        return f"{node.name}/{port}"
 
     def expose_output(self, fmu: str, port: str) -> str:
         return self._invoker.call(lambda: self._expose_output_impl(fmu, port))
@@ -415,12 +414,12 @@ class QtAssemblyBridge:
         if node is None:
             raise ValueError(f"FMU '{fmu}' is not in the assembly.")
         if port not in node.fmu_output_names:
-            raise ValueError(f"'{port}' is not an output of '{node.fmu_path.name}'.")
+            raise ValueError(f"'{port}' is not an output of '{node.name}'.")
         node.user_exposed_outputs[port] = True
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Exposed output {node.fmu_path.name}/{port}")
-        return f"{node.fmu_path.name}/{port}"
+        tree_logger.info(f"[AI] Exposed output {node.name}/{port}")
+        return f"{node.name}/{port}"
 
     def set_start_value(self, fmu: str, port: str, value: str) -> str:
         return self._invoker.call(lambda: self._set_start_value_impl(fmu, port, value))
@@ -430,12 +429,12 @@ class QtAssemblyBridge:
         if node is None:
             raise ValueError(f"FMU '{fmu}' is not in the assembly.")
         if port not in node.fmu_port_causality:
-            raise ValueError(f"'{port}' is not a port of '{node.fmu_path.name}'.")
+            raise ValueError(f"'{port}' is not a port of '{node.name}'.")
         node.user_start_values[port] = str(value)
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Start value {node.fmu_path.name}/{port} = {value}")
-        return f"{node.fmu_path.name}/{port} = {value}"
+        tree_logger.info(f"[AI] Start value {node.name}/{port} = {value}")
+        return f"{node.name}/{port} = {value}"
 
     def unset_start_value(self, fmu: str, port: str) -> str:
         return self._invoker.call(lambda: self._unset_start_value_impl(fmu, port))
@@ -447,15 +446,15 @@ class QtAssemblyBridge:
         if port not in node.user_start_values:
             declared = node.fmu_start_values.get(port)
             raise ValueError(
-                f"No start value was set on {node.fmu_path.name}/{port}"
+                f"No start value was set on {node.name}/{port}"
                 + (f" (the FMU declares '{declared}')." if declared is not None
                    else " and the FMU declares none.")
             )
         del node.user_start_values[port]
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Start value cleared on {node.fmu_path.name}/{port}")
-        return f"{node.fmu_path.name}/{port}"
+        tree_logger.info(f"[AI] Start value cleared on {node.name}/{port}")
+        return f"{node.name}/{port}"
 
     def set_container_options(self, options: dict[str, Any]) -> dict[str, Any]:
         return self._invoker.call(lambda: self._set_container_options_impl(options))

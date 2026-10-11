@@ -1791,11 +1791,19 @@ int container_configure(container_t* container, const char* resource_location) {
         fmu_t *fmu = &container->fmu[i];
         const bool is_me = (fmu->kind == FMU_KIND_ME);
 
-        logger(LOGGER_DEBUG, "FMU#%d: Instanciate '%s' for %s", i, fmu->name,
+        /* Each embedded FMU gets its own instance name: two instances of one FMU must not share one. */
+        const size_t len = strlen(container->instance_name) + 1 + strlen(fmu->name) + 1;
+        fmu->instance_name = malloc(len);
+        if (!fmu->instance_name) {
+            logger(LOGGER_ERROR, "Cannot allocate the instance name of FMU '%s'", fmu->name);
+            return -8;
+        }
+        snprintf(fmu->instance_name, len, "%s.%s", container->instance_name, fmu->name);
+        logger(LOGGER_DEBUG, "FMU#%d: Instanciate '%s' as '%s' for %s", i, fmu->name, fmu->instance_name,
                is_me ? "ModelExchange" : "CoSimulation");
 
-        fmu_status_t status = is_me ? fmuInstantiateModelExchange(fmu, container->instance_name)
-                                    : fmuInstantiateCoSimulation(fmu, container->instance_name);
+        fmu_status_t status = is_me ? fmuInstantiateModelExchange(fmu, fmu->instance_name)
+                                    : fmuInstantiateCoSimulation(fmu, fmu->instance_name);
         if (status != FMU_STATUS_OK) {
             logger(LOGGER_ERROR, "Cannot Instantiate FMU '%s'", fmu->name);
             return -8;

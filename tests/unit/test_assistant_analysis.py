@@ -481,6 +481,19 @@ def _findings_with(assembly, directory, **arguments):
     return {(group["rule"], group["severity"]): group["examples"] for group in report["findings"]}
 
 
+def test_the_instances_of_one_fmu_are_checked_apart(two_fmus):
+    """The file of an instance comes from the `path` block; each instance is replayed as a distinct FMU."""
+    assembly = {"name": "c.fmu", **EXPLICIT, "fmu": ["a.fmu", "b.fmu", "b-1.fmu"],
+                "path": {"b-1.fmu": str(two_fmus / "b.fmu")},
+                "link": [["a.fmu", "y", "b-1.fmu", "u"]]}
+
+    findings = _findings_with(assembly, two_fmus)
+
+    assert ("not-checked", "info") not in findings
+    assert ("invalid-link", "error") not in findings
+    assert findings[("dangling-input", "warning")] == ["c.fmu: b.fmu/free", "c.fmu: b-1.fmu/free"]
+
+
 def test_the_auto_rules_are_dry_run(two_fmus):
     """`auto_input` exposes the free input at build time: it is not dangling."""
     assembly = {"name": "c.fmu", **EXPLICIT, "auto_input": True, "fmu": ["a.fmu", "b.fmu"]}
@@ -489,11 +502,11 @@ def test_the_auto_rules_are_dry_run(two_fmus):
 
 
 def test_an_auto_rule_refused_by_the_builder(two_fmus):
-    """`auto_output` exposes both 'dup' outputs under the same name: the build fails."""
-    assembly = {"name": "c.fmu", "fmu": ["a.fmu", "b.fmu"]}
+    """`auto_output` exposes the second 'dup' output as 'b.dup', a name an explicit output already uses."""
+    assembly = {"name": "c.fmu", "fmu": ["a.fmu", "b.fmu"], "output": [["a.fmu", "y", "b.dup"]]}
 
     [example] = _findings_with(assembly, two_fmus)[("auto-rules-error", "error")]
-    assert "dup" in example
+    assert "b.dup" in example
 
 
 def test_entries_with_a_sub_container_are_not_checked(two_fmus):

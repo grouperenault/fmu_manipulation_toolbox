@@ -263,13 +263,22 @@ def test_destructive_tools_are_flagged(tool):
 
 
 @pytest.mark.parametrize("tool", ["expose_input", "expose_output", "set_start_value",
-                                  "set_container_options", "add_fmu", "add_link"])
+                                  "set_container_options", "add_link"])
 def test_idempotent_writes_are_flagged(tool):
     tools, _ = run(inventory(FakeBridge()))
     annotations = next(t for t in tools if t.name == tool).annotations
     assert annotations.idempotent_hint is True
     assert annotations.read_only_hint is False
     assert annotations.destructive_hint is not True
+
+
+def test_adding_an_fmu_is_not_idempotent():
+    """A second `add_fmu` on a file adds another instance: a client must not retry it blindly."""
+    tools, _ = run(inventory(FakeBridge()))
+    annotations = next(t for t in tools if t.name == "add_fmu").annotations
+    assert annotations.idempotent_hint is False
+    assert annotations.read_only_hint is False
+    assert annotations.destructive_hint is False
 
 
 # --------------------------------------------------------------------------- #

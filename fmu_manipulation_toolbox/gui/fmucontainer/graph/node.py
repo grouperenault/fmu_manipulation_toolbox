@@ -22,15 +22,22 @@ from .constants import (
 
 class NodeItem(QGraphicsRectItem, OperationAbstract):
     """Rectangular node representing an FMU. No visual ports — wires
-    connect directly to the node edges."""
+    connect directly to the node edges.
+
+    A node is designated by its `name`, unique in the scene, and distinct from
+    its FMU file (`fmu_path`): the same file can be added several times, each
+    node being an instance named `<stem>-<n>.fmu` (see
+    `fmu_manipulation_toolbox.assembly.instance_name`). Wire mappings, start
+    values and exposed ports refer to the node by its name.
+    """
 
     read_only = True  # reads the FMU interface, never changes the descriptor
 
-    def __init__(self, fmu_path: Path, x: float = 0, y: float = 0):
+    def __init__(self, fmu_path: Path, x: float = 0, y: float = 0, name: str | None = None):
         super().__init__()
 
         self.uid = str(uuid.uuid4())
-        self._title = fmu_path.name
+        self.name = name or fmu_path.name
         self.fmu_path = fmu_path
 
         # Title bar highlight (for selected container)
@@ -286,7 +293,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     @property
     def title(self) -> str:
-        return self._title
+        return self.name
 
     # -- Edge anchor -----------------------------------------------------------
 
@@ -374,13 +381,19 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     # -- Helpers ---------------------------------------------------------------
 
-    def replace_fmu(self, new_fmu_path: Path):
-        """Replace the underlying FMU file while keeping wires, start values and exposed ports."""
-        old_name = self.fmu_path.name
-        new_name = new_fmu_path.name
+    def replace_fmu(self, new_fmu_path: Path, new_name: str | None = None):
+        """Replace the underlying FMU file while keeping wires, start values and exposed ports.
+
+        Args:
+            new_fmu_path: The new FMU file.
+            new_name: The new name of the node, unique in the scene (see `GraphScene.replace_node_fmu`). Defaults to
+                the file name.
+        """
+        old_name = self.name
+        new_name = new_name or new_fmu_path.name
 
         self.fmu_path = new_fmu_path
-        self._title = new_name
+        self.name = new_name
 
         # Re-read ports from the new FMU
         self.fmu_input_names.clear()
@@ -419,7 +432,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
                 ]
 
         # Update visual: title text and node width
-        self._title_item.setPlainText(self._title)
+        self._title_item.setPlainText(self.title)
         fm_title = QFontMetrics(FONT_TITLE)
         width, height = self._compute_size(fm_title)
         self.setRect(0, 0, width, height)
@@ -467,7 +480,7 @@ class ConfigurationNode(NodeItem):
         QGraphicsRectItem.__init__(self)
 
         self.uid = str(uuid.uuid4())
-        self._title = self.TITLE
+        self.name = self.TITLE
         self.fmu_path = Path(self.TITLE)
 
         self._title_highlighted = False
@@ -546,7 +559,7 @@ class ConfigurationNode(NodeItem):
         return f"{base}.fmu"
 
     def _port_in_use(self, port: str) -> bool:
-        my_name = self.fmu_path.name
+        my_name = self.name
         for wire in self.wires:
             for m in wire.mappings:
                 if len(m) < 4:
@@ -593,7 +606,7 @@ class ConfigurationNode(NodeItem):
         active = self.ts_multiplier_ports.pop(old_port)
         self.ts_multiplier_ports[new_port] = active
 
-        my_name = self.fmu_path.name
+        my_name = self.name
         for wire in self.wires:
             new_mappings = []
             for m in wire.mappings:
@@ -636,7 +649,7 @@ class ConfigurationNode(NodeItem):
                     scene.node_removed.emit(self)
                 scene.removeItem(self)
 
-    def replace_fmu(self, new_fmu_path: Path):
+    def replace_fmu(self, new_fmu_path: Path, new_name: str | None = None):
         raise NotImplementedError("ConfigurationNode is virtual and cannot be replaced.")
 
 

@@ -195,6 +195,38 @@ def bouncing(area_dir) -> FMUContainer:
 
 
 @pytest.mark.area("containers/bouncing_ball")
+def test_instances_of_one_fmu_are_distinct(bouncing):
+    """An instance is designated by its name, its identifier comes from it, and its rules apply to it only."""
+    instance = bouncing.get_fmu("bb_position.fmu", "bb_position-1.fmu")
+    assert instance is not bouncing.involved_fmu["bb_position.fmu"]
+    assert (instance.name, instance.id) == ("bb_position-1.fmu", "bb_position-1")
+    assert bouncing.get_fmu("bb_position-1.fmu") is instance       # rules designate it by name only
+    bouncing.add_output("bb_position-1.fmu", "position1", "position_2")
+    assert bouncing.outputs["position_2"].fmu is instance
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_auto_rules_with_instances(bouncing):
+    """Instances are never auto-linked, and a name already exposed is qualified by the id of the FMU."""
+    bouncing.get_fmu("bb_position.fmu", "bb_position-1.fmu")
+    bouncing.get_fmu("bb_velocity.fmu", "bb_velocity-1.fmu")
+    wired = bouncing.add_implicit_rule(auto_link=True, auto_input=True, auto_output=True)
+
+    assert wired.rule_link == [["bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"]]
+    assert sorted(bouncing.outputs) == ["bb_position-1.is_ground", "bb_position-1.position1", "is_ground",
+                                        "position1", "velocity"]
+    assert bouncing.outputs["velocity"].fmu.name == "bb_velocity-1.fmu"
+    assert sorted(bouncing.inputs) == ["bb_position-1.velocity", "bb_velocity-1.reset", "reset"]
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_one_name_cannot_designate_two_files(bouncing):
+    bouncing.get_fmu("bb_position.fmu", "model-1.fmu")
+    with pytest.raises(FMUContainerError, match="already designates"):
+        bouncing.get_fmu("bb_velocity.fmu", "model-1.fmu")
+
+
+@pytest.mark.area("containers/bouncing_ball")
 @pytest.mark.parametrize("rule, message", [
     (lambda c: c.add_input("x", "bb_position.fmu", "position1"), "as INPUT of the container"),
     (lambda c: c.add_output("bb_position.fmu", "velocity", "v"), "as OUTPUT of the container"),

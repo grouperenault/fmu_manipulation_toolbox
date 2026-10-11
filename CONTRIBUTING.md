@@ -110,7 +110,9 @@ prerequisites are missing — they never fail silently.
    generated artefacts are easy to inspect when debugging a failure.
 4. Reuse the shared helpers in `tests/_helpers/`:
     - `assertions.py`: file and XML comparisons (`assert_identical_files`, `assert_equivalent_xml`, …);
-    - `simulation.py`: FMI simulation with `fmpy` and comparison with a reference;
+    - `simulation.py`: FMI simulation with `fmpy` and comparison with a reference. Simulate through
+      `simulate()` rather than `fmpy.simulate_fmu()`: it always gives a logger to fmpy, whose default
+      logger crashes the process after a simulation given a logger (fmpy 0.3.32);
     - `mcp_budget.py`: synthetic FMUs and assemblies of industrial size, and the context budget of the MCP
       server (`python tests/_helpers/mcp_budget.py` prints its measurements);
     - `assistant_bridge.py`: `FakeBridge`, an in-memory bridge to drive the MCP server without Qt.

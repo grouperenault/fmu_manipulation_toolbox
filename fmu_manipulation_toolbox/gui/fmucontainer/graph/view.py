@@ -253,8 +253,7 @@ class NodeGraphView(QGraphicsView):
         if new_path.resolve() == node.fmu_path.resolve():
             return  # nothing changed
 
-        node.replace_fmu(new_path)
-        self._scene.node_replaced.emit(node)
+        self._scene.replace_node_fmu(node, new_path)
 
     def _launch_fmpy_simulation(self, node: NodeItem):
         """Launch FMPy GUI with the selected FMU."""

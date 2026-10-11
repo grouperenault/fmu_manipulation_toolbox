@@ -10,6 +10,21 @@ from fmpy.simulation import simulate_fmu
 from _helpers.assertions import assert_identical_files
 
 
+def _print_log(*args):
+    print(f"SIMU     | {args[-1].decode('utf-8')}")
+
+
+def simulate(filename: Path | str, **kwargs):
+    """`fmpy.simulate_fmu`, always with a logger (a printing one by default).
+
+    fmpy 0.3.32 keeps in its native logger proxy the logger of the last simulation given one, and its default
+    callbacks go through that proxy: an FMI-2 FMU simulated without logger after such a simulation calls a freed
+    callback as soon as it logs (the containers do at instantiation), and the process crashes.
+    """
+    kwargs.setdefault("logger", _print_log)
+    return simulate_fmu(filename, **kwargs)
+
+
 def assert_simulation(filename: Path | str, step_size: float | None = None):
     """Simulate `filename` and compare the results CSV against its REF-* file."""
     if isinstance(filename, str):

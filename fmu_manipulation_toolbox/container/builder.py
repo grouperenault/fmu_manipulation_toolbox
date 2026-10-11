@@ -113,26 +113,36 @@ class FMUContainer:
         # What feeds each input of the embedded FMUs: a container input or a link, never both, never two (B6).
         self.input_feeders: dict[ContainerPort, str] = {}
 
-    def get_fmu(self, fmu_filename: str) -> EmbeddedFMU:
+    def get_fmu(self, fmu_filename: str, name: str | None = None) -> EmbeddedFMU:
         """Load an embedded FMU from the FMU directory.
 
-        If the FMU has already been loaded, returns the cached instance.
+        An embedded FMU is designated by its name: its filename, or the name of an instance when the same FMU is
+        embedded several times. Each instance is a distinct embedded FMU, extracted in its own directory of the
+        container. If the FMU has already been loaded, returns the cached instance.
 
         Args:
             fmu_filename (str): Filename of the FMU (e.g. `"model.fmu"`).
+            name (str | None): Name of the instance (e.g. `"model-1.fmu"`). Defaults to the filename. Once loaded,
+                the instance is designated by this name in every rule.
 
         Returns:
             EmbeddedFMU: The loaded and analysed FMU.
 
         Raises:
-            FMUContainerError: If the FMU cannot be loaded.
+            FMUContainerError: If the FMU cannot be loaded, or if `name` already designates another file.
         """
-        fmu_name = Path(fmu_filename).name
+        fmu_name = Path(name or fmu_filename).name
         if fmu_name in self.involved_fmu:
-            return self.involved_fmu[fmu_name]
-        
+            fmu = self.involved_fmu[fmu_name]
+            if name is not None:  # a rule designates the FMU by name only: no file to compare with
+                loaded_from = Path(fmu.fmu.fmu_filename).resolve()
+                if loaded_from != (self.fmu_directory / fmu_filename).resolve():
+                    raise FMUContainerError(f"'{fmu_name}' already designates '{fmu.fmu.fmu_filename}': "
+                                            f"it cannot also designate '{fmu_filename}'.")
+            return fmu
+
         try:
-            fmu = EmbeddedFMU(self.fmu_directory / fmu_filename)
+            fmu = EmbeddedFMU(self.fmu_directory / fmu_filename, name=fmu_name)
         except (FMUContainerError, FMUError) as e:
             raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}")
 
@@ -444,13 +454,14 @@ class FMUContainer:
             if cport.port.causality == 'input':
                 inputs_by_signature[(cport.port.name, cport.port.type_name)].append(cport)
 
-        # Auto Link outputs
+        # Auto Link outputs. The instances of an FMU share its port names: they are never auto-linked, otherwise an
+        # output would feed the inputs of every instance.
         for cport in all_cports:
             if cport.port.causality == 'output':
                 candidates_cport_list = [candidate for candidate in
                                          inputs_by_signature[(cport.port.name, cport.port.type_name)]
-                                         if candidate not in self.rules]
-                if auto_link and candidates_cport_list:
+                                         if candidate not in self.rules and not candidate.fmu.is_instance]
+                if auto_link and candidates_cport_list and not cport.fmu.is_instance:
                     for candidate_cport in candidates_cport_list:
                         logger.info(f"AUTO LINK: {cport} -> {candidate_cport}")
                         self.add_link(cport.fmu.name, cport.port.name,
@@ -458,9 +469,10 @@ class FMUContainer:
                         auto_wired.add_link(cport.fmu.name, cport.port.name,
                                             candidate_cport.fmu.name, candidate_cport.port.name)
                 elif auto_output and cport not in self.rules:
-                    logger.info(f"AUTO OUTPUT: Expose {cport}")
-                    self.add_output(cport.fmu.name, cport.port.name, cport.port.name)
-                    auto_wired.add_output(cport.fmu.name, cport.port.name, cport.port.name)
+                    output_name = self._auto_name(cport)
+                    logger.info(f"AUTO OUTPUT: Expose {cport} as {output_name}")
+                    self.add_output(cport.fmu.name, cport.port.name, output_name)
+                    auto_wired.add_output(cport.fmu.name, cport.port.name, output_name)
             elif cport.port.causality == 'local':
                 local_portname = None
                 if cport.port.name.startswith("container."):
@@ -482,13 +494,22 @@ class FMUContainer:
                     self.add_input(parameter_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
                 elif auto_input and cport.port.causality == 'input' :
-                    logger.info(f"AUTO INPUT: Expose {cport}")
-                    self.add_input(cport.port.name, cport.fmu.name, cport.port.name)
-                    auto_wired.add_input(cport.port.name, cport.fmu.name, cport.port.name)
+                    input_name = self._auto_name(cport)
+                    logger.info(f"AUTO INPUT: Expose {cport} as {input_name}")
+                    self.add_input(input_name, cport.fmu.name, cport.port.name)
+                    auto_wired.add_input(input_name, cport.fmu.name, cport.port.name)
 
         logger.info(f"Auto-wiring: {auto_wired}")
 
         return auto_wired
+
+    def _auto_name(self, cport: ContainerPort) -> str:
+        """Name under which `auto_input` / `auto_output` expose `cport`: its port name, or `<id>.<port>` when the
+        port name is already exposed, as an input or as an output (the instances of an FMU share its port names,
+        and the variables of the container need distinct names)."""
+        if cport.port.name in self.inputs or cport.port.name in self.outputs:
+            return f"{cport.fmu.id}.{cport.port.name}"
+        return cport.port.name
 
     def default_step_size(self) -> float:
         """Compute the default step size from embedded FMUs.
