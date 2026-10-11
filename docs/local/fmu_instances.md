@@ -138,6 +138,14 @@ runtime are unchanged.
 Tests: build → split → build round trip with instances; SSP archive built in the test with two components sharing
 one source.
 
+**Result:** `fmusplit` needed no change: it already writes one file per entry of `container.txt`, named after the
+instance, and the reconstructed JSON rebuilds a container with the same `container.txt`
+(`integration/test_split.py::test_fmusplit_instances_of_one_fmu`). `SSDParser` names each component with
+`instance_name` at its level and declares its file with `add_fmu(name, path)`; the connections follow the map
+component → instance name (`integration/test_ssp.py::test_components_sharing_a_source_are_instances`, on a variant
+of `bouncing.ssp` with both components duplicated). The SSP dump reference of the existing tests is unchanged.
+Suite: 1 585 passed, 2 skipped.
+
 Commit message:
 
 ```

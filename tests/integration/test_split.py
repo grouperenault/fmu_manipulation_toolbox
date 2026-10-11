@@ -5,6 +5,7 @@ Each test runs in an isolated copy
 of ``tests/data/split`` (see the ``area_dir`` fixture); the split outputs land
 in ``<container>.dir/`` inside ``tmp_path``.
 """
+import json
 import sys
 from pathlib import Path
 
@@ -68,3 +69,31 @@ def test_fmusplit_array_current_format(area_dir, dims):
     Assembly(f"array-{dims}.json").make_fmu(fmi_version=3, filename=f"{stem}.fmu")
     out_dir = _run_fmusplit(stem)
     assert_identical_files(out_dir / f"{stem}.json", DATA_DIR / "split" / f"REF-{stem}.json")
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_fmusplit_instances_of_one_fmu(area_dir):
+    """Each instance is split into its own file, named after the instance: the JSON needs no `path` block and
+    rebuilds the same container."""
+    Path("two_balls.json").write_text(json.dumps({
+        "name": "two_balls.fmu", "auto_link": False, "auto_input": False, "auto_output": False,
+        "fmu": ["bb_position.fmu", "bb_velocity.fmu", "bb_position-1.fmu", "bb_velocity-1.fmu"],
+        "path": {"bb_position-1.fmu": "bb_position.fmu", "bb_velocity-1.fmu": "bb_velocity.fmu"},
+        "link": [["bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset"],
+                 ["bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"],
+                 ["bb_position-1.fmu", "is_ground", "bb_velocity-1.fmu", "reset"],
+                 ["bb_velocity-1.fmu", "velocity", "bb_position-1.fmu", "velocity"]],
+        "output": [["bb_position.fmu", "position1", "position"], ["bb_position-1.fmu", "position1", "position_2"]],
+    }))
+    Assembly("two_balls.json", debug=True).make_fmu()
+
+    out_dir = _run_fmusplit("two_balls")
+    for name in ("bb_position.fmu", "bb_velocity.fmu", "bb_position-1.fmu", "bb_velocity-1.fmu"):
+        assert (out_dir / name).is_file()
+    split = json.loads((out_dir / "two_balls.json").read_text())
+    assert sorted(split["fmu"]) == ["bb_position-1.fmu", "bb_position.fmu", "bb_velocity-1.fmu", "bb_velocity.fmu"]
+    assert "path" not in split
+    assert ["bb_velocity-1.fmu", "velocity", "bb_position-1.fmu", "velocity"] in split["link"]
+
+    Assembly("two_balls.json", fmu_directory=out_dir, debug=True).make_fmu(filename="rebuilt.fmu")
+    assert_identical_files("two_balls/resources/container.txt", out_dir / "rebuilt/resources/container.txt")

@@ -1013,7 +1013,8 @@ class SSDParser:
             for tracking hierarchy.
         root (AssemblyNode | None): Root node after parsing is complete.
         fmu_filenames (dict[str, str]): Mapping from SSD component names to
-            FMU filenames.
+            the names of the embedded FMUs: the FMU filename, or an instance
+            name when several components share one source (see `instance_name`).
     """
 
     SSD_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureDescription"
@@ -1101,10 +1102,11 @@ class SSDParser:
 
         elif tag_name == 'Component':
             filename = f"{self.extract_folder_name}/{str(Path(attrs['source']).name)}"
-            name = attrs['name']
-            self.fmu_filenames[name] = filename
-            self.node_stack[-1].add_fmu(filename)
-            logger.debug(f"Component {name} => {filename}")
+            node = self.node_stack[-1]
+            fmu_name = instance_name(filename, node.fmu_names_list)  # components sharing a source: instances
+            self.fmu_filenames[attrs['name']] = fmu_name
+            node.add_fmu(fmu_name, filename)
+            logger.debug(f"Component {attrs['name']} => {fmu_name}")
 
     def end_element(self, tag_name):
         """Handle the end of an SSD element (`tag_name` without namespace)."""

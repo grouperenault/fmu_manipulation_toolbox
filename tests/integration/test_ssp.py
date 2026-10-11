@@ -53,3 +53,35 @@ def test_invalid_ssd_raises_assembly_error(area_dir, transform, message):
     _variant(area_dir / "bouncing.ssp", area_dir / "invalid.ssp", transform)
     with pytest.raises(AssemblyError, match=message):
         Assembly("invalid.ssp")
+
+
+def _second_ball(ssd: str) -> str:
+    """Duplicate both components (same sources, other names) and their connections."""
+    start, end = ssd.index("<ssd:Component "), ssd.index("</ssd:Elements>")
+    components = ssd[start:end].replace('name="bb_velocity"', 'name="bb_velocity2"') \
+                               .replace('name="bb_position"', 'name="bb_position2"')
+    ssd = ssd[:end] + components + ssd[end:]
+    start, end = ssd.index("<ssd:Connection "), ssd.index("</ssd:Connections>")
+    connections = ssd[start:end].replace('Element="bb_velocity"', 'Element="bb_velocity2"') \
+                                .replace('Element="bb_position"', 'Element="bb_position2"')
+    return ssd[:end] + connections + ssd[end:]
+
+
+def test_components_sharing_a_source_are_instances(area_dir):
+    _variant(area_dir / "bouncing.ssp", area_dir / "two.ssp", _second_ball)
+    assembly = Assembly("two.ssp")
+    root = assembly.root
+
+    assert root.fmu_names_list == ["two.dir/bb_velocity.fmu", "two.dir/bb_position.fmu",
+                                   "two.dir/bb_velocity-1.fmu", "two.dir/bb_position-1.fmu"]
+    assert root.fmu_paths == {"two.dir/bb_velocity-1.fmu": "two.dir/bb_velocity.fmu",
+                              "two.dir/bb_position-1.fmu": "two.dir/bb_position.fmu"}
+    assert [str(link) for link in root.links[2:]] == [
+        "two.dir/bb_velocity-1.fmu/velocity -> two.dir/bb_position-1.fmu/velocity",
+        "two.dir/bb_position-1.fmu/is_ground -> two.dir/bb_velocity-1.fmu/reset"]
+
+    assembly.make_fmu()
+    with zipfile.ZipFile("two.fmu") as container:
+        declarations = container.read("resources/container.txt").decode().splitlines()
+    assert [line.split()[0] for line in declarations if ".fmu " in line and not line.startswith("#")] == \
+           ["bb_velocity.fmu", "bb_position.fmu", "bb_velocity-1.fmu", "bb_position-1.fmu"]
