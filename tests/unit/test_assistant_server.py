@@ -52,7 +52,8 @@ EXPECTED_TOOLS = {
     "set_start_value": ["fmu", "port", "value"],
     "unset_start_value": ["fmu", "port"],
     "set_container_options": ["options"],
-    "get_assembly_json": [],
+    "get_assembly_json": ["node", "section", "offset", "limit"],
+    "analyze_assembly": ["mode", "node"],
     "save_as_json": ["path", "overwrite"],
     "save_as_fmu": ["path", "fmi_version", "datalog", "overwrite"],
     # Single-FMU tools: they never touch the assembly (audit I8).
@@ -68,7 +69,7 @@ EXPECTED_RESOURCES = {"guide://usage", "assembly://current",
 
 EXPECTED_RESOURCE_TEMPLATES = {"fmu://{name}/ports"}
 
-EXPECTED_PROMPTS = {"build_container", "diagnose_assembly", "inspect_fmu"}
+EXPECTED_PROMPTS = {"build_container", "diagnose_assembly", "inspect_fmu", "analyze_assembly"}
 
 
 def _port(name, causality, type_="Real", **extra):
@@ -614,6 +615,93 @@ def test_current_assembly_resource_serves_json():
     assert json.loads(_run(scenario())[0].text)["fmu"] == ["a.fmu"]
 
 
+class NestedBridge(FakeBridge):
+    """Serves the nested assembly of `tests/data/containers/arch`, its root FMUs designated by path."""
+
+    def __init__(self, assembly):
+        super().__init__()
+        self.assembly = assembly
+
+    def get_assembly_json(self):
+        return self.assembly
+
+
+def test_assembly_is_paged_by_container_and_section(data_dir):
+    """docs/local/done/assembly_analysis.md, phase 2: a large assembly is read one container, then one section, at a
+    time; the FMUs are designated by name, as in the other tools."""
+    assembly = json.loads((data_dir / "containers" / "arch" / "nested.json").read_text())
+    assembly["fmu"] = [f"/models/{fmu}" for fmu in assembly["fmu"]]
+
+    async def scenario():
+        async with fastmcp.Client(build_server(NestedBridge(assembly))) as client:
+            whole = (await client.call_tool("get_assembly_json", {})).data
+            level = (await client.call_tool("get_assembly_json", {"node": "level1.fmu"})).data
+            page = (await client.call_tool("get_assembly_json", {"node": "level1.fmu", "section": "input",
+                                                                 "limit": 2})).data
+            resource = json.loads((await client.read_resource("assembly://current"))[0].text)
+            return whole, level, page, resource
+
+    whole, level, page, resource = _run(scenario())
+    assert whole["fmu"] == ["fmu0a.fmu", "fmu0b.fmu"]
+    assert resource == whole
+    assert level["name"] == "level1.fmu" and level["counts"]["link"] == 4
+    assert page["total"] == 3 and page["returned"] == 2 and page["truncated"] is True
+
+
+def test_analyze_assembly_summarises_and_lints(data_dir):
+    """docs/local/done/assembly_analysis.md, phase 4: one read-only tool, two modes, optionally one container."""
+    assembly = json.loads((data_dir / "containers" / "arch" / "hierarchical.json").read_text())
+
+    async def scenario():
+        async with fastmcp.Client(build_server(NestedBridge(assembly))) as client:
+            summary = (await client.call_tool("analyze_assembly", {})).data
+            sub = (await client.call_tool("analyze_assembly", {"node": "level1.fmu"})).data
+            lint = (await client.call_tool("analyze_assembly", {"mode": "lint"})).data
+            return summary, sub, lint
+
+    summary, sub, lint = _run(scenario())
+    assert summary["fmus"] == ["gain.fmu"]
+    assert summary["containers"][0]["name"] == "level1.fmu"
+    assert sub["name"] == "level1.fmu" and sub["options"] == {"step_size": 0.01}
+    rules = {group["rule"] for group in lint["findings"]}
+    assert "step-ratio" in rules
+    # The fake bridge knows none of these FMUs: their ports are reported as not checked.
+    assert "not-checked" in rules
+
+
+def test_analyze_assembly_lints_the_ports_with_the_builder(tmp_path):
+    """Through the headless bridge (flat, D10): a wired assembly passes the builder."""
+    from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
+    from _helpers.mcp_budget import make_fmu
+
+    make_fmu(tmp_path / "a.fmu", outputs=["y"])
+    make_fmu(tmp_path / "b.fmu", inputs=["y", "free"], outputs=["z"])
+
+    async def scenario():
+        server = build_server(HeadlessAssemblyBridge(), policy=PathPolicy(tmp_path))
+        async with fastmcp.Client(server) as client:
+            for name in ("a.fmu", "b.fmu"):
+                await client.call_tool("add_fmu", {"path": str(tmp_path / name)})
+            await client.call_tool("add_link", {"from_fmu": "a.fmu", "from_port": "y",
+                                                "to_fmu": "b.fmu", "to_port": "y"})
+            return (await client.call_tool("analyze_assembly", {"mode": "lint"})).data
+
+    report = _run(scenario())
+    assert report["error_count"] == 0
+    assert "not-checked" not in {group["rule"] for group in report["findings"]}
+
+
+def test_an_unknown_container_is_reported(data_dir):
+    assembly = json.loads((data_dir / "containers" / "arch" / "nested.json").read_text())
+
+    async def scenario():
+        async with fastmcp.Client(build_server(NestedBridge(assembly))) as client:
+            await client.call_tool("get_assembly_json", {"node": "nope.fmu"})
+
+    with pytest.raises(ToolError, match="No container is named 'nope.fmu'"):
+        _run(scenario())
+
+
 # --------------------------------------------------------------------------- #
 #          portable know-how: prompts and reference resources (I4, I6)          #
 # --------------------------------------------------------------------------- #
@@ -643,6 +731,9 @@ def test_prompt_inventory_matches_reference():
     ("diagnose_assembly", {"symptom": "step too large"}, "step too large"),
     ("inspect_fmu", {"fmu": "controller.fmu"}, "controller.fmu"),
     ("inspect_fmu", {}, "inspect_fmu_file"),
+    ("diagnose_assembly", {}, "analyze_assembly(mode='lint')"),
+    ("analyze_assembly", {"focus": "thermal loop"}, "thermal loop"),
+    ("analyze_assembly", {}, "list_fmus"),
 ])
 def test_prompts_render_with_and_without_arguments(prompt, arguments, expected):
     async def scenario():
@@ -651,6 +742,27 @@ def test_prompts_render_with_and_without_arguments(prompt, arguments, expected):
 
     rendered = _run(scenario()).messages[0].content.text
     assert expected in rendered
+
+
+#: Prefixes of the tool names: a back-quoted word starting with one of them, in the know-how, designates a tool.
+TOOL_VERBS = ("list_", "add_", "remove_", "expose_", "set_", "unset_", "get_", "save_", "inspect_", "summarize_",
+              "check_", "dump_", "rename_", "apply_", "analyze_")
+
+
+def test_the_know_how_only_names_existing_tools():
+    """docs/local/done/assembly_analysis.md, phase 5: a prompt or the guide naming a tool that does not exist (renamed,
+    removed) sends the model after it."""
+    import re
+    from fmu_manipulation_toolbox.assistant import knowledge
+
+    tools, _ = _run(_inventory(FakeBridge()))
+    names = {tool.name for tool in tools}
+    texts = [knowledge.USAGE_GUIDE, knowledge.build_container_prompt(), knowledge.diagnose_assembly_prompt(),
+             knowledge.analyze_assembly_prompt(), knowledge.inspect_fmu_prompt()]
+    for text in texts:
+        called = set(re.findall(r"`([a-z][a-z0-9_]*)\(", text))
+        mentioned = {word for word in re.findall(r"`([a-z][a-z0-9_]*)[(`]", text) if word.startswith(TOOL_VERBS)}
+        assert called | mentioned <= names, (called | mentioned) - names
 
 
 def test_reference_resources_are_served():
