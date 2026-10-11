@@ -1,6 +1,6 @@
 # Plan: support Python 3.14
 
-**Created**: 10 October 2026 — **Status**: not started, for a later execution — **Origin**: decision D3 of
+**Created**: 10 October 2026 — **Status**: decisions taken (11 October 2026), not started — **Origin**: decision D3 of
 `done/python39.md`
 
 Python 3.14 was released in October 2025. The package does not declare it (no classifier) and the CI does not test it:
@@ -18,6 +18,7 @@ fastmcp 4.1, pydantic 2.14, numpy 2.5 and xmlschema 4.3.
 | C2 | The four matrices (`tests-windows`, `tests-linux`, `tests-macos`, `smoke-wheel`) run on `["3.10", "3.13"]` | `.github/workflows/ci.yml` |
 | C3 | Several steps are pinned to the newest leg by its number: coverage badge (`tests-windows`), package build and checks, artifact upload (`tests-linux`) | `.github/workflows/ci.yml` (`matrix.python-version == '3.13'`) |
 | C4 | The GUI tests segfault under 3.13 on the Linux runner (QtWebEngine): the 3.13 Linux leg runs `pytest -m "not gui"` | `.github/workflows/ci.yml`, step *Test with pytest* of `tests-linux` |
+| C4b | The macOS job always runs `pytest -m "not gui"` (QtWebEngine segfaults on the arm64 runners): the GUI suite is only exercised on Windows and on the oldest Linux leg | `.github/workflows/ci.yml`, step *Test with pytest* of `tests-macos` |
 | C5 | `release.yml` reuses `ci.yml` (no Python version of its own); `build-native.yml` sets up no Python; `make_doc.yml` uses `3.x` | `.github/workflows/` |
 | C6 | Supported versions table ends with "3.13 — Supported (Recommended)" | `docs/installation.md` |
 | C7 | The packaging reference lists the classifiers | `tests/data/packaging/metadata.txt` |
@@ -32,14 +33,14 @@ fastmcp 4.1, pydantic 2.14, numpy 2.5 and xmlschema 4.3.
 
 ---
 
-## 3. Decisions to take
+## 3. Decisions (taken on 11 October 2026)
 
-| # | Question | Options | Recommendation |
+| # | Question | Options | Decision |
 |---|---|---|---|
-| D1 | Matrices | (a) `["3.10", "3.14"]` (oldest and newest, as today); (b) `["3.10", "3.13", "3.14"]` | **(a)**: same cost as today; 3.11 to 3.13 are covered by being between the two bounds |
-| D2 | GUI tests on the newest Linux leg | (a) try them on 3.14 and keep the exclusion only if they still crash; (b) keep excluding them on the newest Linux leg | **(a)**, measured in phase 1: the crash was observed with 3.13 and older PySide6 versions |
-| D3 | Recommended version in the documentation | (a) 3.14; (b) stay on 3.13 | **(a)** once the CI is green on 3.14 on the three OS |
-| D4 | Free-threaded build (`3.14t`) | (a) not in this plan; (b) an extra experimental leg | **(a)**: PySide6 and fmpy are not validated free-threaded; to be reconsidered separately |
+| D1 | Matrices | (a) `["3.10", "3.14"]` (oldest and newest, as today); (b) `["3.10", "3.13", "3.14"]` | **(a)** `["3.10", "3.14"]`: same cost as today; 3.11 to 3.13 are covered by being between the two bounds |
+| D2 | GUI tests on the newest Linux leg | (a) try them on 3.14 and keep the exclusion only if they still crash; (b) keep excluding them on the newest Linux leg | **(a)**, measured in phase 1: the crash was observed with 3.13 and older PySide6 versions. The macOS exclusion (C4b) is out of scope |
+| D3 | Recommended version in the documentation | (a) 3.14; (b) stay on 3.13 | **(b)**: 3.13 stays recommended; 3.14 is listed as supported |
+| D4 | Free-threaded build (`3.14t`) | (a) not in this plan; (b) an extra experimental leg | **(a)**: not in this plan; PySide6 and fmpy are not validated free-threaded; to be reconsidered separately |
 
 ---
 
@@ -54,6 +55,8 @@ fastmcp 4.1, pydantic 2.14, numpy 2.5 and xmlschema 4.3.
 
 *Exit criterion*: a list of the failures, each with its cause (our code, a dependency, the runner).
 
+*Commit message*: `Try Python 3.14 in the CI matrices (python314 phase 1)`
+
 ### Phase 2 — Fixes
 
 Fix what phase 1 found in our code. For a dependency without 3.14 support: raise its minimum version if a fixed one
@@ -61,6 +64,9 @@ exists, otherwise document the limitation (and, as a last resort, skip the affec
 reason).
 
 *Exit criterion*: green CI on 3.14 on the three OS.
+
+*Commit message*: `Fix <issue> under Python 3.14 (python314 phase 2)` — one commit per distinct fix; this phase has
+no commit if phase 1 found nothing.
 
 ### Phase 3 — Metadata and CI
 
@@ -73,12 +79,18 @@ reason).
 
 *Exit criterion*: green CI; `metadata.txt` lists 3.14; no literal Python version left in the `if:` conditions.
 
+*Commit message*: `Declare and test Python 3.14 (python314 phase 3)`
+
 ### Phase 4 — User documentation
 
-- `docs/installation.md`: 3.14 row in the supported versions table, recommended version (D3).
+- `docs/installation.md`: "3.14 — Supported" row in the supported versions table; 3.13 stays "Recommended" (D3).
 - `CHANGELOG.md`: `ADDED` entry: Python 3.14 supported.
 
 *Exit criterion*: the documentation lists the versions declared by the classifiers.
+
+*Commit message*: `Document Python 3.14 support (python314 phase 4)`
+
+Then move this plan to `docs/local/done/` and tick "Support python 3.14" in `ROADMAP.md`.
 
 ---
 
