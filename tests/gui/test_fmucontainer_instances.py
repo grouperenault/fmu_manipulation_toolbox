@@ -6,6 +6,7 @@ keeps the file of each instance in its `path` block.
 """
 import json
 import shutil
+from pathlib import PureWindowsPath
 
 import pytest
 
@@ -68,6 +69,12 @@ def _refresh_details(window):
         details.fmu_detail._load_from_node(details.fmu_detail._current_node)
 
 
+def _base(reference: str) -> str:
+    """File name of a reference of the JSON: relative with `/`, or absolute with the separator of the platform when
+    it cannot be made relative (e.g. another drive on Windows)."""
+    return PureWindowsPath(reference).name  # understands both separators
+
+
 def _nodes(window):
     return {node.name: node for node in window._graph.scene.fmu_nodes()}
 
@@ -87,12 +94,12 @@ def test_the_assembly_keeps_the_file_of_each_instance(window, ball, tmp_path):
     written = json.loads((tmp_path / "two.json").read_text())
 
     files = {name: written["path"].get(name, name) for name in written["fmu"]}
-    assert {name.rsplit("/", 1)[-1]: path.rsplit("/", 1)[-1] for name, path in files.items()} == {
+    assert {_base(name): _base(path) for name, path in files.items()} == {
         "bb_position.fmu": "bb_position.fmu", "bb_velocity.fmu": "bb_velocity.fmu",
         "bb_position-1.fmu": "bb_position.fmu", "bb_velocity-1.fmu": "bb_velocity.fmu"}
-    links = sorted([link[0].rsplit("/", 1)[-1], link[2].rsplit("/", 1)[-1]] for link in written["link"])
+    links = sorted([_base(link[0]), _base(link[2])] for link in written["link"])
     assert links == [["bb_velocity-1.fmu", "bb_position-1.fmu"], ["bb_velocity.fmu", "bb_position.fmu"]]
-    assert [start[0].rsplit("/", 1)[-1] for start in written["start"]] == ["bb_position-1.fmu"]
+    assert [_base(start[0]) for start in written["start"]] == ["bb_position-1.fmu"]
 
 
 def test_saving_then_loading_keeps_the_instances(window, ball, tmp_path):

@@ -20,10 +20,10 @@ FMU# 1: clocks    : [in] 1 ports
 FMU# 1: binaries  : [out] 0 ports and 1 clocked
 FMU# 1: clocks    : [out] 1 ports
 Instanciate embedded FMUs...
-FMU#0: Instanciate 'node1.fmu' for CoSimulation
-node1.fmu: Instance nodes-only instantiated.
-FMU#1: Instanciate 'node2.fmu' for CoSimulation
-node2.fmu: Instance nodes-only instantiated.
+FMU#0: Instanciate 'node1.fmu' as 'nodes-only.node1.fmu' for CoSimulation
+node1.fmu: Instance nodes-only.node1.fmu instantiated.
+FMU#1: Instanciate 'node2.fmu' as 'nodes-only.node2.fmu' for CoSimulation
+node2.fmu: Instance nodes-only.node2.fmu instantiated.
 Reading 'datalog.txt'...
 Container enable DATALOG.
 Container is configured.
@@ -845,7 +845,7 @@ node2.fmu: Entering step mode.
 node1.fmu: Terminating.
 node2.fmu: Terminating.
 Container instance 'nodes-only' to be freed...
-node1.fmu: Instance nodes-only freed.
+node1.fmu: Instance nodes-only.node1.fmu freed.
 Unload FMU node1.fmu
-node2.fmu: Instance nodes-only freed.
+node2.fmu: Instance nodes-only.node2.fmu freed.
 Unload FMU node2.fmu

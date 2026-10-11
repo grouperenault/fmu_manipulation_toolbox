@@ -583,6 +583,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->container = container;
     fmu->conversions = NULL;
     fmu->name = strdup(name);
+    fmu->instance_name = NULL;  /* set when the container instantiates the FMU */
     fmu->guid = strdup(guid);
     fmu->index = i;
     fmu->fmi_version = fmi_version;
@@ -667,6 +668,7 @@ void fmu_unload(fmu_t *fmu) {
     }
     free(fmu->guid);
     free(fmu->name);
+    free(fmu->instance_name);
     convert_free(fmu->conversions);
     profile_free(fmu->profile);
 

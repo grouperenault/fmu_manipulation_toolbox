@@ -25,12 +25,12 @@ FMU# 2: binaries  : [out] 0 ports and 1 clocked
 FMU# 2: clocks    : [out] 1 ports
 Container will tick for clocks from 1 FMUs
 Instanciate embedded FMUs...
-FMU#0: Instanciate 'bus.fmu' for CoSimulation
-bus.fmu: Instance bus+nodes instantiated.
-FMU#1: Instanciate 'node1.fmu' for CoSimulation
-node1.fmu: Instance bus+nodes instantiated.
-FMU#2: Instanciate 'node2.fmu' for CoSimulation
-node2.fmu: Instance bus+nodes instantiated.
+FMU#0: Instanciate 'bus.fmu' as 'bus+nodes.bus.fmu' for CoSimulation
+bus.fmu: Instance bus+nodes.bus.fmu instantiated.
+FMU#1: Instanciate 'node1.fmu' as 'bus+nodes.node1.fmu' for CoSimulation
+node1.fmu: Instance bus+nodes.node1.fmu instantiated.
+FMU#2: Instanciate 'node2.fmu' as 'bus+nodes.node2.fmu' for CoSimulation
+node2.fmu: Instance bus+nodes.node2.fmu instantiated.
 Reading 'datalog.txt'...
 Container enable DATALOG.
 Container is configured.
@@ -3535,9 +3535,9 @@ bus.fmu: Terminating.
 node1.fmu: Terminating.
 node2.fmu: Terminating.
 Container instance 'bus+nodes' to be freed...
-bus.fmu: Instance bus+nodes freed.
+bus.fmu: Instance bus+nodes.bus.fmu freed.
 Unload FMU bus.fmu
-node1.fmu: Instance bus+nodes freed.
+node1.fmu: Instance bus+nodes.node1.fmu freed.
 Unload FMU node1.fmu
-node2.fmu: Instance bus+nodes freed.
+node2.fmu: Instance bus+nodes.node2.fmu freed.
 Unload FMU node2.fmu
