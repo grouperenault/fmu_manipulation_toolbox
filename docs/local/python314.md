@@ -1,6 +1,6 @@
 # Plan: support Python 3.14
 
-**Created**: 10 October 2026 — **Status**: phase 1 in progress (CI run pending) — **Origin**: decision D3 of
+**Created**: 10 October 2026 — **Status**: phases 1 to 3 done (phase 3 CI run pending), phase 4 to do — **Origin**: decision D3 of
 `done/python39.md`
 
 Python 3.14 was released in October 2025. The package does not declare it (no classifier) and the CI does not test it:
@@ -65,14 +65,17 @@ fastmcp 4.1, pydantic 2.14, numpy 2.5 and xmlschema 4.3.
   dependency): resolves on `manylinux_2_34_x86_64` (ubuntu-24.04), `win_amd64` and `macosx_14_0_arm64`, with binary
   wheels only: PySide6/shiboken6 6.12.0 (`cp310-abi3`; Linux wheel is `manylinux_2_34`), FMPy 0.3.32 (pure Python),
   numpy 2.5.4, lxml 6.1.3 and rpds-py 2026.9.1 (`cp314`), cryptography 50.0.2 (`abi3`).
-- CI run: pending.
+- CI run 38144889350 on `d5c5622` (11 October 2026): **success**, 25 jobs green, no failure to analyse.
 
 | OS | Job | 3.14 result | Cause if failing |
 |---|---|---|---|
-| Windows | `tests-windows` | pending | |
-| Linux | `tests-linux` (GUI included) | pending | |
-| macOS | `tests-macos` | pending | |
-| all | `smoke-wheel` | pending | |
+| Windows | `tests-win64` | success | |
+| Linux | `tests-linux` (GUI included: `pytest -v`, PySide6 installed by `[all]`) | success | |
+| macOS | `tests-macos` (`not gui`, C4b) | success | |
+| all | `smoke-wheel` (ubuntu-24.04, windows-latest, macos-latest) | success | |
+
+D2 outcome: the GUI tests no longer crash on the Linux runner with 3.14 and PySide6 6.12; the exclusion is removed
+in phase 3.
 
 ### Phase 2 — Fixes
 
@@ -84,6 +87,8 @@ reason).
 
 *Commit message*: `Fix <issue> under Python 3.14 (python314 phase 2)` — one commit per distinct fix; this phase has
 no commit if phase 1 found nothing.
+
+*Results*: nothing to fix (phase 1 found no failure); no commit.
 
 ### Phase 3 — Metadata and CI
 
@@ -97,6 +102,18 @@ no commit if phase 1 found nothing.
 *Exit criterion*: green CI; `metadata.txt` lists 3.14; no literal Python version left in the `if:` conditions.
 
 *Commit message*: `Declare and test Python 3.14 (python314 phase 3)`
+
+*Results* (11 October 2026):
+
+- `pyproject.toml` and `tests/data/packaging/metadata.txt`: 3.14 classifier;
+  `tools/dist_inventory.py --placeholder-binaries --check tests/data/packaging` reports "Inventory unchanged, rules
+  satisfied".
+- `ci.yml`: matrices `["3.10", "3.14"]`; workflow-level `env: NEWEST_PYTHON: "3.14"` used by the six `if:`
+  conditions (badge x2, package, check, upload); the Linux GUI exclusion is removed (`pytest -v` on every leg).
+  The matrices keep literal values: `matrix` cannot read the `env` context, hence a comment to keep them in sync.
+- `release.yml` (reuses `ci.yml`, downloads the `package` artifact still uploaded by the newest leg),
+  `build-native.yml` (no Python) and `make_doc.yml` (`3.x`): no change.
+- CI run: pending.
 
 ### Phase 4 — User documentation
 
