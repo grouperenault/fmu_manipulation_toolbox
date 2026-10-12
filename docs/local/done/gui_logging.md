@@ -178,6 +178,8 @@ Use the log status bar and the log window in FMU Editor
   log window (no longer only on stdout).
 - `docs/user-guide/fmutool/fmueditor.md`: status bar and log window.
 
+Done. The changelog is not part of this step.
+
 Commit message:
 ```
 Document the status bar and the log window of the GUIs

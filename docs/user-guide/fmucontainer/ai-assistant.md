@@ -13,8 +13,9 @@ It comes in **two flavours**, serving exactly the same tools:
 
 With the GUI flavour, FMUs the agent adds, links it creates and options it
 sets appear immediately in the window. Every action is marked as an unsaved
-change (so it can be reviewed, undone or saved) and is written to the log
-panel.
+change (so it can be reviewed, undone or saved) and is written to the log as
+an `[AI] …` message: the last one is shown in the status bar, and all of them
+in the [log window](gui-usage.md#log) (click the status bar).
 
 The standalone flavour needs neither a display nor a running GUI, and speaks
 the **stdio** transport that most MCP clients expect from a server they launch
@@ -400,7 +401,9 @@ fmutool-mcp --transport http --token generate
 FMUCONTAINER_MCP_TOKEN=generate fmucontainer-gui
 ```
 
-The token is written to the log; configure your client to send it:
+The token is written to the log (the [log window](gui-usage.md#log) of the
+Container Builder, or stderr for the standalone server); configure your client
+to send it:
 
 ```json
 {
