@@ -503,7 +503,7 @@ class WidgetLogHandler(logging.Handler):
     """Writes the toolbox logs directly into a ``LogWidget`` (main thread only).
 
     Used where the log is displayed while a synchronous task runs on the main
-    thread (FMU Tool, ``RunTask``): each record is repainted immediately.
+    thread (FMU Tool): each record is repainted immediately.
     """
 
     def __init__(self, widget: LogWidget, level=logging.NOTSET):
@@ -533,6 +533,7 @@ class LogStatusBar(QStatusBar):
 
         self._label = QLabel()
         self._label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        self._label.setContentsMargins(6, 0, 6, 2)
         self.addWidget(self._label, 1)
         self.setSizeGripEnabled(False)
         self.setToolTip("Click to show the log")
@@ -647,7 +648,9 @@ class LogWindow(QDialog):
 
 
 class RunTask(QDialog):
-    def __init__(self, task: Callable, *args, parent=None, title="Run command...",  level=logging.INFO, **kwargs):
+    """Runs a task on the main thread and shows the records it logs, through the shared ``GuiLogHandler``."""
+
+    def __init__(self, task: Callable, *args, parent=None, title="Run command...", **kwargs):
         super().__init__(parent)
 
         self.setWindowTitle(title)
@@ -675,8 +678,8 @@ class RunTask(QDialog):
 
         self.show()
 
-        log_handler = WidgetLogHandler(self.text)
-        logger.setLevel(level)
+        log_handler = GuiLogHandler.install()
+        log_handler.record_emitted.connect(self._on_record)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         logger.debug(f"Starting {title}...")
         try:
@@ -686,7 +689,12 @@ class RunTask(QDialog):
             logger.critical(f"Unexpected error: {e}")
             logger.critical(f"Operation aborted.")
         QApplication.restoreOverrideCursor()
-        log_handler.stop()
+        log_handler.record_emitted.disconnect(self._on_record)
+
+    def _on_record(self, levelno: int, text: str):
+        self.text.append_record(levelno, text)
+        # The task blocks the main thread: repaint each record immediately.
+        QApplication.processEvents()
 
     def save_logs(self):
         """Open a file dialog to save the current log content as a .txt file."""

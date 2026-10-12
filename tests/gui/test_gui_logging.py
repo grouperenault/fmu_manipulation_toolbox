@@ -18,7 +18,7 @@ try:
 
     _app = QApplication.instance() or QApplication([])
     from fmu_manipulation_toolbox.gui.helper import (GuiLogHandler, LastDirectory, LogStatusBar, LogWidget, LogWindow,
-                                                     WidgetLogHandler)
+                                                     RunTask, WidgetLogHandler)
     from fmu_manipulation_toolbox.gui.style import log_color
 except Exception as exc:  # pragma: no cover - environment dependent
     pytest.skip(f"GUI dependencies not available: {exc}", allow_module_level=True)
@@ -200,3 +200,33 @@ def test_widget_handler_writes_prefixed_records_until_stopped(qtbot):
         logger.setLevel(previous_level)
     logger.error("after stop")
     assert widget.toPlainText().splitlines() == ["plain", "ERROR: broken"]
+
+
+# ── RunTask ───────────────────────────────────────────────────────────────
+def test_run_task_shows_the_records_of_the_task_through_the_shared_handler(qtbot):
+    previous_level = logger.level
+    logger.setLevel(logging.INFO)
+    try:
+        dialog = RunTask(lambda: logger.warning("task warning"), title="Doing")
+        qtbot.addWidget(dialog)
+        logger.info("after the task")
+    finally:
+        logger.setLevel(previous_level)
+    assert dialog.text.toPlainText().splitlines() == ["WARNING: task warning", "✅ Doing finished."]
+    assert logger.level == previous_level
+    assert any(text == "task warning" for _, text in GuiLogHandler.install().history)
+
+
+def test_run_task_reports_an_exception_of_the_task(qtbot):
+    def failing():
+        raise ValueError("boom")
+
+    previous_level = logger.level
+    logger.setLevel(logging.INFO)
+    try:
+        dialog = RunTask(failing, title="Failing")
+        qtbot.addWidget(dialog)
+    finally:
+        logger.setLevel(previous_level)
+    assert dialog.text.toPlainText().splitlines() == ["CRITICAL: Unexpected error: boom",
+                                                      "CRITICAL: Operation aborted."]

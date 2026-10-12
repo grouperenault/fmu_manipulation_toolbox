@@ -15,7 +15,8 @@ from PySide6.QtWidgets import (
     QMenu, QWidgetAction, QMainWindow, QMessageBox
 )
 
-from fmu_manipulation_toolbox.gui.helper import Application, RunTask, UnsavedChangesWindowMixin, LastDirectory
+from fmu_manipulation_toolbox.gui.helper import (Application, RunTask, UnsavedChangesWindowMixin, LastDirectory,
+                                                 GuiLogHandler, LogStatusBar)
 
 from .graph import NodeGraphWidget, NodeItem
 from .tree import NodeTreePanel
@@ -161,6 +162,9 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         central.setLayout(main_layout)
         self.setCentralWidget(central)
 
+        self._status_bar = LogStatusBar(GuiLogHandler.install())
+        self.setStatusBar(self._status_bar)
+
         self.setWindowTitle("FMU Container Builder")
         self.resize(1600, 900)
 
@@ -273,8 +277,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             logger.info("Load cancelled")
             return
 
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=log_level)
+        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container")
         # Re-assert the container's own directory: loading may have updated
         # LastDirectory to the (extracted) FMUs' sub-directory instead.
         LastDirectory.update(input_path)
@@ -289,8 +292,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             logger.info("Import cancelled")
             return
 
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly", level=log_level)
+        RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly")
         # Re-assert the imported file's own directory: importing adds FMU nodes
         # that may live in a different (sub)directory, which would otherwise
         # overwrite LastDirectory via _on_node_added_update_dir.
@@ -305,8 +307,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             logger.info("Save cancelled")
             return
 
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON", level=log_level)
+        RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON")
 
     def _on_save_clicked(self):
         root_name = Path(self._tree.root.text()).with_suffix(".fmu").name
@@ -318,9 +319,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
         fmi_version = self._fmi_group.checkedId()
         datalog = self._datalog_checkbox.isChecked()
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.save_as_fmu, output_path, fmi_version, datalog,
-                parent=self, title="Saving as FMU", level=log_level)
+                parent=self, title="Saving as FMU")
 
 
 def main():

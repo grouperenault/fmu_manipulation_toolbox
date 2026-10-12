@@ -143,6 +143,12 @@ Use a single logger in FMU Container Builder, its level driven by Verbose Mode
 - `RunTask` is kept, fed by the shared handler; drop its `level` argument.
 - GUI test: a `logger.info` in the main window shows in the status bar; click opens the window with the history.
 
+Done. Notes:
+- `GuiLogHandler.install()` is called by the main window (and by `RunTask`); the handler lives as long as the
+  application. `LogStatusBar` creates the single `LogWindow` lazily on the first click.
+- `RunTask` connects to the shared handler for the duration of the task and repaints each record with
+  `processEvents`; the records also stay in the shared history. FMU Tool is now the only user of `WidgetLogHandler`.
+
 Commit message:
 ```
 Show the last log line in the FMU Container Builder status bar and the full log on click

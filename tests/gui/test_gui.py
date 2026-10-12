@@ -115,3 +115,20 @@ def test_fmucontainer_verbose_mode_drives_the_shared_logger(qtbot, capsys):
     assert logger.level == logging.INFO
     logger.info("quiet line")
     assert "quiet line" not in capsys.readouterr().out
+
+
+def test_fmucontainer_status_bar_shows_the_log_and_opens_the_log_window(qtbot):
+    import logging
+    from PySide6.QtCore import Qt
+    logger = logging.getLogger("fmu_manipulation_toolbox")
+    window = FMUContainerWindow()
+    qtbot.addWidget(window)
+    assert window.statusBar() is window._status_bar
+
+    logger.info("AI Assistant enabled")
+    assert window._status_bar.text() == "AI Assistant enabled"
+
+    qtbot.mouseClick(window._status_bar, Qt.MouseButton.LeftButton)
+    log_window = window._status_bar._log_window
+    assert log_window.isVisible()
+    assert "AI Assistant enabled" in log_window.view.toPlainText()
