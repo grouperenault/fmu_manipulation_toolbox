@@ -97,3 +97,21 @@ def test_fmucontainer_buttons_exist(qtbot):
     assert window._save_button is not None
     assert window._exit_button is not None
 
+
+
+def test_fmucontainer_verbose_mode_drives_the_shared_logger(qtbot, capsys):
+    import logging
+    logger = logging.getLogger("fmu_manipulation_toolbox")
+    window = FMUContainerWindow()
+    qtbot.addWidget(window)
+    assert logger.level == logging.INFO
+
+    window._debug_checkbox.setChecked(True)
+    assert logger.level == logging.DEBUG
+    logger.debug("verbose line")
+    assert "DEBUG    | verbose line" in capsys.readouterr().out
+
+    window._debug_checkbox.setChecked(False)
+    assert logger.level == logging.INFO
+    logger.info("quiet line")
+    assert "quiet line" not in capsys.readouterr().out

@@ -124,6 +124,14 @@ Add a thread-safe shared GUI log handler, a clickable log status bar and a log w
   stdout handler.
 - Check that `assistant/fmutools._captured_logs` still restores the level set by Verbose Mode.
 
+Done. Notes:
+- Removed messages: selection synchronizer enter/exit, "event received", every "scene/tree selection: …" trace,
+  "NodeTreeWidget initialized", container changed/refreshing. `tree/sync.py` no longer logs.
+- Container Builder starts at `INFO`; Verbose Mode switches to `DEBUG` and adds the stdout handler
+  (`LEVEL    | message`), which is removed again when Verbose Mode is unchecked or the window closes.
+- `_captured_logs` restores the previous level (`test_summary_restores_the_logger`). If Verbose Mode is toggled while
+  an MCP tool is running, the tool puts back the level it found when it started (accepted edge case).
+
 Commit message:
 ```
 Use a single logger in FMU Container Builder, its level driven by Verbose Mode

@@ -45,7 +45,6 @@ if TYPE_CHECKING:  # pragma: no cover - typing only
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
-tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
 
 
 def _count_by_causality(ports: list[dict[str, Any]]) -> dict[str, int]:
@@ -280,7 +279,7 @@ class QtAssemblyBridge:
             raise FileNotFoundError(f"FMU file not found: '{path}'")
         node = self._scene.add_node(fmu_path)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Added FMU '{node.name}'"
+        logger.info(f"[AI] Added FMU '{node.name}'"
                          + (f" (instance of '{fmu_path.name}')" if node.name != fmu_path.name else ""))
 
         description = self._node_ports(node)
@@ -306,7 +305,7 @@ class QtAssemblyBridge:
         node.remove_wires()
         self._scene.removeItem(node)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Removed FMU '{name}' ({removed_links} link(s))")
+        logger.info(f"[AI] Removed FMU '{name}' ({removed_links} link(s))")
         return {"fmu": node.name, "removed_links": removed_links}
 
     def add_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
@@ -348,7 +347,7 @@ class QtAssemblyBridge:
             wire_detail._load_from_wire()
         self._mark_dirty()
         link = f"{node_from.name}/{from_port} -> {node_to.name}/{to_port}"
-        tree_logger.info(f"[AI] Linked {link}")
+        logger.info(f"[AI] Linked {link}")
         return link
 
     def remove_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
@@ -388,7 +387,7 @@ class QtAssemblyBridge:
 
         self._mark_dirty()
         link = f"{node_from.name}/{from_port} -> {node_to.name}/{to_port}"
-        tree_logger.info(f"[AI] Unlinked {link}")
+        logger.info(f"[AI] Unlinked {link}")
         return link
 
     def expose_input(self, fmu: str, port: str) -> str:
@@ -403,7 +402,7 @@ class QtAssemblyBridge:
         node.user_exposed_inputs[port] = True
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Exposed input {node.name}/{port}")
+        logger.info(f"[AI] Exposed input {node.name}/{port}")
         return f"{node.name}/{port}"
 
     def expose_output(self, fmu: str, port: str) -> str:
@@ -418,7 +417,7 @@ class QtAssemblyBridge:
         node.user_exposed_outputs[port] = True
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Exposed output {node.name}/{port}")
+        logger.info(f"[AI] Exposed output {node.name}/{port}")
         return f"{node.name}/{port}"
 
     def set_start_value(self, fmu: str, port: str, value: str) -> str:
@@ -433,7 +432,7 @@ class QtAssemblyBridge:
         node.user_start_values[port] = str(value)
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Start value {node.name}/{port} = {value}")
+        logger.info(f"[AI] Start value {node.name}/{port} = {value}")
         return f"{node.name}/{port} = {value}"
 
     def unset_start_value(self, fmu: str, port: str) -> str:
@@ -453,7 +452,7 @@ class QtAssemblyBridge:
         del node.user_start_values[port]
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Start value cleared on {node.name}/{port}")
+        logger.info(f"[AI] Start value cleared on {node.name}/{port}")
         return f"{node.name}/{port}"
 
     def set_container_options(self, options: dict[str, Any]) -> dict[str, Any]:
@@ -472,7 +471,7 @@ class QtAssemblyBridge:
             raise ValueError(f"Unknown container option(s): {sorted(unknown)}. Allowed: {sorted(allowed)}")
         params.parameters.update(options)
         self._mark_dirty()
-        tree_logger.info(f"[AI] Container options updated: {options}")
+        logger.info(f"[AI] Container options updated: {options}")
         return dict(params.parameters)
 
     # -- build / export ----------------------------------------------------
@@ -483,7 +482,7 @@ class QtAssemblyBridge:
 
     def _save_as_json_impl(self, path: str) -> str:
         self._window.save_as_json(path)
-        tree_logger.info(f"[AI] Exported assembly JSON to '{path}'")
+        logger.info(f"[AI] Exported assembly JSON to '{path}'")
         return path
 
     def save_as_fmu(self, path: str, fmi_version: int = 2, datalog: bool = False) -> str:
@@ -497,7 +496,7 @@ class QtAssemblyBridge:
                 f"{list(SUPPORTED_FMI_VERSIONS)}."
             )
         self._window.save_as_fmu(path, fmi_version=fmi_version, datalog=datalog)
-        tree_logger.info(f"[AI] Built container FMU '{path}' (FMI-{fmi_version})")
+        logger.info(f"[AI] Built container FMU '{path}' (FMI-{fmi_version})")
         return path
 
 
