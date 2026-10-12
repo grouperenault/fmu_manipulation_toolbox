@@ -8,7 +8,8 @@ from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushBut
 from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
-from fmu_manipulation_toolbox.gui.helper import Application, HelpWidget, DropZoneWidget, LogWidget, LastDirectory, get_fmu_icon_path
+from fmu_manipulation_toolbox.gui.helper import (Application, HelpWidget, DropZoneWidget, LogWidget, WidgetLogHandler,
+                                                 LastDirectory, get_fmu_icon_path)
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
@@ -139,6 +140,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         # Text
         line += 1
         self.log_widget = LogWidget()
+        self.log_handler = WidgetLogHandler(self.log_widget)
+        logger.setLevel(logging.INFO)
         self.log_widget.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
         self.layout.addWidget(self.log_widget, line, 0, 1, WIDTH + 1)
 
@@ -180,6 +183,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.dropped_fmu.set_fmu(Path(fmu_path))
 
     def closeEvent(self, event):
+        self.log_handler.stop()
         event.accept()
 
     def set_tooltip(self, widget, usage):

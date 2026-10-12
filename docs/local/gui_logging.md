@@ -103,6 +103,14 @@ One logger, one GUI handler, several views.
   the status bar; a record emitted from a `threading.Thread` is delivered on the main thread; history is bounded;
   filter and search select the right lines; Save writes the displayed content.
 
+Done. Notes:
+- `WidgetLogHandler` is the adapter writing directly into a `LogWidget` (main thread only, repaints with
+  `processEvents`); FMU Tool and `RunTask` use it. FMU Tool now sets the `INFO` level itself and detaches its handler
+  when it closes.
+- `RunTask` sets the logger level explicitly (no longer through the handler) until step 3 drops its `level` argument.
+- The old `StatusBar` (removed in step 4) now detaches its handler when the widget is destroyed: its `__exit__` was
+  never called, and a record logged after an FMU Editor window was deleted raised `RuntimeError` (seen in the tests).
+
 Commit message:
 ```
 Add a thread-safe shared GUI log handler, a clickable log status bar and a log window
