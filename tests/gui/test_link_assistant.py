@@ -1,5 +1,7 @@
 """GUI tests of the link assistant window, fed with the fictitious FMUs of its mockup."""
 
+import re
+
 import pytest
 
 pytest.importorskip("PySide6")
@@ -10,9 +12,11 @@ try:
     from PySide6.QtWidgets import QApplication
 
     _app = QApplication.instance() or QApplication([])
-    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant import LinkAssistantDialog, _CriterionEditor
+    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant import (
+        LinkAssistantDialog, _CriterionEditor, _PortsModel, StagedLink, A_TO_B)
     from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant_demo import generate
-    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_matching import AffixRule, SimilarityRule, ERROR
+    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_matching import (
+        AffixRule, RegexRule, SimilarityRule, ERROR, WARNING)
 except Exception as exc:  # pragma: no cover - environment dependent
     pytest.skip(f"GUI dependencies not available: {exc}", allow_module_level=True)
 
@@ -114,3 +118,60 @@ def test_direction_b_to_a(dialog):
     dialog._on_stage_checked()
     mappings = dialog.staged_mappings()
     assert mappings and all(m[0] == "ecu.fmu" and m[2] == "engine.fmu" for m in mappings)
+
+
+def test_regex_criterion(dialog):
+    dialog._criterion.set_kind(RegexRule)
+    pattern, replacement = dialog._criterion.regex_fields
+    pattern.setText(r"^sensor\.(\w+)\.(\w+)$")
+    replacement.setText(r"sensor_\2_\1")
+    dialog._on_run()
+    suggestions = dialog._suggestions_model.suggestions
+    assert suggestions and all(s.output.name.startswith("sensor.") for s in suggestions)
+    for s in suggestions:
+        subsystem, quantity = s.output.name.split(".")[1:]
+        assert s.input.name == f"sensor_{quantity}_{subsystem}"
+
+    pattern.setText("(")                                          # invalid: nothing, no exception
+    dialog._on_run()
+    assert dialog._suggestions_model.suggestions == []
+
+
+def test_check_uncheck_then_stage(dialog):
+    _use_prefix(dialog, "engine.out.", "ecu.in.engine_")
+    dialog._on_run()
+    dialog._check_suggestions(False)
+    dialog._on_stage_checked()
+    assert dialog._staged == []
+
+    dialog._suggestions_filter.level = WARNING                    # "Check all" acts on the rows shown only
+    dialog._suggestions_filter.refresh()
+    dialog._check_suggestions(True)
+    dialog._on_stage_checked()
+    assert dialog._staged and all(s.level == WARNING for s in dialog._statuses)
+
+
+def test_unmatched_ports_in_the_manual_tab(dialog):
+    _use_prefix(dialog, "engine.out.", "ecu.in.engine_")
+    dialog._on_run()
+    text = dialog._unmatched_link.text()
+    outputs, inputs = (int(n) for n in re.search(r"unmatched: (\d+) outputs / (\d+) inputs", text).groups())
+
+    dialog._on_unmatched_clicked()
+    assert dialog._tabs.currentIndex() == 1 and dialog._only_unsuggested.isChecked()
+    assert dialog._outputs_filter.rowCount() == outputs
+    assert dialog._inputs_filter.rowCount() == inputs
+    suggested = {s.output.name for s in dialog._suggestions_model.suggestions}
+    shown = {dialog._outputs_filter.index(row, 0).data(_PortsModel.ROLE_PORT).name
+             for row in range(dialog._outputs_filter.rowCount())}
+    assert not shown & suggested
+
+
+def test_manual_link_removes_the_suggestions_of_its_ports(dialog):
+    _use_prefix(dialog, "engine.out.", "ecu.in.engine_")
+    dialog._on_run()
+    suggestion = next(s for s in dialog._suggestions_model.suggestions if s.status.level != ERROR)
+    other = next(port for port in dialog._inputs() if port.name.startswith("ecu.aux."))
+    dialog._staged.append(StagedLink(A_TO_B, suggestion.output, other, "manual"))
+    dialog._refresh()
+    assert suggestion not in dialog._suggestions_model.suggestions

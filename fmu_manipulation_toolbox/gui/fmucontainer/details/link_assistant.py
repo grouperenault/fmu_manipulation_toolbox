@@ -111,7 +111,8 @@ class _PortsModel(QAbstractTableModel):
 
 
 class _PortsFilter(QSortFilterProxyModel):
-    """Filter on the name / description, the type, the free ports and the parameters."""
+    """Filter on the name / description, the type, the free ports, the parameters, and the ports without a
+    suggestion in the Rules tab."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -119,7 +120,9 @@ class _PortsFilter(QSortFilterProxyModel):
         self.fmi_type = ""
         self.only_free = True
         self.show_parameters = False
+        self.only_unsuggested = False
         self.busy: set[str] = set()
+        self.suggested: set[str] = set()
 
     def refresh(self):
         _refilter(self)
@@ -129,6 +132,8 @@ class _PortsFilter(QSortFilterProxyModel):
         if port.causality == "parameter" and not self.show_parameters:
             return False
         if self.only_free and port.name in self.busy:
+            return False
+        if self.only_unsuggested and port.name in self.suggested:
             return False
         if self.fmi_type and port.fmi_type != self.fmi_type:
             return False
@@ -511,6 +516,10 @@ class LinkAssistantDialog(QDialog):
         self._suggestions_table.doubleClicked.connect(self._on_suggestion_double_clicked)
 
         self._suggestions_summary = QLabel()
+        self._unmatched_link = QLabel()
+        self._unmatched_link.setTextFormat(Qt.TextFormat.RichText)
+        self._unmatched_link.setToolTip("Show these ports in the Manual tab")
+        self._unmatched_link.linkActivated.connect(self._on_unmatched_clicked)
         suggestions_level = _level_combo()
         suggestions_level.currentIndexChanged.connect(
             lambda: self._set_filter(self._suggestions_filter, level=suggestions_level.currentData()))
@@ -519,6 +528,8 @@ class LinkAssistantDialog(QDialog):
         suggestions_text.textChanged.connect(lambda text: self._set_filter(self._suggestions_filter, text=text))
         suggestions_header = QHBoxLayout()
         suggestions_header.addWidget(self._suggestions_summary)
+        suggestions_header.addSpacing(20)
+        suggestions_header.addWidget(self._unmatched_link)
         suggestions_header.addStretch(1)
         suggestions_header.addWidget(QLabel("Show"))
         suggestions_header.addWidget(suggestions_level)
@@ -602,6 +613,11 @@ class LinkAssistantDialog(QDialog):
         lists.addWidget(outputs_widget)
         lists.addWidget(inputs_widget)
 
+        self._only_unsuggested = QCheckBox("only ports without a suggestion in the Rules tab")
+        self._only_unsuggested.toggled.connect(
+            lambda value: [self._set_filter(proxy, only_unsuggested=value)
+                           for proxy in (self._outputs_filter, self._inputs_filter)])
+
         self._preview = QLabel()
         self._preview.setTextFormat(Qt.TextFormat.PlainText)
         self._link_selection = _button("Link selection ⇩", "save")
@@ -612,6 +628,7 @@ class LinkAssistantDialog(QDialog):
 
         tab = QWidget()
         lay = QVBoxLayout(tab)
+        lay.addWidget(self._only_unsuggested)
         lay.addWidget(lists, 1)
         lay.addLayout(bottom)
         return tab
@@ -621,7 +638,7 @@ class LinkAssistantDialog(QDialog):
         self._staged_filter = _LevelFilter(lambda row: self._staged_model.statuses[row].level, self)
         self._staged_filter.setSourceModel(self._staged_model)
         self._staged_table = _table(self._staged_filter)
-        for column, width in ((0, 80), (1, 300), (2, 300), (3, 90)):
+        for column, width in ((0, 80), (1, 300), (2, 300), (3, 130)):
             self._staged_table.setColumnWidth(column, width)
 
         self._staged_summary = QLabel()
@@ -716,6 +733,7 @@ class LinkAssistantDialog(QDialog):
             combo.blockSignals(False)
         self._outputs_filter.fmi_type = self._inputs_filter.fmi_type = ""
         self._suggestions_model.set_suggestions([])
+        self._update_suggestions_summary()
         self._suggestions_summary.setText("Suggestions: searching…")
         self._refresh()
         self._schedule_run()
@@ -805,18 +823,31 @@ class LinkAssistantDialog(QDialog):
     def _update_suggestions_summary(self, elapsed: float | None = None):
         suggestions = self._suggestions_model.suggestions
         levels = [suggestion.status.level for suggestion in suggestions]
+        _, target = self._sides()
         matched_outputs = {s.output.name for s in suggestions}
-        matched_inputs = {s.input.name for s in suggestions}
+        matched_inputs = with_overlaps({s.input.name for s in suggestions}, target.aggregates)
         busy_outputs, busy_inputs = self._busy_outputs(), self._busy_inputs()
         unmatched_outputs = sum(1 for port in self._outputs()
                                 if port.name not in matched_outputs and port.name not in busy_outputs)
         unmatched_inputs = sum(1 for port in self._inputs()
                                if port.name not in matched_inputs and port.name not in busy_inputs)
         text = (f"Suggestions: {len(levels)}   ✔ {levels.count(OK)}  ⚠ {levels.count(WARNING)}  "
-                f"✖ {levels.count(ERROR)}     unmatched: {unmatched_outputs} outputs / {unmatched_inputs} inputs")
+                f"✖ {levels.count(ERROR)}")
         if elapsed is not None:
             text += f"     ({elapsed:.2f} s)"
         self._suggestions_summary.setText(text)
+        self._unmatched_link.setText(f'<a href="manual" style="color: #88bbff;">unmatched: {unmatched_outputs} outputs'
+                                     f' / {unmatched_inputs} inputs</a>')
+        # The Manual tab can hide the ports having a suggestion.
+        self._outputs_filter.suggested = matched_outputs
+        self._inputs_filter.suggested = matched_inputs
+        self._outputs_filter.refresh()
+        self._inputs_filter.refresh()
+
+    def _on_unmatched_clicked(self, _link: str = ""):
+        """Show the ports without a suggestion in the Manual tab, to link the leftovers by hand."""
+        self._only_unsuggested.setChecked(True)
+        self._tabs.setCurrentIndex(1)
 
     def _drop_taken_suggestions(self):
         """Remove the suggestions whose output or input has just been staged, keeping the check boxes of the

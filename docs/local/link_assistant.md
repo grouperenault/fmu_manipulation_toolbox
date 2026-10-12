@@ -441,7 +441,18 @@ leaves a `LogWidget` handler on a logger.
 Tests: the regex criterion on a generated pair of FMUs (or on `tests/data` FMUs), checking / unchecking, interplay with
 the manual tab.
 
-Commit message: `Add the rule-based suggestions to the link assistant`
+Commit message: `Link the unmatched ports of the Rules tab to the Manual tab of the link assistant`
+
+**Result:** the Rules tab was written at step 0 (criterion editor, update while typing, **Run** after a slow
+search, suggestion table, counters, **Check all ✔** on the rows shown, staging). This step adds:
+
+- the counter "unmatched: N outputs / M inputs" is a link: it opens the Manual tab with the new check box "only
+  ports without a suggestion in the Rules tab", which hides the ports having a suggestion (the elements of a
+  suggested FMI-2 aggregate included); the lists then show exactly the N outputs and M inputs of the counter;
+- the "Origin" column of the staged links is wider ("prefix / suffix" was cut);
+- tests (`tests/gui/test_link_assistant.py`): the regex criterion (valid, then invalid: no suggestion, no
+  exception), checking / unchecking (**Check all** on a filtered table), the unmatched counter and the Manual tab,
+  a manual link removing the suggestions of its ports.
 
 ### Step 4 — (optional, decision 1) Tree mode
 
