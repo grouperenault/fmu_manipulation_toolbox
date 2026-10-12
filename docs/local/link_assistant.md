@@ -398,7 +398,38 @@ Commit message: `Complete the matching engine of the link assistant`
 Tests (`tests/gui/`, with `qtbot` as `tests/gui/test_gui.py`): open on a wire, stage, apply, cancel leaves the wire
 untouched, the direction selector, ports already fed by another wire are flagged.
 
-Commit message: `Add the link assistant window with its manual pairing tab`
+Commit message: `Open the link assistant from the Wire Details panel, instead of Auto-Connect`
+
+**Result:**
+
+- `WireDetailWidget`: **Assistant…** replaces **Auto-Connect** (`_WireDirectionTab.auto_connect` and
+  `_on_auto_connect` removed); one assistant at a time: the button raises the open assistant of the same wire, and
+  closes the one of another wire (asking first when links are staged there);
+- **Apply** adds the links to the wire it was opened on, even if another wire is now displayed; a link whose input
+  was fed meanwhile on the wire is skipped (with a message); if the wire was deleted, nothing is added (message);
+  then the panel is reloaded and `changed` marks the assembly modified;
+- `wire_sides(wire)` (in `wire_detail.py`) builds the `WireSide` of both nodes: ports from `fmu_port_causality`,
+  `fmu_port_type`, `fmu_port_details`, the new `fmu_port_size`; inputs fed by a link of any wire of the node or
+  exposed (`user_exposed_inputs`); FMI-2 aggregates;
+- `NodeItem.fmu_port_size`: number of elements of each port (product of the `<Dimension start>` of an FMI-3
+  array, number of elements of an FMI-2 aggregate, 0 when a dimension is a structural parameter: no size check);
+  cleared on *Replace FMU*; the configuration node has none (size 1);
+- an FMI-2 aggregate and its elements are one input for the assistant (`link_matching.with_overlaps`): staging one
+  takes the others, and two staged links on them are ✖ `duplicate_target`;
+- the criteria and "ignore case and separators" are kept for the session (class attributes of `_CriterionEditor`);
+  the assistant always opens on "Same name";
+- tests `tests/gui/test_link_assistant_wire.py` on the FMUs of `tests/data` (bouncing ball, FMI-3 arrays and FMI-2
+  aggregates of `tests/data/array`).
+
+Not done in this step:
+
+- the aesthetic adjustments: still to be listed by the user;
+- the inputs fed through a **terminal** link (Terminals tab) are not counted as fed: the node only keeps the names of
+  its terminals, not their member ports.
+
+Seen while testing, not related to this plan: when `tests/gui` runs **before** `tests/unit` (not the order of
+`pytest.ini`), 88 unit tests fail on `RuntimeError: Internal C++ object (LogWidget) already deleted`: a GUI test
+leaves a `LogWidget` handler on a logger.
 
 ### Step 3 — Rules tab
 

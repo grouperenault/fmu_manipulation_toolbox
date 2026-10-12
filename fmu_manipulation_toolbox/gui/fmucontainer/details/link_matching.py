@@ -31,7 +31,7 @@ class PortInfo:
     fmi_version: int = 2
     unit: str = ""
     description: str = ""
-    size: int = 1               # number of elements of an array (or FMI-2 array aggregate)
+    size: int = 1               # number of elements of an array (or FMI-2 array aggregate), 0 if unknown
 
     @property
     def container_type(self) -> str:
@@ -86,7 +86,7 @@ def link_status(output: PortInfo, input: PortInfo, fed: set[str] = frozenset(),
     checks = checks or Checks()
     if input.name in fed:
         return Status(ERROR, "input already fed", (ALREADY_FED,))
-    if output.size != input.size:
+    if output.size and input.size and output.size != input.size:
         return Status(ERROR, f"size {output.size} → {input.size}", (SIZE_MISMATCH,))
 
     warnings: list[tuple[str, str]] = []
@@ -286,15 +286,31 @@ def suggest(outputs: list[PortInfo], inputs: list[PortInfo], rule: Rule, ignore_
     return suggestions
 
 
+def with_overlaps(names: set[str], aggregates: dict[str, list[str]] | None = None) -> set[str]:
+    """*names* plus the ports they overlap: the elements of an FMI-2 array aggregate, and the aggregate of an
+    element. Feeding one of them feeds the others."""
+    result = set(names)
+    for aggregate, elements in (aggregates or {}).items():
+        if aggregate in names:
+            result.update(elements)
+        elif any(element in names for element in elements):
+            result.add(aggregate)
+    return result
+
+
 def staged_statuses(links: list[tuple[PortInfo, PortInfo]], fed: set[str] = frozenset(),
-                    checks: Checks | None = None) -> list[Status]:
-    """Status of each staged link (`link_status`, plus an error when two links feed the same input)."""
+                    checks: Checks | None = None,
+                    aggregates: dict[str, list[str]] | None = None) -> list[Status]:
+    """Status of each staged link (`link_status`, plus an error when two links feed the same input, an FMI-2
+    aggregate and one of its elements counting as the same input)."""
+    elements_of = {aggregate: set(elements) for aggregate, elements in (aggregates or {}).items()}
     count: dict[str, int] = {}
     for _, input in links:
-        count[input.name] = count.get(input.name, 0) + 1
+        for element in elements_of.get(input.name, {input.name}):
+            count[element] = count.get(element, 0) + 1
     statuses = []
     for output, input in links:
-        if count[input.name] > 1:
+        if any(count[element] > 1 for element in elements_of.get(input.name, {input.name})):
             statuses.append(Status(ERROR, "input fed by several staged links", (DUPLICATE_TARGET,)))
         else:
             statuses.append(link_status(output, input, fed, checks))

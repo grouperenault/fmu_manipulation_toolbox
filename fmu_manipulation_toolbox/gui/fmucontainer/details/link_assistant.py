@@ -13,7 +13,7 @@ The window only knows `PortInfo` lists (see `link_matching`), not the graph item
 
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer
 from PySide6.QtGui import QColor, QFont
@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 
 from .link_matching import (
     PortInfo, Status, Checks, Rule, AffixRule, RegexRule, SimilarityRule, RULE_KINDS, Suggestion, suggest,
-    staged_statuses, OK, WARNING, ERROR,
+    staged_statuses, with_overlaps, OK, WARNING, ERROR,
 )
 
 
@@ -38,11 +38,12 @@ B_TO_A = "b_to_a"
 
 @dataclass
 class WireSide:
-    """One end of the wire: its node name, its ports, and the inputs already fed outside of this wire
-    (other wires, inputs exposed by the container)."""
+    """One end of the wire: its node name, its ports, the inputs already fed outside of this wire (other wires,
+    inputs exposed by the container), and its FMI-2 array aggregates (name → element names)."""
     name: str
     ports: list[PortInfo]
     fed: set[str]
+    aggregates: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -298,17 +299,24 @@ def _button(text: str, css_class: str) -> QPushButton:
 
 class _CriterionEditor(QWidget):
     """The matching criterion: its kind, its parameters, and the option "ignore case and separators" shared by every
-    kind. One rule per kind is kept, so that the parameters of a kind survive a switch to another kind."""
+    kind. One rule per kind is kept for the session of the application, so that the parameters of a kind survive a
+    switch to another kind and the next opening of the assistant; the editor always opens on "Same name"."""
     changed = Signal()
+
+    _session_rules: list[Rule] | None = None
+    _session_ignore_case = True
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._rules = [kind() for kind in RULE_KINDS]
+        if _CriterionEditor._session_rules is None:
+            _CriterionEditor._session_rules = [kind() for kind in RULE_KINDS]
+        self._rules = _CriterionEditor._session_rules
         self._kind = QComboBox()
         for rule in self._rules:
             self._kind.addItem(rule.kind)
         self._ignore_case = QCheckBox("ignore case and separators ( . _ - [ ] )")
-        self._ignore_case.setChecked(True)
+        self._ignore_case.setChecked(_CriterionEditor._session_ignore_case)
+        self._ignore_case.toggled.connect(lambda value: setattr(_CriterionEditor, "_session_ignore_case", value))
         self._pages = QStackedWidget()
         for rule in self._rules:
             self._pages.addWidget(self._parameters(rule))
@@ -679,14 +687,16 @@ class LinkAssistantDialog(QDialog):
     def _fed(self, direction=None) -> set[str]:
         """Inputs of the target already fed: outside of this wire, or by an existing link of this wire."""
         _, target = self._sides(direction)
-        return set(target.fed) | {m[3] for m in self._existing_links(direction)}
+        return with_overlaps(set(target.fed) | {m[3] for m in self._existing_links(direction)}, target.aggregates)
 
     def _busy_outputs(self) -> set[str]:
         return ({m[1] for m in self._existing_links()}
                 | {link.output.name for link in self._staged if link.direction == self._direction})
 
     def _busy_inputs(self) -> set[str]:
-        return self._fed() | {link.input.name for link in self._staged if link.direction == self._direction}
+        _, target = self._sides()
+        staged = {link.input.name for link in self._staged if link.direction == self._direction}
+        return self._fed() | with_overlaps(staged, target.aggregates)
 
     # ── Refresh ─────────────────────────────────────────────────────
 
@@ -715,7 +725,8 @@ class LinkAssistantDialog(QDialog):
         statuses = []
         for direction in (A_TO_B, B_TO_A):
             links = [(link.output, link.input) for link in self._staged if link.direction == direction]
-            statuses.append(iter(staged_statuses(links, self._fed(direction), self._checks)))
+            _, target = self._sides(direction)
+            statuses.append(iter(staged_statuses(links, self._fed(direction), self._checks, target.aggregates)))
         self._statuses = [next(statuses[0] if link.direction == A_TO_B else statuses[1]) for link in self._staged]
         self._staged_model.set_links(self._staged, self._statuses)
         self._staged_filter.refresh()
@@ -811,7 +822,9 @@ class LinkAssistantDialog(QDialog):
         """Remove the suggestions whose output or input has just been staged, keeping the check boxes of the
         others (the suggestions are not searched again after a staging)."""
         busy_outputs = self._busy_outputs()
-        staged_inputs = {link.input.name for link in self._staged if link.direction == self._direction}
+        _, target = self._sides()
+        staged_inputs = with_overlaps({link.input.name for link in self._staged if link.direction == self._direction},
+                                      target.aggregates)
         suggestions = self._suggestions_model.suggestions
         kept = [s for s in suggestions if s.output.name not in busy_outputs and s.input.name not in staged_inputs]
         if len(kept) != len(suggestions):

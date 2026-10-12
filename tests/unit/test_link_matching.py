@@ -9,7 +9,7 @@ import pytest
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details.link_matching import (
     PortInfo, Checks, SameNameRule, AffixRule, RegexRule, SimilarityRule,
-    suggest, link_status, staged_statuses, normalize, OK, WARNING, ERROR,
+    suggest, link_status, staged_statuses, normalize, with_overlaps, OK, WARNING, ERROR,
     ALREADY_FED, SIZE_MISMATCH, INCOMPATIBLE_TYPE, LOSSY, UNIT_MISMATCH, SIMILAR_NAME, DUPLICATE_TARGET,
 )
 
@@ -109,6 +109,21 @@ def test_similar_name_is_a_warning():
 def test_staged_statuses_detect_two_feeders():
     statuses = staged_statuses([(out("a"), inp("x")), (out("b"), inp("x")), (out("c"), inp("y"))])
     assert [status.codes for status in statuses] == [(DUPLICATE_TARGET,), (DUPLICATE_TARGET,), ()]
+
+
+AGGREGATES = {"u": ["u[1]", "u[2]"]}
+
+
+def test_with_overlaps():
+    assert with_overlaps({"u"}, AGGREGATES) == {"u", "u[1]", "u[2]"}
+    assert with_overlaps({"u[2]"}, AGGREGATES) == {"u", "u[2]"}
+    assert with_overlaps({"x"}, AGGREGATES) == {"x"}
+
+
+def test_aggregate_and_element_are_the_same_input():
+    links = [(out("y", size=2), inp("u", size=2)), (out("z"), inp("u[1]")), (out("w"), inp("v"))]
+    assert [status.codes for status in staged_statuses(links, aggregates=AGGREGATES)] == \
+        [(DUPLICATE_TARGET,), (DUPLICATE_TARGET,), ()]
 
 
 SUBSYSTEMS = ("intake", "exhaust", "turbo", "injection", "cooling", "lube", "crank", "cam", "egr", "throttle")

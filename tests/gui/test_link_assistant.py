@@ -10,13 +10,20 @@ try:
     from PySide6.QtWidgets import QApplication
 
     _app = QApplication.instance() or QApplication([])
-    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant import LinkAssistantDialog
+    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant import LinkAssistantDialog, _CriterionEditor
     from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant_demo import generate
     from fmu_manipulation_toolbox.gui.fmucontainer.details.link_matching import AffixRule, SimilarityRule, ERROR
 except Exception as exc:  # pragma: no cover - environment dependent
     pytest.skip(f"GUI dependencies not available: {exc}", allow_module_level=True)
 
 pytestmark = pytest.mark.gui
+
+
+@pytest.fixture(autouse=True)
+def fresh_session():
+    """The criteria are kept for the session of the application: each test starts with new ones."""
+    _CriterionEditor._session_rules = None
+    _CriterionEditor._session_ignore_case = True
 
 
 @pytest.fixture
