@@ -35,7 +35,12 @@ class PortInfo:
 
     @property
     def container_type(self) -> str:
-        return FMI_TO_CONTAINER.get(self.fmi_version, {}).get(self.fmi_type, "")
+        """Type of the port in the container ("" if unknown); an Enumeration is handled as an integer, as
+        `EmbeddedFMU.port_attrs` does."""
+        fmi_type = self.fmi_type
+        if fmi_type == "Enumeration":
+            fmi_type = "Integer" if self.fmi_version == 2 else "Int32"
+        return FMI_TO_CONTAINER.get(self.fmi_version, {}).get(fmi_type, "")
 
 
 # ── Status ──────────────────────────────────────────────────────────────
@@ -44,11 +49,21 @@ OK = 0
 WARNING = 1
 ERROR = 2
 
+# Codes of the reasons of a status (`Status.codes`), stable for the tests and for a future MCP tool.
+ALREADY_FED = "already_fed"
+SIZE_MISMATCH = "size_mismatch"
+INCOMPATIBLE_TYPE = "incompatible_type"
+LOSSY = "lossy"
+UNIT_MISMATCH = "unit_mismatch"
+SIMILAR_NAME = "similar_name"
+DUPLICATE_TARGET = "duplicate_target"
+
 
 @dataclass(frozen=True)
 class Status:
     level: int
     message: str = ""
+    codes: tuple[str, ...] = ()
 
     @property
     def symbol(self) -> str:
@@ -70,29 +85,29 @@ def link_status(output: PortInfo, input: PortInfo, fed: set[str] = frozenset(),
     """Status of the link `output` → `input`; `fed` holds the inputs that already have a feeder."""
     checks = checks or Checks()
     if input.name in fed:
-        return Status(ERROR, "input already fed")
+        return Status(ERROR, "input already fed", (ALREADY_FED,))
     if output.size != input.size:
-        return Status(ERROR, f"size {output.size} → {input.size}")
+        return Status(ERROR, f"size {output.size} → {input.size}", (SIZE_MISMATCH,))
 
-    warnings = []
+    warnings: list[tuple[str, str]] = []
     type_from, type_to = output.container_type, input.container_type
     if type_from != type_to:
         conversion = CONVERSION_FUNCTION.get(f"{type_from}/{type_to}")
         if conversion is None:
             message = f"{output.fmi_type} → {input.fmi_type} not convertible"
             if checks.compatible_type:
-                return Status(ERROR, message)
-            warnings.append(message)
+                return Status(ERROR, message, (INCOMPATIBLE_TYPE,))
+            warnings.append((INCOMPATIBLE_TYPE, message))
         elif is_lossy(conversion):
-            warnings.append(f"{output.fmi_type} → {input.fmi_type} (lossy)")
+            warnings.append((LOSSY, f"{output.fmi_type} → {input.fmi_type} (lossy)"))
     if output.unit != input.unit:
         message = f"unit {output.unit or '-'} → {input.unit or '-'}"
         if checks.same_unit:
-            return Status(ERROR, message)
-        warnings.append(message)
+            return Status(ERROR, message, (UNIT_MISMATCH,))
+        warnings.append((UNIT_MISMATCH, message))
 
     if warnings:
-        return Status(WARNING, ", ".join(warnings))
+        return Status(WARNING, ", ".join(message for _, message in warnings), tuple(code for code, _ in warnings))
     return Status(OK, f"array of {output.size}" if output.size > 1 else "")
 
 
@@ -266,7 +281,7 @@ def suggest(outputs: list[PortInfo], inputs: list[PortInfo], rule: Rule, ignore_
         input = free_inputs.pop(found[0])
         status = link_status(output, input, fed, checks)
         if found[1] < 1.0 and status.level == OK:
-            status = Status(WARNING, f"similar name ({found[1]:.2f})")
+            status = Status(WARNING, f"similar name ({found[1]:.2f})", (SIMILAR_NAME,))
         suggestions.append(Suggestion(output, input, found[1], status, checked=status.level != ERROR))
     return suggestions
 
@@ -280,7 +295,7 @@ def staged_statuses(links: list[tuple[PortInfo, PortInfo]], fed: set[str] = froz
     statuses = []
     for output, input in links:
         if count[input.name] > 1:
-            statuses.append(Status(ERROR, "input fed by several staged links"))
+            statuses.append(Status(ERROR, "input fed by several staged links", (DUPLICATE_TARGET,)))
         else:
             statuses.append(link_status(output, input, fed, checks))
     return statuses

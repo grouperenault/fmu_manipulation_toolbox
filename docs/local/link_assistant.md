@@ -360,7 +360,20 @@ MCP later):
 Tests (`tests/unit/`): each criterion with and without "ignore case and separators", one target proposed twice,
 statuses, a 2000 × 2000 port case in a reasonable time.
 
-Commit message: `Add the matching engine of the link assistant`
+Commit message: `Complete the matching engine of the link assistant`
+
+**Result:** the engine was written at step 0; this step completes it:
+
+- `Status.codes`: stable codes of the reasons of a status (`already_fed`, `size_mismatch`, `incompatible_type`,
+  `lossy`, `unit_mismatch`, `similar_name`, `duplicate_target`), next to the message shown to the user; several
+  warnings give several codes (e.g. `lossy` + `unit_mismatch`);
+- `PortInfo.container_type` handles an `Enumeration` as an integer (`Integer` / `Int32`), as the builder does
+  (`EmbeddedFMU.port_attrs`); so Enumeration → Float64 is ⚠ `lossy`, like `integer32/real64` in
+  `CONVERSION_FUNCTION`;
+- `PortInfo.size` (number of elements of an array or of an FMI-2 aggregate) instead of an `is_aggregate` flag: two
+  arrays of different sizes give ✖ `size_mismatch`;
+- tests: status codes, Enumeration, and 2000 × 2000 ports with synthetic names for each criterion (expected pairs
+  found, nothing wrong, < 5 s; "Similar names" takes 0.3 s).
 
 ### Step 2 — Assistant window: staging list and manual tab
 

@@ -3,11 +3,14 @@
 The engine is pure Python: these tests do not need PySide6.
 """
 
+import time
+
 import pytest
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details.link_matching import (
     PortInfo, Checks, SameNameRule, AffixRule, RegexRule, SimilarityRule,
     suggest, link_status, staged_statuses, normalize, OK, WARNING, ERROR,
+    ALREADY_FED, SIZE_MISMATCH, INCOMPATIBLE_TYPE, LOSSY, UNIT_MISMATCH, SIMILAR_NAME, DUPLICATE_TARGET,
 )
 
 pytestmark = [pytest.mark.unit]
@@ -74,30 +77,77 @@ def test_invalid_regex_matches_nothing():
     assert suggest([out("x")], [inp("x")], RegexRule("(", "x")) == []
 
 
-@pytest.mark.parametrize("output, input, checks, level", [
-    (out("x"), inp("x"), None, OK),
-    (out("x"), inp("x", "Int32"), None, WARNING),                     # lossy conversion
-    (out("x"), inp("x", "String"), None, ERROR),                      # no conversion
-    (out("x"), inp("x", "String"), Checks(compatible_type=False), WARNING),
-    (out("x", unit="degC"), inp("x", unit="K"), None, WARNING),
-    (out("x", unit="degC"), inp("x", unit="K"), Checks(same_unit=True), ERROR),
-    (out("x", size=4), inp("x", size=2), None, ERROR),
-    (out("x", size=4), inp("x", size=4), None, OK),
+@pytest.mark.parametrize("output, input, checks, level, codes", [
+    (out("x"), inp("x"), None, OK, ()),
+    (out("x"), inp("x", "Int32"), None, WARNING, (LOSSY,)),
+    (out("x"), inp("x", "String"), None, ERROR, (INCOMPATIBLE_TYPE,)),
+    (out("x"), inp("x", "String"), Checks(compatible_type=False), WARNING, (INCOMPATIBLE_TYPE,)),
+    (out("x", unit="degC"), inp("x", unit="K"), None, WARNING, (UNIT_MISMATCH,)),
+    (out("x", unit="degC"), inp("x", unit="K"), Checks(same_unit=True), ERROR, (UNIT_MISMATCH,)),
+    (out("x", unit="degC"), inp("x", "Int32", unit="K"), None, WARNING, (LOSSY, UNIT_MISMATCH)),
+    (out("x", size=4), inp("x", size=2), None, ERROR, (SIZE_MISMATCH,)),
+    (out("x", size=4), inp("x", size=4), None, OK, ()),
+    # An Enumeration is handled as an integer by the container (`EmbeddedFMU.port_attrs`).
+    (out("x", "Enumeration"), inp("x", "Int32"), None, OK, ()),
+    (out("x", "Enumeration"), inp("x", "Float64"), None, WARNING, (LOSSY,)),   # as integer32 → real64
 ])
-def test_link_status(output, input, checks, level):
-    assert link_status(output, input, checks=checks).level == level
+def test_link_status(output, input, checks, level, codes):
+    status = link_status(output, input, checks=checks)
+    assert (status.level, status.codes) == (level, codes)
 
 
 def test_fed_input_is_proposed_with_an_error():
     suggestions = suggest([out("x")], [inp("x")], SameNameRule(), fed={"x"})
-    assert suggestions[0].status.level == ERROR and not suggestions[0].checked
+    assert suggestions[0].status.codes == (ALREADY_FED,) and not suggestions[0].checked
 
 
 def test_similar_name_is_a_warning():
     suggestions = suggest([out("chassis.pressure")], [inp("chassis.press")], SimilarityRule(0.7))
-    assert suggestions[0].status.level == WARNING and suggestions[0].checked
+    assert suggestions[0].status.codes == (SIMILAR_NAME,) and suggestions[0].checked
 
 
 def test_staged_statuses_detect_two_feeders():
     statuses = staged_statuses([(out("a"), inp("x")), (out("b"), inp("x")), (out("c"), inp("y"))])
-    assert [status.level for status in statuses] == [ERROR, ERROR, OK]
+    assert [status.codes for status in statuses] == [(DUPLICATE_TARGET,), (DUPLICATE_TARGET,), ()]
+
+
+SUBSYSTEMS = ("intake", "exhaust", "turbo", "injection", "cooling", "lube", "crank", "cam", "egr", "throttle")
+QUANTITIES = ("speed", "torque", "pressure", "temperature", "mass_flow", "position", "voltage", "current", "angle",
+              "ratio")
+
+
+def _large_ports(count):
+    """`count` outputs `engine.out.<signal>`; the inputs are `ecu.in.engine_<signal>` for one half (found by a prefix
+    or a regex) and the abbreviated `engine.out.<signal without its last letter>` for the other half (found by
+    "Similar names" only)."""
+    signals = [f"{subsystem}{index}_{quantity}" for index in range(count // 100 + 1)
+               for subsystem in SUBSYSTEMS for quantity in QUANTITIES][:count]
+    outputs = [out(f"engine.out.{signal}") for signal in signals]
+    inputs = [inp(f"ecu.in.engine_{signal}" if k % 2 else f"engine.out.{signal[:-1]}")
+              for k, signal in enumerate(signals)]
+    abbreviated = {(f"engine.out.{signal}", f"engine.out.{signal[:-1]}") for k, signal in enumerate(signals)
+                   if not k % 2}
+    return outputs, inputs, abbreviated
+
+
+@pytest.mark.parametrize("rule", [
+    SameNameRule(),
+    AffixRule("engine.out.", "ecu.in.engine_"),
+    RegexRule(r"^engine\.out\.(.*)$", r"ecu.in.engine_\1"),
+    SimilarityRule(0.8),
+])
+def test_2000_ports_in_a_reasonable_time(rule):
+    outputs, inputs, abbreviated = _large_ports(2000)
+    start = time.perf_counter()
+    found = pairs(suggest(outputs, inputs, rule))
+    elapsed = time.perf_counter() - start
+    assert elapsed < 5.0, f"{rule.kind}: {elapsed:.2f} s"
+    expected = {(output.name, output.name.replace("engine.out.", "ecu.in.engine_"))
+                for k, output in enumerate(outputs) if k % 2}
+    if isinstance(rule, SameNameRule):
+        assert found == set()
+    elif isinstance(rule, SimilarityRule):
+        # Every abbreviated name is found, and nothing wrong (a few long names of the other half may also match).
+        assert abbreviated <= found and found <= abbreviated | expected
+    else:
+        assert found == expected
