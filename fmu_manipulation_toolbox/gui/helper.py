@@ -351,36 +351,6 @@ class DropZoneWidget(QLabel):
         self.fmu_loaded.emit(self.fmu)
 
 
-class StatusBar(QStatusBar):
-    class StatusBarLogHandler(logging.Handler):
-        """Affiche les logs dans une QStatusBar avec une couleur par niveau."""
-
-        LOG_COLORS = {
-            logging.DEBUG: log_color["DEBUG"],
-            logging.INFO: log_color["INFO"],
-            logging.WARNING: log_color["WARNING"],
-            logging.ERROR: log_color["ERROR"],
-            logging.CRITICAL: log_color["CRITICAL"],
-        }
-
-        def __init__(self, status_bar: QStatusBar, level=logging.INFO):
-            super().__init__(level)
-            self._status_bar = status_bar
-            logger.addHandler(self)
-            logger.setLevel(level)
-
-        def emit(self, record: logging.LogRecord):
-            color = self.LOG_COLORS.get(record.levelno, log_color["INFO"])
-            self._status_bar.setStyleSheet(f"QStatusBar {{ color: {color}; }}")
-            self._status_bar.showMessage(self.format(record), 10000)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        log_handler = StatusBar.StatusBarLogHandler(self)
-        # Do not capture self: the handler must be detached once the widget is gone.
-        self.destroyed.connect(lambda: (logger.removeHandler(log_handler), log_handler.close()))
-
-
 def _level_color(levelno: int) -> str:
     """Colour of a log level (levels in between use the colour of the level below)."""
     for level, name in ((logging.CRITICAL, "CRITICAL"), (logging.ERROR, "ERROR"), (logging.WARNING, "WARNING"),

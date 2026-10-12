@@ -160,6 +160,11 @@ Show the last log line in the FMU Container Builder status bar and the full log 
 - Remove the old `StatusBar` class (no other user).
 - Check that FMU Tool still logs into its embedded `LogWidget`.
 
+Done. Notes:
+- FMU Editor keeps its status bar in the button bar (D8 only concerned Container Builder); it sets the `INFO` level
+  itself. Its message now stays until the next one (D4) instead of disappearing after 10 s.
+- The old `StatusBar` class is removed; FMU Tool still logs into its `LogWidget` (tested).
+
 Commit message:
 ```
 Use the log status bar and the log window in FMU Editor

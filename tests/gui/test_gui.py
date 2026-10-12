@@ -52,6 +52,14 @@ def test_fmutool_operations_buttons_exist(qtbot):
     assert len(window.operations_button_list) == 15
 
 
+def test_fmutool_logs_into_its_log_widget(qtbot):
+    import logging
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    logging.getLogger("fmu_manipulation_toolbox").warning("tool warning")
+    assert "WARNING: tool warning" in window.log_widget.toPlainText()
+
+
 # ── FMU Editor GUI ────────────────────────────────────────────────────────
 def test_fmueditor_window_opens(qtbot):
     window = FMUEditorWindow()
@@ -72,6 +80,20 @@ def test_fmueditor_no_unsaved_changes_initially(qtbot, bouncing_ball):
     qtbot.addWidget(window)
     window.load(bouncing_ball)
     assert not window._has_unsaved_changes()
+
+
+def test_fmueditor_status_bar_shows_the_log_and_opens_the_log_window(qtbot):
+    import logging
+    from PySide6.QtCore import Qt
+    window = FMUEditorWindow()
+    qtbot.addWidget(window)
+    logging.getLogger("fmu_manipulation_toolbox").info("FMU saved as 'out.fmu'.")
+    assert window._status_bar.text() == "FMU saved as 'out.fmu'."
+
+    qtbot.mouseClick(window._status_bar, Qt.MouseButton.LeftButton)
+    log_window = window._status_bar._log_window
+    assert log_window.isVisible()
+    assert "FMU saved as 'out.fmu'." in log_window.view.toPlainText()
 
 
 # ── FMU Container Builder GUI ─────────────────────────────────────────────

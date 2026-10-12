@@ -18,7 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from fmu_manipulation_toolbox.operations import FMU, ModelVariable, OperationAbstract
-from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, StatusBar,
+from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, GuiLogHandler, LogStatusBar,
                                                  UnsavedChangesWindowMixin, LastDirectory,
                                                  get_fmu_icon_path)
 
@@ -451,8 +451,8 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         top_bar.addLayout(info_grid, 1)
 
         # Bottom bar: status + buttons
-        self._status_bar = StatusBar()
-        self._status_bar.setSizeGripEnabled(False)
+        self._status_bar = LogStatusBar(GuiLogHandler.install())
+        logger.setLevel(logging.INFO)
 
         button_bar = QHBoxLayout()
         button_bar.addWidget(self._status_bar, 1)
