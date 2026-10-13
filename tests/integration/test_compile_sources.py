@@ -8,6 +8,7 @@ Each test runs in an isolated copy of `tests/data/compile`.
 """
 import logging
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -100,14 +101,19 @@ def test_compilation_failure(area_dir, caplog):
     assert read_entry("result.fmu", _host_binary(3)) is None
 
 
+def _needs_foo(destination: str):
+    """FMI 3.0 Reference FMU without binaries, whose `model.c` only compiles with `FOO` defined."""
+    model = read_entry(_reference(3), "sources/model.c")
+    rewrite_fmu(_reference(3), destination, drop=("binaries/",),
+                replace={"sources/model.c": b'#ifndef FOO\n#error "FOO is not defined"\n#endif\n' + model})
+
+
 @pytest.mark.needs_compiler
 @pytest.mark.fmi3
 def test_compiler_options(area_dir):
     """A source that needs a definition: the compilation fails without it (`compilation_failed`), succeeds with it.
     `-D` is also understood by MSVC."""
-    model = read_entry(_reference(3), "sources/model.c")
-    rewrite_fmu(_reference(3), "needs-foo.fmu", drop=("binaries/",),
-                replace={"sources/model.c": b'#ifndef FOO\n#error "FOO is not defined"\n#endif\n' + model})
+    _needs_foo("needs-foo.fmu")
 
     operation = compiler.OperationCompileSources()
     with FMU("needs-foo.fmu") as fmu:
@@ -169,3 +175,32 @@ def test_cli_compile_sources(area_dir):
     sys.argv = ["fmutool", "-input", "no-binaries.fmu", "-compile-sources", "-output", "cli-compiled.fmu"]
     fmutool()
     assert read_entry("cli-compiled.fmu", _host_binary(2))
+
+
+@pytest.mark.needs_compiler
+@pytest.mark.fmi3
+@pytest.mark.parametrize("options", [["-compile-options=-DFOO"], ["-compile-options", "-DFOO -DBAR"]])
+def test_cli_compile_options(area_dir, options):
+    _needs_foo("needs-foo.fmu")
+    sys.argv = ["fmutool", "-input", "needs-foo.fmu", "-compile-sources", *options, "-output", "cli-compiled.fmu"]
+    fmutool()
+    assert read_entry("cli-compiled.fmu", _host_binary(3))
+
+
+@pytest.mark.needs_compiler
+@pytest.mark.fmi3
+def test_cli_compile_options_missing(area_dir):
+    _needs_foo("needs-foo.fmu")
+    sys.argv = ["fmutool", "-input", "needs-foo.fmu", "-compile-sources", "-output", "cli-compiled.fmu"]
+    with pytest.raises(SystemExit) as exc:
+        fmutool()
+    assert exc.value.code == 5
+    assert not Path("cli-compiled.fmu").exists()
+
+
+@pytest.mark.parametrize("option", ["-compile-options=-DFOO", "-link-options=-L.", "-link-libraries=foo"])
+def test_cli_compile_options_need_compile_sources(area_dir, option):
+    sys.argv = ["fmutool", "-input", _reference(3), option, "-output", "out.fmu"]
+    with pytest.raises(SystemExit) as exc:
+        fmutool()
+    assert exc.value.code == 2

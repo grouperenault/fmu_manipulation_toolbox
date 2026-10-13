@@ -69,6 +69,18 @@ class Help:
                             "missing. A C compiler is required (Visual Studio on Windows). This option is "
                             "available from version 2.0. Resulting fmu should be saved by using -output option.",
 
+        '-compile-options': "with -compile-sources: additional options of the compiler, e.g. "
+                            "-compile-options=\"-DFOO=1 -I/opt/include\" (use '=' when the value starts with '-'). "
+                            "This option is available from version 2.0.",
+
+        '-link-options': "with -compile-sources: additional options of the linker, e.g. "
+                         "-link-options=-L/opt/lib (use '=' when the value starts with '-'). This option is "
+                         "available from version 2.0.",
+
+        '-link-libraries': "with -compile-sources: additional libraries to link with, by name and separated by "
+                           "commas, e.g. -link-libraries foo,bar (-lfoo -lbar, or foo.lib bar.lib with Visual "
+                           "Studio). This option is available from version 2.0.",
+
         '-only-parameters': "apply operation only on ports with  causality = 'parameter'. This "
                             "option is available from version 1.3.",
 

@@ -1,5 +1,6 @@
 import argparse
 import os
+import shlex
 import sys
 
 from .utils import setup_logger, close_logger, make_wide, ExitCode, ErrorCounter
@@ -63,8 +64,11 @@ def fmutool():
     add_option('-remove-sources', action='append_const', dest='operations_list',
                const=OperationRemoveSources())
     # Compilation
-    add_option('-compile-sources', action='append_const', dest='operations_list',
-               const=OperationCompileSources())
+    compile_operation = OperationCompileSources()
+    add_option('-compile-sources', action='append_const', dest='operations_list', const=compile_operation)
+    add_option('-compile-options', action='store', dest='compile_options', metavar='"options"')
+    add_option('-link-options', action='store', dest='link_options', metavar='"options"')
+    add_option('-link-libraries', action='store', dest='link_libraries', metavar='library1,library2')
     # Filter
     add_option('-only-parameters', action='append_const', dest='apply_on', const='parameter')
     add_option('-only-inputs', action='append_const', dest='apply_on', const='input')
@@ -79,6 +83,20 @@ def fmutool():
     # handle the "no operation" use case
     if not cli_options.operations_list:
         cli_options.operations_list = []
+
+    compile_parameters = {"-compile-options": cli_options.compile_options,
+                          "-link-options": cli_options.link_options,
+                          "-link-libraries": cli_options.link_libraries}
+    given = [option for option, value in compile_parameters.items() if value is not None]
+    if given and compile_operation not in cli_options.operations_list:
+        logger.fatal(f"{', '.join(given)} need(s) '-compile-sources'.")
+        close_logger(logger)
+        sys.exit(ExitCode.USAGE_ERROR)
+    posix = os.name != "nt"
+    compile_operation.compiler_options = shlex.split(cli_options.compile_options or "", posix=posix)
+    compile_operation.linker_options = shlex.split(cli_options.link_options or "", posix=posix)
+    compile_operation.libraries = [name.strip() for name in (cli_options.link_libraries or "").split(",")
+                                   if name.strip()]
 
     if cli_options.fmu_input == cli_options.fmu_output:
         logger.fatal(f"'-input' and '-output' should point to different files.")
