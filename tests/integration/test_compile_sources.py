@@ -39,6 +39,12 @@ def _compile(source: str, destination: str):
         fmu.repack(destination)
 
 
+def _compile_with(operation, source: str, destination: str):
+    with FMU(source) as fmu:
+        fmu.apply_operation(operation)
+        fmu.repack(destination)
+
+
 def _assert_reference_simulation(fmu_filename: str):
     from _helpers.simulation import simulate
 
@@ -94,6 +100,27 @@ def test_compilation_failure(area_dir, caplog):
     assert read_entry("result.fmu", _host_binary(3)) is None
 
 
+@pytest.mark.needs_compiler
+@pytest.mark.fmi3
+def test_compiler_options(area_dir):
+    """A source that needs a definition: the compilation fails without it (`compilation_failed`), succeeds with it.
+    `-D` is also understood by MSVC."""
+    model = read_entry(_reference(3), "sources/model.c")
+    rewrite_fmu(_reference(3), "needs-foo.fmu", drop=("binaries/",),
+                replace={"sources/model.c": b'#ifndef FOO\n#error "FOO is not defined"\n#endif\n' + model})
+
+    operation = compiler.OperationCompileSources()
+    with FMU("needs-foo.fmu") as fmu:
+        with pytest.raises(OperationError):
+            fmu.apply_operation(operation)
+    assert operation.compilation_failed
+
+    operation = compiler.OperationCompileSources(compiler_options=["-DFOO"])
+    _compile_with(operation, "needs-foo.fmu", "compiled.fmu")
+    assert not operation.compilation_failed
+    assert read_entry("compiled.fmu", _host_binary(3))
+
+
 # --------------------------------------------------------------------------- #
 #                      Nothing to do / nothing possible                        #
 # --------------------------------------------------------------------------- #
@@ -109,10 +136,27 @@ def test_existing_binary_is_kept(area_dir):
 
 @pytest.mark.fmi3
 def test_no_sources(area_dir):
+    """Not a compilation failure: other options would not help."""
     rewrite_fmu(_reference(3), "no-sources.fmu", drop=("binaries/", "sources/"))
+    operation = compiler.OperationCompileSources()
     with FMU("no-sources.fmu") as fmu:
         with pytest.raises(OperationError):
-            fmu.apply_operation(compiler.OperationCompileSources())
+            fmu.apply_operation(operation)
+    assert not operation.compilation_failed
+
+
+@pytest.mark.fmi3
+def test_no_compiler(area_dir, monkeypatch):
+    """Not a compilation failure: other options would not help."""
+    def no_compiler():
+        raise OperationError("No C compiler found.")
+    monkeypatch.setattr(compiler.Toolchain, "find", staticmethod(no_compiler))
+    rewrite_fmu(_reference(3), "no-binaries.fmu", drop=("binaries/",))
+    operation = compiler.OperationCompileSources()
+    with FMU("no-binaries.fmu") as fmu:
+        with pytest.raises(OperationError, match="No C compiler"):
+            fmu.apply_operation(operation)
+    assert not operation.compilation_failed
 
 
 # --------------------------------------------------------------------------- #

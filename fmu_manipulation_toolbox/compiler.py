@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -140,18 +141,22 @@ class Toolchain:
         command += [f"-D{name}" if value is None else f"-D{name}={value}" for name, value in definitions.items()]
         return command + options + [str(source_file), "-o", str(object_file)]
 
-    def link_command(self, object_files: list[Path], library: Path, cxx: bool, libraries: list[str]) -> list[str]:
-        """Command line linking `object_files` into the shared library `library`."""
+    def link_command(self, object_files: list[Path], library: Path, cxx: bool, libraries: list[str],
+                     options: Sequence[str] = ()) -> list[str]:
+        """Command line linking `object_files` into the shared library `library`.
+
+        `options` (e.g. `-L/opt/lib`, `/LIBPATH:C:\\lib`) come before the libraries.
+        """
         linker = self.cxx_compiler if cxx else self.c_compiler
         if self.family == "msvc":
             command = linker + ["/nologo", "/LD", "/MT"] + [str(path) for path in object_files] + [f"/Fe{library}"]
-            if libraries:
-                command += ["/link"] + [name if name.lower().endswith(".lib") else f"{name}.lib"
-                                        for name in libraries]
+            if options or libraries:
+                command += ["/link"] + list(options) + [name if name.lower().endswith(".lib") else f"{name}.lib"
+                                                        for name in libraries]
             return command
 
         command = linker + ["-dynamiclib" if platform.system() == "Darwin" else "-shared"]
-        command += [str(path) for path in object_files] + ["-o", str(library)]
+        command += [str(path) for path in object_files] + ["-o", str(library)] + list(options)
         command += [f"-l{name}" for name in libraries]
         if platform.system() == "Linux":
             command.append("-lm")
@@ -358,12 +363,16 @@ class SourceCompiler:
     #                               Compilation                               #
     # ----------------------------------------------------------------------- #
     def build_commands(self, configuration: BuildConfiguration, toolchain: Toolchain, build_directory: Path,
-                       library: Path) -> list[list[str]]:
+                       library: Path, compiler_options: Sequence[str] = (), linker_options: Sequence[str] = (),
+                       libraries: Sequence[str] = ()) -> list[list[str]]:
         """Command lines building `configuration` into `library`: one compilation per source, then the link.
 
         The commands run in the directory of the extracted FMU: its sources and include directories are given
         relative to it, with `/` separators (accepted by every compiler), so that the compiler messages name
         `sources/model.c` on every platform. Object files are written in `build_directory`.
+
+        `compiler_options`, `linker_options` and `libraries` are added to those of the build description: the
+        compiler options after its definitions and options, the libraries after its libraries.
         """
         commands = []
         object_files = []
@@ -377,7 +386,7 @@ class SourceCompiler:
             definitions.setdefault("DISABLE_PREFIX", None)
             if self.fmi_version == 3:
                 definitions.setdefault("FMI3_OVERRIDE_FUNCTION_PREFIX", None)
-            options = self._compiler_options(source_file_set, toolchain)
+            options = self._compiler_options(source_file_set, toolchain) + list(compiler_options)
 
             for source_file in source_file_set.source_files:
                 cxx = source_file_set.is_cxx(source_file)
@@ -387,7 +396,8 @@ class SourceCompiler:
                 commands.append(toolchain.compile_command(self._display(source_file), object_file, cxx,
                                                           include_directories, definitions, options))
 
-        commands.append(toolchain.link_command(object_files, library, has_cxx, configuration.libraries))
+        commands.append(toolchain.link_command(object_files, library, has_cxx,
+                                               configuration.libraries + list(libraries), linker_options))
         return commands
 
     @staticmethod
@@ -400,7 +410,9 @@ class SourceCompiler:
                        f"'{source_file_set.compiler}', not for {toolchain.family}: they are ignored.")
         return []
 
-    def compile(self, configuration: BuildConfiguration, toolchain: Toolchain | None = None) -> Path:
+    def compile(self, configuration: BuildConfiguration, toolchain: Toolchain | None = None,
+                compiler_options: Sequence[str] = (), linker_options: Sequence[str] = (),
+                libraries: Sequence[str] = ()) -> Path:
         """Build the shared library of `configuration` into `binaries/<host platform>/`.
 
         The compiler output is forwarded to the logger. Nothing is written into the FMU if the build fails.
@@ -408,6 +420,9 @@ class SourceCompiler:
         Args:
             configuration (BuildConfiguration): What to build (see `build_configurations()`).
             toolchain (Toolchain | None): Compilers to use; by default, those of the host (`Toolchain.find()`).
+            compiler_options (Sequence[str]): Additional options of every compilation command.
+            linker_options (Sequence[str]): Additional options of the link command.
+            libraries (Sequence[str]): Additional libraries to link with, by name.
 
         Returns:
             Path: Path of the shared library.
@@ -419,12 +434,17 @@ class SourceCompiler:
         destination = self.binary_path(configuration.model_identifier)
         logger.info(f"Compiling '{configuration.model_identifier}' for {self.host_platform(self.fmi_version)} "
                     f"with {toolchain.family}.")
+        for label, values in (("compiler options", compiler_options), ("linker options", linker_options),
+                              ("libraries", libraries)):
+            if values:
+                logger.info(f"Additional {label}: '{' '.join(values)}'.")
         with tempfile.TemporaryDirectory() as build_directory:
             build_directory = Path(build_directory)
             library = build_directory / destination.name
             steps = [f"Compiling '{self._display(path)}'." for path in configuration.source_files]
             steps.append(f"Linking '{library.name}'.")
-            commands = self.build_commands(configuration, toolchain, build_directory, library)
+            commands = self.build_commands(configuration, toolchain, build_directory, library, compiler_options,
+                                           linker_options, libraries)
             for step, command in zip(steps, commands):
                 logger.info(step)
                 self._run(command, toolchain, build_directory, configuration.model_identifier)
@@ -477,6 +497,16 @@ class OperationCompileSources(OperationAbstract):
     For each model identifier of the FMU, the shared library of the host platform is built from `sources/` into
     `binaries/<host platform>/`, unless it already exists. The descriptor is not changed.
 
+    Args:
+        compiler_options (Sequence[str]): Additional options of every compilation command, e.g. `["-DFOO=1"]`.
+        linker_options (Sequence[str]): Additional options of the link command, e.g. `["-L/opt/lib"]`.
+        libraries (Sequence[str]): Additional libraries to link with, by name, e.g. `["foo"]` (`-lfoo`,
+            `foo.lib` with MSVC).
+
+    Attributes:
+        compilation_failed (bool): `True` after an application where the compiler or the linker returned an error
+            (not when the FMU has no sources, or when no compiler is found): other options may help.
+
     Raises:
         OperationError: If a binary is missing and cannot be built (no sources, no list of the sources, no
             compiler, compilation failure).
@@ -484,10 +514,18 @@ class OperationCompileSources(OperationAbstract):
 
     read_only = True
 
+    def __init__(self, compiler_options: Sequence[str] = (), linker_options: Sequence[str] = (),
+                 libraries: Sequence[str] = ()):
+        self.compiler_options = list(compiler_options)
+        self.linker_options = list(linker_options)
+        self.libraries = list(libraries)
+        self.compilation_failed = False
+
     def __repr__(self):
         return "Compile sources"
 
     def closure(self):
+        self.compilation_failed = False
         source_compiler = SourceCompiler(self.fmu.tmp_directory, self.model_description.fmi_version)
         missing = []
         for model_identifier in dict.fromkeys(interface.get("modelIdentifier")
@@ -501,6 +539,14 @@ class OperationCompileSources(OperationAbstract):
         if not missing:
             return
 
-        for configuration in source_compiler.build_configurations(self.model_description):
-            if configuration.model_identifier in missing:
-                source_compiler.compile(configuration)
+        configurations = [configuration for configuration in
+                          source_compiler.build_configurations(self.model_description)
+                          if configuration.model_identifier in missing]
+        toolchain = Toolchain.find()
+        for configuration in configurations:
+            try:
+                source_compiler.compile(configuration, toolchain, self.compiler_options, self.linker_options,
+                                        self.libraries)
+            except OperationError:
+                self.compilation_failed = True
+                raise

@@ -1,6 +1,6 @@
 # Plan: additional compiler options, linker options and libraries for "Compile sources"
 
-**Created**: 13 October 2026 — **Status**: decisions taken, not started — **Roadmap**: not listed —
+**Created**: 13 October 2026 — **Status**: step 1 done — **Roadmap**: not listed —
 **Origin**: follow-up of `done/compile_sources.md`
 
 FMI 2.0 `<SourceFiles>` only lists file names: nothing tells which libraries to link, nor which definitions or
@@ -96,13 +96,18 @@ loop:
 
 ## 5. Steps
 
-### Step 1 — API
+### Step 1 — API — done
 
 - `compiler.py`: parameters of D1, `compilation_failed` (D6), logging of the additional options.
 - Unit tests (`tests/unit/test_compiler.py`): position of the additional options in the gcc and MSVC command lines,
   libraries translated by the toolchain. Integration test (`tests/integration/test_compile_sources.py`): a source
   that needs a definition (`#ifndef FOO #error #endif`) fails without `-DFOO` (`compilation_failed` is `True`) and
   succeeds with it; `compilation_failed` stays `False` for an FMU without sources.
+
+- Done on 13 October 2026. `OperationCompileSources.closure()` searches the toolchain (`Toolchain.find()`) before
+  compiling, so that "no compiler" never sets `compilation_failed`; a compiler that cannot be started (e.g. no
+  `c++` for a C++ source) does set it. Tests: `test_additional_options` (unit), `test_compiler_options`,
+  `test_no_sources`, `test_no_compiler` (integration).
 
 Commit message: `Add compiler options, linker options and libraries to OperationCompileSources`
 

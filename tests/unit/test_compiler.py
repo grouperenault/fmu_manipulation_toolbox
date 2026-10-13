@@ -253,3 +253,25 @@ def test_libraries(data_dir, tmp_path):
     assert "-lfoo" in commands[-1]
     commands, _ = _commands(fmu_filename, MSVC, tmp_path)
     assert commands[-1][-3:] == ["/link", "foo.lib", "bar.lib"]
+
+
+@pytest.mark.fmi3
+def test_additional_options(data_dir, tmp_path, monkeypatch):
+    """Additional compiler options come after those of the build description, additional libraries after its
+    libraries, linker options before the libraries."""
+    monkeypatch.setattr(platform, "system", lambda: "Linux")
+    fmu_filename = _custom_fmu(data_dir, tmp_path, "", '<Library name="foo"/>')
+    with FMU(str(fmu_filename)) as fmu:
+        md = fmu.model_description
+        source_compiler = compiler.SourceCompiler(fmu.tmp_directory, md.fmi_version)
+        configuration = source_compiler.build_configurations(md)[0]
+
+        *compilations, link = source_compiler.build_commands(configuration, GCC, tmp_path, tmp_path / "lib",
+                                                             ["-DEXTRA", "-g"], ["-L/opt/lib"], ["bar"])
+        for command in compilations:
+            assert command[-5:-3] == ["-DEXTRA", "-g"]
+        assert link[-4:] == ["-L/opt/lib", "-lfoo", "-lbar", "-lm"]
+
+        *_, link = source_compiler.build_commands(configuration, MSVC, tmp_path, tmp_path / "lib",
+                                                  [], ["/LIBPATH:C:\\lib"], ["bar"])
+        assert link[-4:] == ["/link", "/LIBPATH:C:\\lib", "foo.lib", "bar.lib"]
