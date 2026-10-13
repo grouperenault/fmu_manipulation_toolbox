@@ -29,10 +29,10 @@ The window is organized as a single grid:
 
 | | | | |
 |---|---|---|---|
-| Check | Save description.xml | Save port names | Rename ports from CSV |
-| Trim Until | Remove Toplevel | Merge Toplevel | Compile sources |
-| Remove Regexp | Keep only Regexp | Remove all | Remove sources |
+| Check | Save description.xml | Save port names | Compile sources |
 | Add Win32 remoting | Add Win32 frontend | Add Win64 remoting | Add Win64 frontend |
+| Rename ports from CSV | Trim Until | Remove Toplevel | Merge Toplevel |
+| Remove Regexp | Keep only Regexp | Remove all | Remove sources |
 
 - Clicking a button immediately applies the corresponding operation to the loaded FMU (some
   buttons prompt for a value or a file first).
@@ -62,9 +62,9 @@ The interface uses an intuitive color code (matching the operation's effect):
 | Color | Action Type | Examples |
 |-------|-------------|----------|
 | 🔴 **Red** | Remove information | Remove Regexp, Keep only Regexp, Remove all, Remove sources |
-| 🟠 **Orange** | Modify the FMU | Rename ports from CSV, Remove Toplevel, Merge Toplevel, Trim Until, Compile sources |
-| 🟢 **Green** | Add components or check | Add Win32/Win64 remoting, Add Win32/Win64 frontend, Check |
-| 🟣 **Purple** | Extract and save | Save port names, Save description.xml, Save log as, Save modified FMU as |
+| 🟠 **Orange** | Modify `modelDescription.xml` | Rename ports from CSV, Trim Until, Remove Toplevel, Merge Toplevel |
+| 🟢 **Green** | Check, export, or add components | Check, Save description.xml, Save port names, Compile sources, Add Win32/Win64 remoting, Add Win32/Win64 frontend |
+| 🟣 **Purple** | Save the results | Save log as, Save modified FMU as |
 | 🔵 **Blue** | Filter scope or exit | Apply only on, Reload, Exit |
 
 ## Typical Workflow
@@ -87,7 +87,7 @@ to review everything that has been applied so far.
 
 ### Step 3: Apply Transformations
 
-#### 🟣 Save Port Names to CSV
+#### 🟢 Save Port Names to CSV
 
 **Use Case:** Prepare a file for renaming ports
 
@@ -139,7 +139,7 @@ Controller.Gain
    (e.g. keep only `parameter` checked)
 2. Click **Remove all** (removes every remaining port matching the filter)
 
-#### 🟠 Compile Sources
+#### 🟢 Compile Sources
 
 **Use Case:** The FMU embeds its C sources (`sources/` folder) but has no binary for your platform (e.g. a
 Windows-only FMU used on Linux or macOS)

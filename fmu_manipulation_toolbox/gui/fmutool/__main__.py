@@ -86,25 +86,25 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 
         # Operations
         self.help = Help()
-        # Grid of WIDTH columns: analysis and saving, name changes, removals, remoting. "Compile sources" is above
-        # "Remove sources".
+        # Grid of WIDTH columns, one line per theme: analysis and export, binary interfaces (green), name changes
+        # (orange), removals (red).
         operations_list = [
             ("Check",                 '-check',              'info',    get_checkers()),
-            ("Save description.xml",  '-extract-descriptor', 'save',    None, {"func": self.save_descriptor}),
-            ("Save port names",    '-dump-csv',           'save',    OperationSaveNamesToCSV, {"prompt_file": "write"}),
-            ("Rename ports from CSV", '-rename-from-csv',   'modify',  OperationRenameFromCSV, {"prompt_file": "read"}),
-            ("Trim Until",            '-trim-until',         'modify',  OperationTrimUntil, {"prompt": "Prefix"}),
-            ("Remove Toplevel",       '-remove-toplevel',    'modify',  OperationStripTopLevel),
-            ("Merge Toplevel",        '-merge-toplevel',     'modify',  OperationMergeTopLevel),
-            ("Compile sources",       '-compile-sources',    'modify',  OperationCompileSources),
-            ("Remove Regexp",         '-remove-regexp',      'removal', OperationRemoveRegexp, {"prompt": "regexp"}),
-            ("Keep only Regexp",      '-keep-only-regexp',   'removal', OperationKeepOnlyRegexp, {"prompt": "regexp"}),
-            ("Remove all",            '-remove-all',         'removal', OperationRemoveRegexp, {"arg": ".*"}),
-            ("Remove sources",        '-remove-sources',     'removal', OperationRemoveSources),
+            ("Save description.xml",  '-extract-descriptor', 'info',    None, {"func": self.save_descriptor}),
+            ("Save port names",       '-dump-csv',           'info',    OperationSaveNamesToCSV, {"prompt_file": "write"}),
+            ("Compile sources",       '-compile-sources',    'info',    OperationCompileSources),
             ("Add Win32 remoting",    '-add-remoting-win32', 'info',    OperationAddRemotingWin32),
             ("Add Win32 frontend",    '-add-frontend-win32', 'info',    OperationAddFrontendWin32),
             ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64),
             ("Add Win64 frontend",    '-add-frontend-win64', 'info',    OperationAddFrontendWin64),
+            ("Rename ports from CSV", '-rename-from-csv',    'modify',  OperationRenameFromCSV, {"prompt_file": "read"}),
+            ("Trim Until",            '-trim-until',         'modify',  OperationTrimUntil, {"prompt": "Prefix"}),
+            ("Remove Toplevel",       '-remove-toplevel',    'modify',  OperationStripTopLevel),
+            ("Merge Toplevel",        '-merge-toplevel',     'modify',  OperationMergeTopLevel),
+            ("Remove Regexp",         '-remove-regexp',      'removal', OperationRemoveRegexp, {"prompt": "regexp"}),
+            ("Keep only Regexp",      '-keep-only-regexp',   'removal', OperationKeepOnlyRegexp, {"prompt": "regexp"}),
+            ("Remove all",            '-remove-all',         'removal', OperationRemoveRegexp, {"arg": ".*"}),
+            ("Remove sources",        '-remove-sources',     'removal', OperationRemoveSources),
         ]
 
         line = 1
