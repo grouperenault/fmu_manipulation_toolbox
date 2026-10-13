@@ -111,7 +111,7 @@ include(${FMUTOOL_CMAKE_DIR}/pgo.cmake)
 function(fmutool_native_target target)
     target_link_libraries(${target} PRIVATE fmutool_flags)
     target_include_directories(${target} PRIVATE
-        ${FMUTOOL_CMAKE_DIR}/../fmi
+        ${FMUTOOL_CMAKE_DIR}/../fmu_manipulation_toolbox/resources/fmi
         ${CMAKE_CURRENT_BINARY_DIR}     # version.h, config.h
     )
     # The generator expression stops multi-config generators (Visual Studio)

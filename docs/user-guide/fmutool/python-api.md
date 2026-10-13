@@ -244,6 +244,62 @@ fmu.apply_operation(operation)
 fmu.repack("module-no-src.fmu")
 ```
 
+## Compile the Sources
+
+`OperationCompileSources` compiles the sources embedded in an FMU when the binary of the current platform is
+missing (see [Compile Sources](cli-usage.md#compile-sources) for the prerequisites and the limits). It raises
+`OperationError` if the binary cannot be built.
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationError
+from fmu_manipulation_toolbox.compiler import OperationCompileSources
+
+with FMU("module.fmu") as fmu:
+    try:
+        fmu.apply_operation(OperationCompileSources())
+    except OperationError as error:
+        print(f"Cannot compile: {error}")
+    else:
+        fmu.repack("module-compiled.fmu")
+```
+
+Additional compiler options, linker options and libraries (by name) are given to the operation; after a failure,
+`compilation_failed` tells whether the compiler or the linker failed (other options may help) or whether nothing
+could be compiled (no sources, no compiler):
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationError
+from fmu_manipulation_toolbox.compiler import OperationCompileSources
+
+operation = OperationCompileSources(compiler_options=["-DFOO=1"], linker_options=["-L/opt/lib"],
+                                    libraries=["foo"])
+with FMU("module.fmu") as fmu:
+    try:
+        fmu.apply_operation(operation)
+    except OperationError:
+        if operation.compilation_failed:
+            print("The compiler failed: see the log, and try other options.")
+        raise
+    fmu.repack("module-compiled.fmu")
+```
+
+`SourceCompiler` gives access to the steps, e.g. to know what would be built without compiling:
+
+```python
+from fmu_manipulation_toolbox.operations import FMU
+from fmu_manipulation_toolbox.compiler import SourceCompiler, Toolchain
+
+with FMU("module.fmu") as fmu:
+    md = fmu.model_description
+    compiler = SourceCompiler(fmu.tmp_directory, md.fmi_version)
+    print(SourceCompiler.host_platform(md.fmi_version))         # e.g. 'x86_64-linux'
+    for configuration in compiler.build_configurations(md):
+        print(configuration.model_identifier, compiler.binary_path(configuration.model_identifier))
+        for source in configuration.source_files:
+            print("   ", source.name)
+    print(Toolchain.find().family)                               # 'gcc', 'clang' or 'msvc'
+```
+
 ## Remoting Operations
 
 ```python
