@@ -134,6 +134,12 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## fmutool and the Python API
 
+- 🟢 **ADDED** compilation of the sources embedded in an FMU when the binary of the current platform is missing:
+  `fmutool -compile-sources`, the **Compile sources** button of `fmutool-gui`, and `OperationCompileSources` /
+  `SourceCompiler` (`fmu_manipulation_toolbox.compiler`) in the Python API. FMI 2.0 (`<SourceFiles>`) and FMI 3.0
+  (`sources/buildDescription.xml`), C and C++, with the C compiler of the platform (Visual Studio on Windows, `cc`
+  or `CC` elsewhere). The FMI headers are now part of the package (`resources/fmi/`). See
+  [Compile Sources](docs/user-guide/fmutool/cli-usage.md#compile-sources).
 - 🔵 **CHANGED** operations modify `modelDescription.xml` in place with ElementTree instead of
   re-generating it, so that everything an operation does not touch is kept as is. Fixes text and
   attribute values written unescaped or unescaped twice (which produced invalid XML, and made the
@@ -196,6 +202,9 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## Graphical User Interfaces
 
+- 🔵 **CHANGED** `fmutool-gui`: the operation buttons are laid out in a 4 × 4 grid, one line per kind of
+  operation, with the new **Compile sources** button above **Remove sources**; the **?** help icon is removed (the
+  documentation is reachable from `fmutoolbox`).
 - 🟢 **ADDED** `fmucontainer-gui` and `fmueditor`: the status bar shows the last log message (Info level and above)
   in the colour of its level; a click opens a log window with every message since the launch, a level filter, a
   search, **Save Logs…** and **Clear**. In `fmucontainer-gui`, the messages that were lost outside the progress

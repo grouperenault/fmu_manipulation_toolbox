@@ -161,6 +161,7 @@ nav:
   - API documentation:
       - Assembly: API/assembly.md
       - Checker: API/checker.md
+      - Compiler: API/compiler.md
       - Container: API/container.md
       - Model description: API/model_description.md
       - Operations: API/operations.md

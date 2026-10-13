@@ -21,11 +21,19 @@ The window is organized as a single grid:
 
 ### 1. Drop Zone / Loading Area (top-left)
 - **Drop zone**: click it, or drag & drop a `.fmu` file onto it, to load an FMU.
-- The loaded FMU name is shown next to it, together with the online **help** icon (opens the
-  documentation website).
+- The loaded FMU name is shown above the drop zone and the buttons.
 
 ### 2. Operation Buttons (grid, upper area)
-- One color-coded button per available operation (see [Button Color Code](#button-color-code)).
+- One color-coded button per available operation (see [Button Color Code](#button-color-code)), in a
+  grid of 4 × 4 buttons next to the drop zone, one line per kind of operation:
+
+| | | | |
+|---|---|---|---|
+| Check | Save description.xml | Save port names | Rename ports from CSV |
+| Trim Until | Remove Toplevel | Merge Toplevel | Compile sources |
+| Remove Regexp | Keep only Regexp | Remove all | Remove sources |
+| Add Win32 remoting | Add Win32 frontend | Add Win64 remoting | Add Win64 frontend |
+
 - Clicking a button immediately applies the corresponding operation to the loaded FMU (some
   buttons prompt for a value or a file first).
 
@@ -54,7 +62,7 @@ The interface uses an intuitive color code (matching the operation's effect):
 | Color | Action Type | Examples |
 |-------|-------------|----------|
 | 🔴 **Red** | Remove information | Remove Regexp, Keep only Regexp, Remove all, Remove sources |
-| 🟠 **Orange** | Modify `modelDescription.xml` | Rename ports from CSV, Remove Toplevel, Merge Toplevel, Trim Until |
+| 🟠 **Orange** | Modify the FMU | Rename ports from CSV, Remove Toplevel, Merge Toplevel, Trim Until, Compile sources |
 | 🟢 **Green** | Add components or check | Add Win32/Win64 remoting, Add Win32/Win64 frontend, Check |
 | 🟣 **Purple** | Extract and save | Save port names, Save description.xml, Save log as, Save modified FMU as |
 | 🔵 **Blue** | Filter scope or exit | Apply only on, Reload, Exit |
@@ -130,6 +138,21 @@ Controller.Gain
 1. Open **Apply only on:** and uncheck every causality except the one(s) you want to target
    (e.g. keep only `parameter` checked)
 2. Click **Remove all** (removes every remaining port matching the filter)
+
+#### 🟠 Compile Sources
+
+**Use Case:** The FMU embeds its C sources (`sources/` folder) but has no binary for your platform (e.g. a
+Windows-only FMU used on Linux or macOS)
+
+1. Click **Compile sources**
+2. Read the progress in the log area
+
+**Result:** The sources are compiled for the current platform and the binary is added to
+`binaries/<platform>/` of the in-memory FMU — remember to use **Save modified FMU as** afterwards. If the binary
+already exists, nothing is compiled. A C compiler is required, see
+[Compiling the Sources of an FMU](cli-usage.md#compile-sources) for the prerequisites and the limits.
+
+![Compile sources in the log area](fmutool-compile.png)
 
 #### 🟢 Add Binary Interface (Windows FMUs)
 

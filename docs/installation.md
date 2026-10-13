@@ -23,6 +23,17 @@ This guide walks you through installing **FMU Manipulation Toolbox** on your sys
   - macOS: Xcode Command Line Tools (with recent Clang)
 - **CMake 3.21 or higher**
 
+### Optional Dependencies (to compile the sources of an FMU)
+
+The **Compile sources** operation (`fmutool -compile-sources`) needs a C compiler for the current platform
+(CMake is not needed):
+
+- Windows: Visual Studio or its *Build Tools*, with the *Desktop development with C++* workload
+- Linux: `cc` (e.g. `sudo apt-get install build-essential`), or the compiler given by `CC` / `CXX`
+- macOS: Xcode Command Line Tools (`xcode-select --install`)
+
+See [Compile Sources](user-guide/fmutool/cli-usage.md#compile-sources).
+
 ## Method 1: Installation via PyPI (Recommended)
 
 This is the simplest and fastest method to install FMU Manipulation Toolbox.

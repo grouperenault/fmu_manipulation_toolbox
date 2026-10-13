@@ -201,6 +201,30 @@ def fmutool_check():
     return window.grab()
 
 
+@shot("fmutool-compile", "user-guide/fmutool/fmutool-compile.png")
+def fmutool_compile():
+    """`Compile sources` on the FMI 3.0 Reference FMU `BouncingBall` copied without its binaries."""
+    import zipfile
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import MainWindow
+    source = DATA / "compile" / "3.0" / "BouncingBall.fmu"
+    target = WORK / "BouncingBall.fmu"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(source) as zin, zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            if not item.filename.startswith("binaries/"):
+                zout.writestr(item, zin.read(item.filename))
+    window = offscreen(MainWindow, size=(1030, 860))
+    window.load(str(target))
+    settle()
+    compile_button = next(button for button in window.findChildren(QPushButton)
+                          if button.text() == "Compile sources")
+    compile_button.click()
+    settle()
+    window.log_widget.verticalScrollBar().setValue(window.log_widget.verticalScrollBar().maximum())
+    settle()
+    return window.grab()
+
+
 def fmueditor_window():
     from fmu_manipulation_toolbox.gui.fmueditor.__main__ import MainWindow
     work = copy_data("containers/VanDerPol/VanDerPol.fmu")

@@ -1,6 +1,6 @@
 # Plan: compile the sources of an FMU for the host platform
 
-**Created**: 13 October 2026 — **Status**: test suite ready, steps 0 to 3 done — **Roadmap**: not listed
+**Created**: 13 October 2026 — **Status**: done (13 October 2026); MSVC path to be checked on Windows — **Roadmap**: not listed
 
 Some FMUs embed their C sources (`sources/`) but no binary for the platform of the user (for example
 `tests/data/remoting/bouncing_ball-win32.fmu`: FMI 2.0, `win32` binary only). The goal is a Python class that
@@ -75,6 +75,12 @@ Taken on 13 October 2026:
   otherwise ignored with a warning (also when `compiler` is absent).
 - **D14 — `<Library>`**: linked by name (`-l<name>`, `<name>.lib` with MSVC); `version` and `external` ignored.
 - **D15 — MSVC runtime**: static (`/MT`), so that the DLL does not need the Visual C++ redistributable.
+- **D16 — Logs of the compilation** (taken on 13 October 2026, homogeneity with the other operations): one short
+  `INFO` line per step (`Compiling 'sources/model.c'.`, `Linking 'BouncingBall.dylib'.`), the full command line in
+  `DEBUG`. The compiler output of a step is kept and logged once the step ends: as `WARNING` if it succeeds, as
+  `ERROR` if it fails, nothing if it is silent; the temporary paths are shortened (`sources/model.c`) and the
+  banner lines of MSVC (name of the source, `Creating library …`) are dropped. This replaces the line-by-line
+  streaming of D9 (the progress is given by the `INFO` steps).
 
 ---
 
@@ -186,22 +192,47 @@ Commit message: `Compile the embedded sources of an FMU for the host platform`
 
 Commit message: `Add OperationCompileSources`
 
-### Step 4 — GUI button and CLI option
+### Step 4 — GUI button and CLI option — done
 
 - `gui/fmutool/__main__.py`: `("Compile sources", '-compile-sources', 'modify', OperationCompileSources)` right
   after `Remove sources` (D8, D9).
 - `help.py`: usage of `-compile-sources`; `cli/fmutool.py`: `-compile-sources` (`append_const`) (D4).
 - The whole test suite is green, `test_cli_compile_sources` included.
+- Done on 13 October 2026: 1840 passed; `tests/gui/test_gui.py` expects 16 buttons. D8 revised by the user: the
+  grid is 4 x 4 (`WIDTH = 4`), order chosen by the user:
+  `Check, Save description.xml, Save port names, Rename ports from CSV` /
+  `Trim Until, Remove Toplevel, Merge Toplevel, Compile sources` /
+  `Remove Regexp, Keep only Regexp, Remove all, Remove sources` /
+  `Add Win32 remoting, Add Win32 frontend, Add Win64 remoting, Add Win64 frontend`
+  (colours in blocks, `Compile sources` above `Remove sources`).
+  The `?` help button of FMU Tool is removed (duplicate of the launcher); the drop zone is aligned with the 4 lines
+  of buttons and the title spans the whole width. Help text says "available from version 2.0" (roadmap).
 
 Commit message: `Add a "Compile sources" button to FMU Tool and a -compile-sources option`
 
-### Step 5 — User documentation
+### Step 5 — User documentation — done
 
-- `docs/user-guide/fmutool/gui-usage.md` (button table, colour), `python-api.md` (`SourceCompiler`,
+- `docs/user-guide/fmutool/gui-usage.md` (button table, colour, new 4 x 4 grid; screenshot `fmutool-gui.png` to
+  regenerate with `tools/screenshots.py`), `python-api.md` (`SourceCompiler`,
   `OperationCompileSources`), `cli-usage.md` (`-compile-sources`), limits (D3 architecture, D7), prerequisites (C compiler per OS) in `installation.md`.
 - `CHANGELOG.md`.
 
+- Done on 13 October 2026: `gui-usage.md` (grid, colour table, *Compile Sources* section, no more help icon),
+  `cli-usage.md` (*Compile Sources*: example, prerequisites per OS, what is compiled, errors and exit code 5,
+  limits), `python-api.md` (*Compile the Sources*), `installation.md` (optional dependencies), new API page
+  `API/compiler.md` (in `mkdocs.yml`), `CHANGELOG.md` (fmutool and GUI sections). Screenshots `fmutool-gui.png`,
+  `fmutool-filter.png`, `fmutool-check.png` regenerated, `fmutool-compile.png` added (new shot in
+  `tools/screenshots.py`). `mkdocs build --strict` passes.
+
 Commit message: `Document the compilation of FMU sources`
+
+---
+
+## 7. Open point
+
+The MSVC path (`Toolchain._find_msvc()`, `cl` command lines, filtering of the MSVC banner lines of D16) is covered
+by unit tests on the command lines only: it was never run. To be checked on Windows (or by the CI on
+`windows-latest`, where `needs_compiler` tests run when Visual Studio is installed).
 
 ---
 
