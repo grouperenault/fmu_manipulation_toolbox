@@ -16,7 +16,7 @@ from fmu_manipulation_toolbox.gui.helper import LastDirectory
 from .model import _NodeTreeModel, TreeItemRoles
 from .sync import SelectionSynchronizer
 
-tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
+logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
 class NodeTreeWidget(QWidget):
@@ -75,7 +75,6 @@ class NodeTreeWidget(QWidget):
         self._tree.selectionModel().selectionChanged.connect(self.on_tree_selection_changed)
         # Restrict ConfigurationNode wiring (see _validate_wire)
         self._graph.scene.wire_validator = self._validate_wire
-        tree_logger.debug("NodeTreeWidget initialized")
 
         # ── Layout ──────────────────────────────────────────────────
         lay = QVBoxLayout(self)
@@ -158,7 +157,7 @@ class NodeTreeWidget(QWidget):
         old_name = container_parameters.name
         # Keep data model in sync with the visible name.
         container_parameters.name = fixed
-        tree_logger.debug(f"Container renamed: {fixed}")
+        logger.debug(f"Container renamed: {fixed}")
 
         # Keep the ConfigurationNode's port (if any) in sync with the new name.
         # It is GUI/graph-only: it has no TreeView row of its own to rename.
@@ -337,18 +336,10 @@ class NodeTreeWidget(QWidget):
                 idx = self._model.indexFromItem(node_to_select)
                 self._tree.setCurrentIndex(idx)
                 self._tree.scrollTo(idx, QAbstractItemView.ScrollHint.EnsureVisible)
-                tree_logger.debug(f"Tree item highlighted from scene (NodeItem: {node_to_select.text()})")
-            else:
-                if selected:
-                    # There are items but not NodeItems (likely a WireItem)
-                    tree_logger.debug(f"Scene selection is WireItem, tree selection cleared")
-                else:
-                    # No items selected in scene
-                    tree_logger.debug("Scene selection cleared")
 
         except Exception as e:
             try:
-                tree_logger.error(f"Error during scene selection sync: {e}")
+                logger.error(f"Error during scene selection sync: {e}")
             except (OSError, ValueError):
                 # stdio may be closed at interpreter shutdown; the error
                 # would otherwise mask the benign (RuntimeError) cause.
@@ -375,11 +366,10 @@ class NodeTreeWidget(QWidget):
 
             # Validate single selection (should always be ≤1 due to SingleSelection mode)
             if len(selected_rows) > 1:
-                tree_logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
+                logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
                 return
 
             if not selected_rows:
-                tree_logger.debug("Tree selection cleared")
                 return
 
             # Process the single selected item
@@ -391,7 +381,6 @@ class NodeTreeWidget(QWidget):
             # Check if container
             container_parameters = TreeItemRoles.get_container_params(item)
             if container_parameters is not None:
-                tree_logger.debug(f"Container selected in tree: {container_parameters.name}")
                 # Container selected: highlight immediate FMU child nodes
                 for r in range(item.rowCount()):
                     child = item.child(r, 0)
@@ -406,7 +395,6 @@ class NodeTreeWidget(QWidget):
             # Check if FMU node
             uid = TreeItemRoles.get_node_uid(item)
             if uid:
-                tree_logger.debug(f"FMU node selected in tree: {uid}")
                 try:
                     scene_nodes = self._graph.scene.nodes()
                 except RuntimeError:

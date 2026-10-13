@@ -15,7 +15,8 @@ from PySide6.QtWidgets import (
     QMenu, QWidgetAction, QMainWindow, QMessageBox
 )
 
-from fmu_manipulation_toolbox.gui.helper import Application, RunTask, UnsavedChangesWindowMixin, LastDirectory
+from fmu_manipulation_toolbox.gui.helper import (Application, RunTask, UnsavedChangesWindowMixin, LastDirectory,
+                                                 GuiLogHandler, LogStatusBar)
 
 from .graph import NodeGraphWidget, NodeItem
 from .tree import NodeTreePanel
@@ -23,7 +24,6 @@ from .assembly_io import AssemblyIOMixin
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
-tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
 
 
 class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
@@ -33,8 +33,10 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._dirty = False
         self._check_unsaved_changes = lambda: self._dirty  # Use the mixin
 
-        # Setup tree logger with stdout handler
-        self._setup_tree_logger()
+        # Verbose Mode sets the level and copies the logs on stdout.
+        self._stdout_handler = logging.StreamHandler(sys.stdout)
+        self._stdout_handler.setFormatter(logging.Formatter("%(levelname)-8s | %(message)s"))
+        logger.setLevel(logging.INFO)
 
         splitter = QSplitter()
         self._graph = NodeGraphWidget()
@@ -160,6 +162,9 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         central.setLayout(main_layout)
         self.setCentralWidget(central)
 
+        self._status_bar = LogStatusBar(GuiLogHandler.install())
+        self.setStatusBar(self._status_bar)
+
         self.setWindowTitle("FMU Container Builder")
         self.resize(1600, 900)
 
@@ -235,8 +240,10 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
     def closeEvent(self, event):
         """Ensure the MCP server is stopped before the window actually closes."""
         super().closeEvent(event)  # UnsavedChangesWindowMixin may ignore() to cancel
-        if event.isAccepted() and self._mcp_controller is not None:
-            self._mcp_controller.stop()
+        if event.isAccepted():
+            if self._mcp_controller is not None:
+                self._mcp_controller.stop()
+            logger.removeHandler(self._stdout_handler)
 
     def _on_node_replaced(self, node):
         """Refresh the detail panel after an in-place FMU replacement."""
@@ -245,23 +252,15 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._tree.update_node_item(node)
         self._mark_dirty()
 
-    @staticmethod
-    def _setup_tree_logger():
-        """Configure tree logger with stdout handler."""
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(logging.Formatter("%(levelname)-8s | %(message)s"))
-        tree_logger.addHandler(handler)
-        tree_logger.setLevel(logging.INFO)
-        tree_logger.propagate = False
-
-    @staticmethod
-    def _on_debug_mode_changed(state):
-        """Update tree logger level when debug checkbox changes."""
+    def _on_debug_mode_changed(self, state):
+        """Verbose Mode: DEBUG level and a copy of the logs on stdout."""
         if state:
-            tree_logger.setLevel(logging.DEBUG)
-            tree_logger.debug("Debug mode enabled - tree logger set to DEBUG level")
+            logger.setLevel(logging.DEBUG)
+            logger.addHandler(self._stdout_handler)
+            logger.debug("Verbose mode enabled")
         else:
-            tree_logger.setLevel(logging.INFO)
+            logger.removeHandler(self._stdout_handler)
+            logger.setLevel(logging.INFO)
 
     def _on_node_added_update_dir(self, node: NodeItem):
         """Track the directory of the last FMU added to the scene."""
@@ -278,8 +277,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             logger.info("Load cancelled")
             return
 
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=log_level)
+        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container")
         # Re-assert the container's own directory: loading may have updated
         # LastDirectory to the (extracted) FMUs' sub-directory instead.
         LastDirectory.update(input_path)
@@ -294,8 +292,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             logger.info("Import cancelled")
             return
 
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly", level=log_level)
+        RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly")
         # Re-assert the imported file's own directory: importing adds FMU nodes
         # that may live in a different (sub)directory, which would otherwise
         # overwrite LastDirectory via _on_node_added_update_dir.
@@ -310,8 +307,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             logger.info("Save cancelled")
             return
 
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON", level=log_level)
+        RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON")
 
     def _on_save_clicked(self):
         root_name = Path(self._tree.root.text()).with_suffix(".fmu").name
@@ -323,9 +319,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
         fmi_version = self._fmi_group.checkedId()
         datalog = self._datalog_checkbox.isChecked()
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.save_as_fmu, output_path, fmi_version, datalog,
-                parent=self, title="Saving as FMU", level=log_level)
+                parent=self, title="Saving as FMU")
 
 
 def main():

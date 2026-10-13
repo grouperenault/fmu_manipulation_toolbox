@@ -23,6 +23,7 @@ The interface is split into three main areas:
 | **Tree View** (top-right) | Hierarchical structure of containers and FMUs |
 | **Detail Panel** (bottom-right) | Properties of the selected node, wire, or container |
 | **Button Bar** (bottom) | Configuration, load/save, and export actions |
+| **Status Bar** (very bottom) | Last log message; click it to open the [log window](#log) |
 
 ## Node Graph
 
@@ -532,7 +533,8 @@ Click **Configuration** to open a popup menu with:
 ![Configuration menu](fmucontainer-configuration.png)
 
 - **Generate FMI-2 / FMI-3**: choose the target FMI version for the output container.
-- **Verbose Mode**: enable detailed logging and keep intermediate build artifacts.
+- **Verbose Mode**: enable detailed logging (`DEBUG` messages in the [log window](#log), and a copy of every log
+  message on the standard output of the terminal that launched the GUI) and keep intermediate build artifacts.
 - **Enable Datalog**: include a `datalog.txt` configuration in the generated FMU (useful for simulation trace export).
 - **AI Assistant On / Off**: start or stop the MCP server of the [AI Assistant](ai-assistant.md) (only when the
   `mcp` extra is installed).
@@ -548,12 +550,41 @@ Click **Configuration** to open a popup menu with:
 | **Exit** | Close the window (prompts if there are unsaved changes) |
 
 During **Load**, **Import**, **Export**, and **Save** operations, a progress dialog shows execution logs in real time.
+These messages also remain available in the [log window](#log).
 
 !!! tip "Relative FMU paths"
     When exporting with **Export as JSON**, the FMU paths written in the `fmu` and `link` blocks
     are automatically made relative to the directory where the JSON file is saved. This keeps the
     exported assembly portable as long as the FMU files stay in the same relative layout — see
     also the [FMU location](#importing-an-assembly-file) requirement when re-importing.
+
+## Log
+
+Every component of the Container Builder (graph, tree, build, import, AI Assistant) writes to a single log.
+
+### Status Bar
+
+The status bar, under the button bar, shows the last message of level **Info** or above, in the colour of its level
+(grey for information, yellow for warnings, red for errors). It stays until the next message. A message spanning
+several lines is shown by its first line followed by `…`.
+
+Click the status bar to open the log window.
+
+### Log Window
+
+The log window lists every message since the Container Builder was launched (the last 5000 ones). It is not modal:
+it can stay open next to the main window and receives new messages as they arrive.
+
+| Control | Description |
+|---|---|
+| **Level** (Debug / Info / Warning / Error) | Show only the messages of this level or above |
+| **Search…** | Show only the messages containing this text (case-insensitive) |
+| **Save Logs…** | Save the displayed messages in a text file |
+| **Clear** | Forget all messages (they are not shown again when the window is reopened) |
+| **Close** | Close the window; the log keeps being recorded |
+
+!!! tip "Debug messages"
+    `DEBUG` messages are only recorded while **Verbose Mode** is enabled (see [Configuration](#configuration)).
 
 ## Typical Workflow
 

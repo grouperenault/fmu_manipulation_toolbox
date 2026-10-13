@@ -192,6 +192,17 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   reference to an unknown element) raises `AssemblyError` with a clear message.
 - 🟠 **FIXED** `fmusplit` failed with `KeyError` on an FMI-3 variable without `causality` attribute.
 
+## Graphical User Interfaces
+
+- 🟢 **ADDED** `fmucontainer-gui` and `fmueditor`: the status bar shows the last log message (Info level and above)
+  in the colour of its level; a click opens a log window with every message since the launch, a level filter, a
+  search, **Save Logs…** and **Clear**. In `fmucontainer-gui`, the messages that were lost outside the progress
+  dialog are now visible there, among them the `[AI] …` change journal and the token of the AI Assistant. See the
+  [Container Builder GUI guide](docs/user-guide/fmucontainer/gui-usage.md#log).
+- 🔵 **CHANGED** `fmucontainer-gui`: **Verbose Mode** sets the level of the whole log (`DEBUG`) and copies it on the
+  standard output; without it, nothing is written on the standard output (the tree view and the AI Assistant used to
+  write their messages there in any case).
+
 # Version 1.9.4.2
 * ADDED: Container thread synchronization on macOS now uses a semaphore instead of a barrier
          (macOS does not implement POSIX `pthread_barrier`).

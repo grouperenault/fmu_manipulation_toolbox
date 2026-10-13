@@ -1,12 +1,13 @@
 import logging
 import os
 
+from collections import deque
 from collections.abc import Callable
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
-                               QHBoxLayout, QPushButton, QMessageBox, QTableView, QHeaderView)
+                               QHBoxLayout, QPushButton, QMessageBox, QTableView, QHeaderView, QComboBox, QLineEdit)
 from PySide6.QtGui import QDesktopServices, QIcon
-from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl, QRect
-from PySide6.QtGui import QPixmap, QPainter, QColor, QImage, QGuiApplication
+from PySide6.QtCore import Qt, Signal, QObject, QPoint, QDir, QUrl, QRect
+from PySide6.QtGui import QPixmap, QPainter, QColor, QImage, QGuiApplication, QTextCursor
 
 from pathlib import Path
 
@@ -350,98 +351,285 @@ class DropZoneWidget(QLabel):
         self.fmu_loaded.emit(self.fmu)
 
 
-class StatusBar(QStatusBar):
-    class StatusBarLogHandler(logging.Handler):
-        """Affiche les logs dans une QStatusBar avec une couleur par niveau."""
+def _level_color(levelno: int) -> str:
+    """Colour of a log level (levels in between use the colour of the level below)."""
+    for level, name in ((logging.CRITICAL, "CRITICAL"), (logging.ERROR, "ERROR"), (logging.WARNING, "WARNING"),
+                        (logging.INFO, "INFO")):
+        if levelno >= level:
+            return log_color[name]
+    return log_color["DEBUG"]
 
-        LOG_COLORS = {
-            logging.DEBUG: log_color["DEBUG"],
-            logging.INFO: log_color["INFO"],
-            logging.WARNING: log_color["WARNING"],
-            logging.ERROR: log_color["ERROR"],
-            logging.CRITICAL: log_color["CRITICAL"],
-        }
 
-        def __init__(self, status_bar: QStatusBar, level=logging.INFO):
-            super().__init__(level)
-            self._status_bar = status_bar
-            logger.addHandler(self)
-            logger.setLevel(level)
+def save_log_text(parent, text: str):
+    """Ask for a .txt file and write the given log text into it."""
+    filename = LastDirectory.get_save_file_name(
+        parent=parent,
+        caption="Save Logs",
+        filter="Text files (*.txt);;All files (*)",
+        default_name="logs.txt",
+    )
+    if not filename:
+        return
 
-        def emit(self, record: logging.LogRecord):
-            color = self.LOG_COLORS.get(record.levelno, log_color["INFO"])
-            self._status_bar.setStyleSheet(f"QStatusBar {{ color: {color}; }}")
-            self._status_bar.showMessage(self.format(record), 10000)
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(text)
+    except OSError as e:
+        QMessageBox.critical(parent, "Save Logs", f"Cannot save logs: {e}")
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._log_handler = StatusBar.StatusBarLogHandler(self)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        logger.removeHandler(self._log_handler)
-        self._log_handler.close()
+class GuiLogHandler(logging.Handler):
+    """The single GUI sink of the toolbox logger.
+
+    It keeps a bounded history of the records and broadcasts each one through the
+    ``record_emitted(levelno, text)`` Qt signal. It never touches a widget: records
+    logged from a worker thread (e.g. the MCP tools) reach the views through a
+    queued connection, on the Qt main thread. Create it on the Qt main thread.
+    """
+
+    HISTORY_SIZE = 5000
+
+    class _Emitter(QObject):
+        record_emitted = Signal(int, str)
+
+    _installed: "GuiLogHandler | None" = None
+
+    def __init__(self, history_size: int = HISTORY_SIZE):
+        super().__init__()
+        self.history: deque[tuple[int, str]] = deque(maxlen=history_size)
+        self._emitter = GuiLogHandler._Emitter()
+        self.record_emitted = self._emitter.record_emitted
+
+    def emit(self, record: logging.LogRecord):
+        try:
+            text = self.format(record)
+        except Exception:  # noqa: BLE001 - logging must never raise
+            self.handleError(record)
+            return
+        # Handler.handle() holds self.lock: history and signal stay in the same order.
+        self.history.append((record.levelno, text))
+        self.record_emitted.emit(record.levelno, text)
+
+    def connect_with_history(self, slot: Callable[[int, str], None]) -> list[tuple[int, str]]:
+        """Connect ``slot`` to the records and return the history it has not seen.
+
+        Done under the handler lock, so that no record is lost or duplicated
+        between the copy of the history and the connection.
+        """
+        with self.lock:
+            history = list(self.history)
+            self.record_emitted.connect(slot)
+        return history
+
+    def clear(self):
+        with self.lock:
+            self.history.clear()
+
+    @classmethod
+    def install(cls) -> "GuiLogHandler":
+        """Attach the application-wide handler to the toolbox logger (once)."""
+        if cls._installed is None:
+            cls._installed = cls()
+            logger.addHandler(cls._installed)
+        return cls._installed
+
+    @classmethod
+    def uninstall(cls):
+        if cls._installed is not None:
+            logger.removeHandler(cls._installed)
+            cls._installed.close()
+            cls._installed = None
 
 
 class LogWidget(QTextBrowser):
-    class LogHandler(logging.Handler):
-        LOG_COLOR = {
-            logging.DEBUG: QColor(log_color["DEBUG"]),
-            logging.INFO: QColor(log_color["INFO"]),
-            logging.WARNING: QColor(log_color["WARNING"]),
-            logging.ERROR: QColor(log_color["ERROR"]),
-            logging.CRITICAL: QColor(log_color["CRITICAL"]),
-        }
-        LOG_PREFIX = {
-            logging.DEBUG: "",
-            logging.INFO: "",
-            logging.WARNING: "WARNING: ",
-            logging.ERROR: "ERROR: ",
-            logging.CRITICAL: "CRITICAL: ",
-        }
+    """Coloured log view. It is fed through ``append_record``; see ``WidgetLogHandler``."""
 
-        def __init__(self, text_browser, level):
-            super().__init__(level)
-            self.text_browser: QTextBrowser = text_browser
-            logger.addHandler(self)
-            logger.setLevel(level)
+    LOG_PREFIX = {
+        logging.WARNING: "WARNING: ",
+        logging.ERROR: "ERROR: ",
+        logging.CRITICAL: "CRITICAL: ",
+    }
 
-        def emit(self, record) -> None:
-            self.text_browser.setTextColor(self.LOG_COLOR[record.levelno])
-            self.text_browser.insertPlainText(self.LOG_PREFIX[record.levelno])
-            self.text_browser.insertPlainText(self.format(record) + "\n")
-            self.text_browser.ensureCursorVisible()
-            # Keep the RunTask dialog responsive and repaint log lines immediately.
-            QApplication.processEvents()
-
-    def __init__(self, parent=None, level=logging.INFO, width=1200, height=500):
+    def __init__(self, parent=None, width=1200, height=500):
         super().__init__(parent)
 
         self.setMinimumWidth(width)
         self.setMinimumHeight(height)
         self.setSearchPaths([str(Path(__file__).parent.parent / "resources")])
-        self.log_handler = LogWidget.LogHandler(self, level)
 
     def loadResource(self, _, name):
         image_path = Path(__file__).parent.parent / "resources" / name.toString()
         return QPixmap(str(image_path))
 
-    def stop_logging(self):
-        logger.removeHandler(self.log_handler)
+    def append_record(self, levelno: int, text: str):
+        # Append at the end, wherever the user clicked in the text.
+        self.moveCursor(QTextCursor.MoveOperation.End)
+        self.setTextColor(QColor(_level_color(levelno)))
+        self.insertPlainText(self.LOG_PREFIX.get(levelno, "") + text + "\n")
+        self.ensureCursorVisible()
+
+
+class WidgetLogHandler(logging.Handler):
+    """Writes the toolbox logs directly into a ``LogWidget`` (main thread only).
+
+    Used where the log is displayed while a synchronous task runs on the main
+    thread (FMU Tool): each record is repainted immediately.
+    """
+
+    def __init__(self, widget: LogWidget, level=logging.NOTSET):
+        super().__init__(level)
+        self.widget = widget
+        logger.addHandler(self)
+
+    def emit(self, record: logging.LogRecord):
+        self.widget.append_record(record.levelno, self.format(record))
+        QApplication.processEvents()
+
+    def stop(self):
+        logger.removeHandler(self)
+        self.close()
+
+
+class LogStatusBar(QStatusBar):
+    """Shows the last record (INFO and above) of a ``GuiLogHandler``; a click opens the ``LogWindow``."""
+
+    clicked = Signal()
+
+    def __init__(self, handler: GuiLogHandler, parent=None, level=logging.INFO):
+        super().__init__(parent)
+        self._handler = handler
+        self._level = level
+        self._log_window: LogWindow | None = None
+
+        self._label = QLabel()
+        self._label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        self._label.setContentsMargins(6, 0, 6, 2)
+        self.addWidget(self._label, 1)
+        self.setSizeGripEnabled(False)
+        self.setToolTip("Click to show the log")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        handler.record_emitted.connect(self._on_record)
+        self.clicked.connect(self.show_log_window)
+
+    def text(self) -> str:
+        return self._label.text()
+
+    def _on_record(self, levelno: int, text: str):
+        if levelno < self._level:
+            return
+        lines = text.strip().splitlines() or [""]
+        self._label.setText(lines[0] + (" …" if len(lines) > 1 else ""))
+        self._label.setStyleSheet(f"color: {_level_color(levelno)};")
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+    def show_log_window(self) -> "LogWindow":
+        if self._log_window is None:
+            self._log_window = LogWindow(self._handler, parent=self.window())
+        self._log_window.show()
+        self._log_window.raise_()
+        self._log_window.activateWindow()
+        return self._log_window
+
+
+class LogWindow(QDialog):
+    """Non-modal window with the whole log of a ``GuiLogHandler``, a level filter and a search."""
+
+    LEVELS = (("Debug", logging.DEBUG), ("Info", logging.INFO), ("Warning", logging.WARNING),
+              ("Error", logging.ERROR))
+
+    def __init__(self, handler: GuiLogHandler, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Log")
+        self.setModal(False)
+        self._handler = handler
+        self._records: deque[tuple[int, str]] = deque(maxlen=handler.history.maxlen)
+
+        self.level_combo = QComboBox()
+        for name, level in self.LEVELS:
+            self.level_combo.addItem(name, level)
+        self.level_combo.setToolTip("Minimum level of the displayed records")
+        self.level_combo.currentIndexChanged.connect(self._refresh)
+
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Search…")
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.textChanged.connect(self._refresh)
+
+        filter_layout = QHBoxLayout()
+        filter_layout.addWidget(self.level_combo)
+        filter_layout.addWidget(self.search_edit, 1)
+
+        self.view = LogWidget(width=900, height=400)
+
+        self.save_button = QPushButton("Save Logs...")
+        self.save_button.setProperty("class", "info")
+        self.save_button.setMinimumWidth(150)
+        self.save_button.clicked.connect(lambda: save_log_text(self, self.view.toPlainText()))
+
+        self.clear_button = QPushButton("Clear")
+        self.clear_button.setProperty("class", "quit")
+        self.clear_button.setMinimumWidth(150)
+        self.clear_button.clicked.connect(self.clear)
+
+        self.close_button = QPushButton("Close")
+        self.close_button.setProperty("class", "quit")
+        self.close_button.setMinimumWidth(150)
+        self.close_button.clicked.connect(self.close)
+
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(self.save_button)
+        button_layout.addWidget(self.clear_button)
+        button_layout.addWidget(self.close_button)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(filter_layout)
+        layout.addWidget(self.view, 1)
+        layout.addLayout(button_layout)
+
+        self._records.extend(handler.connect_with_history(self._on_record))
+        self._refresh()
+
+    def _accepts(self, levelno: int, text: str) -> bool:
+        search = self.search_edit.text().lower()
+        return levelno >= self.level_combo.currentData() and search in text.lower()
+
+    def _on_record(self, levelno: int, text: str):
+        self._records.append((levelno, text))
+        if self._accepts(levelno, text):
+            self.view.append_record(levelno, text)
+
+    def _refresh(self):
+        self.view.clear()
+        for levelno, text in self._records:
+            if self._accepts(levelno, text):
+                self.view.append_record(levelno, text)
+
+    def clear(self):
+        """Forget the whole log, also for the next opening of the window."""
+        self._handler.clear()
+        self._records.clear()
+        self.view.clear()
 
 
 class RunTask(QDialog):
-    def __init__(self, task: Callable, *args, parent=None, title="Run command...",  level=logging.INFO, **kwargs):
+    """Runs a task on the main thread and shows the records it logs, through the shared ``GuiLogHandler``."""
+
+    def __init__(self, task: Callable, *args, parent=None, title="Run command...", **kwargs):
         super().__init__(parent)
 
         self.setWindowTitle(title)
-        self.text = LogWidget(height=300, level=level)
+        self.text = LogWidget(height=300)
 
         self.save_button = QPushButton("Save Logs...")
         self.save_button.setProperty("class", "info")
         self.save_button.setMinimumWidth(150)
         self.save_button.clicked.connect(self.save_logs)
-
-
 
         self.close_button = QPushButton("Close")
         self.close_button.setProperty("class", "quit")
@@ -460,6 +648,8 @@ class RunTask(QDialog):
 
         self.show()
 
+        log_handler = GuiLogHandler.install()
+        log_handler.record_emitted.connect(self._on_record)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         logger.debug(f"Starting {title}...")
         try:
@@ -469,24 +659,16 @@ class RunTask(QDialog):
             logger.critical(f"Unexpected error: {e}")
             logger.critical(f"Operation aborted.")
         QApplication.restoreOverrideCursor()
-        self.text.stop_logging()
+        log_handler.record_emitted.disconnect(self._on_record)
+
+    def _on_record(self, levelno: int, text: str):
+        self.text.append_record(levelno, text)
+        # The task blocks the main thread: repaint each record immediately.
+        QApplication.processEvents()
 
     def save_logs(self):
         """Open a file dialog to save the current log content as a .txt file."""
-        filename = LastDirectory.get_save_file_name(
-            parent=self,
-            caption="Save Logs",
-            filter="Text files (*.txt);;All files (*)",
-            default_name="logs.txt",
-        )
-        if not filename:
-            return
-
-        try:
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(self.text.toPlainText())
-        except OSError as e:
-            QMessageBox.critical(self, "Save Logs", f"Cannot save logs: {e}")
+        save_log_text(self, self.text.toPlainText())
 
 
 class UnsavedChangesWindowMixin:
