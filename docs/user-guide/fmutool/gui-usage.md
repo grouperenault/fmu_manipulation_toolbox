@@ -153,6 +153,8 @@ FMI 2.0 co-simulation FMUs).
 1. Click **Check**
 2. Read the result in the log area (compliant / not compliant, with XSD validation details)
 
+![Result of Check in the log area](fmutool-check.png)
+
 ### Step 4: Restrict the Scope of an Operation
 
 Use **Apply only on:** to limit *any* subsequent operation to a subset of causalities:
@@ -163,6 +165,8 @@ Use **Apply only on:** to limit *any* subsequent operation to a subset of causal
 
 The button label reflects the current selection (e.g. `parameter, input`), or **All causalities**
 when nothing is excluded.
+
+![Apply only on: inputs and parameters](fmutool-filter.png)
 
 ### Step 5: Save Modified FMU
 

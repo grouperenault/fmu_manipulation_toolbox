@@ -61,8 +61,10 @@ protocol itself.
 ## Starting the server from the GUI
 
 1. Launch the Container Builder (`fmucontainer-gui`).
-2. Open the **Configuration** menu (top-left button).
+2. Open the **Configuration** menu (bottom-left button).
 3. Select **AI Assistant On**.
+
+![Configuration menu with AI Assistant On / Off](fmucontainer-configuration.png)
 
 The server listens locally using the **Streamable HTTP** transport on:
 

@@ -69,6 +69,8 @@ Each variable is tagged with a color-coded icon:
 - **Edit a description**: double-click on the **Description** cell.
 - Modified values are highlighted in **orange** to indicate unsaved changes.
 
+![A modified description, in orange, with the variables filtered on "m"](fmueditor-edit.png)
+
 ### Sorting and Filtering
 
 - **Sort**: click any column header to sort ascending/descending.

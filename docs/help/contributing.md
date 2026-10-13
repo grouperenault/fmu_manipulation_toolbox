@@ -125,6 +125,20 @@ the repository root, it prints a Markdown table:
 python tests/benchmarks/bench_manipulation.py [--variables 1000 10000 100000] [--repeat 3]
 ```
 
+## Screenshots of the documentation
+
+The screenshots of the graphical interfaces in the user guide are made by `tools/screenshots.py`, from the FMUs
+of `tests/data`: after a change of an interface, make them again rather than by hand, so that they all look
+alike. The windows are rendered without being shown, with the native style of the platform (the published ones
+are made on macOS); PySide6 is needed, and the `mcp` extra for the *AI Assistant* entries of the Configuration
+menu:
+
+```bash
+python tools/screenshots.py                 # every screenshot, written into docs/
+python tools/screenshots.py --list          # their names and files
+python tools/screenshots.py fmutool canvas-menu
+```
+
 ## Packaging and releases
 
 The package is described by `pyproject.toml` (built with setuptools); `MANIFEST.in` selects the content of the

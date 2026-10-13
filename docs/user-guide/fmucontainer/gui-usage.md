@@ -43,6 +43,8 @@ The FMU detail panel of an instance shows the FMU it is an instance of. Wires, s
 belong to one node, and a saved JSON keeps the file of each instance (see
 [Embedding the same FMU several times](container.md#embedding-the-same-fmu-several-times)).
 
+![Two instances of each bouncing ball FMU](fmucontainer-instances.png)
+
 !!! note "Instances and automatic rules"
     The instances of an FMU are never linked by `auto_link`: wire them explicitly. When `auto_input` or
     `auto_output` exposes a port whose name is already used, it is exposed as `<fmu>.<port>`
@@ -94,6 +96,8 @@ and route wires around nodes for better readability.
 You can add as many waypoints as needed. The wire becomes a polyline passing through each
 waypoint in order.
 
+![A selected wire with a waypoint](fmucontainer-waypoints.png)
+
 !!! tip "Visibility"
     Waypoint handles are only visible when the wire is **selected**. Click on a wire to
     select it and reveal its handles.
@@ -111,6 +115,8 @@ waypoint in order.
 | **Delete** | Select items, then press ++delete++ or ++backspace++ |
 
 ### Context Menu (Right-click on Canvas)
+
+![Context menu of a node](fmucontainer-canvas-menu.png)
 
 | Action | Description |
 |---|---|
@@ -137,6 +143,8 @@ no longer exists in the new FMU, it appears in **red** in the detail panels — 
 review and correct invalid references. The affected wire itself is also drawn in **red** on the
 canvas, so broken connections are immediately visible without having to open every wire's details.
 
+![A wire to a port that no longer exists, in red on the canvas and in the Wire Details](fmucontainer-invalid-wire.png)
+
 !!! tip "Typical use case"
     Use this feature when a new version of an FMU is available: replace the file and instantly
     see which connections or start values need updating.
@@ -162,6 +170,8 @@ After renaming a container, the **Container Details** panel is refreshed immedia
 
 ### Context Menu (Right-click on Tree View)
 
+![Context menu of the tree view](fmucontainer-tree-menu.png)
+
 | Action | Description |
 |---|---|
 | **Add FMU…** | Add FMU nodes under the selected container |
@@ -179,6 +189,8 @@ When an FMU node is selected, the detail panel shows:
 
 - **FMU name**, generator tool, and step size
 - Three tabs: **Start Values**, **Input Ports**, and **Output Ports**
+
+![FMU details: a start value set on the parameter mu](fmucontainer-fmu-details.png)
 
 #### Start Values tab
 
@@ -457,6 +469,8 @@ while the assistant was open, its staged link is not added (a message tells how 
 
 When a container is selected in the tree view, the detail panel shows its configuration parameters:
 
+![Container details of the root container](fmucontainer-container-details.png)
+
 | Parameter | Type | Description |
 |---|---|---|
 | `step_size` | text | Fixed time step (in seconds) for the container's internal solver |
@@ -515,9 +529,13 @@ own row in the tree view — it exists purely to help you keep track of which FM
 
 Click **Configuration** to open a popup menu with:
 
+![Configuration menu](fmucontainer-configuration.png)
+
 - **Generate FMI-2 / FMI-3**: choose the target FMI version for the output container.
 - **Verbose Mode**: enable detailed logging and keep intermediate build artifacts.
 - **Enable Datalog**: include a `datalog.txt` configuration in the generated FMU (useful for simulation trace export).
+- **AI Assistant On / Off**: start or stop the MCP server of the [AI Assistant](ai-assistant.md) (only when the
+  `mcp` extra is installed).
 
 ### Actions
 
