@@ -124,7 +124,8 @@ class Toolchain:
     def object_suffix(self) -> str:
         return ".obj" if self.family == "msvc" else ".o"
 
-    def compile_command(self, source_file: Path, object_file: Path, cxx: bool, include_directories: list[Path],
+    def compile_command(self, source_file: Path | str, object_file: Path, cxx: bool,
+                        include_directories: list[Path | str],
                         definitions: dict[str, str | None], options: list[str]) -> list[str]:
         """Command line compiling `source_file` into `object_file`."""
         compiler = self.cxx_compiler if cxx else self.c_compiler
@@ -360,14 +361,17 @@ class SourceCompiler:
                        library: Path) -> list[list[str]]:
         """Command lines building `configuration` into `library`: one compilation per source, then the link.
 
-        Object files are written in `build_directory`.
+        The commands run in the directory of the extracted FMU: its sources and include directories are given
+        relative to it, with `/` separators (accepted by every compiler), so that the compiler messages name
+        `sources/model.c` on every platform. Object files are written in `build_directory`.
         """
         commands = []
         object_files = []
         has_cxx = False
         for source_file_set in configuration.source_file_sets:
-            include_directories = ([self.sources_directory] + source_file_set.include_directories +
-                                   [FMI_HEADERS_DIRECTORY])
+            include_directories = [self._display(directory) for directory in
+                                   [self.sources_directory] + source_file_set.include_directories] + \
+                                  [str(FMI_HEADERS_DIRECTORY)]
             definitions = dict(source_file_set.definitions)
             # Sources written for static linking prefix the FMI functions: a shared library needs plain names.
             definitions.setdefault("DISABLE_PREFIX", None)
@@ -380,8 +384,8 @@ class SourceCompiler:
                 has_cxx |= cxx
                 object_file = build_directory / f"{len(object_files)}_{source_file.stem}{toolchain.object_suffix}"
                 object_files.append(object_file)
-                commands.append(toolchain.compile_command(source_file, object_file, cxx, include_directories,
-                                                          definitions, options))
+                commands.append(toolchain.compile_command(self._display(source_file), object_file, cxx,
+                                                          include_directories, definitions, options))
 
         commands.append(toolchain.link_command(object_files, library, has_cxx, configuration.libraries))
         return commands
@@ -440,12 +444,12 @@ class SourceCompiler:
         """Run `command`. Its output is logged as warnings on success, as errors on failure."""
         logger.debug(" ".join(shlex.quote(argument) for argument in command))
         try:
-            process = subprocess.run(command, cwd=build_directory, env=toolchain.environment, stdout=subprocess.PIPE,
-                                     stderr=subprocess.STDOUT, text=True, errors="replace")
+            process = subprocess.run(command, cwd=self.fmu_directory, env=toolchain.environment,
+                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
         except OSError as error:
             raise OperationError(f"Cannot run '{command[0]}': {error.strerror}.") from None
 
-        # Shorten the temporary paths: `sources/model.c` rather than `/tmp/tmpXXXX/sources/model.c`.
+        # Shorten the temporary paths left (object files, library): `0_model.o` rather than `/tmp/tmpXXXX/0_model.o`.
         prefixes = [f"{directory}{separator}" for directory in (self.fmu_directory, build_directory)
                     for separator in {os.sep, "/"}]
         level = logging.WARNING if process.returncode == 0 else logging.ERROR

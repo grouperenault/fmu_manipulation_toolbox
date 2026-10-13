@@ -163,13 +163,14 @@ def test_gcc_commands_fmi3(data_dir, tmp_path, monkeypatch):
     commands, sources = _commands(data_dir / "compile" / "3.0" / "BouncingBall.fmu", GCC, tmp_path)
     *compilations, link = commands
 
-    assert [command[-3] for command in compilations] == [str(sources / name) for name in
+    # Relative to the extracted FMU, where the commands run: the compiler messages name `sources/model.c`.
+    assert [command[-3] for command in compilations] == [f"sources/{name}" for name in
                                                          ("fmi3Functions.c", "model.c", "cosimulation.c")]
     for command in compilations:
         assert command[:2] == ["gcc", "-c"]
         assert {"-DFMI_VERSION=3", "-DDISABLE_PREFIX", "-DFMI3_OVERRIDE_FUNCTION_PREFIX", "-fPIC"} <= set(command)
         includes = [argument for argument in command if argument.startswith("-I")]
-        assert includes == [f"-I{sources}", f"-I{compiler.FMI_HEADERS_DIRECTORY}"]
+        assert includes == ["-Isources", f"-I{compiler.FMI_HEADERS_DIRECTORY}"]
     assert link[:2] == ["gcc", "-shared"]
     assert link[-1] == "-lm"
 
@@ -190,7 +191,8 @@ def test_msvc_commands(data_dir, tmp_path):
     commands, sources = _commands(data_dir / "compile" / "3.0" / "BouncingBall.fmu", MSVC, tmp_path)
     *compilations, link = commands
     for command in compilations:
-        assert {"/c", "/MT", "/bigobj", "/TC", "/DFMI_VERSION=3", "/DDISABLE_PREFIX", f"/I{sources}"} <= set(command)
+        assert {"/c", "/MT", "/bigobj", "/TC", "/DFMI_VERSION=3", "/DDISABLE_PREFIX", "/Isources"} <= set(command)
+        assert "sources/" in command[-2]
         assert command[-1].startswith("/Fo") and command[-1].endswith(".obj")
     assert {"/LD", "/MT", f"/Fe{tmp_path / 'lib'}"} <= set(link)
     assert "/link" not in link
