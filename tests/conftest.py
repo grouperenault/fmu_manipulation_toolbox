@@ -135,12 +135,27 @@ def _has_remoting_binaries() -> bool:
     return all((res / rel).is_file() for rel in required)
 
 
+def _has_c_compiler() -> bool:
+    """True when a C compiler for the host platform can be found.
+
+    Mirrors the discovery of `fmu_manipulation_toolbox.compiler` (decision D6 of
+    `docs/local/compile_sources.md`): MSVC through `vswhere.exe` or `cl.exe` on
+    Windows, `$CC` (default `cc`) elsewhere.
+    """
+    if sys.platform == "win32":
+        program_files = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")
+        vswhere = Path(program_files) / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
+        return vswhere.is_file() or shutil.which("cl") is not None
+    return shutil.which(os.environ.get("CC", "cc")) is not None
+
+
 def pytest_collection_modifyitems(config, items):
     """Attach explicit skips for markers whose prerequisites are unavailable."""
     is_win32 = sys.platform == "win32"
     has_fmpy = _has_fmpy()
     has_container = _has_container_binary()
     has_remoting = _has_remoting_binaries()
+    has_compiler = _has_c_compiler()
 
     skip_win = pytest.mark.skip(reason="windows_only: runs only on win32")
     skip_fmpy = pytest.mark.skip(reason="needs_fmpy: the `fmpy` package is not installed")
@@ -148,6 +163,7 @@ def pytest_collection_modifyitems(config, items):
         reason="needs_container: the compiled container binary is not available in resources/")
     skip_remoting = pytest.mark.skip(
         reason="needs_remoting: the compiled remoting binaries are not available in resources/")
+    skip_compiler = pytest.mark.skip(reason="needs_compiler: no C compiler found for the host platform")
 
     for item in items:
         if "windows_only" in item.keywords and not is_win32:
@@ -158,5 +174,7 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_container)
         if "needs_remoting" in item.keywords and not has_remoting:
             item.add_marker(skip_remoting)
+        if "needs_compiler" in item.keywords and not has_compiler:
+            item.add_marker(skip_compiler)
 
 

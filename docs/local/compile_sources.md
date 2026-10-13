@@ -1,6 +1,6 @@
 # Plan: compile the sources of an FMU for the host platform
 
-**Created**: 13 October 2026 — **Status**: decisions taken, not started — **Roadmap**: not listed
+**Created**: 13 October 2026 — **Status**: decisions taken, test suite ready, implementation not started — **Roadmap**: not listed
 
 Some FMUs embed their C sources (`sources/`) but no binary for the platform of the user (for example
 `tests/data/remoting/bouncing_ball-win32.fmu`: FMI 2.0, `win32` binary only). The goal is a Python class that
@@ -21,7 +21,7 @@ from a new button in the `fmutool` GUI.
 | Sources list | FMI 2.0: `<SourceFiles><File name=…/>` in each interface (optional); FMI 3.0: `sources/buildDescription.xml` (`BuildConfiguration modelIdentifier`, `SourceFileSet` with `language`, `compiler`, `compilerOptions`, `SourceFile`, `PreprocessorDefinition`, `IncludeDirectory`) |
 | Platform names | `container/builder.py:978` | FMI 2.0: `win32`, `win64`, `linux64`, `darwin64`; FMI 3.0: `x86_64-windows`, `x86-windows`, `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`, `aarch64-darwin` |
 | FMI headers | `fmi/*.h` at the repository root | Not packaged; `resources/fmi-2.0` and `resources/fmi-3.0` only hold the XSD |
-| Test FMUs with sources | `tests/data/remoting/bouncing_ball-win32.fmu` (FMI 2.0, `all.c`), `tests/data/array/StateSpace.fmu` and `tests/data/ls-bus/*.fmu` (FMI 3.0, `buildDescription.xml`) | |
+| Test FMUs with sources | `tests/data/compile/{2.0,3.0}/BouncingBall.fmu` (Reference FMUs v0.0.41, unmodified) | Added for this plan, see §6 |
 
 ---
 
@@ -33,7 +33,8 @@ from a new button in the `fmutool` GUI.
    nor CMake).
 3. If the binary of the host platform **already exists, nothing is done** (informative log message).
 4. A new button in the `fmutool` GUI; the compiler output is shown in the log widget.
-5. Clear errors: no `sources/`, no compiler found, compilation failure (with the compiler output).
+5. Clear errors (`OperationError`): no `sources/`, no sources list, no compiler found, compilation failure (with
+   the compiler output in the log).
 
 ---
 
@@ -43,19 +44,28 @@ Taken on 13 October 2026:
 
 - **D1 — Backend**: own implementation (direct compiler call through `subprocess`), no fmpy, no CMake.
 - **D2 — Target**: host platform only.
-- **D3 — Existing binary**: do nothing, log an informative message.
-- **D4 — Other integrations**: CLI option `-compile-sources` only. No MCP tool. No automated test was requested:
-  the steps below only keep the existing test suite green (to be revisited if tests are wanted).
+- **D3 — Existing binary**: do nothing, log an informative message. The check is the presence of the file only:
+  a binary of another architecture (e.g. the `darwin64` binary of the FMI 2.0 Reference FMU is x86_64 only and
+  does not load on Apple Silicon) is kept; this limit is documented.
+- **D4 — Other integrations**: CLI option `-compile-sources`. No MCP tool. Automated tests based on the
+  Reference FMUs (§6).
 - **D5 — FMI headers**: move `fmi/` (repository root) to `fmu_manipulation_toolbox/resources/fmi/`, declare the
   headers in `package-data`, update `cmake/fmutool.cmake:114` and `container/CMakeLists.txt:11` (and the comment
   of `MANIFEST.in`). This directory is appended to the include path, after `sources/` and the include directories
   of the build description.
 - **D6 — Compiler on Windows**: MSVC discovered with `vswhere.exe` + `vcvarsall.bat` (environment captured once),
   fallback on `cl.exe` from `PATH`. On Linux/macOS: `$CC` if set, else `cc`.
-- **D7 — Missing sources list**: compile every `*.c` file at the top level of `sources/`, with a warning.
+- **D7 — Missing sources list** (FMI 2.0 without `<SourceFiles>`, FMI 3.0 without `buildDescription.xml`):
+  `OperationError`, no guess. (Compiling every `*.c` was rejected: it fails on both Reference FMUs — FMI 2.0
+  `all.c` includes the other `.c` files, FMI 3.0 needs `FMI_VERSION` from the build description.)
 - **D8 — GUI button**: `Compile sources`, colour class `modify`, inserted right after `Remove sources` (the
   following buttons shift; a 4th row appears).
 - **D9 — GUI responsiveness**: synchronous, as the other operations; the compiler output is streamed to the log.
+- **D10 — Function prefix**: sources written for static linking prefix the FMI functions with the model
+  identifier (the Reference FMUs do it unless `DISABLE_PREFIX` is defined), which gives an unusable shared
+  library. Always define `DISABLE_PREFIX`, plus `FMI3_OVERRIDE_FUNCTION_PREFIX` for FMI 3.0 (mechanism of the
+  standard headers; the FMI 2.0 headers have none). Checked on both Reference FMUs.
+- **D11 — Errors**: every error is an `OperationError` (no dedicated exception class).
 
 ---
 
@@ -77,7 +87,7 @@ class SourceCompiler:
     def build_configurations(self, model_description) -> list[BuildConfiguration]
         # FMI 2.0: one per distinct modelIdentifier of the interfaces (<SourceFiles>)
         # FMI 3.0: parsed from sources/buildDescription.xml
-    def compile(self, configuration) -> Path             # raises CompilationError with the compiler output
+    def compile(self, configuration) -> Path             # raises OperationError; compiler output in the log
 
 
 class BuildConfiguration:     # dataclass
@@ -85,9 +95,6 @@ class BuildConfiguration:     # dataclass
     source_files: list[Path]
     include_directories: list[Path]
     definitions: dict[str, str | None]
-
-
-class CompilationError(Exception): ...
 
 
 class OperationCompileSources(OperationAbstract):
@@ -98,6 +105,7 @@ class OperationCompileSources(OperationAbstract):
 Compiler command lines (built in one place, logged at `INFO` before execution):
 
 - Linux: `cc -shared -fPIC -O2 -fvisibility=hidden -I<inc>… -D<def>… <sources> -o <id>.so` (+ `-lm`).
+- Definitions of D10 (`DISABLE_PREFIX`, `FMI3_OVERRIDE_FUNCTION_PREFIX`) are added to those of the build description.
 - macOS: `cc -dynamiclib -O2 -I<inc>… -D<def>… <sources> -o <id>.dylib` (host architecture by default).
 - Windows (MSVC): `cl /nologo /LD /O2 /I<inc>… /D<def>… <sources> /Fe<id>.dll`, object files in a temporary
   directory.
@@ -119,13 +127,14 @@ Commit message: `Move the FMI headers into the package resources`
 
 ### Step 1 — `SourceCompiler` and build-description parsing
 
-- `compiler.py`: `BuildConfiguration`, `CompilationError`, platform helpers, FMI 2.0 / FMI 3.0 parsing, D7.
+- `compiler.py`: `BuildConfiguration`, platform helpers, FMI 2.0 / FMI 3.0 parsing, D7.
+- Remove the `importorskip` of `tests/unit/test_compiler.py`: these tests must pass.
 
 Commit message: `Add SourceCompiler to read the build description of an FMU`
 
 ### Step 2 — Compilation
 
-- Compiler discovery (D6), command lines, temporary build directory, output forwarding, `CompilationError`.
+- Compiler discovery (D6), command lines, D10 definitions, temporary build directory, output forwarding.
 - Include path: `sources/`, build-description include directories, then `resources/fmi/` (D5).
 - Manual check: `bouncing_ball-win32.fmu` (FMI 2.0) and an FMI 3.0 FMU whose host binary was removed.
 
@@ -134,7 +143,8 @@ Commit message: `Compile the embedded sources of an FMU for the host platform`
 ### Step 3 — `OperationCompileSources`
 
 - Operation with D3 behaviour, summary in the log; `Summary` operation unchanged.
-- Manual check through `FMU.apply_operation()` + `repack()`, result loaded by fmpy.
+- Remove the `importorskip` / `skip` of `tests/integration/test_compile_sources.py`: every test but
+  `test_cli_compile_sources` must pass (it needs step 4).
 
 Commit message: `Add OperationCompileSources`
 
@@ -143,14 +153,35 @@ Commit message: `Add OperationCompileSources`
 - `gui/fmutool/__main__.py`: `("Compile sources", '-compile-sources', 'modify', OperationCompileSources)` right
   after `Remove sources` (D8, D9).
 - `help.py`: usage of `-compile-sources`; `cli/fmutool.py`: `-compile-sources` (`append_const`) (D4).
-- Existing test suite (`pytest`) still green.
+- The whole test suite is green, `test_cli_compile_sources` included.
 
 Commit message: `Add a "Compile sources" button to FMU Tool and a -compile-sources option`
 
 ### Step 5 — User documentation
 
 - `docs/user-guide/fmutool/gui-usage.md` (button table, colour), `python-api.md` (`SourceCompiler`,
-  `OperationCompileSources`), `cli-usage.md` (`-compile-sources`), prerequisites (C compiler per OS) in `installation.md`.
+  `OperationCompileSources`), `cli-usage.md` (`-compile-sources`), limits (D3 architecture, D7), prerequisites (C compiler per OS) in `installation.md`.
 - `CHANGELOG.md`.
 
 Commit message: `Document the compilation of FMU sources`
+
+---
+
+## 6. Test suite (done on 13 October 2026, before the implementation)
+
+Written against the API of §4; validated with a throw-away POSIX prototype (23 tests pass on macOS arm64,
+`test_cli_compile_sources` fails until step 4). Until `compiler.py` exists, both modules are skipped and the suite
+stays green (1807 passed).
+
+| File | Content |
+|---|---|
+| `tests/data/compile/` | `2.0/BouncingBall.fmu`, `3.0/BouncingBall.fmu` (Reference FMUs v0.0.41, unmodified), `LICENSE.txt`, `README.md`, `REF-BouncingBall.csv` (`time`, `h`, `v` of the FMI 3.0 original binary, `stop_time=3`, `output_interval=0.01`) |
+| `tests/_helpers/archive.py` | `rewrite_fmu()` (copy an FMU without some entries / with replaced entries), `read_entry()` |
+| `tests/conftest.py`, `tests/pytest.ini` | marker `needs_compiler` (MSVC through `vswhere.exe` or `cl` on Windows, `$CC`/`cc` elsewhere) |
+| `tests/unit/test_compiler.py` | `host_platform()` (patching `platform.system()` / `platform.machine()`), `library_suffix()`, `build_configurations()` for FMI 2.0 and 3.0, D7 errors |
+| `tests/integration/test_compile_sources.py` | compilation without `binaries/` (FMI 2.0, 3.0), simulation compared with the reference (`slow`, `needs_fmpy`), compilation failure (compiler output in the log, no binary left), D3 (no compiler needed), no `sources/`, CLI `-compile-sources` |
+
+The implementation must call `platform.system()` / `platform.machine()` through the `platform` module (not
+`from platform import …`) for the unit tests to patch them.
+
+Commit message: `Add the test suite of the compilation of FMU sources`
