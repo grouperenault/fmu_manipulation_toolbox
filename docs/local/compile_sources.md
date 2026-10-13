@@ -1,6 +1,6 @@
 # Plan: compile the sources of an FMU for the host platform
 
-**Created**: 13 October 2026 — **Status**: test suite ready, step 0 done — **Roadmap**: not listed
+**Created**: 13 October 2026 — **Status**: test suite ready, steps 0 and 1 done — **Roadmap**: not listed
 
 Some FMUs embed their C sources (`sources/`) but no binary for the platform of the user (for example
 `tests/data/remoting/bouncing_ball-win32.fmu`: FMI 2.0, `win32` binary only). The goal is a Python class that
@@ -66,6 +66,14 @@ Taken on 13 October 2026:
   library. Always define `DISABLE_PREFIX`, plus `FMI3_OVERRIDE_FUNCTION_PREFIX` for FMI 3.0 (mechanism of the
   standard headers; the FMI 2.0 headers have none). Checked on both Reference FMUs.
 - **D11 — Errors**: every error is an `OperationError` (no dedicated exception class).
+- **D12 — C++** (taken on 13 October 2026): supported. A source is C++ when its `SourceFileSet` has a `language`
+  starting with `C++`, or (no `language`) when its suffix is `.cpp`, `.cc`, `.cxx` or `.c++`. C++ sources are
+  compiled with `$CXX` (default `c++`) on Linux/macOS, `cl /TP` on Windows; the link uses the C++ compiler as soon as
+  one source is C++.
+- **D13 — `compilerOptions`**: applied (split as a shell command line) only when the `compiler` attribute of the
+  `SourceFileSet` matches the compiler used (`gcc`, `clang`, `cl`, compared with the name of the executable);
+  otherwise ignored with a warning (also when `compiler` is absent).
+- **D14 — `<Library>`**: linked by name (`-l<name>`, `<name>.lib` with MSVC); `version` and `external` ignored.
 
 ---
 
@@ -127,16 +135,27 @@ Compilation happens in a temporary build directory; only the final library is co
 
 Commit message: `Move the FMI headers into the package resources`
 
-### Step 1 — `SourceCompiler` and build-description parsing
+### Step 1 — `SourceCompiler` and build-description parsing — done
 
 - `compiler.py`: `BuildConfiguration`, platform helpers, FMI 2.0 / FMI 3.0 parsing, D7.
 - Remove the `importorskip` of `tests/unit/test_compiler.py`: these tests must pass.
+- Done on 13 October 2026. Rules implemented beyond §4 (and tested):
+  - FMI 3.0: a `BuildConfiguration` whose `platform` is the host platform wins over one without `platform`;
+    those of other platforms are ignored; error if none is left.
+  - FMI 3.0: `PreprocessorDefinition optional="true"` is not set.
+  - FMI 2.0: the files of the interfaces sharing a model identifier are merged (no duplicate).
+  - Error if a listed source file does not exist; FMI 2.0 has no name for Linux/Windows on ARM (error).
+  - Not handled yet: `SourceFileSet` `language` / `compiler` / `compilerOptions` and `<Library>` (step 2, D12 to
+    D14). `BuildConfiguration` gets one entry per `SourceFileSet` (sources, language, compiler, options,
+    definitions, include directories) and a list of libraries; `source_files`, `definitions` and
+    `include_directories` stay available (union of the sets) for the existing tests.
 
 Commit message: `Add SourceCompiler to read the build description of an FMU`
 
 ### Step 2 — Compilation
 
 - Compiler discovery (D6), command lines, D10 definitions, temporary build directory, output forwarding.
+- C++ (D12), `compilerOptions` (D13), `<Library>` (D14), with unit tests on the generated command lines.
 - Include path: `sources/`, build-description include directories, then `resources/fmi/` (D5).
 - Manual check: `bouncing_ball-win32.fmu` (FMI 2.0) and an FMI 3.0 FMU whose host binary was removed.
 

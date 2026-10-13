@@ -13,10 +13,8 @@ import pytest
 
 from _helpers.archive import rewrite_fmu
 
-# Remove once `fmu_manipulation_toolbox.compiler` is implemented (docs/local/compile_sources.md, step 1).
-compiler = pytest.importorskip("fmu_manipulation_toolbox.compiler")
-
-from fmu_manipulation_toolbox.operations import FMU, OperationError  # noqa: E402
+from fmu_manipulation_toolbox import compiler
+from fmu_manipulation_toolbox.operations import FMU, OperationError
 
 pytestmark = [pytest.mark.unit]
 
@@ -98,4 +96,46 @@ def test_no_build_description_fmi3(data_dir, tmp_path):
     fmu_filename = rewrite_fmu(data_dir / "compile" / "3.0" / "BouncingBall.fmu", tmp_path / "BouncingBall.fmu",
                                drop=("sources/buildDescription.xml",))
     with pytest.raises(OperationError):
+        _configurations(fmu_filename)
+
+
+@pytest.mark.fmi3
+def test_build_configuration_of_the_host_platform(data_dir, tmp_path):
+    """A configuration dedicated to the host platform wins over a generic one; other platforms are ignored;
+    optional definitions are not set."""
+    host = compiler.SourceCompiler.host_platform(3)
+    build_description = f"""<?xml version="1.0" encoding="UTF-8"?>
+<fmiBuildDescription fmiVersion="3.0">
+  <BuildConfiguration modelIdentifier="BouncingBall">
+    <SourceFileSet><SourceFile name="model.c"/></SourceFileSet>
+  </BuildConfiguration>
+  <BuildConfiguration modelIdentifier="BouncingBall" platform="{host}">
+    <SourceFileSet>
+      <SourceFile name="fmi3Functions.c"/>
+      <PreprocessorDefinition name="HOST"/>
+      <PreprocessorDefinition name="OPTIONAL" value="1" optional="true"/>
+      <IncludeDirectory name="include"/>
+    </SourceFileSet>
+  </BuildConfiguration>
+  <BuildConfiguration modelIdentifier="BouncingBall" platform="other-platform">
+    <SourceFileSet><SourceFile name="cosimulation.c"/></SourceFileSet>
+  </BuildConfiguration>
+</fmiBuildDescription>
+""".encode("utf-8")
+    fmu_filename = rewrite_fmu(data_dir / "compile" / "3.0" / "BouncingBall.fmu", tmp_path / "BouncingBall.fmu",
+                               replace={"sources/buildDescription.xml": build_description})
+
+    configurations = _configurations(fmu_filename)
+    assert len(configurations) == 1
+    configuration = configurations[0]
+    assert [path.name for path in configuration.source_files] == ["fmi3Functions.c"]
+    assert configuration.definitions == {"HOST": None}
+    assert [path.name for path in configuration.include_directories] == ["include"]
+
+
+@pytest.mark.fmi3
+def test_missing_source_file(data_dir, tmp_path):
+    fmu_filename = rewrite_fmu(data_dir / "compile" / "3.0" / "BouncingBall.fmu", tmp_path / "BouncingBall.fmu",
+                               drop=("sources/model.c",))
+    with pytest.raises(OperationError, match="model.c"):
         _configurations(fmu_filename)
