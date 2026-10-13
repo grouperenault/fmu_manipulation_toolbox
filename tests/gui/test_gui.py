@@ -80,6 +80,102 @@ def test_fmutool_busy_cursor_during_operation(qtbot, bouncing_ball):
     assert "probe failure" in window.log_widget.toPlainText()
 
 
+class _FakeCompileOptionsDialog:
+    """Replaces `CompileOptionsDialog`: answers with the next of `answers` (`None` = Cancel), records the calls."""
+    answers: list = []
+    calls: list = []
+
+    def __init__(self, values, toolchain, parent=None):
+        _FakeCompileOptionsDialog.calls.append(dict(values))
+        self.answer = _FakeCompileOptionsDialog.answers.pop(0)
+
+    def exec(self):
+        from PySide6.QtWidgets import QDialog
+        return QDialog.DialogCode.Rejected if self.answer is None else QDialog.DialogCode.Accepted
+
+    def values(self):
+        return self.answer
+
+
+@pytest.fixture
+def fake_compile_dialog(monkeypatch):
+    import fmu_manipulation_toolbox.gui.fmutool.__main__ as fmutool_gui
+    monkeypatch.setattr(fmutool_gui, "CompileOptionsDialog", _FakeCompileOptionsDialog)
+    _FakeCompileOptionsDialog.answers, _FakeCompileOptionsDialog.calls = [], []
+    return _FakeCompileOptionsDialog
+
+
+@pytest.fixture
+def needs_foo_fmu(data_dir, tmp_path):
+    """FMI 3.0 Reference FMU without binaries, whose `model.c` only compiles with `FOO` defined."""
+    from _helpers.archive import read_entry, rewrite_fmu
+    source = data_dir / "compile" / "3.0" / "BouncingBall.fmu"
+    model = read_entry(source, "sources/model.c")
+    return str(rewrite_fmu(source, tmp_path / "needs-foo.fmu", drop=("binaries/",),
+                           replace={"sources/model.c": b'#ifndef FOO\n#error "FOO is not defined"\n#endif\n' + model}))
+
+
+def _host_binary(window):
+    from pathlib import Path
+    from fmu_manipulation_toolbox.compiler import SourceCompiler
+    return (Path(window.dropped_fmu.fmu.tmp_directory) / "binaries" / SourceCompiler.host_platform(3) /
+            f"BouncingBall{SourceCompiler.library_suffix()}")
+
+
+@pytest.mark.needs_compiler
+def test_fmutool_compile_retry_with_options(qtbot, fake_compile_dialog, needs_foo_fmu):
+    """After a compilation failure, the dialog asks for options; Retry with the right one succeeds; the options
+    are kept and pre-filled for the session."""
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(needs_foo_fmu)
+    fake_compile_dialog.answers = [{"compiler_options": "-DFOO", "linker_options": "", "libraries": ""}]
+    window.compile_sources()
+    assert fake_compile_dialog.calls == [{}]
+    assert _host_binary(window).is_file()
+    assert window.compile_options["compiler_options"] == "-DFOO"
+
+    # Next click on another FMU: the remembered options are used, no dialog.
+    window.load(needs_foo_fmu)
+    window.compile_sources()
+    assert len(fake_compile_dialog.calls) == 1
+    assert _host_binary(window).is_file()
+
+
+@pytest.mark.needs_compiler
+def test_fmutool_compile_cancel(qtbot, fake_compile_dialog, needs_foo_fmu):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(needs_foo_fmu)
+    window.compile_options = {"compiler_options": "-DBAR", "linker_options": "", "libraries": ""}
+    fake_compile_dialog.answers = [{"compiler_options": "-DBAZ", "linker_options": "", "libraries": ""}, None]
+    window.compile_sources()
+    # Two failures (with -DBAR, then -DBAZ), the dialog pre-filled with the last values, then Cancel.
+    assert [call["compiler_options"] for call in fake_compile_dialog.calls] == ["-DBAR", "-DBAZ"]
+    assert not _host_binary(window).exists()
+
+
+def test_fmutool_compile_no_dialog_without_sources(qtbot, fake_compile_dialog, data_dir, tmp_path):
+    """Not a compilation failure: no dialog."""
+    from _helpers.archive import rewrite_fmu
+    fmu = rewrite_fmu(data_dir / "compile" / "3.0" / "BouncingBall.fmu", tmp_path / "no-sources.fmu",
+                      drop=("binaries/", "sources/"))
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(str(fmu))
+    window.compile_sources()
+    assert fake_compile_dialog.calls == []
+    assert "does not embed sources" in window.log_widget.toPlainText()
+
+
+def test_fmutool_compile_options_dialog(qtbot):
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import CompileOptionsDialog
+    dialog = CompileOptionsDialog({"compiler_options": "-DFOO"}, "clang (cc)")
+    qtbot.addWidget(dialog)
+    dialog.edits["libraries"].setText(" foo,bar ")
+    assert dialog.values() == {"compiler_options": "-DFOO", "linker_options": "", "libraries": "foo,bar"}
+
+
 def test_fmutool_logs_into_its_log_widget(qtbot):
     import logging
     window = FMUToolWindow()

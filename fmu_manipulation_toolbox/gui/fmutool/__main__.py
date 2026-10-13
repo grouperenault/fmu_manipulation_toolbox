@@ -1,10 +1,11 @@
 import os.path
+import shlex
 import sys
 import textwrap
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushButton,
-                               QInputDialog, QMenu)
+                               QInputDialog, QMenu, QDialog, QHBoxLayout, QVBoxLayout)
 from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
@@ -14,7 +15,7 @@ from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
 from fmu_manipulation_toolbox.checker import get_checkers
-from fmu_manipulation_toolbox.compiler import OperationCompileSources
+from fmu_manipulation_toolbox.compiler import OperationCompileSources, Toolchain
 from fmu_manipulation_toolbox.help import Help
 from fmu_manipulation_toolbox.version import __version__ as version
 
@@ -61,6 +62,65 @@ class FilterWidget(QPushButton):
             return sorted(self.items_selected)
 
 
+class CompileOptionsDialog(QDialog):
+    """Ask for additional compiler options, linker options and libraries after a compilation failure.
+
+    Args:
+        values (dict[str, str]): Pre-filled values, keyed by `compiler_options`, `linker_options` and `libraries`.
+        toolchain (str): Description of the compiler in use, e.g. `clang (cc)`.
+    """
+
+    FIELDS = (("compiler_options", "Compiler options", "e.g. -DFOO=1 -I/opt/include"),
+              ("linker_options", "Linker options", "e.g. -L/opt/lib"),
+              ("libraries", "Libraries", "names separated by commas, e.g. foo,bar"))
+
+    def __init__(self, values: dict[str, str], toolchain: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Compile sources")
+        self.setMinimumWidth(500)
+
+        # Same look as the dialogs of FMU Container Builder (`NodeInfoDialog`): captions above the fields.
+        message = QLabel(f"The compilation with {toolchain} failed: see the log. Add options and retry.")
+        message.setWordWrap(True)
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(message)
+        self.edits: dict[str, QLineEdit] = {}
+        for key, label, placeholder in self.FIELDS:
+            caption = QLabel(label)
+            caption.setProperty("class", "caption")
+            edit = QLineEdit(values.get(key, ""))
+            edit.setPlaceholderText(placeholder)
+            layout.addSpacing(8)
+            layout.addWidget(caption)
+            layout.addWidget(edit)
+            self.edits[key] = edit
+
+        # -- Retry / Cancel --
+        retry_button = QPushButton("Retry")
+        retry_button.setProperty("class", "save")
+        retry_button.setDefault(True)
+        retry_button.clicked.connect(self.accept)
+
+        cancel_button = QPushButton("Cancel")
+        cancel_button.setProperty("class", "quit")
+        cancel_button.clicked.connect(self.reject)
+
+        width = max(retry_button.sizeHint().width(), cancel_button.sizeHint().width(), 150)
+        retry_button.setMinimumWidth(width)
+        cancel_button.setMinimumWidth(width)
+
+        button_row = QHBoxLayout()
+        button_row.addStretch()
+        button_row.addWidget(cancel_button)
+        button_row.addWidget(retry_button)
+        layout.addSpacing(12)
+        layout.addLayout(button_row)
+
+    def values(self) -> dict[str, str]:
+        return {key: edit.text().strip() for key, edit in self.edits.items()}
+
+
 class MainWindow(QWidget):
     """
 Analyze and modify your FMUs.
@@ -84,6 +144,9 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.fmu_title.setProperty("class", "title")
         self.layout.addWidget(self.fmu_title, line, 0, 1, WIDTH + 1)
 
+        # Options of `Compile sources`, typed after a compilation failure, kept for the session.
+        self.compile_options: dict[str, str] = {}
+
         # Operations
         self.help = Help()
         # Grid of WIDTH columns, one line per theme: analysis and export, binary interfaces (green), name changes
@@ -92,7 +155,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             ("Check",                 '-check',              'info',    get_checkers()),
             ("Save description.xml",  '-extract-descriptor', 'info',    None, {"func": self.save_descriptor}),
             ("Save port names",       '-dump-csv',           'info',    OperationSaveNamesToCSV, {"prompt_file": "write"}),
-            ("Compile sources",       '-compile-sources',    'info',    OperationCompileSources),
+            ("Compile sources",       '-compile-sources',    'info',    None, {"func": self.compile_sources}),
             ("Add Win32 remoting",    '-add-remoting-win32', 'info',    OperationAddRemotingWin32),
             ("Add Win32 frontend",    '-add-frontend-win32', 'info',    OperationAddFrontendWin32),
             ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64),
@@ -259,6 +322,43 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             button.clicked.connect(operation_handler)
 
         return button
+
+    def compile_sources(self):
+        """Compile the sources; after a compilation failure, ask for additional options and retry (until success
+        or Cancel). The options are kept for the rest of the session."""
+        if not self.dropped_fmu.fmu:
+            return
+        while True:
+            try:
+                operation = OperationCompileSources(**self.compile_parameters())
+            except ValueError as error:                 # unbalanced quotes
+                logger.error(f"Invalid options: {error}.")
+            else:
+                self.apply_operation(operation)
+                if not operation.compilation_failed:
+                    return
+            dialog = CompileOptionsDialog(self.compile_options, self.toolchain_description(), parent=self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            self.compile_options = dialog.values()
+
+    def compile_parameters(self) -> dict[str, list[str]]:
+        """Parameters of `OperationCompileSources` from the options typed in `CompileOptionsDialog`."""
+        posix = os.name != "nt"
+        return {
+            "compiler_options": shlex.split(self.compile_options.get("compiler_options", ""), posix=posix),
+            "linker_options": shlex.split(self.compile_options.get("linker_options", ""), posix=posix),
+            "libraries": [name.strip() for name in self.compile_options.get("libraries", "").split(",")
+                          if name.strip()],
+        }
+
+    @staticmethod
+    def toolchain_description() -> str:
+        try:
+            toolchain = Toolchain.find()
+        except OperationError:
+            return "the C compiler"
+        return f"{toolchain.family} ({' '.join(toolchain.c_compiler)})"
 
     def prompt_string(self, message):
         text, ok = QInputDialog().getText(self, "Enter value", f"{message}:", QLineEdit.EchoMode.Normal, "")

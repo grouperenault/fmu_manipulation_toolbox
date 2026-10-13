@@ -1,6 +1,6 @@
 # Plan: additional compiler options, linker options and libraries for "Compile sources"
 
-**Created**: 13 October 2026 — **Status**: step 1 done — **Roadmap**: not listed —
+**Created**: 13 October 2026 — **Status**: steps 1 to 3 done — **Roadmap**: not listed —
 **Origin**: follow-up of `done/compile_sources.md`
 
 FMI 2.0 `<SourceFiles>` only lists file names: nothing tells which libraries to link, nor which definitions or
@@ -55,6 +55,8 @@ Taken on 13 October 2026:
   GUI reads it after the operation.
 - **D7 — GUI dialog**: three fields (compiler options, linker options, libraries), the detected toolchain (family
   and command, e.g. `clang (cc)`), **Retry** and **Cancel** buttons. The compiler output stays in the log area.
+  Look of the dialogs of FMU Container Builder (`NodeInfoDialog`, chosen by the user): captions (`caption` class)
+  above the fields, **Retry** purple (`save`), **Cancel** blue (`quit`), buttons of the same width (at least 150).
 
 ---
 
@@ -111,20 +113,31 @@ loop:
 
 Commit message: `Add compiler options, linker options and libraries to OperationCompileSources`
 
-### Step 2 — CLI
+### Step 2 — CLI — done
 
 - `cli/fmutool.py`: `-compile-options`, `-link-options`, `-link-libraries` (D2); the `OperationCompileSources` is
   built after parsing. `help.py`: usage texts.
 - Tests: `fmutool -compile-sources -compile-options "-DFOO"` on the FMU of step 1; usage error without
   `-compile-sources`.
 
+- Done on 13 October 2026. A single `OperationCompileSources` instance is given to `-compile-sources` and receives
+  the options after parsing (`shlex.split`, POSIX rules except on Windows). Usage error without `-compile-sources`
+  reported as the `-input`/`-output` check (`logger.fatal`, exit code 2). argparse refuses a value that starts with
+  `-` and has no space (`-compile-options -DFOO`): `-compile-options=-DFOO` must be used; the help texts say so.
+
 Commit message: `Add -compile-options, -link-options and -link-libraries to fmutool`
 
-### Step 3 — GUI
+### Step 3 — GUI — done
 
 - `gui/fmutool/__main__.py`: handler of `Compile sources`, `CompileOptionsDialog` (D3, D4, D5, D7).
 - GUI test (`tests/gui/test_gui.py`, dialog patched): the dialog opens after a failure, not for an FMU without
   sources; Retry with the right option succeeds; Cancel stops; the values are pre-filled at the next click.
+
+- Done on 13 October 2026: `CompileOptionsDialog` and `MainWindow.compile_sources()` in
+  `gui/fmutool/__main__.py`; the button calls `compile_sources()` (`func`). The session values are also used for
+  the first attempt of the next clicks (the log shows them: `Additional compiler options: …`). Unbalanced quotes in
+  a field: logged as an error, the dialog opens again. Tests: `test_fmutool_compile_*` in `tests/gui/test_gui.py`
+  (dialog replaced by a fake).
 
 Commit message: `Ask for additional compiler options in FMU Tool after a compilation failure`
 
