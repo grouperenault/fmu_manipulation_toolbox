@@ -15,22 +15,31 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer, QSize
+from PySide6.QtGui import QColor, QFont, QAction
 from PySide6.QtWidgets import (
-    QDialog, QWidget, QLabel, QComboBox, QTabWidget, QSplitter, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QTableView, QHeaderView, QAbstractItemView, QPushButton, QLineEdit, QCheckBox, QFrame, QDoubleSpinBox,
-    QStackedWidget, QMessageBox,
+    QDialog, QWidget, QLabel, QTabWidget, QSplitter, QVBoxLayout, QHBoxLayout, QGridLayout, QTableView,
+    QHeaderView, QAbstractItemView, QPushButton, QLineEdit, QCheckBox, QFrame, QStackedWidget, QMessageBox, QMenu,
+    QSizePolicy,
 )
 
+from fmu_manipulation_toolbox.gui.style import status_color
 from .link_matching import (
     PortInfo, Status, Checks, Rule, AffixRule, RegexRule, SimilarityRule, RULE_KINDS, Suggestion, suggest,
     staged_statuses, with_overlaps, OK, WARNING, ERROR,
 )
 
 
-_STATUS_COLORS = {OK: QColor("#7fbf6a"), WARNING: QColor("#e0b050"), ERROR: QColor("#F54927")}
-_INVALID_FIELD_STYLE = "border: 1px solid #F54927;"
+_STATUS_COLORS = {level: QColor(status_color[name]) for level, name in ((OK, "OK"), (WARNING, "WARNING"),
+                                                                          (ERROR, "ERROR"))}
+_STATUS_CLASSES = {OK: "status_ok", WARNING: "status_warning", ERROR: "status_error"}
+
+#: Space between two options (check boxes) of a row; the label of a check box stays next to its box.
+_OPTION_SPACING = 24
+#: Space between the widgets of the rows of the Rules tab (options and parameters of the criterion).
+_ROW_SPACING = 8
+#: Space between the two halves of the header and of the Manual tab.
+_HALVES_SPACING = 12
 
 A_TO_B = "a_to_b"
 B_TO_A = "b_to_a"
@@ -111,8 +120,7 @@ class _PortsModel(QAbstractTableModel):
 
 
 class _PortsFilter(QSortFilterProxyModel):
-    """Filter on the name / description, the type, the free ports, the parameters, and the ports without a
-    suggestion in the Rules tab."""
+    """Filter on the name / description, the type, the free ports and the parameters."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -120,9 +128,7 @@ class _PortsFilter(QSortFilterProxyModel):
         self.fmi_type = ""
         self.only_free = True
         self.show_parameters = False
-        self.only_unsuggested = False
         self.busy: set[str] = set()
-        self.suggested: set[str] = set()
 
     def refresh(self):
         _refilter(self)
@@ -132,8 +138,6 @@ class _PortsFilter(QSortFilterProxyModel):
         if port.causality == "parameter" and not self.show_parameters:
             return False
         if self.only_free and port.name in self.busy:
-            return False
-        if self.only_unsuggested and port.name in self.suggested:
             return False
         if self.fmi_type and port.fmi_type != self.fmi_type:
             return False
@@ -269,8 +273,91 @@ class _LevelFilter(QSortFilterProxyModel):
         return True
 
 
-def _level_combo() -> QComboBox:
-    combo = QComboBox()
+class _MenuSelector(QPushButton):
+    """One choice among a few items: a push button opening a menu, as the other selectors of the application
+    ("Configuration" of the Container Builder, `FilterWidget` of FMU Tool). The items are not checkable (one choice
+    only): the current one is in bold. Offers the part of the `QComboBox` interface used by the assistant."""
+    currentIndexChanged = Signal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setProperty("class", "quit")
+        self._menu = QMenu(self)
+        self._actions: list[QAction] = []
+        self._items: list[tuple[str, object]] = []
+        self._index = -1
+        self.setMenu(self._menu)
+
+    def addItem(self, text: str, data=None):
+        action = QAction(text, self)
+        index = len(self._items)
+        action.triggered.connect(lambda _=False, i=index: self.setCurrentIndex(i))
+        self._actions.append(action)
+        self._menu.addAction(action)
+        self._items.append((text, data))
+        if self._index < 0:
+            self.setCurrentIndex(0)
+
+    def clear(self):
+        self._menu.clear()
+        self._actions = []
+        self._items = []
+        self._index = -1
+        self.setText("")
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def currentIndex(self) -> int:
+        return self._index
+
+    def currentData(self):
+        return self._items[self._index][1] if 0 <= self._index < len(self._items) else None
+
+    def currentText(self) -> str:
+        return self._items[self._index][0] if 0 <= self._index < len(self._items) else ""
+
+    def findData(self, data) -> int:
+        return next((index for index, (_, value) in enumerate(self._items) if value == data), -1)
+
+    def sizeHint(self):
+        """Wide enough for the longest item, and for the arrow of the menu."""
+        hint = super().sizeHint()
+        texts = [text for text, _ in self._items] or [self.text()]
+        width = max(self.fontMetrics().horizontalAdvance(text) for text in texts) + 60
+        return hint.expandedTo(QSize(width, hint.height()))
+
+    def setCurrentIndex(self, index: int):
+        if index == self._index or not 0 <= index < len(self._items):
+            return
+        self._index = index
+        self.setText(self._items[index][0])
+        for position, action in enumerate(self._actions):
+            font = action.font()
+            font.setBold(position == index)
+            action.setFont(font)
+        self.currentIndexChanged.emit(index)
+
+
+def _halves(left, right) -> QWidget:
+    """Two layouts side by side, each one half of the width (whatever their content), so that the header and the
+    lists of the Manual tab line up."""
+    widget = QWidget()
+    lay = QHBoxLayout(widget)
+    lay.setContentsMargins(0, 0, 0, 0)
+    lay.setSpacing(_HALVES_SPACING)
+    for half in (left, right):
+        container = QWidget()
+        container.setLayout(half)
+        policy = container.sizePolicy()
+        policy.setHorizontalPolicy(QSizePolicy.Policy.Ignored)
+        container.setSizePolicy(policy)
+        lay.addWidget(container, 1)
+    return widget
+
+
+def _level_combo() -> _MenuSelector:
+    combo = _MenuSelector()
     combo.addItem("All", None)
     combo.addItem("✔ OK", OK)
     combo.addItem("⚠ Warnings", WARNING)
@@ -294,10 +381,80 @@ def _table(model) -> QTableView:
 
 
 def _button(text: str, css_class: str) -> QPushButton:
+    """A push button; its width is set by `_same_width` once every button of the window exists."""
     button = QPushButton(text)
     button.setProperty("class", css_class)
-    button.setMinimumWidth(max(button.sizeHint().width() + 16, 120))
     return button
+
+
+def _same_width(buttons: list[QPushButton], texts: tuple[str, ...] = (), minimum: int = 150):
+    """Give *buttons* one width: the widest of their texts, and of *texts* (texts they can take later)."""
+    metrics = buttons[0].fontMetrics()
+    width = max([button.sizeHint().width() for button in buttons]
+                + [metrics.horizontalAdvance(text) + 40 for text in texts] + [minimum])
+    for button in buttons:
+        button.setFixedWidth(width)
+
+
+class _PortCounters(QWidget):
+    """`Σ 400   ● 159   ○ 241`: total, used (linked outputs or fed inputs), free ports of one FMU of the header; one
+    label per counter (as `_Summary`), each one with a tooltip."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._labels = [QLabel() for _ in range(3)]
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(16)
+        for label in self._labels:
+            lay.addWidget(label)
+        lay.addStretch(1)
+
+    def set_counts(self, total: int, used: int, kind: str, used_text: str):
+        """*kind*: "outputs" or "inputs"; *used_text*: what a used port is, for the tooltip."""
+        for label, symbol, count, tooltip in zip(
+                self._labels, ("Σ", "●", "○"), (total, used, total - used),
+                (f"Total number of {kind}", f"{kind.capitalize()} {used_text}", f"Free {kind}")):
+            label.setText(f"{symbol}\u00a0{count}")
+            label.setToolTip(tooltip)
+
+    def text(self) -> str:
+        return "   ".join(label.text() for label in self._labels)
+
+
+class _Summary(QWidget):
+    """`Suggestions: 172   ✔ 139   ⚠ 17   ✖ 16`: one label per counter, so that their spacing does not
+    depend on the width of the spaces of the font; or a message instead of the counters."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._title = QLabel()
+        self._counters = {}
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(16)
+        lay.addWidget(self._title)
+        for symbol, level in (("✔", OK), ("⚠", WARNING), ("✖", ERROR)):
+            label = QLabel()
+            label.setProperty("symbol", symbol)
+            label.setProperty("class", _STATUS_CLASSES[level])
+            self._counters[level] = label
+            lay.addWidget(label)
+
+    def set_counts(self, title: str, levels: list[int]):
+        self._title.setText(title)
+        for level, label in self._counters.items():
+            label.setText(f"{label.property('symbol')}\u00a0{levels.count(level)}")
+            label.show()
+
+    def set_message(self, message: str):
+        self._title.setText(message)
+        for label in self._counters.values():
+            label.hide()
+
+    def text(self) -> str:
+        parts = [self._title.text()] + [label.text() for label in self._counters.values() if not label.isHidden()]
+        return "   ".join(part for part in parts if part)
 
 
 # ── Criterion editor ────────────────────────────────────────────────────
@@ -316,12 +473,14 @@ class _CriterionEditor(QWidget):
         if _CriterionEditor._session_rules is None:
             _CriterionEditor._session_rules = [kind() for kind in RULE_KINDS]
         self._rules = _CriterionEditor._session_rules
-        self._kind = QComboBox()
+        self._kind = _MenuSelector()
         for rule in self._rules:
             self._kind.addItem(rule.kind)
-        self._ignore_case = QCheckBox("ignore case and separators ( . _ - [ ] )")
+        self._ignore_case = QCheckBox("ignore case and separators")
+        self._ignore_case.setToolTip("Compare the names without case nor separators ( . _ - [ ] )")
         self._ignore_case.setChecked(_CriterionEditor._session_ignore_case)
         self._ignore_case.toggled.connect(lambda value: setattr(_CriterionEditor, "_session_ignore_case", value))
+        self.lead_labels: list[QLabel] = []
         self._pages = QStackedWidget()
         for rule in self._rules:
             self._pages.addWidget(self._parameters(rule))
@@ -329,16 +488,18 @@ class _CriterionEditor(QWidget):
         self._kind.currentIndexChanged.connect(self.changed)
         self._ignore_case.toggled.connect(self.changed)
 
-        header = QHBoxLayout()
-        header.addWidget(QLabel("Match by"))
-        header.addWidget(self._kind)
-        header.addSpacing(30)
-        header.addWidget(self._ignore_case)
-        header.addStretch(1)
+        # The selector of the kind and the option are laid out by the dialog, on the row of the other options.
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addLayout(header)
         lay.addWidget(self._pages)
+
+    @property
+    def kind_selector(self) -> "_MenuSelector":
+        return self._kind
+
+    @property
+    def ignore_case_box(self) -> QCheckBox:
+        return self._ignore_case
 
     def rule(self) -> Rule:
         return self._rules[self._kind.currentIndex()]
@@ -354,42 +515,46 @@ class _CriterionEditor(QWidget):
         page = QWidget()
         lay = QHBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(_ROW_SPACING)
+        # The first label of each page is as wide as "Match by" (see `LinkAssistantDialog._align_rules`), so that the
+        # parameters start below the selector of the criterion.
+        lead = QLabel({AffixRule: "Output:", RegexRule: "Output:", SimilarityRule: "score ≥"}.get(type(rule), ""))
+        self.lead_labels.append(lead)
+        lay.addWidget(lead)
         if isinstance(rule, AffixRule):
             fields = {}
-            for attribute, placeholder in (("from_prefix", "A prefix"), ("from_suffix", "A suffix"),
-                                           ("to_prefix", "B prefix"), ("to_suffix", "B suffix")):
+            for attribute, placeholder in (("from_prefix", "prefix"), ("from_suffix", "suffix"),
+                                           ("to_prefix", "prefix"), ("to_suffix", "suffix")):
                 field = QLineEdit(getattr(rule, attribute))
                 field.setPlaceholderText(placeholder)
                 field.textChanged.connect(lambda text, a=attribute: self._set(rule, a, text))
                 fields[attribute] = field
-            lay.addWidget(QLabel("A:"))
             lay.addWidget(fields["from_prefix"], 2)
             lay.addWidget(QLabel("…"))
             lay.addWidget(fields["from_suffix"], 1)
-            lay.addWidget(QLabel("→  B:"))
+            lay.addWidget(QLabel("→  Input:"))
             lay.addWidget(fields["to_prefix"], 2)
             lay.addWidget(QLabel("…"))
             lay.addWidget(fields["to_suffix"], 1)
             self.affix_fields = fields
         elif isinstance(rule, RegexRule):
             pattern = QLineEdit(rule.pattern)
-            pattern.setPlaceholderText(r"A regex, e.g. ^engine\.out\.(.*)$")
+            pattern.setPlaceholderText(r"regex on the output name, e.g. ^engine\.out\.(.*)$")
             pattern.textChanged.connect(lambda text: self._on_pattern(rule, pattern, text))
             replacement = QLineEdit(rule.replacement)
-            replacement.setPlaceholderText(r"B name, e.g. ecu.in.engine_\1")
+            replacement.setPlaceholderText(r"input name, e.g. ecu.in.engine_\1")
             replacement.textChanged.connect(lambda text: self._set(rule, "replacement", text))
-            lay.addWidget(QLabel("A:"))
             lay.addWidget(pattern, 3)
-            lay.addWidget(QLabel("→  B:"))
+            lay.addWidget(QLabel("→  Input:"))
             lay.addWidget(replacement, 3)
             self.regex_fields = (pattern, replacement)
         elif isinstance(rule, SimilarityRule):
-            threshold = QDoubleSpinBox()
-            threshold.setRange(0.5, 1.0)
-            threshold.setSingleStep(0.05)
-            threshold.setValue(rule.threshold)
-            threshold.valueChanged.connect(lambda value: self._set(rule, "threshold", value))
-            lay.addWidget(QLabel("score ≥"))
+            threshold = _MenuSelector()
+            for value in range(100, 45, -5):
+                threshold.addItem(f"{value / 100:.2f}", value / 100)
+            threshold.setCurrentIndex(max(threshold.findData(round(rule.threshold, 2)), 0))
+            threshold.currentIndexChanged.connect(lambda _: self._set(rule, "threshold", threshold.currentData()))
+            self.threshold_combo = threshold
             lay.addWidget(threshold)
             lay.addStretch(1)
         else:
@@ -404,9 +569,13 @@ class _CriterionEditor(QWidget):
     def _on_pattern(self, rule, field, text):
         try:
             re.compile(text)
-            field.setStyleSheet("")
+            invalid = False
         except re.error:
-            field.setStyleSheet(_INVALID_FIELD_STYLE)
+            invalid = True
+        if field.property("invalid") != invalid:
+            field.setProperty("invalid", invalid)       # `QLineEdit[invalid="true"]` in `gui.style`
+            field.style().unpolish(field)
+            field.style().polish(field)
         self._set(rule, "pattern", text)
 
 
@@ -444,23 +613,34 @@ class LinkAssistantDialog(QDialog):
         self.resize(1200, 860)
 
         # -- Header --
-        self._direction_combo = QComboBox()
+        self._direction_combo = _MenuSelector()
         self._direction_combo.addItem("A → B", A_TO_B)
         self._direction_combo.addItem("B → A", B_TO_A)
         self._direction_combo.currentIndexChanged.connect(self._on_direction_changed)
-        self._counter_source = QLabel()
-        self._counter_target = QLabel()
-        header = QHBoxLayout()
-        header.addWidget(QLabel("Direction"))
-        header.addWidget(self._direction_combo)
-        header.addSpacing(30)
-        header.addWidget(self._counter_source)
-        header.addSpacing(30)
-        header.addWidget(self._counter_target)
-        header.addStretch(1)
+        # "source.fmu → target.fmu" in large, the counters of each FMU below its name. The header has the two halves of
+        # the lists of the Manual tab (`_halves`): each name is above the list of its ports.
+        self._source_name, self._arrow, self._target_name = QLabel(), QLabel("→"), QLabel()
+        for label in (self._source_name, self._arrow, self._target_name):
+            label.setProperty("class", "title")
+        self._counter_source = _PortCounters()
+        self._counter_target = _PortCounters()
+        source = QGridLayout()
+        source.setVerticalSpacing(0)
+        source.setContentsMargins(0, 0, 0, 0)
+        source.addWidget(self._source_name, 0, 0)
+        source.addWidget(self._arrow, 0, 1, Qt.AlignmentFlag.AlignRight)
+        source.addWidget(self._counter_source, 1, 0)
+        target = QGridLayout()
+        target.setVerticalSpacing(0)
+        target.setContentsMargins(0, 0, 0, 0)
+        target.addWidget(self._target_name, 0, 0)
+        target.addWidget(self._direction_combo, 0, 1, 2, 1, Qt.AlignmentFlag.AlignRight)
+        target.addWidget(self._counter_target, 1, 0)
+        self._header = _halves(source, target)
 
         # -- Tabs --
         self._tabs = QTabWidget()
+        self._tabs.setProperty("class", "equal_tabs")         # tabs of one width, see `gui.style`
         self._tabs.addTab(self._build_rules_tab(), "Rules")
         self._tabs.addTab(self._build_manual_tab(), "Manual")
 
@@ -472,8 +652,14 @@ class LinkAssistantDialog(QDialog):
         splitter.setStretchFactor(1, 2)
 
         lay = QVBoxLayout(self)
-        lay.addLayout(header)
+        lay.addWidget(self._header)
         lay.addWidget(splitter, 1)
+
+        _same_width([self._run_button, self._check_all_button, self._uncheck_all_button, self._stage_button,
+                     self._link_selection, self._remove_button, self._remove_all_button, self._cancel_button,
+                     self._apply], texts=("Apply 99999 links",))
+        self._same_field_sizes()
+        self._align_rules()
 
         self._on_direction_changed()
 
@@ -483,13 +669,18 @@ class LinkAssistantDialog(QDialog):
         self._criterion = _CriterionEditor()
         self._criterion.changed.connect(self._schedule_run)
 
-        self._check_type = QCheckBox("compatible type")
+        self._check_type = QCheckBox("compatible types")
+        self._check_type.setToolTip("Checked: a link between types without conversion is an error (✖) and cannot be "
+                                    "applied.\nUnchecked: it is only a warning (⚠).")
         self._check_type.setChecked(self._checks.compatible_type)
-        self._check_unit = QCheckBox("same unit")
+        self._check_unit = QCheckBox("same units")
+        self._check_unit.setToolTip("Checked: a link between different units is an error (✖) and cannot be "
+                                    "applied.\nUnchecked: it is only a warning (⚠).")
         self._check_unit.setChecked(self._checks.same_unit)
         self._check_type.toggled.connect(self._on_checks_changed)
         self._check_unit.toggled.connect(self._on_checks_changed)
         self._rules_parameters = QCheckBox("parameters as targets")
+        self._rules_parameters.setToolTip("Also propose the parameters of the target FMU as inputs")
         self._rules_parameters.toggled.connect(self._on_show_parameters)
         self._run_button = _button("Run ▶", "quit")
         self._run_button.setToolTip("The last search was too long to be updated while typing")
@@ -497,11 +688,19 @@ class LinkAssistantDialog(QDialog):
         self._run_button.hide()
 
         options = QHBoxLayout()
-        options.addWidget(QLabel("Errors (✖):"))
-        options.addWidget(self._check_type)
-        options.addWidget(self._check_unit)
-        options.addSpacing(30)
+        options.setSpacing(_ROW_SPACING)                 # as the rows of the parameters, see `_align_rules`
+        self._match_by = QLabel("Match by")
+        options.addWidget(self._match_by)
+        options.addWidget(self._criterion.kind_selector)
+        options.addSpacing(_OPTION_SPACING)
+        options.addWidget(self._criterion.ignore_case_box)
+        options.addSpacing(_OPTION_SPACING)
         options.addWidget(self._rules_parameters)
+        options.addSpacing(_OPTION_SPACING)
+        options.addWidget(QLabel("Allow only:"))
+        options.addWidget(self._check_type)
+        options.addSpacing(_OPTION_SPACING)
+        options.addWidget(self._check_unit)
         options.addStretch(1)
         options.addWidget(self._run_button)
 
@@ -515,11 +714,7 @@ class LinkAssistantDialog(QDialog):
             self._suggestions_table.setColumnWidth(column, width)
         self._suggestions_table.doubleClicked.connect(self._on_suggestion_double_clicked)
 
-        self._suggestions_summary = QLabel()
-        self._unmatched_link = QLabel()
-        self._unmatched_link.setTextFormat(Qt.TextFormat.RichText)
-        self._unmatched_link.setToolTip("Show these ports in the Manual tab")
-        self._unmatched_link.linkActivated.connect(self._on_unmatched_clicked)
+        self._suggestions_summary = _Summary()
         suggestions_level = _level_combo()
         suggestions_level.currentIndexChanged.connect(
             lambda: self._set_filter(self._suggestions_filter, level=suggestions_level.currentData()))
@@ -528,18 +723,16 @@ class LinkAssistantDialog(QDialog):
         suggestions_text.textChanged.connect(lambda text: self._set_filter(self._suggestions_filter, text=text))
         suggestions_header = QHBoxLayout()
         suggestions_header.addWidget(self._suggestions_summary)
-        suggestions_header.addSpacing(20)
-        suggestions_header.addWidget(self._unmatched_link)
         suggestions_header.addStretch(1)
         suggestions_header.addWidget(QLabel("Show"))
         suggestions_header.addWidget(suggestions_level)
         suggestions_header.addWidget(suggestions_text)
 
-        check_all = _button("Check all ✔", "info")
+        self._check_all_button = check_all = _button("Check all ✔", "info")
         check_all.clicked.connect(lambda: self._check_suggestions(True))
-        uncheck_all = _button("Uncheck all", "removal")
+        self._uncheck_all_button = uncheck_all = _button("Uncheck all", "removal")
         uncheck_all.clicked.connect(lambda: self._check_suggestions(False))
-        stage = _button("Stage checked links ⇩", "save")
+        self._stage_button = stage = _button("Stage checked links ↓", "save")
         stage.clicked.connect(self._on_stage_checked)
         suggestions_buttons = QHBoxLayout()
         suggestions_buttons.addWidget(check_all)
@@ -552,15 +745,16 @@ class LinkAssistantDialog(QDialog):
 
         tab = QWidget()
         lay = QVBoxLayout(tab)
-        lay.addWidget(self._criterion)
+        lay.setContentsMargins(0, 8, 0, 0)
         lay.addLayout(options)
+        lay.addWidget(self._criterion)
         lay.addWidget(separator)
         lay.addLayout(suggestions_header)
         lay.addWidget(self._suggestions_table, 1)
         lay.addLayout(suggestions_buttons)
         return tab
 
-    def _build_port_list(self, title: str, with_parameters: bool):
+    def _build_port_list(self, with_parameters: bool):
         model = _PortsModel(self)
         proxy = _PortsFilter(self)
         proxy.setSourceModel(model)
@@ -574,7 +768,7 @@ class LinkAssistantDialog(QDialog):
         text = QLineEdit()
         text.setPlaceholderText("Filter name / description")
         text.textChanged.connect(lambda value: self._set_filter(proxy, text=value))
-        types = QComboBox()
+        types = _MenuSelector()
         types.addItem("All types", "")
         types.currentIndexChanged.connect(lambda: self._set_filter(proxy, fmi_type=types.currentData()))
         only_free = QCheckBox("only free ports")
@@ -582,7 +776,6 @@ class LinkAssistantDialog(QDialog):
         only_free.toggled.connect(lambda value: self._set_filter(proxy, only_free=value))
 
         grid = QGridLayout()
-        grid.addWidget(QLabel(title), 0, 0, 1, 2)
         grid.addWidget(text, 1, 0)
         grid.addWidget(types, 1, 1)
         options = QHBoxLayout()
@@ -591,44 +784,35 @@ class LinkAssistantDialog(QDialog):
         if with_parameters:
             parameters = QCheckBox("show parameters")
             parameters.toggled.connect(self._on_show_parameters)
+            options.addSpacing(_OPTION_SPACING)
             options.addWidget(parameters)
         options.addStretch(1)
         grid.addLayout(options, 2, 0, 1, 2)
         grid.addWidget(table, 3, 0, 1, 2)
         grid.setColumnStretch(0, 1)
         grid.setContentsMargins(0, 0, 0, 0)
-        widget = QWidget()
-        widget.setLayout(grid)
-        return widget, model, proxy, table, types, parameters
+        return grid, model, proxy, table, types, parameters
 
     def _build_manual_tab(self) -> QWidget:
-        (outputs_widget, self._outputs_model, self._outputs_filter, self._outputs_table, self._outputs_types,
-         _) = self._build_port_list("Outputs", with_parameters=False)
-        (inputs_widget, self._inputs_model, self._inputs_filter, self._inputs_table, self._inputs_types,
-         self._manual_parameters) = self._build_port_list("Inputs", with_parameters=True)
-        self._outputs_title = outputs_widget.layout().itemAtPosition(0, 0).widget()
-        self._inputs_title = inputs_widget.layout().itemAtPosition(0, 0).widget()
-
-        lists = QSplitter(Qt.Orientation.Horizontal)
-        lists.addWidget(outputs_widget)
-        lists.addWidget(inputs_widget)
-
-        self._only_unsuggested = QCheckBox("only ports without a suggestion in the Rules tab")
-        self._only_unsuggested.toggled.connect(
-            lambda value: [self._set_filter(proxy, only_unsuggested=value)
-                           for proxy in (self._outputs_filter, self._inputs_filter)])
+        (outputs, self._outputs_model, self._outputs_filter, self._outputs_table, self._outputs_types,
+         _) = self._build_port_list(with_parameters=False)
+        (inputs, self._inputs_model, self._inputs_filter, self._inputs_table, self._inputs_types,
+         self._manual_parameters) = self._build_port_list(with_parameters=True)
+        lists = _halves(outputs, inputs)
 
         self._preview = QLabel()
         self._preview.setTextFormat(Qt.TextFormat.PlainText)
-        self._link_selection = _button("Link selection ⇩", "save")
+        self._link_selection = _button("Link selection ↓", "save")
         self._link_selection.clicked.connect(self._on_link_selection)
-        bottom = QHBoxLayout()
-        bottom.addWidget(self._preview, 1)
-        bottom.addWidget(self._link_selection, 0, Qt.AlignmentFlag.AlignBottom)
+        # The button links the left list to the right one: centered below them, the preview of the pairing below it.
+        self._preview.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        bottom = QVBoxLayout()
+        bottom.addWidget(self._link_selection, 0, Qt.AlignmentFlag.AlignHCenter)
+        bottom.addWidget(self._preview)
 
         tab = QWidget()
         lay = QVBoxLayout(tab)
-        lay.addWidget(self._only_unsuggested)
+        lay.setContentsMargins(0, 8, 0, 0)
         lay.addWidget(lists, 1)
         lay.addLayout(bottom)
         return tab
@@ -641,7 +825,7 @@ class LinkAssistantDialog(QDialog):
         for column, width in ((0, 80), (1, 300), (2, 300), (3, 130)):
             self._staged_table.setColumnWidth(column, width)
 
-        self._staged_summary = QLabel()
+        self._staged_summary = _Summary()
         staged_level = _level_combo()
         staged_level.currentIndexChanged.connect(
             lambda: self._set_filter(self._staged_filter, level=staged_level.currentData()))
@@ -655,18 +839,18 @@ class LinkAssistantDialog(QDialog):
         header.addWidget(staged_level)
         header.addWidget(staged_text)
 
-        remove = _button("Remove selected", "removal")
+        self._remove_button = remove = _button("Remove selected", "removal")
         remove.clicked.connect(self._on_remove_staged)
-        clear = _button("Clear", "removal")
-        clear.clicked.connect(self._on_clear_staged)
+        self._remove_all_button = remove_all = _button("Remove All", "removal")
+        remove_all.clicked.connect(self._on_remove_all_staged)
         self._existing_label = QLabel()
-        cancel = _button("Cancel", "removal")
+        self._cancel_button = cancel = _button("Cancel", "removal")
         cancel.clicked.connect(self.reject)
         self._apply = _button("Apply", "info")
         self._apply.clicked.connect(self._on_apply)
         buttons = QHBoxLayout()
         buttons.addWidget(remove)
-        buttons.addWidget(clear)
+        buttons.addWidget(remove_all)
         buttons.addSpacing(20)
         buttons.addWidget(self._existing_label)
         buttons.addStretch(1)
@@ -677,6 +861,7 @@ class LinkAssistantDialog(QDialog):
         panel = QWidget()
         lay = QVBoxLayout(panel)
         lay.setContentsMargins(0, 0, 0, 0)
+        self._staged_layout = lay
         lay.addLayout(header)
         lay.addWidget(self._staged_table, 1)
         lay.addLayout(buttons)
@@ -720,8 +905,6 @@ class LinkAssistantDialog(QDialog):
     def _on_direction_changed(self):
         self._direction = self._direction_combo.currentData()
         source, target = self._sides()
-        self._outputs_title.setText(f"Outputs of {source.name}")
-        self._inputs_title.setText(f"Inputs of {target.name}")
         self._outputs_model.set_ports(self._outputs())
         self._inputs_model.set_ports([port for port in target.ports if port.causality in ("input", "parameter")])
         for combo, ports in ((self._outputs_types, self._outputs()), (self._inputs_types, target.ports)):
@@ -734,7 +917,7 @@ class LinkAssistantDialog(QDialog):
         self._outputs_filter.fmi_type = self._inputs_filter.fmi_type = ""
         self._suggestions_model.set_suggestions([])
         self._update_suggestions_summary()
-        self._suggestions_summary.setText("Suggestions: searching…")
+        self._suggestions_summary.set_message("Suggestions: searching…")
         self._refresh()
         self._schedule_run()
 
@@ -761,14 +944,15 @@ class LinkAssistantDialog(QDialog):
         busy_outputs, busy_inputs = self._busy_outputs(), self._busy_inputs()
         free_outputs = sum(1 for port in outputs if port.name not in busy_outputs)
         free_inputs = sum(1 for port in inputs if port.name not in busy_inputs)
-        self._counter_source.setText(f"{source.name}: {len(outputs)} outputs, {len(outputs) - free_outputs} linked")
-        self._counter_target.setText(f"{target.name}: {len(inputs)} inputs, {len(inputs) - free_inputs} fed")
-        self._tabs.setTabText(1, f"Manual ({free_outputs} │ {free_inputs})")
+        self._source_name.setText(source.name)
+        self._target_name.setText(target.name)
+        self._counter_source.set_counts(len(outputs), len(outputs) - free_outputs, "outputs",
+                                        "linked on this wire (existing or staged links)")
+        self._counter_target.set_counts(len(inputs), len(inputs) - free_inputs, "inputs",
+                                        "fed (by a link of any wire, an exposed input, or a staged link)")
 
         levels = [status.level for status in self._statuses]
-        self._staged_summary.setText(
-            f"Staged links: {len(self._staged)}   ✔ {levels.count(OK)}  ⚠ {levels.count(WARNING)}  "
-            f"✖ {levels.count(ERROR)}")
+        self._staged_summary.set_counts(f"Staged links: {len(self._staged)}", levels)
         self._existing_label.setText(f"The {len(self._existing)} existing links of the wire are kept.")
         self._apply.setText(f"Apply {len(self._staged)} links")
         self._apply.setEnabled(bool(self._staged) and ERROR not in levels)
@@ -798,12 +982,12 @@ class LinkAssistantDialog(QDialog):
 
     # ── Rules tab ───────────────────────────────────────────────────
 
-    def _schedule_run(self):
+    def _schedule_run(self, message: str = "The criterion changed: press Run"):
         """Update the suggestions shortly after the last change, unless the last search was too long."""
         if self._auto_run:
             self._run_timer.start()
         else:
-            self._suggestions_summary.setText("The criterion changed: press Run")
+            self._suggestions_summary.set_message(message)
 
     def _on_run(self):
         self._run_timer.stop()
@@ -812,42 +996,24 @@ class LinkAssistantDialog(QDialog):
         suggestions = suggest(self._outputs(), self._inputs(), rule, self._criterion.ignore_case, fed=self._fed(),
                               excluded_outputs=self._busy_outputs(),
                               excluded_inputs=self._busy_inputs() - self._fed(), checks=self._checks)
+        # The duration is not shown: it only decides whether the suggestions are updated while typing.
         elapsed = time.perf_counter() - start
+        # A suggestion already there keeps the check box of the user, unless its status changed.
+        previous = {(s.output.name, s.input.name): s for s in self._suggestions_model.suggestions}
+        for suggestion in suggestions:
+            before = previous.get((suggestion.output.name, suggestion.input.name))
+            if before is not None and before.status.level == suggestion.status.level:
+                suggestion.checked = before.checked
         self._suggestions_origin = rule.short
         self._suggestions_model.set_suggestions(suggestions)
         self._suggestions_filter.refresh()
         self._auto_run = elapsed <= self.AUTO_RUN_LIMIT
         self._run_button.setVisible(not self._auto_run)
-        self._update_suggestions_summary(elapsed)
+        self._update_suggestions_summary()
 
-    def _update_suggestions_summary(self, elapsed: float | None = None):
-        suggestions = self._suggestions_model.suggestions
-        levels = [suggestion.status.level for suggestion in suggestions]
-        _, target = self._sides()
-        matched_outputs = {s.output.name for s in suggestions}
-        matched_inputs = with_overlaps({s.input.name for s in suggestions}, target.aggregates)
-        busy_outputs, busy_inputs = self._busy_outputs(), self._busy_inputs()
-        unmatched_outputs = sum(1 for port in self._outputs()
-                                if port.name not in matched_outputs and port.name not in busy_outputs)
-        unmatched_inputs = sum(1 for port in self._inputs()
-                               if port.name not in matched_inputs and port.name not in busy_inputs)
-        text = (f"Suggestions: {len(levels)}   ✔ {levels.count(OK)}  ⚠ {levels.count(WARNING)}  "
-                f"✖ {levels.count(ERROR)}")
-        if elapsed is not None:
-            text += f"     ({elapsed:.2f} s)"
-        self._suggestions_summary.setText(text)
-        self._unmatched_link.setText(f'<a href="manual" style="color: #88bbff;">unmatched: {unmatched_outputs} outputs'
-                                     f' / {unmatched_inputs} inputs</a>')
-        # The Manual tab can hide the ports having a suggestion.
-        self._outputs_filter.suggested = matched_outputs
-        self._inputs_filter.suggested = matched_inputs
-        self._outputs_filter.refresh()
-        self._inputs_filter.refresh()
-
-    def _on_unmatched_clicked(self, _link: str = ""):
-        """Show the ports without a suggestion in the Manual tab, to link the leftovers by hand."""
-        self._only_unsuggested.setChecked(True)
-        self._tabs.setCurrentIndex(1)
+    def _update_suggestions_summary(self):
+        levels = [suggestion.status.level for suggestion in self._suggestions_model.suggestions]
+        self._suggestions_summary.set_counts(f"Suggestions: {len(levels)}", levels)
 
     def _drop_taken_suggestions(self):
         """Remove the suggestions whose output or input has just been staged, keeping the check boxes of the
@@ -931,12 +1097,20 @@ class LinkAssistantDialog(QDialog):
     def _on_remove_staged(self):
         rows = {self._staged_filter.mapToSource(index).row()
                 for index in self._staged_table.selectionModel().selectedRows()}
-        self._staged = [link for row, link in enumerate(self._staged) if row not in rows]
-        self._refresh()
+        if rows:
+            self._staged = [link for row, link in enumerate(self._staged) if row not in rows]
+            self._on_staged_removed()
 
-    def _on_clear_staged(self):
-        self._staged = []
+    def _on_remove_all_staged(self):
+        if self._staged:
+            self._staged = []
+            self._on_staged_removed()
+
+    def _on_staged_removed(self):
+        """The ports of the removed links are free again: search the current criterion again, so that their
+        suggestions come back."""
         self._refresh()
+        self._schedule_run("Staged links removed: press Run")
 
     def staged_mappings(self) -> list[tuple]:
         result = []
@@ -951,6 +1125,37 @@ class LinkAssistantDialog(QDialog):
         self._staged = []
         self._refresh()
         self.accept()
+
+    def _align_rules(self):
+        """"Match by" and the first label of the parameters of each criterion have one width: the selector of the
+        criterion and the parameters (fields, score) start at the same position."""
+        labels = [self._match_by] + self._criterion.lead_labels
+        width = max(label.sizeHint().width() for label in labels)
+        for label in labels:
+            label.setFixedWidth(width)
+
+    def _same_field_sizes(self):
+        """One height for the buttons, the selectors and the text fields; one width for the selectors."""
+        height = self._apply.sizeHint().height()
+        selectors = self.findChildren(_MenuSelector)
+        width = max(selector.sizeHint().width() for selector in selectors)
+        for selector in selectors:
+            selector.setFixedSize(width, height)
+        for edit in self.findChildren(QLineEdit):
+            edit.setFixedHeight(height)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # The frame of the tabs insets their content (by a few pixels, depending on the style): the staged links
+        # take the same inset, so that their table and buttons line up with those of the tabs.
+        inset = self._suggestions_table.mapTo(self, self._suggestions_table.rect().topLeft()).x() \
+            - self._staged_table.mapTo(self, self._staged_table.rect().topLeft()).x()
+        if inset > 0:
+            margins = self._staged_layout.contentsMargins()
+            self._staged_layout.setContentsMargins(margins.left() + inset, 0, margins.right() + inset, 0)
+            # The header too: its halves then have the width of those of the Manual tab.
+            margins = self._header.layout().contentsMargins()
+            self._header.layout().setContentsMargins(margins.left() + inset, 0, margins.right() + inset, 0)
 
     def reject(self):
         if self._staged:

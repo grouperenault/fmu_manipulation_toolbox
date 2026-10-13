@@ -696,13 +696,14 @@ class WireDetailWidget(QWidget):
         self._tab_terminals.changed.connect(self._on_tab_changed)
 
         self._tabs = QTabWidget()
+        self._tabs.setProperty("class", "equal_tabs")         # tabs of one width, see `gui.style`
         self._tabs.addTab(self._tab_ab, "A → B")
         self._tabs.addTab(self._tab_ba, "B → A")
         self._tabs.addTab(self._tab_terminals, "Terminals")
         self._tabs.currentChanged.connect(self._on_current_tab_changed)
 
         # -- Buttons --
-        self._assistant_btn = QPushButton("Assistant…")
+        self._assistant_btn = QPushButton("Link Assistant")
         self._assistant_btn.setProperty("class", "info")
         self._assistant_btn.setToolTip("Define the links of the wire in bulk: same name, prefix / suffix, regex, "
                                        "similar names, or manual pairing")
@@ -720,14 +721,12 @@ class WireDetailWidget(QWidget):
         self._import_btn.setProperty("class", "removal")
         self._import_btn.clicked.connect(self._on_import)
 
-        btn_width = max(
-            self._assistant_btn.sizeHint().width(),
-            self._remove_all_btn.sizeHint().width(),
-            self._export_btn.sizeHint().width(),
-            self._import_btn.sizeHint().width(),
-            150,
-        )
-        for btn in (self._assistant_btn, self._remove_all_btn, self._export_btn, self._import_btn):
+        # One width for every button of the panel, those of the tabs included, so that they line up.
+        buttons = [self._assistant_btn, self._remove_all_btn, self._import_btn, self._export_btn]
+        for tab in (self._tab_ab, self._tab_ba, self._tab_terminals):
+            buttons += [tab._add_btn, tab._remove_btn]
+        btn_width = max([btn.sizeHint().width() for btn in buttons] + [150])
+        for btn in buttons:
             btn.setMinimumWidth(btn_width)
 
         btn_lay = QHBoxLayout()

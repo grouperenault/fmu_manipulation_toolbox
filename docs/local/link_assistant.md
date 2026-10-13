@@ -142,15 +142,15 @@ is the order in which the user applies them.
 
 ```
 ┌─ Link assistant — engine.fmu (A) ↔ ecu.fmu (B) ─────────────────────────────────────────┐
-│ Direction [ A → B ▾ ]       A: 412 outputs, 35 linked       B: 380 inputs, 40 fed       │
-│ ┌───────┬────────────────┐                                                              │
-│ │ Rules │ Manual (37│12) │  ← ports still free on each side (A│B)                       │
-│ ├───────┴────────────────┴────────────────────────────────────────────────────────────┐ │
-│ │ Match by [ Replace prefix / suffix ▾ ]    ☑ ignore case and separators ( . _ - [ ] )│ │
-│ │ A: [engine.out.      ] … [A suffix  ]  →  B: [ecu.in.engine_  ] … [B suffix  ]      │ │
-│ │ Errors (✖): ☑ compatible type  ☐ same unit     ☐ parameters as targets   [ Run ▶ ]  │ │
+│ engine.fmu                                →  ecu.fmu                      [ A → B ▾ ]   │
+│ Σ 412   ● 35   ○ 377                         Σ 380   ● 40   ○ 340                       │
+│ ┌───────┬────────┐                                                                      │
+│ │ Rules │ Manual │                                                                      │
+│ ├───────┴────────┴────────────────────────────────────────────────────────────────────┐ │
+│ │ Match by [Prefix/suffix ▾] ☑ ignore case… ☐ param.  Allow only: ☑ types ☐ units     │ │
+│ │ Output: [engine.out.    ] … [suffix  ]  →  Input: [ecu.in.engine_ ] … [suffix  ]    │ │
 │ ├─────────────────────────────────────────────────────────────────────────────────────┤ │
-│ │ Suggestions: 172  ✔ 139 ⚠ 17 ✖ 16  unmatched: 225 / 159   Show [All ▾] [Filter   ]  │ │
+│ │ Suggestions: 172  ✔ 139 ⚠ 17 ✖ 16                     Show [All ▾] [Filter   ]      │ │
 │ │ ☑ │ Output (A)           │ Type │ Input (B)              │ Type  │ Unit │ Status    │ │
 │ │ ☑ │ engine.out.speed     │ Real │ ecu.in.engine_speed    │ Real  │ rpm  │ ✔         │ │
 │ │ ☑ │ engine.out.torque    │ Real │ ecu.in.engine_torque   │ Int32 │ N.m  │ ⚠ lossy   │ │
@@ -165,7 +165,7 @@ is the order in which the user applies them.
 │ engine.out.torque   │ ecu.in.engine_torque  │ prefix    │ ⚠ Real → Int32 (lossy)        │
 │ wheel.speed         │ ecu.in.wheel_speed    │ manual    │ ✔ array of 4                  │
 │ …                   │                       │           │                               │
-│ [Remove selected] [Clear]        The 35 existing links of the wire are kept.            │
+│ [Remove selected] [Remove All]   The 35 existing links of the wire are kept.            │
 │                                                       [ Cancel ]  [ Apply 386 links ]   │
 └─────────────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -175,9 +175,9 @@ The criteria of **Match by**, all affected by **ignore case and separators** (ch
 | Criterion | Parameters | Example (case and separators ignored) |
 |-----------|------------|---------------------------------------|
 | Same name | — | `Throttle_Pos` → `throttle.pos` |
-| Replace prefix / suffix | prefix and suffix of A, replaced by those of B | `engine.out.` → `ecu.in.engine_` |
-| Regular expression | regex on the A name (`fullmatch`), B name with `\1`, `\2`… | `^sensor\.(\w+)\.(\w+)$` → `sensor_\2_\1` |
-| Similar names | score threshold (0.5 – 1), the links found are ⚠ to be reviewed | `chassis.pressure` → `chassis.press` |
+| Replace prefix / suffix | prefix and suffix of the output, replaced by those of the input | `engine.out.` → `ecu.in.engine_` |
+| Regular expression | regex on the output name (`fullmatch`), input name with `\1`, `\2`… | `^sensor\.(\w+)\.(\w+)$` → `sensor_\2_\1` |
+| Similar names | score threshold (1.00 to 0.50 by 0.05), the links found are ⚠ to be reviewed | `chassis.pressure` → `chassis.press` |
 
 The **Run ▶** button is only shown when the last search took more than 0.3 s (see *Response time* below);
 otherwise the suggestions are updated 250 ms after the last change.
@@ -186,22 +186,23 @@ otherwise the suggestions are updated 250 ms after the last change.
 
 ```
 ┌─ Link assistant — engine.fmu (A) ↔ ecu.fmu (B) ─────────────────────────────────────────┐
-│ Direction [ A → B ▾ ]       A: 412 outputs, 35 linked       B: 380 inputs, 40 fed       │
-│ ┌───────┬────────────────┐                                                              │
-│ │ Rules │ Manual (37│12) │                                                              │
-│ ├───────┴────────────────┴──────────────────┬─────────────────────────────────────────┐ │
-│ │ Outputs of A                              │ Inputs of B                             │ │
-│ │ Filter [temp         ]  Type [All ▾]      │ Filter [temp         ]  Type [All ▾]    │ │
-│ │ ☑ only free ports                         │ ☑ only free ports  ☐ show parameters    │ │
-│ │ Name                │ Type │ Unit │ Desc. │ Name                │ Type │ Unit │ ... │ │
-│ │▶engine.out.temp_oil │ Real │ degC │ Oil t │▶ecu.in.oil_temp     │ Real │ degC │ ... │ │
-│ │▶engine.out.temp_h2o │ Real │ degC │ Coola │▶ecu.in.water_temp   │ Real │ degC │ ... │ │
-│ │ engine.out.temp_exh │ Real │ degC │ Exhau │ ecu.in.exhaust_temp │ Real │ K    │ ... │ │
-│ │ …                   │      │      │       │ …                   │      │      │     │ │
-│ ├───────────────────────────────────────────┴─────────────────────────────────────────┤ │
-│ │ Preview: engine.out.temp_oil → ecu.in.oil_temp                                      │ │
-│ │          engine.out.temp_h2o → ecu.in.water_temp                                    │ │
-│ │ 2 outputs ↔ 2 inputs: paired in display order               [ Link selection ⇩ ]    │ │
+│ engine.fmu                                →  ecu.fmu                      [ A → B ▾ ]   │
+│ Σ 412   ● 35   ○ 377                         Σ 380   ● 40   ○ 340                       │
+│ ┌───────┬────────┐                                                                      │
+│ │ Rules │ Manual │                                                                      │
+│ ├───────┴────────┴─────────────────────────┬──────────────────────────────────────────┐ │
+│ │ Filter [temp          ] [All types ▾]    │ Filter [temp          ] [All types ▾]    │ │
+│ │ ☑ only free ports                        │ ☑ only free ports    ☐ show parameters   │ │
+│ │ Name                │ Type │ Unit │ Desc.│ Name                │ Type │ Unit │ ...  │ │
+│ │ ▶engine.out.temp_oil│ Real │ degC │ Oil t│ ▶ecu.in.oil_temp    │ Real │ degC │ ...  │ │
+│ │ ▶engine.out.temp_h2o│ Real │ degC │ Coola│ ▶ecu.in.water_temp  │ Real │ degC │ ...  │ │
+│ │  engine.out.temp_exh│ Real │ degC │ Exhau│  ecu.in.exhaust_temp│ Real │ K    │ ...  │ │
+│ │  …                                       │  …                                       │ │
+│ ├──────────────────────────────────────────┴──────────────────────────────────────────┤ │
+│ │                                 [ Link selection ↓ ]                                │ │
+│ │                        engine.out.temp_oil → ecu.in.oil_temp                        │ │
+│ │                       engine.out.temp_h2o → ecu.in.water_temp                       │ │
+│ │                  2 output(s) ↔ 2 input(s): paired in display order                  │ │
 │ └─────────────────────────────────────────────────────────────────────────────────────┘ │
 ├══════════════════════════════════════ splitter ═════════════════════════════════════════┤
 │ Staged links: 388   (same list as in the "Rules" tab)                                   │
@@ -218,12 +219,13 @@ otherwise the suggestions are updated 250 ms after the last change.
 | Element | Behaviour |
 |---------|-----------|
 | Direction | Changing it searches the suggestions of the new direction; the staged links of the other direction are kept, and the staged list then shows a direction column, so both directions can be prepared in one session |
-| Counters `A: … linked`, `B: … fed` | Count the existing links of every wire of the node, the exposed inputs, and the staged links |
-| `Manual (37│12)` | Outputs of A / inputs of B still free; the tab opens with "only free ports" checked |
+| Counters `Σ ● ○` below each FMU name | Σ total, ● used, ○ free ports (tooltip on each symbol): outputs linked on this wire (existing or staged links); inputs fed by a link of any wire of the node, an exposed input, or a staged link |
+| Manual tab | Opens with "only free ports" checked; each list is below the name of its FMU in the header |
 | Match by | One criterion at a time; the parameters of each criterion are kept while the window is open; any change of the criterion, its parameters, the options or the direction searches again 250 ms after the last change (or enables **Run**, see *Response time*) |
 | Suggestions | Checked by default when ✔ or ⚠, unchecked when ✖; a tooltip on the status gives the reason; double-click on a row stages it; not searched again after a staging (the suggestions whose ports were just staged are removed, the check boxes of the others are kept) |
 | Stage checked links | Moves the checked suggestions to the staged links; their ports are no longer free in either tab |
 | Manual lists | Sortable columns, multi-selection (Shift / Ctrl), preview of the pairing before **Link selection** |
+| Remove selected / Remove All | Remove staged links; the current criterion is searched again, so that the suggestions of the freed ports come back (the check boxes already set by the user are kept when the status of the suggestion did not change) |
 | Staged links | Status recomputed on each change (e.g. two staged links on one input are both ✖ `duplicate target`); **Apply** is disabled while a ✖ link remains |
 | Apply | Adds the staged links to `WireItem.mappings`, refreshes the Wire Details tabs and the wire, marks the assembly modified, closes the window |
 | Cancel / closing the window | Asks for confirmation when links are staged; the wire is never modified |
@@ -257,8 +259,8 @@ To never freeze the window while typing: a search longer than 0.3 s stops the au
 | 4 | Directions handled at once | One direction at a time with a selector (recommended) / both directions in one run | One direction at a time with a selector; the staged links of both directions are kept (2026-10-12) |
 | 5 | Rules of the first version | exact; ignore case and separators; prefix/suffix replace; regex rewrite; similarity score; same description; same unit | One criterion at a time among same name, prefix / suffix, regex, similar names; "ignore case and separators" is an option of every criterion (2026-10-12) |
 | 6 | Similarity algorithm (if kept) | `difflib.SequenceMatcher` (stdlib, recommended) / token-based / other | `difflib.SequenceMatcher`, after a pre-filter on 3-character fragments (see *Response time*) (2026-10-12) |
-| 7 | Type check | Block incompatible pairs and warn on lossy / warn only | Incompatible type ✖ (check box "compatible type" to make it ⚠), lossy conversion ⚠ (2026-10-12) |
-| 8 | Unit check | Required equality / warn only / ignored | Different unit ⚠ (check box "same unit" to make it ✖) (2026-10-12) |
+| 7 | Type check | Block incompatible pairs and warn on lossy / warn only | Incompatible type ✖ (unchecking "Allow only: compatible types" makes it ⚠), lossy conversion ⚠ (2026-10-12) |
+| 8 | Unit check | Required equality / warn only / ignored | Different unit ⚠ (checking "Allow only: same units" makes it ✖) (2026-10-12) |
 | 9 | "Input already fed" detection scope | This wire only / every wire of the node + exposed inputs (recommended) | Every wire of the node + exposed inputs (2026-10-12) |
 | 10 | One output to several inputs in the rules tab | Allowed (fan-out) / one suggestion per output | One suggestion per output in the Rules tab; fan-out in the Manual tab only (2026-10-12) |
 | 11 | Parameters (`causality="parameter"`) as targets | Listed / hidden by default with a checkbox (recommended) / never | Hidden by default, with a check box (2026-10-12) |
@@ -446,7 +448,8 @@ Commit message: `Link the unmatched ports of the Rules tab to the Manual tab of 
 **Result:** the Rules tab was written at step 0 (criterion editor, update while typing, **Run** after a slow
 search, suggestion table, counters, **Check all ✔** on the rows shown, staging). This step adds:
 
-- the counter "unmatched: N outputs / M inputs" is a link: it opens the Manual tab with the new check box "only
+- (removed afterwards at the request of the user, see *Look and feel adjustments*, point 15) the counter
+  "unmatched: N outputs / M inputs" is a link: it opens the Manual tab with the new check box "only
   ports without a suggestion in the Rules tab", which hides the ports having a suggestion (the elements of a
   suggested FMI-2 aggregate included); the lists then show exactly the N outputs and M inputs of the counter;
 - the "Origin" column of the staged links is wider ("prefix / suffix" was cut);
@@ -454,7 +457,55 @@ search, suggestion table, counters, **Check all ✔** on the rows shown, staging
   exception), checking / unchecking (**Check all** on a filtered table), the unmatched counter and the Manual tab,
   a manual link removing the suggestions of its ports.
 
+### Look and feel adjustments (asked by the user after step 3, 2026-10-12)
+
+| # | Request | Done |
+|---|---------|------|
+| 1 | The button is labelled "Link Assistant" instead of "Assistant…" | `WireDetailWidget` |
+| 2 | Same size for the buttons, aligned as much as possible | One width for every button of the assistant (the widest text, "Apply 99999 links" included) and one for every button of the Wire Details panel (tabs included); the staged links panel takes the inset of the frame of the tabs, so that tables and buttons line up exactly (left and right edges); `⇩` replaced by `↓`, drawn as an odd glyph by macOS |
+| 3 | Artefact on the check box "only ports without a suggestion in the Rules tab" | Not reproduced (offscreen nor native macOS rendering); the check box was the only one stretched over the whole width of the tab: now in a row with a stretch, as the other check boxes. To be checked by the user |
+| 4 | Suggestions: no space between the numbers and the symbols | The spacing depended on the width of the spaces of the font: each counter is now a label of its own (`_Summary`), in the color of its status, for the suggestions and for the staged links |
+
+| 5 | "Remove selected" and "Clear" (renamed "Remove All") do not search the current criterion again | Both search it again (or, after a slow search, ask for **Run**); on every new search, a suggestion already there keeps its check box unless its status changed |
+
+| 6 | Same size and style for the popup menus as the rest of the interface | The combo boxes use a `QListView`, styled by `gui/style.py` (`QComboBox QAbstractItemView`, as the menus of the application: dark list, selection `#4571a4`); one width for all of them |
+| 7 | Header: FMU names larger, with an arrow: `model1.fmu → model2.fmu` | Names with the class `title` of `gui/style.py`, in the order of the direction (source → target); the direction selector on the right. The rule `QLabel.title` was ignored by Qt (`font: 14pt bold` instead of `font: bold 14pt`): fixed, which also makes bold the titles of FMU Tool and FMU Editor (user's choice) |
+| 8 | The counters (outputs, linked, inputs, fed) below | Each one below the name of its FMU |
+| 9 | Rules tab: same height and style for the text fields and the score selector | One height for the buttons, combo boxes and text fields; the score is a combo box (1.00 to 0.50 by 0.05) instead of a spin box drawn by the platform |
+| 10 | "Match by" prefix or regex: the labels A and B are misleading in the direction B → A | Labels "Output:" and "Input:" (and placeholders "prefix", "suffix", "regex on the output name", "input name"): they hold whatever the direction |
+
+| 11 | Use the existing `gui/style.py` for homogeneity | No style nor color defined in the assistant: `gui/style.py` gets `QLineEdit[invalid="true"]` (invalid regex), `QLabel.status_ok / status_warning / status_error` and `status_color` (warning and error are the colors of `log_color`) |
+
+| 12 | Less space between the FMU names and the counters | No vertical spacing in the header |
+| 13 | The label "Direction" is superfluous | Removed: the selector `A → B` / `B → A` stays alone on the right |
+| 14 | Same style as the rest of the application for the popups and the score selector | Every selector (direction, criterion, score, types, "Show") is a push button of class `quit` opening a menu of exclusive checkable actions (`_MenuSelector`), as "Configuration" of the Container Builder and `FilterWidget` of FMU Tool; one width for all of them, from their longest item; the combo box rules added before to `gui/style.py` are removed |
+| 15 | The link "unmatched …" is not relevant | Removed; the check box "only ports without a suggestion in the Rules tab" of the Manual tab is kept (it works on its own) |
+| 16 | The check boxes "compatible type", "same unit", "parameters as targets" after "ignore case and separators" | One row: Match by, ignore case and separators, Errors (✖): compatible type, same unit, parameters as targets, and **Run** on the right; the separators ( . _ - [ ] ) moved to the tooltip of "ignore case and separators" |
+
+| 17 | The check marks in the popup menus are misleading: one choice only | The items of the menus are not checkable any more; the current one is in bold. The blue style of the buttons is kept |
+| 18 | What does "Errors (✖)" mean? Replace it with "Allow only:"? | Yes: "Allow only: ☑ compatible types ☐ same units" (checked: the difference is ✖ and blocks **Apply**; unchecked: it is ⚠ — in the tooltips). "parameters as targets" is not a restriction: it moves before "Allow only:" |
+| 19 | Same space between the check boxes, the label next to its box | `_OPTION_SPACING` (24 px) between every option of a row, Rules and Manual tabs |
+
+| 20 | Rules tab: the criterion selector aligned with the score selector | "Match by" and the first label of the parameters of each criterion ("Output:", "score ≥") have one width, and both rows one spacing: the selector of the criterion, the score selector and the text fields start at the same position |
+| 21 | Manual tab: no counter in the name of the tab | "Manual" |
+| 22 | The FMU names of the header aligned with the lists of ports | The header and the Manual tab are made of the same two halves (`_halves`): each name is above the list of its ports, the arrow at the end of the left half, the direction selector at the right of the right half (it did not have to move above). The splitter between the two lists is replaced by these fixed halves, so that the alignment holds |
+| 23 | The check box "only ports without a suggestion" is superfluous | Removed (with the filter on the suggested ports) |
+| 24 | The labels "Outputs of …" / "Inputs of …" are superfluous, the names of the header being aligned | Removed |
+
+| 25 | Manual tab: center "Link selection" | The button links the left list to the right one: centered below them (exactly between the two lists), the preview of the pairing centered below it |
+
+| 26 | Rules tab: the duration of the search "(0.00 s)" is useless for the user | No longer shown; the duration is still measured, only to stop the update while typing and show **Run** after a search longer than 0.3 s (user's choice: keep this safeguard) |
+
+| 27 | Symbols for the counters of the header (total, linked, fed, free) | `Σ 400   ● 159   ○ 241` (Σ total, ● linked outputs / fed inputs, ○ free), one label per counter with a tooltip (`_PortCounters`); symbols of Verdana, no emoji (drawn differently on each platform) |
+
+| 28 | Same width for the tabs "Rules" and "Manual" | New class `QTabWidget.equal_tabs` in `gui/style.py` (`min-width: 120px` of the tabs), given to the tabs of the assistant and, at the request of the user, to those of the Wire Details panel (A → B, B → A, Terminals) |
+
+Commit message: `Polish the look of the link assistant`
+
 ### Step 4 — (optional, decision 1) Tree mode
+
+Not retained (user, 2026-10-12).
+
 
 Tree view of the manual lists split on a separator; drag of a sub-tree onto a sub-tree stages the links of the
 leaves having the same relative name.

@@ -70,7 +70,7 @@ def _open(window, wire):
 
 def test_auto_connect_is_replaced_by_the_assistant(window):
     texts = {button.text() for button in window._tree.wire_detail.findChildren(QPushButton)}
-    assert "Assistant…" in texts and "Auto-Connect" not in texts
+    assert "Link Assistant" in texts and "Auto-Connect" not in texts
 
 
 def test_same_name_then_apply_updates_the_wire(window, ball):

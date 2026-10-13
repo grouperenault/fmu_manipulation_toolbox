@@ -1,7 +1,5 @@
 """GUI tests of the link assistant window, fed with the fictitious FMUs of its mockup."""
 
-import re
-
 import pytest
 
 pytest.importorskip("PySide6")
@@ -13,7 +11,7 @@ try:
 
     _app = QApplication.instance() or QApplication([])
     from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant import (
-        LinkAssistantDialog, _CriterionEditor, _PortsModel, StagedLink, A_TO_B)
+        LinkAssistantDialog, _CriterionEditor, StagedLink, A_TO_B)
     from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant_demo import generate
     from fmu_manipulation_toolbox.gui.fmucontainer.details.link_matching import (
         AffixRule, RegexRule, SimilarityRule, ERROR, WARNING)
@@ -151,22 +149,6 @@ def test_check_uncheck_then_stage(dialog):
     assert dialog._staged and all(s.level == WARNING for s in dialog._statuses)
 
 
-def test_unmatched_ports_in_the_manual_tab(dialog):
-    _use_prefix(dialog, "engine.out.", "ecu.in.engine_")
-    dialog._on_run()
-    text = dialog._unmatched_link.text()
-    outputs, inputs = (int(n) for n in re.search(r"unmatched: (\d+) outputs / (\d+) inputs", text).groups())
-
-    dialog._on_unmatched_clicked()
-    assert dialog._tabs.currentIndex() == 1 and dialog._only_unsuggested.isChecked()
-    assert dialog._outputs_filter.rowCount() == outputs
-    assert dialog._inputs_filter.rowCount() == inputs
-    suggested = {s.output.name for s in dialog._suggestions_model.suggestions}
-    shown = {dialog._outputs_filter.index(row, 0).data(_PortsModel.ROLE_PORT).name
-             for row in range(dialog._outputs_filter.rowCount())}
-    assert not shown & suggested
-
-
 def test_manual_link_removes_the_suggestions_of_its_ports(dialog):
     _use_prefix(dialog, "engine.out.", "ecu.in.engine_")
     dialog._on_run()
@@ -175,3 +157,45 @@ def test_manual_link_removes_the_suggestions_of_its_ports(dialog):
     dialog._staged.append(StagedLink(A_TO_B, suggestion.output, other, "manual"))
     dialog._refresh()
     assert suggestion not in dialog._suggestions_model.suggestions
+
+
+def test_removing_staged_links_searches_again(dialog, qtbot):
+    _use_prefix(dialog, "engine.out.", "ecu.in.engine_")
+    dialog._on_run()
+    suggestions = dialog._suggestions_model.suggestions
+    kept = next(s for s in suggestions if s.checked)
+    kept.checked = False                                          # a choice of the user
+    pairs = {(s.output.name, s.input.name) for s in suggestions}
+    dialog._on_stage_checked()
+    staged = {(link.output.name, link.input.name) for link in dialog._staged}
+    assert staged and not staged & {(s.output.name, s.input.name) for s in dialog._suggestions_model.suggestions}
+
+    # "Remove selected": the suggestion of the removed link comes back.
+    dialog._staged_table.selectRow(0)
+    removed = (dialog._staged[0].output.name, dialog._staged[0].input.name)
+    dialog._on_remove_staged()
+    qtbot.waitUntil(lambda: removed in {(s.output.name, s.input.name) for s in dialog._suggestions_model.suggestions})
+
+    # "Remove All": every suggestion comes back, and the one unchecked by the user is still unchecked.
+    dialog._on_remove_all_staged()
+    qtbot.waitUntil(lambda: {(s.output.name, s.input.name) for s in dialog._suggestions_model.suggestions} == pairs)
+    again = next(s for s in dialog._suggestions_model.suggestions
+                 if (s.output.name, s.input.name) == (kept.output.name, kept.input.name))
+    assert not again.checked
+
+
+def test_removing_staged_links_after_a_slow_search(dialog, monkeypatch):
+    monkeypatch.setattr(dialog, "AUTO_RUN_LIMIT", -1.0)
+    _use_prefix(dialog, "engine.out.", "ecu.in.engine_")
+    dialog._on_run()
+    dialog._on_stage_checked()
+    dialog._on_remove_all_staged()
+    assert "Staged links removed: press Run" in dialog._suggestions_summary.text()
+
+
+def test_header_counters(dialog):
+    outputs, inputs = dialog._outputs(), dialog._inputs()
+    linked = len(dialog._busy_outputs() & {port.name for port in outputs})
+    fed = len(dialog._busy_inputs() & {port.name for port in inputs})
+    assert dialog._counter_source.text() == f"Σ {len(outputs)}   ● {linked}   ○ {len(outputs) - linked}"
+    assert dialog._counter_target.text() == f"Σ {len(inputs)}   ● {fed}   ○ {len(inputs) - fed}"
