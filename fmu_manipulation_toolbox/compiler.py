@@ -129,7 +129,7 @@ class Toolchain:
         """Command line compiling `source_file` into `object_file`."""
         compiler = self.cxx_compiler if cxx else self.c_compiler
         if self.family == "msvc":
-            command = compiler + ["/nologo", "/c", "/O2", "/MT", "/TP" if cxx else "/TC"]
+            command = compiler + ["/nologo", "/c", "/O2", "/MT", "/bigobj", "/TP" if cxx else "/TC"]
             command += [f"/I{directory}" for directory in include_directories]
             command += [f"/D{name}" if value is None else f"/D{name}={value}" for name, value in definitions.items()]
             return command + options + [str(source_file), f"/Fo{object_file}"]

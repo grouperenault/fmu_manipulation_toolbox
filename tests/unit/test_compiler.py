@@ -190,7 +190,7 @@ def test_msvc_commands(data_dir, tmp_path):
     commands, sources = _commands(data_dir / "compile" / "3.0" / "BouncingBall.fmu", MSVC, tmp_path)
     *compilations, link = commands
     for command in compilations:
-        assert {"/c", "/MT", "/TC", "/DFMI_VERSION=3", "/DDISABLE_PREFIX", f"/I{sources}"} <= set(command)
+        assert {"/c", "/MT", "/bigobj", "/TC", "/DFMI_VERSION=3", "/DDISABLE_PREFIX", f"/I{sources}"} <= set(command)
         assert command[-1].startswith("/Fo") and command[-1].endswith(".obj")
     assert {"/LD", "/MT", f"/Fe{tmp_path / 'lib'}"} <= set(link)
     assert "/link" not in link

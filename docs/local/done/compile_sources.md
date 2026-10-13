@@ -58,7 +58,7 @@ Taken on 13 October 2026:
 - **D7 — Missing sources list** (FMI 2.0 without `<SourceFiles>`, FMI 3.0 without `buildDescription.xml`):
   `OperationError`, no guess. (Compiling every `*.c` was rejected: it fails on both Reference FMUs — FMI 2.0
   `all.c` includes the other `.c` files, FMI 3.0 needs `FMI_VERSION` from the build description.)
-- **D8 — GUI button**: `Compile sources`, colour class `modify`, inserted right after `Remove sources` (the
+- **D8 — GUI button**: `Compile sources`, colour class `modify` (revised: `info`, green, see step 4), inserted right after `Remove sources` (the
   following buttons shift; a 4th row appears).
 - **D9 — GUI responsiveness**: synchronous, as the other operations; the compiler output is streamed to the log.
 - **D10 — Function prefix**: sources written for static linking prefix the FMI functions with the model
@@ -74,7 +74,8 @@ Taken on 13 October 2026:
   `SourceFileSet` matches the compiler used (`gcc`, `clang`, `cl`, compared with the name of the executable);
   otherwise ignored with a warning (also when `compiler` is absent).
 - **D14 — `<Library>`**: linked by name (`-l<name>`, `<name>.lib` with MSVC); `version` and `external` ignored.
-- **D15 — MSVC runtime**: static (`/MT`), so that the DLL does not need the Visual C++ redistributable.
+- **D15 — MSVC runtime**: static (`/MT`), so that the DLL does not need the Visual C++ redistributable. `/bigobj`
+  is also always passed to MSVC (requested by the user): large generated sources exceed the default number of sections.
 - **D16 — Logs of the compilation** (taken on 13 October 2026, homogeneity with the other operations): one short
   `INFO` line per step (`Compiling 'sources/model.c'.`, `Linking 'BouncingBall.dylib'.`), the full command line in
   `DEBUG`. The compiler output of a step is kept and logged once the step ends: as `WARNING` if it succeeds, as
@@ -199,12 +200,13 @@ Commit message: `Add OperationCompileSources`
 - `help.py`: usage of `-compile-sources`; `cli/fmutool.py`: `-compile-sources` (`append_const`) (D4).
 - The whole test suite is green, `test_cli_compile_sources` included.
 - Done on 13 October 2026: 1840 passed; `tests/gui/test_gui.py` expects 16 buttons. D8 revised by the user: the
-  grid is 4 x 4 (`WIDTH = 4`), order chosen by the user:
-  `Check, Save description.xml, Save port names, Rename ports from CSV` /
-  `Trim Until, Remove Toplevel, Merge Toplevel, Compile sources` /
-  `Remove Regexp, Keep only Regexp, Remove all, Remove sources` /
-  `Add Win32 remoting, Add Win32 frontend, Add Win64 remoting, Add Win64 frontend`
-  (colours in blocks, `Compile sources` above `Remove sources`).
+  grid is 4 x 4 (`WIDTH = 4`), one line per theme, order chosen by the user (layout "F"):
+  `Check, Save description.xml, Save port names, Compile sources` /
+  `Add Win32 remoting, Add Win32 frontend, Add Win64 remoting, Add Win64 frontend` /
+  `Rename ports from CSV, Trim Until, Remove Toplevel, Merge Toplevel` /
+  `Remove Regexp, Keep only Regexp, Remove all, Remove sources`.
+  Colours revised by the user: `Compile sources`, `Save port names` and `Save description.xml` are green (`info`);
+  purple (`save`) is left to `Save log as` and `Save modified FMU as`.
   The `?` help button of FMU Tool is removed (duplicate of the launcher); the drop zone is aligned with the 4 lines
   of buttons and the title spans the whole width. Help text says "available from version 2.0" (roadmap).
 

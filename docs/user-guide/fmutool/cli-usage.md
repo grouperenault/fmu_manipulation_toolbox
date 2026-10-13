@@ -292,7 +292,8 @@ INFO     | Binary 'binaries/x86_64-linux/BouncingBall.so' is built.
 **What is compiled:** the files listed by the FMU: `<SourceFiles>` of `modelDescription.xml` (FMI 2.0), or
 `sources/buildDescription.xml` (FMI 3.0) with its preprocessor definitions, include directories and libraries.
 The FMI headers are provided by FMU Manipulation Toolbox. The shared library is built for the current platform
-only (no cross-compilation), with optimizations (`-O2` / `/O2`) and, on Windows, the static C runtime (`/MT`).
+only (no cross-compilation), with optimizations (`-O2` / `/O2`) and, on Windows, the static C runtime (`/MT`) and `/bigobj` (large object
+files, e.g. generated code).
 
 **Errors** (exit code `5`, no output FMU): no `sources/` folder, no list of the sources to compile, no compiler
 found, or compilation failure. The compiler messages are shown as errors (as warnings when the compilation
