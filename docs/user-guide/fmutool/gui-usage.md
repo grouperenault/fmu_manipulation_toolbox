@@ -295,8 +295,11 @@ sudo apt-get install libxcb-cursor0
 
 ### Interface is Frozen
 
+While an operation runs (or the FMU is saved), the mouse shows the wait cursor and the window does not respond.
+
 **Solution:**
-1. Wait — very large FMUs can take a while to load or to log a full summary.
+1. Wait — very large FMUs can take a while to load or to log a full summary, and **Compile sources** takes as
+   long as the compiler.
 2. If it is truly stuck, close the application and relaunch with a smaller FMU, or use the
    command line / Python API instead.
 

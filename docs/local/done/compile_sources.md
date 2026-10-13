@@ -82,6 +82,10 @@ Taken on 13 October 2026:
   `ERROR` if it fails, nothing if it is silent; the temporary paths are shortened (`sources/model.c`) and the
   banner lines of MSVC (name of the source, `Creating library …`) are dropped. This replaces the line-by-line
   streaming of D9 (the progress is given by the `INFO` steps).
+  Fix after the first CI run on Windows (`test_compilation_failure`): the commands run in the directory of the
+  extracted FMU, with the sources and their include directories relative to it (`sources/model.c`, `/`
+  separators), so that the compiler itself names the files relatively instead of relying on the replacement of the
+  temporary prefix (which MSVC may print in another form, e.g. with backslashes or a short 8.3 name).
 
 ---
 

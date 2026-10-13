@@ -1,6 +1,7 @@
 import logging
 import os
 
+import contextlib
 from collections import deque
 from collections.abc import Callable
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
@@ -695,6 +696,16 @@ class LogWindow(QDialog):
         self._handler.clear()
         self._records.clear()
         self.view.clear()
+
+
+@contextlib.contextmanager
+def busy_cursor():
+    """Show the wait cursor while a task blocks the main thread; the cursor is restored even on error."""
+    QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+    try:
+        yield
+    finally:
+        QApplication.restoreOverrideCursor()
 
 
 class RunTask(QDialog):

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushBut
 from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
-from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, LogWidget, WidgetLogHandler,
+from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, busy_cursor, LogWidget, WidgetLogHandler,
                                                  LastDirectory, get_fmu_icon_path)
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
@@ -212,7 +212,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             filename = LastDirectory.get_save_file_name(self, "Select a file", "FMU files (*.fmu)",
                                                         default_name=os.path.basename(fmu.fmu_filename))
             if filename:
-                fmu.repack(filename)
+                with busy_cursor():
+                    fmu.repack(filename)
                 logger.info(f"Modified version saved as {filename}.")
 
     def save_log(self):
@@ -301,10 +302,11 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
                 self.log_widget.insertHtml(f"<i>Applied only for ports with  causality = " +
                                            ", ".join(apply_on) + "</i><br>")
             logger.info('-' * 100)
-            try:
-                self.dropped_fmu.fmu.apply_operation(operation, apply_on=apply_on)
-            except Exception as e:
-                logger.error(f"{e}")
+            with busy_cursor():
+                try:
+                    self.dropped_fmu.fmu.apply_operation(operation, apply_on=apply_on)
+                except Exception as e:
+                    logger.error(f"{e}")
 
             scroll_bar = self.log_widget.verticalScrollBar()
             scroll_bar.setValue(scroll_bar.maximum())

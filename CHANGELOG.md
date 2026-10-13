@@ -205,7 +205,8 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 - 🔵 **CHANGED** `fmutool-gui`: the operation buttons are laid out in a 4 × 4 grid, one line per theme: analysis
   and export, binary interfaces (green), name changes (orange), removals (red). **Save port names**, **Save
   description.xml** and the new **Compile sources** are green; purple is kept for **Save log as** and **Save
-  modified FMU as**. The **?** help icon is removed (the documentation is reachable from `fmutoolbox`).
+  modified FMU as**. The **?** help icon is removed (the documentation is reachable from `fmutoolbox`). The
+  wait cursor is shown while an operation runs or the FMU is saved, as in `fmucontainer-gui`.
 - 🟢 **ADDED** `fmucontainer-gui` and `fmueditor`: the status bar shows the last log message (Info level and above)
   in the colour of its level; a click opens a log window with every message since the launch, a level filter, a
   search, **Save Logs…** and **Clear**. In `fmucontainer-gui`, the messages that were lost outside the progress

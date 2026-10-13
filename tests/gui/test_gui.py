@@ -52,6 +52,34 @@ def test_fmutool_operations_buttons_exist(qtbot):
     assert len(window.operations_button_list) == 16
 
 
+def test_fmutool_busy_cursor_during_operation(qtbot, bouncing_ball):
+    """The wait cursor is shown while an operation runs, and restored afterwards, also when it fails."""
+    from PySide6.QtCore import Qt
+    from fmu_manipulation_toolbox.operations import OperationAbstract, OperationError
+
+    class Probe(OperationAbstract):
+        read_only = True
+        cursors = []
+
+        def __init__(self, fail=False):
+            self.fail = fail
+
+        def closure(self):
+            cursor = QApplication.overrideCursor()
+            Probe.cursors.append(cursor.shape() if cursor else None)
+            if self.fail:
+                raise OperationError("probe failure")
+
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    window.apply_operation(Probe())
+    window.apply_operation(Probe(fail=True))
+    assert Probe.cursors == [Qt.CursorShape.WaitCursor, Qt.CursorShape.WaitCursor]
+    assert QApplication.overrideCursor() is None
+    assert "probe failure" in window.log_widget.toPlainText()
+
+
 def test_fmutool_logs_into_its_log_widget(qtbot):
     import logging
     window = FMUToolWindow()
