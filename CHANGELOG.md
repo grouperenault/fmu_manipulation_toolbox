@@ -77,6 +77,21 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## FMU Container
 
+- 🟢 **ADDED** `fmucontainer-gui`: **Link Assistant** — a window opened from the *Wire Details* panel to define
+  in bulk the links of a wire between FMUs with hundreds of ports. Tab **Rules**: a criterion (same name,
+  prefix / suffix replacement, regular expression, similar names), optionally ignoring case and separators,
+  proposes links updated while typing, with a status (✔, ⚠ lossy conversion / different units / similar
+  name, ✖ input already fed / types not convertible / arrays of different sizes) and check boxes. Tab
+  **Manual**: two filtered port lists to pair the leftovers. The staged links of both tabs and both
+  directions are written into the wire by **Apply** only. See the
+  [Link Assistant](docs/user-guide/fmucontainer/gui-usage.md#link-assistant).
+- 🔵 **CHANGED** `fmucontainer-gui`: the **Auto-Connect** button of the *Wire Details* panel is replaced by
+  **Link Assistant**, which opens on the *Same name* criterion: the links of same name are proposed for
+  review, one direction at a time, instead of being added at once in both directions. The tabs of the panel
+  have one width.
+- 🟠 **FIXED** GUI: the titles styled `title` (FMU name in FMU Tool and FMU Editor) were not bold nor larger:
+  the font rule of the stylesheet was ignored by Qt.
+
 - 🟢 **ADDED** **Model-Exchange FMUs** can be embedded: all of them are advanced in a single container-wide
   loop by an embedded fixed-step solver (forward Euler by default, RK4 available), so that their
   state derivatives, state events and time events stay consistent; Co-Simulation and

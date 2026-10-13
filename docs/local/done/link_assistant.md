@@ -514,10 +514,27 @@ Commit message: `Add the hierarchical mode to the link assistant`
 
 ### Step 5 — User documentation
 
-- `docs/user-guide/fmucontainer/gui-usage.md`, section *Wire Details*: the **Assistant…** button (instead of
+- `docs/user-guide/fmucontainer/gui-usage.md`, section *Wire Details*: the **Link Assistant** button (instead of
   **Auto-Connect**, also in the tip "Auto-Connect"), the two tabs, the criteria, the statuses, screenshots;
 - `docs/help/troubleshooting.md`: the step using **Auto-Connect** after a *Replace FMU* now uses the assistant;
 - `CHANGELOG.md`;
 - ROADMAP: check "Efficient assistant to connect 2 FMUs"; move this plan to `docs/local/done`.
 
 Commit message: `Document the link assistant of the Container Builder`
+
+**Result:**
+
+- `gui-usage.md`, *Wire Details*: the table of the global buttons gives **Link Assistant** instead of
+  **Auto-Connect** (the tip "Auto-Connect" is removed); new section *Link Assistant*: opening, header and its
+  counters `Σ ● ○`, direction, tab **Rules** (criteria, options, statuses, sequence of criteria, **Run** for the
+  large FMUs), tab **Manual**, staged links (buttons, **Apply**, links fed meanwhile), FMI-2 arrays, settings
+  kept for the session; two screenshots made with the fictitious FMUs of the mockup
+  (`link-assistant-rules.png`, `link-assistant-manual.png`, native macOS rendering);
+- `troubleshooting.md` ("wires have no port mappings"): the step uses the Link Assistant (*Same name*, both
+  directions), with a link to the new section;
+- `CHANGELOG.md`, *FMU Container*: the Link Assistant (ADDED), Auto-Connect replaced (CHANGED), the `title`
+  style of FMU Tool and FMU Editor (FIXED);
+- ROADMAP: "Efficient assistant to connect 2 FMUs" checked; plan moved to `docs/local/done`.
+
+`mkdocs build --strict` passes (the anchors `#link-assistant`, `#rules-tab`, `#manual-tab`, `#staged-links`
+exist; the notice about `#port-style-indicators` was already there before).

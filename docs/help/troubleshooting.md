@@ -130,7 +130,9 @@ mappings. Or the `.fmu` file is corrupted.
 **Solution:**
 
 1. Select the wire
-2. Use the **Auto-Connect** button to re-create mappings from matching port names (populates both A → B and B → A tabs)
+2. Click **Link Assistant**: it opens on **Same name** and proposes the links between ports of matching names;
+   click **Stage checked links**, switch the direction (**B → A**) to do the same, then **Apply**
+   (see [Link Assistant](../user-guide/fmucontainer/gui-usage.md#link-assistant))
 3. Manually adjust if needed using the combo-box dropdowns in each tab
 
 ### ❌ FMU Variable Editor: changes are not saved
