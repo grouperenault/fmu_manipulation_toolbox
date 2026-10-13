@@ -154,6 +154,20 @@ already exists, nothing is compiled. A C compiler is required, see
 
 ![Compile sources in the log area](fmutool-compile.png)
 
+**If the compilation fails** (the compiler messages are shown as errors in the log area), a dialog asks for
+additional options, written for the compiler it names:
+
+- **Compiler options**: added to every compilation, e.g. `-DFOO=1 -I/opt/include`;
+- **Linker options**: added to the link, e.g. `-L/opt/lib`;
+- **Libraries**: names separated by commas, e.g. `foo,bar`.
+
+**Retry** compiles again with these options; the dialog comes back after each failure, until the compilation
+succeeds or you click **Cancel**. The options are kept until the application is closed: they are used for the next
+compilations, and pre-filled in the dialog. The dialog does not open when the FMU has no sources or when no compiler
+is found: other options would not help.
+
+![Additional options after a compilation failure](fmutool-compile-options.png)
+
 #### 🟢 Add Binary Interface (Windows FMUs)
 
 **Use Case:** Add a 64-bit interface to a 32-bit-only Windows FMU

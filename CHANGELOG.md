@@ -138,7 +138,9 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   `fmutool -compile-sources`, the **Compile sources** button of `fmutool-gui`, and `OperationCompileSources` /
   `SourceCompiler` (`fmu_manipulation_toolbox.compiler`) in the Python API. FMI 2.0 (`<SourceFiles>`) and FMI 3.0
   (`sources/buildDescription.xml`), C and C++, with the C compiler of the platform (Visual Studio on Windows, `cc`
-  or `CC` elsewhere). The FMI headers are now part of the package (`resources/fmi/`). See
+  or `CC` elsewhere). The FMI headers are now part of the package (`resources/fmi/`). Additional compiler options,
+  linker options and libraries can be given (`-compile-options`, `-link-options`, `-link-libraries`; in
+  `fmutool-gui`, a dialog asks for them after a compilation failure). See
   [Compile Sources](docs/user-guide/fmutool/cli-usage.md#compile-sources).
 - 🔵 **CHANGED** operations modify `modelDescription.xml` in place with ElementTree instead of
   re-generating it, so that everything an operation does not touch is kept as is. Fixes text and

@@ -295,6 +295,28 @@ The FMI headers are provided by FMU Manipulation Toolbox. The shared library is 
 only (no cross-compilation), with optimizations (`-O2` / `/O2`) and, on Windows, the static C runtime (`/MT`) and `/bigobj` (large object
 files, e.g. generated code).
 
+**Additional options:** FMI 2.0 `<SourceFiles>` only lists file names: when the sources need a preprocessor
+definition, an include directory or a library, give them with:
+
+| Option | Content | Example |
+|--------|---------|---------|
+| `-compile-options` | options added to every compilation | `-compile-options="-DFOO=1 -I/opt/include"` |
+| `-link-options` | options added to the link, before the libraries | `-link-options=-L/opt/lib` (`/LIBPATH:C:\lib` with Visual Studio) |
+| `-link-libraries` | libraries, by name, separated by commas | `-link-libraries foo,bar` (`-lfoo -lbar`, or `foo.lib bar.lib` with Visual Studio) |
+
+```bash
+fmutool -input module.fmu -compile-sources -compile-options=-DFOO=1 -link-libraries foo -output module-compiled.fmu
+```
+
+They come in addition to what the build description of the FMU gives, and need `-compile-sources` (otherwise:
+exit code `2`). The options are written for the compiler in use (shown by the first line of the log, e.g.
+`… with gcc.`).
+
+!!! note
+    A value that starts with `-` and contains no space must be written with `=`: `-compile-options=-DFOO`, not
+    `-compile-options -DFOO` (the command line parser would take `-DFOO` for an option). With several options,
+    quotes are enough: `-compile-options "-DFOO -DBAR"`.
+
 **Errors** (exit code `5`, no output FMU): no `sources/` folder, no list of the sources to compile, no compiler
 found, or compilation failure. The compiler messages are shown as errors (as warnings when the compilation
 succeeds).
@@ -305,6 +327,8 @@ succeeds).
   recompiled on a Mac with Apple Silicon. Remove the binary first (e.g. with a zip tool) to force the compilation.
 - An FMU without list of its sources is not compiled: the sources to use (and the preprocessor definitions they
   need) cannot be guessed.
+- FMI 2.0 gives no library to link with nor preprocessor definition: when the compiler or the linker reports a
+  missing symbol or definition, use the additional options above.
 - `compilerOptions` of `buildDescription.xml` are only used when they are written for the compiler in use (`gcc`,
   `clang` or `cl`).
 

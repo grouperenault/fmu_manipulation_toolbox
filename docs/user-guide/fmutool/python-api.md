@@ -263,6 +263,26 @@ with FMU("module.fmu") as fmu:
         fmu.repack("module-compiled.fmu")
 ```
 
+Additional compiler options, linker options and libraries (by name) are given to the operation; after a failure,
+`compilation_failed` tells whether the compiler or the linker failed (other options may help) or whether nothing
+could be compiled (no sources, no compiler):
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationError
+from fmu_manipulation_toolbox.compiler import OperationCompileSources
+
+operation = OperationCompileSources(compiler_options=["-DFOO=1"], linker_options=["-L/opt/lib"],
+                                    libraries=["foo"])
+with FMU("module.fmu") as fmu:
+    try:
+        fmu.apply_operation(operation)
+    except OperationError:
+        if operation.compilation_failed:
+            print("The compiler failed: see the log, and try other options.")
+        raise
+    fmu.repack("module-compiled.fmu")
+```
+
 `SourceCompiler` gives access to the steps, e.g. to know what would be built without compiling:
 
 ```python

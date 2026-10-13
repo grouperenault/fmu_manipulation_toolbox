@@ -1,6 +1,6 @@
 # Plan: additional compiler options, linker options and libraries for "Compile sources"
 
-**Created**: 13 October 2026 — **Status**: steps 1 to 3 done — **Roadmap**: not listed —
+**Created**: 13 October 2026 — **Status**: done (13 October 2026) — **Roadmap**: not listed —
 **Origin**: follow-up of `done/compile_sources.md`
 
 FMI 2.0 `<SourceFiles>` only lists file names: nothing tells which libraries to link, nor which definitions or
@@ -141,10 +141,15 @@ Commit message: `Add -compile-options, -link-options and -link-libraries to fmut
 
 Commit message: `Ask for additional compiler options in FMU Tool after a compilation failure`
 
-### Step 4 — User documentation
+### Step 4 — User documentation — done
 
 - `docs/user-guide/fmutool/cli-usage.md` (*Compile Sources*: the three options, an FMI 2.0 example),
   `gui-usage.md` (*Compile Sources*: the dialog after a failure; screenshot of the dialog with
   `tools/screenshots.py`), `python-api.md` (parameters), `CHANGELOG.md`.
+
+- Done on 13 October 2026: `cli-usage.md` (table of the three options, note on `=`, limit about FMI 2.0),
+  `gui-usage.md` (the dialog after a failure), `python-api.md` (parameters and `compilation_failed`),
+  `CHANGELOG.md` (entry of the compilation completed); screenshot `fmutool-compile-options.png` (new shot in
+  `tools/screenshots.py`, the real dialog after a real failure). `mkdocs build --strict` passes.
 
 Commit message: `Document the additional options of the compilation`

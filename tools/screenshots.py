@@ -225,6 +225,45 @@ def fmutool_compile():
     return window.grab()
 
 
+@shot("fmutool-compile-options", "user-guide/fmutool/fmutool-compile-options.png")
+def fmutool_compile_options():
+    """The dialog of `Compile sources` after a failure: `model.c` of `BouncingBall` needs `FOO`."""
+    import zipfile
+    from fmu_manipulation_toolbox.gui.fmutool import __main__ as fmutool_gui
+    source = DATA / "compile" / "3.0" / "BouncingBall.fmu"
+    target = WORK / "BouncingBall.fmu"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(source) as zin, zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            content = zin.read(item.filename)
+            if item.filename == "sources/model.c":
+                content = b'#ifndef FOO\n#error "FOO is not defined"\n#endif\n' + content
+            if not item.filename.startswith("binaries/"):
+                zout.writestr(item, content)
+
+    images = []
+
+    class Dialog(fmutool_gui.CompileOptionsDialog):
+        """Grabbed instead of being executed; then cancelled."""
+        def exec(self):
+            self.edits["compiler_options"].setText("-DFOO")
+            self.setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+            self.show()
+            settle()
+            images.append(self.grab())
+            return fmutool_gui.QDialog.DialogCode.Rejected
+
+    window = offscreen(fmutool_gui.MainWindow, size=(1030, 860))
+    window.load(str(target))
+    settle()
+    original, fmutool_gui.CompileOptionsDialog = fmutool_gui.CompileOptionsDialog, Dialog
+    try:
+        window.compile_sources()
+    finally:
+        fmutool_gui.CompileOptionsDialog = original
+    return images[0]
+
+
 def fmueditor_window():
     from fmu_manipulation_toolbox.gui.fmueditor.__main__ import MainWindow
     work = copy_data("containers/VanDerPol/VanDerPol.fmu")
