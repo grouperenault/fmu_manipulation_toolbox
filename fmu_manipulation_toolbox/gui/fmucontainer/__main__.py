@@ -154,7 +154,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         button_bar.addWidget(self._save_button)
 
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(8, 8, 8, 8)
+        # No bottom margin: the status bar is right below; see the margins of the status bar.
+        main_layout.setContentsMargins(8, 8, 8, 0)
         main_layout.addWidget(splitter, 1)
         main_layout.addLayout(button_bar)
 
@@ -163,6 +164,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self.setCentralWidget(central)
 
         self._status_bar = LogStatusBar(GuiLogHandler.install())
+        # The text of the status bar is as far from the buttons as from the bottom of the window.
+        self._status_bar.setContentsMargins(0, 0, 0, 4)
         self.setStatusBar(self._status_bar)
 
         self.setWindowTitle("FMU Container Builder")

@@ -15,14 +15,15 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer, QSize
-from PySide6.QtGui import QColor, QFont, QAction
+from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QDialog, QWidget, QLabel, QTabWidget, QSplitter, QVBoxLayout, QHBoxLayout, QGridLayout, QTableView,
-    QHeaderView, QAbstractItemView, QPushButton, QLineEdit, QCheckBox, QFrame, QStackedWidget, QMessageBox, QMenu,
+    QHeaderView, QAbstractItemView, QPushButton, QLineEdit, QCheckBox, QFrame, QStackedWidget, QMessageBox,
     QSizePolicy,
 )
 
+from fmu_manipulation_toolbox.gui.helper import MenuSelector
 from fmu_manipulation_toolbox.gui.style import status_color
 from .link_matching import (
     PortInfo, Status, Checks, Rule, AffixRule, RegexRule, SimilarityRule, RULE_KINDS, Suggestion, suggest,
@@ -273,72 +274,6 @@ class _LevelFilter(QSortFilterProxyModel):
         return True
 
 
-class _MenuSelector(QPushButton):
-    """One choice among a few items: a push button opening a menu, as the other selectors of the application
-    ("Configuration" of the Container Builder, `FilterWidget` of FMU Tool). The items are not checkable (one choice
-    only): the current one is in bold. Offers the part of the `QComboBox` interface used by the assistant."""
-    currentIndexChanged = Signal(int)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setProperty("class", "quit")
-        self._menu = QMenu(self)
-        self._actions: list[QAction] = []
-        self._items: list[tuple[str, object]] = []
-        self._index = -1
-        self.setMenu(self._menu)
-
-    def addItem(self, text: str, data=None):
-        action = QAction(text, self)
-        index = len(self._items)
-        action.triggered.connect(lambda _=False, i=index: self.setCurrentIndex(i))
-        self._actions.append(action)
-        self._menu.addAction(action)
-        self._items.append((text, data))
-        if self._index < 0:
-            self.setCurrentIndex(0)
-
-    def clear(self):
-        self._menu.clear()
-        self._actions = []
-        self._items = []
-        self._index = -1
-        self.setText("")
-
-    def count(self) -> int:
-        return len(self._items)
-
-    def currentIndex(self) -> int:
-        return self._index
-
-    def currentData(self):
-        return self._items[self._index][1] if 0 <= self._index < len(self._items) else None
-
-    def currentText(self) -> str:
-        return self._items[self._index][0] if 0 <= self._index < len(self._items) else ""
-
-    def findData(self, data) -> int:
-        return next((index for index, (_, value) in enumerate(self._items) if value == data), -1)
-
-    def sizeHint(self):
-        """Wide enough for the longest item, and for the arrow of the menu."""
-        hint = super().sizeHint()
-        texts = [text for text, _ in self._items] or [self.text()]
-        width = max(self.fontMetrics().horizontalAdvance(text) for text in texts) + 60
-        return hint.expandedTo(QSize(width, hint.height()))
-
-    def setCurrentIndex(self, index: int):
-        if index == self._index or not 0 <= index < len(self._items):
-            return
-        self._index = index
-        self.setText(self._items[index][0])
-        for position, action in enumerate(self._actions):
-            font = action.font()
-            font.setBold(position == index)
-            action.setFont(font)
-        self.currentIndexChanged.emit(index)
-
-
 def _halves(left, right) -> QWidget:
     """Two layouts side by side, each one half of the width (whatever their content), so that the header and the
     lists of the Manual tab line up."""
@@ -356,8 +291,8 @@ def _halves(left, right) -> QWidget:
     return widget
 
 
-def _level_combo() -> _MenuSelector:
-    combo = _MenuSelector()
+def _level_combo() -> MenuSelector:
+    combo = MenuSelector()
     combo.addItem("All", None)
     combo.addItem("✔ OK", OK)
     combo.addItem("⚠ Warnings", WARNING)
@@ -473,7 +408,7 @@ class _CriterionEditor(QWidget):
         if _CriterionEditor._session_rules is None:
             _CriterionEditor._session_rules = [kind() for kind in RULE_KINDS]
         self._rules = _CriterionEditor._session_rules
-        self._kind = _MenuSelector()
+        self._kind = MenuSelector()
         for rule in self._rules:
             self._kind.addItem(rule.kind)
         self._ignore_case = QCheckBox("ignore case and separators")
@@ -494,7 +429,7 @@ class _CriterionEditor(QWidget):
         lay.addWidget(self._pages)
 
     @property
-    def kind_selector(self) -> "_MenuSelector":
+    def kind_selector(self) -> "MenuSelector":
         return self._kind
 
     @property
@@ -549,7 +484,7 @@ class _CriterionEditor(QWidget):
             lay.addWidget(replacement, 3)
             self.regex_fields = (pattern, replacement)
         elif isinstance(rule, SimilarityRule):
-            threshold = _MenuSelector()
+            threshold = MenuSelector()
             for value in range(100, 45, -5):
                 threshold.addItem(f"{value / 100:.2f}", value / 100)
             threshold.setCurrentIndex(max(threshold.findData(round(rule.threshold, 2)), 0))
@@ -613,7 +548,7 @@ class LinkAssistantDialog(QDialog):
         self.resize(1200, 860)
 
         # -- Header --
-        self._direction_combo = _MenuSelector()
+        self._direction_combo = MenuSelector()
         self._direction_combo.addItem("A → B", A_TO_B)
         self._direction_combo.addItem("B → A", B_TO_A)
         self._direction_combo.currentIndexChanged.connect(self._on_direction_changed)
@@ -768,7 +703,7 @@ class LinkAssistantDialog(QDialog):
         text = QLineEdit()
         text.setPlaceholderText("Filter name / description")
         text.textChanged.connect(lambda value: self._set_filter(proxy, text=value))
-        types = _MenuSelector()
+        types = MenuSelector()
         types.addItem("All types", "")
         types.currentIndexChanged.connect(lambda: self._set_filter(proxy, fmi_type=types.currentData()))
         only_free = QCheckBox("only free ports")
@@ -1137,7 +1072,7 @@ class LinkAssistantDialog(QDialog):
     def _same_field_sizes(self):
         """One height for the buttons, the selectors and the text fields; one width for the selectors."""
         height = self._apply.sizeHint().height()
-        selectors = self.findChildren(_MenuSelector)
+        selectors = self.findChildren(MenuSelector)
         width = max(selector.sizeHint().width() for selector in selectors)
         for selector in selectors:
             selector.setFixedSize(width, height)

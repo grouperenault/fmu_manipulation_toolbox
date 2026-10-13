@@ -4,9 +4,9 @@ import os
 from collections import deque
 from collections.abc import Callable
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
-                               QHBoxLayout, QPushButton, QMessageBox, QTableView, QHeaderView, QComboBox, QLineEdit)
-from PySide6.QtGui import QDesktopServices, QIcon
-from PySide6.QtCore import Qt, Signal, QObject, QPoint, QDir, QUrl, QRect
+                               QHBoxLayout, QPushButton, QMessageBox, QTableView, QHeaderView, QLineEdit, QMenu)
+from PySide6.QtGui import QDesktopServices, QIcon, QAction
+from PySide6.QtCore import Qt, Signal, QObject, QPoint, QDir, QUrl, QRect, QSize
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage, QGuiApplication, QTextCursor
 
 from pathlib import Path
@@ -378,6 +378,72 @@ def save_log_text(parent, text: str):
         QMessageBox.critical(parent, "Save Logs", f"Cannot save logs: {e}")
 
 
+class MenuSelector(QPushButton):
+    """One choice among a few items: a push button (class `quit`) opening a menu, as the other selectors of the
+    application ("Configuration" of the Container Builder, `FilterWidget` of FMU Tool). The items are not checkable
+    (one choice only): the current one is in bold. Offers the part of the `QComboBox` interface used by the GUI."""
+    currentIndexChanged = Signal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setProperty("class", "quit")
+        self._menu = QMenu(self)
+        self._actions: list[QAction] = []
+        self._items: list[tuple[str, object]] = []
+        self._index = -1
+        self.setMenu(self._menu)
+
+    def addItem(self, text: str, data=None):
+        action = QAction(text, self)
+        index = len(self._items)
+        action.triggered.connect(lambda _=False, i=index: self.setCurrentIndex(i))
+        self._actions.append(action)
+        self._menu.addAction(action)
+        self._items.append((text, data))
+        if self._index < 0:
+            self.setCurrentIndex(0)
+
+    def clear(self):
+        self._menu.clear()
+        self._actions = []
+        self._items = []
+        self._index = -1
+        self.setText("")
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def currentIndex(self) -> int:
+        return self._index
+
+    def currentData(self):
+        return self._items[self._index][1] if 0 <= self._index < len(self._items) else None
+
+    def currentText(self) -> str:
+        return self._items[self._index][0] if 0 <= self._index < len(self._items) else ""
+
+    def findData(self, data) -> int:
+        return next((index for index, (_, value) in enumerate(self._items) if value == data), -1)
+
+    def sizeHint(self):
+        """Wide enough for the longest item, and for the arrow of the menu."""
+        hint = super().sizeHint()
+        texts = [text for text, _ in self._items] or [self.text()]
+        width = max(self.fontMetrics().horizontalAdvance(text) for text in texts) + 60
+        return hint.expandedTo(QSize(width, hint.height()))
+
+    def setCurrentIndex(self, index: int):
+        if index == self._index or not 0 <= index < len(self._items):
+            return
+        self._index = index
+        self.setText(self._items[index][0])
+        for position, action in enumerate(self._actions):
+            font = action.font()
+            font.setBold(position == index)
+            action.setFont(font)
+        self.currentIndexChanged.emit(index)
+
+
 class GuiLogHandler(logging.Handler):
     """The single GUI sink of the toolbox logger.
 
@@ -491,17 +557,23 @@ class WidgetLogHandler(logging.Handler):
 
 
 class LogStatusBar(QStatusBar):
-    """Shows the last record (INFO and above) of a ``GuiLogHandler``; a click opens the ``LogWindow``."""
+    """Shows the last record (INFO and above) of a ``GuiLogHandler``; a click opens the ``LogWindow``.
+
+    Until the first record, it shows *initial_text* ("Ready"), which is not a record: it is neither in the
+    history of the handler nor in the ``LogWindow``.
+    """
 
     clicked = Signal()
+    INITIAL_TEXT = "Ready"
 
-    def __init__(self, handler: GuiLogHandler, parent=None, level=logging.INFO):
+    def __init__(self, handler: GuiLogHandler, parent=None, level=logging.INFO, initial_text: str = INITIAL_TEXT):
         super().__init__(parent)
         self._handler = handler
         self._level = level
         self._log_window: LogWindow | None = None
 
-        self._label = QLabel()
+        self._label = QLabel(initial_text)
+        self._label.setStyleSheet(f"color: {_level_color(logging.INFO)};")
         self._label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self._label.setContentsMargins(6, 0, 6, 2)
         self.addWidget(self._label, 1)
@@ -549,7 +621,7 @@ class LogWindow(QDialog):
         self._handler = handler
         self._records: deque[tuple[int, str]] = deque(maxlen=handler.history.maxlen)
 
-        self.level_combo = QComboBox()
+        self.level_combo = MenuSelector()
         for name, level in self.LEVELS:
             self.level_combo.addItem(name, level)
         self.level_combo.setToolTip("Minimum level of the displayed records")
@@ -564,7 +636,7 @@ class LogWindow(QDialog):
         filter_layout.addWidget(self.level_combo)
         filter_layout.addWidget(self.search_edit, 1)
 
-        self.view = LogWidget(width=900, height=400)
+        self.view = LogWidget(height=400)               # as wide as the log of `RunTask`
 
         self.save_button = QPushButton("Save Logs...")
         self.save_button.setProperty("class", "info")
@@ -586,6 +658,14 @@ class LogWindow(QDialog):
         button_layout.addWidget(self.save_button)
         button_layout.addWidget(self.clear_button)
         button_layout.addWidget(self.close_button)
+
+        # The level selector as wide as the buttons, the search field as high as the selector.
+        buttons = (self.save_button, self.clear_button, self.close_button)
+        width = max([button.sizeHint().width() for button in buttons] + [150])
+        for button in buttons:
+            button.setMinimumWidth(width)
+        self.level_combo.setFixedWidth(width)
+        self.search_edit.setFixedHeight(self.level_combo.sizeHint().height())
 
         layout = QVBoxLayout(self)
         layout.addLayout(filter_layout)

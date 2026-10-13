@@ -90,6 +90,14 @@ def test_record_from_a_worker_thread_is_delivered_on_the_main_thread(qtbot, hand
 
 
 # ── LogStatusBar ──────────────────────────────────────────────────────────
+def test_status_bar_shows_ready_until_the_first_record(status_bar, handler):
+    assert status_bar.text() == "Ready"
+    assert log_color["INFO"] in status_bar._label.styleSheet()
+    assert not handler.history                           # "Ready" is not a record
+    logger.info("first")
+    assert status_bar.text() == "first"
+
+
 def test_status_bar_shows_the_last_info_record_with_its_colour(status_bar):
     logger.info("first")
     logger.warning("second")

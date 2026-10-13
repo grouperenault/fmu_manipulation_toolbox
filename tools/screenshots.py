@@ -510,6 +510,11 @@ def main():
     finally:
         shutil.rmtree(WORK, ignore_errors=True)
     application.processEvents()
+    # No selection signal from a scene being destroyed at exit (as in the GUI tests).
+    for window in WINDOWS:
+        graph = getattr(window, "_graph", None)
+        if graph is not None:
+            graph.scene.blockSignals(True)
 
 
 if __name__ == "__main__":
