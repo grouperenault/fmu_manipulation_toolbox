@@ -418,26 +418,53 @@ class SourceCompiler:
         with tempfile.TemporaryDirectory() as build_directory:
             build_directory = Path(build_directory)
             library = build_directory / destination.name
-            for command in self.build_commands(configuration, toolchain, build_directory, library):
+            steps = [f"Compiling '{self._display(path)}'." for path in configuration.source_files]
+            steps.append(f"Linking '{library.name}'.")
+            commands = self.build_commands(configuration, toolchain, build_directory, library)
+            for step, command in zip(steps, commands):
+                logger.info(step)
                 self._run(command, toolchain, build_directory, configuration.model_identifier)
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(library, destination)
         logger.info(f"Binary 'binaries/{destination.parent.name}/{destination.name}' is built.")
         return destination
 
-    @staticmethod
-    def _run(command: list[str], toolchain: Toolchain, cwd: Path, model_identifier: str):
-        logger.info(" ".join(shlex.quote(argument) for argument in command))
+    def _display(self, path: Path | str) -> str:
+        """`path` relative to the extracted FMU (e.g. `sources/model.c`), for the log."""
         try:
-            process = subprocess.Popen(command, cwd=cwd, env=toolchain.environment, stdout=subprocess.PIPE,
-                                       stderr=subprocess.STDOUT, text=True, errors="replace")
+            return Path(path).relative_to(self.fmu_directory).as_posix()
+        except ValueError:
+            return str(path)
+
+    def _run(self, command: list[str], toolchain: Toolchain, build_directory: Path, model_identifier: str):
+        """Run `command`. Its output is logged as warnings on success, as errors on failure."""
+        logger.debug(" ".join(shlex.quote(argument) for argument in command))
+        try:
+            process = subprocess.run(command, cwd=build_directory, env=toolchain.environment, stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT, text=True, errors="replace")
         except OSError as error:
             raise OperationError(f"Cannot run '{command[0]}': {error.strerror}.") from None
-        with process:
-            for line in process.stdout:
-                logger.info(line.rstrip())
+
+        # Shorten the temporary paths: `sources/model.c` rather than `/tmp/tmpXXXX/sources/model.c`.
+        prefixes = [f"{directory}{separator}" for directory in (self.fmu_directory, build_directory)
+                    for separator in {os.sep, "/"}]
+        level = logging.WARNING if process.returncode == 0 else logging.ERROR
+        for line in process.stdout.splitlines():
+            if toolchain.family == "msvc" and self._is_msvc_banner(line, command):
+                continue
+            for prefix in prefixes:
+                line = line.replace(prefix, "")
+            if line.strip():
+                logger.log(level, line.rstrip())
+
         if process.returncode != 0:
-            raise OperationError(f"Compilation of '{model_identifier}' failed (see the compiler output above).")
+            raise OperationError(f"Compilation of '{model_identifier}' failed.")
+
+    @staticmethod
+    def _is_msvc_banner(line: str, command: list[str]) -> bool:
+        """Lines that MSVC always prints: the name of the compiled source, the import library of a DLL."""
+        line = line.strip()
+        return line in {Path(argument).name for argument in command} or line.startswith("Creating library ")
 
 
 class OperationCompileSources(OperationAbstract):

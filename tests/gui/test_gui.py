@@ -49,7 +49,7 @@ def test_fmutool_load_fmu(qtbot, bouncing_ball):
 def test_fmutool_operations_buttons_exist(qtbot):
     window = FMUToolWindow()
     qtbot.addWidget(window)
-    assert len(window.operations_button_list) == 15
+    assert len(window.operations_button_list) == 16
 
 
 def test_fmutool_logs_into_its_log_widget(qtbot):

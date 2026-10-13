@@ -8,12 +8,13 @@ from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushBut
 from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
-from fmu_manipulation_toolbox.gui.helper import (Application, HelpWidget, DropZoneWidget, LogWidget, WidgetLogHandler,
+from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, LogWidget, WidgetLogHandler,
                                                  LastDirectory, get_fmu_icon_path)
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
 from fmu_manipulation_toolbox.checker import get_checkers
+from fmu_manipulation_toolbox.compiler import OperationCompileSources
 from fmu_manipulation_toolbox.help import Help
 from fmu_manipulation_toolbox.version import __version__ as version
 
@@ -74,39 +75,38 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.setWindowTitle('FMU Manipulation Toolbox')
         self.layout = QGridLayout()
 
+        WIDTH = 4  # number of columns of operation buttons
         line = 0
         self.dropped_fmu = DropZoneWidget()
         self.dropped_fmu.clicked.connect(self.update_fmu)
-        self.layout.addWidget(self.dropped_fmu, line, 0, 4, 1)
 
         self.fmu_title = QLabel()
         self.fmu_title.setProperty("class", "title")
-        self.layout.addWidget(self.fmu_title, line, 1, 1, 4)
-
-        help_widget = HelpWidget()
-        self.layout.addWidget(help_widget, line, 5, 1, 1)
+        self.layout.addWidget(self.fmu_title, line, 0, 1, WIDTH + 1)
 
         # Operations
         self.help = Help()
+        # Grid of WIDTH columns: analysis and saving, name changes, removals, remoting. "Compile sources" is above
+        # "Remove sources".
         operations_list = [
+            ("Check",                 '-check',              'info',    get_checkers()),
+            ("Save description.xml",  '-extract-descriptor', 'save',    None, {"func": self.save_descriptor}),
             ("Save port names",    '-dump-csv',           'save',    OperationSaveNamesToCSV, {"prompt_file": "write"}),
             ("Rename ports from CSV", '-rename-from-csv',   'modify',  OperationRenameFromCSV, {"prompt_file": "read"}),
+            ("Trim Until",            '-trim-until',         'modify',  OperationTrimUntil, {"prompt": "Prefix"}),
             ("Remove Toplevel",       '-remove-toplevel',    'modify',  OperationStripTopLevel),
+            ("Merge Toplevel",        '-merge-toplevel',     'modify',  OperationMergeTopLevel),
+            ("Compile sources",       '-compile-sources',    'modify',  OperationCompileSources),
             ("Remove Regexp",         '-remove-regexp',      'removal', OperationRemoveRegexp, {"prompt": "regexp"}),
             ("Keep only Regexp",      '-keep-only-regexp',   'removal', OperationKeepOnlyRegexp, {"prompt": "regexp"}),
-            ("Save description.xml",  '-extract-descriptor', 'save',    None, {"func": self.save_descriptor}),
-            ("Trim Until",            '-trim-until',         'modify',  OperationTrimUntil, {"prompt": "Prefix"}),
-            ("Merge Toplevel",        '-merge-toplevel',     'modify',  OperationMergeTopLevel),
             ("Remove all",            '-remove-all',         'removal', OperationRemoveRegexp, {"arg": ".*"}),
             ("Remove sources",        '-remove-sources',     'removal', OperationRemoveSources),
             ("Add Win32 remoting",    '-add-remoting-win32', 'info',    OperationAddRemotingWin32),
-            ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64),
             ("Add Win32 frontend",    '-add-frontend-win32', 'info',    OperationAddFrontendWin32),
+            ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64),
             ("Add Win64 frontend",    '-add-frontend-win64', 'info',    OperationAddFrontendWin64),
-            ("Check",                 '-check',              'info',    get_checkers()),
         ]
 
-        WIDTH = 5
         line = 1
 
         self.operations_button_list = []
@@ -122,6 +122,9 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             self.operations_button_list.append(button)
             self.layout.addWidget(button, line, col)
 
+        # The drop zone is aligned with the lines of buttons.
+        self.layout.addWidget(self.dropped_fmu, 1, 0, line, 1)
+
         line += 1
         self.reload_button = QPushButton('Reload')
         self.reload_button.clicked.connect(self.reload_fmu)
@@ -135,7 +138,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         causality = ["parameter", "calculatedParameter", "input", "output", "local", "independent"]
         self.filter_list = FilterWidget(items=causality)
         self.filter_list.setProperty("class", "quit")
-        self.layout.addWidget(self.filter_list, line, 3, 1, 3)
+        self.layout.addWidget(self.filter_list, line, 3, 1, WIDTH - 2)
 
         # Text
         line += 1
@@ -150,18 +153,18 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.exit_button = QPushButton('Exit')
         self.exit_button.clicked.connect(self.close)
         self.exit_button.setProperty("class", "quit")
-        self.layout.addWidget(self.exit_button, line, 0, 1, 2)
+        self.layout.addWidget(self.exit_button, line, 0, 1, 1)
 
         self.save_log_button = QPushButton('Save log as')
         self.save_log_button.clicked.connect(self.save_log)
         self.save_log_button.setProperty("class", "save")
-        self.layout.addWidget(self.save_log_button, line, 2, 1, 2)
+        self.layout.addWidget(self.save_log_button, line, 1, 1, 2)
 
         self.save_fmu_button = QPushButton('Save modified FMU as')
         self.save_fmu_button.clicked.connect(self.save_fmu)
         self.save_fmu_button.setProperty("class", "save")
         self.set_tooltip(self.save_fmu_button, '-output')
-        self.layout.addWidget(self.save_fmu_button, line, 4, 1, 2)
+        self.layout.addWidget(self.save_fmu_button, line, 3, 1, 2)
 
         # Fix the layout
         self.layout.setVerticalSpacing(4)

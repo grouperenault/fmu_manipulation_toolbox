@@ -85,6 +85,10 @@ def test_compilation_failure(area_dir, caplog):
         fmu.repack("result.fmu")
 
     assert "broken model.c" in caplog.text + str(exc.value)
+    # The compiler output is reported as errors, with paths relative to the FMU.
+    errors = [record.getMessage() for record in caplog.records if record.levelno == logging.ERROR]
+    assert any(message.startswith("sources/model.c") and "broken model.c" in message for message in errors)
+    assert "Compiling 'sources/model.c'." in caplog.text
     assert read_entry("result.fmu", _host_binary(3)) is None
 
 

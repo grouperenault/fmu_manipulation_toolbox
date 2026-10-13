@@ -9,6 +9,7 @@ from ..operations import (OperationSummary, OperationError, OperationRemoveRegex
 from ..remoting import  (OperationAddFrontendWin32, OperationAddFrontendWin64, OperationAddRemotingWin32,
                          OperationAddRemotingWin64)
 from ..checker import get_checkers
+from ..compiler import OperationCompileSources
 from ..version import __version__ as version
 from ..help import Help
 
@@ -61,6 +62,9 @@ def fmutool():
                metavar='path/to/saved-modelDescriptor.xml')
     add_option('-remove-sources', action='append_const', dest='operations_list',
                const=OperationRemoveSources())
+    # Compilation
+    add_option('-compile-sources', action='append_const', dest='operations_list',
+               const=OperationCompileSources())
     # Filter
     add_option('-only-parameters', action='append_const', dest='apply_on', const='parameter')
     add_option('-only-inputs', action='append_const', dest='apply_on', const='input')

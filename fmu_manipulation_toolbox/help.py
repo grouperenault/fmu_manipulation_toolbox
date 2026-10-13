@@ -65,6 +65,10 @@ class Help:
 
         '-remove-sources': "Remove sources folder from the FMU. This option is available from version 1.3.",
 
+        '-compile-sources': "compile the sources embedded in the FMU for the current platform, when its binary is "
+                            "missing. A C compiler is required (Visual Studio on Windows). This option is "
+                            "available from version 2.0. Resulting fmu should be saved by using -output option.",
+
         '-only-parameters': "apply operation only on ports with  causality = 'parameter'. This "
                             "option is available from version 1.3.",
 
