@@ -208,8 +208,10 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
                     self._mcp_controller = McpServerController(self)
                     # Delivered on the main thread (controller is a QObject).
                     self._mcp_controller.error.connect(self._ai_assistant_error)
+                    # Only once the server really listens: starting it is not enough.
+                    self._mcp_controller.ready.connect(
+                        lambda url: logger.info(f"AI Assistant enabled — connect your MCP client to {url}"))
                 self._mcp_controller.start()
-                logger.info(f"AI Assistant enabled — connect your MCP client to {self._mcp_controller.url}")
             except McpUnavailableError as e:
                 self._ai_assistant_error(str(e))
             except OSError as e:

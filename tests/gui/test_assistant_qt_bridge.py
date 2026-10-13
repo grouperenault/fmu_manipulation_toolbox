@@ -320,3 +320,69 @@ def test_adding_a_file_again_adds_an_instance(mcp_server, data_dir):
 
     assert _drive(scenario) == ("bb_position.fmu", "bb_position-1.fmu",
                                 ["bb_position-1.fmu", "bb_position.fmu"], "bb_position-1.fmu")
+
+
+def _free_port():
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("127.0.0.1", 0))
+        return probe.getsockname()[1]
+
+
+def _run_server_thread(app, port, timeout=10.0):
+    """Start a `_UvicornThread` and pump Qt events until it reports back.
+
+    Returns the thread and the signals it emitted, as ``(name, args)`` pairs.
+    """
+    from fmu_manipulation_toolbox.gui.fmucontainer.mcp_bridge import _UvicornThread
+
+    thread = _UvicornThread(app, "127.0.0.1", port)
+    events = []
+    thread.ready.connect(lambda: events.append(("ready", ())))
+    thread.failed.connect(lambda message: events.append(("failed", (message,))))
+    thread.start()
+
+    deadline = time.monotonic() + timeout
+    while not events and time.monotonic() < deadline:
+        QApplication.processEvents()
+        time.sleep(0.01)
+    return thread, events
+
+
+def test_the_server_is_announced_only_once_it_listens(qapp):
+    """`ready` must mean that a client can connect: announcing the URL as soon
+    as the thread starts sent users chasing a server that was not there."""
+    import socket
+
+    async def app(scope, receive, send):
+        if scope["type"] == "lifespan":
+            while (await receive())["type"] != "lifespan.shutdown":
+                await send({"type": "lifespan.startup.complete"})
+            await send({"type": "lifespan.shutdown.complete"})
+
+    port = _free_port()
+    thread, events = _run_server_thread(app, port)
+    try:
+        assert events == [("ready", ())]
+        socket.create_connection(("127.0.0.1", port), timeout=5).close()
+    finally:
+        thread.stop()
+        assert thread.wait(5000)
+
+
+def test_a_server_that_cannot_start_is_reported(qapp):
+    """uvicorn calls sys.exit() when the server cannot start: the GUI must hear
+    of it instead of announcing a server that does not exist."""
+
+    async def app(scope, receive, send):
+        if scope["type"] == "lifespan":
+            await receive()
+            await send({"type": "lifespan.startup.failed", "message": "boom"})
+
+    thread, events = _run_server_thread(app, _free_port())
+    assert thread.wait(5000)
+    QApplication.processEvents()
+
+    assert [name for name, _ in events] == ["failed"]
+    assert "could not start" in events[0][1][0]

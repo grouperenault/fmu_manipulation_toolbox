@@ -76,6 +76,11 @@ http://127.0.0.1:8765/mcp
 The port can be overridden with the `FMUCONTAINER_MCP_PORT` environment
 variable. The server is bound to `127.0.0.1` only.
 
+Once the server really listens, the [log window](gui-usage.md#log) shows
+`AI Assistant enabled — connect your MCP client to http://127.0.0.1:8765/mcp`.
+If it cannot start (port already taken, for instance), an error is shown
+instead and the menu switches back to **AI Assistant Off**.
+
 ### Tuning the timeout
 
 Each tool waits for the GUI to apply its operation before answering (this
@@ -423,6 +428,57 @@ protection, so it is rejected.
 
 Without a token the server still starts — enabling the assistant must not
 require ceremony — but it says clearly in the log that the port is open.
+
+## Troubleshooting
+
+### The client cannot connect
+
+First check, in the log window, that the server announced its address (see
+[Starting the server from the GUI](#starting-the-server-from-the-gui)), and
+that the client is configured with that exact URL. Then test the server
+without the client:
+
+```bash
+curl -X POST http://127.0.0.1:8765/mcp \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}'
+```
+
+On Windows, use `curl.exe` in `cmd`, with double quotes around the JSON and
+its inner quotes escaped (`\"`). An answer starting with `event: message`
+means the server works: the problem is between the client and the server.
+
+### HTTP proxy of the IDE
+
+An IDE configured with an HTTP proxy may route the requests of its MCP client
+through that proxy, **including the requests to `127.0.0.1`**. The proxy
+cannot reach your local server: the client then reports errors such as
+`fetch failed` or `SSE error: Non-200 status code (400)`, and the Container
+Builder log shows no tool call.
+
+Exclude the local addresses from the proxy. In JetBrains IDEs:
+`Settings → Appearance & Behavior → System Settings → HTTP Proxy`, add
+`localhost, 127.0.0.1` to **No proxy for**. Elsewhere, set the `NO_PROXY`
+environment variable to `localhost,127.0.0.1` before starting the IDE.
+
+### `localhost` instead of `127.0.0.1`
+
+The server listens on the IPv4 address `127.0.0.1` only. Some clients,
+especially on Windows, resolve `localhost` to the IPv6 address `::1` first,
+where the server does not listen (and where another program may answer).
+Use `http://127.0.0.1:8765/mcp` in the client configuration.
+
+### Warnings in the console
+
+```
+WARNING:  Unsupported upgrade request.
+WARNING:  Invalid HTTP request received.
+```
+
+These come from uvicorn, the HTTP server, when a client tries HTTP/2 or HTTPS
+first: the server only speaks plain HTTP/1.1 and the client falls back to it.
+They are harmless as long as the tools work.
 
 ## Known limits
 

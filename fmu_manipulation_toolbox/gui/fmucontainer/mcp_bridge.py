@@ -508,6 +508,8 @@ class QtAssemblyBridge:
 class _UvicornThread(QThread):
     """Runs the uvicorn/Streamable-HTTP server for the MCP app in a thread."""
 
+    #: Emitted once uvicorn actually listens: starting the thread is not enough.
+    ready = Signal()
     failed = Signal(str)
 
     def __init__(self, app, host: str, port: int, parent=None):
@@ -521,11 +523,26 @@ class _UvicornThread(QThread):
         try:
             import uvicorn
 
+            thread = self
+
+            class _Server(uvicorn.Server):
+                async def startup(self, sockets=None):
+                    await super().startup(sockets)
+                    # `started` is only set once the listening socket is open.
+                    if self.started:
+                        thread.ready.emit()
+
             config = uvicorn.Config(self._app, host=self._host, port=self._port,
                                     log_level="warning", lifespan="on")
-            self._server = uvicorn.Server(config)
+            self._server = _Server(config)
             # uvicorn.Server.run() creates and manages its own asyncio loop.
             self._server.run()
+        except SystemExit as exc:
+            # uvicorn calls sys.exit() when it cannot bind or when the app's
+            # lifespan fails: not an Exception, and the reason only goes to the
+            # console, so the GUI would otherwise never hear of it.
+            self.failed.emit(f"the server could not start (uvicorn exit code {exc.code}); "
+                             f"see the console for the reason.")
         except Exception as exc:  # noqa: BLE001 - report back to the GUI
             self.failed.emit(str(exc))
 
@@ -551,14 +568,16 @@ class _UvicornThread(QThread):
 class McpServerController(QObject):
     """Starts/stops the MCP HTTP server bound to the Container Builder GUI.
 
-    A ``QObject`` living on the Qt main thread: the worker thread's ``failed``
-    signal is therefore delivered on the main thread (queued connection), so
-    all error handling / logging / UI stays on the main thread (required on
-    macOS).
+    A ``QObject`` living on the Qt main thread: the worker thread's ``ready``
+    and ``failed`` signals are therefore delivered on the main thread (queued
+    connection), so all error handling / logging / UI stays on the main thread
+    (required on macOS).
     """
 
     #: Emitted on the main thread when the server cannot start / has failed.
     error = Signal(str)
+    #: Emitted on the main thread with the URL once the server really listens.
+    ready = Signal(str)
 
     def __init__(self, window: "MainWindow", host: str = DEFAULT_HOST, port: int | None = None):
         super().__init__()
@@ -629,6 +648,9 @@ class McpServerController(QObject):
     def start(self):
         """Build the MCP app and start the Streamable HTTP server thread.
 
+        Returns before the server listens: :attr:`ready` announces it, and
+        :attr:`error` reports a server that could not start.
+
         Raises:
             McpUnavailableError: if the optional ``fastmcp`` package is missing.
             ValueError: if ``FMUCONTAINER_MCP_PORT`` holds an invalid value.
@@ -659,8 +681,8 @@ class McpServerController(QObject):
         self._thread = _UvicornThread(app, self._host, self.port)
         # Queued delivery on the main thread (self lives on the main thread).
         self._thread.failed.connect(self._on_thread_failed)
+        self._thread.ready.connect(self._on_thread_ready)
         self._thread.start()
-        logger.info(f"MCP server (AI assistant) listening on {self.url}")
 
     def stop(self):
         if self._thread is None:
@@ -683,6 +705,11 @@ class McpServerController(QObject):
                 self._thread.terminate()
                 self._thread.wait(2000)
         self._thread = None
+
+    def _on_thread_ready(self):
+        """Announce the server on the main thread, once it really listens."""
+        logger.info(f"MCP server (AI assistant) listening on {self.url}")
+        self.ready.emit(self.url)
 
     def _on_thread_failed(self, message: str):
         """Handle a server-thread failure on the main thread."""

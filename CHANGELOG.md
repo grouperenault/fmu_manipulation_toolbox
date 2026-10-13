@@ -41,7 +41,9 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   action marked as an unsaved change and written to the log panel. The server uses the
   Streamable HTTP transport bound to `127.0.0.1:8765/mcp` (port overridable with
   `FMUCONTAINER_MCP_PORT`); the time the tools wait for the GUI is configurable with
-  `FMUCONTAINER_MCP_TIMEOUT` (60 s by default, ten times that for builds).
+  `FMUCONTAINER_MCP_TIMEOUT` (60 s by default, ten times that for builds). The address is written to the log once
+  the server really listens, and a server that cannot start is reported. The guide has a
+  [Troubleshooting](docs/user-guide/fmucontainer/ai-assistant.md#troubleshooting) section (IDE proxy, `localhost`).
 - 🟢 **ADDED** `fmutool-mcp`: a **standalone MCP server**, launched by the MCP client over the **stdio**
   transport (Claude Desktop, VS Code, Cline, ...) and requiring neither a display nor a running
   GUI. It serves the same tools as the GUI assistant, on top of the public `Assembly` API.
