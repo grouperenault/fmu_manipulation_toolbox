@@ -117,6 +117,8 @@ fmu_manipulation_toolbox = [
     "resources/*.png",
     "resources/fmi-2.0/*.xsd",
     "resources/fmi-3.0/*.xsd",
+    # FMI headers: used by the native builds (cmake/fmutool.cmake) and to compile the sources of an FMU.
+    "resources/fmi/*.h",
 ]
 
 [tool.setuptools_scm]

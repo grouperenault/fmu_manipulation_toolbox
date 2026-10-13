@@ -33,6 +33,12 @@ fmu_manipulation_toolbox/resources/fmi-3.0/fmi3Type.xsd
 fmu_manipulation_toolbox/resources/fmi-3.0/fmi3Unit.xsd
 fmu_manipulation_toolbox/resources/fmi-3.0/fmi3Variable.xsd
 fmu_manipulation_toolbox/resources/fmi-3.0/fmi3VariableDependency.xsd
+fmu_manipulation_toolbox/resources/fmi/fmi2FunctionTypes.h
+fmu_manipulation_toolbox/resources/fmi/fmi2Functions.h
+fmu_manipulation_toolbox/resources/fmi/fmi2TypesPlatform.h
+fmu_manipulation_toolbox/resources/fmi/fmi3FunctionTypes.h
+fmu_manipulation_toolbox/resources/fmi/fmi3Functions.h
+fmu_manipulation_toolbox/resources/fmi/fmi3PlatformTypes.h
 fmu_manipulation_toolbox/resources/fmu.png
 fmu_manipulation_toolbox/resources/fmu_manipulation_toolbox.png
 fmu_manipulation_toolbox/resources/fmucontainer.png

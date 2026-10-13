@@ -1,6 +1,6 @@
 # Plan: compile the sources of an FMU for the host platform
 
-**Created**: 13 October 2026 — **Status**: decisions taken, test suite ready, implementation not started — **Roadmap**: not listed
+**Created**: 13 October 2026 — **Status**: test suite ready, step 0 done — **Roadmap**: not listed
 
 Some FMUs embed their C sources (`sources/`) but no binary for the platform of the user (for example
 `tests/data/remoting/bouncing_ball-win32.fmu`: FMI 2.0, `win32` binary only). The goal is a Python class that
@@ -117,11 +117,13 @@ Compilation happens in a temporary build directory; only the final library is co
 
 ## 5. Steps
 
-### Step 0 — Move the FMI headers (D5)
+### Step 0 — Move the FMI headers (D5) — done
 
 - `git mv fmi fmu_manipulation_toolbox/resources/fmi`; update `cmake/fmutool.cmake`, `container/CMakeLists.txt`,
   `MANIFEST.in`, `pyproject.toml` (`package-data`: `resources/fmi/*.h`).
 - Check: native build of `container/` and `remoting/` still configures; `python -m build` wheel contains the headers.
+- Done on 13 October 2026: `container/` and `remoting/` build; `tools/dist_inventory.py` only reports the 6 headers
+  added to the wheel (reference `tests/data/packaging/wheel-data-files.txt` updated); test suite green.
 
 Commit message: `Move the FMI headers into the package resources`
 

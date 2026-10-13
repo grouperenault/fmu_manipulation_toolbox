@@ -10,7 +10,7 @@ Two kinds of checks:
 - **Rules computed from the files tracked by git**, for what follows the code
   (no reference to update when a module or a test is added): the wheel contains
   exactly the Python modules of the package; the sdist contains the package and
-  the C sources (container/, remoting/, fmi/), and neither the prebuilt binaries,
+  the C sources (container/, remoting/), and neither the prebuilt binaries,
   nor tests/data, docs/ or .github/ (MANIFEST.in, decision D3).
 
 By default the distributions are built in a temporary local clone of the
@@ -87,8 +87,8 @@ def git(*args: str, cwd: Path):
 
 
 PACKAGE = "fmu_manipulation_toolbox/"
-#: Sources of the native binaries: must be in the sdist.
-C_SOURCES = ("container/", "remoting/", "fmi/")
+#: Sources of the native binaries: must be in the sdist (the FMI headers are in the package: resources/fmi/).
+C_SOURCES = ("container/", "remoting/")
 #: Never in the sdist (MANIFEST.in): test data, documentation, CI, prebuilt binaries.
 SDIST_EXCLUDED = ("tests/data/", "docs/", ".github/") + tuple(
     f"{PACKAGE}resources/{platform}/" for platform in ("win32", "win64", "linux32", "linux64", "darwin64"))

@@ -8,7 +8,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/fmutool.cmake)
 try_run(test_fmi test_fmi_compilation
     ${CMAKE_CURRENT_BINARY_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/test_fmi.c
-    CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${CMAKE_CURRENT_SOURCE_DIR}/../fmi"
+    CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/fmi"
     COMPILE_OUTPUT_VARIABLE test_fmi_compilation_output
     RUN_OUTPUT_VARIABLE test_fmi_output
 )
