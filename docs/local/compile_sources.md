@@ -1,6 +1,6 @@
 # Plan: compile the sources of an FMU for the host platform
 
-**Created**: 13 October 2026 — **Status**: test suite ready, steps 0 and 1 done — **Roadmap**: not listed
+**Created**: 13 October 2026 — **Status**: test suite ready, steps 0 to 2 done — **Roadmap**: not listed
 
 Some FMUs embed their C sources (`sources/`) but no binary for the platform of the user (for example
 `tests/data/remoting/bouncing_ball-win32.fmu`: FMI 2.0, `win32` binary only). The goal is a Python class that
@@ -74,6 +74,7 @@ Taken on 13 October 2026:
   `SourceFileSet` matches the compiler used (`gcc`, `clang`, `cl`, compared with the name of the executable);
   otherwise ignored with a warning (also when `compiler` is absent).
 - **D14 — `<Library>`**: linked by name (`-l<name>`, `<name>.lib` with MSVC); `version` and `external` ignored.
+- **D15 — MSVC runtime**: static (`/MT`), so that the DLL does not need the Visual C++ redistributable.
 
 ---
 
@@ -152,10 +153,21 @@ Commit message: `Move the FMI headers into the package resources`
 
 Commit message: `Add SourceCompiler to read the build description of an FMU`
 
-### Step 2 — Compilation
+### Step 2 — Compilation — done
 
 - Compiler discovery (D6), command lines, D10 definitions, temporary build directory, output forwarding.
 - C++ (D12), `compilerOptions` (D13), `<Library>` (D14), with unit tests on the generated command lines.
+- Done on 13 October 2026:
+  - `SourceFileSet` (one per FMI 3.0 `<SourceFileSet>`, a single one for FMI 2.0), `BuildConfiguration`
+    (`source_file_sets`, `libraries`; `source_files` / `definitions` / `include_directories` are views on the sets).
+  - `Toolchain` (`family` `gcc` / `clang` / `msvc`, `find()` cached for the session): on Linux/macOS, the family is
+    read from `$CC --version` rather than from the executable name (`cc` is clang on macOS), which is what D13
+    compares with. `SourceCompiler.build_commands()` (pure, unit-tested) and `SourceCompiler.compile()`.
+  - One compilation per source file into a temporary directory, then the link; only the final library is copied
+    into the FMU. Include path: `sources/`, include directories of the set, `resources/fmi/`.
+  - Checked on macOS arm64: both Reference FMUs compiled without `binaries/` simulate as `REF-BouncingBall.csv`; a
+    broken source gives an `OperationError`, the compiler output in the log and no binary. **MSVC path not run yet**
+    (no Windows host here): to be checked on Windows / by the CI.
 - Include path: `sources/`, build-description include directories, then `resources/fmi/` (D5).
 - Manual check: `bouncing_ball-win32.fmu` (FMI 2.0) and an FMI 3.0 FMU whose host binary was removed.
 
