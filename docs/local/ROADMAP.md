@@ -9,4 +9,4 @@
 - [X] refactor container.py
 - [X] Drop python 3.9 support (which is end-of-life)
 - [X] Support python 3.14
-
+- [X] Efficient assistant to connect 2 FMUs

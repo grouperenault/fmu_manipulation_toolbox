@@ -56,6 +56,9 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_terminal_names: list[str] = []
         self.fmu_port_causality: dict[str, str] = {}
         self.fmu_port_type: dict[str, str] = {}
+        # Number of elements of each port: 1 for a scalar, the product of the `<Dimension start>` of an FMI-3 array,
+        # the number of elements of an FMI-2 array aggregate, 0 when a dimension is a structural parameter.
+        self.fmu_port_size: dict[str, int] = {}
         # Secondary descriptor attributes (variability, unit, description) kept
         # per port. They are not needed to draw the node, but they are what
         # makes a port listing readable for a human or a language model.
@@ -240,6 +243,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
             self.fmu_output_names.append(name)
         self.fmu_port_causality[name] = causality
         self.fmu_port_type[name] = fmu_port.fmi_type or ""
+        self.fmu_port_size[name] = self._port_size(fmu_port)
         details = {key: fmu_port.get(key, None)
                    for key in ("variability", "unit", "description")}
         self.fmu_port_details[name] = {key: value for key, value in details.items()
@@ -248,6 +252,15 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         if start is not None:
             self.fmu_start_values[name] = start
         return 0
+
+    @staticmethod
+    def _port_size(fmu_port: ModelVariable) -> int:
+        size = 1
+        for kind, value in fmu_port.dimensions:
+            if kind != "start":
+                return 0
+            size *= value
+        return size
 
     def closure(self):
         for terminal in Terminals(self.fmu.tmp_directory):
@@ -279,6 +292,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
             self.fmu_port_causality[agg.basename] = causality
             self.fmu_port_type[agg.basename] = type_name
+            self.fmu_port_size[agg.basename] = len(agg.ordered_element_names)
             self.fmu_port_details[agg.basename] = {
                 "description": f"Array aggregate of {len(agg.ordered_element_names)} "
                                f"scalar ports ({agg.ordered_element_names[0]}, ...)",
@@ -401,6 +415,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_terminal_names.clear()
         self.fmu_port_causality.clear()
         self.fmu_port_type.clear()
+        self.fmu_port_size.clear()
         self.fmu_port_details.clear()
         self.fmu_start_values.clear()
         self.fmu_array_aggregate_elements.clear()
@@ -496,6 +511,7 @@ class ConfigurationNode(NodeItem):
         self.fmu_terminal_names: list[str] = []
         self.fmu_port_causality: dict[str, str] = {}
         self.fmu_port_type: dict[str, str] = {}
+        self.fmu_port_size: dict[str, int] = {}
         self.fmu_port_details: dict[str, dict[str, str]] = {}
         self.fmu_start_values: dict[str, str] = {}
         self.user_start_values: dict[str, str] = {}

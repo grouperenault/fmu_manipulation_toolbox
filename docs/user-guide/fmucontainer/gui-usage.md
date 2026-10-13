@@ -325,25 +325,133 @@ occurs through terminal connections rather than individual variable ports.
 
 The arrowheads on the wire update automatically to reflect the configured directions.
 
-Below the tabs, a global button is available:
+Below the tabs, global buttons are available:
 
 | Button | Description |
 |---|---|
-| **Auto-Connect** | Automatically map ports that share the same name — in **both** directions at once |
+| **Link Assistant** | Open the [Link Assistant](#link-assistant) to define many links at once |
 | **Remove All** | Remove all link definitions between A and B (both directions) |
 | **Import** | Import link definitions from a CSV file |
 | **Export** | Export link definitions to a CSV file |
-
-!!! tip "Auto-Connect"
-    The **Auto-Connect** button matches output and input ports by name in both directions —
-    it will create A → B mappings where A has an output matching a B input, and B → A mappings
-    where B has an output matching an A input.
 
 !!! info "CSV Format for Import/Export"
     The CSV file uses 4 columns: `FMU From`, `Port From`, `FMU To`, `Port To`.
     Each row represents a single port-to-port connection, and both directions (A → B and B → A) 
     are included in the same file. This makes it easy to edit link definitions in a spreadsheet
     and re-import them.
+
+#### Link Assistant
+
+When the FMUs have hundreds of ports, filling the tables of the *Wire Details* panel one link at
+a time is tedious. The **Link Assistant** button opens a window that proposes links in bulk, lets
+you review them, and writes them into the wire only when you click **Apply**.
+
+![Link Assistant — Rules tab](link-assistant-rules.png)
+
+The window works on the wire that was selected when it was opened. It does not block the rest of
+the Container Builder: you can keep looking at the graph. Clicking **Link Assistant** again brings
+it to the front; on another wire, it closes the open assistant first (asking for confirmation if
+links are staged there).
+
+**Header** — the two FMUs in the order of the current direction (`source.fmu → target.fmu`). Below
+each name, the counters of its ports:
+
+| Symbol | Meaning |
+|---|---|
+| **Σ** | Total number of outputs (source) or inputs (target) |
+| **●** | Outputs already linked on this wire, or inputs already fed: by a link of any wire of the FMU, by an exposed input, or by a staged link |
+| **○** | Free ports |
+
+The selector on the right switches the direction (**A → B** / **B → A**). The staged links of both
+directions are kept, so both directions can be prepared before applying.
+
+The window has two tabs, **Rules** and **Manual**, which share the list of
+[staged links](#staged-links) at the bottom.
+
+##### Rules tab
+
+A *criterion* proposes, for each free output, the input it should be linked to. Choose it with
+**Match by**:
+
+| Criterion | Parameters | Example |
+|---|---|---|
+| **Same name** | — | `vehicle.speed` → `vehicle.speed` |
+| **Replace prefix / suffix** | Prefix and suffix of the output name, replaced by those of the input name | `engine.out.speed` → `ecu.in.engine_speed` (`engine.out.` → `ecu.in.engine_`) |
+| **Regular expression** | A regular expression matching the **whole** output name, and the input name built from its groups (`\1`, `\2`, …) | `^sensor\.(\w+)\.(\w+)$` → `sensor_\2_\1` |
+| **Similar names** | Minimum similarity score (1.00 to 0.50) | `chassis.pressure` → `chassis.press` |
+
+Options of the criterion:
+
+| Option | Effect |
+|---|---|
+| **ignore case and separators** | Names are compared without case nor separators (`.` `_` `-` `[` `]`), for every criterion: `Throttle_Pos` matches `throttle.pos`. Checked by default |
+| **parameters as targets** | Also propose the parameters of the target FMU, not only its inputs |
+| **Allow only: compatible types** | Checked (default): a link between types without conversion is an error ✖. Unchecked: it is only a warning ⚠ |
+| **Allow only: same units** | Checked: a link between different units is an error ✖. Unchecked (default): it is a warning ⚠ |
+
+The suggestions are updated a moment after each change of the criterion, of its parameters or of
+an option. Each one is checked when it can be applied, and gets a status:
+
+| Status | Meaning |
+|---|---|
+| **✔** | The link can be applied |
+| **⚠** | The link can be applied, but should be reviewed: lossy type conversion (e.g. `Real` → `Int32`), different units, or a name found by **Similar names** |
+| **✖** | The link cannot be applied: the input is already fed, the types cannot be converted, the arrays have different sizes |
+
+Review the suggestions (the **Show** selector and the **Filter** field narrow the table), then
+click **Stage checked links ↓**; a double-click on a row stages that suggestion only.
+**Check all** and **Uncheck all** act on the rows shown. The staged links leave the
+suggestions; the other suggestions keep their check boxes. Then pick another criterion: it only
+sees the ports still free.
+
+!!! tip "Typical sequence"
+    Start with **Same name**, stage; then **Replace prefix / suffix** or **Regular expression**
+    for the families of signals named differently, stage; then **Similar names** for what is
+    left, reviewing each suggestion; link the last ports in the **Manual** tab.
+
+!!! note "Large FMUs"
+    If a search takes more than 0.3 s (e.g. **Similar names** on FMUs with thousands of ports),
+    the suggestions are no longer updated while typing: a **Run ▶** button appears to search
+    again.
+
+##### Manual tab
+
+![Link Assistant — Manual tab](link-assistant-manual.png)
+
+The outputs of the source FMU (left) and the inputs of the target FMU (right), each list below the
+name of its FMU, with the type, unit and description of each port. Narrow them with the
+**Filter** field (name or description) and the type selector; **only free ports** hides the ports
+already linked, fed or staged; **show parameters** also lists the parameters of the target FMU.
+
+Select ports in both lists (++shift++ / ++ctrl++ for several), check the preview below
+**Link selection ↓**, and click it:
+
+- as many outputs as inputs: they are paired in the order of the lists;
+- one output and several inputs: the output feeds every selected input.
+
+##### Staged links
+
+The links staged by both tabs, with their direction, their origin (criterion or *manual*) and
+their status. The status is computed again on each change: two staged links feeding the same input
+are both ✖.
+
+| Button | Description |
+|---|---|
+| **Remove selected** / **Remove All** | Remove staged links; their ports are free again and the suggestions of the **Rules** tab come back |
+| **Cancel** | Close the window without changing the wire (asks for confirmation if links are staged) |
+| **Apply *n* links** | Add the staged links to the wire, then close the window. Disabled while a link is ✖ |
+
+The links already defined on the wire are kept. If an input was fed in the *Wire Details* panel
+while the assistant was open, its staged link is not added (a message tells how many).
+
+!!! note "FMI-2 arrays"
+    An FMI-2 array aggregate and its elements (e.g. `u` and `u[1]`, `u[2]`) are one input for the
+    assistant: staging one of them takes the others, and an aggregate is linked only to an array
+    of the same size.
+
+!!! info "Settings kept for the session"
+    The parameters of each criterion and **ignore case and separators** are kept until the
+    Container Builder is closed. The assistant always opens on **Same name**.
 
 ### Container Details
 
