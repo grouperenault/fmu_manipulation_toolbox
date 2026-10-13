@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .model_description import ModelDescription
-from .operations import OperationError
+from .operations import OperationAbstract, OperationError
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -438,3 +438,38 @@ class SourceCompiler:
                 logger.info(line.rstrip())
         if process.returncode != 0:
             raise OperationError(f"Compilation of '{model_identifier}' failed (see the compiler output above).")
+
+
+class OperationCompileSources(OperationAbstract):
+    """Compile the embedded sources when the binary of the host platform is missing.
+
+    For each model identifier of the FMU, the shared library of the host platform is built from `sources/` into
+    `binaries/<host platform>/`, unless it already exists. The descriptor is not changed.
+
+    Raises:
+        OperationError: If a binary is missing and cannot be built (no sources, no list of the sources, no
+            compiler, compilation failure).
+    """
+
+    read_only = True
+
+    def __repr__(self):
+        return "Compile sources"
+
+    def closure(self):
+        source_compiler = SourceCompiler(self.fmu.tmp_directory, self.model_description.fmi_version)
+        missing = []
+        for model_identifier in dict.fromkeys(interface.get("modelIdentifier")
+                                              for interface in self.model_description.interfaces.values()):
+            binary = source_compiler.binary_path(model_identifier)
+            if binary.is_file():
+                logger.info(f"Binary 'binaries/{binary.parent.name}/{binary.name}' already exists: "
+                            f"nothing to compile.")
+            else:
+                missing.append(model_identifier)
+        if not missing:
+            return
+
+        for configuration in source_compiler.build_configurations(self.model_description):
+            if configuration.model_identifier in missing:
+                source_compiler.compile(configuration)

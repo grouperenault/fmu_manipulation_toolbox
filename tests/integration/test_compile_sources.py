@@ -14,13 +14,9 @@ import pytest
 
 from _helpers.archive import read_entry, rewrite_fmu
 
-# Remove once `OperationCompileSources` is implemented (docs/local/compile_sources.md, step 3).
-compiler = pytest.importorskip("fmu_manipulation_toolbox.compiler")
-if not hasattr(compiler, "OperationCompileSources"):
-    pytest.skip("OperationCompileSources is not implemented yet", allow_module_level=True)
-
-from fmu_manipulation_toolbox.cli.fmutool import fmutool  # noqa: E402
-from fmu_manipulation_toolbox.operations import FMU, OperationError  # noqa: E402
+from fmu_manipulation_toolbox import compiler
+from fmu_manipulation_toolbox.cli.fmutool import fmutool
+from fmu_manipulation_toolbox.operations import FMU, OperationError
 
 pytestmark = [pytest.mark.integration, pytest.mark.area("compile")]
 

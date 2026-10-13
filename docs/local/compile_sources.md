@@ -1,6 +1,6 @@
 # Plan: compile the sources of an FMU for the host platform
 
-**Created**: 13 October 2026 — **Status**: test suite ready, steps 0 to 2 done — **Roadmap**: not listed
+**Created**: 13 October 2026 — **Status**: test suite ready, steps 0 to 3 done — **Roadmap**: not listed
 
 Some FMUs embed their C sources (`sources/`) but no binary for the platform of the user (for example
 `tests/data/remoting/bouncing_ball-win32.fmu`: FMI 2.0, `win32` binary only). The goal is a Python class that
@@ -173,11 +173,16 @@ Commit message: `Add SourceCompiler to read the build description of an FMU`
 
 Commit message: `Compile the embedded sources of an FMU for the host platform`
 
-### Step 3 — `OperationCompileSources`
+### Step 3 — `OperationCompileSources` — done
 
 - Operation with D3 behaviour, summary in the log; `Summary` operation unchanged.
 - Remove the `importorskip` / `skip` of `tests/integration/test_compile_sources.py`: every test but
   `test_cli_compile_sources` must pass (it needs step 4).
+
+- Done on 13 October 2026: in `compiler.py` (as the remoting operations are in `remoting.py`), `read_only`
+  (the descriptor is not written back). D3 is checked per model identifier before reading the build description:
+  an FMU whose binaries all exist needs neither sources nor compiler. 7 of the 8 integration tests pass;
+  `test_cli_compile_sources` waits for step 4.
 
 Commit message: `Add OperationCompileSources`
 
