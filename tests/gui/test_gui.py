@@ -169,11 +169,29 @@ def test_fmutool_compile_no_dialog_without_sources(qtbot, fake_compile_dialog, d
 
 
 def test_fmutool_compile_options_dialog(qtbot):
+    from fmu_manipulation_toolbox.compiler import Toolchain
     from fmu_manipulation_toolbox.gui.fmutool.__main__ import CompileOptionsDialog
-    dialog = CompileOptionsDialog({"compiler_options": "-DFOO"}, "clang (cc)")
+    dialog = CompileOptionsDialog({"compiler_options": "-DFOO"}, Toolchain("clang", ["cc"], ["c++"]))
     qtbot.addWidget(dialog)
     dialog.edits["libraries"].setText(" foo,bar ")
     assert dialog.values() == {"compiler_options": "-DFOO", "linker_options": "", "libraries": "foo,bar"}
+    assert dialog.edits["linker_options"].placeholderText() == "e.g. -L/opt/lib"
+
+
+@pytest.mark.parametrize("toolchain, linker_example", [
+    (("msvc", ["cl"], ["cl"]), "e.g. /LIBPATH:C:\\lib"),
+    (("gcc", ["gcc"], ["g++"]), "e.g. -L/opt/lib"),
+    (None, "e.g. -L/opt/lib"),
+])
+def test_fmutool_compile_options_placeholders(qtbot, toolchain, linker_example):
+    """The examples of the fields follow the compiler in use."""
+    from fmu_manipulation_toolbox.compiler import Toolchain
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import CompileOptionsDialog
+    dialog = CompileOptionsDialog({}, Toolchain(*toolchain) if toolchain else None)
+    qtbot.addWidget(dialog)
+    assert dialog.edits["linker_options"].placeholderText() == linker_example
+    msvc = toolchain is not None and toolchain[0] == "msvc"
+    assert dialog.edits["compiler_options"].placeholderText().startswith("e.g. /D" if msvc else "e.g. -D")
 
 
 def test_fmutool_logs_into_its_log_widget(qtbot):
@@ -278,3 +296,15 @@ def test_fmucontainer_status_bar_shows_the_log_and_opens_the_log_window(qtbot):
     log_window = window._status_bar._log_window
     assert log_window.isVisible()
     assert "AI Assistant enabled" in log_window.view.toPlainText()
+
+
+def test_fmutool_compile_options_dialog_names_the_compiler(qtbot):
+    """MSVC is found with its full path: the dialog names the executable only."""
+    from PySide6.QtWidgets import QLabel
+    from fmu_manipulation_toolbox.compiler import Toolchain
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import CompileOptionsDialog
+    cl = r"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.40\bin\Hostx64\x64\cl.exe"
+    dialog = CompileOptionsDialog({}, Toolchain("msvc", [cl], [cl]))
+    qtbot.addWidget(dialog)
+    message = dialog.findChildren(QLabel)[0].text()
+    assert "msvc (cl.exe)" in message and "Program Files" not in message

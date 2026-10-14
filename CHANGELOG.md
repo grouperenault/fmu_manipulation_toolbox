@@ -22,8 +22,8 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   and its version comes from the git tags (setuptools-scm). The version is displayed without
   the `V` prefix of the tags: `1.9.4.2` instead of `V1.9.4.2`. The source distribution (sdist)
   contains the Python package and the C sources of the native binaries (`container/`,
-  `remoting/`, `fmi/`), without the test data, the documentation and the prebuilt binaries; the
-  wheel is unchanged and embeds the binaries.
+  `remoting/`; the FMI headers are in the package, `resources/fmi/`), without the test data, the documentation and
+  the prebuilt binaries; the wheel is unchanged and embeds the binaries.
 - 🔵 **CHANGED** development: `requirements.txt` only contains `-e .[all]`, the dependencies being declared
   in `pyproject.toml`; the tests need the package installed (`pip install -e ".[all]"`,
   pip >= 21.3). CI and test suite improved.
