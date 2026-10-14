@@ -57,6 +57,9 @@ Taken on 13 October 2026:
   and command, e.g. `clang (cc)`), **Retry** and **Cancel** buttons. The compiler output stays in the log area.
   Look of the dialogs of FMU Container Builder (`NodeInfoDialog`, chosen by the user): captions (`caption` class)
   above the fields, **Retry** purple (`save`), **Cancel** blue (`quit`), buttons of the same width (at least 150).
+  Examples shown in the empty fields (14 October 2026, requested by the user): written for the detected toolchain,
+  `/DFOO=1 /IC:\include`, `/LIBPATH:C:\lib`, `foo,bar (foo.lib)` for Visual Studio, `-DFOO=1 -I/opt/include`,
+  `-L/opt/lib`, `foo,bar` otherwise (also when no compiler is found). The dialog receives the `Toolchain`.
 
 ---
 

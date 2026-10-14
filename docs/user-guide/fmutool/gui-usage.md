@@ -155,11 +155,13 @@ already exists, nothing is compiled. A C compiler is required, see
 ![Compile sources in the log area](fmutool-compile.png)
 
 **If the compilation fails** (the compiler messages are shown as errors in the log area), a dialog asks for
-additional options, written for the compiler it names:
+additional options, written for the compiler it names (the examples shown in the empty fields follow it):
 
-- **Compiler options**: added to every compilation, e.g. `-DFOO=1 -I/opt/include`;
-- **Linker options**: added to the link, e.g. `-L/opt/lib`;
-- **Libraries**: names separated by commas, e.g. `foo,bar`.
+- **Compiler options**: added to every compilation, e.g. `-DFOO=1 -I/opt/include` (Visual Studio:
+  `/DFOO=1 /IC:\include`);
+- **Linker options**: added to the link, e.g. `-L/opt/lib` (Visual Studio: `/LIBPATH:C:\lib`);
+- **Libraries**: names separated by commas, e.g. `foo,bar` (`-lfoo -lbar`, or `foo.lib bar.lib` with Visual
+  Studio).
 
 **Retry** compiles again with these options; the dialog comes back after each failure, until the compilation
 succeeds or you click **Cancel**. The options are kept until the application is closed: they are used for the next

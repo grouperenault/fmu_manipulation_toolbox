@@ -67,30 +67,47 @@ class CompileOptionsDialog(QDialog):
 
     Args:
         values (dict[str, str]): Pre-filled values, keyed by `compiler_options`, `linker_options` and `libraries`.
-        toolchain (str): Description of the compiler in use, e.g. `clang (cc)`.
+        toolchain (Toolchain | None): Compilers in use (`None` if unknown): named in the message, and the examples
+            of the fields are written for them.
     """
 
-    FIELDS = (("compiler_options", "Compiler options", "e.g. -DFOO=1 -I/opt/include"),
-              ("linker_options", "Linker options", "e.g. -L/opt/lib"),
-              ("libraries", "Libraries", "names separated by commas, e.g. foo,bar"))
+    FIELDS = (("compiler_options", "Compiler options"), ("linker_options", "Linker options"),
+              ("libraries", "Libraries"))
 
-    def __init__(self, values: dict[str, str], toolchain: str, parent=None):
+    #: Examples shown in the empty fields, for Visual Studio (`msvc`) and for the other compilers (gcc, clang).
+    PLACEHOLDERS = {
+        "msvc": {"compiler_options": "e.g. /DFOO=1 /IC:\\include",
+                 "linker_options": "e.g. /LIBPATH:C:\\lib",
+                 "libraries": "names separated by commas, e.g. foo,bar (foo.lib)"},
+        "other": {"compiler_options": "e.g. -DFOO=1 -I/opt/include",
+                  "linker_options": "e.g. -L/opt/lib",
+                  "libraries": "names separated by commas, e.g. foo,bar"},
+    }
+
+    def __init__(self, values: dict[str, str], toolchain: Toolchain | None, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Compile sources")
         self.setMinimumWidth(500)
+        if toolchain:
+            # The name of the compiler only: MSVC is found with its full path.
+            name = toolchain.c_compiler[0].replace("\\", "/").rsplit("/", 1)[-1]
+            description = f"{toolchain.family} ({name})"
+        else:
+            description = "the C compiler"
+        placeholders = self.PLACEHOLDERS["msvc" if toolchain and toolchain.family == "msvc" else "other"]
 
         # Same look as the dialogs of FMU Container Builder (`NodeInfoDialog`): captions above the fields.
-        message = QLabel(f"The compilation with {toolchain} failed: see the log. Add options and retry.")
+        message = QLabel(f"The compilation with {description} failed: see the log. Add options and retry.")
         message.setWordWrap(True)
 
         layout = QVBoxLayout(self)
         layout.addWidget(message)
         self.edits: dict[str, QLineEdit] = {}
-        for key, label, placeholder in self.FIELDS:
+        for key, label in self.FIELDS:
             caption = QLabel(label)
             caption.setProperty("class", "caption")
             edit = QLineEdit(values.get(key, ""))
-            edit.setPlaceholderText(placeholder)
+            edit.setPlaceholderText(placeholders[key])
             layout.addSpacing(8)
             layout.addWidget(caption)
             layout.addWidget(edit)
@@ -337,7 +354,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
                 self.apply_operation(operation)
                 if not operation.compilation_failed:
                     return
-            dialog = CompileOptionsDialog(self.compile_options, self.toolchain_description(), parent=self)
+            dialog = CompileOptionsDialog(self.compile_options, self.host_toolchain(), parent=self)
             if dialog.exec() != QDialog.DialogCode.Accepted:
                 return
             self.compile_options = dialog.values()
@@ -353,12 +370,11 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         }
 
     @staticmethod
-    def toolchain_description() -> str:
+    def host_toolchain() -> Toolchain | None:
         try:
-            toolchain = Toolchain.find()
+            return Toolchain.find()
         except OperationError:
-            return "the C compiler"
-        return f"{toolchain.family} ({' '.join(toolchain.c_compiler)})"
+            return None
 
     def prompt_string(self, message):
         text, ok = QInputDialog().getText(self, "Enter value", f"{message}:", QLineEdit.EchoMode.Normal, "")
