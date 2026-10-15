@@ -251,6 +251,8 @@ Lists all output ports with a checkbox to explicitly expose them at the containe
     automatically propagated up through each parent container so that it remains reachable
     from the root container.
 
+<a id="port-style-indicators"></a>
+
 !!! note "Port Style Indicators"
     Ports are displayed with different text styles to indicate their nature:
 

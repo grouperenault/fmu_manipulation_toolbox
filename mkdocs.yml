@@ -16,6 +16,7 @@ copyright: Copyright &copy; 2024-2026 Renault Group
 
 theme:
   name: material
+  custom_dir: overrides
   language: en
   palette:
     - media: "(prefers-color-scheme: dark)"
@@ -40,6 +41,7 @@ theme:
     text: Roboto
     code: Roboto Mono
   features:
+    - announce.dismiss
     - header.autohide
     - content.code.annotate
     - content.code.copy
@@ -139,6 +141,7 @@ markdown_extensions:
 nav:
   - Getting Started:
     - Overview: index.md
+    - What's new in 2.0: whats-new.md
     - Installation: installation.md
     - Quick Start: tutorials/getting-started.md
   - User Guide:
@@ -177,4 +180,7 @@ nav:
 
 extra_css:
   - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/carousel.js
 

@@ -139,6 +139,21 @@ python tools/screenshots.py --list          # their names and files
 python tools/screenshots.py fmutool canvas-menu
 ```
 
+## Announcement carousel
+
+The slides announcing version 2.0, shown on the page [What's new in 2.0](../whats-new.md) and posted on LinkedIn,
+are drawn by `tools/make_carousel.py` (texts in its `SLIDES`, images from the documentation and the resources of
+the package). PySide6 is needed. It writes into one directory the PDF of the LinkedIn post, a PNG preview and the
+WebP slides of the documentation; copy the WebP files into `docs/assets/release-2.0/`:
+
+```bash
+python tools/make_carousel.py --out /tmp/carousel
+cp /tmp/carousel/*.webp docs/assets/release-2.0/
+```
+
+The banner announcing the page, at the top of the site, is withdrawn by removing the `announce` block of
+`overrides/main.html`; the page stays.
+
 ## Packaging and releases
 
 The package is described by `pyproject.toml` (built with setuptools); `MANIFEST.in` selects the content of the

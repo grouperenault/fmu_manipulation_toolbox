@@ -5,11 +5,12 @@ on:
     branches:
       - main
   # Validate the documentation build on pull requests that touch the docs,
-  # the mkdocs config, the documented source package or this workflow.
+  # the mkdocs config, the theme overrides, the documented source package or this workflow.
   pull_request:
     paths:
       - "docs/**"
       - "mkdocs.yml"
+      - "overrides/**"
       - "fmu_manipulation_toolbox/**"
       - ".github/workflows/make_doc.yml"
   workflow_dispatch:
