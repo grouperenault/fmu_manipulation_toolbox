@@ -1,6 +1,6 @@
 # Plan: reset of an embedded FMU driven from inside the container (`container.<fmu>.reset`)
 
-**Created**: 16 October 2026 — **Status**: reviewed (16 October 2026), not started — **Roadmap**: not listed
+**Created**: 16 October 2026 — **Status**: done (16 October 2026) — **Roadmap**: not listed
 
 An FMU of a container must be able to request the reset (`fmi2Reset` / `fmi3Reset`) of another FMU of the same
 container, while the simulation runs. The configuration follows the `ts_multiplier` approach: a container option

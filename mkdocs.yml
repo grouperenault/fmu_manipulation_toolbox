@@ -159,6 +159,7 @@ nav:
       - Container Builder: user-guide/fmucontainer/gui-usage.md
       - AI Assistant (MCP): user-guide/fmucontainer/ai-assistant.md
       - Variable Step Size: user-guide/fmucontainer/container-vr.md
+      - Reset of Embedded FMUs: user-guide/fmucontainer/container-reset.md
       - Datalog: user-guide/fmucontainer/datalog.md
       - LS-BUS Support: user-guide/fmucontainer/ls-bus.md
   - API documentation:

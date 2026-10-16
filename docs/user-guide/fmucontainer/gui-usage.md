@@ -310,7 +310,7 @@ Each tab has its own **Add link** / **Remove link** buttons to manage mappings f
     A wire is drawn in **red** on the canvas whenever at least one of its port mappings is
     invalid: either because the referenced port no longer exists on the FMU (e.g. after
     [Replace FMU](#replacing-an-fmu)), or because it targets an inactive
-    [`configuration` node port](#the-configuration-node-ts_multiplier) (`ts_multiplier` unchecked).
+    [`configuration` node port](#the-configuration-node) (`ts_multiplier` unchecked).
     In both cases, the invalid port name is also shown in red inside the *Wire Details* table
     so you can quickly locate and fix (or simply understand) the broken mapping.
 
@@ -486,36 +486,47 @@ When a container is selected in the tree view, the detail panel shows its config
 | `auto_parameter` | checkbox | Automatically expose parameter ports |
 | `auto_local` | checkbox | Automatically expose local variables |
 | `ts_multiplier` | checkbox | Add a `TS_MULTIPLIER` input for dynamic step size control |
+| `reset_ports` | checkbox | Add a reset input to each FMU of the container (see [Reset of Embedded FMUs](container-reset.md)) |
 
-### The `configuration` Node (`ts_multiplier`)
+### The `configuration` Node
 
 As soon as at least one **sub-container** (not the root container) has its `ts_multiplier`
-parameter checked, a virtual node titled **configuration** automatically appears on the canvas.
+parameter checked, or one container (the root included) has its `reset_ports` parameter checked,
+a virtual node titled **configuration** automatically appears on the canvas.
 This node is a **visual aid**: it does not correspond to any real FMU file, and it never gets its
 own row in the tree view — it exists purely to help you keep track of which FMU drives the
-`TS_MULTIPLIER` input of which sub-container.
+`TS_MULTIPLIER` input of which sub-container, and the reset of which FMU.
 
 - The node exposes **one input port per checked sub-container**, named
   `<container_name>.ts_multiplier` (the `.fmu` suffix of the container name is stripped).
+- It also exposes **one Boolean input port per FMU, or sub-container, of each container with
+  `reset_ports` checked**, named `<fmu_name>.reset` (the `.fmu` suffix is stripped): see
+  [Reset of Embedded FMUs](container-reset.md).
 - It can be wired from **any FMU** in the assembly, like a regular node — drag from the FMU's
   body onto the `configuration` node body to create the wire.
 - It can be **moved** freely but **cannot be deleted** manually while it is still relevant.
-- Selecting the `configuration` node shows an empty detail panel (there is nothing to configure
-  on the node itself).
+- Selecting the `configuration` node shows its reset ports, each with an **Exposed** checkbox:
+  an exposed port becomes the input `container.<fmu>.reset` of the container of the FMU (the
+  ports are exposed anyway when `auto_input` is checked).
 - Checking `ts_multiplier` on the **root** container has **no effect**: the root container is
-  never added to the `configuration` node.
+  never added to the `configuration` node. `reset_ports` applies to the root container too.
+
+![Reset ports in the FMU Container Builder](container-reset-gui.png)
 
 !!! important "This wire is a real link, not just a visual note"
     Unlike the `configuration` node itself (a pure GUI convenience), a wire connected to it **is**
     exported: it corresponds to a real link driving the target sub-container's reserved
     `container.ts_multiplier` runtime input (the actual input FMI port exposed by that container
-    when `ts_multiplier` is enabled). When **importing** a JSON or FMU container, a link whose
-    destination is a sub-container name with port `container.ts_multiplier` is automatically
-    reconstructed as a wire to the `configuration` node's matching dynamic port. On **export**,
-    the reverse translation is applied, so the round-trip is lossless.
+    when `ts_multiplier` is enabled), or the reserved `container.reset` input of the FMU. When
+    **importing** a JSON or FMU container, a link whose destination is a sub-container name with
+    port `container.ts_multiplier`, or an FMU with port `container.reset`, is automatically
+    reconstructed as a wire to the `configuration` node's matching dynamic port; an input rule on
+    `container.reset` checks its **Exposed** box. On **export**, the reverse translation is applied,
+    so the round-trip is lossless.
 
-!!! note "Unchecking `ts_multiplier`"
-    Unchecking `ts_multiplier` on a sub-container does **not** delete its port nor an existing
+!!! note "Unchecking `ts_multiplier` or `reset_ports`"
+    Unchecking `ts_multiplier` on a sub-container (or `reset_ports` on a container, or moving an FMU
+    out of it) does **not** delete its port nor an existing
     wire connected to it. Instead, the port becomes inactive and any wire referencing it is drawn
     in **red** (both on the canvas and in the *Wire Details* panel, see [Wire Details](#wire-details)),
     to flag the now-invalid connection. Re-checking `ts_multiplier` automatically restores the

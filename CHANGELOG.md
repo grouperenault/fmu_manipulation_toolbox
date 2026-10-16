@@ -131,6 +131,19 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   `make_fmu_txt` and `make_datalog` take the `ContainerLayout`; `Clock.container_vr`/
   `Clock.fmu_vr` become `Clock.fmu_vr`/`Clock.vr`. `EmbeddedFMU` removes the temporary directory
   of its FMU once analysed.
+- 🟢 **ADDED** **Reset of embedded FMUs** during the simulation: with the option `reset_ports` (JSON key
+  `reset_ports`, CLI `-reset-ports`, `FMUContainer(reset_ports=True)`, AI Assistant option), each embedded FMU
+  gets a Boolean input `container.reset`, fed by a link or exposed as `container.<fmu>.reset`. When it is true,
+  the container resets the FMU and initializes it again at the current time (start values, values set by the
+  importer, current inputs), in every execution mode, for Co-Simulation and Model-Exchange FMUs and for
+  sub-containers; the input goes back to false at the end of the step. `fmusplit` restores these links and inputs.
+  `container.txt` format version 7. See [Reset of Embedded FMUs](docs/user-guide/fmucontainer/container-reset.md).
+- 🟢 **ADDED** `fmi2Reset` / `fmi3Reset` of a container: every embedded FMU is reset and the container goes back to
+  its state after instantiation. They returned an error ("not implemented").
+- 🟠 **FIXED** an importer could crash when the configuration of a container failed (e.g. a damaged
+  `container.txt`): the container freed buffers it had not allocated.
+- 🟠 **FIXED** the buffers of the Model-Exchange solver were allocated again, without being freed, at each
+  initialization of the container.
 
 ## fmutool and the Python API
 
@@ -217,6 +230,10 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 - 🔵 **CHANGED** `fmucontainer-gui`: **Verbose Mode** sets the level of the whole log (`DEBUG`) and copies it on the
   standard output; without it, nothing is written on the standard output (the tree view and the AI Assistant used to
   write their messages there in any case).
+- 🟢 **ADDED** `fmucontainer-gui`: the `reset_ports` checkbox of a container (root included) adds a
+  `<fmu>.reset` port per FMU, or sub-container, to the `configuration` node; a wire to it resets the FMU. Selecting
+  the node lists its reset ports, to expose them as container inputs. See
+  [The configuration Node](docs/user-guide/fmucontainer/gui-usage.md#the-configuration-node).
 
 # Version 1.9.4.2
 * ADDED: Container thread synchronization on macOS now uses a semaphore instead of a barrier
