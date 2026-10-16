@@ -122,6 +122,14 @@ Taken during the implementation (16 October 2026):
 - **D28 — Step 6, assistant**: `reset_ports` is a container option (`set_container_options`); the replay of the
   lint creates its `FMUContainer` with the option of the container, so that a link to `container.reset` is not
   reported as invalid. The SSP import does not set it (as `ts_multiplier`).
+- **D29 — Step 7, test FMUs**: Model-Exchange tested with a copy of `VanDerPol.fmu` whose `modelDescription.xml`
+  keeps only `<ModelExchange>`; the refusal of `fmiXReset` with `BouncingBall` of `tests/data/compile`, compiled
+  for the host with a `fmiXReset` that always fails (`needs_compiler`); the refusal of D21 with the bus of
+  `ls-bus/bus+nodes.json`. REF files: `REF-container-reset.txt`, `REF-modelDescription-reset.xml`,
+  `REF-bouncing-reset.json` (`containers/bouncing_ball/bouncing-reset.csv`).
+- **D30 — Step 7, datalog of a link trigger**: the datalog lists the link variable, i.e. the source value before
+  its conversion to the Boolean of the trigger; the reset is visible by the row written before it (same time as
+  the previous row), not by a `true` / `false` value of the trigger.
 
 ---
 

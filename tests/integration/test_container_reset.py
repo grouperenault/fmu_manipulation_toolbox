@@ -1,8 +1,11 @@
 """Integration tests for the reset of embedded FMUs (`docs/local/fmu_reset.md`).
 
-The FMUs of `containers/mt` are built for every platform: these tests simulate on every OS.
+The FMUs used here (`containers/mt`, `containers/VanDerPol`, `ls-bus`, the sources of `compile`) are built, or
+compiled, for every platform: these tests simulate on every OS.
 """
+import csv
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -10,9 +13,12 @@ import pytest
 from fmu_manipulation_toolbox.assembly import Assembly
 from fmu_manipulation_toolbox.container import FMUContainer
 
+from _helpers.archive import read_entry, rewrite_fmu
 from _helpers.simulation import simulate
 
 pytestmark = [pytest.mark.integration]
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 
 def _simulate_with_debug_log(filename: str, **kwargs) -> list[str]:
@@ -183,3 +189,207 @@ def test_reset_of_an_embedded_fmu_by_a_link(area_dir, fmi_version):
 
     assert values[0] != values[1]
     assert values == values[:2] * 4
+
+
+def _reset_once(driver: _Container, trigger: str, outputs: tuple[str, ...] = ("x0",), at: int = 4,
+                nb_steps: int = 8, step_size: float = 0.01) -> dict[str, list[float]]:
+    """Initialize, then step: the importer sets `trigger` before the step `at`. Return the outputs after each
+    step."""
+    get = driver.fmu.getReal if driver.fmi_version == 2 else driver.fmu.getFloat64
+    driver.initialize()
+    values = {name: [] for name in outputs}
+    for i in range(nb_steps):
+        if i == at:
+            driver.fmu.setBoolean([driver.vrs[trigger]], [True])
+        driver.fmu.doStep(i * step_size, step_size)
+        for name in outputs:
+            values[name].append(get([driver.vrs[name]])[0])
+    return values
+
+
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.area("containers/VanDerPol")
+@pytest.mark.parametrize("fmi_version", [2, 3])
+@pytest.mark.parametrize("mode", ["parallel", "sequential", "mt"])
+def test_reset_in_every_execution_mode(area_dir, fmi_version, mode):
+    """Same behaviour in every execution mode: only the FMU of the trigger starts again."""
+    container = FMUContainer("reset", ".", fmi_version=fmi_version, reset_ports=True)
+    container.get_fmu("VanDerPol.fmu")
+    container.get_fmu("VanDerPol.fmu", name="VanDerPol-1.fmu")
+    container.add_output("VanDerPol.fmu", "x0", "x0")
+    container.add_output("VanDerPol-1.fmu", "x0", "other")
+    container.add_input("", "VanDerPol.fmu", "container.reset")
+    container.make_fmu("reset.fmu", step_size=0.01, mt=mode == "mt", sequential=mode == "sequential")
+
+    driver = _Container("reset.fmu")
+    values = _reset_once(driver, "container.vanderpol.reset", outputs=("x0", "other"))
+    driver.free()
+
+    assert values["x0"][4:] == values["x0"][:4]
+    assert values["other"][4:] != values["other"][:4]
+
+
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.area("containers/VanDerPol")
+@pytest.mark.parametrize("fmi_version", [2, 3])
+def test_reset_of_a_model_exchange_fmu(area_dir, fmi_version):
+    """A Model-Exchange FMU (VanDerPol without its Co-Simulation interface) starts again from its initial state:
+    the solver reads its states again."""
+    description = read_entry("VanDerPol.fmu", "modelDescription.xml").decode("utf-8")
+    description = re.sub(r"<CoSimulation\b.*?/>", "", description, flags=re.DOTALL)
+    rewrite_fmu("VanDerPol.fmu", "VanDerPolME.fmu", replace={"modelDescription.xml": description.encode("utf-8")})
+
+    container = FMUContainer("reset", ".", fmi_version=fmi_version, reset_ports=True)
+    assert container.get_fmu("VanDerPolME.fmu").is_me
+    container.add_output("VanDerPolME.fmu", "x0", "x0")
+    container.add_input("", "VanDerPolME.fmu", "container.reset")
+    container.make_fmu("reset.fmu", step_size=0.01)
+
+    driver = _Container("reset.fmu")
+    values = _reset_once(driver, "container.vanderpolme.reset")
+    driver.free()
+
+    assert values["x0"][3] != values["x0"][0]
+    assert values["x0"][4:] == values["x0"][:4]
+
+
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.area("containers/VanDerPol")
+@pytest.mark.parametrize("fmi_version", [2, 3])
+def test_reset_of_a_sub_container(area_dir, fmi_version):
+    """The reset port of a sub-container calls its fmi2Reset / fmi3Reset."""
+    Path("outer.json").write_text(json.dumps({
+        "name": "outer.fmu", "auto_link": False, "auto_input": True, "auto_output": True, "reset_ports": True,
+        "step_size": 0.01,
+        "container": [{"name": "inner.fmu", "auto_link": False, "auto_input": False, "auto_output": True,
+                       "fmu": ["VanDerPol.fmu"]}],
+    }))
+    Assembly("outer.json").make_fmu(fmi_version=fmi_version)
+
+    driver = _Container("outer.fmu")
+    values = _reset_once(driver, "container.inner.reset")
+    driver.free()
+
+    assert values["x0"][3] != values["x0"][0]
+    assert values["x0"][4:] == values["x0"][:4]
+
+
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.area("ls-bus")
+def test_reset_refused_for_an_fmu_with_scheduled_clocks(area_dir):
+    """The bus of an LS-BUS container has clocks scheduled by the container: its reset is refused (D21)."""
+    assembly = json.loads(Path("bus+nodes.json").read_text())
+    assembly.update({"name": "resettable.fmu", "reset_ports": True,
+                     "input": [["container.bus.reset", "bus.fmu", "container.reset"]]})
+    Path("resettable.json").write_text(json.dumps(assembly))
+    Assembly("resettable.json").make_fmu(fmi_version=3)
+
+    from fmpy.fmi1 import FMICallException
+
+    driver = _Container("resettable.fmu")
+    driver.initialize()
+    driver.fmu.doStep(0.0, 0.1)
+    driver.fmu.setBoolean([driver.vrs["container.bus.reset"]], [True])
+    with pytest.raises(FMICallException):
+        driver.fmu.doStep(0.1, 0.1)
+    driver.fmu.freeInstance()
+
+    assert any("reset of an FMU with scheduled clocks is not supported" in message for message in driver.messages)
+
+
+def _bouncing_ball_without_reset(fmi_version: int, filename: str):
+    """`BouncingBall` of `tests/data/compile`, compiled for the host with a `fmiXReset` that always fails."""
+    from fmu_manipulation_toolbox.compiler import OperationCompileSources
+    from fmu_manipulation_toolbox.operations import FMU
+
+    reference = DATA_DIR / "compile" / f"{fmi_version}.0" / "BouncingBall.fmu"
+    source_name = f"sources/fmi{fmi_version}Functions.c"
+    source = read_entry(reference, source_name).decode("utf-8")
+    source, count = re.subn(rf"(fmi{fmi_version}Status fmi{fmi_version}Reset\(\w+ \w+\) {{).*?\n}}",
+                            rf"\1\n    return fmi{fmi_version}Error;\n}}", source, flags=re.DOTALL)
+    assert count == 1
+    rewrite_fmu(reference, "no-binaries.fmu", drop=("binaries/",), replace={source_name: source.encode("utf-8")})
+    with FMU("no-binaries.fmu") as fmu:
+        fmu.apply_operation(OperationCompileSources())
+        fmu.repack(filename)
+
+
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.needs_compiler
+@pytest.mark.area("containers/VanDerPol")
+@pytest.mark.parametrize("fmi_version", [2, 3])
+def test_failing_reset(area_dir, fmi_version):
+    """An FMU that refuses fmiXReset: the step that resets it fails, as fmi2Reset / fmi3Reset of the container."""
+    _bouncing_ball_without_reset(fmi_version, "BouncingBall.fmu")
+    container = FMUContainer("noreset", ".", fmi_version=fmi_version, reset_ports=True)
+    container.get_fmu("BouncingBall.fmu")
+    container.add_output("BouncingBall.fmu", "h", "h")
+    container.add_input("", "BouncingBall.fmu", "container.reset")
+    container.make_fmu("noreset.fmu", step_size=0.01)
+
+    from fmpy.fmi1 import FMICallException
+
+    driver = _Container("noreset.fmu")
+    driver.initialize()
+    driver.fmu.doStep(0.0, 0.01)
+    driver.fmu.setBoolean([driver.vrs["container.bouncingball.reset"]], [True])
+    with pytest.raises(FMICallException):
+        driver.fmu.doStep(0.01, 0.01)
+    driver.fmu.freeInstance()
+    assert any("'BouncingBall.fmu' cannot be reset" in message for message in driver.messages)
+
+    driver = _Container("noreset.fmu")
+    driver.initialize()
+    with pytest.raises(FMICallException):
+        driver.fmu.reset()
+    driver.fmu.freeInstance()
+    assert any("'BouncingBall.fmu' failed to reset" in message for message in driver.messages)
+
+
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.area("containers/VanDerPol")
+@pytest.mark.parametrize("source", ["importer", "link"])
+def test_reset_in_the_datalog(area_dir, source):
+    """A row is written just before the reset, at the same time as the row of the previous step (D13). Set by the
+    importer, the trigger is `true` in this row only; fed by a link, the datalog shows the link variable (the
+    source value, before its conversion to the Boolean of the trigger)."""
+    container = FMUContainer("logged", ".", fmi_version=3, reset_ports=True)
+    container.get_fmu("VanDerPol.fmu")
+    container.add_output("VanDerPol.fmu", "x0", "x0")
+    if source == "importer":
+        container.add_input("", "VanDerPol.fmu", "container.reset")
+        trigger = "container.vanderpol.reset"
+    else:
+        container.get_fmu("VanDerPol.fmu", name="VanDerPol-1.fmu")
+        container.add_link("VanDerPol-1.fmu", "x0", "VanDerPol.fmu", "container.reset")
+        trigger = "vanderpol-1.x0"
+    container.make_fmu("logged.fmu", step_size=0.01, datalog=True)
+
+    driver = _Container("logged.fmu")
+    if source == "importer":
+        _reset_once(driver, trigger)
+    else:
+        driver.initialize()
+        for i in range(4):
+            driver.fmu.doStep(i * 0.01, 0.01)
+    driver.free()
+
+    with open("logged-datalog.csv", newline="") as file:
+        rows = list(csv.DictReader(file))
+    times = [float(row["time"]) for row in rows]
+    repeated = [i for i in range(1, len(rows)) if times[i] == times[i - 1]]   # rows written before a reset
+
+    if source == "importer":
+        assert [times[i] for i in repeated] == [pytest.approx(0.04)]
+        assert [row[trigger] for row in rows].count("1") == 1
+        assert rows[repeated[0]][trigger] == "1" and rows[repeated[0] + 1][trigger] == "0"
+        assert rows[repeated[0] + 1]["x0"] == rows[1]["x0"]     # started again
+    else:
+        assert [times[i] for i in repeated] == [pytest.approx(0.0), pytest.approx(0.02)]   # every other step
+        assert all(float(rows[i][trigger]) != 0 for i in repeated)
