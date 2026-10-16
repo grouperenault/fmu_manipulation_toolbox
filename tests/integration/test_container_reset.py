@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from fmu_manipulation_toolbox.assembly import Assembly
+from fmu_manipulation_toolbox.container import FMUContainer
 
 from _helpers.simulation import simulate
 
@@ -48,7 +49,7 @@ def test_container_caches_values_set_by_the_importer(area_dir, fmi_version):
 
 
 class _Container:
-    """Low-level (fmpy) driver of a co-simulation container with a Float64 parameter `mu` and output `x0`."""
+    """Low-level (fmpy) driver of a co-simulation container of `VanDerPol.fmu`, with an output `x0`."""
 
     def __init__(self, filename: str):
         from fmpy import extract, read_model_description
@@ -63,22 +64,30 @@ class _Container:
         self.fmu = instantiate_fmu(extract(filename), model_description, fmi_type="CoSimulation",
                                    logger=self._logger)
 
-    def run(self, mu: float, nb_steps: int = 20, step_size: float = 0.01) -> list[float]:
-        """Initialize at time 0 with `mu`, then return `x0` after each step."""
+    def initialize(self, **reals: float):
+        """Initialize at time 0, with the given values of Float64 inputs or parameters."""
+        set_reals = self.fmu.setReal if self.fmi_version == 2 else self.fmu.setFloat64
         if self.fmi_version == 2:
             self.fmu.setupExperiment(startTime=0)
-            self.fmu.setReal([self.vrs["mu"]], [mu])
+        if reals:
+            set_reals([self.vrs[name] for name in reals], list(reals.values()))
+        if self.fmi_version == 2:
             self.fmu.enterInitializationMode()
         else:
-            self.fmu.setFloat64([self.vrs["mu"]], [mu])
             self.fmu.enterInitializationMode(startTime=0)
         self.fmu.exitInitializationMode()
 
+    def x0(self) -> float:
         get = self.fmu.getReal if self.fmi_version == 2 else self.fmu.getFloat64
+        return get([self.vrs["x0"]])[0]
+
+    def run(self, mu: float, nb_steps: int = 20, step_size: float = 0.01) -> list[float]:
+        """Initialize at time 0 with the parameter `mu`, then return `x0` after each step."""
+        self.initialize(mu=mu)
         values = []
         for i in range(nb_steps):
             self.fmu.doStep(i * step_size, step_size)
-            values.append(get([self.vrs["x0"]])[0])
+            values.append(self.x0())
         return values
 
     def free(self):
@@ -117,3 +126,60 @@ def test_container_reset(area_dir, fmi_version):
     assert again == first
     assert other == expected_other
     assert other != first
+
+
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.area("containers/VanDerPol")
+@pytest.mark.parametrize("fmi_version", [2, 3])
+def test_reset_of_an_embedded_fmu_by_the_importer(area_dir, fmi_version):
+    """The importer sets the exposed `container.vanderpol.reset`: the FMU starts again from its initial state at the
+    next step, and the input is back to false after it."""
+    container = FMUContainer("reset", ".", fmi_version=fmi_version, reset_ports=True)
+    container.get_fmu("VanDerPol.fmu")
+    container.add_output("VanDerPol.fmu", "x0", "x0")
+    container.add_input("", "VanDerPol.fmu", "container.reset")
+    container.make_fmu("reset.fmu", step_size=0.01)
+
+    driver = _Container("reset.fmu")
+    driver.initialize()
+    reset_vr = driver.vrs["container.vanderpol.reset"]
+    values, triggers = [], []
+    for i in range(8):
+        if i == 4:
+            driver.fmu.setBoolean([reset_vr], [True])
+        driver.fmu.doStep(i * 0.01, 0.01)
+        values.append(driver.x0())
+        triggers.append(bool(driver.fmu.getBoolean([reset_vr])[0]))
+    driver.free()
+
+    assert values[4:] == values[:4]
+    assert values[3] != values[0]
+    assert not any(triggers)
+
+
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.area("containers/VanDerPol")
+@pytest.mark.parametrize("fmi_version", [2, 3])
+def test_reset_of_an_embedded_fmu_by_a_link(area_dir, fmi_version):
+    """`x0` of a second instance (never 0, so true once converted) drives the reset of the first one: the trigger
+    is cleared at the end of each step where it reset the FMU, and the source sets it again at the end of the next
+    one, so the FMU is reset every other step."""
+    container = FMUContainer("reset", ".", fmi_version=fmi_version, reset_ports=True)
+    container.get_fmu("VanDerPol.fmu")
+    container.get_fmu("VanDerPol.fmu", name="VanDerPol-1.fmu")
+    container.add_output("VanDerPol.fmu", "x0", "x0")
+    container.add_link("VanDerPol-1.fmu", "x0", "VanDerPol.fmu", "container.reset")
+    container.make_fmu("reset.fmu", step_size=0.01)
+
+    driver = _Container("reset.fmu")
+    driver.initialize()
+    values = []
+    for i in range(8):
+        driver.fmu.doStep(i * 0.01, 0.01)
+        values.append(driver.x0())
+    driver.free()
+
+    assert values[0] != values[1]
+    assert values == values[:2] * 4

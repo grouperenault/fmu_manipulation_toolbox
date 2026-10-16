@@ -505,6 +505,7 @@ fmu_status_t container_reset(container_t* container) {
         }
         fmu->need_event_udpate = false;
         fmu->have_next_event_time = false;
+        fmu->reset_pending = false;
         if (fmu->profile) {
             fmu->profile->current_tic = 0;
             fmu->profile->total_elapsed = 0.0;
@@ -880,35 +881,49 @@ static fmu_status_t container_reset_fmu(container_t *container, int fmu_id) {
             return FMU_STATUS_ERROR;
     }
 
-    container_clear_reset_trigger(container, fmu);
+    return FMU_STATUS_OK;
+}
+
+
+/* At the start of each internal step: reset the FMUs whose `container.<fmu>.reset` is true. All the triggers are
+   read before the first reset (one trigger may drive several FMUs). A datalog row is written before, so that the
+   trigger is visible even when the importer set it. The triggers stay true during the step: they are cleared by
+   container_clear_reset_triggers() at its end. */
+static fmu_status_t container_reset_fmus(container_t *container) {
+    bool reset = false;
+
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        container->fmu[i].reset_pending = container_reset_requested(container, &container->fmu[i]);
+        reset |= container->fmu[i].reset_pending;
+    }
+
+    if (! reset)
+        return FMU_STATUS_OK;
+
+    datalog_log(container);
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        if (container->fmu[i].reset_pending && (container_reset_fmu(container, i) != FMU_STATUS_OK))
+            return FMU_STATUS_ERROR;
+    }
+
+    /* A reset FMU may announce a time event earlier than the planned step. */
+    container_bound_next_step(container);
 
     return FMU_STATUS_OK;
 }
 
 
-/* At the start of each internal step: reset the FMUs whose `container.<fmu>.reset` is true. A datalog row is
-   written before, so that the trigger is visible even when the importer set it. */
-static fmu_status_t container_reset_fmus(container_t *container) {
-    bool reset = false;
-
+/* At the end of the step: the triggers of the FMUs reset at its start go back to false, whoever set them (the
+   importer or an embedded FMU). */
+static void container_clear_reset_triggers(container_t *container) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        if (! container_reset_requested(container, &container->fmu[i]))
-            continue;
+        fmu_t *fmu = &container->fmu[i];
 
-        if (! reset) {
-            datalog_log(container);
-            reset = true;
+        if (fmu->reset_pending) {
+            container_clear_reset_trigger(container, fmu);
+            fmu->reset_pending = false;
         }
-
-        if (container_reset_fmu(container, i) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
     }
-
-    /* A reset FMU may announce a time event earlier than the planned step. */
-    if (reset)
-        container_bound_next_step(container);
-
-    return FMU_STATUS_OK;
 }
 
 
@@ -958,6 +973,7 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                     logger(LOGGER_ERROR, "Container cannot Do Step (time=%e)", container->time);
                     return status;
                 }
+                container_clear_reset_triggers(container);
                 container->time += container->next_step;
 
                 /* EVENT MODE */

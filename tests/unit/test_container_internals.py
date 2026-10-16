@@ -7,6 +7,7 @@ import importlib
 import io
 import logging
 import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -369,3 +370,109 @@ def test_one_converted_copy_per_target_type(tmp_path):
     # Both inputs read the same converted copy (local offset 0 of the booleans).
     inputs = lines.index("# Inputs of b.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>")
     assert lines[inputs + 1:inputs + 4] == ["2", "0 1 1", "0 1 2"]
+
+
+# --------------------------------------------------------------------------- #
+#                         Reset ports (container.reset)                         #
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def resettable(area_dir) -> FMUContainer:
+    container = FMUContainer("bouncing", area_dir, reset_ports=True)
+    container.get_fmu("bb_position.fmu")
+    container.get_fmu("bb_velocity.fmu")
+    return container
+
+
+def _container_txt(container: FMUContainer) -> tuple[ContainerLayout, list[str]]:
+    layout = ContainerLayout.allocate(container.links.values(), container.inputs, container.outputs)
+    txt = io.StringIO()
+    container.make_fmu_txt(txt, 0.1, False, False, False, layout)
+    return layout, txt.getvalue().splitlines()
+
+
+def _reset_trigger(lines: list[str], fmu_name: str) -> int:
+    return int(lines[lines.index(f"# Reset trigger of {fmu_name}: <LOCAL_OFFSET>") + 1])
+
+
+@pytest.mark.area("containers/bouncing_ball")
+@pytest.mark.parametrize("fmi_version, type_name", [(2, "boolean"), (3, "boolean1")])
+def test_reset_ports_option(area_dir, fmi_version, type_name):
+    """Each embedded FMU gets a `container.reset` input of the Boolean type of the container, with the option only."""
+    container = FMUContainer("bouncing", area_dir, fmi_version=fmi_version, reset_ports=True)
+    port = container.get_fmu("bb_position.fmu").ports["container.reset"]
+    assert (port.is_reset, port.causality, port.type_name) == (True, "input", type_name)
+
+    assert "container.reset" not in FMUContainer("plain", area_dir).get_fmu("bb_position.fmu").ports
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_reset_ports_exposed_by_auto_input(resettable):
+    """auto_input exposes each reset port as `container.<id>.reset`, stored locally: the runtime reads it there."""
+    resettable.add_link("bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset")
+    resettable.add_implicit_rule(auto_input=True, auto_output=False, auto_link=False)
+    assert {"container.bb_position.reset", "container.bb_velocity.reset"} <= set(resettable.inputs)
+
+    layout, lines = _container_txt(resettable)
+    offsets = []
+    for fmu in ("bb_position", "bb_velocity"):
+        name = f"container.{fmu}.reset"
+        offset = layout.reset_inputs[name]
+        assert f"{layout.inputs[name]} 1 1 -1 {offset}" in lines
+        assert _reset_trigger(lines, f"{fmu}.fmu") == offset
+        offsets.append(offset)
+    assert len(set(offsets)) == 2
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_reset_port_fed_by_a_link(resettable):
+    """A link to a reset port is read by the container from its local variable, and never set to the FMU."""
+    resettable.add_link("bb_position.fmu", "is_ground", "bb_velocity.fmu", "container.reset")
+    layout, lines = _container_txt(resettable)
+
+    link = next(iter(resettable.links.values()))
+    assert _reset_trigger(lines, "bb_velocity.fmu") == layout.local_offset(layout.links[link])
+    assert _reset_trigger(lines, "bb_position.fmu") == -1
+    inputs = lines.index("# Inputs of bb_velocity.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>")
+    assert lines[inputs + 1] == "0"
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_reset_input_fans_out(resettable):
+    """One container input may reset several FMUs, and feed regular inputs too: the reset ports share one local
+    variable, listed first."""
+    for fmu_name, port_name in (("bb_position.fmu", "container.reset"), ("bb_velocity.fmu", "container.reset"),
+                                ("bb_velocity.fmu", "reset")):
+        resettable.add_input("reset_all", fmu_name, port_name)
+    layout, lines = _container_txt(resettable)
+
+    offset = layout.reset_inputs["reset_all"]
+    reset_vr = resettable.involved_fmu["bb_velocity.fmu"].ports["reset"].vr
+    assert f"{layout.inputs['reset_all']} 1 2 -1 {offset} 1 {reset_vr}" in lines
+    assert _reset_trigger(lines, "bb_position.fmu") == _reset_trigger(lines, "bb_velocity.fmu") == offset
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_reset_port_has_no_start_value(resettable):
+    with pytest.raises(FMUContainerError, match="drives the reset"):
+        resettable.add_start_value("bb_position.fmu", "container.reset", "true")
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_unwired_reset_port_is_a_warning(resettable, caplog):
+    """A reset port neither linked nor exposed is reported as a warning, not as an unconnected input."""
+    with caplog.at_level(logging.DEBUG, logger="fmu_manipulation_toolbox"):
+        resettable.sanity_check(0.1)
+    assert "Reset of FMU 'bb_velocity.fmu' is neither linked nor exposed" in caplog.text
+    assert "container.reset' is not connected" not in caplog.text
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_reset_input_in_model_description(resettable):
+    resettable.add_input("", "bb_velocity.fmu", "container.reset")
+    resettable.make_fmu("reset.fmu", step_size=0.001, debug=True)
+
+    variables = {variable.get("name"): variable
+                 for variable in ET.parse("reset/modelDescription.xml").getroot().find("ModelVariables")}
+    variable = variables["container.bb_velocity.reset"]
+    assert (variable.get("causality"), variable.get("variability")) == ("input", "discrete")
+    assert variable.find("Boolean").get("start") == "false"

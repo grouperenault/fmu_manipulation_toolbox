@@ -405,6 +405,7 @@ typedef struct {
     /* Offset of `container.<fmu>.reset` in the local storage of booleans (FMI-2 container) or booleans1 (FMI-3
        container), -1 if the FMU is never reset. */
     long                        reset_trigger;
+    bool                        reset_pending;  /* reset at the start of the step: trigger cleared at its end */
 
     profile_t                   *profile;
 

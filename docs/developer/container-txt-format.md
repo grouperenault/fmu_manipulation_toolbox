@@ -324,9 +324,14 @@ for `boolean`/`boolean1` (e.g. `D8_D16`, `B_F64`). **Lossy** conversions (narrow
 
 - `<LOCAL_OFFSET>`: offset of the `container.<fmu>.reset` variable in the local storage of `boolean` (FMI-2
   container) or `boolean1` (FMI-3 container); `-1` when the FMU is never reset.
-- The runtime reads it at the start of each internal step: when it is `true`, it writes a datalog row, resets the
-  FMU (`fmi2Reset` / `fmi3Reset`), initializes it again at the current time (start values, values set by the
-  importer, current inputs, event iteration), then writes `false` into it.
+- The runtime reads all the triggers at the start of each internal step: when one is `true`, it writes a datalog
+  row, resets the FMU (`fmi2Reset` / `fmi3Reset`) and initializes it again at the current time (start values,
+  values set by the importer, current inputs, event iteration). At the end of the step, it writes `false` into the
+  triggers of the FMUs it reset, whoever set them: an FMU that keeps its output `true` resets the target every
+  other step.
+- Several FMUs may share one trigger (one link or one container input). An exposed trigger is a local variable
+  without value reference: its container input line is `<VR> 1 <NB> -1 <LOCAL_OFFSET> [<FMU_INDEX> <FMU_VR> ...]`,
+  the other pairs being the regular inputs the same container input feeds.
 - The reset of an FMU with clocks scheduled by the container (section 8) is not supported: the runtime returns an
   error.
 

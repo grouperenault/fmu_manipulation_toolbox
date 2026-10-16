@@ -88,7 +88,11 @@ class FMUContainer:
         FMUContainerError: If the FMU directory is invalid.
     """
 
-    def __init__(self, identifier: str, fmu_directory: str | Path, description_pathname=None, fmi_version=2):
+    #: Name of the virtual input added to each embedded FMU by the option `reset_ports`.
+    RESET_PORT = "container.reset"
+
+    def __init__(self, identifier: str, fmu_directory: str | Path, description_pathname=None, fmi_version=2,
+                 reset_ports=False):
         self.fmu_directory = Path(fmu_directory)
         self.identifier = identifier
         if not self.fmu_directory.is_dir():
@@ -97,6 +101,7 @@ class FMUContainer:
 
         self.description_pathname = description_pathname
         self.fmi_version = fmi_version
+        self.reset_ports = reset_ports
 
         self.start_time = None
         self.stop_time = None
@@ -148,6 +153,8 @@ class FMUContainer:
 
         if not fmu.fmi_version == self.fmi_version:
             logger.warning(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}.")
+        if self.reset_ports:
+            self.add_reset_port(fmu)
         self.involved_fmu[fmu.name] = fmu
 
         if fmu.is_me:
@@ -159,6 +166,31 @@ class FMUContainer:
         logger.info(f"Involved FMU #{len(self.involved_fmu)}: {fmu} ({fmu_type})")
 
         return fmu
+
+    def add_reset_port(self, fmu: EmbeddedFMU):
+        """Add the virtual `container.reset` input to an embedded FMU (option `reset_ports`).
+
+        When this input is `true` at the start of an internal step, the container resets the FMU and initializes it
+        again at the current time; the input goes back to `false` at the end of the step. Its type is the Boolean
+        of the container (`fmi2Boolean` or `fmi3Boolean`).
+
+        Args:
+            fmu (EmbeddedFMU): The embedded FMU.
+        """
+        port = EmbeddedFMUPort("boolean" if self.fmi_version == 2 else "boolean1", {
+            "name": self.RESET_PORT,
+            "valueReference": -1,   # no value reference in the FMU
+            "causality": "input",
+            "variability": "discrete",
+            "start": "false",
+            "description": f"Reset of the embedded FMU '{fmu.name}'",
+        })
+        port.is_reset = True
+        fmu.ports[self.RESET_PORT] = port
+
+    def reset_input_name(self, fmu: EmbeddedFMU) -> str:
+        """Name under which the container exposes the `container.reset` input of `fmu`."""
+        return f"container.{fmu.id}.reset"
 
     def mark_ruled(self, cport: ContainerPort, rule: str):
         if cport in self.rules:
@@ -209,13 +241,13 @@ class FMUContainer:
                 causality is not `"input"` or `"parameter"`, or if types do not
                 match an existing input with the same name.
         """
-        if not container_port_name:
-            container_port_name = to_port_name
-
         try:
             cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
         except FMUContainerError as e:
-            raise FMUContainerError(f"Cannot add input '{container_port_name}': {e.reason}") from e
+            raise FMUContainerError(f"Cannot add input '{container_port_name or to_port_name}': {e.reason}") from e
+
+        if not container_port_name:
+            container_port_name = self.reset_input_name(cport_to.fmu) if cport_to.port.is_reset else to_port_name
 
         if cport_to.port.causality not in ("input", "parameter"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
@@ -387,6 +419,9 @@ class FMUContainer:
         except FMUContainerError as e:
             raise FMUContainerError(f"Cannot set start value: {e.reason}") from e
 
+        if cport.port.is_reset:
+            raise FMUContainerError(f"Start value cannot be set on {cport}: it drives the reset of the FMU.")
+
         # Check dimensions
         value_tokens = str(value).split(' ')
         if not len(value_tokens) == cport.port.size():
@@ -494,7 +529,7 @@ class FMUContainer:
                     self.add_input(parameter_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
                 elif auto_input and cport.port.causality == 'input' :
-                    input_name = self._auto_name(cport)
+                    input_name = self.reset_input_name(cport.fmu) if cport.port.is_reset else self._auto_name(cport)
                     logger.info(f"AUTO INPUT: Expose {cport} as {input_name}")
                     self.add_input(input_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_input(input_name, cport.fmu.name, cport.port.name)
@@ -564,7 +599,10 @@ class FMUContainer:
                     continue
                 cport = ContainerPort(fmu, port_name)
                 if cport not in self.rules:
-                    if cport.port.causality == 'input':
+                    if cport.port.is_reset:
+                        logger.warning(f"Reset of FMU '{fmu.name}' is neither linked nor exposed: "
+                                       f"the FMU will never be reset.")
+                    elif cport.port.causality == 'input':
                         logger.error(f"Input '{cport}' is not connected")
                     if cport.port.causality == 'output':
                         logger.warning(f"Output '{cport}' is not connected")
@@ -824,11 +862,16 @@ class FMUContainer:
 
         local_per_type: dict[str, list[LocalVariable]] = defaultdict(list)
         links_per_fmu: dict[str, list[Link]] = defaultdict(list)
+        # Local storage offset of the `container.reset` trigger of each FMU, by FMU name
+        reset_triggers: dict[str, int] = {}
 
         # Fill data structure
         # Inputs
         for input_port_name, input_port in self.inputs.items():
             inputs_per_type[input_port.type_name].append(input_port)
+            for cport in input_port.cport_list:
+                if cport.port.is_reset:
+                    reset_triggers[cport.fmu.name] = layout.reset_inputs[input_port_name]
 
         # Start values
         for input_port, value in self.start_values.items():
@@ -867,7 +910,11 @@ class FMUContainer:
                         local_vr = layout.links[link]
                     else:
                         local_vr = layout.converted[link][cport_to.port.type_name]
-                    fmu_io_list.add_input(cport_to, local_vr)
+                    if cport_to.port.is_reset:
+                        # Read by the container, never set to the FMU.
+                        reset_triggers[cport_to.fmu.name] = layout.local_offset(local_vr)
+                    else:
+                        fmu_io_list.add_input(cport_to, local_vr)
 
         print("# NB local variables:", ", ".join(ALL_TYPES), file=txt_file)
         nb_storage = [f"{layout.table.nb_storage(type_name)}" for type_name in ALL_TYPES]
@@ -880,9 +927,9 @@ class FMUContainer:
             nb_local = (len(inputs_per_type[type_name]) +
                         len(outputs_per_type[type_name]) +
                         layout.table.nb_local(type_name))
-            nb_input_link = 0
-            for input_port in inputs_per_type[type_name]:
-                nb_input_link += len(input_port.cport_list) - 1
+            input_links = {input_port.name: self._input_links(input_port, layout, fmu_rank)
+                           for input_port in inputs_per_type[type_name]}
+            nb_input_link = sum(len(links) - 1 for links in input_links.values())
             print(f"{nb_local} {nb_local + nb_input_link}", file=txt_file)
             # Reserved variables, stored locally: <FMU_INDEX> is -1 (-2 for profiling) and <FMU_VR> the local offset.
             if type_name == "real64":
@@ -894,9 +941,9 @@ class FMUContainer:
                     print(f"{vr} 1 1 -1 {layout.local_offset(vr)}", file=txt_file)
 
             for input_port in inputs_per_type[type_name]:
-                cport_string = [f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list]
-                print(f"{layout.inputs[input_port.name]} {input_port.size} {len(input_port.cport_list)}",
-                      " ".join(cport_string), file=txt_file)
+                links = input_links[input_port.name]
+                print(f"{layout.inputs[input_port.name]} {input_port.size} {len(links)}", " ".join(links),
+                      file=txt_file)
             for output_port_name, output_port in outputs_per_type[type_name]:
                 print(f"{layout.outputs[output_port_name]} {output_port.port.size()} 1 {fmu_rank[output_port.fmu.name]} "
                       f"{output_port.port.vr}", file=txt_file)
@@ -916,10 +963,21 @@ class FMUContainer:
                     print(f"{layout.links[link]} {layout.converted[link][type_name]} {conversion}", file=txt_file)
 
             print(f"# Reset trigger of {fmu.name}: <LOCAL_OFFSET>", file=txt_file)
-            print("-1", file=txt_file)
+            print(reset_triggers.get(fmu.name, -1), file=txt_file)
 
         # CLOCKS
         clock_list.write_txt(txt_file)
+
+    @staticmethod
+    def _input_links(input_port: ContainerInput, layout: ContainerLayout, fmu_rank: dict[str, int]) -> list[str]:
+        """`<FMU_INDEX> <FMU_VR>` pairs of a container input. The `container.reset` ports it feeds share one local
+        variable (`-1 <LOCAL_OFFSET>`), listed first: the getter of the container reads the first pair."""
+        links = []
+        if input_port.has_reset:
+            links.append(f"-1 {layout.reset_inputs[input_port.name]}")
+        links.extend(f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list
+                     if not cport.port.is_reset)
+        return links
 
     def make_datalog(self, datalog_file, layout: ContainerLayout):
         print("# Datalog filename", file=datalog_file)

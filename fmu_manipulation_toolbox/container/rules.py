@@ -92,6 +92,11 @@ class ContainerInput:
 
         self.cport_list.append(cport_to)
 
+    @property
+    def has_reset(self) -> bool:
+        """Whether this input feeds a `container.reset` port: its value is then stored by the container."""
+        return any(cport.port.is_reset for cport in self.cport_list)
+
 
 class Link:
     """Represents an internal connection between embedded FMUs inside a container.

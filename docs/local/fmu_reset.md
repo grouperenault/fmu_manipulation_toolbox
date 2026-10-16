@@ -103,6 +103,19 @@ Taken during the implementation (16 October 2026):
   `false`, empty strings and binaries, `ts_multiplier` = 1, solver = 0), the importer cache is emptied;
   `solver_configure()` frees its buffers before allocating them again (it runs at each `ExitInitializationMode`).
   Tested with fmpy (low level, `fmpy.simulation.instantiate_fmu`) on a container of `VanDerPol.fmu`.
+- **D23 — Step 5, clearing of the trigger** (replaces the clearing of D5): the trigger stays `true` during the step
+  where it resets the FMU (an input of another FMU fed by the same link receives `true`), and goes back to `false`
+  at the end of the `doStep()`, whoever set it (importer or embedded FMU). Consequence: an FMU that keeps its output
+  `true` resets the target every other step.
+- **D24 — Step 5, fan-out**: one link or one container input may drive the reset ports of several FMUs; the
+  runtime reads all the triggers before the first reset. One container input may also feed regular inputs.
+- **D25 — Step 5, validation**: only the start values are refused on `container.reset`; no check of the mixing of
+  reset ports and regular inputs, no build warning for the FMUs with scheduled clocks, no exclusion from
+  `auto_link`.
+- **D26 — Step 5, builder**: `FMUContainer(..., reset_ports=True)` adds the virtual port when the FMU is loaded
+  (`get_fmu`); an exposed reset input gets a slot of local storage without value reference, allocated after
+  every other variable (`ContainerLayout.reset_inputs`); `add_input` with an empty name and `auto_input` name it
+  `container.<id>.reset`.
 
 ---
 

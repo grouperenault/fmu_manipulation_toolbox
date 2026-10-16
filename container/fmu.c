@@ -589,6 +589,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->fmi_version = fmi_version;
     fmu->kind = kind;
     fmu->reset_trigger = -1; /* read with the I/O of the FMU */
+    fmu->reset_pending = false;
     fmu->component = NULL;  /* will be set by fmuInstantiateCoSimulation/ModelExchange() */
 
 #define INIT_FMU_DATA(type)                             \

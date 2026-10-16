@@ -41,6 +41,7 @@ class EmbeddedFMUPort:
         initial (str | None): Initial value attribute.
         clock (str | None): Clock reference for clocked ports.
         description (str | None): Human-readable description of the port.
+        is_reset (bool): Whether the port is the virtual `container.reset` input of the FMU.
     """
 
     # Aliases of the tables of `container.types`, kept for compatibility.
@@ -71,6 +72,9 @@ class EmbeddedFMUPort:
         # used to mark each individual scalar port as LINK when the aggregate is
         # connected, so the checker does not report them as unconnected.
         self.element_names: list[str] = []
+        # Virtual `container.reset` input added by the container (option `reset_ports`): it drives the reset of the
+        # FMU and has no value reference in the FMU.
+        self.is_reset: bool = False
 
         if fmi_version > 0:
             self.type_name = FMI_TO_CONTAINER[fmi_version][fmi_type]

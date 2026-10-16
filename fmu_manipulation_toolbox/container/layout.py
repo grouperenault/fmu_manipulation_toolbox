@@ -66,6 +66,19 @@ class ValueReferenceTable:
 
         return vr
 
+    def add_storage(self, type_name: str) -> int:
+        """Allocate one slot of local storage without value reference.
+
+        Args:
+            type_name (str): Container type name.
+
+        Returns:
+            int: Offset of the slot in the local storage of its type.
+        """
+        offset = self.nb_local_storage[type_name]
+        self.nb_local_storage[type_name] += 1
+        return offset
+
     def add_link(self, link: Link) -> tuple[int, dict[str, int]]:
         """Allocate the local variables of a link: its value and its type-converted copies.
 
@@ -136,6 +149,8 @@ class ContainerLayout:
         converted (dict[Link, dict[str, int]]): Value references of the converted copies of each link, by target type.
         inputs (dict[str, int]): Value reference of each container input, by exposed name.
         outputs (dict[str, int]): Value reference of each container output, by exposed name.
+        reset_inputs (dict[str, int]): Local storage offset of each container input feeding `container.reset`
+            ports, by exposed name: the runtime reads the trigger there.
     """
     table: ValueReferenceTable
     time: int
@@ -146,6 +161,7 @@ class ContainerLayout:
     converted: dict[Link, dict[str, int]]
     inputs: dict[str, int]
     outputs: dict[str, int]
+    reset_inputs: dict[str, int]
 
     @classmethod
     def allocate(cls, links: Iterable[Link], inputs: dict[str, ContainerInput], outputs: dict[str, ContainerPort],
@@ -175,8 +191,12 @@ class ContainerLayout:
 
         input_vrs = {name: table.add_vr(input_port.type_name) for name, input_port in inputs.items()}
         output_vrs = {name: table.add_vr(output_port) for name, output_port in outputs.items()}
+        # Last: the other local variables are listed by value reference, their storage follows their order.
+        reset_inputs = {name: table.add_storage(input_port.type_name) for name, input_port in inputs.items()
+                        if input_port.has_reset}
 
-        return cls(table, time, ts_multiplier, solver, profiling, link_vrs, converted, input_vrs, output_vrs)
+        return cls(table, time, ts_multiplier, solver, profiling, link_vrs, converted, input_vrs, output_vrs,
+                   reset_inputs)
 
     def local_offset(self, vr: int) -> int:
         """Index of a local variable in the storage of its type (`<FMU_VR>` of the local lines of `container.txt`)."""
