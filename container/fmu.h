@@ -510,9 +510,9 @@ extern fmu_status_t fmuSetClock(const fmu_t* fmu, const fmu_vr_t vr[],
 extern fmu_status_t fmuDoStep(fmu_t *fmu, 
                               fmi2Real currentCommunicationPoint, 
                               fmi2Real communicationStepSize);
-extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu);
+extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu, double start_time);
 extern fmu_status_t fmuExitInitializationMode(const fmu_t *fmu);
-extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu);
+extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu, double start_time);
 extern fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, fmi2String instanceName);
 extern fmu_status_t fmuInstantiateModelExchange(fmu_t *fmu, fmi2String instanceName);
 extern void fmuFreeInstance(const fmu_t *fmu);

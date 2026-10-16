@@ -85,6 +85,10 @@ extern int solver_configure(solver_t *solver);
    states and event indicators the event may have changed. */
 extern fmu_status_t solver_leave_event_mode(solver_t *solver);
 
+/* Same as solver_leave_event_mode() for the ME FMU of index fmu_idx in
+   container->fmu[] only (e.g. after its reset). */
+extern fmu_status_t solver_leave_event_mode_fmu(solver_t *solver, unsigned long fmu_idx);
+
 /* Collective fixed-step integration (Euler or RK4) of all ME FMUs over
    [t0, t0+h_total]. */
 extern fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total);

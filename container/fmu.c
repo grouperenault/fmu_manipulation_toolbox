@@ -1273,7 +1273,8 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
 }
 
 
-fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu) {
+/* start_time: the container start time, or the current time when an embedded FMU is reset. */
+fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu, double start_time) {
     if (fmu->fmi_version == 2) {
         fmi2Status status2 = fmu->fmi_functions.version_2.fmi2EnterInitializationMode(fmu->component);
         if (status2 == fmi2OK)
@@ -1283,7 +1284,7 @@ fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu) {
     } else {
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3EnterInitializationMode(fmu->component,
                                                                                       (fmi3Boolean)fmu->container->tolerance_defined, fmu->container->tolerance,
-                                                                                      fmu->container->start_time,
+                                                                                      start_time,
                                                                                       (fmi3Boolean)fmu->container->stop_time_defined, fmu->container->stop_time);
         if (status3 == fmi3OK)
             return FMU_STATUS_OK;
@@ -1311,13 +1312,14 @@ fmu_status_t fmuExitInitializationMode(const fmu_t *fmu) {
 }
 
 
-fmu_status_t fmuSetupExperiment(const fmu_t *fmu) {
+/* start_time: the container start time, or the current time when an embedded FMU is reset. */
+fmu_status_t fmuSetupExperiment(const fmu_t *fmu, double start_time) {
     fmu_status_t status = FMU_STATUS_ERROR;
 
     if (fmu->fmi_version == 2) {
         fmi2Status status2 = fmu->fmi_functions.version_2.fmi2SetupExperiment(fmu->component,
                                                                               fmu->container->tolerance_defined, fmu->container->tolerance,
-                                                                              fmu->container->start_time,
+                                                                              start_time,
                                                                               fmu->container->stop_time_defined, fmu->container->stop_time);
         if ((status2 == fmi2OK) || (status2 == fmi2Warning))
             status = FMU_STATUS_OK;

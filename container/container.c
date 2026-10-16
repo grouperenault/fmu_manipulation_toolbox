@@ -345,36 +345,43 @@ static fmu_status_t container_handle_events(container_t *container) {
                            C O N F I G U R A T I O N
 ----------------------------------------------------------------------------*/
 
+/* Start values of one embedded FMU. early_set: all of them (before the initialization mode); otherwise only
+   those flagged <RESET> (set again in initialization mode). */
+static void container_set_fmu_start_values(const fmu_t *fmu, int early_set) {
+#define SET_START(fmi_type, type)                                                               \
+    for(unsigned long j=0; j<fmu->fmu_io.start_ ## type .nb; j ++) {                            \
+        if (early_set || fmu->fmu_io.start_ ## type.start_values[j].reset)                      \
+            fmuSet ## fmi_type(fmu,                                                             \
+                &fmu->fmu_io.start_ ## type.start_values[j].vr, 1,                              \
+                fmu->fmu_io.start_ ## type.start_values[j].value, 1);                          \
+    }
+
+    SET_START(Real64,       reals64);
+    SET_START(Real32,       reals32);
+    SET_START(Integer8,     integers8);
+    SET_START(UInteger8,    uintegers8);
+    SET_START(Integer16,    integers16);
+    SET_START(UInteger16,   uintegers16);
+    SET_START(Integer32,    integers32);
+    SET_START(UInteger32,   uintegers32);
+    SET_START(Integer64,    integers64);
+    SET_START(UInteger64,   uintegers64);
+    SET_START(Boolean,      booleans);
+    SET_START(Boolean1,     booleans1);
+    SET_START(String,       strings);
+    /* binaries and clocks don't support start values here */
+#undef SET_START
+    return;
+}
+
+
 static void container_set_start_values(container_t* container, int early_set) {
     if (early_set)
         logger(LOGGER_DEBUG, "Setting start values...");
     else
         logger(LOGGER_DEBUG, "Re-setting some start values...");
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-#define SET_START(fmi_type, type)                                                               \
-        for(unsigned long j=0; j<container->fmu[i].fmu_io.start_ ## type .nb; j ++) {           \
-            if (early_set || container->fmu[i].fmu_io.start_ ## type.start_values[j].reset)     \
-                fmuSet ## fmi_type(&container->fmu[i],                                          \
-                    &container->fmu[i].fmu_io.start_ ## type.start_values[j].vr, 1,             \
-                    container->fmu[i].fmu_io.start_ ## type.start_values[j].value, 1);         \
-        }
- 
-        SET_START(Real64,       reals64);
-        SET_START(Real32,       reals32);
-        SET_START(Integer8,     integers8);
-        SET_START(UInteger8,    uintegers8);
-        SET_START(Integer16,    integers16);
-        SET_START(UInteger16,   uintegers16);
-        SET_START(Integer32,    integers32);
-        SET_START(UInteger32,   uintegers32);
-        SET_START(Integer64,    integers64);
-        SET_START(UInteger64,   uintegers64);
-        SET_START(Boolean,      booleans);
-        SET_START(Boolean1,     booleans1);
-        SET_START(String,       strings);
-        /* binaries and clocks don't support start values here */
-#undef SET_START
-    }
+    for (int i = 0; i < container->nb_fmu; i += 1)
+        container_set_fmu_start_values(&container->fmu[i], early_set);
     logger(LOGGER_DEBUG, "Start values are set.");
     return;
 }
@@ -392,7 +399,7 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
     container->stop_time = stopTime;
 
     for(int i=0; i < container->nb_fmu; i += 1) {        
-        if (fmuSetupExperiment(&container->fmu[i]) != FMU_STATUS_OK)
+        if (fmuSetupExperiment(&container->fmu[i], container->start_time) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
     }
 
@@ -405,7 +412,7 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
 
 fmu_status_t container_enter_initialization_mode(container_t* container) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
-        if (fmuEnterInitializationMode(&container->fmu[i]) != FMU_STATUS_OK)
+        if (fmuEnterInitializationMode(&container->fmu[i], container->start_time) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
     }
 
