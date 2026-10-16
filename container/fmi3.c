@@ -73,7 +73,7 @@ fmi3Instance fmi3InstantiateCoSimulation(
     (void)intermediateUpdate; /* unused parameter */    
 
     container_t* container;
-    container = container_new(instanceName, instantiationToken);
+    container = container_new(instanceName, instantiationToken, 3);
 
     if (container) {
         logger_function_t container_logger;

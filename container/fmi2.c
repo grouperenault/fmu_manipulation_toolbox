@@ -65,7 +65,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
     (void)visible; /* unused parameter */
 
-    container = container_new(instanceName, fmuGUID);
+    container = container_new(instanceName, fmuGUID, 2);
 
     if (container) {
         logger_function_t container_logger;

@@ -402,6 +402,10 @@ typedef struct {
 
     fmu_kind_t                  kind;
 
+    /* Offset of `container.<fmu>.reset` in the local storage of booleans (FMI-2 container) or booleans1 (FMI-3
+       container), -1 if the FMU is never reset. */
+    long                        reset_trigger;
+
     profile_t                   *profile;
 
     struct convert_table_s      *conversions;

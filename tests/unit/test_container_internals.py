@@ -364,7 +364,8 @@ def test_one_converted_copy_per_target_type(tmp_path):
     assert lines[boolean + 3] == "# boolean1"
     table = lines.index("# Conversion table of a.fmu: <VR_FROM> <VR_TO> <CONVERSION>")
     assert lines[table + 1:table + 3] == ["1", f"{layout.links[next(iter(container.links.values()))]} {converted} _F64_B"]
-    assert lines[table + 3].startswith("# Inputs of b.fmu")
+    assert lines[table + 3:table + 5] == ["# Reset trigger of a.fmu: <LOCAL_OFFSET>", "-1"]
+    assert lines[table + 5].startswith("# Inputs of b.fmu")
     # Both inputs read the same converted copy (local offset 0 of the booleans).
     inputs = lines.index("# Inputs of b.fmu - boolean: <LOCAL_OFFSET> <DIM> <FMU_VR>")
     assert lines[inputs + 1:inputs + 4] == ["2", "0 1 1", "0 1 2"]

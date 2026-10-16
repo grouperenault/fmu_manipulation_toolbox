@@ -84,6 +84,22 @@ Taken on 16 October 2026:
 - **D16 — Self-reset** (16 October 2026): an FMU wired to its own `container.<fmu>.reset` is allowed, with no
   special case.
 
+Taken during the implementation (16 October 2026):
+
+- **D17 — Step 1, ME solver**: `solver_leave_event_mode_fmu(solver, fmu_idx)` does the whole exit of the Event Mode
+  for one ME FMU (`EnterContinuousTimeMode`, states, event indicators); `solver_leave_event_mode()` loops over it.
+- **D18 — Step 2, cache**: clocks are never cached (a tick is an event, not a value); one slot per container port
+  forwarded to an FMU, in a per-type buffer allocated when `container.txt` is read; tested at once through the
+  debug log of the container (`[DEBUG] Cache ...`).
+- **D19 — Step 3, FMI version**: `container_new()` receives the FMI version of the API that instantiates the
+  container; `container.txt` only carries `<LOCAL_OFFSET>`.
+- **D20 — Step 3, coupling**: the builder writes version 7 from step 3 on, with `-1` triggers (the runtime embedded
+  in a container always reads the format of its builder); `split.py` skips the trigger until step 6; the REF
+  `container.txt` files and `docs/developer/container-txt-format.md` are updated at step 3. Step 3 is validated by
+  the non-regression tests: the functional tests of the reset come with step 5.
+- **D21 — Step 3, clocks**: the reset of an FMU with clocks scheduled by the container (`clocks_list`) is not
+  supported: the runtime returns an error. FMUs with clocked inputs only (LS-BUS) are supported.
+
 ---
 
 ## 4. Design

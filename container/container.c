@@ -693,6 +693,135 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
 }
 
 
+/*----------------------------------------------------------------------------
+                         F M U   R E S E T
+----------------------------------------------------------------------------*/
+
+static bool container_reset_requested(const container_t *container, const fmu_t *fmu) {
+    if (fmu->reset_trigger < 0)
+        return false;
+    if (container->fmi_version == 2)
+        return container->booleans[fmu->reset_trigger] != 0;
+    return container->booleans1[fmu->reset_trigger];
+}
+
+
+static void container_clear_reset_trigger(container_t *container, const fmu_t *fmu) {
+    if (container->fmi_version == 2)
+        container->booleans[fmu->reset_trigger] = 0;
+    else
+        container->booleans1[fmu->reset_trigger] = false;
+}
+
+
+/* The schedule of the clocks is computed for all the FMUs at once, in Event Mode: it cannot be computed again
+   for one FMU. */
+static bool container_fmu_has_scheduled_clocks(const container_t *container, int fmu_id) {
+    for (unsigned long i = 0; i < container->clocks_list.nb_fmu; i += 1) {
+        if (container->clocks_list.counter[i].fmu_id == (unsigned long)fmu_id)
+            return true;
+    }
+    return false;
+}
+
+
+/* Reset the FMU and initialize it again at the current time, as the container does at its initialization. */
+static fmu_status_t container_reset_fmu(container_t *container, int fmu_id) {
+    fmu_t *fmu = &container->fmu[fmu_id];
+
+    logger(LOGGER_DEBUG, "[DEBUG] time=%e | Reset FMU '%s'", container->time, fmu->name);
+
+    if (container_fmu_has_scheduled_clocks(container, fmu_id)) {
+        logger(LOGGER_ERROR, "Container: FMU '%s' cannot be reset: the reset of an FMU with scheduled clocks is "
+               "not supported.", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+
+    if (fmuReset(fmu) != FMU_STATUS_OK) {
+        logger(LOGGER_ERROR, "Container: FMU '%s' cannot be reset (time=%e).", fmu->name, container->time);
+        return FMU_STATUS_ERROR;
+    }
+
+    if (fmuSetupExperiment(fmu, container->time) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    container_set_fmu_start_values(fmu, 1);
+    if (container_set_fmu_cache(container, (unsigned long)fmu_id) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+
+    if (fmuEnterInitializationMode(fmu, container->time) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    container_set_fmu_start_values(fmu, 0);
+    if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    if (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+
+    if (fmuExitInitializationMode(fmu) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+
+    /* The FMU is in Event Mode (ME, or CS with event mode): event iteration of this FMU only, as
+       container_update_discrete_state() does for all of them. */
+    bool more_event = true;
+    int iter;
+    for (iter = 0; (iter < CONTAINER_MAX_EVENT_ITER) && more_event; iter += 1) {
+        if (fmu_set_clocks(fmu) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+        if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+        if (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+        if (fmuUpdateDiscreteStates(fmu, &more_event) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+        if (fmu_get_outputs(fmu) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+        if (fmu_get_clocked_outputs(fmu) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+    if (more_event) {
+        logger(LOGGER_ERROR, "Container: event iteration of FMU '%s' did not converge after its reset.", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+
+    if (fmu->kind == FMU_KIND_ME) {
+        if (solver_leave_event_mode_fmu(container->solver, (unsigned long)fmu_id) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    } else {
+        if (fmuEnterStepMode(fmu) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+
+    container_clear_reset_trigger(container, fmu);
+
+    return FMU_STATUS_OK;
+}
+
+
+/* At the start of each internal step: reset the FMUs whose `container.<fmu>.reset` is true. A datalog row is
+   written before, so that the trigger is visible even when the importer set it. */
+static fmu_status_t container_reset_fmus(container_t *container) {
+    bool reset = false;
+
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        if (! container_reset_requested(container, &container->fmu[i]))
+            continue;
+
+        if (! reset) {
+            datalog_log(container);
+            reset = true;
+        }
+
+        if (container_reset_fmu(container, i) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+
+    /* A reset FMU may announce a time event earlier than the planned step. */
+    if (reset)
+        container_bound_next_step(container);
+
+    return FMU_STATUS_OK;
+}
+
+
 fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
 #ifdef DEBUG
     logger(LOGGER_DEBUG, "[DEBUG] time=%e | container_do_step(%e, %e)", container->time, currentCommunicationPoint, communicationStepSize);
@@ -720,6 +849,13 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
             const double target_time = container->time + ts;
 
             while(! is_close(container, container->time, target_time)) {
+                /* RESET of embedded FMUs */
+                status = container_reset_fmus(container);
+                if (status != FMU_STATUS_OK) {
+                    logger(LOGGER_ERROR, "Container cannot reset FMUs (time=%e)", container->time);
+                    return status;
+                }
+
                 /* STEP MODE */
                 if (container->time + container->next_step > target_time) {
                     container->next_step = target_time - container->time;
@@ -1685,6 +1821,32 @@ static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
 }
 
 
+/*
+ * # Reset trigger of bb_velocity.fmu: <LOCAL_OFFSET>
+ * -1
+ */
+static int read_conf_fmu_reset_trigger(fmu_t *fmu, config_file_t *file) {
+    const container_t *container = fmu->container;
+
+    CONFIG_GETLINE;
+    if (sscanf(file->line, "%ld", &fmu->reset_trigger) < 1) {
+        CONFIG_ERROR("Cannot read reset trigger.");
+        return -1;
+    }
+
+    if (fmu->reset_trigger >= 0) {
+        const unsigned long nb_local = (container->fmi_version == 2) ?
+            container->nb_local_booleans : container->nb_local_booleans1;
+        if ((unsigned long)fmu->reset_trigger >= nb_local) {
+            CONFIG_ERROR("Reset trigger %ld is out of the local booleans storage.", fmu->reset_trigger);
+            return -2;
+        }
+    }
+
+    return 0;
+}
+
+
 static int read_conf_fmu_io(fmu_t* fmu, config_file_t* file) {
 
     if (read_conf_fmu_io_in(&fmu->fmu_io, file))
@@ -1698,6 +1860,9 @@ static int read_conf_fmu_io(fmu_t* fmu, config_file_t* file) {
 
     if (read_conf_fmu_conversion(fmu, file))
         return -4;
+
+    if (read_conf_fmu_reset_trigger(fmu, file))
+        return -5;
 
     return 0;
 }
@@ -2071,13 +2236,14 @@ int container_configure(container_t* container, const char* resource_location) {
              C O N S T R U C T O R   /   D E S T R U C T O R
 ----------------------------------------------------------------------------*/
 
-container_t *container_new(const char *instance_name, const char *fmu_uuid) {
+container_t *container_new(const char *instance_name, const char *fmu_uuid, int fmi_version) {
     container_t *container = malloc(sizeof(*container));
     if (container) {
         container->allocate_memory = calloc;
         container->free_memory = free;
         container->instance_name = strdup(instance_name);
         container->uuid = strdup(fmu_uuid);
+        container->fmi_version = fmi_version;
 
         container->nb_fmu = 0;
         container->fmu = NULL;

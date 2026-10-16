@@ -53,6 +53,7 @@ how subsequent sections are parsed.
 | 4 | 1.9.3 | Added `<DIM>` (dimension) field in I/O lines to support array variables |
 | 5 | 1.9.4 | Local variables addressed by their **storage offset**: `<LOCAL_OFFSET>` instead of the local VR in the per-FMU I/O lines, and as `<FMU_VR>` of the local lines of the container I/O table (an array occupies several slots) |
 | 6 | 2.0 | Model-Exchange support: FMU count split into `<nb_fmu_cs> <nb_fmu_me>`, ME entries carry `<nx> <nz>`; reserved `integer32` slot for the ME solver |
+| 7 | 2.0 | Reset trigger of each embedded FMU (`container.<fmu>.reset`), after its conversion table |
 
 ---
 
@@ -314,6 +315,21 @@ keyed by `"<from type>/<to type>"`: 132 functions between all the numeric types 
 for `boolean`/`boolean1` (e.g. `D8_D16`, `B_F64`). **Lossy** conversions (narrowing, sign change, to boolean, e.g.
 `_F64_F32`, `_D32_U32`, `_F64_B`) start with `_`; the tool warns when it creates one.
 
+### 7.5 Reset Trigger (Version ≥ 7)
+
+```
+# Reset trigger of <fmu_name>: <LOCAL_OFFSET>
+<LOCAL_OFFSET>
+```
+
+- `<LOCAL_OFFSET>`: offset of the `container.<fmu>.reset` variable in the local storage of `boolean` (FMI-2
+  container) or `boolean1` (FMI-3 container); `-1` when the FMU is never reset.
+- The runtime reads it at the start of each internal step: when it is `true`, it writes a datalog row, resets the
+  FMU (`fmi2Reset` / `fmi3Reset`), initializes it again at the current time (start values, values set by the
+  importer, current inputs, event iteration), then writes `false` into it.
+- The reset of an FMU with clocks scheduled by the container (section 8) is not supported: the runtime returns an
+  error.
+
 ### Version differences for Per-FMU I/O
 
 - **Version 0/1**: Only FMI-2 types (real64, integer32, boolean, string). No clocked sections. No DIM field. Lines are `<VR> <FMU_VR>`.
@@ -321,6 +337,7 @@ for `boolean`/`boolean1` (e.g. `D8_D16`, `B_F64`). **Lossy** conversions (narrow
 - **Version 3**: All 15 types. Clocked sections added. Conversion table present. Lines are `<VR> <FMU_VR>`.
 - **Version 4**: All 15 types. Clocked sections added. Lines are `<VR> <DIM> <FMU_VR>`.
 - **Version ≥ 5**: Lines are `<LOCAL_OFFSET> <DIM> <FMU_VR>`.
+- **Version ≥ 7**: Reset trigger after the conversion table.
 
 ---
 

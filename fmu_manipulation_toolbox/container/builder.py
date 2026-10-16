@@ -803,7 +803,7 @@ class FMUContainer:
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
                      layout: ContainerLayout):
-        print("# Version 6", file=txt_file)
+        print("# Version 7", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
         flags = [str(int(bool(flag))) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)
@@ -914,6 +914,9 @@ class FMUContainer:
             for link in links_per_fmu[fmu.name]:
                 for type_name, conversion in link.conversions.items():
                     print(f"{layout.links[link]} {layout.converted[link][type_name]} {conversion}", file=txt_file)
+
+            print(f"# Reset trigger of {fmu.name}: <LOCAL_OFFSET>", file=txt_file)
+            print("-1", file=txt_file)
 
         # CLOCKS
         clock_list.write_txt(txt_file)

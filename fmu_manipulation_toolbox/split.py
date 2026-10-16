@@ -517,6 +517,10 @@ class FMUSplitterDescription:
                         conversion_name = tokens[2]
                         self.pending_conversions.append((vr_from, vr_to, conversion_name))
 
+                # reset trigger (`container.<fmu>.reset`)
+                if self.file_format >= 7:
+                    self.get_line(file)
+
             logger.debug("End of parsing.")
 
         # Apply pending conversions now that all FMU inputs/outputs have been parsed

@@ -109,6 +109,7 @@ typedef struct container_s {
 
 	char						*instance_name;
 	char						*uuid;
+	int							fmi_version;	/* 2 or 3: API used to instantiate the container */
 	container_state_t			state;		/* managed in fmi2.c and fmi3.c */
 
 	/* storage of local variables (conveyed from one FMU to an other) */
@@ -216,7 +217,7 @@ typedef struct container_s {
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
-extern container_t *container_new(const char *instance_name, const char *fmu_uuid);
+extern container_t *container_new(const char *instance_name, const char *fmu_uuid, int fmi_version);
 extern int container_configure(container_t* container, const char* resource_location);
 extern void container_free(container_t *container);
 extern fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
