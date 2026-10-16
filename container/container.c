@@ -758,6 +758,167 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
 
 
 /*----------------------------------------------------------------------------
+                    I M P O R T E R   V A L U E S   C A C H E
+----------------------------------------------------------------------------*/
+
+/* Values set by the importer on the ports forwarded to embedded FMUs: they are set again after the reset of an
+   FMU. Returns 0, or -1 if a value cannot be stored. */
+#define CACHE_FUNCTION(type, c_type, format, cast)                                                              \
+int container_cache_ ## type(container_t *container, container_port_t *port, const c_type value[],              \
+                             size_t nvalues) {                                                                  \
+    if (port->cache_offset == CONTAINER_NO_CACHE)                                                               \
+        return 0;                                                                                               \
+    if (nvalues > port->dimension)                                                                              \
+        nvalues = port->dimension;                                                                              \
+    for (size_t k = 0; k < nvalues; k += 1)                                                                     \
+        container->cache_ ## type [port->cache_offset + k] = value[k];                                          \
+    port->nb_cached = nvalues;                                                                                  \
+    logger(LOGGER_DEBUG, "[DEBUG] Cache " #type " [%lu] = " format " (%zu value(s))", port->cache_offset,       \
+           (cast)value[0], nvalues);                                                                            \
+    return 0;                                                                                                   \
+}
+
+CACHE_FUNCTION(reals64,     double,     "%g",           double)
+CACHE_FUNCTION(reals32,     float,      "%g",           double)
+CACHE_FUNCTION(integers8,   int8_t,     "%" PRId8,      int8_t)
+CACHE_FUNCTION(uintegers8,  uint8_t,    "%" PRIu8,      uint8_t)
+CACHE_FUNCTION(integers16,  int16_t,    "%" PRId16,     int16_t)
+CACHE_FUNCTION(uintegers16, uint16_t,   "%" PRIu16,     uint16_t)
+CACHE_FUNCTION(integers32,  int32_t,    "%" PRId32,     int32_t)
+CACHE_FUNCTION(uintegers32, uint32_t,   "%" PRIu32,     uint32_t)
+CACHE_FUNCTION(integers64,  int64_t,    "%" PRId64,     int64_t)
+CACHE_FUNCTION(uintegers64, uint64_t,   "%" PRIu64,     uint64_t)
+CACHE_FUNCTION(booleans,    int,        "%d",           int)
+CACHE_FUNCTION(booleans1,   bool,       "%d",           int)
+#undef CACHE_FUNCTION
+
+
+int container_cache_strings(container_t *container, container_port_t *port, const char * const value[],
+                            size_t nvalues) {
+    if (port->cache_offset == CONTAINER_NO_CACHE)
+        return 0;
+    if (nvalues > port->dimension)
+        nvalues = port->dimension;
+    for (size_t k = 0; k < nvalues; k += 1) {
+        char **cached = &container->cache_strings[port->cache_offset + k];
+        free(*cached);
+        *cached = strdup(value[k]);
+        if (!*cached) {
+            logger(LOGGER_ERROR, "Cannot allocate memory to cache a string.");
+            port->nb_cached = 0;
+            return -1;
+        }
+    }
+    port->nb_cached = nvalues;
+    logger(LOGGER_DEBUG, "[DEBUG] Cache strings [%lu] = %s (%zu value(s))", port->cache_offset, value[0], nvalues);
+    return 0;
+}
+
+
+int container_cache_binaries(container_t *container, container_port_t *port, const size_t size[],
+                             const uint8_t * const value[], size_t nvalues) {
+    if (port->cache_offset == CONTAINER_NO_CACHE)
+        return 0;
+    if (nvalues > port->dimension)
+        nvalues = port->dimension;
+    for (size_t k = 0; k < nvalues; k += 1) {
+        fmu_binary_t *cached = &container->cache_binaries[port->cache_offset + k];
+        if (cached->max_size < size[k]) {
+            uint8_t *data = realloc(cached->data, size[k]);
+            if (!data) {
+                logger(LOGGER_ERROR, "Cannot allocate memory to cache a binary.");
+                port->nb_cached = 0;
+                return -1;
+            }
+            cached->data = data;
+            cached->max_size = size[k];
+        }
+        cached->size = size[k];
+        memcpy(cached->data, value[k], size[k]);
+    }
+    port->nb_cached = nvalues;
+    logger(LOGGER_DEBUG, "[DEBUG] Cache binaries [%lu] = %zu byte(s) (%zu value(s))", port->cache_offset, size[0],
+           nvalues);
+    return 0;
+}
+
+
+fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id) {
+    const fmu_t *fmu = &container->fmu[fmu_id];
+
+#define SET_CACHE(type, function_name, cast)                                                                    \
+    for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {                                       \
+        const container_port_t *port = &container->port_ ## type [i];                                           \
+        if (port->nb_cached == 0)                                                                               \
+            continue;                                                                                           \
+        for (unsigned long j = 0; j < port->nb; j += 1) {                                                       \
+            if (port->links[j].fmu_id != fmu_id)                                                                \
+                continue;                                                                                       \
+            if (function_name(fmu, &port->links[j].fmu_vr, 1,                                                   \
+                              cast &container->cache_ ## type [port->cache_offset],                             \
+                              port->nb_cached) != FMU_STATUS_OK) {                                              \
+                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set again " #type " vr=%u.", fmu->name,     \
+                       port->links[j].fmu_vr);                                                                  \
+                return FMU_STATUS_ERROR;                                                                        \
+            }                                                                                                   \
+        }                                                                                                       \
+    }
+
+    SET_CACHE(reals64,      fmuSetReal64,       );
+    SET_CACHE(reals32,      fmuSetReal32,       );
+    SET_CACHE(integers8,    fmuSetInteger8,     );
+    SET_CACHE(uintegers8,   fmuSetUInteger8,    );
+    SET_CACHE(integers16,   fmuSetInteger16,    );
+    SET_CACHE(uintegers16,  fmuSetUInteger16,   );
+    SET_CACHE(integers32,   fmuSetInteger32,    );
+    SET_CACHE(uintegers32,  fmuSetUInteger32,   );
+    SET_CACHE(integers64,   fmuSetInteger64,    );
+    SET_CACHE(uintegers64,  fmuSetUInteger64,   );
+    SET_CACHE(booleans,     fmuSetBoolean,      );
+    SET_CACHE(booleans1,    fmuSetBoolean1,     );
+    SET_CACHE(strings,      fmuSetString,       (const char * const *));
+#undef SET_CACHE
+
+    for (unsigned long i = 0; i < container->nb_ports_binaries; i += 1) {
+        const container_port_t *port = &container->port_binaries[i];
+        if (port->nb_cached == 0)
+            continue;
+
+        const fmu_binary_t *cached = &container->cache_binaries[port->cache_offset];
+        size_t *size = malloc(port->nb_cached * sizeof(*size));
+        const uint8_t **data = malloc(port->nb_cached * sizeof(*data));
+        if (!size || !data) {
+            free(size);
+            free(data);
+            logger(LOGGER_ERROR, "Cannot allocate memory to set again a binary.");
+            return FMU_STATUS_ERROR;
+        }
+        for (unsigned long k = 0; k < port->nb_cached; k += 1) {
+            size[k] = cached[k].size;
+            data[k] = cached[k].data;
+        }
+
+        fmu_status_t status = FMU_STATUS_OK;
+        for (unsigned long j = 0; j < port->nb && status == FMU_STATUS_OK; j += 1) {
+            if (port->links[j].fmu_id != fmu_id)
+                continue;
+            status = fmuSetBinary(fmu, &port->links[j].fmu_vr, 1, size, data, port->nb_cached);
+            if (status != FMU_STATUS_OK)
+                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set again binaries vr=%u.", fmu->name,
+                       port->links[j].fmu_vr);
+        }
+        free(size);
+        free(data);
+        if (status != FMU_STATUS_OK)
+            return status;
+    }
+
+    logger(LOGGER_DEBUG, "[DEBUG] FMU '%s': cached values are set again.", fmu->name);
+    return FMU_STATUS_OK;
+}
+
+
+/*----------------------------------------------------------------------------
                  R E A D   C O N F I G U R A T I O N
 ----------------------------------------------------------------------------*/
 
@@ -1071,6 +1232,8 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                 return -1;                                                                                      \
             }                                                                                                   \
             port.links = &container->vr_ ## type [vr_counter];                                                  \
+            port.cache_offset = CONTAINER_NO_CACHE;                                                             \
+            port.nb_cached = 0;                                                                                 \
             for(unsigned long j=0; j < port.nb; j += 1) {                                                       \
                 int read;                                                                                       \
                 if (vr_counter >= nb_links) {                                                                   \
@@ -1114,9 +1277,41 @@ static int read_conf_io(container_t* container, config_file_t* file) {
     READ_CONF_IO(strings);
     READ_CONF_IO(binaries);
     READ_CONF_IO(clocks);
+#undef READ_CONF_IO
+
+    /* Cache of the ports forwarded to an embedded FMU (no clock). */
+#define SETUP_CACHE(type)                                                                                       \
+    for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {                                       \
+        container_port_t *port = &container->port_ ## type [i];                                                 \
+        for (unsigned long j = 0; j < port->nb; j += 1) {                                                       \
+            if ((long)port->links[j].fmu_id >= 0) {                                                             \
+                port->cache_offset = container->nb_cache_ ## type;                                              \
+                container->nb_cache_ ## type += port->dimension;                                                \
+                break;                                                                                          \
+            }                                                                                                   \
+        }                                                                                                       \
+    }                                                                                                           \
+    if (container->nb_cache_ ## type > 0) {                                                                     \
+        CONFIG_ALLOC(container->cache_ ## type, container->nb_cache_ ## type);                                  \
+    }
+
+    SETUP_CACHE(reals64);
+    SETUP_CACHE(reals32);
+    SETUP_CACHE(integers8);
+    SETUP_CACHE(uintegers8);
+    SETUP_CACHE(integers16);
+    SETUP_CACHE(uintegers16);
+    SETUP_CACHE(integers32);
+    SETUP_CACHE(uintegers32);
+    SETUP_CACHE(integers64);
+    SETUP_CACHE(uintegers64);
+    SETUP_CACHE(booleans);
+    SETUP_CACHE(booleans1);
+    SETUP_CACHE(strings);
+    SETUP_CACHE(binaries);
+#undef SETUP_CACHE
 
     return 0;
-#undef READ_CONF_IO
 }
 
 
@@ -1915,6 +2110,31 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid) {
         INIT(clocks);
 #undef INIT
 
+#define INIT_CACHE(type)                    \
+        container->nb_cache_ ## type = 0;   \
+        container->cache_ ## type = NULL
+
+        INIT_CACHE(reals64);
+        INIT_CACHE(reals32);
+        INIT_CACHE(integers8);
+        INIT_CACHE(uintegers8);
+        INIT_CACHE(integers16);
+        INIT_CACHE(uintegers16);
+        INIT_CACHE(integers32);
+        INIT_CACHE(uintegers32);
+        INIT_CACHE(integers64);
+        INIT_CACHE(uintegers64);
+        INIT_CACHE(booleans);
+        INIT_CACHE(booleans1);
+        INIT_CACHE(strings);
+        INIT_CACHE(binaries);
+#undef INIT_CACHE
+
+        /* allocated at the end of the configuration: freed by container_free() even if it fails before */
+        container->binaries_tmp = NULL;
+        container->binaries_size_tmp = NULL;
+        container->strings_tmp = NULL;
+
         container->time = 0.0;
         container->time_step = 0.001;
         container->start_time = 0.0;
@@ -1987,6 +2207,25 @@ void container_free(container_t *container) {
     FREE(binaries);
     FREE(clocks);
 #undef FREE
+
+    free(container->cache_reals64);
+    free(container->cache_reals32);
+    free(container->cache_integers8);
+    free(container->cache_uintegers8);
+    free(container->cache_integers16);
+    free(container->cache_uintegers16);
+    free(container->cache_integers32);
+    free(container->cache_uintegers32);
+    free(container->cache_integers64);
+    free(container->cache_uintegers64);
+    free(container->cache_booleans);
+    free(container->cache_booleans1);
+    for (unsigned long i = 0; i < container->nb_cache_strings; i += 1)
+        free(container->cache_strings[i]);
+    free(container->cache_strings);
+    for (unsigned long i = 0; i < container->nb_cache_binaries; i += 1)
+        free(container->cache_binaries[i].data);
+    free(container->cache_binaries);
     free(container->binaries_tmp);
     free(container->binaries_size_tmp);
     free(container->strings_tmp);

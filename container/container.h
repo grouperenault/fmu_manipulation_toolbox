@@ -24,10 +24,14 @@ typedef struct {
                       C O N T A I N E R _ P O R T _ T
 ----------------------------------------------------------------------------*/
 
+#define CONTAINER_NO_CACHE			(~0UL)
+
 typedef struct {
 	unsigned long				dimension; /* dimension of variable */
 	unsigned long               nb;	 /* number of connected FMU from a container port */
     container_vr_t              *links;
+	unsigned long				cache_offset; /* in container->cache_<type>, CONTAINER_NO_CACHE if not forwarded to an FMU */
+	unsigned long				nb_cached;	/* number of values set by the importer, 0 if none yet */
 } container_port_t;
 
 
@@ -157,6 +161,28 @@ typedef struct container_s {
 	DECLARE_PORT(clocks);
 #undef DECLARE_PORT
 
+	/* values set by the importer on the ports forwarded to embedded FMUs, set again after the reset of an FMU
+	   (clocks are events: never cached) */
+#define DECLARE_CACHE(name, type)					\
+	unsigned long				nb_cache_ ## name;	\
+	type						*cache_ ## name
+
+	DECLARE_CACHE(reals64, double);
+	DECLARE_CACHE(reals32, float);
+	DECLARE_CACHE(integers8, int8_t);
+	DECLARE_CACHE(uintegers8, uint8_t);
+	DECLARE_CACHE(integers16, int16_t);
+	DECLARE_CACHE(uintegers16, uint16_t);
+	DECLARE_CACHE(integers32, int32_t);
+	DECLARE_CACHE(uintegers32, uint32_t);
+	DECLARE_CACHE(integers64, int64_t);
+	DECLARE_CACHE(uintegers64, uint64_t);
+	DECLARE_CACHE(booleans, int);
+	DECLARE_CACHE(booleans1, bool);
+	DECLARE_CACHE(strings, char *);
+	DECLARE_CACHE(binaries, fmu_binary_t);
+#undef DECLARE_CACHE
+
 	convert_table_t				conversions;
 
 	/* Simulation */
@@ -201,6 +227,31 @@ extern fmu_status_t container_terminate(container_t* container);
 extern fmu_status_t container_enter_event_mode(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);
+
+/* cache of the values set by the importer (see DECLARE_CACHE). nvalues: number of values in value[]. */
+#define DECLARE_CACHE_FUNCTION(name, type)                                                             \
+extern int container_cache_ ## name(container_t *container, container_port_t *port, const type value[], \
+                                    size_t nvalues)
+
+DECLARE_CACHE_FUNCTION(reals64, double);
+DECLARE_CACHE_FUNCTION(reals32, float);
+DECLARE_CACHE_FUNCTION(integers8, int8_t);
+DECLARE_CACHE_FUNCTION(uintegers8, uint8_t);
+DECLARE_CACHE_FUNCTION(integers16, int16_t);
+DECLARE_CACHE_FUNCTION(uintegers16, uint16_t);
+DECLARE_CACHE_FUNCTION(integers32, int32_t);
+DECLARE_CACHE_FUNCTION(uintegers32, uint32_t);
+DECLARE_CACHE_FUNCTION(integers64, int64_t);
+DECLARE_CACHE_FUNCTION(uintegers64, uint64_t);
+DECLARE_CACHE_FUNCTION(booleans, int);
+DECLARE_CACHE_FUNCTION(booleans1, bool);
+#undef DECLARE_CACHE_FUNCTION
+extern int container_cache_strings(container_t *container, container_port_t *port, const char * const value[],
+                                   size_t nvalues);
+extern int container_cache_binaries(container_t *container, container_port_t *port, const size_t size[],
+                                    const uint8_t * const value[], size_t nvalues);
+/* Set again the cached values of the ports forwarded to the FMU of index fmu_id. */
+extern fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id);
 
 /* for datalog facilities. */
 extern void container_clocks_activate(container_t *container);

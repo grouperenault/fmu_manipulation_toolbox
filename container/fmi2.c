@@ -216,7 +216,7 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                                                                                                                                 \
     for (size_t i = 0; i < nvr; i += 1) {                                                                                       \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                             \
-        const container_port_t *port = &container->port_ ##type [local_vr];                                                     \
+        container_port_t *port = &container->port_ ##type [local_vr];                                                           \
         for(unsigned long j = 0; j < port->nb; j += 1) {                                                                        \
             const int fmu_id = port->links[j].fmu_id;                                                                           \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                                      \
@@ -237,6 +237,8 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                 }                                                                                                               \
             }                                                                                                                   \
         }                                                                                                                       \
+        if (container_cache_ ## type(container, port, &value[i], 1) < 0)                                                        \
+            return fmi2Error;                                                                                                   \
     }                                                                                                                           \
                                                                                                                                 \
     return fmi2OK;                                                                                                              \
@@ -252,7 +254,7 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
  
     for(size_t i = 0; i < nvr; i += 1) {
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
-        const container_port_t* port = &container->port_strings[local_vr];
+        container_port_t* port = &container->port_strings[local_vr];
         for(unsigned long j = 0; j < port->nb; j += 1) {
             const int fmu_id = port->links[j].fmu_id;
 
@@ -270,6 +272,8 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
                 }
             }
         }
+        if (container_cache_strings(container, port, &value[i], 1) < 0)
+            return fmi2Error;
     }
     return fmi2OK;
 }
