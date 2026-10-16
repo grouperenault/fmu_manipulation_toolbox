@@ -168,8 +168,14 @@ fmi3Status fmi3Terminate(fmi3Instance instance) {
 
 
 fmi3Status fmi3Reset(fmi3Instance instance) {
-    (void)instance;
-    __NOT_IMPLEMENTED__
+    container_t* container = (container_t*)instance;
+
+    if (container_reset(container) != FMU_STATUS_OK)
+        return fmi3Error;
+
+    container->state = CONTAINER_STATE_INSTANTIATED;
+
+    return fmi3OK;
 }
 
 

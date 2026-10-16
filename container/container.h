@@ -225,6 +225,7 @@ extern fmu_status_t container_setup_experiment(container_t* container, bool tole
 extern fmu_status_t container_enter_initialization_mode(container_t* container);
 extern fmu_status_t container_exit_initialization_mode(container_t* container);
 extern fmu_status_t container_terminate(container_t* container);
+extern fmu_status_t container_reset(container_t* container);
 extern fmu_status_t container_enter_event_mode(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);

@@ -99,6 +99,10 @@ Taken during the implementation (16 October 2026):
   the non-regression tests: the functional tests of the reset come with step 5.
 - **D21 — Step 3, clocks**: the reset of an FMU with clocks scheduled by the container (`clocks_list`) is not
   supported: the runtime returns an error. FMUs with clocked inputs only (LS-BUS) are supported.
+- **D22 — Step 4, container reset**: the local variables go back to their values after the instantiation (0,
+  `false`, empty strings and binaries, `ts_multiplier` = 1, solver = 0), the importer cache is emptied;
+  `solver_configure()` frees its buffers before allocating them again (it runs at each `ExitInitializationMode`).
+  Tested with fmpy (low level, `fmpy.simulation.instantiate_fmu`) on a container of `VanDerPol.fmu`.
 
 ---
 

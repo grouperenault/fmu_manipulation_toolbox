@@ -68,9 +68,28 @@ int solver_register_me(solver_t *solver, unsigned long fmu_idx, size_t nx, size_
 }
 
 
+/* Flat buffers, allocated by solver_configure(). */
+static void solver_free_buffers(solver_t *solver) {
+    free(solver->x);
+    free(solver->dx);
+    free(solver->x_save);
+    free(solver->z);
+    free(solver->z_prev);
+    free(solver->k2);
+    free(solver->k3);
+    free(solver->k4);
+    free(solver->x_tmp);
+    solver->x = solver->dx = solver->x_save = solver->z = solver->z_prev = NULL;
+    solver->k2 = solver->k3 = solver->k4 = solver->x_tmp = NULL;
+}
+
+
 int solver_configure(solver_t *solver) {
     if (solver->nb_me == 0)
         return 0;
+
+    /* Called again by each ExitInitializationMode after a reset of the container. */
+    solver_free_buffers(solver);
 
     const int solver_integrator = solver->container->integers32[1];
     
@@ -131,15 +150,7 @@ fail:
 
 void solver_free(solver_t *solver) {
     if (!solver) return;
-    free(solver->x);
-    free(solver->dx);
-    free(solver->x_save);
-    free(solver->z);
-    free(solver->z_prev);
-    free(solver->k2);
-    free(solver->k3);
-    free(solver->k4);
-    free(solver->x_tmp);
+    solver_free_buffers(solver);
     free(solver->me);
     free(solver);
 }

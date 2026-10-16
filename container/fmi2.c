@@ -167,8 +167,14 @@ fmi2Status fmi2Terminate(fmi2Component c) {
 
 
 fmi2Status fmi2Reset(fmi2Component c) {
-    (void)c;
-    __NOT_IMPLEMENTED__
+    container_t* container = (container_t*)c;
+
+    if (container_reset(container) != FMU_STATUS_OK)
+        return fmi2Error;
+
+    container->state = CONTAINER_STATE_INSTANTIATED;
+
+    return fmi2OK;
 }
 
 

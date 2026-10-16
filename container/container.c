@@ -493,6 +493,96 @@ fmu_status_t container_terminate(container_t* container) {
 }
 
 
+/* fmi2Reset / fmi3Reset of the container: every embedded FMU is reset, and the container goes back to its state
+   right after its instantiation. The datalog goes on in the same file. */
+fmu_status_t container_reset(container_t* container) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        fmu_t *fmu = &container->fmu[i];
+
+        if (fmuReset(fmu) != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed to reset.", fmu->name);
+            return FMU_STATUS_ERROR;
+        }
+        fmu->need_event_udpate = false;
+        fmu->have_next_event_time = false;
+        if (fmu->profile) {
+            fmu->profile->current_tic = 0;
+            fmu->profile->total_elapsed = 0.0;
+        }
+    }
+
+    /* Local variables, as allocated by read_conf_local() */
+#define RESET_LOCAL(type, value)                                            \
+    for (unsigned long i = 0; i < container->nb_local_ ## type; i += 1)     \
+        container-> type [i] = value
+
+    RESET_LOCAL(reals64, 0.0);
+    RESET_LOCAL(reals32, 0.0f);
+    RESET_LOCAL(integers8, 0);
+    RESET_LOCAL(uintegers8, 0);
+    RESET_LOCAL(integers16, 0);
+    RESET_LOCAL(uintegers16, 0);
+    RESET_LOCAL(integers32, 0);
+    RESET_LOCAL(uintegers32, 0);
+    RESET_LOCAL(integers64, 0);
+    RESET_LOCAL(uintegers64, 0);
+    RESET_LOCAL(booleans, 0);
+    RESET_LOCAL(booleans1, false);
+    RESET_LOCAL(clocks, false);
+#undef RESET_LOCAL
+    for (unsigned long i = 0; i < container->nb_local_strings; i += 1) {
+        free(container->strings[i]);
+        container->strings[i] = strdup("");
+        if (!container->strings[i]) {
+            logger(LOGGER_ERROR, "Container: cannot allocate memory to reset a string.");
+            return FMU_STATUS_ERROR;
+        }
+    }
+    for (unsigned long i = 0; i < container->nb_local_binaries; i += 1)
+        container->binaries[i].size = 0;
+
+    /* Reserved variables, as set by container_configure() */
+    container->integers32[0] = 1;                /* Default: TS multiplier */
+    container->integers32[1] = 0;                /* Default: solver config (euler) */
+
+    /* Values set by the importer */
+#define RESET_CACHE(type)                                                   \
+    for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1)     \
+        container->port_ ## type [i].nb_cached = 0
+
+    RESET_CACHE(reals64);
+    RESET_CACHE(reals32);
+    RESET_CACHE(integers8);
+    RESET_CACHE(uintegers8);
+    RESET_CACHE(integers16);
+    RESET_CACHE(uintegers16);
+    RESET_CACHE(integers32);
+    RESET_CACHE(uintegers32);
+    RESET_CACHE(integers64);
+    RESET_CACHE(uintegers64);
+    RESET_CACHE(booleans);
+    RESET_CACHE(booleans1);
+    RESET_CACHE(strings);
+    RESET_CACHE(binaries);
+#undef RESET_CACHE
+
+    /* Clocks schedule */
+    container->clocks_list.nb_next_clocks = 0;
+    for (unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1)
+        container->clocks_list.buffer_previous[i] = 0.0;
+
+    /* Simulation */
+    container->nb_steps = 0;
+    container->next_step = container->time_step; /* Default: no next event time */
+    container->time = container->start_time;
+    container->need_event_update = false;
+
+    logger(LOGGER_DEBUG, "Container is reset.");
+
+    return FMU_STATUS_OK;
+}
+
+
 /*----------------------------------------------------------------------------
                                 D O   S T E P
 ----------------------------------------------------------------------------*/
