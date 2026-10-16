@@ -130,6 +130,17 @@ Taken during the implementation (16 October 2026):
 - **D30 — Step 7, datalog of a link trigger**: the datalog lists the link variable, i.e. the source value before
   its conversion to the Boolean of the trigger; the reset is visible by the row written before it (same time as
   the previous row), not by a `true` / `false` value of the trigger.
+- **D31 — Step 8, GUI exposure**: the detail panel of the `configuration` node (empty before) lists the active
+  reset ports with an "Exposed" checkbox (`ConfigurationNode.reset_exposed`): an exposed port is exported as the
+  input `container.<id>.reset` of the container of the FMU; the input rules on `container.reset` of an imported
+  assembly (e.g. split by `fmusplit`) check it.
+- **D32 — Step 8, root container**: unlike `ts_multiplier`, `reset_ports` has an effect on the root container: its
+  FMUs and sub-containers get a reset port.
+- **D33 — Step 8, GUI sync**: the reset ports are recomputed from the tree (`NodeTreeWidget.refresh_reset_ports`)
+  at each insertion, removal or move of rows, on a change of the container parameters, after an import and after
+  `set_container_options` of the MCP bridge; they are renamed with their container (rename) or FMU (Replace FMU).
+  A wire crossing a container boundary towards a reset port gives the input `container.<id>.reset` of that
+  container (instead of `container.reset`, shared by every FMU).
 
 ---
 

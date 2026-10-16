@@ -75,6 +75,10 @@ class NodeTreeWidget(QWidget):
         self._tree.selectionModel().selectionChanged.connect(self.on_tree_selection_changed)
         # Restrict ConfigurationNode wiring (see _validate_wire)
         self._graph.scene.wire_validator = self._validate_wire
+        # The reset ports of the ConfigurationNode follow the content of the containers
+        self._model.rowsInserted.connect(lambda *_: self.refresh_reset_ports())
+        self._model.rowsRemoved.connect(lambda *_: self.refresh_reset_ports())
+        self._model.rowsMoved.connect(lambda *_: self.refresh_reset_ports())
 
         # ── Layout ──────────────────────────────────────────────────
         lay = QVBoxLayout(self)
@@ -276,6 +280,51 @@ class NodeTreeWidget(QWidget):
         node.set_port_active(container_item.text(), False)
         if node.is_empty():
             self._graph.scene.remove_configuration_node()
+
+    # ── ConfigurationNode: reset ports (reset_ports, GUI/graph-only) ──────
+
+    def refresh_reset_ports(self):
+        """Activate the reset port of each FMU or sub-container of the containers with `reset_ports` checked (root
+        included), and deactivate the other ones (kept while a wire references them, see `set_reset_port_active`).
+        The ConfigurationNode is created on demand, and removed once empty."""
+        try:
+            scene = self._graph.scene
+            wanted: set[str] = set()
+            self._collect_reset_ports(self._model.invisibleRootItem(), wanted)
+            node = scene.configuration_node()
+            if node is None:
+                if not wanted:
+                    return
+                node = scene.get_or_create_configuration_node()
+            for port, active in list(node.reset_ports.items()):
+                fmu_name = ConfigurationNode.fmu_name_from_reset_port(port)
+                if active and fmu_name not in wanted:
+                    node.set_reset_port_active(fmu_name, False)
+            for fmu_name in sorted(wanted):
+                if not node.reset_ports.get(ConfigurationNode.reset_port_name(fmu_name), False):
+                    node.set_reset_port_active(fmu_name, True)
+            if node.is_empty():
+                scene.remove_configuration_node()
+        except RuntimeError:
+            pass  # C++ objects already deleted (application shutdown)
+
+    def _collect_reset_ports(self, item: QStandardItem, wanted: set[str]):
+        """Names of the FMUs and sub-containers that get a reset port, below *item*."""
+        container_parameters = TreeItemRoles.get_container_params(item)
+        resettable = container_parameters is not None and bool(container_parameters.parameters.get("reset_ports"))
+        nodes_by_uid = {node.uid: node for node in self._graph.scene.fmu_nodes()} if resettable else {}
+        for r in range(item.rowCount()):
+            child = item.child(r, 0)
+            if child is None:
+                continue
+            if TreeItemRoles.get_container_params(child) is not None:
+                if resettable:
+                    wanted.add(child.text())
+                self._collect_reset_ports(child, wanted)
+            elif resettable:
+                node = nodes_by_uid.get(TreeItemRoles.get_node_uid(child))
+                if node is not None:
+                    wanted.add(node.name)
 
     def _validate_wire(self, node_a, node_b) -> bool:
         """The ConfigurationNode can be wired to any FMU; the only forbidden

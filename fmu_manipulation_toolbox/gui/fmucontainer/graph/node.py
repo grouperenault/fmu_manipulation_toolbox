@@ -445,6 +445,11 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
                      new_name if t[2] == old_name else t[2], t[3])
                     for t in wire.terminal_mappings
                 ]
+            # The reset port of this FMU on the ConfigurationNode, if any, follows its name.
+            scene = self.scene()
+            configuration_node = scene.configuration_node() if hasattr(scene, "configuration_node") else None
+            if configuration_node is not None:
+                configuration_node.rename_reset_port(old_name, new_name)
 
         # Update visual: title text and node width
         self._title_item.setPlainText(self.title)
@@ -467,7 +472,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
 
 class ConfigurationNode(NodeItem):
-    """Singleton virtual node representing the `ts_multiplier` configuration.
+    """Singleton virtual node representing the `ts_multiplier` and `reset_ports` configuration.
 
     This node is *not* backed by a real FMU file: it is a purely graphical
     (GUI-only) representation, never exported to the `Assembly`/`AssemblyNode`
@@ -483,6 +488,13 @@ class ConfigurationNode(NodeItem):
     again automatically if the checkbox is rechecked. The node itself is
     only removed from the scene once ALL its ports are inactive AND no wire
     (valid or invalid) references it anymore (see `is_empty`/`cleanup_if_empty`).
+
+    It also exposes one virtual Boolean input port per FMU (or sub-container)
+    of each container with `reset_ports` checked (root included), named
+    `<fmu_without_.fmu_suffix>.reset`: the wire is exported as a link to the
+    reserved `container.reset` input of that FMU. Such a port can also be
+    exposed as a container input (`reset_exposed`, edited in the detail panel
+    of the node). The ports follow the same rules as the `ts_multiplier` ones.
 
     It behaves like a regular node (movable, selectable) but cannot be
     deleted by the user while it is still relevant (see `deletable`).
@@ -505,6 +517,11 @@ class ConfigurationNode(NodeItem):
         # port_name -> active (bool). `active` mirrors the owning container's
         # current `ts_multiplier` checkbox state.
         self.ts_multiplier_ports: dict[str, bool] = {}
+        # port_name -> active (bool). `active` mirrors the `reset_ports`
+        # checkbox of the container of the FMU.
+        self.reset_ports: dict[str, bool] = {}
+        # port_name -> exposed as a container input `container.<id>.reset`.
+        self.reset_exposed: dict[str, bool] = {}
 
         self.fmu_input_names: list[str] = []
         self.fmu_output_names: list[str] = []
@@ -574,6 +591,44 @@ class ConfigurationNode(NodeItem):
         base = port_name[:-len(suffix)] if port_name.endswith(suffix) else port_name
         return f"{base}.fmu"
 
+    # Reserved runtime input of an embedded FMU when the `reset_ports` parameter
+    # of its container is enabled (see container/builder.py `add_reset_port`).
+    RESET_RUNTIME_PORT_NAME = "container.reset"
+
+    @staticmethod
+    def reset_port_name(fmu_name: str) -> str:
+        """Return the reset port name for the FMU (or sub-container) *fmu_name*.
+
+        `<fmu_without_.fmu_suffix>.reset`
+        """
+        base = fmu_name[:-4] if fmu_name.lower().endswith(".fmu") else fmu_name
+        return f"{base}.reset"
+
+    @staticmethod
+    def fmu_name_from_reset_port(port_name: str) -> str:
+        """Reverse of `reset_port_name` (`.fmu` suffix restored)."""
+        suffix = ".reset"
+        base = port_name[:-len(suffix)] if port_name.endswith(suffix) else port_name
+        return f"{base}.fmu"
+
+    @staticmethod
+    def reset_input_name(fmu_name: str) -> str:
+        """Name of the container input exposing the reset of *fmu_name* (see
+        `FMUContainer.reset_input_name`)."""
+        return f"container.{Path(fmu_name).stem.lower()}.reset"
+
+    def is_reset_port(self, port: str) -> bool:
+        return port in self.reset_ports
+
+    def port_active(self, port: str) -> bool:
+        """Whether *port* (`ts_multiplier` or reset) exists and is active."""
+        return self.ts_multiplier_ports.get(port, False) or self.reset_ports.get(port, False)
+
+    def inactive_ports(self) -> set[str]:
+        """Ports kept only for the wires that still reference them (drawn in red)."""
+        return ({port for port, active in self.ts_multiplier_ports.items() if not active} |
+                {port for port, active in self.reset_ports.items() if not active})
+
     def _port_in_use(self, port: str) -> bool:
         my_name = self.name
         for wire in self.wires:
@@ -586,9 +641,10 @@ class ConfigurationNode(NodeItem):
         return False
 
     def _rebuild_ports(self):
-        self.fmu_input_names = list(self.ts_multiplier_ports.keys())
-        self.fmu_port_causality = {p: "input" for p in self.ts_multiplier_ports}
+        self.fmu_input_names = list(self.ts_multiplier_ports.keys()) + list(self.reset_ports.keys())
+        self.fmu_port_causality = {p: "input" for p in self.fmu_input_names}
         self.fmu_port_type = {p: "Integer" for p in self.ts_multiplier_ports}
+        self.fmu_port_type.update({p: "Boolean" for p in self.reset_ports})
         for wire in self.wires:
             wire.update()
         self.update()
@@ -602,25 +658,47 @@ class ConfigurationNode(NodeItem):
         (so that wire can be shown in red and possibly re-validated later);
         an unused inactive port is dropped immediately.
         """
-        port = self.port_name(container_name)
-        if active:
-            self.ts_multiplier_ports[port] = True
-        else:
-            if self._port_in_use(port):
-                self.ts_multiplier_ports[port] = False
-            else:
-                self.ts_multiplier_ports.pop(port, None)
+        self._set_port_active(self.ts_multiplier_ports, self.port_name(container_name), active)
         self._rebuild_ports()
+
+    def set_reset_port_active(self, fmu_name: str, active: bool):
+        """Activate/deactivate the reset port of the FMU (or sub-container)
+        *fmu_name*, as `set_port_active` does for `ts_multiplier`."""
+        port = self.reset_port_name(fmu_name)
+        self._set_port_active(self.reset_ports, port, active)
+        if port not in self.reset_ports:
+            self.reset_exposed.pop(port, None)
+        self._rebuild_ports()
+
+    def _set_port_active(self, ports: dict[str, bool], port: str, active: bool):
+        if active:
+            ports[port] = True
+        elif self._port_in_use(port):
+            ports[port] = False
+        else:
+            ports.pop(port, None)
 
     def rename_port(self, old_container_name: str, new_container_name: str):
         """Update the port name (and any wire mapping referencing it) when
         the owning container is renamed."""
-        old_port = self.port_name(old_container_name)
-        new_port = self.port_name(new_container_name)
-        if old_port == new_port or old_port not in self.ts_multiplier_ports:
+        self._rename(self.ts_multiplier_ports, self.port_name(old_container_name),
+                     self.port_name(new_container_name))
+        # A sub-container may also be reset by its parent.
+        self.rename_reset_port(old_container_name, new_container_name)
+
+    def rename_reset_port(self, old_fmu_name: str, new_fmu_name: str):
+        """Update the reset port name (and any wire mapping referencing it)
+        when the FMU, or sub-container, is renamed."""
+        old_port = self.reset_port_name(old_fmu_name)
+        new_port = self.reset_port_name(new_fmu_name)
+        if old_port in self.reset_exposed and old_port != new_port:
+            self.reset_exposed[new_port] = self.reset_exposed.pop(old_port)
+        self._rename(self.reset_ports, old_port, new_port)
+
+    def _rename(self, ports: dict[str, bool], old_port: str, new_port: str):
+        if old_port == new_port or old_port not in ports:
             return
-        active = self.ts_multiplier_ports.pop(old_port)
-        self.ts_multiplier_ports[new_port] = active
+        ports[new_port] = ports.pop(old_port)
 
         my_name = self.name
         for wire in self.wires:
@@ -639,7 +717,7 @@ class ConfigurationNode(NodeItem):
         self._rebuild_ports()
 
     def has_active_ports(self) -> bool:
-        return any(self.ts_multiplier_ports.values())
+        return any(self.ts_multiplier_ports.values()) or any(self.reset_ports.values())
 
     def is_empty(self) -> bool:
         """True when this node has no active port and no residual wire
@@ -648,9 +726,11 @@ class ConfigurationNode(NodeItem):
 
     def prune_inactive_unused_ports(self):
         """Drop inactive ports that are no longer referenced by any wire."""
-        for port in list(self.ts_multiplier_ports.keys()):
-            if not self.ts_multiplier_ports[port] and not self._port_in_use(port):
-                del self.ts_multiplier_ports[port]
+        for ports in (self.ts_multiplier_ports, self.reset_ports):
+            for port in list(ports.keys()):
+                if not ports[port] and not self._port_in_use(port):
+                    del ports[port]
+                    self.reset_exposed.pop(port, None)
         self._rebuild_ports()
 
     def cleanup_if_empty(self):

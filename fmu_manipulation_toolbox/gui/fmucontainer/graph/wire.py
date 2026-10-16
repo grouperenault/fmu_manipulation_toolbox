@@ -118,25 +118,25 @@ class WireItem(QGraphicsPathItem):
     def is_invalid(self) -> bool:
         """True if this wire has at least one invalid mapping:
 
-        * a mapping referencing an inactive `ts_multiplier` port on the
-          (GUI-only) ConfigurationNode (the owning container's checkbox is
+        * a mapping referencing an inactive `ts_multiplier` or reset port on the
+          (GUI-only) ConfigurationNode (the checkbox of the container is
           currently unchecked), or
         * a mapping (port or terminal) whose port/terminal name no longer
           exists on the corresponding FMU — typically after "Replace FMU"
           (same invalidity already shown in red in the WireDetails panel).
         """
         for node in (self.node_a, self.node_b):
-            ports = getattr(node, "ts_multiplier_ports", None)
-            if not ports:
+            inactive_ports = node.inactive_ports() if hasattr(node, "inactive_ports") else set()
+            if not inactive_ports:
                 continue
             my_name = node.name
             for m in self.mappings:
                 if len(m) < 4:
                     continue
                 fmu_from, port_from, fmu_to, port_to = m
-                if fmu_from == my_name and port_from in ports and not ports[port_from]:
+                if fmu_from == my_name and port_from in inactive_ports:
                     return True
-                if fmu_to == my_name and port_to in ports and not ports[port_to]:
+                if fmu_to == my_name and port_to in inactive_ports:
                     return True
 
         name_a = self.node_a.name
