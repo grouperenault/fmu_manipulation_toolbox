@@ -39,6 +39,7 @@ DEFAULT_OPTIONS: dict[str, Any] = {
     "auto_parameter": False,
     "auto_local": False,
     "ts_multiplier": False,
+    "reset_ports": False,
 }
 
 #: Default name of the container being described.

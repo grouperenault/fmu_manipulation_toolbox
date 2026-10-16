@@ -116,6 +116,12 @@ Taken during the implementation (16 October 2026):
   (`get_fmu`); an exposed reset input gets a slot of local storage without value reference, allocated after
   every other variable (`ContainerLayout.reset_inputs`); `add_input` with an empty name and `auto_input` name it
   `container.<id>.reset`.
+- **D27 — Step 6, fmusplit**: an exposed trigger comes back as an `input` rule, a trigger fed by a link as a `link`
+  rule (to `container.reset`); `reset_ports` is restored only when at least one trigger is wired: without any,
+  nothing in `container.txt` tells the option (documented limitation, no effect on the simulation).
+- **D28 — Step 6, assistant**: `reset_ports` is a container option (`set_container_options`); the replay of the
+  lint creates its `FMUContainer` with the option of the container, so that a link to `container.reset` is not
+  reported as invalid. The SSP import does not set it (as `ts_multiplier`).
 
 ---
 

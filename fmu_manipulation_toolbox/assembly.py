@@ -202,6 +202,7 @@ class AssemblyNode:
         auto_parameter (bool): Automatically expose parameters of embedded FMUs.
         auto_local (bool): Automatically expose local variables of embedded FMUs.
         ts_multiplier (bool): Add a `TS_MULTIPLIER` input port to control step size dynamically.
+        reset_ports (bool): Add a `container.reset` input to each embedded FMU, to reset it during the simulation.
         parent (AssemblyNode | None): Parent node in a hierarchical assembly, or `None` for root.
         children (dict[str, AssemblyNode]): Sub-container nodes, keyed by name.
         fmu_names_list (list[str]): Ordered list of the names of the embedded FMUs. A name is also the path of
@@ -217,7 +218,7 @@ class AssemblyNode:
 
     def __init__(self, name: str, step_size: float = None, mt=False, profiling=False, sequential=False,
                  auto_link=True, auto_input=True, auto_output=True, auto_parameter=False, auto_local=False,
-                 ts_multiplier=False):
+                 ts_multiplier=False, reset_ports=False):
         self.name = name
         if step_size:
             try:
@@ -236,6 +237,7 @@ class AssemblyNode:
         self.auto_parameter = auto_parameter
         self.auto_local = auto_local
         self.ts_multiplier = ts_multiplier
+        self.reset_ports = reset_ports
 
         self.parent: AssemblyNode | None = None
         self.children: dict[str, AssemblyNode] = {}     # sub-containers
@@ -373,7 +375,7 @@ class AssemblyNode:
 
         identifier = str(Path(self.name).stem)
         container = FMUContainer(identifier, fmu_directory, description_pathname=description_pathname,
-                                 fmi_version=fmi_version)
+                                 fmi_version=fmi_version, reset_ports=self.reset_ports)
 
         for node in self.children.values():
             container.get_fmu(node.name)
@@ -562,7 +564,8 @@ class Assembly:
     def __init__(self, filename: str | Path = None, default_step_size=None, default_auto_link=True,
                  default_auto_input=True, debug=False, default_sequential=False, default_auto_output=True,
                  default_mt=False, default_profiling=False, fmu_directory: Path = Path("."),
-                 default_auto_parameter=False, default_auto_local=False, default_ts_multiplier=False):
+                 default_auto_parameter=False, default_auto_local=False, default_ts_multiplier=False,
+                 default_reset_ports=False):
         self.filename = Path(filename) if filename else None
         self.default_auto_input = default_auto_input
         self.debug = debug
@@ -575,6 +578,7 @@ class Assembly:
         self.default_sequential = default_sequential
         self.default_profiling = default_profiling
         self.default_ts_multiplier = default_ts_multiplier
+        self.default_reset_ports = default_reset_ports
         self.fmu_directory = fmu_directory
 
         if not fmu_directory.is_dir():
@@ -634,7 +638,8 @@ class Assembly:
                                  mt=self.default_mt, profiling=self.default_profiling,
                                  sequential=self.default_sequential, auto_input=self.default_auto_input,
                                  auto_output=self.default_auto_output, auto_parameter=self.default_auto_parameter,
-                                 auto_local=self.default_auto_local, ts_multiplier=self.default_ts_multiplier)
+                                 auto_local=self.default_auto_local, ts_multiplier=self.default_ts_multiplier,
+                                 reset_ports=self.default_reset_ports)
 
         with open_text(self.input_pathname) as file:
             reader = csv.reader(file, delimiter=';')
@@ -760,16 +765,17 @@ class Assembly:
         auto_local = data.get("auto_local", self.default_auto_local)                        # 6c
         step_size = data.get("step_size", self.default_step_size)                           # 7
         ts_multiplier = data.get("ts_multiplier", self.default_ts_multiplier)               # 7b
+        reset_ports = data.get("reset_ports", self.default_reset_ports)                     # 7c
 
         node = AssemblyNode(name, step_size=step_size, auto_link=auto_link, mt=mt, profiling=profiling,
                             sequential=sequential,
                             auto_input=auto_input, auto_output=auto_output, auto_parameter=auto_parameter,
-                            auto_local=auto_local, ts_multiplier=ts_multiplier)
+                            auto_local=auto_local, ts_multiplier=ts_multiplier, reset_ports=reset_ports)
 
         paths = {}
         for key, value in data.items():
             if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling', 'sequential',
-                       'auto_parameter', 'auto_local', 'ts_multiplier'):
+                       'auto_parameter', 'auto_local', 'ts_multiplier', 'reset_ports'):
                 continue  # Already read
 
             elif key == "container":  # 8
@@ -877,6 +883,9 @@ class Assembly:
 
         if node.ts_multiplier:
             json_node["ts_multiplier"] = node.ts_multiplier # 7b
+
+        if node.reset_ports:
+            json_node["reset_ports"] = node.reset_ports     # 7c
 
         if node.children:
             json_node["container"] = [self._json_encode_node(child) for child in node.children.values()]  # 8
