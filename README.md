@@ -283,6 +283,11 @@ cd tests
 pytest
 ```
 
+In parallel, one worker per CPU (pytest-xdist):
+```bash
+pytest -n auto
+```
+
 With coverage report:
 ```bash
 pytest --cov=fmu_manipulation_toolbox --cov-report=html

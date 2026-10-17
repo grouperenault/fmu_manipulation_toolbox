@@ -137,7 +137,7 @@ jobs:
     - name: Test suite run
       run: |
         cd tests
-        pytest ${{ matrix.python-version == env.NEWEST_PYTHON && '--cov=fmu_manipulation_toolbox' || '' }}
+        pytest -n auto ${{ matrix.python-version == env.NEWEST_PYTHON && '--cov=fmu_manipulation_toolbox' || '' }}
     # The coverage badge is refreshed from a single leg (NEWEST_PYTHON) on `main` only.
     - name: Switch to `badges` branch and copy badge
       if: github.ref == 'refs/heads/main' && matrix.python-version == env.NEWEST_PYTHON
@@ -227,7 +227,7 @@ jobs:
         QTWEBENGINE_CHROMIUM_FLAGS: "--no-sandbox --disable-gpu"
       run: |
         cd tests
-        pytest -v
+        pytest -v -n auto
     - name: Package
       if: matrix.python-version == env.NEWEST_PYTHON
       run: |
@@ -289,7 +289,7 @@ jobs:
         QTWEBENGINE_DISABLE_SANDBOX: "1"
       run: |
         cd tests
-        pytest -v -m "not gui"
+        pytest -v -n auto -m "not gui"
 
   # Validate the *built wheel* (not the sources): install it into a clean
   # environment on every OS and check that imports, metadata, entry points and

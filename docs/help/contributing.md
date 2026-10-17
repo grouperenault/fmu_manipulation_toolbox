@@ -51,7 +51,7 @@ The tests run against the installed package. From the repository root, install i
 ```bash
 pip install -e ".[all]"       # full dev setup: GUI, MCP and test dependencies
 # or, the test dependencies only:
-pip install -e ".[test]"      # pytest, pytest-qt, pytest-cov, fmpy, numpy, PySide6
+pip install -e ".[test]"      # pytest, pytest-qt, pytest-cov, pytest-xdist, fmpy, numpy, PySide6
 ```
 
 `pip install -r requirements.txt` is equivalent to the first command.
@@ -63,6 +63,7 @@ Tests are run from the `tests/` directory (the `pytest.ini` there sets the impor
 ```bash
 cd tests
 pytest                        # run everything
+pytest -n auto                # run everything in parallel, one worker per CPU (pytest-xdist)
 pytest --cov=fmu_manipulation_toolbox        # with coverage
 pytest -v integration/test_container.py      # a single module
 ```
