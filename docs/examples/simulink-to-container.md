@@ -75,14 +75,11 @@ On a chain of three FMUs whose initial outputs depend on their inputs, the conta
 initial values and the same values at every step**, once the unconnected inputs have the value Simulink imposes
 (see below).
 
-Two differences remain in the way they do it:
-
-- **Simulink** first sets the parameters of every FMU block, then initializes the blocks one after the other, in the
-  order of their connections, and reads the outputs of a block *after* its initialization; **the container** keeps
-  all the FMUs in Initialization Mode and reads their outputs *during* it. The values are the same unless an FMU
-  changes an output when it leaves its Initialization Mode.
-- **Loops of links**: Simulink does not solve them at the initialization; the container repeats the propagation
-  until the values do not change (warning when there is no fixed point).
+Both follow the same rule: in the order of the connections, each FMU gets its inputs from the FMUs before it,
+leaves its Initialization Mode, then its outputs are read. **Simulink** sets the parameters of every FMU block
+first, and enters the Initialization Mode of each block just before initializing it; **the container** enters the
+Initialization Mode of all its FMUs at once. Neither solves a **loop of links** at the initialization: the
+container cuts it before its first FMU in the description (warning at the build).
 
 The [unconnected inputs](#unconnected-inputs) also take part in the initialization: give them the value of
 Simulink (0) to get the same initial values. An input left at another start value in the container shifts the

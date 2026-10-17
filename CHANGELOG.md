@@ -80,10 +80,9 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 ## FMU Container
 
 - 🔵 **CHANGED** the container **propagates the links** between its embedded FMUs **during the initialization**:
-  in the order of the links, each FMU gets its linked inputs and its linked outputs are read while every FMU is in
-  Initialization Mode, so that an FMU is initialized with the values of the FMUs it depends on (as FMI expects
-  from an importer, and as Simulink does). Loops of links are iterated (warning without fixed point); an output of
-  the container read during its initialization is propagated first. The initial values, and the results of the
+  in the order of the links, each FMU gets its linked inputs, leaves its Initialization Mode, then its outputs are
+  read for the FMUs after it, so that an FMU is initialized with the values of the FMUs it depends on (as Simulink
+  does). A loop of links is cut before its first FMU (warning at the build). The initial values, and the results of the
   FMUs whose initialization depends on their inputs, may change. `container.txt` format version 8. See
   [Initialization of the embedded FMU's](docs/user-guide/fmucontainer/container.md#initialization-of-the-embedded-fmus)
   and [From Simulink to an FMU Container](docs/examples/simulink-to-container.md).
