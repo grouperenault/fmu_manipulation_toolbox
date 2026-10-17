@@ -53,7 +53,7 @@ CSV file, header `seq,wall,function,status,time,h,vr,name,value,note`:
 | Column | Content |
 |---|---|
 | `seq` | number of the FMI call (shared by the lines of one call) |
-| `wall` | seconds since `fmi2Instantiate` (monotonic wall clock) |
+| `wall` | monotonic clock (s); its origin is shared by every instance of the process (`QueryPerformanceCounter` on Windows, `CLOCK_MONOTONIC` elsewhere), so the calls of several instances can be ordered |
 | `function` | FMI function, or `SNAPSHOT` |
 | `status` | status returned by the call |
 | `time` | time of the FMU at the call |

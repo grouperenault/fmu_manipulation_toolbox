@@ -119,8 +119,7 @@ typedef struct {
     size_t buffer_length;
     size_t buffer_size;
     unsigned long seq;
-    double wall_start;
-    double wall;            /* wall clock of the current call */
+    double wall;            /* monotonic clock of the current call (s, origin shared by the process) */
 } probe_t;
 
 
@@ -275,8 +274,8 @@ static void trace_line(probe_t *probe, const char *function, fmi2Status status, 
         snprintf(vr_text, sizeof(vr_text), "%u", (unsigned)variable->vr);
     csv_field(value_field, sizeof(value_field), value ? value : "");
     csv_field(note_field, sizeof(note_field), note ? note : "");
-    snprintf(line, sizeof(line), "%lu,%.6f,%s,%s,%.17g,%s,%s,%s,%s,%s\n", probe->seq,
-             probe->wall - probe->wall_start, function, status_name(status), probe->time, h_text, vr_text,
+    snprintf(line, sizeof(line), "%lu,%.9f,%s,%s,%.17g,%s,%s,%s,%s,%s\n", probe->seq,
+             probe->wall, function, status_name(status), probe->time, h_text, vr_text,
              variable ? variable->name : "", value_field, note_field);
 
     if (probe->trace) {
@@ -310,7 +309,7 @@ static fmi2Status trace_open(probe_t *probe) {
         return fmi2OK;
 
     char *path = probe->trace_file[0] ? duplicate(probe->trace_file) : default_trace_file(probe);
-    probe->trace = path ? fopen(path, "w") : NULL;
+    probe->trace = path ? fopen(path, "wb") : NULL;     /* binary: '\n' line ends on every platform */
     if (!probe->trace) {
         probe->trace_failed = 1;
         log_message(probe, fmi2Error, "logStatusError", "Cannot open the trace file '%s'.", path ? path : "");
@@ -498,7 +497,6 @@ fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2Str
     probe->environment = functions ? functions->componentEnvironment : NULL;
     probe->logging_on = loggingOn ? 1 : 0;
     probe->state = STATE_INSTANTIATED;
-    probe->wall_start = wall_clock();
     set_start_values(probe);
     begin_call(probe);
 

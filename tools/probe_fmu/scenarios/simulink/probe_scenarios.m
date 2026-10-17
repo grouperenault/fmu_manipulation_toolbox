@@ -48,7 +48,7 @@ end
 function s = scenario(name, blocks, links, parameters, input_starts, multitasking, rate_transitions, stop_time)
     trace = cell(size(blocks, 1), 3);
     for k = 1:size(blocks, 1)
-        trace(k, :) = {blocks{k, 1}, 'trace_file', sprintf('''%s.csv''', blocks{k, 1})};
+        trace(k, :) = {blocks{k, 1}, 'trace_file', sprintf('%s.csv', blocks{k, 1})};   % String: raw text
     end
     s = struct('name', name, 'blocks', {blocks}, 'links', {links}, 'parameters', {[trace; parameters]}, ...
                'input_starts', {input_starts}, 'multitasking', multitasking, ...

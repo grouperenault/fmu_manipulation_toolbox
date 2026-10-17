@@ -28,7 +28,8 @@ function api = probe_simulink_api()
     api.outputs = {'y_cont', 'y_disc', 'y_int', 'y_bool', 'y_init', 'y_time'};
 
     % Value of an FMU parameter: set_param(block, <variable name>, <value>)    verified on R2024b (Real, String)
-    % (MATLAB Answers 2128526): a MATLAB expression for a Real or String ('''A.csv'''); 'on' / 'off' for a
+    % (MATLAB Answers 2128526): a MATLAB expression for a Real ('3'), the raw text for a String ('A.csv': a quoted
+    % '''A.csv''' gives the file name 'A.csv' with its quotes); 'on' / 'off' for a
     % Boolean ('false' is refused: "Invalid setting ... for parameter 'compute_sleep'").
     % The start value of an input has no known programmatic name: set by hand.
     api.parameter_name = @(variable) variable;
