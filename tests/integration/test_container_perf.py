@@ -141,3 +141,30 @@ def test_me_fed_by_cs(fmus):
     container.add_output("FeedthroughME.fmu", "Float64_continuous_output", "y")
     container.make_fmu("mixed.fmu", step_size=0.001)
     _assert_results("mixed", ["y"])
+
+
+def _debug_messages(name: str) -> list[str]:
+    messages = []
+    simulate(f"{name}.fmu", stop_time=0.002, debug_logging=True,
+             logger=lambda *args: messages.append(args[-1].decode("utf-8")))
+    return messages
+
+
+def test_me_couplings_are_found(fmus):
+    """The solver refreshes only the ME -> ME couplings, found at configuration (point 2), conversions included."""
+    container = FMUContainer("found", ".", fmi_version=3)
+    container.get_fmu("VanDerPol.fmu")
+    container.get_fmu("VanDerPolME.fmu")
+    container.get_fmu("FeedthroughME.fmu")
+    container.get_fmu("FeedthroughME.fmu", name="FeedthroughME-1.fmu")
+    container.add_link("VanDerPolME.fmu", "x0", "FeedthroughME.fmu", "Float64_continuous_input")
+    container.add_link("VanDerPolME.fmu", "x1", "FeedthroughME.fmu", "Float32_continuous_input")   # converted
+    container.add_link("VanDerPol.fmu", "x0", "FeedthroughME-1.fmu", "Float64_continuous_input")  # from a CS FMU
+    container.add_output("FeedthroughME.fmu", "Float64_continuous_output", "y")
+    container.make_fmu("found.fmu", step_size=0.001)
+
+    messages = _debug_messages("found")
+    assert "Solver: ME FMU 'VanDerPolME.fmu': 0 coupled continuous input(s), feeds an ME FMU." in messages
+    assert "Solver: ME FMU 'FeedthroughME.fmu': 2 coupled continuous input(s), does not feed an ME FMU." in messages
+    assert "Solver: ME FMU 'FeedthroughME-1.fmu': 0 coupled continuous input(s), does not feed an ME FMU." \
+        in messages

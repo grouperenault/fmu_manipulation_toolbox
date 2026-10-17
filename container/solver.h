@@ -30,6 +30,12 @@ typedef struct solver_me_fmu_s {
     size_t        nz;                    /* nb event indicators */
     size_t        x_off;                 /* offset into x/dx/x_save (total_nx) */
     size_t        z_off;                 /* offset into z/z_prev    (total_nz) */
+
+    /* ME -> ME couplings, found by solver_configure(): the continuous inputs fed by an ME FMU (directly or
+       through a conversion), and whether the continuous outputs of this FMU feed an ME FMU. */
+    fmu_translation_list_t coupled_reals64;
+    fmu_translation_list_t coupled_reals32;
+    bool          feeds_me;
 } solver_me_fmu_t;
 
 
@@ -57,6 +63,9 @@ typedef struct solver_s {
     double              *k3;            /* total_nx */
     double              *k4;            /* total_nx */
     double              *x_tmp;         /* total_nx */
+
+    /* At least one ME -> ME coupling: the coupling sweep has something to refresh. */
+    bool                has_coupling;
 
     /* Integrator selection and iteration limits (defaults set by solver_new()). */
     solver_integrator_t integrator;

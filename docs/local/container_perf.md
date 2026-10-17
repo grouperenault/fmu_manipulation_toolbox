@@ -1,7 +1,7 @@
 # Plan: performance of the container runtime — grouped FMI calls and targeted ME coupling
 
-**Created**: 17 October 2026 — **Status**: reviewed (17 October 2026), steps 1 to 3 in progress on
-`feature/optimize-fmi-calls` — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: steps 1 to 3 done on `feature/optimize-fmi-calls` (17 October 2026),
+point 1 abandoned (D10); step 4 (documentation) to do — **Roadmap**: not listed
 
 A review of the runtime (17 October 2026, code reading, no measurement) found two costs in the path of each
 internal step:
@@ -109,6 +109,12 @@ At the end of `solver_configure()` (FMU pointers resolved):
 The other continuous inputs of the ME FMUs are set once per step, before the integration, by the step functions
 (unchanged), and the outputs of every ME FMU are read after the integration (unchanged): the values seen by every
 FMU are the same as today, in the same order.
+
+Implementation (step 3): each entry of a conversion table knows the real type of its destination (`to_real`: 64, 32
+or 0, from the suffix of the name of the conversion, `convert_destination_real()`), so that a coupling through a
+conversion (e.g. a `Float64` output to a `Float32` input) is found; the couplings are computed again at each
+`solver_configure()` (each `ExitInitializationMode`, after a reset too); a debug message states, for each ME FMU, its
+number of coupled inputs and whether it feeds an ME FMU.
 
 ### 4.3 Benchmark
 
@@ -224,6 +230,22 @@ Step 2 (grouped exchanges, abandoned, see D10), A/B against step 1, best time in
 | C-rk4 | 0.857 | 0.906 | -5.7 % | 0.866 | -0.1 % |
 | D-mixed | 0.718 | 0.755 | -5.2 % | 0.723 | -0.8 % |
 | E-same-type | 0.611 | 0.613 | -0.3 % | 0.616 | +0.8 % |
+
+Step 3 (targeted ME coupling), A/B against step 1, best time in seconds and gain; same digests (results identical):
+
+| Case | Step 1 | Step 3 | Gain |
+|---|---|---|---|
+| A-parallel | 0.821 | 0.841 | -2.4 % (noise: CS only) |
+| A-sequential | 0.909 | 0.912 | -0.3 % (noise: CS only) |
+| A-mt | 1.212 | 1.202 | +0.8 % (noise: CS only) |
+| B-uncoupled | 0.749 | 0.710 | +5.2 % |
+| C-euler | 0.720 | 0.706 | +1.9 % |
+| C-rk4 | 0.859 | 0.849 | +1.2 % |
+| D-mixed | 0.723 | 0.484 | **+33.1 %** |
+| E-same-type | 0.608 | 0.616 | -1.3 % (noise: CS only) |
+
+The gain comes where the sweep exchanged values that do not change during the step: ME FMUs fed by Co-Simulation FMUs
+(case D), or without coupling (case B). A chain of ME FMUs coupled to each other (case C) keeps its sweep.
 
 ## 8. Found during the work (not in the scope)
 

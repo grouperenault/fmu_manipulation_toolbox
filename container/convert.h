@@ -24,6 +24,7 @@ typedef struct {
 	fmu_vr_t 			    from;
 	fmu_vr_t 			    to;
 	convert_function_t      function;
+	int                     to_real;    /* 64 or 32 when the destination is a real64 or real32, 0 otherwise */
 } convert_table_entry_t;
 
 
@@ -46,6 +47,7 @@ extern void convert_free(convert_table_t *table);
 extern void convert_proceed(const struct container_s *container,
                             const convert_table_t *table);
 extern convert_function_t convert_function_get(const char *function_name);
+extern int convert_destination_real(const char *function_name);
 
 #	ifdef __cplusplus
 }
