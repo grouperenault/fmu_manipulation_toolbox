@@ -54,6 +54,9 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
 
 Some of these parameters can be defined by Command Line Interface or by the input files.
 
+To rebuild as a container an assembly of FMUs made in Simulink, see
+[From Simulink to an FMU Container](../../examples/simulink-to-container.md).
+
 ## Default time step
 
 When no time step is given, the container deduces it from the `stepSize` of the embedded FMU's

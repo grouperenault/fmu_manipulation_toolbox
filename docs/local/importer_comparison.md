@@ -1,6 +1,7 @@
 # Migrating an FMU assembly from Simulink to an FMU Container
 
-**Created**: 17 October 2026 — **Status**: Steps 1–4 done (17 October 2026; report: `docs/local/importer_comparison_report.md`), Step 5 to start — **Branch**:
+**Created**: 17 October 2026 — **Status**: Steps 1–5 done (17 October 2026; report: `docs/local/importer_comparison_report.md`); open: input start
+values entered in the Simulink dialog, Simulink run with the corrected probe — **Branch**:
 `importer-comparison` — **Roadmap**: not listed
 
 ## Goal

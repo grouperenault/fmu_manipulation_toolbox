@@ -79,6 +79,10 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## FMU Container
 
+- 🟢 **ADDED** documentation: [From Simulink to an FMU Container](docs/examples/simulink-to-container.md),
+  how to rebuild a Simulink assembly of FMU blocks as a container (mapping of the concepts, worked example) and
+  the behaviour differences to take into account: initialization, unconnected inputs, sample times, delays,
+  computation time.
 - 🟢 **ADDED** `fmucontainer-gui`: **Link Assistant** — a window opened from the *Wire Details* panel to define
   in bulk the links of a wire between FMUs with hundreds of ports. Tab **Rules**: a criterion (same name,
   prefix / suffix replacement, regular expression, similar names), optionally ignoring case and separators,
