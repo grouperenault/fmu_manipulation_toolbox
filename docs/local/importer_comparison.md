@@ -1,6 +1,6 @@
 # Migrating an FMU assembly from Simulink to an FMU Container
 
-**Created**: 17 October 2026 — **Status**: Steps 1–2 done (17 October 2026), Step 3 to start — **Branch**:
+**Created**: 17 October 2026 — **Status**: Steps 1–2 done (17 October 2026), Step 3 waiting for the Simulink traces — **Branch**:
 `importer-comparison` — **Roadmap**: not listed
 
 ## Goal
@@ -86,6 +86,8 @@ difference and its workaround.
 12. **Documentation**: new page *Examples > From Simulink to an FMU Container*; `Examples` becomes a group in
     `mkdocs.yml` (*Common Use Cases* + the new page).
 13. **MATLAB**: R2024b; the user builds and runs the Simulink models and shares the traces and logs.
+14. **Results**: not versioned, in `tmp/importer_comparison/<scenario>/{container,simulink}/`; only the report
+    (Step 4) is committed.
 
 ## Probe FMU specification
 
