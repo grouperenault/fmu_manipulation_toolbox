@@ -2,6 +2,22 @@
 
 **Date**: 17 October 2026 — **Plan**: `docs/local/importer_comparison.md` (Step 4) — **Branch**: `importer-comparison`
 
+## TL;DR
+
+| # | Topic | FMU Container | Simulink | Impact |
+|---|---|---|---|---|
+| 1 | **Initialization of linked FMUs** | Links **not propagated**: each FMU initializes with its inputs at their start values | Links **propagated**, block by block in sorted order (Enter → inputs from upstream → Exit → read outputs) | **Major**: FMUs computing initial state or parameters from inputs diverge for the whole run |
+| 2 | **Unconnected inputs** | Keep their start value (FMU or `start` block) | Forced to **0**, at init and before every step | **Major**: silent value change; set `0` explicitly in the container to match |
+| 3 | **Multi-rate** | **One step for all FMUs** (default: LCM of the fixed steps; e.g. 0.1 s for 10/20/50 ms FMUs) | Each block at **its own sample time**, outputs held between rates | **Major**: no exact container equivalent; fixed-step FMUs get a step size that is not theirs |
+| 4 | **Slow → fast transfer (multi-tasking)** | No extra delay | Deterministic *Rate Transition* adds **one slow period** of delay | Medium: only with Simulink multi-tasking |
+| 5 | **Delays / feedthrough** | Default (Jacobi): one step per feedthrough hop; `sequential` removes it along the FMU order | **Same as the container default** (outputs read before inputs are set; declared feedthrough not used) | Aligned, as long as `sequential` is not used |
+| 6 | **Parallelism** | `mt`: FMUs of the same rate run in parallel (1.94 s → **0.90 s**) | Same-rate blocks share **one task** (2.03 s → 1.84 s) | Container faster; results unchanged |
+| 7 | **Calls before init** | Only the given start values, after `SetupExperiment`; tolerance 1e-8 | **Every** parameter (defaults included), before `SetupExperiment`; tolerance 0.001 | Minor: only for FMUs sensitive to call order or tolerance |
+
+**Bottom line:** points 1, 2 and 3 are what break a migration from Simulink. Point 1 justifies the
+`init_propagation` plan (`docs/local/init_propagation.md`), point 2 has a simple workaround (explicit `start` = 0),
+and point 3 is structural (single container step).
+
 ## Setup
 
 - **Probe**: `tools/probe_fmu` (FMI 2.0 Co-Simulation, sources only), compiled on each platform with
