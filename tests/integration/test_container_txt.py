@@ -44,10 +44,11 @@ def _make_container(filename: str, string_input: str | None = None) -> str:
 
 def _with_header(filename: str, destination: str, header: str | None) -> str:
     """Copy of the container `filename`, the first line of its `container.txt` replaced by `header` (removed when
-    None)."""
+    None). The line endings of the file are kept (`\r\n` on Windows)."""
     lines = read_entry(filename, CONTAINER_TXT).decode("utf-8").splitlines(keepends=True)
-    assert lines[0] == f"# Version {CONTAINER_TXT_VERSION}\n"
-    lines[0:1] = [] if header is None else [header + "\n"]
+    first = lines[0].rstrip("\r\n")
+    assert first == f"# Version {CONTAINER_TXT_VERSION}"
+    lines[0:1] = [] if header is None else [header + lines[0][len(first):]]
     rewrite_fmu(filename, destination, replace={CONTAINER_TXT: "".join(lines).encode("utf-8")})
     return destination
 
