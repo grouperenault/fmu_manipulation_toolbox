@@ -10,6 +10,10 @@ extern "C" {
 #include "library.h"
 #include "logger.h"
 
+/* Format version of container.txt: the only one read by the runtime. Must be equal to CONTAINER_TXT_VERSION of
+ * fmu_manipulation_toolbox/container/types.py. */
+#define CONTAINER_TXT_VERSION		8
+
 /*----------------------------------------------------------------------------
                       C O N T A I N E R _ V R _ T
 ----------------------------------------------------------------------------*/

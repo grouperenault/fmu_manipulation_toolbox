@@ -25,7 +25,7 @@ from .errors import FMUContainerError
 from .layout import ContainerLayout
 from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import ClockList, FMUIOList, InvolvedFMU, LocalVariable, Port
-from .types import ALL_TYPES
+from .types import ALL_TYPES, CONTAINER_TXT_VERSION
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -908,7 +908,7 @@ class FMUContainer:
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
                      layout: ContainerLayout):
-        print("# Version 8", file=txt_file)
+        print(f"# Version {CONTAINER_TXT_VERSION}", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
         flags = [str(int(bool(flag))) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)

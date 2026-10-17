@@ -21,6 +21,7 @@ pytestmark = [pytest.mark.unit]
 
 REPOSITORY = Path(__file__).resolve().parent.parent.parent
 CONVERT_C = REPOSITORY / "container" / "convert.c"
+CONTAINER_H = REPOSITORY / "container" / "container.h"
 
 
 #: Public API of the `fmu_manipulation_toolbox.container` package: these classes must stay importable from it.
@@ -43,6 +44,14 @@ def test_conversions_match_the_c_runtime():
     """Every conversion written in `container.txt` is implemented by the runtime (`CASE(...)` of convert.c)."""
     c_names = set(re.findall(r"^\s*CASE\((\w+)\);", CONVERT_C.read_text(), flags=re.MULTILINE))
     assert set(Link.CONVERSION_FUNCTION.values()) == c_names
+
+
+@pytest.mark.skipif(not CONTAINER_H.is_file(), reason="C sources of the container runtime not available")
+def test_format_version_matches_the_c_runtime():
+    """The builder writes the only `container.txt` format version read by the runtime (`CONTAINER_TXT_VERSION`)."""
+    c_version = re.search(r"^#define\s+CONTAINER_TXT_VERSION\s+(\d+)", CONTAINER_H.read_text(), flags=re.MULTILINE)
+    assert c_version is not None
+    assert int(c_version.group(1)) == container_types.CONTAINER_TXT_VERSION
 
 
 def test_lossy_conversions_are_prefixed():
