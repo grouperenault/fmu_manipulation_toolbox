@@ -1,6 +1,6 @@
 # Propagation of the links during the initialization of a container
 
-**Created**: 17 October 2026 — **Status**: Step 1 done (17 October 2026), Step 2 to start — **Branch**: `feature/init-propagation` — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: Steps 1–2 done (17 October 2026), Step 3 to start — **Branch**: `feature/init-propagation` — **Roadmap**: not listed
 
 ## Context
 
@@ -124,6 +124,10 @@ Commit message: `Compute the initialization order of the embedded FMUs`
   getters of the container run the propagation first when it is set, in Initialization Mode only.
 - The rest of the sequence is unchanged (`fmuExitInitializationMode`, outputs read, event iteration, step mode);
   the reset of an FMU is unchanged.
+
+Done with the commit: the REF traces of `tests/data/probe` regenerated (S3: `B.y_init` = 6, `C.y_init` = 7), the
+REF logs of `tests/data/ls-bus` get the new debug message `Initialization: links propagated in <n> sweep(s).`; the
+other REF results of the test suite are unchanged.
 
 Commit message: `Propagate the links during the initialization of the container`
 
