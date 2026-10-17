@@ -1,6 +1,6 @@
 # Propagation of the links during the initialization of a container
 
-**Created**: 17 October 2026 — **Status**: draft, decisions to take before Step 1 — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: decisions taken (17 October 2026), Step 1 to start — **Branch**: `feature/init-propagation` — **Roadmap**: not listed
 
 ## Context
 
@@ -42,7 +42,7 @@ Only the internal links are concerned.
 
 ## Goal
 
-Optionally propagate the internal links during the initialization, so that each embedded FMU is initialized with
+Propagate the internal links during the initialization, so that each embedded FMU is initialized with
 the values computed by the FMUs it depends on, and so that a Simulink assembly migrated per
 `docs/examples/simulink-to-container.md` initializes as in Simulink without the start value workaround.
 
@@ -72,69 +72,81 @@ happens in `container_exit_initialization_mode`, once the importer has set every
 - Cycles: refuse (error at build time), cut with a warning (the FMU of the cycle that comes first in the
   configuration starts from its start values), or iterate (strategy (b) only: limit and tolerance).
 
-## Decisions to take (before Step 1)
+## Decisions (2026-10-17)
 
-1. **Strategy**: (a) sequential Simulink-like, (b) FMI-style in Initialization Mode, or both behind the option
-   (see decision 5)?
-2. **Order**: from the links only, or from the `InitialUnknowns` dependencies?
-3. **Cycles**: error, cut with a warning, or iteration?
-4. **Option**: name (e.g. `init_propagation`) and where it is given (JSON / CLI / GUI / MCP, as `mt` or
-   `sequential`); **default**: off (no change for the existing containers) or on (closer to Simulink and to the
-   standard, but the results at t=0, and sometimes beyond, change)?
-5. **Fidelity to Simulink**: must the option reproduce exactly the initialization measured on Simulink (strategy
-   (a): the downstream FMUs see the outputs read after the initialization of the upstream ones), so that the
-   migration page can state "same initialization as Simulink", or is a standard-oriented behaviour (b) acceptable,
-   the page then describing the remaining difference?
-6. **Scope**: FMI 2.0 and 3.0; Co-Simulation and Model Exchange FMUs (the ME FMUs are in Event Mode after
-   `fmuExitInitializationMode`); nested containers (each level propagates its own links)?
-7. **Reset of an embedded FMU**: keep its current initialization (inputs from the buffers), unchanged by the option?
-8. **Branch** of the work.
+1. **Strategy (b), FMI-style**: all the embedded FMUs stay in Initialization Mode while the linked values are
+   propagated: for each FMU in the initialization order, `fmu_set_inputs` (from the buffers of the container) then
+   `fmu_get_outputs` (outputs read in Initialization Mode); then `fmuExitInitializationMode` of every FMU.
+2. **Order**: from the links only: topological sort of the graph of the FMUs (an edge per FMU → FMU link), computed
+   by the builder.
+3. **Cycles**: iteration. The sweep of decision 1 is repeated (Gauss-Seidel, in the initialization order) until the
+   linked values do not change any more (tolerance of the container for the reals, equality otherwise), at most
+   `CONTAINER_MAX_EVENT_ITER` sweeps; without convergence, a **warning** is logged and the initialization goes on.
+4. **No option**: the propagation is always done. The results of the existing containers change (at t=0, and beyond
+   for the FMUs that compute their initial state from their inputs): the REF files concerned are regenerated.
+5. **Fidelity to Simulink**: for an acyclic chain, the values are those of Simulink when the outputs of an FMU do
+   not change at its `fmuExitInitializationMode` (Simulink reads them after it); Simulink does not solve the loops,
+   the container does. The migration page describes this remaining difference.
+6. **Scope**: FMI 2.0 and 3.0 embedded FMUs, Co-Simulation and Model Exchange, nested containers (each level
+   propagates its own links; a sub-container is an embedded FMU). The clocks and the clocked variables are **not**
+   propagated (FMI 3.0 activates no clock in Initialization Mode).
+7. **Reset of an embedded FMU**: unchanged (it is initialized with its inputs read from the buffers, without
+   propagation to the other FMUs).
+8. **Branch**: `feature/init-propagation`, from `importer-comparison`.
+9. **Outputs read by the importer in Initialization Mode**: an `fmi2Get*` / `fmi3Get*` of the container in
+   Initialization Mode first runs the propagation when it is pending (a value set by the importer since the last
+   propagation, or none done yet); `container_exit_initialization_mode` runs it when it is pending too.
 
-## Steps (draft, to be refined after the decisions)
+## Steps
 
-### Step 1 – Order of the initialization in the builder
+### Step 1 – Initialization order in the builder
 
-Graph of the FMUs from the links (or the `InitialUnknowns`), topological sort, handling of the cycles per decision
-3; the order written in `container.txt` (new line, new format version) when the option is on.
-Unit tests on assemblies with a chain, a fork, a cycle.
+- `fmu_manipulation_toolbox/container/builder.py`: graph of the embedded FMUs from the links (clocked links
+  excluded), topological sort; inside a cycle, the order of the configuration. Written in `container.txt` as a new
+  section `# Initialization order` (list of FMU indexes) after the embedded FMU declarations: format **version 8**.
+- `fmu_manipulation_toolbox/split.py` (`fmusplit`) reads version 8 (the section is ignored).
+- `docs/developer/container-txt-format.md`: version 8.
+- Unit tests: chain, fork, cycle, links to/from the container ports only (no edge), clocked links (no edge).
 
 Commit message: `Compute the initialization order of the embedded FMUs`
 
 ### Step 2 – Propagation in the runtime
 
-`container_exit_initialization_mode` per decision 1; reading of the new line of `container.txt`; FMI 2.0 and 3.0
-entry points unchanged.
+- `container/container.c`: reading of the section (version 8; versions ≤ 7: configuration order).
+- `container_exit_initialization_mode`: before the `fmuExitInitializationMode` of the FMUs, the propagation sweeps
+  of decisions 1 and 3 (non-clocked inputs and outputs only), with a snapshot of the linked local buffers to detect
+  the convergence; warning without convergence.
+- Decision 9: a "propagation pending" flag, set by `container_enter_initialization_mode` and by the setters of the
+  container in Initialization Mode (`container/fmi2.c`, `container/fmi3.c`), cleared by the propagation; the
+  getters of the container run the propagation first when it is set, in Initialization Mode only.
+- The rest of the sequence is unchanged (`fmuExitInitializationMode`, outputs read, event iteration, step mode);
+  the reset of an FMU is unchanged.
 
 Commit message: `Propagate the links during the initialization of the container`
 
-### Step 3 – Option in the API, CLI, GUI and MCP
+### Step 3 – Tests
 
-Option per decision 4 in the JSON description, the CLI, the GUI and the MCP assistant; `fmusplit` keeps it.
-
-Commit message: `Add the init_propagation option to the container builder`
-
-### Step 4 – Tests
-
-Probe scenario S3 (`tools/probe_fmu/scenarios`) with the option: `B.y_init` / `C.y_init` as in Simulink (compared
-with the Simulink traces by `tools/compare_traces.py`); new REF traces; existing REF results unchanged with the
-option off; ME and FMI 3.0 cases. The worked example of `docs/examples/simulink-to-container.md` is built with the
-option (the JSON of the page stays valid).
+- Probe scenario S3 (`tools/probe_fmu/scenarios`): `B.y_init` = 6, `C.y_init` = 7 (A: `p_real` 3, `u_cont` 2);
+  REF traces of `tests/data/probe` regenerated and reviewed; comparison with the Simulink traces of S3
+  (`tools/compare_traces.py`).
+- New probe scenario with a loop (`A.y_cont → B.u_cont`, `B.y_cont → A.u_cont`: convergence, and a divergent case
+  for the warning).
+- ME FMU and FMI 3.0 container cases; nested container.
+- The other REF results of the test suite: regenerated where the propagation changes them, each change reviewed.
 
 Commit message: `Test the propagation of the links during the initialization`
 
-### Step 5 – User documentation
+### Step 4 – User documentation
 
-- `docs/user-guide/fmucontainer/container.md`: the option (description file, CLI, Python API table), behaviour,
-  order, cycles.
-- `docs/developer/init-fmi-sequence.md`: the FMI sequence with the option.
+- `docs/user-guide/fmucontainer/container.md`: the propagation (behaviour, order, loops).
+- `docs/developer/init-fmi-sequence.md`: the FMI sequence with the propagation.
 - `docs/examples/simulink-to-container.md`:
-  - *Mapping of the concepts*: a row "initialization of the FMU blocks in the sorted order" → the option;
-  - *Worked example*: the option in `assembly.json` (per its default, decision 4);
-  - *Behaviour differences > Initialization*: the option reproduces the initialization of Simulink (or the remaining
-    difference, per decision 5); the start value workaround kept for containers built without the option and for
-    the cycles (decision 3);
-  - *Validation checklist*: item "option set" (or default), item 6 updated.
-- `docs/local/importer_comparison_report.md`: TL;DR point 1 and the *Follow-up* section pointing at the option.
-- `CHANGELOG.md`: 🟢 **ADDED** entry (FMU Container), linking the container guide and the migration page.
+  - *Behaviour differences > Initialization*: the container propagates the links like Simulink; remaining
+    difference (outputs read in Initialization Mode vs after it; loops solved by the container, not by Simulink);
+    the start value workaround removed;
+  - *Validation checklist*: item 6 updated.
+- `docs/local/importer_comparison_report.md`: TL;DR point 1 and the *Follow-up* section updated.
+- `CHANGELOG.md`: 🔵 **CHANGED** entry (FMU Container): the links are propagated during the initialization (results
+  at t=0 may change), linking the container guide and the migration page.
 
 Commit message: `Document the propagation of the links during the initialization`
