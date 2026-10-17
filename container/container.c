@@ -209,9 +209,10 @@ static fmu_status_t container_proceed_event(container_t *container) {
 }
 
 
-/* Step used when no event shortens it. */
+/* Step used when no event shortens it. A TS_MULTIPLIER below 1 counts as 1, as in container_do_step(). */
 static double container_nominal_step(const container_t *container) {
-    return container->time_step * container->integers32[0];
+    const int ts_multiplier = container->integers32[0];
+    return container->time_step * (ts_multiplier < 1 ? 1 : ts_multiplier);
 }
 
 
