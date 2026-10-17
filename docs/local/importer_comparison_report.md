@@ -1,7 +1,7 @@
 # Report: FMU Container vs Simulink, seen by the probe FMU
 
-**Date**: 17 October 2026 — **Plan**: `docs/local/importer_comparison.md` (Step 4) — **Branch**:
-`feature/init-propagation`
+**Date**: 18 October 2026 — **Plan**: `docs/local/importer_comparison.md` (Step 4) — **Branch**:
+`feature/container-substep`
 
 ## TL;DR
 
@@ -29,6 +29,9 @@ What still separates the two importers is the treatment of the unconnected input
 - **Simulink**: MATLAB R2024b Update 7, Windows 11, models built and run by
   `tools/probe_fmu/scenarios/simulink/` (fixed-step discrete solver, step 0.01 s, block reduction off, one root
   `Outport` per unconnected output).
+- **Reproducibility**: the container traces of the scenarios are frozen in `tests/data/probe` and checked by the
+  test suite, on macOS and in the Windows CI (green). The values are the same on both platforms; only the last
+  digits of the times and step sizes differ (MSVC compiles the runtime with `/fp:fast`), within a relative 1e-9.
 - Detailed comparison: `python tools/compare_traces.py <results> -output report.md` (results not versioned,
   `<results>/<scenario>/{container,simulink}/`).
 
@@ -75,13 +78,15 @@ Both read every output after `fmi2ExitInitializationMode`, then step.
 | Fast → slow (`B.u_cont` = `A.y_time` at t = 0.02, 0.04) | exchanged every 0.1 s | 0.02, 0.04 | 0.02, 0.04 | 0.02, 0.04 | 0.02, 0.04 |
 | Slow → fast (`A.u_disc` = `C.y_time`) | exchanged every 0.1 s | value at the step time | held since the last step of C | held since the last step of C | **one period of C later** |
 
-- A single container steps every FMU with its own step: an FMU with a fixed step
+- A single container steps every FMU with the step of the container: an FMU with a fixed step
   (`canHandleVariableCommunicationStepSize = false`) receives a step size different from its own.
 - **One sub-container per rate**, the parent at the fastest rate (scenario `S4c`), gives the **same inputs at every
   step as Simulink single-tasking** for the three FMUs: every FMU gets its own step size, a sub-container slower than
   its parent uses the inputs of the beginning of each of its steps and holds its outputs until the end of the step
   (`docs/local/done/container_substep.md`). With the parent at the slowest rate (0.05 s, its default, scenario `S4d`),
-  the fast FMUs exchange their values only every 0.05 s.
+  the fast FMUs exchange their values only every 0.05 s. The same rule holds for any sub-container slower than its
+  parent: in the test suite, a sub-container of 0.5 s in a parent of 0.01 s shows at t = 1.0 the value computed
+  from its input at t = 0.5 (Windows CI).
 
 ### 5. Feedthrough and ordering (S5: chain `A → B → C`)
 
