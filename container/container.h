@@ -104,6 +104,10 @@ typedef struct container_s {
 	unsigned int				nb_cs;
 	fmu_t						**cs_fmu;
 
+	/* Indexes of fmu[] in the order of the propagation of the links during the initialization (nb_fmu entries). */
+	int							*init_order;
+	bool						init_propagation_pending;	/* a value changed since the last propagation */
+
 	/* ME working set (states, derivatives, event indicators, flat buffers). */
 	struct solver_s				*solver;
 
@@ -224,6 +228,7 @@ extern fmu_status_t container_setup_experiment(container_t* container, bool tole
                                                double startTime, bool stopTimeDefined, double stopTime);
 extern fmu_status_t container_enter_initialization_mode(container_t* container);
 extern fmu_status_t container_exit_initialization_mode(container_t* container);
+extern fmu_status_t container_propagate_initialization(container_t* container);
 extern fmu_status_t container_terminate(container_t* container);
 extern fmu_status_t container_reset(container_t* container);
 extern fmu_status_t container_enter_event_mode(container_t *container);

@@ -60,7 +60,7 @@ directly (`container/fmi2.c:182-211`). Only the **internal links** (FMU → FMU)
   default to decide).
 
 **Decision rule**: scenario S3 measures whether Simulink propagates the links during initialization, and in which
-order. If it does, a dedicated plan (`docs/local/init_propagation.md`) is opened after Step 4 (option and default,
+order. If it does, a dedicated plan (`docs/local/done/init_propagation.md`) is opened after Step 4 (option and default,
 algebraic loops, FMI 2.0 / 3.0, ME FMUs). Until it is implemented, the migration documentation describes the
 difference and its workaround.
 
@@ -242,13 +242,13 @@ Commit message: `Add the traces of the comparison scenarios run in Simulink`
 initialization, `doStep` times and `h`, producer → consumer delay, wall time). Integration tests freezing the
 container traces of S1–S5 (wall clock excluded). Report of the differences in `docs/local`, including the
 answers to the `UNVERIFIED` points of `docs/local/simulink_export.md` (referenced from that plan), and the
-conclusion on the propagation of the links during initialization (S3): open `docs/local/init_propagation.md` or
+conclusion on the propagation of the links during initialization (S3): open `docs/local/done/init_propagation.md` or
 not, see *Follow-up: propagation of the links during initialization*.
 
 Done: `tools/compare_traces.py`, reference traces `tests/data/probe/REF-<scenario>-<instance>.csv` (container,
 S1–S5, without `wall`) checked by `tests/integration/test_probe_fmu.py`, report
 `docs/local/importer_comparison_report.md`. Simulink propagates the links during the initialization: the plan
-`docs/local/init_propagation.md` is to be opened (decision of the user).
+`docs/local/done/init_propagation.md` opened and implemented (branch `feature/init-propagation`).
 
 Commit message: `Compare the traces of the FMU container and Simulink`
 

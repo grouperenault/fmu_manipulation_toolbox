@@ -21,6 +21,7 @@ calls received by the FMUs in both importers.
 | Value of an FMU parameter in the block dialog | `start`: `[fmu, parameter, value]` |
 | Start value of an FMU input | `start`: `[fmu, input, value]` |
 | Sample time of the FMU block (`FMUSampleTime`) and fixed step of the solver | `step_size` of the container (see [Sample times](#sample-times)) |
+| FMU blocks of different sample times | one sub-container per sample time, with its own `step_size` (see [One sub-container per sample time](#one-sub-container-per-sample-time)) |
 | Single-tasking / multi-tasking | no equivalent; `mt` runs the FMUs in parallel threads (see [Computation time](#computation-time)) |
 
 Declare everything explicitly: set `auto_link`, `auto_input` (and possibly `auto_output`) to `false`, so that
@@ -67,15 +68,25 @@ The choice of `step_size` (here the fastest sample time) is discussed in [Sample
 
 ### Initialization
 
-**Simulink** initializes the FMU blocks one after the other, in the order of their connections: the inputs of a
-block are set from the outputs of the blocks upstream, read after *their* initialization, before the block leaves
-its Initialization Mode. **The container does not propagate its links during the initialization**: each embedded
-FMU is initialized with its inputs at their start values; the values of the links reach the inputs at the first
-step.
+Both **propagate the links during the initialization**: an FMU whose initial state, or calculated parameters,
+depend on its inputs is initialized with the values of the FMUs upstream (see
+[Initialization of the embedded FMU's](../user-guide/fmucontainer/container.md#initialization-of-the-embedded-fmus)).
+On a chain of three FMUs whose initial outputs depend on their inputs, the container and Simulink give **the same
+initial values and the same values at every step**, once the unconnected inputs have the value Simulink imposes
+(see below).
 
-This matters when an FMU computes its initial state, or calculated parameters, from its inputs: its whole
-simulation can then differ. To get the same initialization in the container, give such inputs a start value equal
-to the value the upstream FMU produces at the initialization (`start` block).
+Two differences remain in the way they do it:
+
+- **Simulink** first sets the parameters of every FMU block, then initializes the blocks one after the other, in the
+  order of their connections, and reads the outputs of a block *after* its initialization; **the container** keeps
+  all the FMUs in Initialization Mode and reads their outputs *during* it. The values are the same unless an FMU
+  changes an output when it leaves its Initialization Mode.
+- **Loops of links**: Simulink does not solve them at the initialization; the container repeats the propagation
+  until the values do not change (warning when there is no fixed point).
+
+The [unconnected inputs](#unconnected-inputs) also take part in the initialization: give them the value of
+Simulink (0) to get the same initial values. An input left at another start value in the container shifts the
+initial values of every FMU downstream.
 
 ### Unconnected inputs
 
@@ -105,9 +116,59 @@ container.
   Simulink, but `medium` and `slow` receive steps of 0.01 s instead of 0.02 s and 0.05 s.
 
 An FMU that cannot handle another step size than its own (`canHandleVariableCommunicationStepSize="false"` and a
-strict implementation) has no exact equivalent in a container of several rates: the container reports a warning
-for each FMU whose step size does not divide its step. Group the FMUs by rate, or check that each FMU accepts the
-step of the container.
+strict implementation) cannot be stepped correctly by such a container: the container reports a warning for each FMU
+whose step size does not divide its step. Use one sub-container per sample time.
+
+#### One sub-container per sample time
+
+Each [nested container](../user-guide/fmucontainer/container.md) has its own `step_size` and steps its FMUs with it:
+group the FMUs of each Simulink sample time in a sub-container, and connect the sub-containers in the parent
+container. For the worked example:
+
+```json
+{
+  "name": "assembly.fmu",
+  "step_size": 0.01,
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": false,
+  "container": [
+    {"name": "fast_rate.fmu", "step_size": 0.01, "auto_link": false, "auto_input": false, "auto_output": false,
+     "fmu": ["fast.fmu"],
+     "input": [["command", "fast.fmu", "command"], ["u", "fast.fmu", "u"]],
+     "output": [["fast.fmu", "y", "y"]]},
+    {"name": "medium_rate.fmu", "step_size": 0.02, "auto_link": false, "auto_input": false, "auto_output": false,
+     "fmu": ["medium.fmu"],
+     "input": [["u", "medium.fmu", "u"]],
+     "output": [["medium.fmu", "y", "y"]],
+     "start": [["medium.fmu", "gain", 2]]},
+    {"name": "slow_rate.fmu", "step_size": 0.05, "auto_link": false, "auto_input": false, "auto_output": false,
+     "fmu": ["slow.fmu"],
+     "input": [["u", "slow.fmu", "u"]],
+     "output": [["slow.fmu", "y", "y"], ["slow.fmu", "result", "result"]]}
+  ],
+  "link": [
+    ["fast_rate.fmu", "y", "medium_rate.fmu", "u"],
+    ["medium_rate.fmu", "y", "slow_rate.fmu", "u"],
+    ["slow_rate.fmu", "y", "fast_rate.fmu", "u"]
+  ],
+  "input": [["command", "fast_rate.fmu", "command"]],
+  "output": [["slow_rate.fmu", "result", "result"]]
+}
+```
+
+- Every FMU receives **its own step size**, as in Simulink: `fast` 0.01 s, `medium` 0.02 s, `slow` 0.05 s.
+- Give the parent container the **fastest sample time** (`step_size` 0.01 s): the sub-containers exchange their
+  values as often as the fastest FMU. Without `step_size`, the parent takes the largest step of the
+  sub-containers (0.05 s): the fast FMUs then exchange their values only every 0.05 s, and the parent reports that
+  the step of the sub-containers does not divide its own.
+- **Remaining difference**: a sub-container slower than its parent makes its step at the **last** call of the
+  parent in its period, with the inputs of that call, while Simulink steps the block at the **beginning** of its
+  period with the inputs of that instant. A value going from a faster FMU to a slower one is therefore more recent
+  than in Simulink, by up to one period of the slower FMU minus one step of the parent (in the example, `medium`
+  at t = 0.02 s sees the output of `fast` at 0.03 s instead of 0.02 s, and `slow` at t = 0 sees the output of
+  `medium` at 0.04 s instead of its initial value). The values going from a slower FMU to a faster one are the
+  same as in Simulink (held between the steps of the slower FMU).
 
 In multi-tasking, Simulink also delays the transfers from a slow block to a fast one by one period of the slow
 block (deterministic *Rate Transition*). The container has no such delay.
@@ -120,7 +181,8 @@ the next FMU one step later: along a chain `A → B → C` where `B` passes its 
 of `A` one step after `B` does, **even when `B` declares a direct dependency** (feedthrough) of this output on its
 input.
 
-The **default scheduling of the container** gives the same delays. The `sequential` option steps the FMUs one
+The **default scheduling of the container** gives the same delays: on such a chain, the inputs received by each FMU
+at every step are the same as in Simulink. The `sequential` option steps the FMUs one
 after the other in the order of the `fmu` list, each one with the outputs just computed by the previous ones:
 along the order of the chain, the delays disappear, which changes the results compared to Simulink. Keep the
 default scheduling to reproduce Simulink.
@@ -140,5 +202,5 @@ is shared between the cores, without changing the results.
 4. Default scheduling (no `sequential`).
 5. Same stop time; simulate the container (e.g. with `fmpy`) with an output interval equal to its step.
 6. Compare the outputs at the common sample times; a difference at the beginning only points at the
-   [initialization](#initialization), a difference that grows points at the [sample times](#sample-times) or at a
-   start value.
+   [initialization](#initialization) (an unconnected input, a loop of links), a difference that grows points at
+   the [sample times](#sample-times) or at a start value.

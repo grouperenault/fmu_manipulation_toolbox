@@ -410,6 +410,167 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
 }
 
 
+/*----------------------------------------------------------------------------
+     P R O P A G A T I O N   D U R I N G   T H E   I N I T I A L I Z A T I O N
+----------------------------------------------------------------------------*/
+
+/* Copy of the local variables (the values of the links), to detect the convergence of the propagation. */
+typedef struct {
+#define DECLARE_SNAPSHOT(name, type) type *name;
+    DECLARE_SNAPSHOT(reals64, double)
+    DECLARE_SNAPSHOT(reals32, float)
+    DECLARE_SNAPSHOT(integers8, int8_t)
+    DECLARE_SNAPSHOT(uintegers8, uint8_t)
+    DECLARE_SNAPSHOT(integers16, int16_t)
+    DECLARE_SNAPSHOT(uintegers16, uint16_t)
+    DECLARE_SNAPSHOT(integers32, int32_t)
+    DECLARE_SNAPSHOT(uintegers32, uint32_t)
+    DECLARE_SNAPSHOT(integers64, int64_t)
+    DECLARE_SNAPSHOT(uintegers64, uint64_t)
+    DECLARE_SNAPSHOT(booleans, int)
+    DECLARE_SNAPSHOT(booleans1, bool)
+    DECLARE_SNAPSHOT(strings, char *)
+#undef DECLARE_SNAPSHOT
+} init_snapshot_t;
+
+#define FOR_ALL_EXACT_LOCALS(X) \
+    X(integers8) X(uintegers8) X(integers16) X(uintegers16) X(integers32) X(uintegers32) \
+    X(integers64) X(uintegers64) X(booleans) X(booleans1)
+
+
+static void init_snapshot_free(const container_t *container, init_snapshot_t *snapshot) {
+#define FREE_SNAPSHOT(name) free(snapshot->name);
+    FREE_SNAPSHOT(reals64)
+    FREE_SNAPSHOT(reals32)
+    FOR_ALL_EXACT_LOCALS(FREE_SNAPSHOT)
+#undef FREE_SNAPSHOT
+    if (snapshot->strings) {
+        for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
+            free(snapshot->strings[i]);
+        free(snapshot->strings);
+    }
+}
+
+
+static int init_snapshot_alloc(const container_t *container, init_snapshot_t *snapshot) {
+    memset(snapshot, 0, sizeof(*snapshot));
+#define ALLOC_SNAPSHOT(name)                                                                \
+    if (container->nb_local_ ## name > 0) {                                                 \
+        snapshot->name = calloc(container->nb_local_ ## name, sizeof(*snapshot->name));     \
+        if (!snapshot->name)                                                                \
+            return -1;                                                                      \
+    }
+    ALLOC_SNAPSHOT(reals64)
+    ALLOC_SNAPSHOT(reals32)
+    FOR_ALL_EXACT_LOCALS(ALLOC_SNAPSHOT)
+    ALLOC_SNAPSHOT(strings)
+#undef ALLOC_SNAPSHOT
+    return 0;
+}
+
+
+static int init_snapshot_take(const container_t *container, init_snapshot_t *snapshot) {
+#define TAKE_SNAPSHOT(name)                                                                 \
+    if (container->nb_local_ ## name > 0)                                                   \
+        memcpy(snapshot->name, container->name, container->nb_local_ ## name * sizeof(*snapshot->name));
+    TAKE_SNAPSHOT(reals64)
+    TAKE_SNAPSHOT(reals32)
+    FOR_ALL_EXACT_LOCALS(TAKE_SNAPSHOT)
+#undef TAKE_SNAPSHOT
+    for (unsigned long i = 0; i < container->nb_local_strings; i += 1) {
+        free(snapshot->strings[i]);
+        snapshot->strings[i] = container->strings[i] ? strdup(container->strings[i]) : NULL;
+        if (container->strings[i] && !snapshot->strings[i])
+            return -1;
+    }
+    return 0;
+}
+
+
+/* True when the local variables are those of the snapshot: reals within the tolerance of the container, the other
+   types equal. */
+static bool init_snapshot_same(const container_t *container, const init_snapshot_t *snapshot) {
+#define SAME_REALS(name)                                                                    \
+    for (unsigned long i = 0; i < container->nb_local_ ## name; i += 1) {                   \
+        const double a = (double)container->name[i], b = (double)snapshot->name[i];         \
+        if (fabs(a - b) > container->tolerance * fmax(1.0, fabs(b)))                        \
+            return false;                                                                   \
+    }
+    SAME_REALS(reals64)
+    SAME_REALS(reals32)
+#undef SAME_REALS
+#define SAME_EXACT(name)                                                                    \
+    if ((container->nb_local_ ## name > 0) &&                                               \
+        memcmp(snapshot->name, container->name, container->nb_local_ ## name * sizeof(*snapshot->name))) \
+        return false;
+    FOR_ALL_EXACT_LOCALS(SAME_EXACT)
+#undef SAME_EXACT
+    for (unsigned long i = 0; i < container->nb_local_strings; i += 1) {
+        const char *a = container->strings[i], *b = snapshot->strings[i];
+        if ((a != b) && (!a || !b || strcmp(a, b)))
+            return false;
+    }
+    return true;
+}
+
+
+/*
+ * Propagation of the links between the embedded FMUs during the initialization (docs/local/done/init_propagation.md):
+ * every FMU is in Initialization Mode. In the initialization order, each FMU gets its linked inputs from the local
+ * variables, then its outputs are read into them. The sweep is repeated until the local variables do not change any
+ * more (a loop of links), at most CONTAINER_MAX_EVENT_ITER times: without convergence, a warning. Clocks and clocked
+ * variables are not propagated. Done only when a value changed since the last propagation.
+ */
+fmu_status_t container_propagate_initialization(container_t* container) {
+    if (!container->init_propagation_pending)
+        return FMU_STATUS_OK;
+
+    init_snapshot_t snapshot;
+    if (init_snapshot_alloc(container, &snapshot)) {
+        init_snapshot_free(container, &snapshot);
+        logger(LOGGER_ERROR, "Container: cannot allocate the propagation of the initialization.");
+        return FMU_STATUS_ERROR;
+    }
+
+    fmu_status_t status = FMU_STATUS_OK;
+    bool converged = false;
+    int iter;
+    for (iter = 0; iter < CONTAINER_MAX_EVENT_ITER; iter += 1) {
+        if (init_snapshot_take(container, &snapshot)) {
+            logger(LOGGER_ERROR, "Container: cannot allocate the propagation of the initialization.");
+            status = FMU_STATUS_ERROR;
+            break;
+        }
+        for (int k = 0; (k < container->nb_fmu) && (status == FMU_STATUS_OK); k += 1) {
+            const fmu_t *fmu = &container->fmu[container->init_order[k]];
+            status = fmu_set_inputs(fmu);
+            if (status == FMU_STATUS_OK)
+                status = fmu_get_outputs(fmu);
+            if (status != FMU_STATUS_OK)
+                logger(LOGGER_ERROR, "Container: FMU '%s' failed the propagation of the initialization.", fmu->name);
+        }
+        if (status != FMU_STATUS_OK)
+            break;
+        if (init_snapshot_same(container, &snapshot)) {
+            converged = true;
+            break;
+        }
+    }
+    init_snapshot_free(container, &snapshot);
+
+    if (status != FMU_STATUS_OK)
+        return status;
+    if (converged)
+        logger(LOGGER_DEBUG, "Initialization: links propagated in %d sweep(s).", iter + 1);
+    else
+        logger(LOGGER_WARNING, "Initialization: the propagation of the links did not converge after %d sweeps "
+               "(loop of links).", CONTAINER_MAX_EVENT_ITER);
+
+    container->init_propagation_pending = false;
+    return FMU_STATUS_OK;
+}
+
+
 fmu_status_t container_enter_initialization_mode(container_t* container) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (fmuEnterInitializationMode(&container->fmu[i], container->start_time) != FMU_STATUS_OK)
@@ -417,6 +578,7 @@ fmu_status_t container_enter_initialization_mode(container_t* container) {
     }
 
     container_set_start_values(container, 0);
+    container->init_propagation_pending = true;
 
     return FMU_STATUS_OK;
 }
@@ -447,6 +609,10 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
         logger(LOGGER_ERROR, "Cannot build ME solver.");
         return -9;
     }
+
+    status = container_propagate_initialization(container);
+    if (status != FMU_STATUS_OK)
+        return status;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         status = fmuExitInitializationMode(&container->fmu[i]);
@@ -1323,6 +1489,35 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
 }
 
 
+/*
+ * # Initialization order of the embedded FMU's
+ * <index> <index> ...      (every index of fmu[] once)
+ */
+static int read_conf_init_order(container_t *container, config_file_t *file) {
+    CONFIG_GETLINE;
+    CONFIG_ALLOC(container->init_order, container->nb_fmu > 0 ? container->nb_fmu : 1);
+
+    const char *cursor = file->line;
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        char *end;
+        const long index = strtol(cursor, &end, 10);
+        if ((end == cursor) || (index < 0) || (index >= container->nb_fmu)) {
+            CONFIG_ERROR("Cannot read the %dth index of the initialization order.", i);
+            return -1;
+        }
+        for (int j = 0; j < i; j += 1) {
+            if (container->init_order[j] == (int)index) {
+                CONFIG_ERROR("FMU#%ld is twice in the initialization order.", index);
+                return -1;
+            }
+        }
+        container->init_order[i] = (int)index;
+        cursor = end;
+    }
+    return 0;
+}
+
+
 static int read_conf_fmu(container_t *container, const char *dirname, config_file_t* file) {
     int nb_cs, nb_me;
 
@@ -2152,6 +2347,12 @@ int container_configure(container_t* container, const char* resource_location) {
         return -4;
     }
 
+    if (read_conf_init_order(container, &file)) {
+        config_file_close(&file);
+        logger(LOGGER_ERROR, "Cannot read the initialization order.");
+        return -4;
+    }
+
     if (read_conf_local(container, &file)) {
         config_file_close(&file);
         logger(LOGGER_ERROR, "Cannot allocate local variables.");
@@ -2354,6 +2555,8 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
 
         container->nb_fmu = 0;
         container->fmu = NULL;
+        container->init_order = NULL;
+        container->init_propagation_pending = false;
 
         container->nb_cs = 0;
         container->cs_fmu = NULL;
@@ -2451,6 +2654,7 @@ void container_free(container_t *container) {
 
     solver_free(container->solver);
     free(container->cs_fmu);
+    free(container->init_order);
 
     free(container->instance_name);
     free(container->uuid);
