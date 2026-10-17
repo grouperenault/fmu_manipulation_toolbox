@@ -1,6 +1,6 @@
 # Communication steps that are not a multiple of the container step
 
-**Created**: 17 October 2026 — **Status**: decisions taken (17 October 2026), Step 1 to start — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: Step 1 done (17 October 2026), Step 2 to start — **Roadmap**: not listed
 
 ## Context
 
@@ -78,6 +78,15 @@ held outputs need a buffer.
 
 `container_do_step` per decisions 1–4: pending internal step, latched inputs or held outputs, container time at
 `t + h` after every call; the getters and setters of `container/fmi2.c` / `container/fmi3.c` per decision 1.
+
+Done: `container/container.c` (`container_do_step` loops over the internal steps that end before `t + h`, the
+multiplier read before each one; `step_pending` when a step does not fit; `container_apply_deferred` after the
+pending step), `container/container.h` (`step_pending`, `container_port_t.deferred`), the setters of
+`container/fmi2.c` / `container/fmi3.c` (numbers, strings, binaries; clocks unchanged) defer while a step is
+pending; the cache of the importer values covers every port with a link (FMU or local variable). Check: S4 with one
+sub-container per rate and the parent at 0.01 s gives, for the 5 links, the inputs of the Simulink traces of S4s
+at every step; with the parent at its default step (0.05 s), the link from the fast to the medium FMU exchanges
+every 0.05 s only (decision 5). The REF results of the test suite are unchanged.
 
 Commit message: `Handle communication steps that are not a multiple of the container step`
 
