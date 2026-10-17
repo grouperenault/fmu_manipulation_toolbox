@@ -1,7 +1,7 @@
 # Plan: performance of the container runtime — grouped FMI calls and targeted ME coupling
 
-**Created**: 17 October 2026 — **Status**: steps 1 to 3 done on `feature/optimize-fmi-calls` (17 October 2026),
-point 1 abandoned (D10); step 4 (documentation) to do — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: done (17 October 2026) on `feature/optimize-fmi-calls`, point 1
+abandoned (D10) — **Roadmap**: not listed
 
 A review of the runtime (17 October 2026, code reading, no measurement) found two costs in the path of each
 internal step:
@@ -172,10 +172,11 @@ Commit message: `Container runtime: refresh only the ME to ME couplings during t
 
 ### Step 4 — Documentation
 
-- `CHANGELOG.md` (section *Upstream*, *FMU Container*): 🔵 **CHANGED** faster exchanges with the embedded FMUs and
-  ME integration, with the measured gains.
-- `docs/user-guide/fmucontainer/container.md`: a short *Performance* paragraph if the gains are significant (one
-  call per type, couplings of the ME solver).
+- `CHANGELOG.md` (section *Upstream*, *FMU Container*): 🔵 **CHANGED** ME integration, with the measured gains
+  (as a reduction of the time, and as a speed-up factor).
+- `docs/user-guide/fmucontainer/container.md`: one sentence in *Model-Exchange support* (only the ME → ME
+  couplings are exchanged during the integration), no figures (decided on 17 October 2026).
+- `docs/help/contributing.md`: section *Benchmark of the container runtime* (decided on 17 October 2026).
 - Move this plan to `docs/local/done`.
 
 Commit message: `Document the performance work on the container runtime`
@@ -218,6 +219,9 @@ and the new `container.dylib` alternately, 3 rounds of 5 runs, best time).
 | D-mixed | 0.728 / 0.751 | 10 / 9 |
 | E-same-type | 0.609 / 0.625 | 190 / 38 |
 
+In the tables below, *gain* is the reduction of the time of the loop: (before − after) / before; a gain of 33 %
+means 1.5 times faster.
+
 Step 2 (grouped exchanges, abandoned, see D10), A/B against step 1, best time in seconds and gain:
 
 | Case | Step 1 | Grouped | Gain | Grouped + direct call for one port | Gain |
@@ -241,7 +245,7 @@ Step 3 (targeted ME coupling), A/B against step 1, best time in seconds and gain
 | B-uncoupled | 0.749 | 0.710 | +5.2 % |
 | C-euler | 0.720 | 0.706 | +1.9 % |
 | C-rk4 | 0.859 | 0.849 | +1.2 % |
-| D-mixed | 0.723 | 0.484 | **+33.1 %** |
+| D-mixed | 0.723 | 0.484 | **+33.1 %** (1.49 times faster) |
 | E-same-type | 0.608 | 0.616 | -1.3 % (noise: CS only) |
 
 The gain comes where the sweep exchanged values that do not change during the step: ME FMUs fed by Co-Simulation FMUs

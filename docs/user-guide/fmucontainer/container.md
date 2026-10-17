@@ -370,6 +370,9 @@ How it works:
   step small enough for the dynamics of your ME models.
 - State events (via event indicators) and time events are detected and handled so that the coupled set
   of ME FMU's stays consistent.
+- During the integration, only the couplings between ME FMU's are exchanged at each evaluation of the
+  solver: the inputs fed by Co-Simulation FMU's or by the importer do not change during a step, they are
+  set once per step.
 - The number of continuous states (`nx`) and of event indicators (`nz`) is computed automatically from
   the FMU's `<ModelStructure>` (FMI-2.0 `<Derivatives>` / FMI-3.0 `<ContinuousStateDerivative>` and
   `<EventIndicator>`). You can inspect these values with `fmudump`, which now reports `nx` and `nz` for
