@@ -814,7 +814,7 @@ class WireDetailWidget(QWidget):
             self.sync_to_wire()
         current = list(wire.mappings)
         fed = {(m[2], m[3]) for m in current if len(m) >= 4}
-        added = [m for m in mappings if (m[2], m[3]) not in fed]
+        added = [tuple(m) for m in mappings if (m[2], m[3]) not in fed]
         skipped = len(mappings) - len(added)
         wire.mappings = current + added
         wire.update()
