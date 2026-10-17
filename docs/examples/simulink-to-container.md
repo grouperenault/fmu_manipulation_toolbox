@@ -21,6 +21,7 @@ calls received by the FMUs in both importers.
 | Value of an FMU parameter in the block dialog | `start`: `[fmu, parameter, value]` |
 | Start value of an FMU input | `start`: `[fmu, input, value]` |
 | Sample time of the FMU block (`FMUSampleTime`) and fixed step of the solver | `step_size` of the container (see [Sample times](#sample-times)) |
+| FMU blocks of different sample times | one sub-container per sample time, with its own `step_size` (see [One sub-container per sample time](#one-sub-container-per-sample-time)) |
 | Single-tasking / multi-tasking | no equivalent; `mt` runs the FMUs in parallel threads (see [Computation time](#computation-time)) |
 
 Declare everything explicitly: set `auto_link`, `auto_input` (and possibly `auto_output`) to `false`, so that
@@ -115,9 +116,59 @@ container.
   Simulink, but `medium` and `slow` receive steps of 0.01 s instead of 0.02 s and 0.05 s.
 
 An FMU that cannot handle another step size than its own (`canHandleVariableCommunicationStepSize="false"` and a
-strict implementation) has no exact equivalent in a container of several rates: the container reports a warning
-for each FMU whose step size does not divide its step. Group the FMUs by rate, or check that each FMU accepts the
-step of the container.
+strict implementation) cannot be stepped correctly by such a container: the container reports a warning for each FMU
+whose step size does not divide its step. Use one sub-container per sample time.
+
+#### One sub-container per sample time
+
+Each [nested container](../user-guide/fmucontainer/container.md) has its own `step_size` and steps its FMUs with it:
+group the FMUs of each Simulink sample time in a sub-container, and connect the sub-containers in the parent
+container. For the worked example:
+
+```json
+{
+  "name": "assembly.fmu",
+  "step_size": 0.01,
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": false,
+  "container": [
+    {"name": "fast_rate.fmu", "step_size": 0.01, "auto_link": false, "auto_input": false, "auto_output": false,
+     "fmu": ["fast.fmu"],
+     "input": [["command", "fast.fmu", "command"], ["u", "fast.fmu", "u"]],
+     "output": [["fast.fmu", "y", "y"]]},
+    {"name": "medium_rate.fmu", "step_size": 0.02, "auto_link": false, "auto_input": false, "auto_output": false,
+     "fmu": ["medium.fmu"],
+     "input": [["u", "medium.fmu", "u"]],
+     "output": [["medium.fmu", "y", "y"]],
+     "start": [["medium.fmu", "gain", 2]]},
+    {"name": "slow_rate.fmu", "step_size": 0.05, "auto_link": false, "auto_input": false, "auto_output": false,
+     "fmu": ["slow.fmu"],
+     "input": [["u", "slow.fmu", "u"]],
+     "output": [["slow.fmu", "y", "y"], ["slow.fmu", "result", "result"]]}
+  ],
+  "link": [
+    ["fast_rate.fmu", "y", "medium_rate.fmu", "u"],
+    ["medium_rate.fmu", "y", "slow_rate.fmu", "u"],
+    ["slow_rate.fmu", "y", "fast_rate.fmu", "u"]
+  ],
+  "input": [["command", "fast_rate.fmu", "command"]],
+  "output": [["slow_rate.fmu", "result", "result"]]
+}
+```
+
+- Every FMU receives **its own step size**, as in Simulink: `fast` 0.01 s, `medium` 0.02 s, `slow` 0.05 s.
+- Give the parent container the **fastest sample time** (`step_size` 0.01 s): the sub-containers exchange their
+  values as often as the fastest FMU. Without `step_size`, the parent takes the largest step of the
+  sub-containers (0.05 s): the fast FMUs then exchange their values only every 0.05 s, and the parent reports that
+  the step of the sub-containers does not divide its own.
+- **Remaining difference**: a sub-container slower than its parent makes its step at the **last** call of the
+  parent in its period, with the inputs of that call, while Simulink steps the block at the **beginning** of its
+  period with the inputs of that instant. A value going from a faster FMU to a slower one is therefore more recent
+  than in Simulink, by up to one period of the slower FMU minus one step of the parent (in the example, `medium`
+  at t = 0.02 s sees the output of `fast` at 0.03 s instead of 0.02 s, and `slow` at t = 0 sees the output of
+  `medium` at 0.04 s instead of its initial value). The values going from a slower FMU to a faster one are the
+  same as in Simulink (held between the steps of the slower FMU).
 
 In multi-tasking, Simulink also delays the transfers from a slow block to a fast one by one period of the slow
 block (deterministic *Rate Transition*). The container has no such delay.
