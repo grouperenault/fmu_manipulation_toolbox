@@ -69,6 +69,22 @@ When no time step is given, the container deduces it from the `stepSize` of the 
 
 When the time step is given, a warning is reported for each FMU with a fixed step that does not divide it.
 
+## Communication step and internal step
+
+The importer of a container (a simulation tool, or the parent of a nested container) calls it with its own
+*communication step* `h`; the container steps its embedded FMU's with its *internal step* `H` (its time step,
+times the `TS_MULTIPLIER` input when [enabled](container-vr.md)). When `h` is not a multiple of `H` — for instance a
+parent at 0.01 s and a sub-container at 0.02 s — the container behaves like an FMU with a fixed internal step:
+
+- each internal step `[T, T + H]` uses the **inputs of its beginning** `T`: the values set by the importer during
+  the step are kept for the following steps;
+- its **outputs are held** until the end `T + H` of the step;
+- the internal step is made by the call of the importer that reaches its end, and the container is at the end of
+  every communication step.
+
+This makes it possible to gather FMU's of different rates in sub-containers of different steps, the parent at the
+fastest rate (see [One sub-container per sample time](../../examples/simulink-to-container.md#one-sub-container-per-sample-time)).
+
 ## Initialization of the embedded FMU's
 
 During the initialization, the container **propagates the links** between its embedded FMU's, as Simulink does:

@@ -985,7 +985,7 @@ static void container_clear_reset_triggers(container_t *container) {
 
 
 /*
- * Values set by the importer while an internal step was pending (docs/local/container_substep.md): applied, from
+ * Values set by the importer while an internal step was pending (docs/local/done/container_substep.md): applied, from
  * the cache, to the embedded FMUs and to the local variables once this step is done, for the steps after it.
  */
 static fmu_status_t container_apply_deferred(container_t *container) {
@@ -1116,7 +1116,7 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
 
     /*
      * Internal steps of the container (time_step x TS_MULTIPLIER, the multiplier read at the beginning of each
-     * step) that end before end_time. A step that does not fit stays pending (docs/local/container_substep.md):
+     * step) that end before end_time. A step that does not fit stays pending (docs/local/done/container_substep.md):
      * it is done by the call that reaches its end, with the inputs of its beginning (the values set by the importer
      * meanwhile are deferred); its outputs are held until then.
      */

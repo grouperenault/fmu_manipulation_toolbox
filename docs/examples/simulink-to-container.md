@@ -157,15 +157,12 @@ container. For the worked example:
 - Every FMU receives **its own step size**, as in Simulink: `fast` 0.01 s, `medium` 0.02 s, `slow` 0.05 s.
 - Give the parent container the **fastest sample time** (`step_size` 0.01 s): the sub-containers exchange their
   values as often as the fastest FMU. Without `step_size`, the parent takes the largest step of the
-  sub-containers (0.05 s): the fast FMUs then exchange their values only every 0.05 s, and the parent reports that
-  the step of the sub-containers does not divide its own.
-- **Remaining difference**: a sub-container slower than its parent makes its step at the **last** call of the
-  parent in its period, with the inputs of that call, while Simulink steps the block at the **beginning** of its
-  period with the inputs of that instant. A value going from a faster FMU to a slower one is therefore more recent
-  than in Simulink, by up to one period of the slower FMU minus one step of the parent (in the example, `medium`
-  at t = 0.02 s sees the output of `fast` at 0.03 s instead of 0.02 s, and `slow` at t = 0 sees the output of
-  `medium` at 0.04 s instead of its initial value). The values going from a slower FMU to a faster one are the
-  same as in Simulink (held between the steps of the slower FMU).
+  sub-containers (0.05 s): the fast FMUs then exchange their values only every 0.05 s.
+- A sub-container slower than its parent steps its FMUs with the **inputs of the beginning** of each of its steps,
+  and holds its **outputs until the end** of the step, as Simulink does with a block of a slower sample time (see
+  [Communication step and internal step](../user-guide/fmucontainer/container.md#communication-step-and-internal-step)).
+  With the parent at the fastest sample time, every FMU receives at every step the same inputs as in Simulink
+  (single-tasking).
 
 In multi-tasking, Simulink also delays the transfers from a slow block to a fast one by one period of the slow
 block (deterministic *Rate Transition*). The container has no such delay.
