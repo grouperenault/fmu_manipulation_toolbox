@@ -220,7 +220,8 @@ def test_scenario_descriptions_are_valid():
     from fmu_manipulation_toolbox.assembly import Assembly
 
     run_container = _run_container()
-    assert run_container.scenarios() == ["S1", "S2", "S3", "S4a", "S4b", "S5j", "S5r", "S5s", "S6m", "S6s"]
+    assert run_container.scenarios() == ["S1", "S2", "S3", "S4a", "S4b", "S4c", "S4d", "S5j", "S5r", "S5s", "S6m",
+                                         "S6s"]
     for scenario in run_container.scenarios():
         assembly = Assembly(PROBE_DIR / "scenarios" / f"{scenario}.json")
         assert assembly.root.name == f"{scenario}.fmu"
@@ -248,7 +249,7 @@ def test_scenario_s1_in_a_container(probe_dir):
 #                 Reference traces and comparison of the traces                #
 # --------------------------------------------------------------------------- #
 REF_DIR = Path(__file__).parents[1] / "data" / "probe"
-REF_SCENARIOS = ["S1", "S2", "S3", "S4a", "S4b", "S5j", "S5s", "S5r"]
+REF_SCENARIOS = ["S1", "S2", "S3", "S4a", "S4b", "S4c", "S4d", "S5j", "S5s", "S5r"]
 
 
 def _without_wall(filename: Path) -> list[list[str]]:
@@ -277,7 +278,26 @@ def test_container_traces(probe_dir, compiled_probes, scenario):
     assert references
     for reference in references:
         trace = directory / f"{reference.stem.rsplit('-', 1)[1]}.csv"
-        assert _without_wall(trace) == _without_wall_ref(reference), f"{scenario}: {trace.name}"
+        _assert_same_trace(_without_wall(trace), _without_wall_ref(reference), f"{scenario}: {trace.name}")
+
+
+def _same_field(a: str, b: str) -> bool:
+    """Equal fields; numbers within a relative 1e-9: the last digits of the times and steps depend on the compiler
+    of the runtime (MSVC /fp:fast reassociates the computation of the internal steps)."""
+    if a == b:
+        return True
+    try:
+        x, y = float(a), float(b)
+    except ValueError:
+        return False
+    return abs(x - y) <= 1e-9 * max(1.0, abs(x), abs(y))
+
+
+def _assert_same_trace(rows: list[list[str]], references: list[list[str]], label: str):
+    assert len(rows) == len(references), f"{label}: {len(rows)} lines instead of {len(references)}"
+    for number, (row, reference) in enumerate(zip(rows, references), start=1):
+        assert len(row) == len(reference) and all(_same_field(a, b) for a, b in zip(row, reference)), \
+            f"{label}, line {number}: {row} instead of {reference}"
 
 
 def _without_wall_ref(filename: Path) -> list[list[str]]:
@@ -453,3 +473,87 @@ def test_propagation_before_a_get_in_initialization_mode(probe_dir, compiled_pro
     assert fmu.getReal([vrs["c_init"]]) == [9.0]          # 2 + (1 + (3 + 4))
     fmu.terminate()
     fmu.freeInstance()
+
+
+# --------------------------------------------------------------------------- #
+#     Communication steps that are not a multiple of the container step        #
+#                    (docs/local/done/container_substep.md)                    #
+# --------------------------------------------------------------------------- #
+@pytest.mark.slow
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_compiler
+@pytest.mark.needs_container
+def test_one_sub_container_per_rate(probe_dir, compiled_probes):
+    """S4c: each probe gets its own step size, and an input seen by a step is the value at its beginning."""
+    directory = _run_container().run("S4c", probe_dir, compiled_probes)
+    for name, step, nb in (("A", 0.01, 20), ("B", 0.02, 10), ("C", 0.05, 4)):
+        steps = [line for line in _trace(directory / f"{name}.csv") if line["function"] == "fmi2DoStep" and not line["name"]]
+        assert len(steps) == nb and all(float(line["h"]) == pytest.approx(step) for line in steps), name
+    seen = {float(line["time"]): float(line["value"]) for line in _trace(directory / "B.csv")
+            if line["function"] == "fmi2DoStep" and line["name"] == "u_cont"}
+    assert all(value == pytest.approx(time) for time, value in seen.items())     # A.y_time at the start of the step
+
+
+def _drive(probe_dir, compiled_probes, communication_step: float,
+           stop_time: float) -> tuple[list[dict], list[tuple[float, float]]]:
+    """A container of Probe20ms (internal step 0.02 s) driven with `communication_step`; its input `u` set to the
+    current time before each call. The inputs seen by the steps of the probe, and the outputs after each call."""
+    import json
+    import shutil
+    from fmpy import extract, read_model_description
+    from fmpy.fmi2 import FMU2Slave
+    from fmu_manipulation_toolbox.assembly import Assembly
+
+    shutil.copy(compiled_probes / "Probe20ms-host.fmu", probe_dir)
+    (probe_dir / "drive.json").write_text(json.dumps(
+        {"name": "drive.fmu", "step_size": 0.02, "auto_link": False, "auto_input": False, "auto_output": False,
+         "fmu": ["A.fmu"], "path": {"A.fmu": "Probe20ms-host.fmu"},
+         "input": [["u", "A.fmu", "u_cont"]], "output": [["A.fmu", "y_time", "t"]],
+         "start": [["A.fmu", "trace_file", "A.csv"]]}))
+    Assembly(probe_dir / "drive.json").make_fmu()
+    description = read_model_description("drive.fmu")
+    vrs = {variable.name: variable.valueReference for variable in description.modelVariables}
+    fmu = FMU2Slave(guid=description.guid, unzipDirectory=extract("drive.fmu"),
+                    modelIdentifier=description.coSimulation.modelIdentifier, instanceName="drive")
+    callbacks = _slave_callbacks()      # kept alive until freeInstance
+    fmu.instantiate(callbacks=callbacks)
+    fmu.setupExperiment(startTime=0)
+    fmu.enterInitializationMode()
+    fmu.exitInitializationMode()
+    outputs = []
+    time = 0.0
+    for k in range(round(stop_time / communication_step)):
+        time = k * communication_step
+        fmu.setReal([vrs["u"]], [time])
+        fmu.doStep(currentCommunicationPoint=time, communicationStepSize=communication_step)
+        outputs.append((round(time + communication_step, 9), fmu.getReal([vrs["t"]])[0]))
+    fmu.terminate()
+    fmu.freeInstance()
+    trace = _trace(probe_dir / "A.csv")
+    return [{"time": float(line["time"]), "h": float(line["h"])} | {"u": float(line["value"])}
+            for line in trace if line["function"] == "fmi2DoStep" and line["name"] == "u_cont"], outputs
+
+
+@pytest.mark.slow
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_compiler
+@pytest.mark.needs_container
+def test_communication_step_smaller_than_the_container_step(probe_dir, compiled_probes):
+    """h = 0.01 s, internal step 0.02 s: one internal step every two calls, with the input of its beginning; the
+    output is held between the internal steps."""
+    steps, outputs = _drive(probe_dir, compiled_probes, 0.01, 0.08)
+    assert [(round(s["time"], 9), s["h"], s["u"]) for s in steps] == \
+        [(0.0, 0.02, 0.0), (0.02, 0.02, 0.02), (0.04, 0.02, 0.04), (0.06, 0.02, 0.06)]
+    assert [round(value, 9) for _, value in outputs] == [0.0, 0.02, 0.02, 0.04, 0.04, 0.06, 0.06, 0.08]
+
+
+@pytest.mark.slow
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_compiler
+@pytest.mark.needs_container
+def test_communication_step_not_a_multiple_of_the_container_step(probe_dir, compiled_probes):
+    """h = 0.03 s, internal step 0.02 s: each internal step uses the last value set before its beginning."""
+    steps, outputs = _drive(probe_dir, compiled_probes, 0.03, 0.12)
+    assert [(round(s["time"], 9), s["u"]) for s in steps] == \
+        [(0.0, 0.0), (0.02, 0.0), (0.04, 0.03), (0.06, 0.06), (0.08, 0.06), (0.1, 0.09)]
+    assert [round(value, 9) for _, value in outputs] == [0.02, 0.06, 0.08, 0.12]

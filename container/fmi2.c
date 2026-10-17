@@ -224,6 +224,10 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                             \
         container_port_t *port = &container->port_ ##type [local_vr];                                                           \
         for(unsigned long j = 0; j < port->nb; j += 1) {                                                                        \
+            if (container->step_pending) {      /* a step of the container is pending: applied after it */                      \
+                port->deferred = true;                                                                                          \
+                break;                                                                                                          \
+            }                                                                                                                   \
             const int fmu_id = port->links[j].fmu_id;                                                                           \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                                      \
                                                                                                                                 \
@@ -262,6 +266,10 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
         container_port_t* port = &container->port_strings[local_vr];
         for(unsigned long j = 0; j < port->nb; j += 1) {
+            if (container->step_pending) {      /* a step of the container is pending: applied after it */
+                port->deferred = true;
+                break;
+            }
             const int fmu_id = port->links[j].fmu_id;
 
             if (fmu_id < 0) {

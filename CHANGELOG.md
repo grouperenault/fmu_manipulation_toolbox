@@ -79,6 +79,11 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## FMU Container
 
+- 🟠 **FIXED** a container called with a communication step that is not a multiple of its internal step (e.g. a
+  sub-container at 0.02 s in a parent at 0.01 s) returned without reaching the end of the step, and made its
+  internal step later with the inputs of a later instant. Each internal step now uses the inputs of its beginning
+  and holds its outputs until its end; the warning "CommunicationStepSize should be divisible" is removed. See
+  [Communication step and internal step](docs/user-guide/fmucontainer/container.md#communication-step-and-internal-step).
 - 🔵 **CHANGED** the container **propagates the links** between its embedded FMUs **during the initialization**:
   in the order of the links, each FMU gets its linked inputs, leaves its Initialization Mode, then its outputs are
   read for the FMUs after it, so that an FMU is initialized with the values of the FMUs it depends on (as Simulink

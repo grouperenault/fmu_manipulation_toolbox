@@ -1,7 +1,7 @@
 # Report: FMU Container vs Simulink, seen by the probe FMU
 
-**Date**: 17 October 2026 — **Plan**: `docs/local/importer_comparison.md` (Step 4) — **Branch**:
-`feature/init-propagation`
+**Date**: 18 October 2026 — **Plan**: `docs/local/importer_comparison.md` (Step 4) — **Branch**:
+`feature/container-substep`
 
 ## TL;DR
 
@@ -9,15 +9,15 @@
 |---|---|---|---|---|
 | 1 | **Initialization of linked FMUs** | Links **propagated**, FMU after FMU in the order of the links (inputs from upstream → Exit → read outputs); loops cut | Links **propagated**, block by block in sorted order (Enter → inputs from upstream → Exit → read outputs) | **Aligned**: identical traces on a chain of three FMUs (once the unconnected inputs match, see 2) |
 | 2 | **Unconnected inputs** | Keep their start value (FMU or `start` block) | Forced to **0**, at init and before every step | **Major**: silent value change; set `0` explicitly in the container to match |
-| 3 | **Multi-rate** | One step per container: **one sub-container per rate** gives every FMU its own step size | Each block at **its own sample time**, outputs held between rates | **Medium**: step sizes aligned with sub-containers; a slower sub-container takes its inputs at the end of its period instead of the beginning |
+| 3 | **Multi-rate** | One step per container: **one sub-container per rate** (parent at the fastest rate) gives every FMU its own step size, inputs of the beginning of each step, outputs held | Each block at **its own sample time**, outputs held between rates | **Aligned** with one sub-container per rate: identical inputs at every step (single-tasking) |
 | 4 | **Slow → fast transfer (multi-tasking)** | No extra delay | Deterministic *Rate Transition* adds **one slow period** of delay | Medium: only with Simulink multi-tasking |
 | 5 | **Delays / feedthrough** | Default (Jacobi): one step per feedthrough hop; `sequential` removes it along the FMU order | **Same as the container default** (outputs read before inputs are set; declared feedthrough not used) | **Aligned** (identical traces), as long as `sequential` is not used |
 | 6 | **Parallelism** | `mt`: FMUs of the same rate run in parallel (1.96 s → **0.92 s**) | Same-rate blocks share **one task** (1.89 s → 1.84 s) | Container faster; results unchanged |
 | 7 | **Calls before init** | Only the given start values, after `SetupExperiment`; tolerance 1e-8 | **Every** parameter (defaults included), before `SetupExperiment`; tolerance 0.001 | Minor: only for FMUs sensitive to call order or tolerance |
 
-**Bottom line:** the initialization (1) and the delays (5) are aligned. What still separates the two importers is
-the treatment of the unconnected inputs (2, simple workaround: explicit `start` = 0) and the exchanges between rates
-(3: sub-containers align the step sizes, not the instants at which a slower FMU takes its inputs).
+**Bottom line:** the initialization (1), the rates (3, one sub-container per rate) and the delays (5) are aligned.
+What still separates the two importers is the treatment of the unconnected inputs (2, simple workaround: explicit
+`start` = 0) and the delay of the Simulink multi-tasking (4).
 
 ## Setup
 
@@ -29,6 +29,9 @@ the treatment of the unconnected inputs (2, simple workaround: explicit `start` 
 - **Simulink**: MATLAB R2024b Update 7, Windows 11, models built and run by
   `tools/probe_fmu/scenarios/simulink/` (fixed-step discrete solver, step 0.01 s, block reduction off, one root
   `Outport` per unconnected output).
+- **Reproducibility**: the container traces of the scenarios are frozen in `tests/data/probe` and checked by the
+  test suite, on macOS and in the Windows CI (green). The values are the same on both platforms; only the last
+  digits of the times and step sizes differ (MSVC compiles the runtime with `/fp:fast`), within a relative 1e-9.
 - Detailed comparison: `python tools/compare_traces.py <results> -output report.md` (results not versioned,
   `<results>/<scenario>/{container,simulink}/`).
 
@@ -72,19 +75,18 @@ Both read every output after `fmi2ExitInitializationMode`, then step.
 |---|---|---|---|---|---|
 | Steps of A / B / C (0.2 s) | 2 / 2 / 2 | 20 / 20 / 20 | 20 / 10 / 4 | 20 / 10 / 4 | 20 / 10 / 4 |
 | `h` | 0.1 for all | 0.01 for all | step size of each probe | step size of each probe | step size of each probe |
-| Fast → slow (`B.u_cont` = `A.y_time` at t = 0.02, 0.04) | exchanged every 0.1 s | 0.02, 0.04 | **0.03, 0.05** | 0.02, 0.04 | 0.02, 0.04 |
+| Fast → slow (`B.u_cont` = `A.y_time` at t = 0.02, 0.04) | exchanged every 0.1 s | 0.02, 0.04 | 0.02, 0.04 | 0.02, 0.04 | 0.02, 0.04 |
 | Slow → fast (`A.u_disc` = `C.y_time`) | exchanged every 0.1 s | value at the step time | held since the last step of C | held since the last step of C | **one period of C later** |
 
-- A single container steps every FMU with its own step: an FMU with a fixed step
+- A single container steps every FMU with the step of the container: an FMU with a fixed step
   (`canHandleVariableCommunicationStepSize = false`) receives a step size different from its own.
-- **One sub-container per rate** gives every FMU its own step size, as Simulink. A sub-container slower than its
-  parent makes its step at the **last** call of the parent in its period, with the inputs of that call, while
-  Simulink steps the block at the **beginning** of its period: a value going from a faster FMU to a slower one is
-  more recent than in Simulink, by up to one period of the slower FMU minus one step of the parent (`B` at 0.02 s
-  sees `A` at 0.03 s; `C` at t = 0 sees `B` at 0.04 s instead of its initial value). The transfers from slow to fast
-  are those of Simulink single-tasking. With the parent at the slowest rate (0.05 s, its default), the fast FMUs
-  exchange their values only every 0.05 s and the parent warns that the steps of its sub-containers do not divide
-  its own.
+- **One sub-container per rate**, the parent at the fastest rate (scenario `S4c`), gives the **same inputs at every
+  step as Simulink single-tasking** for the three FMUs: every FMU gets its own step size, a sub-container slower than
+  its parent uses the inputs of the beginning of each of its steps and holds its outputs until the end of the step
+  (`docs/local/done/container_substep.md`). With the parent at the slowest rate (0.05 s, its default, scenario `S4d`),
+  the fast FMUs exchange their values only every 0.05 s. The same rule holds for any sub-container slower than its
+  parent: in the test suite, a sub-container of 0.5 s in a parent of 0.01 s shows at t = 1.0 the value computed
+  from its input at t = 0.5 (Windows CI).
 
 ### 5. Feedthrough and ordering (S5: chain `A → B → C`)
 
@@ -123,8 +125,7 @@ FMUs of the same rate.
    them an explicit start value of 0 in the container description to reproduce Simulink, initialization included
    (finding 3).
 2. **Rates**: group the FMUs of each Simulink sample time in a sub-container with that step, the parent at the
-   fastest sample time (finding 4); the transfers from a faster FMU to a slower one remain more recent than in
-   Simulink.
+   fastest sample time (finding 4): the exchanges are those of Simulink single-tasking.
 3. **Delays**: keep the default scheduling of the container (finding 5); `sequential` removes the delays along the
    order of the FMUs, which changes the results.
 4. **Performance**: `mt` parallelizes FMUs of the same rate, which Simulink does not (finding 6).
@@ -134,5 +135,3 @@ User documentation: `docs/examples/simulink-to-container.md`.
 ## Still open
 
 - Start value of an input entered in the dialog of the FMU block (S2, S3): not tested.
-- Exchanges between rates: a container could hold the inputs received at the beginning of each of its own steps,
-  to reproduce the instants of Simulink (finding 4); not planned.
