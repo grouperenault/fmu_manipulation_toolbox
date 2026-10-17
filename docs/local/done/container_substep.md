@@ -1,6 +1,6 @@
 # Communication steps that are not a multiple of the container step
 
-**Created**: 17 October 2026 — **Status**: Steps 1–2 done (17 October 2026), Step 3 to start — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: done (17 October 2026) — **Branch**: `feature/container-substep` — **Roadmap**: not listed
 
 ## Context
 

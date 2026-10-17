@@ -458,7 +458,7 @@ def test_propagation_before_a_get_in_initialization_mode(probe_dir, compiled_pro
 
 # --------------------------------------------------------------------------- #
 #     Communication steps that are not a multiple of the container step        #
-#                  (docs/local/container_substep.md)                           #
+#                    (docs/local/done/container_substep.md)                    #
 # --------------------------------------------------------------------------- #
 @pytest.mark.slow
 @pytest.mark.needs_fmpy

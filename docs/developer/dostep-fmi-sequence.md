@@ -81,6 +81,22 @@ sequenceDiagram
     C->>F2: fmi*EnterStepMode()
 ```
 
+## Internal steps and communication step
+
+`container_do_step(t, h)` makes every internal step `[T, T + H]` (`H` = `time_step` × `TS_MULTIPLIER`, the
+multiplier read before each step) that ends before `t + h`, each one as in the diagram above. When an internal step
+does not fit (communication step not a multiple of the internal step), it stays **pending**
+(`container->step_pending`):
+
+- while it is pending, the setters of the container (`fmi2Set*`, `fmi3Set*`, except clocks) do not forward the
+  values of the importer: they only update the cache of the port (`container_port_t.deferred`); the embedded FMU's
+  keep the inputs of `T`, and their outputs, read by the getters, are those of `T`;
+- the call of the importer that reaches `T + H` makes the step, then applies the deferred values
+  (`container_apply_deferred()`) to the embedded FMU's and to the local variables (`TS_MULTIPLIER`, reset
+  triggers), for the following steps.
+
+The container is at `t + h` after every call (`reals64[0]`, its time output).
+
 ## Notes
 
 - `fmu_set_inputs` / `fmu_get_outputs` in the C runtime expand into a series of typed FMI calls
