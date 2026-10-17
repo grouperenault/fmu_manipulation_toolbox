@@ -1,6 +1,6 @@
 # Migrating an FMU assembly from Simulink to an FMU Container
 
-**Created**: 17 October 2026 — **Status**: decisions taken (17 October 2026), Step 1 to start — **Branch**:
+**Created**: 17 October 2026 — **Status**: Step 1 done (17 October 2026), Step 2 to start — **Branch**:
 `importer-comparison` — **Roadmap**: not listed
 
 ## Goal
@@ -120,7 +120,7 @@ difference and its workaround.
 | 25 | `y_time` | Real | output | continuous | calculated | time of the FMU |
 
 `ModelStructure`: `<Outputs>` — `y_cont` depends on `u_cont`; the others have `dependencies=""`.
-`<InitialUnknowns>` — `y_cont` and `y_init` depend on `u_cont`; the others on nothing.
+`<InitialUnknowns>` — `y_cont` depends on `p_tunable` and `u_cont`, `y_init` on `p_real` and `u_cont`; the others on nothing.
 
 Capabilities: `canHandleVariableCommunicationStepSize="false"`, `canGetAndSetFMUstate="false"`,
 `canBeInstantiatedOnlyOncePerProcess="false"`, `needsExecutionTool="false"`. The FMI functions not supported
