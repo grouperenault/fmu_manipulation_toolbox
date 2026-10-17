@@ -50,8 +50,9 @@ container `results.csv`, the log `log.txt` and the wall time `wall.txt`.
    - `build_scenarios` saves `<output>/<S>/simulink/<S>.slx` and lists in `build_issues.txt` (also printed) the
      calls that failed and the settings to make by hand (input start values of S2 and S3).
    - `run_scenarios` simulates each model with `<output>/<S>/simulink/` as current folder (the probes write their
-     traces `A.csv`... in the current directory) and writes there `log.txt` (messages and warnings) and
-     `wall.txt` (wall time); `<output>/version.txt` holds the MATLAB version and platform.
+     traces `A.csv`... in the current directory) and writes there `log.txt` (messages and warnings),
+     `wall.txt` (wall time) and `results.csv` (outputs: `name,time,value`); `<output>/version.txt` holds the MATLAB
+     version and platform. A failed simulation is reported `FAILED`, without `wall.txt` nor `results.csv`.
    - The Simulink names that MathWorks does not document (library path of the FMU block, order of the `Flat` ports,
      parameter values with `set_param`) are gathered in `probe_simulink_api.m` and marked `UNVERIFIED`: correct
      them there if needed. Each line of a model is named `<from>.<output> -> <to>.<input>`: check on the first
@@ -69,9 +70,10 @@ container `results.csv`, the log `log.txt` and the wall time `wall.txt`.
 | FMU block sample time (`FMUSampleTime`) | step size of the probe: 0.01 (Probe10ms), 0.02 (Probe20ms), 0.05 (Probe50ms) |
 | FMU block parameters | `trace_file` = `'A.csv'` on `A`, `'B.csv'` on `B`, `'C.csv'` on `C`; the other parameters as given by the scenario, default otherwise |
 | Unconnected inputs | left unconnected (Simulink feeds them with 0 and may warn: keep the warning in the log) |
-| Unconnected outputs | left unconnected, or connected to a `Terminator` |
+| Unconnected outputs | one root `Outport` each, named `<block>.<output>` (as `auto_output` in the container); without a destination the FMU blocks are removed by the block reduction and nothing is simulated |
 | Solver | *Fixed-step*, *discrete (no continuous states)* (`FixedStepDiscrete`), fixed step size 0.01 |
 | Tasking mode | single-tasking ("Treat each discrete rate as a separate task" **off**), unless the scenario says multi-tasking |
+| Block reduction | off (`BlockReduction`); outputs saved (`SaveOutput`, `yout`, `Dataset`) |
 | Stop time | 0.2 s (S6: 1 s) |
 
 The block parameters are those of the dialog of the FMU block (parameters tab). The programmatic names of some of
@@ -85,7 +87,7 @@ them (parameter values, input start values) are not documented by MathWorks: set
 | **S2** | `A` Probe10ms | none | `p_real` = 3, `p_tunable` = 0.5, `compute_time` = 0; **input start values** if the dialog offers them: `u_cont` = 2, `u_disc` = 4, `u_int` = 7, `u_bool` = true | common; note where (and whether) the input start values can be given |
 | **S3** | `A`, `B`, `C` Probe10ms | `A.y_init → B.u_cont`, `B.y_cont → C.u_cont` | `A`: `p_real` = 3, `u_cont` start = 2 (if possible, see S2); `C`: `p_real` = 2 | common |
 | **S4s** | `A` Probe10ms, `B` Probe20ms, `C` Probe50ms | `A.y_time → B.u_cont`, `A.y_int → B.u_int`, `B.y_time → C.u_cont`, `C.y_time → A.u_disc`, `C.y_int → A.u_int` | none | single-tasking (no *Rate Transition* block); keep the rate transition warnings in the log |
-| **S4m** | as S4s | as S4s | none | **multi-tasking** ("Treat each discrete rate as a separate task" on); a *Rate Transition* block (default settings) on each line between different rates |
+| **S4m** | as S4s | as S4s | none | **multi-tasking** ("Treat each discrete rate as a separate task" on); a *Rate Transition* block on each line between different rates, with "Ensure deterministic data transfer" off when the rates are not integer multiples (`B → C`: 0.02 s / 0.05 s) |
 | **S5** | `A`, `B`, `C` Probe10ms | `A.y_time → B.u_cont`, `B.y_cont → C.u_cont`, `A.y_time → B.u_disc`, `B.y_disc → C.u_disc` | none | common |
 | **S6s** | `A`, `B`, `C` Probe10ms | none | `compute_time` = 0.005, `compute_sleep` = false on each | single-tasking, stop time 1 s |
 | **S6m** | as S6s | none | as S6s | multi-tasking, stop time 1 s |

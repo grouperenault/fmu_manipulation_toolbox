@@ -7,8 +7,14 @@ function api = probe_simulink_api()
     api.fmu_block = 'simulink_extras/FMU Import/FMU';
     api.fmu_library = 'simulink_extras';
 
-    % Rate Transition block.
+    % Rate Transition block. 'Ensure deterministic data transfer' must be off between rates that are not integer
+    % multiples (R2024b: "Illegal rate transition ... must be integer multiples").
     api.rate_transition_block = 'simulink/Signal Attributes/Rate Transition';
+    api.rate_transition_deterministic = 'Deterministic';                             % UNVERIFIED
+
+    % Root Outport, one per unconnected output of the FMU blocks (as auto_output in the container): without a
+    % destination, the FMU blocks are removed by the block reduction and nothing is simulated (R2024b).
+    api.outport_block = 'simulink/Sinks/Out1';
 
     % Documented parameters of the FMU block.
     api.fmu_name = 'FMUName';                   % FMU file name only (no path: the folder must be on the MATLAB path)
@@ -29,5 +35,6 @@ function api = probe_simulink_api()
 
     % Model configuration (documented).
     api.solver = {'SolverType', 'Fixed-step', 'Solver', 'FixedStepDiscrete', 'FixedStep', '0.01'};
+    api.model = {'BlockReduction', 'off', 'SaveOutput', 'on', 'OutputSaveName', 'yout', 'SaveFormat', 'Dataset'};
     api.multitasking = 'EnableMultiTasking';
 end

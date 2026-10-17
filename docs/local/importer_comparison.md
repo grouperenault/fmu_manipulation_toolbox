@@ -90,8 +90,10 @@ difference and its workaround.
     (Step 4) is committed.
 15. **Simulink models**: built by MATLAB functions (`tools/probe_fmu/scenarios/simulink/`: `build_scenarios.m`,
     `run_scenarios.m`, the definitions in `probe_scenarios.m` and the undocumented Simulink names in
-    `probe_simulink_api.m`), not tested without MATLAB. S4m: explicit *Rate Transition* blocks on the lines
-    between different rates (S4s, single-tasking: none).
+    `probe_simulink_api.m`), run by the user on R2024b. S4m: explicit *Rate Transition* blocks on the lines
+    between different rates (S4s, single-tasking: none), "Ensure deterministic data transfer" off between rates
+    that are not integer multiples (required by Simulink). One root `Outport` per unconnected output (as
+    `auto_output`) and block reduction off: otherwise Simulink removes the FMU blocks and simulates nothing.
 
 ## Probe FMU specification
 

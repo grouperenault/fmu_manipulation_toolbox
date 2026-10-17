@@ -54,6 +54,7 @@ function issues = build_scenario(scenario, api, output_dir, step_sizes)
     end
     new_system(model);
     set_param(model, api.solver{:}, 'StopTime', num2str(scenario.stop_time));
+    set_param(model, api.model{:});
     set_param(model, api.multitasking, on_off(scenario.multitasking));
 
     % FMU blocks
@@ -100,12 +101,34 @@ function issues = build_scenario(scenario, api, output_dir, step_sizes)
             transition = sprintf('RT_%s_%s_%s_%s', from, output, to, input);
             add_block(api.rate_transition_block, [model '/' transition], ...
                       'Position', [160 + 300 * k, 320 + 40 * k, 200 + 300 * k, 350 + 40 * k]);
+            ratio = max(rates(from), rates(to)) / min(rates(from), rates(to));
+            if abs(ratio - round(ratio)) > 1e-9
+                issues = try_set(issues, [model '/' transition], api.rate_transition_deterministic, 'off');
+            end
             handle = add_line(model, source, [transition '/1'], 'autorouting', 'on');
             add_line(model, [transition '/1'], destination, 'autorouting', 'on');
         else
             handle = add_line(model, source, destination, 'autorouting', 'on');
         end
         set_param(handle, 'Name', label);    % check on the model that each line joins the named ports (UNVERIFIED order)
+    end
+
+    % Root Outports for the unconnected outputs (as auto_output in the container)
+    nb_outports = 0;
+    for k = 1:size(scenario.blocks, 1)
+        block = scenario.blocks{k, 1};
+        for j = 1:numel(api.outputs)
+            output = api.outputs{j};
+            if any(strcmp(scenario.links(:, 1), block) & strcmp(scenario.links(:, 2), output))
+                continue
+            end
+            nb_outports = nb_outports + 1;
+            name = sprintf('%s.%s', block, output);
+            add_block(api.outport_block, [model '/' name], ...
+                      'Position', [260 + 300 * (k - 1), 80 + 30 * j, 290 + 300 * (k - 1), 94 + 30 * j]);
+            handle = add_line(model, sprintf('%s/%d', block, j), [name '/1'], 'autorouting', 'on');
+            set_param(handle, 'Name', name);
+        end
     end
 
     save_system(model, fullfile(folder, [model '.slx']));
