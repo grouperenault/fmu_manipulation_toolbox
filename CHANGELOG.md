@@ -156,6 +156,12 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   its state after instantiation. They returned an error ("not implemented").
 - 🟠 **FIXED** an importer could crash when the configuration of a container failed (e.g. a damaged
   `container.txt`): the container freed buffers it had not allocated.
+- 🟠 **FIXED** the runtime reads the lines of `container.txt` of any length: a line longer than 4095 characters
+  (the start values of a large array, a string start value of more than 4095 characters) was cut and shifted the
+  reading of the rest of the file, so that the container failed to instantiate.
+- 🔵 **CHANGED** the runtime checks the format version of `container.txt` and refuses, with an explicit error, a
+  container whose `container.txt` does not come from the same version of the toolbox. See
+  [Troubleshooting](docs/help/troubleshooting.md#fmu-container-fails-to-instantiate-format-version-of-containertxt).
 - 🟠 **FIXED** the buffers of the Model-Exchange solver were allocated again, without being freed, at each
   initialization of the container.
 - 🟠 **FIXED** an FMI-3 `Enumeration` of an embedded FMU is accessed as an `Int64`, as FMI 3.0 requires: the

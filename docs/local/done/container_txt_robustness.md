@@ -1,7 +1,7 @@
 # Robustness of the reading of `container.txt`
 
-**Created**: 17 October 2026 — **Status**: decisions taken (17 October 2026), Step 1 to start — **Branch**:
-`feature/init-propagation`, after Step 4 of `docs/local/init_propagation.md` — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: implemented (17 October 2026) — **Branch**:
+`feature/robustness-container-txt` — **Roadmap**: not listed
 
 ## Context
 
@@ -37,8 +37,8 @@ reading were found instead:
 3. **Version constants and a consistency test.** `CONTAINER_TXT_VERSION` on the Python side (used by the builder
    to write the header) and `#define CONTAINER_TXT_VERSION` on the C side (used by the runtime to check it); a test
    checks that they are equal.
-4. **Branch**: `feature/init-propagation`, as additional steps after the propagation plan (format version 8,
-   introduced by its Step 1).
+4. **Branch**: first planned on `feature/init-propagation` after the propagation plan; implemented on
+   `feature/robustness-container-txt`, after the merge of the propagation (format version 8).
 
 ## Steps
 

@@ -135,6 +135,21 @@ mappings. Or the `.fmu` file is corrupted.
    (see [Link Assistant](../user-guide/fmucontainer/gui-usage.md#link-assistant))
 3. Manually adjust if needed using the combo-box dropdowns in each tab
 
+### ❌ FMU Container fails to instantiate: format version of container.txt
+
+**Symptom:** the importer cannot instantiate a container FMU, and its log shows:
+```
+Configuration error(...): line #1: container.txt format version 7, this runtime reads version 8: build the container again with the version of FMU Manipulation Toolbox that provides this runtime.
+```
+or `container.txt has no format version header`.
+
+**Cause:** the `resources/container.txt` of the container and its runtime (`binaries/`) come from different versions
+of FMU Manipulation Toolbox: the file was edited or copied from another container, or the binaries were replaced.
+
+**Solution:** build the container again (`fmucontainer`, the Python API or `fmucontainer-gui`) with one version of
+FMU Manipulation Toolbox. To rebuild a container whose description is lost, `fmusplit` extracts the embedded FMUs
+and a description file from it.
+
 ### ❌ FMU Variable Editor: changes are not saved
 
 **Symptom:** After editing variable names or descriptions, saving the FMU does not apply the changes.

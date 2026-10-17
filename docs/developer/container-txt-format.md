@@ -14,8 +14,12 @@ The list of types and the conversion functions are defined once, in
 
 ## General Syntax Rules
 
-- Lines starting with `#` are comments and are skipped by the parser.
+- The first line is the [version header](#1-version-header) `# Version <N>`: it is mandatory and checked by the
+  C runtime.
+- The other lines starting with `#` are comments and are skipped by the parser.
 - Each non-comment line contains space-separated tokens.
+- The lines have no length limit (the runtime grows its line buffer as needed; before 2.0 a line longer than 4095
+  characters was cut, which shifted the reading of the rest of the file).
 - The parser reads lines sequentially; the order of sections is fixed.
 
 ---
@@ -42,8 +46,21 @@ The file is organized into the following sections, in order:
 # Version <N>
 ```
 
-The first line is a comment indicating the file format version. The version number `N` determines
-how subsequent sections are parsed.
+The first line indicates the file format version. The version number `N` determines how subsequent sections are
+parsed.
+
+The version is defined twice, with the same value: `CONTAINER_TXT_VERSION` of
+`fmu_manipulation_toolbox/container/types.py`, written by the builder, and `CONTAINER_TXT_VERSION` of
+`container/container.h`, read by the runtime (a unit test checks that they are equal). The runtime only reads its
+own version: it is always shipped with the `container.txt` of its builder. A missing header or another version is
+refused when the container is instantiated, with one of the errors:
+
+- `container.txt has no format version header: the container was built by an incompatible version of FMU
+  Manipulation Toolbox.`
+- `container.txt format version <N>, this runtime reads version <M>: build the container again with the version of
+  FMU Manipulation Toolbox that provides this runtime.`
+
+`fmusplit` (`split.py`) reads every version of the table below.
 
 | Version | Introduced In | Key Changes |
 |---------|---------------|-------------|
