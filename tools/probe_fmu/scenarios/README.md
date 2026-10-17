@@ -45,6 +45,8 @@ container `results.csv`, the log `log.txt` and the wall time `wall.txt`.
    run_scenarios('<output>')                                    % or run_scenarios('<output>', {'S1'})
    ```
 
+   - The FMU block only accepts an FMU file name on the MATLAB path (no path): `build_scenarios` adds the folder of
+     the `-host.fmu` to the path and records it in `<output>/probe_dir.txt`, read again by `run_scenarios`.
    - `build_scenarios` saves `<output>/<S>/simulink/<S>.slx` and lists in `build_issues.txt` (also printed) the
      calls that failed and the settings to make by hand (input start values of S2 and S3).
    - `run_scenarios` simulates each model with `<output>/<S>/simulink/` as current folder (the probes write their

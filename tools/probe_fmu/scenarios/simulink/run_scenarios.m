@@ -8,6 +8,8 @@ function run_scenarios(output_dir, names)
 %     log.txt   the messages of the simulation (command window and warnings of the simulation)
 %     wall.txt  the wall time of the simulation (s)
 %   and OUTPUT_DIR/version.txt (MATLAB version and platform).
+%   The folder of the probes recorded by build_scenarios (OUTPUT_DIR/probe_dir.txt) is added to the MATLAB path:
+%   the models only hold the file names of the FMUs.
 
     scenarios = probe_scenarios();
     if nargin >= 2 && ~isempty(names)
@@ -16,6 +18,9 @@ function run_scenarios(output_dir, names)
     if ~java.io.File(output_dir).isAbsolute()
         output_dir = fullfile(pwd, output_dir);
     end
+
+    probe_dir = strtrim(fileread(fullfile(output_dir, 'probe_dir.txt')));
+    addpath(probe_dir);
 
     file = fopen(fullfile(output_dir, 'version.txt'), 'w');
     fprintf(file, '%s\n%s\n', evalc('ver'), computer('arch'));

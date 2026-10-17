@@ -3,7 +3,7 @@ function api = probe_simulink_api()
 %   The names marked UNVERIFIED are not documented by MathWorks (or only by community answers): if one of them
 %   is wrong on MATLAB R2024b, correct it here only. build_scenarios reports every call that failed.
 
-    % Library path of the FMU block (Simulink Extras / FMU Import / FMU).            UNVERIFIED
+    % Library path of the FMU block (Simulink Extras / FMU Import / FMU).            verified on R2024b
     api.fmu_block = 'simulink_extras/FMU Import/FMU';
     api.fmu_library = 'simulink_extras';
 
@@ -11,7 +11,7 @@ function api = probe_simulink_api()
     api.rate_transition_block = 'simulink/Signal Attributes/Rate Transition';
 
     % Documented parameters of the FMU block.
-    api.fmu_name = 'FMUName';                   % FMU file
+    api.fmu_name = 'FMUName';                   % FMU file name only (no path: the folder must be on the MATLAB path)
     api.sample_time = 'FMUSampleTime';          % sample time (Co-Simulation)
     api.input_mapping = 'FMUInputMapping';      % 'Flat': one port per scalar input
     api.output_mapping = 'FMUOutputMapping';    % 'Flat': one port per scalar output

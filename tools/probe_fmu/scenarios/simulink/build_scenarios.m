@@ -5,6 +5,8 @@ function build_scenarios(probe_dir, output_dir, names)
 %
 %   PROBE_DIR holds the probes compiled for this machine (Probe10ms-host.fmu, Probe20ms-host.fmu,
 %   Probe50ms-host.fmu: fmutool -input Probe10ms.fmu -compile-sources -output Probe10ms-host.fmu).
+%   The FMU block only accepts a file name on the MATLAB path: PROBE_DIR is added to the path (addpath) and
+%   recorded in OUTPUT_DIR/probe_dir.txt for run_scenarios.
 %   Each model is saved as OUTPUT_DIR/<scenario>/simulink/<scenario>.slx. The calls that failed (undocumented
 %   Simulink names, see probe_simulink_api.m) and the settings to make by hand are listed in
 %   OUTPUT_DIR/<scenario>/simulink/build_issues.txt and printed.
@@ -20,10 +22,16 @@ function build_scenarios(probe_dir, output_dir, names)
     output_dir = absolute(output_dir);
     step_sizes = containers.Map({'Probe10ms', 'Probe20ms', 'Probe50ms'}, {0.01, 0.02, 0.05});
 
+    addpath(probe_dir);
+    if ~exist(output_dir, 'dir')
+        mkdir(output_dir);
+    end
+    write_lines(fullfile(output_dir, 'probe_dir.txt'), {probe_dir});
+
     load_system(api.fmu_library);
     load_system('simulink');
     for scenario = scenarios
-        issues = build_scenario(scenario, api, probe_dir, output_dir, step_sizes);
+        issues = build_scenario(scenario, api, output_dir, step_sizes);
         folder = fullfile(output_dir, scenario.name, 'simulink');
         write_lines(fullfile(folder, 'build_issues.txt'), issues);
         fprintf('%s: %s\n', scenario.name, fullfile(folder, [scenario.name '.slx']));
@@ -34,7 +42,7 @@ function build_scenarios(probe_dir, output_dir, names)
 end
 
 
-function issues = build_scenario(scenario, api, probe_dir, output_dir, step_sizes)
+function issues = build_scenario(scenario, api, output_dir, step_sizes)
     issues = {};
     model = scenario.name;
     folder = fullfile(output_dir, model, 'simulink');
@@ -62,8 +70,7 @@ function issues = build_scenario(scenario, api, probe_dir, output_dir, step_size
                   'Cannot add the FMU block "%s": %s\nCorrect api.fmu_block in probe_simulink_api.m.', ...
                   api.fmu_block, err.message);
         end
-        fmu = fullfile(probe_dir, [probe '-host.fmu']);
-        set_param(path, api.fmu_name, fmu);
+        set_param(path, api.fmu_name, [probe '-host.fmu']);     % file name only: PROBE_DIR is on the path
         issues = try_set(issues, path, api.input_mapping, api.flat);
         issues = try_set(issues, path, api.output_mapping, api.flat);
         issues = try_set(issues, path, api.sample_time, num2str(step_sizes(probe)));
