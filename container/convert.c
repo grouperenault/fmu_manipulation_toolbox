@@ -295,6 +295,19 @@ CONVERSION_FUNCTION_B(B1_D64, booleans1, bool, integers64,  int64_t)
 CONVERSION_FUNCTION_B(B1_U64, booleans1, bool, uintegers64, uint64_t)
 
 
+/* 64 or 32 when the conversion `<FROM>_<TO>` (lossy ones start with `_`) gives a real64 (`F64`) or a real32 (`F32`),
+   0 otherwise. */
+int convert_destination_real(const char *function_name) {
+    const char *to = strrchr(function_name, '_');
+
+    if (to && strcmp(to, "_F64") == 0)
+        return 64;
+    if (to && strcmp(to, "_F32") == 0)
+        return 32;
+    return 0;
+}
+
+
 convert_function_t convert_function_get(const char *function_name) {
 #define CASE(x) if (strcmp(function_name, #x) == 0) return convert_ ## x
     CASE(F32_F64);

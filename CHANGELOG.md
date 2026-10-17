@@ -144,6 +144,10 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   `container.txt`): the container freed buffers it had not allocated.
 - 🟠 **FIXED** the buffers of the Model-Exchange solver were allocated again, without being freed, at each
   initialization of the container.
+- 🔵 **CHANGED** the Model-Exchange solver exchanges only the couplings between Model-Exchange FMUs at each
+  evaluation; the inputs fed by Co-Simulation FMUs or by the importer are set once per step. Same results; the
+  simulation loop of Model-Exchange FMUs fed by Co-Simulation FMUs takes about a third less time (1.5 times
+  faster), about 5 % less without coupling between them.
 
 ## fmutool and the Python API
 

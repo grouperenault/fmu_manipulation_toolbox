@@ -154,6 +154,26 @@ cp /tmp/carousel/*.webp docs/assets/release-2.0/
 The banner announcing the page, at the top of the site, is withdrawn by removing the `announce` block of
 `overrides/main.html`; the page stays.
 
+## Benchmark of the container runtime
+
+`tools/bench_container.py` measures the runtime of the containers (`container/`) on reproducible cases, built from
+the FMUs of `tests/data`: Co-Simulation FMUs with ports of every type or of one type, Model-Exchange FMUs with and
+without couplings, Co-Simulation FMUs feeding Model-Exchange ones. fmpy and the runtime built for the host are
+needed. For each case, it prints the time of the simulation loop (`doStep` only: the extraction and the
+instantiation of the container are not timed), the number of FMI calls of the exchanges of one step, and a digest
+of the results, which must not change when the runtime is optimized:
+
+```bash
+python tools/bench_container.py                    # every case, 5 runs each
+python tools/bench_container.py --list             # their names
+python tools/bench_container.py D-mixed --runs 10
+```
+
+Measurements made in separate sessions differ by 5 to 10 %: to compare two versions of the runtime, build the old
+one in another directory and alternate both `container.dylib` (`.so`, `.dll`) in
+`fmu_manipulation_toolbox/resources/<platform>` within one session, keeping the best time of each. The results of
+reference containers are also compared bit for bit by `tests/integration/test_container_perf.py`.
+
 ## Packaging and releases
 
 The package is described by `pyproject.toml` (built with setuptools); `MANIFEST.in` selects the content of the

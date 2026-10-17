@@ -1917,6 +1917,7 @@ static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
         fmu->conversions->entries[i].to = to & 0xFFFFFF;
 
         fmu->conversions->entries[i].function = convert_function_get(file->line+offset);
+        fmu->conversions->entries[i].to_real = convert_destination_real(file->line+offset);
         if (!fmu->conversions->entries[i].function) {
             CONFIG_ERROR("Cannot configure conversion %luth entry from '%s'", i, file->line+offset);
             return -6;

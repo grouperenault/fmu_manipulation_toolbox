@@ -62,6 +62,11 @@ int solver_register_me(solver_t *solver, unsigned long fmu_idx, size_t nx, size_
     e->nz      = nz;
     e->x_off   = 0;
     e->z_off   = 0;
+    e->coupled_reals64.nb = 0;
+    e->coupled_reals64.translations = NULL;
+    e->coupled_reals32.nb = 0;
+    e->coupled_reals32.translations = NULL;
+    e->feeds_me = false;
     solver->nb_me += 1;
 
     return 0;
@@ -81,6 +86,133 @@ static void solver_free_buffers(solver_t *solver) {
     free(solver->x_tmp);
     solver->x = solver->dx = solver->x_save = solver->z = solver->z_prev = NULL;
     solver->k2 = solver->k3 = solver->k4 = solver->x_tmp = NULL;
+
+    for (size_t i = 0; i < solver->nb_me; i += 1) {
+        free(solver->me[i].coupled_reals64.translations);
+        free(solver->me[i].coupled_reals32.translations);
+        solver->me[i].coupled_reals64.translations = solver->me[i].coupled_reals32.translations = NULL;
+        solver->me[i].coupled_reals64.nb = solver->me[i].coupled_reals32.nb = 0;
+        solver->me[i].feeds_me = false;
+    }
+    solver->has_coupling = false;
+}
+
+
+/*----------------------------------------------------------------------------
+                       M E   ->   M E   C O U P L I N G S
+----------------------------------------------------------------------------*/
+
+/* Mark the local slots [offset, offset + dimension) in `slots`. */
+static void solver_mark(bool *slots, unsigned long offset, unsigned long dimension) {
+    for (unsigned long k = 0; k < dimension; k += 1)
+        slots[offset + k] = true;
+}
+
+
+/* Whether one of the local slots [offset, offset + dimension) is marked in `slots`. */
+static bool solver_marked(const bool *slots, unsigned long offset, unsigned long dimension) {
+    for (unsigned long k = 0; k < dimension; k += 1) {
+        if (slots[offset + k])
+            return true;
+    }
+    return false;
+}
+
+
+/* Mark the real local slots written by an ME FMU: its continuous outputs, and the real destinations of its
+   conversions (run with its outputs). */
+static void solver_mark_outputs(const container_t *container, const fmu_t *fmu, bool *slots64, bool *slots32) {
+    for (unsigned long i = 0; i < fmu->fmu_io.reals64.out.nb; i += 1)
+        solver_mark(slots64, fmu->fmu_io.reals64.out.translations[i].vr, fmu->fmu_io.reals64.out.translations[i].dimension);
+    for (unsigned long i = 0; i < fmu->fmu_io.reals32.out.nb; i += 1)
+        solver_mark(slots32, fmu->fmu_io.reals32.out.translations[i].vr, fmu->fmu_io.reals32.out.translations[i].dimension);
+    if (!fmu->conversions)
+        return;
+    for (unsigned long i = 0; i < fmu->conversions->nb; i += 1) {
+        const convert_table_entry_t *entry = &fmu->conversions->entries[i];
+        if (entry->to_real == 64)
+            solver_mark(slots64, container->port_reals64[entry->to].links[0].fmu_vr,
+                        container->port_reals64[entry->to].dimension);
+        else if (entry->to_real == 32)
+            solver_mark(slots32, container->port_reals32[entry->to].links[0].fmu_vr,
+                        container->port_reals32[entry->to].dimension);
+    }
+}
+
+
+/* The inputs of `list` whose local slots are marked in `produced` (they go to `coupled`); their slots are marked
+   in `consumed`. */
+static int solver_select_inputs(const fmu_translation_list_t *list, const bool *produced, bool *consumed,
+                                fmu_translation_list_t *coupled) {
+    coupled->nb = 0;
+    coupled->translations = NULL;
+    if (list->nb == 0)
+        return 0;
+    coupled->translations = malloc(list->nb * sizeof(*coupled->translations));
+    if (!coupled->translations)
+        return -1;
+    for (unsigned long i = 0; i < list->nb; i += 1) {
+        const fmu_translation_t *t = &list->translations[i];
+        if (solver_marked(produced, t->vr, t->dimension)) {
+            coupled->translations[coupled->nb] = *t;
+            coupled->nb += 1;
+            solver_mark(consumed, t->vr, t->dimension);
+        }
+    }
+    return 0;
+}
+
+
+/* Find the ME -> ME couplings: only them are refreshed by the coupling sweep during the integration. The other
+   continuous inputs of the ME FMUs (fed by Co-Simulation FMUs or by the importer) are constant during the step: they
+   are set once before the integration. */
+static int solver_find_couplings(solver_t *solver) {
+    const container_t *container = solver->container;
+    const unsigned long nb64 = container->nb_local_reals64, nb32 = container->nb_local_reals32;
+    bool *produced64 = calloc(nb64 + 1, sizeof(bool)), *produced32 = calloc(nb32 + 1, sizeof(bool));
+    bool *consumed64 = calloc(nb64 + 1, sizeof(bool)), *consumed32 = calloc(nb32 + 1, sizeof(bool));
+    bool *outputs64 = calloc(nb64 + 1, sizeof(bool)), *outputs32 = calloc(nb32 + 1, sizeof(bool));
+    int status = -1;
+
+    if (!produced64 || !produced32 || !consumed64 || !consumed32 || !outputs64 || !outputs32)
+        goto end;
+
+    for (size_t i = 0; i < solver->nb_me; i += 1)
+        solver_mark_outputs(container, solver->me[i].fmu, produced64, produced32);
+
+    for (size_t i = 0; i < solver->nb_me; i += 1) {
+        solver_me_fmu_t *e = &solver->me[i];
+        if (solver_select_inputs(&e->fmu->fmu_io.reals64.in, produced64, consumed64, &e->coupled_reals64) ||
+            solver_select_inputs(&e->fmu->fmu_io.reals32.in, produced32, consumed32, &e->coupled_reals32))
+            goto end;
+        if (e->coupled_reals64.nb || e->coupled_reals32.nb)
+            solver->has_coupling = true;
+    }
+
+    for (size_t i = 0; i < solver->nb_me; i += 1) {
+        solver_me_fmu_t *e = &solver->me[i];
+        memset(outputs64, 0, (nb64 + 1) * sizeof(bool));
+        memset(outputs32, 0, (nb32 + 1) * sizeof(bool));
+        solver_mark_outputs(container, e->fmu, outputs64, outputs32);
+        for (unsigned long k = 0; k < nb64 && !e->feeds_me; k += 1)
+            e->feeds_me = outputs64[k] && consumed64[k];
+        for (unsigned long k = 0; k < nb32 && !e->feeds_me; k += 1)
+            e->feeds_me = outputs32[k] && consumed32[k];
+        logger(LOGGER_DEBUG, "Solver: ME FMU '%s': %lu coupled continuous input(s), %s an ME FMU.", e->fmu->name,
+               e->coupled_reals64.nb + e->coupled_reals32.nb, e->feeds_me ? "feeds" : "does not feed");
+    }
+    status = 0;
+
+end:
+    if (status)
+        logger(LOGGER_ERROR, "Solver: cannot allocate the ME couplings.");
+    free(produced64);
+    free(produced32);
+    free(consumed64);
+    free(consumed32);
+    free(outputs64);
+    free(outputs32);
+    return status;
 }
 
 
@@ -140,6 +272,9 @@ int solver_configure(solver_t *solver) {
         if (!solver->z || !solver->z_prev) goto fail;
     }
 
+    if (solver_find_couplings(solver))
+        return -1;
+
     return 0;
 
 fail:
@@ -164,7 +299,9 @@ void solver_free(solver_t *solver) {
    sweep in registration order, so an output produced by me[i] reaches me[i+1]
    within the same sweep. Required before every evaluation of the right-hand
    side and of the event indicators (FMI-3.0 2.2.11), otherwise the coupled
-   FMUs are evaluated with stale inputs.
+   FMUs are evaluated with stale inputs. Only the couplings found by
+   solver_find_couplings() are refreshed: the other continuous inputs are
+   constant during the step, and nothing is done without coupling.
 
    Continuous Time Mode only: exchange the continuous (real) couplings, never the
    discrete ones. Per FMI-2.0 2.1.3, discrete variables may only be set/get in
@@ -172,15 +309,29 @@ void solver_free(solver_t *solver) {
    (e.g. a bounce "reset" flag) corrupts the target FMU's edge detection. The
    discrete couplings are exchanged by solver_event_iteration() in Event Mode. */
 static fmu_status_t solver_propagate(solver_t *solver) {
-    for (size_t i = 0; i < solver->nb_me; i += 1) {
-        fmu_t *fmu = solver->me[i].fmu;
+    if (!solver->has_coupling)
+        return FMU_STATUS_OK;
 
-        if (fmu_set_continuous_inputs(fmu) != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "ME FMU '%s': cannot set inputs.", fmu->name);
-            return FMU_STATUS_ERROR;
+    const container_t *container = solver->container;
+    for (size_t i = 0; i < solver->nb_me; i += 1) {
+        const solver_me_fmu_t *e = &solver->me[i];
+
+        for (unsigned long k = 0; k < e->coupled_reals64.nb; k += 1) {
+            const fmu_translation_t *t = &e->coupled_reals64.translations[k];
+            if (fmuSetReal64(e->fmu, &t->fmu_vr, 1, &container->reals64[t->vr], t->dimension) != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "ME FMU '%s': cannot set inputs.", e->fmu->name);
+                return FMU_STATUS_ERROR;
+            }
         }
-        if (fmu_get_continuous_outputs(fmu) != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "ME FMU '%s': cannot get outputs.", fmu->name);
+        for (unsigned long k = 0; k < e->coupled_reals32.nb; k += 1) {
+            const fmu_translation_t *t = &e->coupled_reals32.translations[k];
+            if (fmuSetReal32(e->fmu, &t->fmu_vr, 1, &container->reals32[t->vr], t->dimension) != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "ME FMU '%s': cannot set inputs.", e->fmu->name);
+                return FMU_STATUS_ERROR;
+            }
+        }
+        if (e->feeds_me && fmu_get_continuous_outputs(e->fmu) != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "ME FMU '%s': cannot get outputs.", e->fmu->name);
             return FMU_STATUS_ERROR;
         }
     }
