@@ -1,4 +1,4 @@
-"""Analysis of an assembly: summary, paged views and lint of its containers (docs/local/done/assembly_analysis.md).
+"""Analysis of an assembly: summary, paged views and lint of its containers.
 
 The assembly JSON (the format of `Assembly.json_encode`, produced by both bridges) grows with the number of ports:
 a real assembly of 3 nested containers is over 100k characters, far more than a tool result can carry. The
@@ -29,7 +29,7 @@ from typing import Any
 MAX_GROUPS = 15
 
 #: Size (characters of JSON) of a result: beyond it, the sub-containers of a summary are reduced and the sections of
-#: a container are left to paging. The result budget of a tool (docs/local/done/mcp_optimize.md, decision D6).
+#: a container are left to paging: it keeps the result of a tool within the context window of the model.
 MAX_RESULT_SIZE = 12_000
 
 #: Sections of a container in the assembly JSON, and the position of the FMU references in their entries.
@@ -54,7 +54,7 @@ def container_label(node: dict[str, Any]) -> str:
 
 
 def port_prefix(name: str) -> str:
-    """Prefix shared by the ports of a bus (decision D7).
+    """Prefix shared by the ports of a bus.
 
     The first segment before `.` (`Sc_2_DV.Rho` → `Sc_2_DV`); for a name without `.`, the part before the first
     `_`, separator included (`SNR_T_amb` → `SNR_`); an empty prefix for a name with neither.
@@ -190,7 +190,7 @@ def _containers(node: dict[str, Any], path: str = ""):
 
 
 def find_container(assembly: dict[str, Any], name: str) -> dict[str, Any]:
-    """The container of the tree named `name` (decision D5).
+    """The container of the tree named `name`.
 
     Raises:
         ValueError: When no container, or more than one, bears that name; the message lists the candidates.
@@ -212,7 +212,7 @@ def _counts(node: dict[str, Any]) -> dict[str, int]:
 
 def assembly_page(assembly: dict[str, Any], node: str | None = None, section: str | None = None,
                   offset: int = 0, limit: int = 50) -> dict[str, Any]:
-    """A bounded view of the assembly JSON, FMUs designated by name (decisions D2, D5, D6).
+    """A bounded view of the assembly JSON, FMUs designated by name.
 
     Args:
         assembly: The assembly, in the format of `Assembly.json_encode`.
@@ -264,7 +264,7 @@ def assembly_page(assembly: dict[str, Any], node: str | None = None, section: st
 # Structural lint
 # ---------------------------------------------------------------------------
 
-#: Most groups of findings returned by `lint_assembly`, as `check_fmu` (docs/local/done/mcp_optimize.md, D1).
+#: Most groups of findings returned by `lint_assembly`, as `check_fmu`: the others are counted, not listed.
 MAX_FINDING_GROUPS = 50
 
 #: Ratio between the step of a container and the step of a sub-container above which it is reported as a warning.
@@ -392,7 +392,7 @@ def _lint_node(node: dict[str, Any], ancestors: tuple, report, is_clock) -> None
 
 def lint_assembly(assembly: dict[str, Any], node: str | None = None,
                   describe: Callable[[str], dict[str, Any]] | None = None) -> dict[str, Any]:
-    """Report the known traps of an assembly (decisions D8, D14, D15).
+    """Report the known traps of an assembly.
 
     Args:
         assembly: The assembly, in the format of `Assembly.json_encode`.

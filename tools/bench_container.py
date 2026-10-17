@@ -1,5 +1,5 @@
 """
-Benchmark of the container runtime (`docs/local/container_perf.md`): builds reference containers, simulates each one
+Benchmark of the container runtime: builds reference containers, simulates each one
 several times with fmpy, and prints for each case the time of the simulation loop (`doStep` only), the number of FMI calls of the input and
 output exchanges of one internal step (port by port, and grouped by type), and a digest of the results (they must not
 change from one version of the runtime to the next).

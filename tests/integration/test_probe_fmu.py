@@ -1,7 +1,9 @@
-"""Integration tests of the probe FMU of `tools/probe_fmu` (see `docs/local/importer_comparison.md`).
+"""Integration tests of the probe FMU of `tools/probe_fmu`, and of the container runtime seen through it.
 
 The generated FMUs (sources only) are compiled for the host platform, then simulated with fmpy; the trace written
-by the probe is checked. Each test runs in its own temporary directory.
+by the probe is checked: the FMI calls of the container scenarios (reference traces), the propagation of the links
+during the initialization, and the internal steps of a container driven with a communication step that is not a
+multiple of its own. Each test runs in its own temporary directory.
 """
 import csv
 import logging
@@ -348,7 +350,6 @@ def test_compare_differences(tmp_path):
 
 # --------------------------------------------------------------------------- #
 #           Propagation of the links during the initialization                 #
-#                 (docs/local/done/init_propagation.md)                        #
 # --------------------------------------------------------------------------- #
 def _build_and_simulate(directory: Path, probes: Path, description: dict, fmi_version: int = 2,
                         stop_time: float = 0.02) -> list[str]:
@@ -477,7 +478,6 @@ def test_propagation_before_a_get_in_initialization_mode(probe_dir, compiled_pro
 
 # --------------------------------------------------------------------------- #
 #     Communication steps that are not a multiple of the container step        #
-#                    (docs/local/done/container_substep.md)                    #
 # --------------------------------------------------------------------------- #
 @pytest.mark.slow
 @pytest.mark.needs_fmpy

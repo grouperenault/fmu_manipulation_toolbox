@@ -1,7 +1,6 @@
 """In-memory model of `modelDescription.xml`, based on ElementTree.
 
-This module is the core of the migration away from the hand-written expat/print
-rewriting of `modelDescription.xml` (see `docs/local/done/refactoring.md`). It loads the
+It replaces the hand-written expat/print rewriting of `modelDescription.xml`. It loads the
 descriptor into an ElementTree, gives access to its variables and model
 structure, and writes it back. Operations modify the tree **in place**, so
 everything they do not touch (annotations, aliases, comments, namespaces,

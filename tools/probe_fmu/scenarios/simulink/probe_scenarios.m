@@ -1,7 +1,6 @@
 function scenarios = probe_scenarios()
 %PROBE_SCENARIOS Definition of the Simulink side of the comparison scenarios.
-%   Same assemblies as the FMU Container descriptions (../S*.json), see ../README.md and
-%   docs/local/importer_comparison.md (section "Study scenarios").
+%   Same assemblies as the FMU Container descriptions (../S*.json), see ../README.md.
 %
 %   Each scenario is a struct:
 %     name          model name (S1, S2, S3, S4s, S4m, S5, S6s, S6m)

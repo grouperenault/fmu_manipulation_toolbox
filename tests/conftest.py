@@ -138,9 +138,8 @@ def _has_remoting_binaries() -> bool:
 def _has_c_compiler() -> bool:
     """True when a C compiler for the host platform can be found.
 
-    Mirrors the discovery of `fmu_manipulation_toolbox.compiler` (decision D6 of
-    `docs/local/compile_sources.md`): MSVC through `vswhere.exe` or `cl.exe` on
-    Windows, `$CC` (default `cc`) elsewhere.
+    Mirrors the discovery of `fmu_manipulation_toolbox.compiler`: MSVC through
+    `vswhere.exe` or `cl.exe` on Windows, `$CC` (default `cc`) elsewhere.
     """
     if sys.platform == "win32":
         program_files = os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")

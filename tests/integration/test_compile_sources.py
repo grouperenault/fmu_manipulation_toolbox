@@ -1,8 +1,8 @@
-"""Integration tests of `OperationCompileSources` (see `docs/local/compile_sources.md`).
+"""Integration tests of `OperationCompileSources`: compilation of the sources of an FMU for the host platform.
 
 The Reference FMUs of `tests/data/compile` are copied without their `binaries/` and compiled for the host
 platform; the result is simulated and compared with `REF-BouncingBall.csv`. These FMUs need the FMI headers
-of the package and the prefix handling (D5, D10) to give a loadable library.
+of the package and the prefix handling to give a loadable library.
 
 Each test runs in an isolated copy of `tests/data/compile`.
 """

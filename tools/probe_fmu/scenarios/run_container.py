@@ -1,4 +1,4 @@
-"""Run the scenarios of the importer comparison study as FMU Containers (docs/local/importer_comparison.md).
+"""Run the comparison scenarios of the probe FMUs as FMU Containers.
 
 For each scenario `<S>` (a `<S>.json` description of this directory), the script works in
 `<output>/<S>/container/`: it copies the description and the probes compiled for the host, builds the container,

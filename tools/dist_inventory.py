@@ -1,6 +1,6 @@
 """Inventory of the distributions (wheel and sdist) of fmu_manipulation_toolbox.
 
-Safety net of the packaging migration (docs/local/done/packaging.md, phases 0 and 4).
+Safety net of the packaging: the content of the wheel and of the sdist must not change unnoticed.
 Two kinds of checks:
 
 - **Reference files** (`--write` / `--check DIR`), compared line by line, for what
@@ -11,7 +11,7 @@ Two kinds of checks:
   (no reference to update when a module or a test is added): the wheel contains
   exactly the Python modules of the package; the sdist contains the package and
   the C sources (container/, remoting/), and neither the prebuilt binaries,
-  nor tests/data, docs/ or .github/ (MANIFEST.in, decision D3).
+  nor tests/data, docs/ or .github/ (MANIFEST.in).
 
 By default the distributions are built in a temporary local clone of the
 repository, onto which the working copy of the files tracked by git is copied,

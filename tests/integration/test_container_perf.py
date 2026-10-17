@@ -1,4 +1,4 @@
-"""Results of reference containers for the performance work on the runtime (`docs/local/container_perf.md`).
+"""Results of reference containers, unchanged by the performance work on the runtime.
 
 The coupling sweep of the Model-Exchange solver must not change the results: they are compared with REF files made
 before this change, on macOS (Apple silicon). The embedded FMUs run their own binaries on each platform (compiler,

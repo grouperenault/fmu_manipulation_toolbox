@@ -2,12 +2,12 @@
 
 `analysis.lint_assembly` only reads the assembly JSON. Whether a port exists, has the right causality, or can be
 linked to another one is decided by the builder (`container/builder.py`): rather than re-implementing those checks,
-each container of the assembly is replayed into an `FMUContainer` that is never built
-(docs/local/done/assembly_analysis.md, decisions D9, D9' and D15). Every rule the builder refuses becomes an error,
-with the message of the builder; the `auto_*` rules are then dry-run, so that the inputs left unfed can be told.
+each container of the assembly is replayed into an `FMUContainer` that is never built. Every rule the builder
+refuses becomes an error, with the message of the builder; the `auto_*` rules are then dry-run, so that the inputs
+left unfed can be told.
 
 A sub-container only exists once built: the entries that involve one are not checked, and the `auto_*` rules do not
-see its ports (D9'). Both are reported.
+see its ports. Both are reported.
 
 This module imports the container builder: it is only imported when the port-level lint runs.
 """

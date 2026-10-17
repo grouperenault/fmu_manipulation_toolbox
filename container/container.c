@@ -416,9 +416,8 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
 ----------------------------------------------------------------------------*/
 
 /*
- * Exit of the Initialization Mode of the embedded FMUs, with the propagation of their links
- * (docs/local/done/init_propagation.md), as Simulink does: in the initialization order (topological order of the
- * links, written by the builder), each FMU gets its linked inputs from the local variables, leaves its
+ * Exit of the Initialization Mode of the embedded FMUs, with the propagation of their links, as Simulink does: in
+ * the initialization order (topological order of the links, written by the builder), each FMU gets its linked inputs from the local variables, leaves its
  * Initialization Mode, then its outputs are read into the local variables for the FMUs after it. No output is read
  * in Initialization Mode (some FMUs compute them only when they leave it). An ME FMU is in Event Mode after its exit:
  * its outputs are read after its own event iteration, never before its first update of the discrete states.
@@ -985,8 +984,9 @@ static void container_clear_reset_triggers(container_t *container) {
 
 
 /*
- * Values set by the importer while an internal step was pending (docs/local/done/container_substep.md): applied, from
- * the cache, to the embedded FMUs and to the local variables once this step is done, for the steps after it.
+ * Values set by the importer while an internal step was pending: applied, from the cache, to the embedded FMUs and
+ * to the local variables once this step is done, for the steps after it. The pending step itself used the values
+ * of its beginning.
  */
 static fmu_status_t container_apply_deferred(container_t *container) {
 #define APPLY_DEFERRED(type, function_name)                                                                     \
@@ -1116,9 +1116,9 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
 
     /*
      * Internal steps of the container (time_step x TS_MULTIPLIER, the multiplier read at the beginning of each
-     * step) that end before end_time. A step that does not fit stays pending (docs/local/done/container_substep.md):
-     * it is done by the call that reaches its end, with the inputs of its beginning (the values set by the importer
-     * meanwhile are deferred); its outputs are held until then.
+     * step) that end before end_time. A step that does not fit (communication step not a multiple of the internal
+     * step) stays pending: it is done by the call that reaches its end, with the inputs of its beginning (the values
+     * set by the importer meanwhile are deferred); its outputs are held until then, as an FMU of fixed step.
      */
     while (true) {
         container->time = container->start_time + container->time_step * container->nb_steps;

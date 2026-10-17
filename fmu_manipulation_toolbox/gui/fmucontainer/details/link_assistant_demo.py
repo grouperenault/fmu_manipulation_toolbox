@@ -1,5 +1,5 @@
 """
-Mockup of the link assistant with two fictitious FMUs (step 0 of `docs/local/link_assistant.md`).
+Mockup of the link assistant with two fictitious FMUs, to try its behaviour without real FMUs.
 
     python -m fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant_demo [--ports N] [--seed S]
 

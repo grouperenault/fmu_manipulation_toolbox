@@ -114,7 +114,7 @@ typedef struct container_s {
 
 	/* An internal step of the container started before the end of the last communication step and is not done
 	   yet (communication step not a multiple of the internal step): the values set by the importer meanwhile are
-	   deferred (docs/local/done/container_substep.md). */
+	   deferred, the step uses the inputs of its beginning. */
 	bool						step_pending;
 
 	/* ME working set (states, derivatives, event indicators, flat buffers). */

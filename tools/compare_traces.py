@@ -1,4 +1,4 @@
-"""Compare the traces of the probe FMUs written by two importers (docs/local/importer_comparison.md, Step 4).
+"""Compare the traces of the probe FMUs written by two importers (FMU Container and Simulink).
 
 The scenarios are run as FMU Containers (`tools/probe_fmu/scenarios/run_container.py`) and as Simulink models
 (`tools/probe_fmu/scenarios/simulink/`); each run leaves the traces of its probes in

@@ -2,7 +2,7 @@
 
 They cover the name of the binaries directory of the host platform, the suffix of the shared library and the
 reading of the build description (FMI 2.0 `<SourceFiles>`, FMI 3.0 `sources/buildDescription.xml`) of the
-Reference FMUs of `tests/data/compile` (see `docs/local/compile_sources.md`).
+Reference FMUs of `tests/data/compile`.
 
 The host platform is faked by patching `platform.system()` and `platform.machine()`.
 """

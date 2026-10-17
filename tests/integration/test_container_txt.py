@@ -1,4 +1,4 @@
-"""Integration tests for the reading of `container.txt` by the runtime (`docs/local/container_txt_robustness.md`).
+"""Integration tests for the reading of `container.txt` by the runtime: format version and length of the lines.
 
 `Feedthrough.fmu` of `tests/data/compile/2.0` is compiled for the host from its sources, with strings of up to 16384
 characters (128 in the reference FMU): these tests simulate on every OS.

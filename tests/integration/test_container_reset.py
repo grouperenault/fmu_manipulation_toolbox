@@ -1,4 +1,4 @@
-"""Integration tests for the reset of embedded FMUs (`docs/local/fmu_reset.md`).
+"""Integration tests for the reset of embedded FMUs (`container.<fmu>.reset` inputs) and of containers.
 
 The FMUs used here (`containers/mt`, `containers/VanDerPol`, `ls-bus`, the sources of `compile`) are built, or
 compiled, for every platform: these tests simulate on every OS.
@@ -281,7 +281,7 @@ def test_reset_of_a_sub_container(area_dir, fmi_version):
 @pytest.mark.needs_container
 @pytest.mark.area("ls-bus")
 def test_reset_refused_for_an_fmu_with_scheduled_clocks(area_dir):
-    """The bus of an LS-BUS container has clocks scheduled by the container: its reset is refused (D21)."""
+    """The bus of an LS-BUS container has clocks scheduled by the container: its reset is refused."""
     assembly = json.loads(Path("bus+nodes.json").read_text())
     assembly.update({"name": "resettable.fmu", "reset_ports": True,
                      "input": [["container.bus.reset", "bus.fmu", "container.reset"]]})
@@ -356,7 +356,7 @@ def test_failing_reset(area_dir, fmi_version):
 @pytest.mark.area("containers/VanDerPol")
 @pytest.mark.parametrize("source", ["importer", "link"])
 def test_reset_in_the_datalog(area_dir, source):
-    """A row is written just before the reset, at the same time as the row of the previous step (D13). Set by the
+    """A row is written just before the reset, at the same time as the row of the previous step. Set by the
     importer, the trigger is `true` in this row only; fed by a link, the datalog shows the link variable (the
     source value, before its conversion to the Boolean of the trigger)."""
     container = FMUContainer("logged", ".", fmi_version=3, reset_ports=True)

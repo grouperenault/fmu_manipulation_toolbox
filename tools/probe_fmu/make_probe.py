@@ -1,4 +1,4 @@
-"""Generate the probe FMUs of the importer comparison study (docs/local/importer_comparison.md).
+"""Generate the probe FMUs, which trace the FMI calls they receive to compare importers.
 
 The three FMUs Probe10ms, Probe20ms and Probe50ms are FMI 2.0 Co-Simulation FMUs with sources only: the same
 `probe.c` and a `probe_config.h` giving their GUID and step size. Compile them for the host with
