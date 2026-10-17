@@ -102,3 +102,21 @@ def test_container_txt_version_is_checked(area_dir, header, message):
     fmu, _, messages, _logger = _instantiate(filename)
     assert fmu is None
     assert any(message in logged for logged in messages), messages
+
+
+# --------------------------------------------------------------------------- #
+#                                Long lines                                     #
+# --------------------------------------------------------------------------- #
+def test_container_txt_long_line(area_dir):
+    """A string start value longer than the former line buffer (4096 bytes) reaches the embedded FMU unchanged."""
+    value = "".join(chr(ord("a") + i % 26) for i in range(10_000))
+    filename = _make_container("long.fmu", string_input=value)
+    assert value in read_entry(filename, CONTAINER_TXT).decode("utf-8")
+
+    fmu, vrs, messages, _logger = _instantiate(filename)
+    assert fmu is not None, messages
+    _initialize(fmu)
+    fmu.doStep(0.0, 0.1)
+    assert fmu.getString([vrs["out"]])[0].decode("utf-8") == value
+    fmu.terminate()
+    fmu.freeInstance()

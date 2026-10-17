@@ -24,10 +24,11 @@ extern "C" {
 /*----------------------------------------------------------------------------
                         C O N F I G _ F I L E _ T
 ----------------------------------------------------------------------------*/
-#define CONFIG_FILE_SZ			4096
+#define CONFIG_FILE_SZ			4096	/* size of the path buffers, initial size of the line buffer */
 typedef struct {
 	FILE						*fp;
-	char						line[CONFIG_FILE_SZ];
+	char						*line;		/* current line, grown to hold a line of any length */
+	size_t						line_size;
     unsigned int                line_number;
 } config_file_t;
 
