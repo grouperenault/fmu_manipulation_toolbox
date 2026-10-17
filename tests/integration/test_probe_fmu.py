@@ -226,3 +226,85 @@ def test_scenario_s1_in_a_container(probe_dir):
     assert len(steps) == 20
     assert all(float(line["h"]) == pytest.approx(0.01) for line in steps)
     assert _snapshot(trace, "after_initialization")["trace_file"] == "A.csv"
+
+
+# --------------------------------------------------------------------------- #
+#                 Reference traces and comparison of the traces                #
+# --------------------------------------------------------------------------- #
+REF_DIR = Path(__file__).parents[1] / "data" / "probe"
+REF_SCENARIOS = ["S1", "S2", "S3", "S4a", "S4b", "S5j", "S5s", "S5r"]
+
+
+def _without_wall(filename: Path) -> list[list[str]]:
+    with open(filename, newline="") as file:
+        return [row[:1] + row[2:] for row in csv.reader(file)]
+
+
+@pytest.fixture(scope="module")
+def compiled_probes(tmp_path_factory) -> Path:
+    return _run_container().compile_probes(tmp_path_factory.mktemp("probes"))
+
+
+@pytest.mark.slow
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_compiler
+@pytest.mark.needs_container
+@pytest.mark.parametrize("scenario", REF_SCENARIOS)
+def test_container_traces(probe_dir, compiled_probes, scenario):
+    """The FMI calls of the container runtime match tests/data/probe/REF-<scenario>-<instance>.csv.
+
+    After an intended change, regenerate the REF files from the traces of
+    `run_container.py -output DIRECTORY` (without their `wall` column).
+    """
+    directory = _run_container().run(scenario, probe_dir, compiled_probes)
+    references = sorted(REF_DIR.glob(f"REF-{scenario}-*.csv"))
+    assert references
+    for reference in references:
+        trace = directory / f"{reference.stem.rsplit('-', 1)[1]}.csv"
+        assert _without_wall(trace) == _without_wall_ref(reference), f"{scenario}: {trace.name}"
+
+
+def _without_wall_ref(filename: Path) -> list[list[str]]:
+    with open(filename, newline="") as file:
+        return list(csv.reader(file))
+
+
+def _compare_traces():
+    spec = importlib.util.spec_from_file_location("compare_traces", PROBE_DIR.parent / "compare_traces.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_compare_identical_traces(tmp_path):
+    """Two identical runs give no difference (the REF traces of S5j stand for both importers)."""
+    compare_traces = _compare_traces()
+    for importer, scenario in (("container", "S5j"), ("simulink", "S5")):
+        directory = tmp_path / scenario / importer
+        directory.mkdir(parents=True)
+        for reference in REF_DIR.glob("REF-S5j-*.csv"):
+            rows = _without_wall_ref(reference)
+            with open(directory / f"{reference.stem.rsplit('-', 1)[1]}.csv", "w", newline="") as file:
+                csv.writer(file).writerows([rows[0][:1] + ["wall"] + rows[0][1:]] +
+                                           [row[:1] + ["0"] + row[1:] for row in rows[1:]])
+    report = compare_traces.report(tmp_path, ["S5j"])
+    assert "### S5j (container) vs S5 (Simulink)" in report
+    assert report.count("#### Instance") == 3
+    assert "differences" not in report
+
+
+def test_compare_differences(tmp_path):
+    """S3 against S5j: differences of snapshots and inputs are reported, missing results too."""
+    compare_traces = _compare_traces()
+    for importer, scenario, source in (("container", "S3", "S3"), ("simulink", "S3", "S5j")):
+        directory = tmp_path / scenario / importer
+        directory.mkdir(parents=True)
+        for reference in REF_DIR.glob(f"REF-{source}-*.csv"):
+            rows = _without_wall_ref(reference)
+            with open(directory / f"'{reference.stem.rsplit('-', 1)[1]}.csv'", "w", newline="") as file:
+                csv.writer(file, lineterminator="\r\n").writerows(
+                    [rows[0][:1] + ["wall"] + rows[0][1:]] + [row[:1] + ["0"] + row[1:] for row in rows[1:]])
+    report = compare_traces.report(tmp_path, ["S3", "S1"])
+    assert "Snapshot `after_initialization`: differences:" in report
+    assert "| `y_init` | 5 | 1 |" in report
+    assert "### S1 (container) vs S1 (Simulink)\n\nResults missing." in report

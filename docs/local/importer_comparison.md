@@ -1,6 +1,6 @@
 # Migrating an FMU assembly from Simulink to an FMU Container
 
-**Created**: 17 October 2026 — **Status**: Steps 1–2 done (17 October 2026), Step 3 waiting for the Simulink traces — **Branch**:
+**Created**: 17 October 2026 — **Status**: Steps 1–4 done (17 October 2026; report: `docs/local/importer_comparison_report.md`), Step 5 to start — **Branch**:
 `importer-comparison` — **Roadmap**: not listed
 
 ## Goal
@@ -139,7 +139,7 @@ Capabilities: `canHandleVariableCommunicationStepSize="false"`, `canGetAndSetFMU
 Header `seq,wall,function,status,time,h,vr,name,value,note`, one line per FMI call, and one line per value for
 `fmi2Get*`/`fmi2Set*` (same `seq`):
 
-- `seq`: call number; `wall`: seconds since `fmi2Instantiate` (monotonic, `timespec_get`); `time`: time of the FMU
+- `seq`: call number; `wall`: monotonic clock (s), origin shared by the instances of a process; `time`: time of the FMU
   at the call; `h`: communication step of `fmi2DoStep`; `note`: e.g. `h != step_size`, error reason.
 - **Snapshots** of every variable, `function` = `SNAPSHOT`, `note` = `before_setup_experiment`,
   `before_initialization` (at `fmi2EnterInitializationMode`), `after_initialization` (at
@@ -243,6 +243,11 @@ container traces of S1–S5 (wall clock excluded). Report of the differences in 
 answers to the `UNVERIFIED` points of `docs/local/simulink_export.md` (referenced from that plan), and the
 conclusion on the propagation of the links during initialization (S3): open `docs/local/init_propagation.md` or
 not, see *Follow-up: propagation of the links during initialization*.
+
+Done: `tools/compare_traces.py`, reference traces `tests/data/probe/REF-<scenario>-<instance>.csv` (container,
+S1–S5, without `wall`) checked by `tests/integration/test_probe_fmu.py`, report
+`docs/local/importer_comparison_report.md`. Simulink propagates the links during the initialization: the plan
+`docs/local/init_propagation.md` is to be opened (decision of the user).
 
 Commit message: `Compare the traces of the FMU container and Simulink`
 
