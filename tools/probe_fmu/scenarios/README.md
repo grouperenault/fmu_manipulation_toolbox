@@ -36,9 +36,27 @@ container `results.csv`, the log `log.txt` and the wall time `wall.txt`.
    fmutool -input Probe50ms.fmu -compile-sources -output Probe50ms-host.fmu
    ```
 
-2. For each scenario `<S>`, create a folder `<output>/<S>/simulink/`, put the model `<S>.slx` there and make it the
-   current folder of MATLAB before running the simulation: the probes write their traces (`A.csv`...) in the
-   current directory of the process.
+2. Build and run the models with the scripts of `simulink/` (MATLAB, folder `tools/probe_fmu/scenarios/simulink`
+   on the path):
+
+   ```matlab
+   addpath('<repository>/tools/probe_fmu/scenarios/simulink')
+   build_scenarios('<folder of the -host.fmu>', '<output>')   % or build_scenarios(..., {'S1', 'S3'})
+   run_scenarios('<output>')                                    % or run_scenarios('<output>', {'S1'})
+   ```
+
+   - `build_scenarios` saves `<output>/<S>/simulink/<S>.slx` and lists in `build_issues.txt` (also printed) the
+     calls that failed and the settings to make by hand (input start values of S2 and S3).
+   - `run_scenarios` simulates each model with `<output>/<S>/simulink/` as current folder (the probes write their
+     traces `A.csv`... in the current directory) and writes there `log.txt` (messages and warnings) and
+     `wall.txt` (wall time); `<output>/version.txt` holds the MATLAB version and platform.
+   - The Simulink names that MathWorks does not document (library path of the FMU block, order of the `Flat` ports,
+     parameter values with `set_param`) are gathered in `probe_simulink_api.m` and marked `UNVERIFIED`: correct
+     them there if needed. Each line of a model is named `<from>.<output> -> <to>.<input>`: check on the first
+     models that it joins the ports of these names.
+   - The scenarios are defined in `probe_scenarios.m` (same content as the table below).
+
+   The tables below describe the models, for a check or a manual build.
 
 ### Common settings
 
@@ -64,8 +82,8 @@ them (parameter values, input start values) are not documented by MathWorks: set
 | **S1** | `A` Probe10ms | none | `trace_file` only | common |
 | **S2** | `A` Probe10ms | none | `p_real` = 3, `p_tunable` = 0.5, `compute_time` = 0; **input start values** if the dialog offers them: `u_cont` = 2, `u_disc` = 4, `u_int` = 7, `u_bool` = true | common; note where (and whether) the input start values can be given |
 | **S3** | `A`, `B`, `C` Probe10ms | `A.y_init → B.u_cont`, `B.y_cont → C.u_cont` | `A`: `p_real` = 3, `u_cont` start = 2 (if possible, see S2); `C`: `p_real` = 2 | common |
-| **S4s** | `A` Probe10ms, `B` Probe20ms, `C` Probe50ms | `A.y_time → B.u_cont`, `A.y_int → B.u_int`, `B.y_time → C.u_cont`, `C.y_time → A.u_disc`, `C.y_int → A.u_int` | none | single-tasking; keep the rate transition warnings/errors in the log (add *Rate Transition* blocks only if Simulink refuses to simulate, and say so) |
-| **S4m** | as S4s | as S4s | none | **multi-tasking** ("Treat each discrete rate as a separate task" on) |
+| **S4s** | `A` Probe10ms, `B` Probe20ms, `C` Probe50ms | `A.y_time → B.u_cont`, `A.y_int → B.u_int`, `B.y_time → C.u_cont`, `C.y_time → A.u_disc`, `C.y_int → A.u_int` | none | single-tasking (no *Rate Transition* block); keep the rate transition warnings in the log |
+| **S4m** | as S4s | as S4s | none | **multi-tasking** ("Treat each discrete rate as a separate task" on); a *Rate Transition* block (default settings) on each line between different rates |
 | **S5** | `A`, `B`, `C` Probe10ms | `A.y_time → B.u_cont`, `B.y_cont → C.u_cont`, `A.y_time → B.u_disc`, `B.y_disc → C.u_disc` | none | common |
 | **S6s** | `A`, `B`, `C` Probe10ms | none | `compute_time` = 0.005, `compute_sleep` = false on each | single-tasking, stop time 1 s |
 | **S6m** | as S6s | none | as S6s | multi-tasking, stop time 1 s |
@@ -80,6 +98,7 @@ For each scenario, the folder `<output>/<S>/simulink/` with:
 - the model `<S>.slx`;
 - the messages of the simulation (Diagnostic Viewer, copied in `log.txt`), including the warnings;
 - `wall.txt` for S6;
-- any deviation from the settings above (e.g. a *Rate Transition* block added, a parameter that could not be set).
+- `build_issues.txt`, and any deviation from the settings above (e.g. a name corrected in
+  `probe_simulink_api.m`, a parameter that could not be set).
 
 Also give the MATLAB version (`ver`) and the platform.

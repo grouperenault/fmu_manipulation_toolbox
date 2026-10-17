@@ -88,6 +88,10 @@ difference and its workaround.
 13. **MATLAB**: R2024b; the user builds and runs the Simulink models and shares the traces and logs.
 14. **Results**: not versioned, in `tmp/importer_comparison/<scenario>/{container,simulink}/`; only the report
     (Step 4) is committed.
+15. **Simulink models**: built by MATLAB functions (`tools/probe_fmu/scenarios/simulink/`: `build_scenarios.m`,
+    `run_scenarios.m`, the definitions in `probe_scenarios.m` and the undocumented Simulink names in
+    `probe_simulink_api.m`), not tested without MATLAB. S4m: explicit *Rate Transition* blocks on the lines
+    between different rates (S4s, single-tasking: none).
 
 ## Probe FMU specification
 
@@ -223,7 +227,8 @@ Commit message: `Add the comparison scenarios built as FMU containers`
 
 ### Step 3 – Scenarios on the Simulink side (user)
 
-`tools/probe_fmu/scenarios/README.md` per *Study scenarios > Simulink side*. The user builds and runs the models on
+`tools/probe_fmu/scenarios/README.md` per *Study scenarios > Simulink side*, and the MATLAB functions of
+`tools/probe_fmu/scenarios/simulink/` building and running the models (decision 15). The user runs them on
 MATLAB R2024b and shares the traces and logs; they are stored next to the container ones.
 
 Commit message: `Add the traces of the comparison scenarios run in Simulink`
