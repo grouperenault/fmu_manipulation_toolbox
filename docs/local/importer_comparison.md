@@ -146,19 +146,46 @@ Header `seq,wall,function,status,time,h,vr,name,value,note`, one line per FMI ca
 
 ## Study scenarios
 
-1. **S1 – single probe**: baseline of the call sequence of each importer, no link.
-2. **S2 – start values**: start values overridden on parameters and inputs; compare the values seen before/after
-   initialization.
-3. **S3 – initialization chain**: `A.y_init → B.u_cont`; does `B` see `A`'s calculated value at t=0?
-4. **S4 – three rates**: probes at three step sizes (e.g. 0.01 s, 0.02 s, 0.05 s: GCD 0.01 s, LCM 0.1 s), chained
-   fast → slow and slow → fast; compare the `doStep` times and `h`, and the delay (in steps) between a producer and a
-   consumer.
-5. **S5 – feedthrough**: `y_cont` (feedthrough) vs `y_disc` (delayed) in a chain; ordering effects.
-6. **S6 – computation time**: `compute_time > 0`, sequential vs `mt` in the container, single vs multi-tasking in
-   Simulink; total wall time.
+### Common rules
 
-Each scenario produces: the probe traces of both importers, the result CSV of the container, the Simulink logged
-signals. A Python script aligns the traces and reports the differences (call sequence, values, timing).
+- **Instances**: `A`, `B`, `C`. In the container they are instances (`path` block) of the probe FMUs compiled for
+  the host; in Simulink one FMU block per instance, named `A`, `B`, `C`.
+- **Traces**: `trace_file` is set on every instance to `<instance>.csv` (the default `<instanceName>.csv` would
+  depend on the importer naming: `<container instance>.<instance>` in the container, block path in Simulink).
+  Each importer runs a scenario in its own folder: `<scenario>/container/` and `<scenario>/simulink/`.
+- **Container**: `auto_input: false` (no exposed input: the probe inputs only receive links and start values),
+  `auto_output: true`; the container is simulated by fmpy with `step_size` = `output_interval` = the container
+  step, without start values from the importer.
+- **Simulink**: fixed-step solver `FixedStepDiscrete`, fixed step 0.01 s; FMU block `FMUSampleTime` = step size of
+  the probe (0.01, 0.02, 0.05 s); single-tasking ("Treat each discrete rate as a separate task" off) unless stated;
+  unconnected inputs left unconnected (Simulink feeds them with 0: compare with the start value seen in the
+  container); `trace_file` and the other parameters set in the block dialog.
+- **Stop time**: 0.2 s, except S6 (1 s).
+
+| Scenario | Instances | Links (`from → to`) | Start values / parameters | Container variants | Simulink variants | What is compared |
+|---|---|---|---|---|---|---|
+| **S1** single probe | `A` = Probe10ms | none | `trace_file` only | default | default | call sequence of each importer (order of `Set`/`Get`, `SetupExperiment` arguments, number of `doStep`, `Terminate`/`FreeInstance`) |
+| **S2** start values | `A` = Probe10ms | none | `p_real` = 3, `p_tunable` = 0.5, `compute_time` = 0, `u_cont` = 2, `u_disc` = 4, `u_int` = 7, `u_bool` = true | default | default | which start values are set, when (before `EnterInitializationMode` / in Initialization Mode), and the snapshots `before_initialization` / `after_initialization`; behaviour of unconnected inputs |
+| **S3** initialization chain | `A`, `B`, `C` = Probe10ms | `A.y_init → B.u_cont`, `B.y_cont → C.u_cont` | `A`: `p_real` = 3, `u_cont` = 2; `C`: `p_real` = 2 | default | default | `B.y_init`, `C.y_init` after initialization: 1 / 2 if the links are not propagated, 6 / 7 if they are, 6 / 2 if only the first level is (`A.y_init` = 5, `B.y_cont` = `B.u_cont`) |
+| **S4** three rates | `A` = Probe10ms, `B` = Probe20ms, `C` = Probe50ms | fast → slow: `A.y_time → B.u_cont`, `A.y_int → B.u_int`, `B.y_time → C.u_cont`; slow → fast: `C.y_time → A.u_disc`, `C.y_int → A.u_int` | none | **S4a**: default step (LCM 0.1 s); **S4b**: `step_size` 0.01 s (GCD) | **S4s** single-tasking; **S4m** multi-tasking | `doStep` times and `h` per instance (`h != step_size` notes), input value seen by each step vs producer time (delay in steps) |
+| **S5** feedthrough and ordering | `A`, `B`, `C` = Probe10ms | `A.y_time → B.u_cont`, `B.y_cont → C.u_cont` (feedthrough); `A.y_time → B.u_disc`, `B.y_disc → C.u_disc` (delayed) | none | **S5j** default (Jacobi); **S5s** `sequential`, order `A, B, C`; **S5r** `sequential`, order `C, B, A` | default | `C.u_cont` and `C.u_disc` seen at each step vs `A.y_time`: delay of a feedthrough path vs a delayed path, effect of the order |
+| **S6** computation time | `A`, `B`, `C` = Probe10ms | none | `compute_time` = 0.005 s on each, `compute_sleep` = false | **S6s** default; **S6m** `mt` | **S6s** single-tasking; **S6m** multi-tasking | total wall time (expected 1.5 s sequential, 0.5 s parallel) and the `wall` column of the `doStep` lines (overlap) |
+
+### Container side (Step 2)
+
+`tools/probe_fmu/scenarios/`: one JSON description per scenario variant (`S1.json`, `S2.json`, `S3.json`,
+`S4a.json`, `S4b.json`, `S5j.json`, `S5s.json`, `S5r.json`, `S6s.json`, `S6m.json`) referencing the host-compiled
+probes (`Probe10ms-host.fmu`...), and `run_container.py`:
+`python tools/probe_fmu/scenarios/run_container.py -output DIRECTORY [S1 S2 ...]` compiles the probes for the host
+(once), builds each container, simulates it with fmpy, and leaves in `DIRECTORY/<scenario>/container/` the traces
+`A.csv`, `B.csv`, `C.csv`, the results `results.csv`, the fmpy log `log.txt` and the wall time `wall.txt`.
+
+### Simulink side (Step 3)
+
+`tools/probe_fmu/scenarios/README.md` describes, for each scenario variant, the Simulink model to build on MATLAB
+R2024b (blocks, sample times, block parameters, lines, solver, tasking mode, stop time) and where to put the
+traces. The probes must first be compiled on the MATLAB machine:
+`fmutool -input Probe10ms.fmu -compile-sources -output Probe10ms-host.fmu` (MSVC on Windows).
 
 ## Expected content of the user documentation
 
@@ -187,17 +214,15 @@ Commit message: `Add the probe FMU tracing the FMI calls of its importer`
 
 ### Step 2 – Scenarios on the container side
 
-`tools/probe_fmu/scenarios/`: container descriptions (JSON) of S1–S6 and the start values to apply; a script
-building and running them with fmpy (host binaries compiled on the fly), saving the traces and results in a
-folder given on the command line.
+JSON descriptions and `run_container.py` per *Study scenarios > Container side*; integration test running S1 (fast
+check of the script).
 
 Commit message: `Add the comparison scenarios built as FMU containers`
 
 ### Step 3 – Scenarios on the Simulink side (user)
 
-Instructions for the user (in `tools/probe_fmu/scenarios/README.md`): for each scenario, the Simulink model to build
-on MATLAB R2024b (blocks, lines, sample times, start values, solver, tasking mode), where the traces are written.
-The user builds and runs the models and shares the traces and logs; they are stored next to the container ones.
+`tools/probe_fmu/scenarios/README.md` per *Study scenarios > Simulink side*. The user builds and runs the models on
+MATLAB R2024b and shares the traces and logs; they are stored next to the container ones.
 
 Commit message: `Add the traces of the comparison scenarios run in Simulink`
 
