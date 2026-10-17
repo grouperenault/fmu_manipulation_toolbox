@@ -44,12 +44,15 @@ Source: the Simulink models of the importer comparison study (branch `importer-c
 | `FMUName` | **a path is refused**: "The path specification for FMU file '…' is not supported. Use 'addpath' to add the folder to the MATLAB path, then edit the path specification to contain only the FMU file name." Only the file name is accepted, its folder must be on the MATLAB path — also when the model is simulated (the model only stores the file name) |
 | CS / ME mode | Co-Simulation chosen by the block for a CS-only FMU (mask shown as `<model> [Co-Simulation, v2.0]`); FMUs with both interfaces not tested |
 | `FMUInputMapping` / `FMUOutputMapping` = `Flat`, `FMUSampleTime` | accepted |
-| Parameter value | `set_param(h, '<variable_name>', '<value>')` **accepted** (no error) for `Real` parameters (`fixed` and `tunable`, value as a MATLAB expression, e.g. `'3'`) and `String` parameters (quoted MATLAB char, e.g. `'''A.csv'''`); the values actually received by the FMU are to be confirmed by the traces (pending) |
+| Parameter value | **verified** by the traces: `set_param(h, '<variable_name>', '<value>')` for `Real` parameters (`fixed` and `tunable`, value as a MATLAB expression, e.g. `'3'`) and `String` parameters (**raw text**, e.g. `'A.csv'`: a quoted `'''A.csv'''` reaches the FMU with its quotes) |
 | `Boolean` parameter value | `'false'` is **refused** ("Invalid setting in … block (mask) … for parameter '…'"); `'off'` is accepted (probably a check box of the mask): `'on'` / `'off'` |
 | `Integer` parameter value | not tested |
-| Input start value | still no programmatic name; to be read from the dialog (pending) |
-| Order of the `Flat` ports | pending (traces of the study) |
-| Several rates | Simulink defaults (not specific to the FMU block): single-tasking accepts lines between different rates; multi-tasking ("Treat each discrete rate as a separate task", `EnableMultiTasking`) refuses them without a *Rate Transition* block (`MultiTaskRateTransMsg` = `error`). The models of the study build in both modes (multi-tasking with explicit *Rate Transition* blocks); simulation pending |
+| Input start value | still no programmatic name. An **unconnected input is set to 0** by Simulink (in Initialization Mode and before every step): the start value of the FMU is lost. Whether a start value entered in the dialog replaces the 0 is not tested |
+| Order of the `Flat` ports | **verified**: order of the variables in `modelDescription.xml` (Real and Integer inputs and outputs, FMI 2.0) |
+| FMU block without destination | **removed by the block reduction**: nothing is simulated ("All blocks … have been removed by block reduction optimization"). Root `Outport` blocks keep the FMU blocks; `BlockReduction` = `off` too. A `Terminator` is not tested |
+| Initialization | the links are **propagated**: Simulink initializes the blocks one after the other in the sorted order (`fmi2EnterInitializationMode`, inputs set from the outputs read upstream, `fmi2ExitInitializationMode`, outputs read); the container does not propagate them |
+| Calls before the initialization | every parameter (defaults included) is set before `fmi2SetupExperiment`; `fmi2SetupExperiment` with tolerance 0.001 |
+| Several rates | Simulink defaults (not specific to the FMU block): single-tasking accepts lines between different rates; multi-tasking ("Treat each discrete rate as a separate task", `EnableMultiTasking`) refuses them without a *Rate Transition* block (`MultiTaskRateTransMsg` = `error`). The models of the study run in both modes; with multi-tasking, a deterministic *Rate Transition* ("Ensure deterministic data transfer") needs rates that are integer multiples ("Illegal rate transition … must be integer multiples"): off otherwise (`Deterministic` = `off`), and it delays the slow → fast transfers by one slow period |
 
 ## Decisions (2026-10-13)
 
@@ -97,8 +100,17 @@ Source: the Simulink models of the importer comparison study (branch `importer-c
   decided with the results of the study (scenario S4).
 - **Multi-tasking**: the export keeps single-tasking (no *Rate Transition* block needed), or offers multi-tasking
   with *Rate Transition* blocks?
-- Still pending from the study: input start values (dialog), order of the `Flat` ports, propagation of the links
-  during the initialization (S3).
+- **Dropped ports and unconnected outputs** (decision 10: `Terminator`): an FMU block whose outputs go nowhere is
+  removed by the block reduction. Keep `Terminator` (not tested, it is a sink that may be reduced too), use root
+  `Outport` blocks, and/or set `BlockReduction` = `off` in the generated model?
+- **Unconnected inputs**: Simulink sets them to 0, the container keeps their start value. The export could connect a
+  `Constant` block with the start value (FMU or assembly) to each unconnected input, to keep the container
+  behaviour; to be decided (the input start value of the dialog is not tested).
+- **Initialization**: Simulink propagates the links during the initialization, the container does not: the
+  exported model initializes differently from the container when an FMU computes its initial state from its inputs
+  (see `docs/local/importer_comparison_report.md`, finding 3).
+- Results of the study: `docs/local/importer_comparison_report.md` (branch `importer-comparison`); sample time of
+  the blocks: the container gives every FMU the container step, Simulink each block its own sample time (finding 4).
 
 ## Design
 
@@ -118,9 +130,9 @@ Assembly ──► SimulinkExporter (fmu_manipulation_toolbox/simulink.py)
   `Inport`/`Outport` blocks. (`UNVERIFIED` for FMI 3.0 arrays and for the ordering rule itself.)
 - **Exposed input feeding several FMU inputs**: one `Inport`, several lines (branches).
 - **Start values**: the assembly stores them as text. The port causality decides the target: parameter →
-  block parameter value (accepted on R2024b), input → input start value (`UNVERIFIED`). The value is rendered
+  block parameter value (verified on R2024b), input → input start value (`UNVERIFIED`). The value is rendered
   according to the port type (`Real`/`Float64` as number, `Integer` as number (not tested), `Boolean` as `'on'` /
-  `'off'` (R2024b refuses `'false'`), `String` as a quoted MATLAB char). An unknown port is an error.
+  `'off'` (R2024b refuses `'false'`), `String` as raw text, not quoted). An unknown port is an error.
 - **FMU paths**: `FMUName` only accepts a file name on the MATLAB path (R2024b). The script finds its own folder
   with `fileparts(mfilename('fullpath'))`, adds `<folder>/fmus` to the MATLAB path (`addpath`) and gives the FMU
   blocks the file names only, so the extracted archive can still be moved. The path is also needed to simulate the
