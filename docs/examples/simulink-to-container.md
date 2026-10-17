@@ -67,15 +67,20 @@ The choice of `step_size` (here the fastest sample time) is discussed in [Sample
 
 ### Initialization
 
-**Simulink** initializes the FMU blocks one after the other, in the order of their connections: the inputs of a
-block are set from the outputs of the blocks upstream, read after *their* initialization, before the block leaves
-its Initialization Mode. **The container does not propagate its links during the initialization**: each embedded
-FMU is initialized with its inputs at their start values; the values of the links reach the inputs at the first
-step.
+Both **propagate the links during the initialization**: an FMU whose initial state, or calculated parameters,
+depend on its inputs is initialized with the values of the FMUs upstream (see
+[Initialization of the embedded FMU's](../user-guide/fmucontainer/container.md#initialization-of-the-embedded-fmus)).
+Two differences remain:
 
-This matters when an FMU computes its initial state, or calculated parameters, from its inputs: its whole
-simulation can then differ. To get the same initialization in the container, give such inputs a start value equal
-to the value the upstream FMU produces at the initialization (`start` block).
+- **Simulink** initializes the FMU blocks one after the other, in the order of their connections, and reads the
+  outputs of a block *after* its initialization; **the container** keeps all the FMUs in Initialization Mode and
+  reads their outputs *during* it. The values are the same unless an FMU changes an output when it leaves its
+  Initialization Mode.
+- **Loops of links**: Simulink does not solve them at the initialization; the container repeats the propagation
+  until the values do not change (warning when there is no fixed point).
+
+The [unconnected inputs](#unconnected-inputs) also take part in the initialization: give them the value of
+Simulink (0) to get the same initial values.
 
 ### Unconnected inputs
 
@@ -140,5 +145,5 @@ is shared between the cores, without changing the results.
 4. Default scheduling (no `sequential`).
 5. Same stop time; simulate the container (e.g. with `fmpy`) with an output interval equal to its step.
 6. Compare the outputs at the common sample times; a difference at the beginning only points at the
-   [initialization](#initialization), a difference that grows points at the [sample times](#sample-times) or at a
-   start value.
+   [initialization](#initialization) (an unconnected input, a loop of links), a difference that grows points at
+   the [sample times](#sample-times) or at a start value.

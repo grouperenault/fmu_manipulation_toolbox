@@ -1,6 +1,6 @@
 # Propagation of the links during the initialization of a container
 
-**Created**: 17 October 2026 — **Status**: Steps 1–3 done (17 October 2026), Step 4 to start — **Branch**: `feature/init-propagation` — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: done (17 October 2026) — **Branch**: `feature/init-propagation` — **Roadmap**: not listed
 
 ## Context
 

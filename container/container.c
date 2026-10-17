@@ -515,7 +515,7 @@ static bool init_snapshot_same(const container_t *container, const init_snapshot
 
 
 /*
- * Propagation of the links between the embedded FMUs during the initialization (docs/local/init_propagation.md):
+ * Propagation of the links between the embedded FMUs during the initialization (docs/local/done/init_propagation.md):
  * every FMU is in Initialization Mode. In the initialization order, each FMU gets its linked inputs from the local
  * variables, then its outputs are read into them. The sweep is repeated until the local variables do not change any
  * more (a loop of links), at most CONTAINER_MAX_EVENT_ITER times: without convergence, a warning. Clocks and clocked

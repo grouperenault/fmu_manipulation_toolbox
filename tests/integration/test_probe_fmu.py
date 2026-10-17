@@ -327,7 +327,7 @@ def test_compare_differences(tmp_path):
 
 # --------------------------------------------------------------------------- #
 #           Propagation of the links during the initialization                 #
-#                    (docs/local/init_propagation.md)                          #
+#                 (docs/local/done/init_propagation.md)                        #
 # --------------------------------------------------------------------------- #
 def _build_and_simulate(directory: Path, probes: Path, description: dict, fmi_version: int = 2,
                         stop_time: float = 0.02) -> list[str]:
