@@ -104,6 +104,9 @@ typedef struct container_s {
 	unsigned int				nb_cs;
 	fmu_t						**cs_fmu;
 
+	/* Indexes of fmu[] in the order of the propagation of the links during the initialization (nb_fmu entries). */
+	int							*init_order;
+
 	/* ME working set (states, derivatives, event indicators, flat buffers). */
 	struct solver_s				*solver;
 

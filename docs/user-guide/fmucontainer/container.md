@@ -54,6 +54,9 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
 
 Some of these parameters can be defined by Command Line Interface or by the input files.
 
+To rebuild as a container an assembly of FMUs made in Simulink, see
+[From Simulink to an FMU Container](../../examples/simulink-to-container.md).
+
 ## Default time step
 
 When no time step is given, the container deduces it from the `stepSize` of the embedded FMU's
@@ -65,6 +68,26 @@ When no time step is given, the container deduces it from the `stepSize` of the 
 - FMU's without `stepSize` are ignored; if none declares one, the step is `0.1` second.
 
 When the time step is given, a warning is reported for each FMU with a fixed step that does not divide it.
+
+## Initialization of the embedded FMU's
+
+During the initialization, the container **propagates the links** between its embedded FMU's, as Simulink does:
+each FMU is initialized with the values computed by the FMU's it depends on. When the container leaves its
+*Initialization Mode*, it takes its FMU's in the order of their links: each FMU gets its linked inputs, leaves its
+*Initialization Mode*, then its outputs are read for the FMU's after it. In a chain `A → B → C`, `B` is
+initialized with the outputs of `A`, then `C` with the outputs of `B`.
+
+- **Loops of links** (`A → B → A`): a loop is cut before its first FMU in the description, which is initialized
+  with the value the link has before the propagation; the build reports a warning.
+- **Outputs read during the initialization**: an importer that reads an output of the container before the end of
+  its initialization gets the value of the embedded FMU, not propagated yet: the propagation happens when the
+  container leaves its *Initialization Mode*. A nested container propagates its own links.
+- Clocks and clocked variables (LS-BUS) are not propagated: they are handled once the FMU's leave the
+  initialization.
+- The [reset of an embedded FMU](container-reset.md) initializes it again with the current values of its inputs,
+  without propagation to the other FMU's.
+
+The FMI calls are detailed in [Initialization FMI Sequence](../../developer/init-fmi-sequence.md).
 
 Several formats are supported as description files:
 - a `CSV` format: define only the routing table. Other options should be defined as command line options.

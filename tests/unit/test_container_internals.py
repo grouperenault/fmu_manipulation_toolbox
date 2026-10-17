@@ -244,6 +244,14 @@ def test_rule_errors(bouncing, rule, message):
 
 
 @pytest.mark.area("containers/bouncing_ball")
+@pytest.mark.parametrize("value, expected", [(True, "true"), (False, "false"), ("true", "true"), ("0", "0")])
+def test_boolean_start_value(bouncing, value, expected):
+    """A Python bool (JSON true/false) is accepted as the start value of a Boolean port."""
+    bouncing.add_start_value("bb_velocity.fmu", "reset", value)
+    assert list(bouncing.start_values.values()) == [expected]
+
+
+@pytest.mark.area("containers/bouncing_ball")
 def test_duplicate_output_name(bouncing):
     bouncing.add_output("bb_position.fmu", "position1", "out")
     with pytest.raises(FMUContainerError, match="Duplicate OUTPUT out"):
@@ -499,3 +507,44 @@ def test_reset_input_in_model_description(resettable):
     variable = variables["container.bb_velocity.reset"]
     assert (variable.get("causality"), variable.get("variability")) == ("input", "discrete")
     assert variable.find("Boolean").get("start") == "false"
+
+
+# --------------------------------------------------------------------------- #
+#                 Initialization order of the embedded FMUs                    #
+# --------------------------------------------------------------------------- #
+def _cport(fmu: str, clock=None, type_name="real64", is_reset=False):
+    return SimpleNamespace(fmu=SimpleNamespace(name=fmu),
+                           port=SimpleNamespace(clock=clock, type_name=type_name, is_reset=is_reset))
+
+
+def _link(cport_from, *cports_to):
+    return SimpleNamespace(cport_from=cport_from, cport_to_list=list(cports_to))
+
+
+def _order(links, fmus=("a", "b", "c", "d")):
+    container = SimpleNamespace(links={i: link for i, link in enumerate(links)})
+    return FMUContainer.initialization_order(container, {name: rank for rank, name in enumerate(fmus)})
+
+
+@pytest.mark.parametrize("links, expected", [
+    ([], [0, 1, 2, 3]),                                                                   # no link
+    ([_link(_cport("c"), _cport("b")), _link(_cport("b"), _cport("a"))], [2, 1, 0, 3]),  # chain c -> b -> a
+    ([_link(_cport("d"), _cport("a"), _cport("b"))], [2, 3, 0, 1]),                      # fork d -> a, b
+    ([_link(_cport("b"), _cport("a")), _link(_cport("a"), _cport("b")),
+      _link(_cport("d"), _cport("c"))], [3, 2, 0, 1]),                                    # loop a <-> b, d -> c first
+    ([_link(_cport("c"), _cport("b")), _link(_cport("b"), _cport("c")),
+      _link(_cport("a"), _cport("c"))], [0, 3, 1, 2]),                                    # loop b <-> c fed by a
+], ids=["no-link", "chain", "fork", "loop", "loop-fed"])
+def test_initialization_order(links, expected):
+    assert _order(links) == expected
+
+
+@pytest.mark.parametrize("link", [
+    _link(None, _cport("a")),                                     # clock fed by the importer
+    _link(_cport("d", type_name="clock"), _cport("a")),           # clock
+    _link(_cport("d", clock="7"), _cport("a", clock="3")),        # clocked variable
+    _link(_cport("d"), _cport("a", is_reset=True)),               # container.reset trigger
+    _link(_cport("a"), _cport("a")),                              # an FMU on itself
+], ids=["importer-clock", "clock", "clocked", "reset", "self"])
+def test_initialization_order_ignores(link):
+    assert _order([link]) == [0, 1, 2, 3]

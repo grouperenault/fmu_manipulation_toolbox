@@ -1,0 +1,18 @@
+{
+  "name": "S2.fmu",
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": true,
+  "fmu": ["A.fmu"],
+  "path": {"A.fmu": "Probe10ms-host.fmu"},
+  "start": [
+    ["A.fmu", "trace_file", "A.csv"],
+    ["A.fmu", "p_real", 3.0],
+    ["A.fmu", "p_tunable", 0.5],
+    ["A.fmu", "compute_time", 0.0],
+    ["A.fmu", "u_cont", 2.0],
+    ["A.fmu", "u_disc", 4.0],
+    ["A.fmu", "u_int", 7],
+    ["A.fmu", "u_bool", "true"]
+  ]
+}

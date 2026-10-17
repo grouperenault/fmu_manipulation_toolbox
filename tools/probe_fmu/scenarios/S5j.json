@@ -1,0 +1,19 @@
+{
+  "name": "S5j.fmu",
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": true,
+  "fmu": ["A.fmu", "B.fmu", "C.fmu"],
+  "path": {"A.fmu": "Probe10ms-host.fmu", "B.fmu": "Probe10ms-host.fmu", "C.fmu": "Probe10ms-host.fmu"},
+  "link": [
+    ["A.fmu", "y_time", "B.fmu", "u_cont"],
+    ["B.fmu", "y_cont", "C.fmu", "u_cont"],
+    ["A.fmu", "y_time", "B.fmu", "u_disc"],
+    ["B.fmu", "y_disc", "C.fmu", "u_disc"]
+  ],
+  "start": [
+    ["A.fmu", "trace_file", "A.csv"],
+    ["B.fmu", "trace_file", "B.csv"],
+    ["C.fmu", "trace_file", "C.csv"]
+  ]
+}
