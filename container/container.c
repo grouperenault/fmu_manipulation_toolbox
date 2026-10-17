@@ -1236,6 +1236,29 @@ fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_i
 
 
 /*
+ * # Version 8
+ */
+static int read_version(config_file_t* file) {
+    int version;
+
+    if (config_file_version(file, &version)) {
+        CONFIG_ERROR("container.txt has no format version header: the container was built by an incompatible "
+                     "version of FMU Manipulation Toolbox.");
+        return -1;
+    }
+
+    if (version != CONTAINER_TXT_VERSION) {
+        CONFIG_ERROR("container.txt format version %d, this runtime reads version %d: build the container again "
+                     "with the version of FMU Manipulation Toolbox that provides this runtime.",
+                     version, CONTAINER_TXT_VERSION);
+        return -2;
+    }
+
+    return 0;
+}
+
+
+/*
  * # Container flags <MT> <Profiling> <Sequential>
  * 1 0 0 
  */
@@ -2218,6 +2241,11 @@ int container_configure(container_t* container, const char* resource_location) {
     if (config_file_open(&file, dirname, "container.txt")) {
         logger(LOGGER_ERROR, "Cannot open '%s/container.txt': %s.", dirname, strerror(errno));
         return -1;
+    }
+
+    if (read_version(&file)) {
+        config_file_close(&file);
+        return -2;
     }
 
     if (read_flags(container, &file)) {

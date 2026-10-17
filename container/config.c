@@ -26,6 +26,23 @@ int get_line(config_file_t* config_file) {
 }
 
 
+/*
+ * Read the first line of the file, "# Version <N>", without skipping it as a comment.
+ */
+int config_file_version(config_file_t* config_file, int *version) {
+    if (!fgets(config_file->line, CONFIG_FILE_SZ, config_file->fp)) {
+        config_file->line[0] = '\0';
+        return -1;
+    }
+    config_file->line_number += 1;
+
+    if (sscanf(config_file->line, "# Version %d", version) < 1)
+        return -1;
+
+    return 0;
+}
+
+
 int config_file_open(config_file_t* config_file, const char *dirname, const char *filename) {
     char full_path[CONFIG_FILE_SZ];
 
