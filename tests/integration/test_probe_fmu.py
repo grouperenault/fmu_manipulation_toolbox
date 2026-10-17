@@ -278,7 +278,26 @@ def test_container_traces(probe_dir, compiled_probes, scenario):
     assert references
     for reference in references:
         trace = directory / f"{reference.stem.rsplit('-', 1)[1]}.csv"
-        assert _without_wall(trace) == _without_wall_ref(reference), f"{scenario}: {trace.name}"
+        _assert_same_trace(_without_wall(trace), _without_wall_ref(reference), f"{scenario}: {trace.name}")
+
+
+def _same_field(a: str, b: str) -> bool:
+    """Equal fields; numbers within a relative 1e-9: the last digits of the times and steps depend on the compiler
+    of the runtime (MSVC /fp:fast reassociates the computation of the internal steps)."""
+    if a == b:
+        return True
+    try:
+        x, y = float(a), float(b)
+    except ValueError:
+        return False
+    return abs(x - y) <= 1e-9 * max(1.0, abs(x), abs(y))
+
+
+def _assert_same_trace(rows: list[list[str]], references: list[list[str]], label: str):
+    assert len(rows) == len(references), f"{label}: {len(rows)} lines instead of {len(references)}"
+    for number, (row, reference) in enumerate(zip(rows, references), start=1):
+        assert len(row) == len(reference) and all(_same_field(a, b) for a, b in zip(row, reference)), \
+            f"{label}, line {number}: {row} instead of {reference}"
 
 
 def _without_wall_ref(filename: Path) -> list[list[str]]:
