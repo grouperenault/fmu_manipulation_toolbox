@@ -70,17 +70,22 @@ The choice of `step_size` (here the fastest sample time) is discussed in [Sample
 Both **propagate the links during the initialization**: an FMU whose initial state, or calculated parameters,
 depend on its inputs is initialized with the values of the FMUs upstream (see
 [Initialization of the embedded FMU's](../user-guide/fmucontainer/container.md#initialization-of-the-embedded-fmus)).
-Two differences remain:
+On a chain of three FMUs whose initial outputs depend on their inputs, the container and Simulink give **the same
+initial values and the same values at every step**, once the unconnected inputs have the value Simulink imposes
+(see below).
 
-- **Simulink** initializes the FMU blocks one after the other, in the order of their connections, and reads the
-  outputs of a block *after* its initialization; **the container** keeps all the FMUs in Initialization Mode and
-  reads their outputs *during* it. The values are the same unless an FMU changes an output when it leaves its
-  Initialization Mode.
+Two differences remain in the way they do it:
+
+- **Simulink** first sets the parameters of every FMU block, then initializes the blocks one after the other, in the
+  order of their connections, and reads the outputs of a block *after* its initialization; **the container** keeps
+  all the FMUs in Initialization Mode and reads their outputs *during* it. The values are the same unless an FMU
+  changes an output when it leaves its Initialization Mode.
 - **Loops of links**: Simulink does not solve them at the initialization; the container repeats the propagation
   until the values do not change (warning when there is no fixed point).
 
 The [unconnected inputs](#unconnected-inputs) also take part in the initialization: give them the value of
-Simulink (0) to get the same initial values.
+Simulink (0) to get the same initial values. An input left at another start value in the container shifts the
+initial values of every FMU downstream.
 
 ### Unconnected inputs
 
@@ -125,7 +130,8 @@ the next FMU one step later: along a chain `A → B → C` where `B` passes its 
 of `A` one step after `B` does, **even when `B` declares a direct dependency** (feedthrough) of this output on its
 input.
 
-The **default scheduling of the container** gives the same delays. The `sequential` option steps the FMUs one
+The **default scheduling of the container** gives the same delays: on such a chain, the inputs received by each FMU
+at every step are the same as in Simulink. The `sequential` option steps the FMUs one
 after the other in the order of the `fmu` list, each one with the outputs just computed by the previous ones:
 along the order of the chain, the delays disappear, which changes the results compared to Simulink. Keep the
 default scheduling to reproduce Simulink.
