@@ -1,0 +1,20 @@
+{
+  "name": "S5r.fmu",
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": true,
+  "sequential": true,
+  "fmu": ["C.fmu", "B.fmu", "A.fmu"],
+  "path": {"C.fmu": "Probe10ms-host.fmu", "B.fmu": "Probe10ms-host.fmu", "A.fmu": "Probe10ms-host.fmu"},
+  "link": [
+    ["A.fmu", "y_time", "B.fmu", "u_cont"],
+    ["B.fmu", "y_cont", "C.fmu", "u_cont"],
+    ["A.fmu", "y_time", "B.fmu", "u_disc"],
+    ["B.fmu", "y_disc", "C.fmu", "u_disc"]
+  ],
+  "start": [
+    ["C.fmu", "trace_file", "C.csv"],
+    ["B.fmu", "trace_file", "B.csv"],
+    ["A.fmu", "trace_file", "A.csv"]
+  ]
+}

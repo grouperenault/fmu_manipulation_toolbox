@@ -1,0 +1,20 @@
+{
+  "name": "S4a.fmu",
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": true,
+  "fmu": ["A.fmu", "B.fmu", "C.fmu"],
+  "path": {"A.fmu": "Probe10ms-host.fmu", "B.fmu": "Probe20ms-host.fmu", "C.fmu": "Probe50ms-host.fmu"},
+  "link": [
+    ["A.fmu", "y_time", "B.fmu", "u_cont"],
+    ["A.fmu", "y_int", "B.fmu", "u_int"],
+    ["B.fmu", "y_time", "C.fmu", "u_cont"],
+    ["C.fmu", "y_time", "A.fmu", "u_disc"],
+    ["C.fmu", "y_int", "A.fmu", "u_int"]
+  ],
+  "start": [
+    ["A.fmu", "trace_file", "A.csv"],
+    ["B.fmu", "trace_file", "B.csv"],
+    ["C.fmu", "trace_file", "C.csv"]
+  ]
+}

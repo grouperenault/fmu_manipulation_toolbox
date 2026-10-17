@@ -188,3 +188,41 @@ def test_compute_time(probe_dir, sleep):
     _simulate(filename, stop_time=0.1, output_interval=0.02,
               start_values={"compute_time": 0.02, "compute_sleep": sleep})
     assert time.perf_counter() - start >= 5 * 0.02
+
+
+# --------------------------------------------------------------------------- #
+#                         Scenarios (FMU Containers)                           #
+# --------------------------------------------------------------------------- #
+def _run_container():
+    spec = importlib.util.spec_from_file_location("run_container", PROBE_DIR / "scenarios" / "run_container.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_scenario_descriptions_are_valid():
+    from fmu_manipulation_toolbox.assembly import Assembly
+
+    run_container = _run_container()
+    assert run_container.scenarios() == ["S1", "S2", "S3", "S4a", "S4b", "S5j", "S5r", "S5s", "S6m", "S6s"]
+    for scenario in run_container.scenarios():
+        assembly = Assembly(PROBE_DIR / "scenarios" / f"{scenario}.json")
+        assert assembly.root.name == f"{scenario}.fmu"
+
+
+@pytest.mark.slow
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_compiler
+@pytest.mark.needs_container
+def test_scenario_s1_in_a_container(probe_dir):
+    run_container = _run_container()
+    probes = run_container.compile_probes(probe_dir / "probes")
+    directory = run_container.run("S1", probe_dir, probes)
+
+    for name in ("A.csv", "results.csv", "log.txt", "wall.txt"):
+        assert (directory / name).exists(), name
+    trace = _trace(directory / "A.csv")
+    steps = [line for line in trace if line["function"] == "fmi2DoStep" and not line["name"]]
+    assert len(steps) == 20
+    assert all(float(line["h"]) == pytest.approx(0.01) for line in steps)
+    assert _snapshot(trace, "after_initialization")["trace_file"] == "A.csv"
