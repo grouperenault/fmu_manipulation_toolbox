@@ -32,6 +32,25 @@ Source: [FMU block reference](https://www.mathworks.com/help/simulink/ref_extras
 Every undocumented item is isolated in one place of the generator (see Step 2) and marked `UNVERIFIED` in the
 generated script, so that the final manual validation (Step 6) only has to correct that place.
 
+### What MATLAB R2024b showed (2026-10-17)
+
+Source: the Simulink models of the importer comparison study (branch `importer-comparison`,
+`docs/local/importer_comparison.md`, scripts `tools/probe_fmu/scenarios/simulink/`), built with `add_block` /
+`set_param` on MATLAB R2024b (Windows) with FMI 2.0 Co-Simulation probe FMUs.
+
+| Item | Result |
+|------|--------|
+| Library path for `add_block` | **verified**: `simulink_extras/FMU Import/FMU` (after `load_system('simulink_extras')`) |
+| `FMUName` | **a path is refused**: "The path specification for FMU file '…' is not supported. Use 'addpath' to add the folder to the MATLAB path, then edit the path specification to contain only the FMU file name." Only the file name is accepted, its folder must be on the MATLAB path — also when the model is simulated (the model only stores the file name) |
+| CS / ME mode | Co-Simulation chosen by the block for a CS-only FMU (mask shown as `<model> [Co-Simulation, v2.0]`); FMUs with both interfaces not tested |
+| `FMUInputMapping` / `FMUOutputMapping` = `Flat`, `FMUSampleTime` | accepted |
+| Parameter value | `set_param(h, '<variable_name>', '<value>')` **accepted** (no error) for `Real` parameters (`fixed` and `tunable`, value as a MATLAB expression, e.g. `'3'`) and `String` parameters (quoted MATLAB char, e.g. `'''A.csv'''`); the values actually received by the FMU are to be confirmed by the traces (pending) |
+| `Boolean` parameter value | `'false'` is **refused** ("Invalid setting in … block (mask) … for parameter '…'"); `'off'` is accepted (probably a check box of the mask): `'on'` / `'off'` |
+| `Integer` parameter value | not tested |
+| Input start value | still no programmatic name; to be read from the dialog (pending) |
+| Order of the `Flat` ports | pending (traces of the study) |
+| Several rates | Simulink defaults (not specific to the FMU block): single-tasking accepts lines between different rates; multi-tasking ("Treat each discrete rate as a separate task", `EnableMultiTasking`) refuses them without a *Rate Transition* block (`MultiTaskRateTransMsg` = `error`). The models of the study build in both modes (multi-tasking with explicit *Rate Transition* blocks); simulation pending |
+
 ## Decisions (2026-10-13)
 
 1. **Output**: a `.zip` archive containing the generated `.m` script and the FMU files (strategy "1a": no MATLAB
@@ -65,6 +84,22 @@ generated script, so that the final manual validation (Step 6) only has to corre
 15. **Model name**: the container name (`a.fmu` → model `a`, saved as `a.slx`), made a valid MATLAB identifier.
 16. **Script form**: a MATLAB function `<name>()` that builds and saves the model and returns its name.
 
+## Open points (2026-10-17, from the importer comparison study)
+
+- **MATLAB path when the saved model is opened or simulated later**: the model only stores the FMU file names.
+  Options: (a) the generated function only adds the path while building; the user runs `addpath` before
+  simulating (documented); (b) the generated function also sets a model callback (e.g. `PreLoadFcn`) adding the
+  `fmus/` folder (relative to the `.slx`) to the path; (c) other.
+- **Sample time of the FMU blocks**: decision 6 sets the solver step to the smallest `step_size`, but not the
+  `FMUSampleTime` of the blocks. The container steps every embedded CS FMU with the container step (LCM of the
+  fixed steps by default), while Simulink steps each block at its own sample time: a block sample time equal to
+  the container step reproduces the container, the FMU `stepSize` reproduces a native Simulink assembly. To be
+  decided with the results of the study (scenario S4).
+- **Multi-tasking**: the export keeps single-tasking (no *Rate Transition* block needed), or offers multi-tasking
+  with *Rate Transition* blocks?
+- Still pending from the study: input start values (dialog), order of the `Flat` ports, propagation of the links
+  during the initialization (S3).
+
 ## Design
 
 ```
@@ -83,11 +118,13 @@ Assembly ──► SimulinkExporter (fmu_manipulation_toolbox/simulink.py)
   `Inport`/`Outport` blocks. (`UNVERIFIED` for FMI 3.0 arrays and for the ordering rule itself.)
 - **Exposed input feeding several FMU inputs**: one `Inport`, several lines (branches).
 - **Start values**: the assembly stores them as text. The port causality decides the target: parameter →
-  block parameter value, input → input start value (both `UNVERIFIED`). The value is rendered according to the port
-  type (`Real`/`Float64` as number, `Integer`, `Boolean` as `true`/`false`, `String` quoted). An unknown port is an
-  error.
-- **FMU paths**: the script finds its own folder with `fileparts(mfilename('fullpath'))` and builds absolute FMU paths
-  from it, so the extracted archive can be moved.
+  block parameter value (accepted on R2024b), input → input start value (`UNVERIFIED`). The value is rendered
+  according to the port type (`Real`/`Float64` as number, `Integer` as number (not tested), `Boolean` as `'on'` /
+  `'off'` (R2024b refuses `'false'`), `String` as a quoted MATLAB char). An unknown port is an error.
+- **FMU paths**: `FMUName` only accepts a file name on the MATLAB path (R2024b). The script finds its own folder
+  with `fileparts(mfilename('fullpath'))`, adds `<folder>/fmus` to the MATLAB path (`addpath`) and gives the FMU
+  blocks the file names only, so the extracted archive can still be moved. The path is also needed to simulate the
+  saved model: see the open points (2026-10-17).
 - **Layout**: simple grid placement (`Position`) so that the generated model is readable; no routing.
 - All undocumented Simulink names live in one table of constants in `simulink.py`.
 
