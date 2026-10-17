@@ -6,7 +6,7 @@
 
 | # | Topic | FMU Container | Simulink | Impact |
 |---|---|---|---|---|
-| 1 | **Initialization of linked FMUs** | Links **not propagated** at the time of the study: each FMU initializes with its inputs at their start values — **propagated since** `docs/local/done/init_propagation.md` (all FMUs in Initialization Mode, outputs read during it, loops iterated) | Links **propagated**, block by block in sorted order (Enter → inputs from upstream → Exit → read outputs) | Was **major** (FMUs computing initial state or parameters from inputs diverged for the whole run); now aligned for acyclic chains |
+| 1 | **Initialization of linked FMUs** | Links **not propagated** at the time of the first run — **propagated since** `docs/local/done/init_propagation.md` (all FMUs in Initialization Mode, outputs read during it, loops iterated) | Links **propagated**, block by block in sorted order (Enter → inputs from upstream → Exit → read outputs) | Was **major**; **aligned** since the propagation: identical traces on S3 (second run) |
 | 2 | **Unconnected inputs** | Keep their start value (FMU or `start` block) | Forced to **0**, at init and before every step | **Major**: silent value change; set `0` explicitly in the container to match |
 | 3 | **Multi-rate** | **One step for all FMUs** (default: LCM of the fixed steps; e.g. 0.1 s for 10/20/50 ms FMUs) | Each block at **its own sample time**, outputs held between rates | **Major**: no exact container equivalent; fixed-step FMUs get a step size that is not theirs |
 | 4 | **Slow → fast transfer (multi-tasking)** | No extra delay | Deterministic *Rate Transition* adds **one slow period** of delay | Medium: only with Simulink multi-tasking |
@@ -129,7 +129,27 @@ during it, in the order of the links, loops iterated). With it, S3 gives `B.y_in
 container; the remaining difference with the Simulink traces of S3 comes from the unconnected input `A.u_cont`
 (finding 2).
 
+## Second run (17 October 2026): container with the propagation
+
+Same scenarios, after `docs/local/done/init_propagation.md` (container: links propagated during the initialization)
+and with the corrected probe (shared `wall` origin, trace file names as raw text). Simulink: R2024b Update 7,
+Windows 11, unchanged models.
+
+- **Initialization (S3)**: the container now propagates the links. The remaining difference (`5 / 6 / 7` against
+  `3 / 4 / 5`) comes only from the unconnected input `A.u_cont` (finding 2: 2 in the container, 0 in Simulink):
+  with `A.u_cont` = 0 in the container, the traces of A, B and C are **identical** to Simulink (snapshots and
+  inputs of every step).
+- **Order of the initialization in Simulink**, now measured with the shared clock: the blocks are instantiated and
+  their parameters set together, then initialized **one after the other** (A: Enter → Set → Exit → Get, then B,
+  then C).
+- **S5j / S5r vs S5, S6s, S6m**: identical values (snapshots and inputs of every step); the wall times are those of
+  the first run (container `mt` 0.92 s, Simulink multi-tasking 1.84 s).
+- **S4, S5s**: the same differences as in the first run (findings 4 and 5), as expected.
+- **S2**: the inputs are still set to 0 by Simulink in Initialization Mode (`u_cont` = 0, `y_init` = 3).
+
+Detailed report: `python tools/compare_traces.py <results>` with the container results of the branch and the
+Simulink results `tmp/win64-2` (not versioned).
+
 ## Still open
 
 - Start value of an input entered in the dialog of the FMU block (S2, S3).
-- Simulink run with the corrected probe (shared `wall` origin) to order the calls of several instances in time.
