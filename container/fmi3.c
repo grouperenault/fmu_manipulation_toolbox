@@ -185,9 +185,6 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     size_t nValueReferences, fmi3 ## fmi_type value[], size_t nValues) {                                            \
                                                                                                                     \
     container_t* container = (container_t*)instance;                                                                \
-    if ((container->state == CONTAINER_STATE_INITIALIZATION_MODE) && \
-        (container_propagate_initialization(container) != FMU_STATUS_OK)) \
-        return fmi3Error; \
     size_t value_index = 0;                                                                                         \
                                                                                                                     \
     for (size_t i = 0; i < nValueReferences; i += 1) {                                                              \
@@ -246,9 +243,6 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
                          fmi3Binary values[],
                          size_t nValues) {
     container_t* container = (container_t*)instance;
-    if ((container->state == CONTAINER_STATE_INITIALIZATION_MODE) &&
-        (container_propagate_initialization(container) != FMU_STATUS_OK))
-        return fmi3Error;
     size_t value_index = 0;
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
@@ -321,7 +315,6 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     size_t nValueReferences, const fmi3 ## fmi_type value[], size_t nValues) {                                          \
                                                                                                                         \
     container_t* container = (container_t*)instance;                                                                    \
-    container->init_propagation_pending = true; \
     size_t value_index = 0;                                                                                             \
                                                                                                                         \
     for (size_t i = 0; i < nValueReferences; i += 1) {                                                                  \
@@ -376,7 +369,6 @@ FMI_SETTER(booleans1,   Boolean,    fmuSetBoolean1)
 fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueReferences[],
     size_t nvr, const fmi3String value[], size_t nValues) {
     container_t* container = (container_t*)instance;
-    container->init_propagation_pending = true;
     size_t value_index = 0;
 
     for (size_t i = 0; i < nvr; i += 1) {
@@ -423,7 +415,6 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
                          const fmi3Binary values[],
                          size_t nValues) {
     container_t* container = (container_t*)instance;
-    container->init_propagation_pending = true;
     size_t value_index = 0;
 
     for (size_t i = 0; i < nValueReferences; i += 1) {

@@ -871,8 +871,9 @@ class FMUContainer:
 
         Topological sort of the graph of the embedded FMUs, with an edge from the FMU of an output to the FMU of an
         input it is linked to. The clocks, the clocked variables and the `container.reset` triggers make no edge
-        (they are not propagated during the initialization). Inside a loop, and between independent FMUs, the order
-        of the configuration (`fmu_rank`) decides; the runtime iterates over the loops.
+        (they are not propagated during the initialization). Between independent FMUs, the order of the
+        configuration (`fmu_rank`) decides. A loop is cut before its first FMU in the configuration, which is then
+        initialized without the values computed by the loop: a warning is logged.
 
         Args:
             fmu_rank (dict[str, int]): Index of each embedded FMU in `container.txt`, by FMU name.
@@ -895,11 +896,17 @@ class FMUContainer:
             for target in targets:
                 nb_predecessors[target] += 1
 
+        name_of = {rank: name for name, rank in fmu_rank.items()}
         order: list[int] = []
         remaining = set(successors)
         while remaining:
             ready = [rank for rank in remaining if nb_predecessors[rank] == 0]
-            rank = min(ready) if ready else min(remaining)       # a loop: the first FMU of the configuration
+            if ready:
+                rank = min(ready)
+            else:                                                # a loop: cut before its first FMU
+                rank = min(remaining)
+                logger.warning(f"Loop of links through the embedded FMU '{name_of[rank]}': it is initialized "
+                               f"without the values its inputs get from the loop.")
             order.append(rank)
             remaining.remove(rank)
             for target in successors[rank]:

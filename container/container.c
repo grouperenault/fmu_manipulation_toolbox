@@ -415,159 +415,53 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
      P R O P A G A T I O N   D U R I N G   T H E   I N I T I A L I Z A T I O N
 ----------------------------------------------------------------------------*/
 
-/* Copy of the local variables (the values of the links), to detect the convergence of the propagation. */
-typedef struct {
-#define DECLARE_SNAPSHOT(name, type) type *name;
-    DECLARE_SNAPSHOT(reals64, double)
-    DECLARE_SNAPSHOT(reals32, float)
-    DECLARE_SNAPSHOT(integers8, int8_t)
-    DECLARE_SNAPSHOT(uintegers8, uint8_t)
-    DECLARE_SNAPSHOT(integers16, int16_t)
-    DECLARE_SNAPSHOT(uintegers16, uint16_t)
-    DECLARE_SNAPSHOT(integers32, int32_t)
-    DECLARE_SNAPSHOT(uintegers32, uint32_t)
-    DECLARE_SNAPSHOT(integers64, int64_t)
-    DECLARE_SNAPSHOT(uintegers64, uint64_t)
-    DECLARE_SNAPSHOT(booleans, int)
-    DECLARE_SNAPSHOT(booleans1, bool)
-    DECLARE_SNAPSHOT(strings, char *)
-#undef DECLARE_SNAPSHOT
-} init_snapshot_t;
-
-#define FOR_ALL_EXACT_LOCALS(X) \
-    X(integers8) X(uintegers8) X(integers16) X(uintegers16) X(integers32) X(uintegers32) \
-    X(integers64) X(uintegers64) X(booleans) X(booleans1)
-
-
-static void init_snapshot_free(const container_t *container, init_snapshot_t *snapshot) {
-#define FREE_SNAPSHOT(name) free(snapshot->name);
-    FREE_SNAPSHOT(reals64)
-    FREE_SNAPSHOT(reals32)
-    FOR_ALL_EXACT_LOCALS(FREE_SNAPSHOT)
-#undef FREE_SNAPSHOT
-    if (snapshot->strings) {
-        for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
-            free(snapshot->strings[i]);
-        free(snapshot->strings);
-    }
-}
-
-
-static int init_snapshot_alloc(const container_t *container, init_snapshot_t *snapshot) {
-    memset(snapshot, 0, sizeof(*snapshot));
-#define ALLOC_SNAPSHOT(name)                                                                \
-    if (container->nb_local_ ## name > 0) {                                                 \
-        snapshot->name = calloc(container->nb_local_ ## name, sizeof(*snapshot->name));     \
-        if (!snapshot->name)                                                                \
-            return -1;                                                                      \
-    }
-    ALLOC_SNAPSHOT(reals64)
-    ALLOC_SNAPSHOT(reals32)
-    FOR_ALL_EXACT_LOCALS(ALLOC_SNAPSHOT)
-    ALLOC_SNAPSHOT(strings)
-#undef ALLOC_SNAPSHOT
-    return 0;
-}
-
-
-static int init_snapshot_take(const container_t *container, init_snapshot_t *snapshot) {
-#define TAKE_SNAPSHOT(name)                                                                 \
-    if (container->nb_local_ ## name > 0)                                                   \
-        memcpy(snapshot->name, container->name, container->nb_local_ ## name * sizeof(*snapshot->name));
-    TAKE_SNAPSHOT(reals64)
-    TAKE_SNAPSHOT(reals32)
-    FOR_ALL_EXACT_LOCALS(TAKE_SNAPSHOT)
-#undef TAKE_SNAPSHOT
-    for (unsigned long i = 0; i < container->nb_local_strings; i += 1) {
-        free(snapshot->strings[i]);
-        snapshot->strings[i] = container->strings[i] ? strdup(container->strings[i]) : NULL;
-        if (container->strings[i] && !snapshot->strings[i])
-            return -1;
-    }
-    return 0;
-}
-
-
-/* True when the local variables are those of the snapshot: reals within the tolerance of the container, the other
-   types equal. */
-static bool init_snapshot_same(const container_t *container, const init_snapshot_t *snapshot) {
-#define SAME_REALS(name)                                                                    \
-    for (unsigned long i = 0; i < container->nb_local_ ## name; i += 1) {                   \
-        const double a = (double)container->name[i], b = (double)snapshot->name[i];         \
-        if (fabs(a - b) > container->tolerance * fmax(1.0, fabs(b)))                        \
-            return false;                                                                   \
-    }
-    SAME_REALS(reals64)
-    SAME_REALS(reals32)
-#undef SAME_REALS
-#define SAME_EXACT(name)                                                                    \
-    if ((container->nb_local_ ## name > 0) &&                                               \
-        memcmp(snapshot->name, container->name, container->nb_local_ ## name * sizeof(*snapshot->name))) \
-        return false;
-    FOR_ALL_EXACT_LOCALS(SAME_EXACT)
-#undef SAME_EXACT
-    for (unsigned long i = 0; i < container->nb_local_strings; i += 1) {
-        const char *a = container->strings[i], *b = snapshot->strings[i];
-        if ((a != b) && (!a || !b || strcmp(a, b)))
-            return false;
-    }
-    return true;
-}
-
-
 /*
- * Propagation of the links between the embedded FMUs during the initialization (docs/local/done/init_propagation.md):
- * every FMU is in Initialization Mode. In the initialization order, each FMU gets its linked inputs from the local
- * variables, then its outputs are read into them. The sweep is repeated until the local variables do not change any
- * more (a loop of links), at most CONTAINER_MAX_EVENT_ITER times: without convergence, a warning. Clocks and clocked
- * variables are not propagated. Done only when a value changed since the last propagation.
+ * Exit of the Initialization Mode of the embedded FMUs, with the propagation of their links
+ * (docs/local/done/init_propagation.md), as Simulink does: in the initialization order (topological order of the
+ * links, written by the builder), each FMU gets its linked inputs from the local variables, leaves its
+ * Initialization Mode, then its outputs are read into the local variables for the FMUs after it. No output is read
+ * in Initialization Mode (some FMUs compute them only when they leave it). An ME FMU is in Event Mode after its exit:
+ * its outputs are read after its own event iteration, never before its first update of the discrete states.
+ * In a loop of links, the first FMU of the loop gets the values the loop has before the propagation (the builder
+ * warns). Clocks and clocked variables are not propagated.
  */
-fmu_status_t container_propagate_initialization(container_t* container) {
-    if (!container->init_propagation_pending)
-        return FMU_STATUS_OK;
+static fmu_status_t container_exit_fmus_initialization(container_t* container) {
+    for (int k = 0; k < container->nb_fmu; k += 1) {
+        fmu_t *fmu = &container->fmu[container->init_order[k]];
+        fmu_status_t status;
 
-    init_snapshot_t snapshot;
-    if (init_snapshot_alloc(container, &snapshot)) {
-        init_snapshot_free(container, &snapshot);
-        logger(LOGGER_ERROR, "Container: cannot allocate the propagation of the initialization.");
-        return FMU_STATUS_ERROR;
-    }
+        status = fmu_set_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed to get its inputs at the initialization.", fmu->name);
+            return status;
+        }
 
-    fmu_status_t status = FMU_STATUS_OK;
-    bool converged = false;
-    int iter;
-    for (iter = 0; iter < CONTAINER_MAX_EVENT_ITER; iter += 1) {
-        if (init_snapshot_take(container, &snapshot)) {
-            logger(LOGGER_ERROR, "Container: cannot allocate the propagation of the initialization.");
-            status = FMU_STATUS_ERROR;
-            break;
-        }
-        for (int k = 0; (k < container->nb_fmu) && (status == FMU_STATUS_OK); k += 1) {
-            const fmu_t *fmu = &container->fmu[container->init_order[k]];
-            status = fmu_set_inputs(fmu);
-            if (status == FMU_STATUS_OK)
-                status = fmu_get_outputs(fmu);
-            if (status != FMU_STATUS_OK)
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed the propagation of the initialization.", fmu->name);
-        }
+        status = fmuExitInitializationMode(fmu);
         if (status != FMU_STATUS_OK)
-            break;
-        if (init_snapshot_same(container, &snapshot)) {
-            converged = true;
-            break;
+            return status;
+
+        if (fmu->kind == FMU_KIND_ME) {
+            bool more_event = true;
+            int iter;
+            for (iter = 0; (iter < CONTAINER_MAX_EVENT_ITER) && more_event; iter += 1) {
+                if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
+                    return FMU_STATUS_ERROR;
+                if (fmuUpdateDiscreteStates(fmu, &more_event) != FMU_STATUS_OK)
+                    return FMU_STATUS_ERROR;
+            }
+            if (more_event) {
+                logger(LOGGER_ERROR, "Container: event iteration of FMU '%s' did not converge at the initialization.",
+                       fmu->name);
+                return FMU_STATUS_ERROR;
+            }
+        }
+
+        status = fmu_get_outputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed to give its outputs at the initialization.", fmu->name);
+            return status;
         }
     }
-    init_snapshot_free(container, &snapshot);
-
-    if (status != FMU_STATUS_OK)
-        return status;
-    if (converged)
-        logger(LOGGER_DEBUG, "Initialization: links propagated in %d sweep(s).", iter + 1);
-    else
-        logger(LOGGER_WARNING, "Initialization: the propagation of the links did not converge after %d sweeps "
-               "(loop of links).", CONTAINER_MAX_EVENT_ITER);
-
-    container->init_propagation_pending = false;
     return FMU_STATUS_OK;
 }
 
@@ -579,7 +473,6 @@ fmu_status_t container_enter_initialization_mode(container_t* container) {
     }
 
     container_set_start_values(container, 0);
-    container->init_propagation_pending = true;
 
     return FMU_STATUS_OK;
 }
@@ -611,15 +504,9 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
         return -9;
     }
 
-    status = container_propagate_initialization(container);
+    status = container_exit_fmus_initialization(container);
     if (status != FMU_STATUS_OK)
         return status;
-
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        status = fmuExitInitializationMode(&container->fmu[i]);
-        if ( status != FMU_STATUS_OK)
-            return status;
-    }
 
     /* CS FMUs are in EventMode (or StepMode if support_event=0); ME FMUs are in
        EventMode: run one common event iteration before splitting the modes. */
@@ -2557,7 +2444,6 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         container->nb_fmu = 0;
         container->fmu = NULL;
         container->init_order = NULL;
-        container->init_propagation_pending = false;
 
         container->nb_cs = 0;
         container->cs_fmu = NULL;

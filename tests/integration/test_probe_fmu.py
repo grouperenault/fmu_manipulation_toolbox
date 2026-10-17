@@ -4,6 +4,7 @@ The generated FMUs (sources only) are compiled for the host platform, then simul
 by the probe is checked. Each test runs in its own temporary directory.
 """
 import csv
+import logging
 import importlib.util
 import time
 import zipfile
@@ -401,25 +402,21 @@ def test_propagation_nested_container(probe_dir, compiled_probes):
 @pytest.mark.needs_fmpy
 @pytest.mark.needs_compiler
 @pytest.mark.needs_container
-@pytest.mark.parametrize("p_tunable, converges", [(0.0, True), (0.5, False)], ids=["converges", "diverges"])
-def test_propagation_loop(probe_dir, compiled_probes, p_tunable, converges):
-    """A.y_cont -> B.u_cont, B.y_cont -> A.u_cont (y_cont = u_cont + p_tunable): a fixed point when p_tunable = 0,
-    none otherwise (the propagation stops after its last sweep, with a warning)."""
-    messages = _build_and_simulate(probe_dir, compiled_probes,
-                                   {"name": "loop.fmu", "auto_link": False, "auto_input": False,
-                                    "fmu": ["A.fmu", "B.fmu"], "path": {"A.fmu": PATHS["A.fmu"], "B.fmu": PATHS["B.fmu"]},
-                                    "link": [["A.fmu", "y_cont", "B.fmu", "u_cont"],
-                                             ["B.fmu", "y_cont", "A.fmu", "u_cont"]],
-                                    "start": [["A.fmu", "trace_file", "A.csv"], ["B.fmu", "trace_file", "B.csv"],
-                                              ["A.fmu", "p_tunable", p_tunable], ["B.fmu", "u_cont", 3.0]]})
-    warned = any("did not converge" in message for message in messages)
-    assert warned != converges
-    before = _snapshot(_trace(probe_dir / "A.csv"), "after_initialization")
-    if converges:
-        assert any("links propagated in" in message for message in messages)
-        assert float(before["u_cont"]) == float(_snapshot(_trace(probe_dir / "B.csv"), "after_initialization")["y_cont"])
-    else:
-        assert float(before["u_cont"]) > 10      # 100 sweeps of +0.5
+def test_propagation_loop(probe_dir, compiled_probes, caplog):
+    """A.y_cont -> B.u_cont, B.y_cont -> A.u_cont: the loop is cut before A (first FMU of the configuration), with a
+    warning; A is initialized with the value of the link before the propagation, B with the output of A."""
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        _build_and_simulate(probe_dir, compiled_probes,
+                            {"name": "loop.fmu", "auto_link": False, "auto_input": False,
+                             "fmu": ["A.fmu", "B.fmu"], "path": {"A.fmu": PATHS["A.fmu"], "B.fmu": PATHS["B.fmu"]},
+                             "link": [["A.fmu", "y_cont", "B.fmu", "u_cont"], ["B.fmu", "y_cont", "A.fmu", "u_cont"]],
+                             "start": [["A.fmu", "trace_file", "A.csv"], ["B.fmu", "trace_file", "B.csv"],
+                                       ["A.fmu", "p_tunable", 0.5]]})
+    assert "Loop of links through the embedded FMU 'A.fmu'" in caplog.text
+    a = _snapshot(_trace(probe_dir / "A.csv"), "after_initialization")
+    b = _snapshot(_trace(probe_dir / "B.csv"), "after_initialization")
+    assert float(a["u_cont"]) == 0.0                         # value of the link before the propagation
+    assert float(b["u_cont"]) == float(a["y_cont"]) == 0.5   # output of A after its initialization
 
 
 @pytest.mark.slow
@@ -427,7 +424,8 @@ def test_propagation_loop(probe_dir, compiled_probes, p_tunable, converges):
 @pytest.mark.needs_compiler
 @pytest.mark.needs_container
 def test_propagation_before_a_get_in_initialization_mode(probe_dir, compiled_probes):
-    """An output of the container read by the importer in Initialization Mode is already propagated."""
+    """An output of the container read by the importer in Initialization Mode is not propagated yet: the links are
+    propagated when the container leaves its Initialization Mode."""
     import shutil
     from fmpy import extract, read_model_description
     from fmpy.fmi2 import FMU2Slave
@@ -449,11 +447,9 @@ def test_propagation_before_a_get_in_initialization_mode(probe_dir, compiled_pro
     fmu.instantiate(callbacks=callbacks)
     fmu.setupExperiment(startTime=0)
     fmu.enterInitializationMode()
-    fmu.setReal([vrs["a_u"]], [2.0])
-    assert fmu.getReal([vrs["c_init"]]) == [7.0]          # 2 + (1 + (3 + 2))
     fmu.setReal([vrs["a_u"]], [4.0])
-    assert fmu.getReal([vrs["c_init"]]) == [9.0]          # propagated again after a set
+    assert fmu.getReal([vrs["c_init"]]) == [2.0]          # not propagated yet: C.p_real + C.u_cont start value
     fmu.exitInitializationMode()
-    assert fmu.getReal([vrs["c_init"]]) == [9.0]
+    assert fmu.getReal([vrs["c_init"]]) == [9.0]          # 2 + (1 + (3 + 4))
     fmu.terminate()
     fmu.freeInstance()

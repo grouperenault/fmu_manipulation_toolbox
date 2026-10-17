@@ -34,7 +34,6 @@ node1.fmu: Entering initialization mode.
 node2.fmu: Entering initialization mode.
 Re-setting some start values...
 Start values are set.
-Initialization: links propagated in 1 sweep(s).
 node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
