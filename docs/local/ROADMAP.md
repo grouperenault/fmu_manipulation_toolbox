@@ -10,3 +10,7 @@
 - [X] Drop python 3.9 support (which is end-of-life)
 - [X] Support python 3.14
 - [X] Efficient assistant to connect 2 FMUs
+- [X] Reset of embedded FMUs during the simulation (`reset_ports`)
+
+# Version 2.1
+- [ ] Export to Simulink
