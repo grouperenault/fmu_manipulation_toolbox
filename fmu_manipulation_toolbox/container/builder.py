@@ -428,7 +428,8 @@ class FMUContainer:
         Args:
             fmu_filename (str): Filename of the embedded FMU.
             port_name (str): Name of the port.
-            value (str): Start value as a string.
+            value (str): Start value as a string (a Python `bool`, e.g. a JSON `true`, is accepted for a
+                Boolean port).
 
         Raises:
             FMUContainerError: If the FMU or the port does not exist, if the port
@@ -443,6 +444,9 @@ class FMUContainer:
 
         if cport.port.is_reset:
             raise FMUContainerError(f"Start value cannot be set on {cport}: it drives the reset of the FMU.")
+
+        if isinstance(value, bool):     # JSON true/false: str() would give 'True'/'False'
+            value = "true" if value else "false"
 
         # Check dimensions
         value_tokens = str(value).split(' ')

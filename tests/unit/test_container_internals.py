@@ -244,6 +244,14 @@ def test_rule_errors(bouncing, rule, message):
 
 
 @pytest.mark.area("containers/bouncing_ball")
+@pytest.mark.parametrize("value, expected", [(True, "true"), (False, "false"), ("true", "true"), ("0", "0")])
+def test_boolean_start_value(bouncing, value, expected):
+    """A Python bool (JSON true/false) is accepted as the start value of a Boolean port."""
+    bouncing.add_start_value("bb_velocity.fmu", "reset", value)
+    assert list(bouncing.start_values.values()) == [expected]
+
+
+@pytest.mark.area("containers/bouncing_ball")
 def test_duplicate_output_name(bouncing):
     bouncing.add_output("bb_position.fmu", "position1", "out")
     with pytest.raises(FMUContainerError, match="Duplicate OUTPUT out"):
