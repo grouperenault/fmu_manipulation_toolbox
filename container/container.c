@@ -1068,7 +1068,7 @@ int container_cache_ ## type(container_t *container, container_port_t *port, con
         nvalues = port->dimension;                                                                              \
     for (size_t k = 0; k < nvalues; k += 1)                                                                     \
         container->cache_ ## type [port->cache_offset + k] = value[k];                                          \
-    port->nb_cached = nvalues;                                                                                  \
+    port->nb_cached = (unsigned long)nvalues;   /* at most the dimension of the port */                         \
     logger(LOGGER_DEBUG, "[DEBUG] Cache " #type " [%lu] = " format " (%zu value(s))", port->cache_offset,       \
            (cast)value[0], nvalues);                                                                            \
     return 0;                                                                                                   \
@@ -1105,7 +1105,7 @@ int container_cache_strings(container_t *container, container_port_t *port, cons
             return -1;
         }
     }
-    port->nb_cached = nvalues;
+    port->nb_cached = (unsigned long)nvalues;   /* at most the dimension of the port */
     logger(LOGGER_DEBUG, "[DEBUG] Cache strings [%lu] = %s (%zu value(s))", port->cache_offset, value[0], nvalues);
     return 0;
 }
@@ -1132,7 +1132,7 @@ int container_cache_binaries(container_t *container, container_port_t *port, con
         cached->size = size[k];
         memcpy(cached->data, value[k], size[k]);
     }
-    port->nb_cached = nvalues;
+    port->nb_cached = (unsigned long)nvalues;   /* at most the dimension of the port */
     logger(LOGGER_DEBUG, "[DEBUG] Cache binaries [%lu] = %zu byte(s) (%zu value(s))", port->cache_offset, size[0],
            nvalues);
     return 0;
