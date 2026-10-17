@@ -191,7 +191,10 @@ Taken on 17 October 2026:
   variable, then the error is returned (4.1).
 - **D7 — Benchmark**: a case with a few hundred ports is generated from N chained instances of `Feedthrough.fmu`
   (and of the `mt` FMUs); 5 runs per case, step size 1 ms, stop time chosen for about 1 s of computation per case.
-- **D8 — Acceptance**: the results are identical bit for bit to the REF files of step 1.
+- **D8 — Acceptance**: the results are identical bit for bit to the REF files of step 1. Amended on 17 October 2026:
+  identical bit for bit on one machine (A/B digests of the benchmark); the tests compare with the REF files (made on
+  macOS) within a tolerance of `1e-12` (relative and absolute), since the embedded FMUs run other binaries on another
+  platform (Linux CI: `x1` of `VanDerPol.fmu` differs by one unit of the last digit).
 - **D9 — Workflow**: steps 1 to 3 on `feature/optimize-fmi-calls`, in the main checkout, one commit per step without
   pause; step 4 (documentation) on request, once the gains are measured.
 - **D10 — Point 1 abandoned** (17 October 2026, after step 2): the grouped exchanges were implemented (4.1, with a

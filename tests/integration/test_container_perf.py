@@ -1,8 +1,11 @@
 """Results of reference containers for the performance work on the runtime (`docs/local/container_perf.md`).
 
-The exchanges of the embedded FMUs (one FMI call per type) and the coupling sweep of the Model-Exchange solver must
-not change the results: they are compared bit for bit with REF files made before these changes. `Feedthrough.fmu`
-(FMI 3.0) and `VanDerPol.fmu` have binaries for every platform; the FMI-2 `Feedthrough.fmu` is compiled for the host.
+The coupling sweep of the Model-Exchange solver must not change the results: they are compared with REF files made
+before this change, on macOS (Apple silicon). The embedded FMUs run their own binaries on each platform (compiler,
+libm, fused multiply-add), so the comparison allows a tolerance far above the rounding differences between platforms
+(a few units of the last digit) and far below any change of behaviour; the results are identical bit for bit on one
+machine (see `tools/bench_container.py`). `Feedthrough.fmu` (FMI 3.0) and `VanDerPol.fmu` have binaries for every
+platform; the FMI-2 `Feedthrough.fmu` is compiled for the host.
 """
 import re
 import shutil
@@ -14,13 +17,15 @@ import pytest
 from fmu_manipulation_toolbox.container import FMUContainer
 
 from _helpers.archive import read_entry, rewrite_fmu
-from _helpers.assertions import assert_identical_files
 from _helpers.simulation import simulate
 
 pytestmark = [pytest.mark.integration, pytest.mark.needs_fmpy, pytest.mark.needs_container,
               pytest.mark.area("containers/perf")]
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+
+#: Tolerance of the comparison with the REF files (relative and absolute).
+TOLERANCE = 1e-12
 
 #: Ports of `Feedthrough.fmu` (`<name>_input` -> `<name>_output`) linked from one instance to the next. No FMI-3
 #: `Enumeration`: the container handles it as an `Int32`, where FMI 3.0 accesses it as an `Int64`.
@@ -46,13 +51,18 @@ def fmus(area_dir):
 
 
 def _assert_results(name: str, outputs: list[str], start_values: dict | None = None, case: str | None = None):
-    """Simulate `<name>.fmu` and compare the outputs, written with every digit, with `REF-results-<case>.csv`
-    (`case` defaults to `name`)."""
+    """Simulate `<name>.fmu` and compare the outputs with `REF-results-<case>.csv` (`case` defaults to `name`),
+    within `TOLERANCE`. The results are also written with every digit into `results-<case>.csv`."""
     case = case or name
     result = simulate(f"{name}.fmu", stop_time=0.05, output_interval=0.001, start_values=start_values or {})
-    np.savetxt(f"results-{case}.csv", np.column_stack([result["time"]] + [result[o] for o in outputs]),
-               delimiter=",", fmt="%.17g", header=",".join(["time"] + outputs), comments="")
-    assert_identical_files(f"results-{case}.csv", f"REF-results-{case}.csv")
+    values = np.column_stack([result["time"]] + [result[o] for o in outputs]).astype(float)
+    np.savetxt(f"results-{case}.csv", values, delimiter=",", fmt="%.17g", header=",".join(["time"] + outputs),
+               comments="")
+    with open(f"REF-results-{case}.csv") as file:
+        assert file.readline().strip() == ",".join(["time"] + outputs)
+    reference = np.loadtxt(f"REF-results-{case}.csv", delimiter=",", skiprows=1, ndmin=2)
+    assert values.shape == reference.shape
+    np.testing.assert_allclose(values, reference, rtol=TOLERANCE, atol=TOLERANCE, err_msg=f"results of {case}")
 
 
 def _chain(container: FMUContainer, source: str, names: list[str], ports: tuple[str, ...]):
