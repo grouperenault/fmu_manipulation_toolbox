@@ -1,6 +1,6 @@
 # Propagation of the links during the initialization of a container
 
-**Created**: 17 October 2026 — **Status**: decisions taken (17 October 2026), Step 1 to start — **Branch**: `feature/init-propagation` — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: Step 1 done (17 October 2026), Step 2 to start — **Branch**: `feature/init-propagation` — **Roadmap**: not listed
 
 ## Context
 
@@ -104,7 +104,11 @@ happens in `container_exit_initialization_mode`, once the importer has set every
 - `fmu_manipulation_toolbox/container/builder.py`: graph of the embedded FMUs from the links (clocked links
   excluded), topological sort; inside a cycle, the order of the configuration. Written in `container.txt` as a new
   section `# Initialization order` (list of FMU indexes) after the embedded FMU declarations: format **version 8**.
+- `container/container.c`: the runtime reads the section (`read_conf_init_order`, `container->init_order`), used
+  by Step 2. Like the other sections, without compatibility with the older versions: the runtime is always shipped
+  with the `container.txt` of its builder.
 - `fmu_manipulation_toolbox/split.py` (`fmusplit`) reads version 8 (the section is ignored).
+- The REF `container.txt` of the tests: `# Version 8` and the new section only.
 - `docs/developer/container-txt-format.md`: version 8.
 - Unit tests: chain, fork, cycle, links to/from the container ports only (no edge), clocked links (no edge).
 
@@ -112,7 +116,6 @@ Commit message: `Compute the initialization order of the embedded FMUs`
 
 ### Step 2 – Propagation in the runtime
 
-- `container/container.c`: reading of the section (version 8; versions ≤ 7: configuration order).
 - `container_exit_initialization_mode`: before the `fmuExitInitializationMode` of the FMUs, the propagation sweeps
   of decisions 1 and 3 (non-clocked inputs and outputs only), with a snapshot of the linked local buffers to detect
   the convergence; warning without convergence.

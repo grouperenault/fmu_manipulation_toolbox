@@ -1323,6 +1323,35 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
 }
 
 
+/*
+ * # Initialization order of the embedded FMU's
+ * <index> <index> ...      (every index of fmu[] once)
+ */
+static int read_conf_init_order(container_t *container, config_file_t *file) {
+    CONFIG_GETLINE;
+    CONFIG_ALLOC(container->init_order, container->nb_fmu > 0 ? container->nb_fmu : 1);
+
+    const char *cursor = file->line;
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        char *end;
+        const long index = strtol(cursor, &end, 10);
+        if ((end == cursor) || (index < 0) || (index >= container->nb_fmu)) {
+            CONFIG_ERROR("Cannot read the %dth index of the initialization order.", i);
+            return -1;
+        }
+        for (int j = 0; j < i; j += 1) {
+            if (container->init_order[j] == (int)index) {
+                CONFIG_ERROR("FMU#%ld is twice in the initialization order.", index);
+                return -1;
+            }
+        }
+        container->init_order[i] = (int)index;
+        cursor = end;
+    }
+    return 0;
+}
+
+
 static int read_conf_fmu(container_t *container, const char *dirname, config_file_t* file) {
     int nb_cs, nb_me;
 
@@ -2152,6 +2181,12 @@ int container_configure(container_t* container, const char* resource_location) {
         return -4;
     }
 
+    if (read_conf_init_order(container, &file)) {
+        config_file_close(&file);
+        logger(LOGGER_ERROR, "Cannot read the initialization order.");
+        return -4;
+    }
+
     if (read_conf_local(container, &file)) {
         config_file_close(&file);
         logger(LOGGER_ERROR, "Cannot allocate local variables.");
@@ -2354,6 +2389,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
 
         container->nb_fmu = 0;
         container->fmu = NULL;
+        container->init_order = NULL;
 
         container->nb_cs = 0;
         container->cs_fmu = NULL;
@@ -2451,6 +2487,7 @@ void container_free(container_t *container) {
 
     solver_free(container->solver);
     free(container->cs_fmu);
+    free(container->init_order);
 
     free(container->instance_name);
     free(container->uuid);

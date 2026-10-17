@@ -866,9 +866,49 @@ class FMUContainer:
 
         ModelDescription(root).save(xml_filename)
 
+    def initialization_order(self, fmu_rank: dict[str, int]) -> list[int]:
+        """Order in which the embedded FMUs propagate their links during the initialization.
+
+        Topological sort of the graph of the embedded FMUs, with an edge from the FMU of an output to the FMU of an
+        input it is linked to. The clocks, the clocked variables and the `container.reset` triggers make no edge
+        (they are not propagated during the initialization). Inside a loop, and between independent FMUs, the order
+        of the configuration (`fmu_rank`) decides; the runtime iterates over the loops.
+
+        Args:
+            fmu_rank (dict[str, int]): Index of each embedded FMU in `container.txt`, by FMU name.
+
+        Returns:
+            list[int]: The indexes of every embedded FMU, in initialization order.
+        """
+        successors: dict[int, set[int]] = {rank: set() for rank in fmu_rank.values()}
+        for link in self.links.values():
+            cport_from = link.cport_from
+            if cport_from is None or cport_from.port.clock or cport_from.port.type_name == "clock":
+                continue
+            for cport_to in link.cport_to_list:
+                if cport_to.port.is_reset or cport_to.port.clock or cport_to.fmu.name == cport_from.fmu.name:
+                    continue
+                successors[fmu_rank[cport_from.fmu.name]].add(fmu_rank[cport_to.fmu.name])
+
+        nb_predecessors = {rank: 0 for rank in successors}
+        for targets in successors.values():
+            for target in targets:
+                nb_predecessors[target] += 1
+
+        order: list[int] = []
+        remaining = set(successors)
+        while remaining:
+            ready = [rank for rank in remaining if nb_predecessors[rank] == 0]
+            rank = min(ready) if ready else min(remaining)       # a loop: the first FMU of the configuration
+            order.append(rank)
+            remaining.remove(rank)
+            for target in successors[rank]:
+                nb_predecessors[target] -= 1
+        return order
+
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
                      layout: ContainerLayout):
-        print("# Version 7", file=txt_file)
+        print("# Version 8", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
         flags = [str(int(bool(flag))) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)
@@ -878,6 +918,9 @@ class FMUContainer:
 
         print("# NB of embedded FMU's", file=txt_file)
         fmu_rank = self.involved_fmu.write_txt(txt_file)
+
+        print("# Initialization order of the embedded FMU's", file=txt_file)
+        print(" ".join(str(rank) for rank in self.initialization_order(fmu_rank)), file=txt_file)
 
 
         # Prepare data structure

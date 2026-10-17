@@ -1,4 +1,4 @@
-# Version 7
+# Version 8
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
@@ -11,6 +11,8 @@ scalar2array
 array2scalar-3.fmu 3 1
 array2scalar
 {75d40875-14e3-e8a1-f5d6-557662a999a0}
+# Initialization order of the embedded FMU's
+0 1
 # NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
 13 0 0 0 0 0 8 0 0 0 0 0 0 0 0
 # CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
