@@ -170,7 +170,9 @@ nav:
       - Model description: API/model_description.md
       - Operations: API/operations.md
       - Remoting: API/remoting.md
-  - Examples: examples/examples.md
+  - Examples:
+      - Common Use Cases: examples/examples.md
+      - From Simulink to an FMU Container: examples/simulink-to-container.md
   - Developer:
       - container.txt Format: developer/container-txt-format.md
       - Initialization FMI Sequence: developer/init-fmi-sequence.md

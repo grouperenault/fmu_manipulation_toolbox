@@ -14,8 +14,12 @@ The list of types and the conversion functions are defined once, in
 
 ## General Syntax Rules
 
-- Lines starting with `#` are comments and are skipped by the parser.
+- The first line is the [version header](#1-version-header) `# Version <N>`: it is mandatory and checked by the
+  C runtime.
+- The other lines starting with `#` are comments and are skipped by the parser.
 - Each non-comment line contains space-separated tokens.
+- The lines have no length limit (the runtime grows its line buffer as needed; before 2.0 a line longer than 4095
+  characters was cut, which shifted the reading of the rest of the file).
 - The parser reads lines sequentially; the order of sections is fixed.
 
 ---
@@ -28,6 +32,7 @@ The file is organized into the following sections, in order:
 2. [Container Flags](#2-container-flags)
 3. [Internal Time Step](#3-internal-time-step)
 4. [Embedded FMU Declarations](#4-embedded-fmu-declarations)
+   - [Initialization Order](#4b-initialization-order) (version ≥ 8)
 5. [Local Variables Count](#5-local-variables-count)
 6. [Container I/O Table](#6-container-io-table)
 7. [Per-FMU I/O Sections](#7-per-fmu-io-sections) (repeated for each embedded FMU)
@@ -41,8 +46,21 @@ The file is organized into the following sections, in order:
 # Version <N>
 ```
 
-The first line is a comment indicating the file format version. The version number `N` determines
-how subsequent sections are parsed.
+The first line indicates the file format version. The version number `N` determines how subsequent sections are
+parsed.
+
+The version is defined twice, with the same value: `CONTAINER_TXT_VERSION` of
+`fmu_manipulation_toolbox/container/types.py`, written by the builder, and `CONTAINER_TXT_VERSION` of
+`container/container.h`, read by the runtime (a unit test checks that they are equal). The runtime only reads its
+own version: it is always shipped with the `container.txt` of its builder. A missing header or another version is
+refused when the container is instantiated, with one of the errors:
+
+- `container.txt has no format version header: the container was built by an incompatible version of FMU
+  Manipulation Toolbox.`
+- `container.txt format version <N>, this runtime reads version <M>: build the container again with the version of
+  FMU Manipulation Toolbox that provides this runtime.`
+
+`fmusplit` (`split.py`) reads every version of the table below.
 
 | Version | Introduced In | Key Changes |
 |---------|---------------|-------------|
@@ -54,6 +72,7 @@ how subsequent sections are parsed.
 | 5 | 1.9.4 | Local variables addressed by their **storage offset**: `<LOCAL_OFFSET>` instead of the local VR in the per-FMU I/O lines, and as `<FMU_VR>` of the local lines of the container I/O table (an array occupies several slots) |
 | 6 | 2.0 | Model-Exchange support: FMU count split into `<nb_fmu_cs> <nb_fmu_me>`, ME entries carry `<nx> <nz>`; reserved `integer32` slot for the ME solver |
 | 7 | 2.0 | Reset trigger of each embedded FMU (`container.<fmu>.reset`), after its conversion table |
+| 8 | 2.0 | Initialization order of the embedded FMUs, after their declarations |
 
 ---
 
@@ -141,6 +160,21 @@ The FMU's resources are stored in subdirectories named by index: `resources/00/`
 - **Version ≥ 6**: Split count `<nb_fmu_cs> <nb_fmu_me>` and dedicated Model-Exchange entries
   carrying `<nx> <nz>` on the same line as `<fmu_filename> <fmi_version>` (instead of
   `<has_event_mode>`).
+
+---
+
+## 4b. Initialization Order
+
+```
+# Initialization order of the embedded FMU's
+<FMU_INDEX> <FMU_INDEX> ...
+```
+
+Version ≥ 8. Every index of the embedded FMUs (their order in section 4, from 0) once, in the order in which they
+propagate their links during the initialization of the container: a topological sort of the graph of the embedded
+FMUs, with an edge from the FMU of an output to the FMU of each input it is linked to. The clocks, the clocked
+variables and the `container.reset` triggers make no edge. Inside a loop, and between independent FMUs, the order
+of section 4 decides.
 
 ---
 

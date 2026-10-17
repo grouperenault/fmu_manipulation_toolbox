@@ -21,6 +21,7 @@ pytestmark = [pytest.mark.unit]
 
 REPOSITORY = Path(__file__).resolve().parent.parent.parent
 CONVERT_C = REPOSITORY / "container" / "convert.c"
+CONTAINER_H = REPOSITORY / "container" / "container.h"
 
 
 #: Public API of the `fmu_manipulation_toolbox.container` package: these classes must stay importable from it.
@@ -43,6 +44,14 @@ def test_conversions_match_the_c_runtime():
     """Every conversion written in `container.txt` is implemented by the runtime (`CASE(...)` of convert.c)."""
     c_names = set(re.findall(r"^\s*CASE\((\w+)\);", CONVERT_C.read_text(), flags=re.MULTILINE))
     assert set(Link.CONVERSION_FUNCTION.values()) == c_names
+
+
+@pytest.mark.skipif(not CONTAINER_H.is_file(), reason="C sources of the container runtime not available")
+def test_format_version_matches_the_c_runtime():
+    """The builder writes the only `container.txt` format version read by the runtime (`CONTAINER_TXT_VERSION`)."""
+    c_version = re.search(r"^#define\s+CONTAINER_TXT_VERSION\s+(\d+)", CONTAINER_H.read_text(), flags=re.MULTILINE)
+    assert c_version is not None
+    assert int(c_version.group(1)) == container_types.CONTAINER_TXT_VERSION
 
 
 def test_lossy_conversions_are_prefixed():
@@ -241,6 +250,14 @@ def test_one_name_cannot_designate_two_files(bouncing):
 def test_rule_errors(bouncing, rule, message):
     with pytest.raises(FMUContainerError, match=message):
         rule(bouncing)
+
+
+@pytest.mark.area("containers/bouncing_ball")
+@pytest.mark.parametrize("value, expected", [(True, "true"), (False, "false"), ("true", "true"), ("0", "0")])
+def test_boolean_start_value(bouncing, value, expected):
+    """A Python bool (JSON true/false) is accepted as the start value of a Boolean port."""
+    bouncing.add_start_value("bb_velocity.fmu", "reset", value)
+    assert list(bouncing.start_values.values()) == [expected]
 
 
 @pytest.mark.area("containers/bouncing_ball")
@@ -499,3 +516,44 @@ def test_reset_input_in_model_description(resettable):
     variable = variables["container.bb_velocity.reset"]
     assert (variable.get("causality"), variable.get("variability")) == ("input", "discrete")
     assert variable.find("Boolean").get("start") == "false"
+
+
+# --------------------------------------------------------------------------- #
+#                 Initialization order of the embedded FMUs                    #
+# --------------------------------------------------------------------------- #
+def _cport(fmu: str, clock=None, type_name="real64", is_reset=False):
+    return SimpleNamespace(fmu=SimpleNamespace(name=fmu),
+                           port=SimpleNamespace(clock=clock, type_name=type_name, is_reset=is_reset))
+
+
+def _link(cport_from, *cports_to):
+    return SimpleNamespace(cport_from=cport_from, cport_to_list=list(cports_to))
+
+
+def _order(links, fmus=("a", "b", "c", "d")):
+    container = SimpleNamespace(links={i: link for i, link in enumerate(links)})
+    return FMUContainer.initialization_order(container, {name: rank for rank, name in enumerate(fmus)})
+
+
+@pytest.mark.parametrize("links, expected", [
+    ([], [0, 1, 2, 3]),                                                                   # no link
+    ([_link(_cport("c"), _cport("b")), _link(_cport("b"), _cport("a"))], [2, 1, 0, 3]),  # chain c -> b -> a
+    ([_link(_cport("d"), _cport("a"), _cport("b"))], [2, 3, 0, 1]),                      # fork d -> a, b
+    ([_link(_cport("b"), _cport("a")), _link(_cport("a"), _cport("b")),
+      _link(_cport("d"), _cport("c"))], [3, 2, 0, 1]),                                    # loop a <-> b, d -> c first
+    ([_link(_cport("c"), _cport("b")), _link(_cport("b"), _cport("c")),
+      _link(_cport("a"), _cport("c"))], [0, 3, 1, 2]),                                    # loop b <-> c fed by a
+], ids=["no-link", "chain", "fork", "loop", "loop-fed"])
+def test_initialization_order(links, expected):
+    assert _order(links) == expected
+
+
+@pytest.mark.parametrize("link", [
+    _link(None, _cport("a")),                                     # clock fed by the importer
+    _link(_cport("d", type_name="clock"), _cport("a")),           # clock
+    _link(_cport("d", clock="7"), _cport("a", clock="3")),        # clocked variable
+    _link(_cport("d"), _cport("a", is_reset=True)),               # container.reset trigger
+    _link(_cport("a"), _cport("a")),                              # an FMU on itself
+], ids=["importer-clock", "clock", "clocked", "reset", "self"])
+def test_initialization_order_ignores(link):
+    assert _order([link]) == [0, 1, 2, 3]

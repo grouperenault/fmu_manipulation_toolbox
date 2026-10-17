@@ -1,0 +1,19 @@
+{
+  "name": "S6s.fmu",
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": true,
+  "fmu": ["A.fmu", "B.fmu", "C.fmu"],
+  "path": {"A.fmu": "Probe10ms-host.fmu", "B.fmu": "Probe10ms-host.fmu", "C.fmu": "Probe10ms-host.fmu"},
+  "start": [
+    ["A.fmu", "trace_file", "A.csv"],
+    ["B.fmu", "trace_file", "B.csv"],
+    ["C.fmu", "trace_file", "C.csv"],
+    ["A.fmu", "compute_time", 0.005],
+    ["B.fmu", "compute_time", 0.005],
+    ["C.fmu", "compute_time", 0.005],
+    ["A.fmu", "compute_sleep", "false"],
+    ["B.fmu", "compute_sleep", "false"],
+    ["C.fmu", "compute_sleep", "false"]
+  ]
+}

@@ -24,10 +24,11 @@ extern "C" {
 /*----------------------------------------------------------------------------
                         C O N F I G _ F I L E _ T
 ----------------------------------------------------------------------------*/
-#define CONFIG_FILE_SZ			4096
+#define CONFIG_FILE_SZ			4096	/* size of the path buffers, initial size of the line buffer */
 typedef struct {
 	FILE						*fp;
-	char						line[CONFIG_FILE_SZ];
+	char						*line;		/* current line, grown to hold a line of any length */
+	size_t						line_size;
     unsigned int                line_number;
 } config_file_t;
 
@@ -37,6 +38,7 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 int get_line(config_file_t* config_file);
+extern int config_file_version(config_file_t* config_file, int *version);
 extern int config_file_open(config_file_t* config_file, const char *dirname, const char *filename);
 extern void config_file_close(config_file_t* config_file);
 extern void config_file_error(config_file_t *config_file, unsigned int code_line_number, const char *message, ...) __attribute__((__format__(__printf__, 3, 4)));

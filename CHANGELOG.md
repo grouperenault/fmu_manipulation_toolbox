@@ -79,6 +79,18 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## FMU Container
 
+- 🔵 **CHANGED** the container **propagates the links** between its embedded FMUs **during the initialization**:
+  in the order of the links, each FMU gets its linked inputs and its linked outputs are read while every FMU is in
+  Initialization Mode, so that an FMU is initialized with the values of the FMUs it depends on (as FMI expects
+  from an importer, and as Simulink does). Loops of links are iterated (warning without fixed point); an output of
+  the container read during its initialization is propagated first. The initial values, and the results of the
+  FMUs whose initialization depends on their inputs, may change. `container.txt` format version 8. See
+  [Initialization of the embedded FMU's](docs/user-guide/fmucontainer/container.md#initialization-of-the-embedded-fmus)
+  and [From Simulink to an FMU Container](docs/examples/simulink-to-container.md).
+- 🟢 **ADDED** documentation: [From Simulink to an FMU Container](docs/examples/simulink-to-container.md),
+  how to rebuild a Simulink assembly of FMU blocks as a container (mapping of the concepts, worked example) and
+  the behaviour differences to take into account: initialization, unconnected inputs, sample times, delays,
+  computation time.
 - 🟢 **ADDED** `fmucontainer-gui`: **Link Assistant** — a window opened from the *Wire Details* panel to define
   in bulk the links of a wire between FMUs with hundreds of ports. Tab **Rules**: a criterion (same name,
   prefix / suffix replacement, regular expression, similar names), optionally ignoring case and separators,
@@ -111,6 +123,8 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   sizes of the FMUs with a fixed step (`0.2` and `0.3` give `0.6`). A step size that is not
   1/n second was truncated (`0.3` gave `0.333`), a step size above 1 second was ignored, and a
   single FMU without `stepSize` made the container fall back to 0.1 second.
+- 🟠 **FIXED** a JSON boolean (`true`, `false`) is accepted as the start value of a `Boolean` port in a
+  description file; only the strings `"true"`, `"false"`, `"0"` and `"1"` were.
 - 🟠 **FIXED** no more "should be divisible" warning for a time step that is an exact multiple of an FMU
   step size (`0.3` and `0.1`).
 - 🟠 **FIXED** a connection feeding several inputs of the same converted type (e.g. a `Real` output to two
@@ -142,6 +156,12 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   its state after instantiation. They returned an error ("not implemented").
 - 🟠 **FIXED** an importer could crash when the configuration of a container failed (e.g. a damaged
   `container.txt`): the container freed buffers it had not allocated.
+- 🟠 **FIXED** the runtime reads the lines of `container.txt` of any length: a line longer than 4095 characters
+  (the start values of a large array, a string start value of more than 4095 characters) was cut and shifted the
+  reading of the rest of the file, so that the container failed to instantiate.
+- 🔵 **CHANGED** the runtime checks the format version of `container.txt` and refuses, with an explicit error, a
+  container whose `container.txt` does not come from the same version of the toolbox. See
+  [Troubleshooting](docs/help/troubleshooting.md#fmu-container-fails-to-instantiate-format-version-of-containertxt).
 - 🟠 **FIXED** the buffers of the Model-Exchange solver were allocated again, without being freed, at each
   initialization of the container.
 - 🟠 **FIXED** an FMI-3 `Enumeration` of an embedded FMU is accessed as an `Int64`, as FMI 3.0 requires: the

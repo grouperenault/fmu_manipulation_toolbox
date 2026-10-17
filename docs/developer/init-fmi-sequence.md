@@ -50,8 +50,16 @@ sequenceDiagram
     Note Over C, F2: Apply remaining start values
     C->>F1: fmi*SetReal/Int/Bool/...<br/>(remaining start values)
     C->>F2: fmi*SetReal/Int/Bool/...<br/>(remaining start values)
+    Note Over I, C: The importer sets the inputs of the container;<br/>a get of an output first propagates the links
 
     I->>C: fmi*ExitInitializationMode()
+    Note over C, F2: Propagate the links (initialization order of container.txt)
+    loop until the linked values are stable (at most 100 sweeps)
+        C->>F1: fmi*SetReal/Int/Bool/...<br/>(linked inputs)
+        C->>F1: fmi*GetReal/Int/Bool/...<br/>(linked outputs)
+        C->>F2: fmi*SetReal/Int/Bool/...<br/>(linked inputs)
+        C->>F2: fmi*GetReal/Int/Bool/...<br/>(linked outputs)
+    end
     C->>F1: fmi*ExitInitializationMode()
     C->>F2: fmi*ExitInitializationMode()
     Note Over C, F2: FMUs are now in EVENT MODE
@@ -96,6 +104,19 @@ sequenceDiagram
   the *early* pass (`container_set_start_values(early=1)`) during setup, and the remaining values
   (`container_set_start_values(early=0)`) once the FMUs are in *Initialization Mode*. Values
   flagged as `reset` are (re)applied in both passes.
+- The links between the embedded FMUs are **propagated during the initialization**
+  (`container_propagate_initialization()`): while every FMU is still in *Initialization Mode*, in the
+  *initialization order* written by the builder in `container.txt` (a topological sort of the FMUs
+  by their links, see [container.txt Format](container-txt-format.md#4b-initialization-order)), each FMU
+  gets its linked inputs, then its linked outputs are read (outputs with `initial="calculated"`). The
+  sweep is repeated until the linked values do not change any more (reals within the tolerance of the
+  container), at most `CONTAINER_MAX_EVENT_ITER` (100) times; a loop of links without fixed point logs a
+  warning and the initialization goes on. Clocks and clocked variables are not propagated.
+- The propagation runs when a value changed since the last one: at the `fmi*ExitInitializationMode()` of
+  the container, and before a `fmi*Get*` of the container in *Initialization Mode* (an importer that reads
+  the outputs of the container before leaving the initialization gets propagated values; each
+  `fmi*Set*` of the importer makes the next get propagate again). A nested container propagates its own
+  links the same way.
 - After `fmi*ExitInitializationMode()`, the FMUs are in **EVENT MODE**. The container therefore
   runs one full `container_update_discrete_state()` loop (the same loop used during
   `container_do_step()`) to settle clocks and discrete states before computing the first

@@ -1,4 +1,4 @@
-# Version 7
+# Version 8
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
@@ -8,6 +8,8 @@
 slx.fmu 2 0
 G
 {6853134c-427d-44a3-ac7a-36eca9552797}
+# Initialization order of the embedded FMU's
+0
 # NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
 1 0 0 0 0 0 2 0 0 0 0 0 0 0 0
 # CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]

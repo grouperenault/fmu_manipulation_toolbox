@@ -25,7 +25,7 @@ from .errors import FMUContainerError
 from .layout import ContainerLayout
 from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import ClockList, FMUIOList, InvolvedFMU, LocalVariable, Port
-from .types import ALL_TYPES
+from .types import ALL_TYPES, CONTAINER_TXT_VERSION
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -428,7 +428,8 @@ class FMUContainer:
         Args:
             fmu_filename (str): Filename of the embedded FMU.
             port_name (str): Name of the port.
-            value (str): Start value as a string.
+            value (str): Start value as a string (a Python `bool`, e.g. a JSON `true`, is accepted for a
+                Boolean port).
 
         Raises:
             FMUContainerError: If the FMU or the port does not exist, if the port
@@ -443,6 +444,9 @@ class FMUContainer:
 
         if cport.port.is_reset:
             raise FMUContainerError(f"Start value cannot be set on {cport}: it drives the reset of the FMU.")
+
+        if isinstance(value, bool):     # JSON true/false: str() would give 'True'/'False'
+            value = "true" if value else "false"
 
         # Check dimensions
         value_tokens = str(value).split(' ')
@@ -862,9 +866,49 @@ class FMUContainer:
 
         ModelDescription(root).save(xml_filename)
 
+    def initialization_order(self, fmu_rank: dict[str, int]) -> list[int]:
+        """Order in which the embedded FMUs propagate their links during the initialization.
+
+        Topological sort of the graph of the embedded FMUs, with an edge from the FMU of an output to the FMU of an
+        input it is linked to. The clocks, the clocked variables and the `container.reset` triggers make no edge
+        (they are not propagated during the initialization). Inside a loop, and between independent FMUs, the order
+        of the configuration (`fmu_rank`) decides; the runtime iterates over the loops.
+
+        Args:
+            fmu_rank (dict[str, int]): Index of each embedded FMU in `container.txt`, by FMU name.
+
+        Returns:
+            list[int]: The indexes of every embedded FMU, in initialization order.
+        """
+        successors: dict[int, set[int]] = {rank: set() for rank in fmu_rank.values()}
+        for link in self.links.values():
+            cport_from = link.cport_from
+            if cport_from is None or cport_from.port.clock or cport_from.port.type_name == "clock":
+                continue
+            for cport_to in link.cport_to_list:
+                if cport_to.port.is_reset or cport_to.port.clock or cport_to.fmu.name == cport_from.fmu.name:
+                    continue
+                successors[fmu_rank[cport_from.fmu.name]].add(fmu_rank[cport_to.fmu.name])
+
+        nb_predecessors = {rank: 0 for rank in successors}
+        for targets in successors.values():
+            for target in targets:
+                nb_predecessors[target] += 1
+
+        order: list[int] = []
+        remaining = set(successors)
+        while remaining:
+            ready = [rank for rank in remaining if nb_predecessors[rank] == 0]
+            rank = min(ready) if ready else min(remaining)       # a loop: the first FMU of the configuration
+            order.append(rank)
+            remaining.remove(rank)
+            for target in successors[rank]:
+                nb_predecessors[target] -= 1
+        return order
+
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
                      layout: ContainerLayout):
-        print("# Version 7", file=txt_file)
+        print(f"# Version {CONTAINER_TXT_VERSION}", file=txt_file)
         print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
         flags = [str(int(bool(flag))) for flag in (mt, profiling, sequential)]
         print(" ".join(flags), file=txt_file)
@@ -874,6 +918,9 @@ class FMUContainer:
 
         print("# NB of embedded FMU's", file=txt_file)
         fmu_rank = self.involved_fmu.write_txt(txt_file)
+
+        print("# Initialization order of the embedded FMU's", file=txt_file)
+        print(" ".join(str(rank) for rank in self.initialization_order(fmu_rank)), file=txt_file)
 
 
         # Prepare data structure

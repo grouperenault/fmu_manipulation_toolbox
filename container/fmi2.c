@@ -182,6 +182,9 @@ fmi2Status fmi2Reset(fmi2Component c) {
 #define FMI_GETTER(type, fmi_type, function_name)                                                                       \
 fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2 ## fmi_type value[]) { \
     container_t* container = (container_t*)c;                                                                           \
+    if ((container->state == CONTAINER_STATE_INITIALIZATION_MODE) && \
+        (container_propagate_initialization(container) != FMU_STATUS_OK)) \
+        return fmi2Error; \
                                                                                                                         \
     for (size_t i = 0; i < nvr; i += 1) {                                                                               \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                     \
@@ -219,6 +222,7 @@ FMI_GETTER(strings,     String,     fmuGetString)
 #define FMI_SETTER(type, fmi_type, function_name)                                                                               \
 fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2 ## fmi_type value[]) {   \
     container_t* container = (container_t*)c;                                                                                   \
+    container->init_propagation_pending = true; \
                                                                                                                                 \
     for (size_t i = 0; i < nvr; i += 1) {                                                                                       \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                             \
@@ -257,6 +261,7 @@ FMI_SETTER(booleans,    Boolean,    fmuSetBoolean)
 
 fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[]) {
     container_t* container = (container_t*)c;
+    container->init_propagation_pending = true;
  
     for(size_t i = 0; i < nvr; i += 1) {
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
