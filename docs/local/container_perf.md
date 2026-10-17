@@ -145,7 +145,7 @@ Each step ends with the tests of the project passing, and a prepared commit mess
 
 Commit message: `Benchmark of the container runtime and Feedthrough test FMU`
 
-### Step 2 — Grouped exchanges (point 1)
+### Step 2 — Grouped exchanges (point 1) — abandoned (D10)
 
 - Section 4.1: tables built at configuration, `fmu_set_inputs()`, `fmu_get_outputs()` and their continuous variants
   rewritten, port-by-port replay on error.
@@ -187,22 +187,43 @@ Taken on 17 October 2026:
 - **D8 — Acceptance**: the results are identical bit for bit to the REF files of step 1.
 - **D9 — Workflow**: steps 1 to 3 on `feature/optimize-fmi-calls`, in the main checkout, one commit per step without
   pause; step 4 (documentation) on request, once the gains are measured.
+- **D10 — Point 1 abandoned** (17 October 2026, after step 2): the grouped exchanges were implemented (4.1, with a
+  direct call for a list of one port) and gave the same results bit for bit, but no measurable gain: an FMI call to
+  the test FMUs costs a few tens of nanoseconds, so the copies into the buffers balance the saved calls (A/B
+  measurements below). The gain would only show with FMUs whose calls are costly (remoting, Windows only; some
+  tool-generated FMUs), which cannot be measured here. The C changes are not kept; the benchmark and the reference
+  tests of step 1 stay.
 
 ## 7. Measurements
 
 `python tools/bench_container.py` on macOS (Apple silicon), time of the loop of `doStep` in seconds (min / mean of 5
-runs); *calls*: FMI exchange calls of the CS exchanges of one internal step, port by port / grouped by type.
+runs); *calls*: FMI exchange calls of the CS exchanges of one internal step, port by port / grouped by type. The
+measurements of separate sessions differ by 5 to 10 %: the changes are compared by an A/B run in one session (the old
+and the new `container.dylib` alternately, 3 rounds of 5 runs, best time).
 
-| Case | Step 1 (reference) | Step 2 | Step 3 | Calls |
-|---|---|---|---|---|
-| A-parallel | 0.777 / 0.809 | | | 507 / 468 |
-| A-sequential | 0.920 / 0.958 | | | 507 / 468 |
-| A-mt | 1.287 / 1.295 | | | 507 / 468 |
-| B-uncoupled | 0.750 / 0.765 | | | 0 / 0 |
-| C-euler | 0.719 / 0.739 | | | 16 / 15 |
-| C-rk4 | 0.870 / 0.884 | | | 16 / 15 |
-| D-mixed | 0.728 / 0.751 | | | 10 / 9 |
-| E-same-type | 0.609 / 0.625 | | | 190 / 38 |
+| Case | Step 1 (reference) | Calls |
+|---|---|---|
+| A-parallel | 0.777 / 0.809 | 507 / 468 |
+| A-sequential | 0.920 / 0.958 | 507 / 468 |
+| A-mt | 1.287 / 1.295 | 507 / 468 |
+| B-uncoupled | 0.750 / 0.765 | 0 / 0 |
+| C-euler | 0.719 / 0.739 | 16 / 15 |
+| C-rk4 | 0.870 / 0.884 | 16 / 15 |
+| D-mixed | 0.728 / 0.751 | 10 / 9 |
+| E-same-type | 0.609 / 0.625 | 190 / 38 |
+
+Step 2 (grouped exchanges, abandoned, see D10), A/B against step 1, best time in seconds and gain:
+
+| Case | Step 1 | Grouped | Gain | Grouped + direct call for one port | Gain |
+|---|---|---|---|---|---|
+| A-parallel | 0.821 | 0.900 | -9.6 % | 0.849 | -3.7 % |
+| A-sequential | 0.907 | 0.994 | -9.6 % | 0.928 | -2.4 % |
+| A-mt | 1.175 | 1.210 | -3.0 % | 1.202 | -0.6 % |
+| B-uncoupled | 0.751 | 0.761 | -1.3 % | 0.751 | -0.4 % |
+| C-euler | 0.728 | 0.763 | -4.8 % | 0.722 | +0.7 % |
+| C-rk4 | 0.857 | 0.906 | -5.7 % | 0.866 | -0.1 % |
+| D-mixed | 0.718 | 0.755 | -5.2 % | 0.723 | -0.8 % |
+| E-same-type | 0.611 | 0.613 | -0.3 % | 0.616 | +0.8 % |
 
 ## 8. Found during the work (not in the scope)
 
