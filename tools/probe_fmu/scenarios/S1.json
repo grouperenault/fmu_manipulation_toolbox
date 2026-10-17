@@ -1,0 +1,11 @@
+{
+  "name": "S1.fmu",
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": true,
+  "fmu": ["A.fmu"],
+  "path": {"A.fmu": "Probe10ms-host.fmu"},
+  "start": [
+    ["A.fmu", "trace_file", "A.csv"]
+  ]
+}

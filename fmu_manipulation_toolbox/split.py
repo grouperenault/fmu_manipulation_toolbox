@@ -331,6 +331,9 @@ class FMUSplitterDescription:
             _uuid = self.get_line(file)
             logger.debug(f"FMU {i}/{nb_fmu} analysed.")
 
+        if self.file_format >= 8:
+            _initialization_order = self.get_line(file)
+
         _nb_local_variables = self.get_line(file)
         logger.debug(f"*** END OF HEADER ***")
 

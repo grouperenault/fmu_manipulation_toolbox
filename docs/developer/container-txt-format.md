@@ -28,6 +28,7 @@ The file is organized into the following sections, in order:
 2. [Container Flags](#2-container-flags)
 3. [Internal Time Step](#3-internal-time-step)
 4. [Embedded FMU Declarations](#4-embedded-fmu-declarations)
+   - [Initialization Order](#4b-initialization-order) (version ≥ 8)
 5. [Local Variables Count](#5-local-variables-count)
 6. [Container I/O Table](#6-container-io-table)
 7. [Per-FMU I/O Sections](#7-per-fmu-io-sections) (repeated for each embedded FMU)
@@ -54,6 +55,7 @@ how subsequent sections are parsed.
 | 5 | 1.9.4 | Local variables addressed by their **storage offset**: `<LOCAL_OFFSET>` instead of the local VR in the per-FMU I/O lines, and as `<FMU_VR>` of the local lines of the container I/O table (an array occupies several slots) |
 | 6 | 2.0 | Model-Exchange support: FMU count split into `<nb_fmu_cs> <nb_fmu_me>`, ME entries carry `<nx> <nz>`; reserved `integer32` slot for the ME solver |
 | 7 | 2.0 | Reset trigger of each embedded FMU (`container.<fmu>.reset`), after its conversion table |
+| 8 | 2.0 | Initialization order of the embedded FMUs, after their declarations |
 
 ---
 
@@ -141,6 +143,21 @@ The FMU's resources are stored in subdirectories named by index: `resources/00/`
 - **Version ≥ 6**: Split count `<nb_fmu_cs> <nb_fmu_me>` and dedicated Model-Exchange entries
   carrying `<nx> <nz>` on the same line as `<fmu_filename> <fmi_version>` (instead of
   `<has_event_mode>`).
+
+---
+
+## 4b. Initialization Order
+
+```
+# Initialization order of the embedded FMU's
+<FMU_INDEX> <FMU_INDEX> ...
+```
+
+Version ≥ 8. Every index of the embedded FMUs (their order in section 4, from 0) once, in the order in which they
+propagate their links during the initialization of the container: a topological sort of the graph of the embedded
+FMUs, with an edge from the FMU of an output to the FMU of each input it is linked to. The clocks, the clocked
+variables and the `container.reset` triggers make no edge. Inside a loop, and between independent FMUs, the order
+of section 4 decides.
 
 ---
 

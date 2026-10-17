@@ -522,7 +522,9 @@ class LinkAssistantDialog(QDialog):
     *existing* holds the current mappings of the wire (4-tuples, as `WireItem.mappings`); they are kept.
     `applied` is emitted with the new 4-tuples (from_fmu, output, to_fmu, input) when the user clicks **Apply**.
     """
-    applied = Signal(list)
+    # object, not list: a Signal(list) converts the value through Qt, and some PySide6 versions turn the tuples
+    # of the mappings into lists.
+    applied = Signal(object)
     #: A search longer than this (seconds) stops the update while typing: the **Run** button is shown instead.
     AUTO_RUN_LIMIT = 0.3
 

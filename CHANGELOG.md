@@ -79,6 +79,17 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## FMU Container
 
+- 🔵 **CHANGED** the container **propagates the links** between its embedded FMUs **during the initialization**:
+  in the order of the links, each FMU gets its linked inputs, leaves its Initialization Mode, then its outputs are
+  read for the FMUs after it, so that an FMU is initialized with the values of the FMUs it depends on (as Simulink
+  does). A loop of links is cut before its first FMU (warning at the build). The initial values, and the results of the
+  FMUs whose initialization depends on their inputs, may change. `container.txt` format version 8. See
+  [Initialization of the embedded FMU's](docs/user-guide/fmucontainer/container.md#initialization-of-the-embedded-fmus)
+  and [From Simulink to an FMU Container](docs/examples/simulink-to-container.md).
+- 🟢 **ADDED** documentation: [From Simulink to an FMU Container](docs/examples/simulink-to-container.md),
+  how to rebuild a Simulink assembly of FMU blocks as a container (mapping of the concepts, worked example) and
+  the behaviour differences to take into account: initialization, unconnected inputs, sample times, delays,
+  computation time.
 - 🟢 **ADDED** `fmucontainer-gui`: **Link Assistant** — a window opened from the *Wire Details* panel to define
   in bulk the links of a wire between FMUs with hundreds of ports. Tab **Rules**: a criterion (same name,
   prefix / suffix replacement, regular expression, similar names), optionally ignoring case and separators,
@@ -111,6 +122,8 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   sizes of the FMUs with a fixed step (`0.2` and `0.3` give `0.6`). A step size that is not
   1/n second was truncated (`0.3` gave `0.333`), a step size above 1 second was ignored, and a
   single FMU without `stepSize` made the container fall back to 0.1 second.
+- 🟠 **FIXED** a JSON boolean (`true`, `false`) is accepted as the start value of a `Boolean` port in a
+  description file; only the strings `"true"`, `"false"`, `"0"` and `"1"` were.
 - 🟠 **FIXED** no more "should be divisible" warning for a time step that is an exact multiple of an FMU
   step size (`0.3` and `0.1`).
 - 🟠 **FIXED** a connection feeding several inputs of the same converted type (e.g. a `Real` output to two

@@ -209,9 +209,10 @@ static fmu_status_t container_proceed_event(container_t *container) {
 }
 
 
-/* Step used when no event shortens it. */
+/* Step used when no event shortens it. A TS_MULTIPLIER below 1 counts as 1, as in container_do_step(). */
 static double container_nominal_step(const container_t *container) {
-    return container->time_step * container->integers32[0];
+    const int ts_multiplier = container->integers32[0];
+    return container->time_step * (ts_multiplier < 1 ? 1 : ts_multiplier);
 }
 
 
@@ -410,6 +411,61 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
 }
 
 
+/*----------------------------------------------------------------------------
+     P R O P A G A T I O N   D U R I N G   T H E   I N I T I A L I Z A T I O N
+----------------------------------------------------------------------------*/
+
+/*
+ * Exit of the Initialization Mode of the embedded FMUs, with the propagation of their links
+ * (docs/local/done/init_propagation.md), as Simulink does: in the initialization order (topological order of the
+ * links, written by the builder), each FMU gets its linked inputs from the local variables, leaves its
+ * Initialization Mode, then its outputs are read into the local variables for the FMUs after it. No output is read
+ * in Initialization Mode (some FMUs compute them only when they leave it). An ME FMU is in Event Mode after its exit:
+ * its outputs are read after its own event iteration, never before its first update of the discrete states.
+ * In a loop of links, the first FMU of the loop gets the values the loop has before the propagation (the builder
+ * warns). Clocks and clocked variables are not propagated.
+ */
+static fmu_status_t container_exit_fmus_initialization(container_t* container) {
+    for (int k = 0; k < container->nb_fmu; k += 1) {
+        fmu_t *fmu = &container->fmu[container->init_order[k]];
+        fmu_status_t status;
+
+        status = fmu_set_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed to get its inputs at the initialization.", fmu->name);
+            return status;
+        }
+
+        status = fmuExitInitializationMode(fmu);
+        if (status != FMU_STATUS_OK)
+            return status;
+
+        if (fmu->kind == FMU_KIND_ME) {
+            bool more_event = true;
+            int iter;
+            for (iter = 0; (iter < CONTAINER_MAX_EVENT_ITER) && more_event; iter += 1) {
+                if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
+                    return FMU_STATUS_ERROR;
+                if (fmuUpdateDiscreteStates(fmu, &more_event) != FMU_STATUS_OK)
+                    return FMU_STATUS_ERROR;
+            }
+            if (more_event) {
+                logger(LOGGER_ERROR, "Container: event iteration of FMU '%s' did not converge at the initialization.",
+                       fmu->name);
+                return FMU_STATUS_ERROR;
+            }
+        }
+
+        status = fmu_get_outputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            logger(LOGGER_ERROR, "Container: FMU '%s' failed to give its outputs at the initialization.", fmu->name);
+            return status;
+        }
+    }
+    return FMU_STATUS_OK;
+}
+
+
 fmu_status_t container_enter_initialization_mode(container_t* container) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (fmuEnterInitializationMode(&container->fmu[i], container->start_time) != FMU_STATUS_OK)
@@ -448,11 +504,9 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
         return -9;
     }
 
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        status = fmuExitInitializationMode(&container->fmu[i]);
-        if ( status != FMU_STATUS_OK)
-            return status;
-    }
+    status = container_exit_fmus_initialization(container);
+    if (status != FMU_STATUS_OK)
+        return status;
 
     /* CS FMUs are in EventMode (or StepMode if support_event=0); ME FMUs are in
        EventMode: run one common event iteration before splitting the modes. */
@@ -1014,7 +1068,7 @@ int container_cache_ ## type(container_t *container, container_port_t *port, con
         nvalues = port->dimension;                                                                              \
     for (size_t k = 0; k < nvalues; k += 1)                                                                     \
         container->cache_ ## type [port->cache_offset + k] = value[k];                                          \
-    port->nb_cached = nvalues;                                                                                  \
+    port->nb_cached = (unsigned long)nvalues;   /* at most the dimension of the port */                         \
     logger(LOGGER_DEBUG, "[DEBUG] Cache " #type " [%lu] = " format " (%zu value(s))", port->cache_offset,       \
            (cast)value[0], nvalues);                                                                            \
     return 0;                                                                                                   \
@@ -1051,7 +1105,7 @@ int container_cache_strings(container_t *container, container_port_t *port, cons
             return -1;
         }
     }
-    port->nb_cached = nvalues;
+    port->nb_cached = (unsigned long)nvalues;   /* at most the dimension of the port */
     logger(LOGGER_DEBUG, "[DEBUG] Cache strings [%lu] = %s (%zu value(s))", port->cache_offset, value[0], nvalues);
     return 0;
 }
@@ -1078,7 +1132,7 @@ int container_cache_binaries(container_t *container, container_port_t *port, con
         cached->size = size[k];
         memcpy(cached->data, value[k], size[k]);
     }
-    port->nb_cached = nvalues;
+    port->nb_cached = (unsigned long)nvalues;   /* at most the dimension of the port */
     logger(LOGGER_DEBUG, "[DEBUG] Cache binaries [%lu] = %zu byte(s) (%zu value(s))", port->cache_offset, size[0],
            nvalues);
     return 0;
@@ -1319,6 +1373,35 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
         return -1;
     }
 
+    return 0;
+}
+
+
+/*
+ * # Initialization order of the embedded FMU's
+ * <index> <index> ...      (every index of fmu[] once)
+ */
+static int read_conf_init_order(container_t *container, config_file_t *file) {
+    CONFIG_GETLINE;
+    CONFIG_ALLOC(container->init_order, container->nb_fmu > 0 ? container->nb_fmu : 1);
+
+    const char *cursor = file->line;
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        char *end;
+        const long index = strtol(cursor, &end, 10);
+        if ((end == cursor) || (index < 0) || (index >= container->nb_fmu)) {
+            CONFIG_ERROR("Cannot read the %dth index of the initialization order.", i);
+            return -1;
+        }
+        for (int j = 0; j < i; j += 1) {
+            if (container->init_order[j] == (int)index) {
+                CONFIG_ERROR("FMU#%ld is twice in the initialization order.", index);
+                return -1;
+            }
+        }
+        container->init_order[i] = (int)index;
+        cursor = end;
+    }
     return 0;
 }
 
@@ -2152,6 +2235,12 @@ int container_configure(container_t* container, const char* resource_location) {
         return -4;
     }
 
+    if (read_conf_init_order(container, &file)) {
+        config_file_close(&file);
+        logger(LOGGER_ERROR, "Cannot read the initialization order.");
+        return -4;
+    }
+
     if (read_conf_local(container, &file)) {
         config_file_close(&file);
         logger(LOGGER_ERROR, "Cannot allocate local variables.");
@@ -2354,6 +2443,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
 
         container->nb_fmu = 0;
         container->fmu = NULL;
+        container->init_order = NULL;
 
         container->nb_cs = 0;
         container->cs_fmu = NULL;
@@ -2451,6 +2541,7 @@ void container_free(container_t *container) {
 
     solver_free(container->solver);
     free(container->cs_fmu);
+    free(container->init_order);
 
     free(container->instance_name);
     free(container->uuid);
