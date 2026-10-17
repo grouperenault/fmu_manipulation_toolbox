@@ -321,6 +321,10 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
         const uint32_t local_vr = valueReferences[i] & 0xFFFFFF;                                                        \
         container_port_t *port = &container->port_ ##type [local_vr];                                                   \
         for(unsigned int j = 0; j < port->nb; j += 1) {                                                                 \
+            if (container->step_pending) {      /* a step of the container is pending: applied after it */              \
+                port->deferred = true;                                                                                  \
+                break;                                                                                                  \
+            }                                                                                                           \
             const int fmu_id = port->links[j].fmu_id;                                                                   \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                              \
                                                                                                                         \
@@ -375,6 +379,10 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
         container_port_t* port = &container->port_strings[vr];
         for (unsigned int j = 0; j < port->nb; j += 1) {
+            if (container->step_pending) {      /* a step of the container is pending: applied after it */
+                port->deferred = true;
+                break;
+            }
             const int fmu_id = port->links[j].fmu_id;
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
 
@@ -421,6 +429,10 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
         container_port_t *port = &container->port_binaries[vr];
         for (unsigned int j = 0; j < port->nb; j += 1) {
+            if (container->step_pending) {      /* a step of the container is pending: applied after it */
+                port->deferred = true;
+                break;
+            }
             const int fmu_id = port->links[j].fmu_id;
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
 

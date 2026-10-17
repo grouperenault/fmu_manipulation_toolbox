@@ -602,8 +602,10 @@ fmu_status_t container_reset(container_t* container) {
 
     /* Values set by the importer */
 #define RESET_CACHE(type)                                                   \
-    for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1)     \
-        container->port_ ## type [i].nb_cached = 0
+    for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {   \
+        container->port_ ## type [i].nb_cached = 0;                         \
+        container->port_ ## type [i].deferred = false;                      \
+    }
 
     RESET_CACHE(reals64);
     RESET_CACHE(reals32);
@@ -627,6 +629,7 @@ fmu_status_t container_reset(container_t* container) {
         container->clocks_list.buffer_previous[i] = 0.0;
 
     /* Simulation */
+    container->step_pending = false;
     container->nb_steps = 0;
     container->next_step = container->time_step; /* Default: no next event time */
     container->time = container->start_time;
@@ -981,71 +984,199 @@ static void container_clear_reset_triggers(container_t *container) {
 }
 
 
+/*
+ * Values set by the importer while an internal step was pending (docs/local/container_substep.md): applied, from
+ * the cache, to the embedded FMUs and to the local variables once this step is done, for the steps after it.
+ */
+static fmu_status_t container_apply_deferred(container_t *container) {
+#define APPLY_DEFERRED(type, function_name)                                                                     \
+    for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {                                       \
+        container_port_t *port = &container->port_ ## type [i];                                                 \
+        if (!port->deferred)                                                                                    \
+            continue;                                                                                           \
+        port->deferred = false;                                                                                 \
+        const unsigned long nb = port->nb_cached;                                                               \
+        for (unsigned long j = 0; j < port->nb && nb > 0; j += 1) {                                             \
+            const long fmu_id = (long)port->links[j].fmu_id;                                                    \
+            const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                      \
+            if (fmu_id < 0) {                                                                                   \
+                for (unsigned long k = 0; k < nb; k += 1)                                                       \
+                    container-> type [fmu_vr + k] = container->cache_ ## type [port->cache_offset + k];         \
+            } else if (function_name(&container->fmu[fmu_id], &fmu_vr, 1,                                      \
+                                     &container->cache_ ## type [port->cache_offset], nb) != FMU_STATUS_OK) {  \
+                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set a deferred " #type " vr=%u.",          \
+                       container->fmu[fmu_id].name, fmu_vr);                                                    \
+                return FMU_STATUS_ERROR;                                                                        \
+            }                                                                                                   \
+        }                                                                                                       \
+    }
+
+    APPLY_DEFERRED(reals64,     fmuSetReal64);
+    APPLY_DEFERRED(reals32,     fmuSetReal32);
+    APPLY_DEFERRED(integers8,   fmuSetInteger8);
+    APPLY_DEFERRED(uintegers8,  fmuSetUInteger8);
+    APPLY_DEFERRED(integers16,  fmuSetInteger16);
+    APPLY_DEFERRED(uintegers16, fmuSetUInteger16);
+    APPLY_DEFERRED(integers32,  fmuSetInteger32);
+    APPLY_DEFERRED(uintegers32, fmuSetUInteger32);
+    APPLY_DEFERRED(integers64,  fmuSetInteger64);
+    APPLY_DEFERRED(uintegers64, fmuSetUInteger64);
+    APPLY_DEFERRED(booleans,    fmuSetBoolean);
+    APPLY_DEFERRED(booleans1,   fmuSetBoolean1);
+#undef APPLY_DEFERRED
+
+    for (unsigned long i = 0; i < container->nb_ports_strings; i += 1) {
+        container_port_t *port = &container->port_strings[i];
+        if (!port->deferred)
+            continue;
+        port->deferred = false;
+        const unsigned long nb = port->nb_cached;
+        for (unsigned long j = 0; j < port->nb && nb > 0; j += 1) {
+            const long fmu_id = (long)port->links[j].fmu_id;
+            const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
+            if (fmu_id < 0) {
+                for (unsigned long k = 0; k < nb; k += 1) {
+                    free(container->strings[fmu_vr + k]);
+                    container->strings[fmu_vr + k] = strdup(container->cache_strings[port->cache_offset + k]);
+                }
+            } else if (fmuSetString(&container->fmu[fmu_id], &fmu_vr, 1,
+                                    (const char * const *)&container->cache_strings[port->cache_offset], nb)
+                       != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set a deferred string vr=%u.",
+                       container->fmu[fmu_id].name, fmu_vr);
+                return FMU_STATUS_ERROR;
+            }
+        }
+    }
+
+    for (unsigned long i = 0; i < container->nb_ports_binaries; i += 1) {
+        container_port_t *port = &container->port_binaries[i];
+        if (!port->deferred)
+            continue;
+        port->deferred = false;
+        const unsigned long nb = port->nb_cached;
+        if (nb == 0)
+            continue;
+        const fmu_binary_t *cached = &container->cache_binaries[port->cache_offset];
+        size_t *size = malloc(nb * sizeof(*size));
+        const uint8_t **data = malloc(nb * sizeof(*data));
+        if (!size || !data) {
+            free(size);
+            free(data);
+            logger(LOGGER_ERROR, "Cannot allocate memory to set a deferred binary.");
+            return FMU_STATUS_ERROR;
+        }
+        for (unsigned long k = 0; k < nb; k += 1) {
+            size[k] = cached[k].size;
+            data[k] = cached[k].data;
+        }
+        fmu_status_t status = FMU_STATUS_OK;
+        for (unsigned long j = 0; j < port->nb && status == FMU_STATUS_OK; j += 1) {
+            const long fmu_id = (long)port->links[j].fmu_id;
+            const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
+            if (fmu_id < 0) {
+                for (unsigned long k = 0; k < nb && status == FMU_STATUS_OK; k += 1) {
+                    fmu_binary_t *local = &container->binaries[fmu_vr + k];
+                    if (local->max_size < size[k]) {
+                        uint8_t *buffer = realloc(local->data, size[k]);
+                        if (!buffer) {
+                            logger(LOGGER_ERROR, "Cannot allocate memory to set a deferred binary.");
+                            status = FMU_STATUS_ERROR;
+                            break;
+                        }
+                        local->data = buffer;
+                        local->max_size = size[k];
+                    }
+                    local->size = size[k];
+                    memcpy(local->data, data[k], size[k]);
+                }
+            } else {
+                status = fmuSetBinary(&container->fmu[fmu_id], &fmu_vr, 1, size, data, nb);
+                if (status != FMU_STATUS_OK)
+                    logger(LOGGER_ERROR, "Container: FMU '%s' failed to set a deferred binary vr=%u.",
+                           container->fmu[fmu_id].name, fmu_vr);
+            }
+        }
+        free(size);
+        free(data);
+        if (status != FMU_STATUS_OK)
+            return status;
+    }
+
+    return FMU_STATUS_OK;
+}
+
+
 fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
 #ifdef DEBUG
     logger(LOGGER_DEBUG, "[DEBUG] time=%e | container_do_step(%e, %e)", container->time, currentCommunicationPoint, communicationStepSize);
 #endif
     fmu_status_t status = FMU_STATUS_OK;
     const double end_time = currentCommunicationPoint + communicationStepSize;
-    int ts_multiplier = container->integers32[0];
 
-    if (ts_multiplier < 1)
-        ts_multiplier = 1;
-
-    const double ts = container->time_step * ts_multiplier;
-    container->time = container->start_time + container->time_step * container->nb_steps;
-    const int local_steps = ((int)((end_time - container->time + container->tolerance) / ts));
-
-#ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | container do_step: end_time=%e, local_steps=%d ts=%e", container->time, end_time, local_steps, ts);
-#endif
     /*
-     * Early return if requested end_time is lower than next container time step.
+     * Internal steps of the container (time_step x TS_MULTIPLIER, the multiplier read at the beginning of each
+     * step) that end before end_time. A step that does not fit stays pending (docs/local/container_substep.md):
+     * it is done by the call that reaches its end, with the inputs of its beginning (the values set by the importer
+     * meanwhile are deferred); its outputs are held until then.
      */
-    if (local_steps > 0) {
-        for(int i = 0; i < local_steps; i += 1) {
-            container->time = container->start_time + container->time_step * container->nb_steps;
-            const double target_time = container->time + ts;
-
-            while(! is_close(container, container->time, target_time)) {
-                /* RESET of embedded FMUs */
-                status = container_reset_fmus(container);
-                if (status != FMU_STATUS_OK) {
-                    logger(LOGGER_ERROR, "Container cannot reset FMUs (time=%e)", container->time);
-                    return status;
-                }
-
-                /* STEP MODE */
-                if (container->time + container->next_step > target_time) {
-                    container->next_step = target_time - container->time;
-                }
-#ifdef DEBUG
-                logger(LOGGER_DEBUG, "[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
-#endif
-                status = container->do_step(container);
-                if (status != FMU_STATUS_OK) {
-                    logger(LOGGER_ERROR, "Container cannot Do Step (time=%e)", container->time);
-                    return status;
-                }
-                container_clear_reset_triggers(container);
-                container->time += container->next_step;
-
-                /* EVENT MODE */
-                status = container_handle_events(container);
-                if ( status != FMU_STATUS_OK) {
-                    logger(LOGGER_ERROR, "Container cannot Handle Events (time=%e)", container->time);
-                    return status;
-                }
-            }
-            container->nb_steps += ts_multiplier;
-        }       
-
+    while (true) {
         container->time = container->start_time + container->time_step * container->nb_steps;
-        if (fabs(end_time - container->time) > container->tolerance) {
-            logger(LOGGER_WARNING, "Container CommunicationStepSize should be divisible by %e. (currentCommunicationPoint=%e, container_time=%e, expected_time=%e, tolerance=%e, local_steps=%d, nb_steps=%lld)", 
-                container->time_step, currentCommunicationPoint, container->time, end_time, container->tolerance, local_steps, container->nb_steps);
+        int ts_multiplier = container->integers32[0];
+        if (ts_multiplier < 1)
+            ts_multiplier = 1;
+        const double ts = container->time_step * ts_multiplier;
+        const double target_time = container->time + ts;
+
+        if (target_time > end_time + container->tolerance)
+            break;
+
+#ifdef DEBUG
+        logger(LOGGER_DEBUG, "[DEBUG] time=%e | container internal step ts=%e (end_time=%e)", container->time, ts, end_time);
+#endif
+        while(! is_close(container, container->time, target_time)) {
+            /* RESET of embedded FMUs */
+            status = container_reset_fmus(container);
+            if (status != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "Container cannot reset FMUs (time=%e)", container->time);
+                return status;
+            }
+
+            /* STEP MODE */
+            if (container->time + container->next_step > target_time) {
+                container->next_step = target_time - container->time;
+            }
+#ifdef DEBUG
+            logger(LOGGER_DEBUG, "[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
+#endif
+            status = container->do_step(container);
+            if (status != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "Container cannot Do Step (time=%e)", container->time);
+                return status;
+            }
+            container_clear_reset_triggers(container);
+            container->time += container->next_step;
+
+            /* EVENT MODE */
+            status = container_handle_events(container);
+            if ( status != FMU_STATUS_OK) {
+                logger(LOGGER_ERROR, "Container cannot Handle Events (time=%e)", container->time);
+                return status;
+            }
         }
-    } 
+        container->nb_steps += ts_multiplier;
+
+        /* The pending step is done: the values deferred meanwhile are for the next steps. */
+        if (container->step_pending) {
+            container->step_pending = false;
+            status = container_apply_deferred(container);
+            if (status != FMU_STATUS_OK)
+                return status;
+        }
+    }
+
+    container->time = container->start_time + container->time_step * container->nb_steps;
+    container->step_pending = (end_time - container->time > container->tolerance);
 
     container->reals64[0] = end_time;
     
@@ -1582,6 +1713,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
             port.links = &container->vr_ ## type [vr_counter];                                                  \
             port.cache_offset = CONTAINER_NO_CACHE;                                                             \
             port.nb_cached = 0;                                                                                 \
+            port.deferred = false;                                                                              \
             for(unsigned long j=0; j < port.nb; j += 1) {                                                       \
                 int read;                                                                                       \
                 if (vr_counter >= nb_links) {                                                                   \
@@ -1627,16 +1759,14 @@ static int read_conf_io(container_t* container, config_file_t* file) {
     READ_CONF_IO(clocks);
 #undef READ_CONF_IO
 
-    /* Cache of the ports forwarded to an embedded FMU (no clock). */
+    /* Cache of the ports with a link, to an embedded FMU or to a local variable (no clock): values set again at
+       the reset of an FMU, or deferred while a step is pending. */
 #define SETUP_CACHE(type)                                                                                       \
     for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {                                       \
         container_port_t *port = &container->port_ ## type [i];                                                 \
-        for (unsigned long j = 0; j < port->nb; j += 1) {                                                       \
-            if ((long)port->links[j].fmu_id >= 0) {                                                             \
-                port->cache_offset = container->nb_cache_ ## type;                                              \
-                container->nb_cache_ ## type += port->dimension;                                                \
-                break;                                                                                          \
-            }                                                                                                   \
+        if (port->nb > 0) {                                                                                     \
+            port->cache_offset = container->nb_cache_ ## type;                                                  \
+            container->nb_cache_ ## type += port->dimension;                                                    \
         }                                                                                                       \
     }                                                                                                           \
     if (container->nb_cache_ ## type > 0) {                                                                     \
@@ -2472,6 +2602,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         container->nb_fmu = 0;
         container->fmu = NULL;
         container->init_order = NULL;
+        container->step_pending = false;
 
         container->nb_cs = 0;
         container->cs_fmu = NULL;

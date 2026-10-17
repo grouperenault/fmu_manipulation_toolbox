@@ -34,8 +34,9 @@ typedef struct {
 	unsigned long				dimension; /* dimension of variable */
 	unsigned long               nb;	 /* number of connected FMU from a container port */
     container_vr_t              *links;
-	unsigned long				cache_offset; /* in container->cache_<type>, CONTAINER_NO_CACHE if not forwarded to an FMU */
+	unsigned long				cache_offset; /* in container->cache_<type>, CONTAINER_NO_CACHE if no link */
 	unsigned long				nb_cached;	/* number of values set by the importer, 0 if none yet */
+	bool						deferred;	/* set by the importer while a step was pending: to apply after it */
 } container_port_t;
 
 
@@ -110,6 +111,11 @@ typedef struct container_s {
 
 	/* Indexes of fmu[] in the order of the propagation of the links during the initialization (nb_fmu entries). */
 	int							*init_order;
+
+	/* An internal step of the container started before the end of the last communication step and is not done
+	   yet (communication step not a multiple of the internal step): the values set by the importer meanwhile are
+	   deferred (docs/local/container_substep.md). */
+	bool						step_pending;
 
 	/* ME working set (states, derivatives, event indicators, flat buffers). */
 	struct solver_s				*solver;
