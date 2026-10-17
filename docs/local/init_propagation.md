@@ -21,6 +21,11 @@ container and in Simulink, for the whole simulation. FMI 2.0 and 3.0 allow setti
 `initial="calculated"` in Initialization Mode, precisely so that an importer solves the initialization of the
 coupled system.
 
+The user documentation *From Simulink to an FMU Container* (`docs/examples/simulink-to-container.md`, section
+*Initialization*, and item 6 of its *Validation checklist*) describes this difference today and its only workaround:
+give the downstream inputs a start value equal to the value the upstream FMU produces at the initialization. The
+TL;DR of the report lists it as the first point that breaks a migration from Simulink.
+
 At its boundary the container is already transparent during the initialization: an importer `fmi2Set*` on an exposed
 input reaches the embedded FMU at once, an `fmi2Get*` reads the embedded FMU directly (`container/fmi2.c:182-250`).
 Only the internal links are concerned.
@@ -38,7 +43,8 @@ Only the internal links are concerned.
 ## Goal
 
 Optionally propagate the internal links during the initialization, so that each embedded FMU is initialized with
-the values computed by the FMUs it depends on.
+the values computed by the FMUs it depends on, and so that a Simulink assembly migrated per
+`docs/examples/simulink-to-container.md` initializes as in Simulink without the start value workaround.
 
 ## Constraint
 
@@ -68,16 +74,21 @@ happens in `container_exit_initialization_mode`, once the importer has set every
 
 ## Decisions to take (before Step 1)
 
-1. **Strategy**: (a) sequential Simulink-like, (b) FMI-style in Initialization Mode, or both behind the option?
+1. **Strategy**: (a) sequential Simulink-like, (b) FMI-style in Initialization Mode, or both behind the option
+   (see decision 5)?
 2. **Order**: from the links only, or from the `InitialUnknowns` dependencies?
 3. **Cycles**: error, cut with a warning, or iteration?
 4. **Option**: name (e.g. `init_propagation`) and where it is given (JSON / CLI / GUI / MCP, as `mt` or
    `sequential`); **default**: off (no change for the existing containers) or on (closer to Simulink and to the
    standard, but the results at t=0, and sometimes beyond, change)?
-5. **Scope**: FMI 2.0 and 3.0; Co-Simulation and Model Exchange FMUs (the ME FMUs are in Event Mode after
+5. **Fidelity to Simulink**: must the option reproduce exactly the initialization measured on Simulink (strategy
+   (a): the downstream FMUs see the outputs read after the initialization of the upstream ones), so that the
+   migration page can state "same initialization as Simulink", or is a standard-oriented behaviour (b) acceptable,
+   the page then describing the remaining difference?
+6. **Scope**: FMI 2.0 and 3.0; Co-Simulation and Model Exchange FMUs (the ME FMUs are in Event Mode after
    `fmuExitInitializationMode`); nested containers (each level propagates its own links)?
-6. **Reset of an embedded FMU**: keep its current initialization (inputs from the buffers), unchanged by the option?
-7. **Branch** of the work.
+7. **Reset of an embedded FMU**: keep its current initialization (inputs from the buffers), unchanged by the option?
+8. **Branch** of the work.
 
 ## Steps (draft, to be refined after the decisions)
 
@@ -104,15 +115,26 @@ Commit message: `Add the init_propagation option to the container builder`
 
 ### Step 4 – Tests
 
-Probe scenario S3 (`tools/probe_fmu/scenarios`) with the option: `B.y_init` / `C.y_init` as in Simulink; new REF
-traces; existing REF results unchanged with the option off; ME and FMI 3.0 cases.
+Probe scenario S3 (`tools/probe_fmu/scenarios`) with the option: `B.y_init` / `C.y_init` as in Simulink (compared
+with the Simulink traces by `tools/compare_traces.py`); new REF traces; existing REF results unchanged with the
+option off; ME and FMI 3.0 cases. The worked example of `docs/examples/simulink-to-container.md` is built with the
+option (the JSON of the page stays valid).
 
 Commit message: `Test the propagation of the links during the initialization`
 
 ### Step 5 – User documentation
 
-`docs/user-guide/fmucontainer/container.md` (option, behaviour, cycles), `docs/developer/init-fmi-sequence.md`
-(sequence with the option), the migration page from Simulink (Step 5 of `docs/local/importer_comparison.md`),
-`CHANGELOG.md`.
+- `docs/user-guide/fmucontainer/container.md`: the option (description file, CLI, Python API table), behaviour,
+  order, cycles.
+- `docs/developer/init-fmi-sequence.md`: the FMI sequence with the option.
+- `docs/examples/simulink-to-container.md`:
+  - *Mapping of the concepts*: a row "initialization of the FMU blocks in the sorted order" → the option;
+  - *Worked example*: the option in `assembly.json` (per its default, decision 4);
+  - *Behaviour differences > Initialization*: the option reproduces the initialization of Simulink (or the remaining
+    difference, per decision 5); the start value workaround kept for containers built without the option and for
+    the cycles (decision 3);
+  - *Validation checklist*: item "option set" (or default), item 6 updated.
+- `docs/local/importer_comparison_report.md`: TL;DR point 1 and the *Follow-up* section pointing at the option.
+- `CHANGELOG.md`: 🟢 **ADDED** entry (FMU Container), linking the container guide and the migration page.
 
 Commit message: `Document the propagation of the links during the initialization`
