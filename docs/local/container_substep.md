@@ -1,6 +1,6 @@
 # Communication steps that are not a multiple of the container step
 
-**Created**: 17 October 2026 — **Status**: Step 1 done (17 October 2026), Step 2 to start — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: Steps 1–2 done (17 October 2026), Step 3 to start — **Roadmap**: not listed
 
 ## Context
 
@@ -98,6 +98,13 @@ Commit message: `Handle communication steps that are not a multiple of the conta
 - A container driven with `h` < `H` and with `h` not a multiple of `H` (fmpy, `FMU2Slave`): time at `t + h`, outputs
   held, inputs of the beginning of the step.
 - The REF results of the test suite: unchanged when `h` is a multiple of `H`.
+
+Done: scenarios `S4c` (one sub-container per rate, parent at 0.01 s) and `S4d` (parent at its default step) in
+`tools/probe_fmu/scenarios` (`run_container.py` copies the probes of the sub-containers; `tools/compare_traces.py`
+compares them with S4s / S4m); `S4c` gives the inputs of the Simulink traces of S4s at every step for the three
+probes. REF traces `tests/data/probe/REF-S4c-*`, `REF-S4d-*`; `tests/integration/test_probe_fmu.py`: own step size
+and inputs of the beginning of the step (S4c), a container driven with `h` = 0.01 s and `h` = 0.03 s for an internal
+step of 0.02 s (inputs of the beginning of each internal step, outputs held). The other REF results are unchanged.
 
 Commit message: `Test communication steps that are not a multiple of the container step`
 

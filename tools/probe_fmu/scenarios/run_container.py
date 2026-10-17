@@ -31,6 +31,14 @@ def scenarios() -> list[str]:
     return sorted(path.stem for path in HERE.glob("S*.json"))
 
 
+def probe_files(description: dict) -> set[str]:
+    """Probe files of a description and of its sub-containers."""
+    files = set(description.get("path", {}).values())
+    for sub_container in description.get("container", []):
+        files |= probe_files(sub_container)
+    return files
+
+
 def compile_probes(directory: Path) -> Path:
     """Compile the probes for the host into `directory` (once)."""
     from fmu_manipulation_toolbox.compiler import OperationCompileSources
@@ -59,7 +67,7 @@ def run(scenario: str, output: Path, probes: Path) -> Path:
     directory.mkdir(parents=True)
     description = HERE / f"{scenario}.json"
     shutil.copy(description, directory)
-    for probe in json.loads(description.read_text())["path"].values():
+    for probe in probe_files(json.loads(description.read_text())):
         shutil.copy(probes / probe, directory)
 
     cwd = Path.cwd()

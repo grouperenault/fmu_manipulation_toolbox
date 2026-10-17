@@ -23,7 +23,7 @@ from pathlib import Path
 #: Container variant -> Simulink variants it is compared with.
 PAIRS = {
     "S1": ["S1"], "S2": ["S2"], "S3": ["S3"],
-    "S4a": ["S4s", "S4m"], "S4b": ["S4s", "S4m"],
+    "S4a": ["S4s", "S4m"], "S4b": ["S4s", "S4m"], "S4c": ["S4s", "S4m"], "S4d": ["S4s", "S4m"],
     "S5j": ["S5"], "S5s": ["S5"], "S5r": ["S5"],
     "S6s": ["S6s"], "S6m": ["S6m"],
 }

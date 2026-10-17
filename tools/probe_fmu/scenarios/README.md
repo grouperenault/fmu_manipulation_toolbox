@@ -10,6 +10,7 @@ traces written by the probes are compared.
 | S2 | `A` = Probe10ms | start values |
 | S3 | `A`, `B`, `C` = Probe10ms | propagation of the links during the initialization |
 | S4a, S4b | `A` = Probe10ms, `B` = Probe20ms, `C` = Probe50ms | three rates |
+| S4c, S4d | as S4a, one sub-container per rate (parent at 0.01 s / at its default step) | three rates, container side only (compared with S4s, S4m) |
 | S5j, S5s, S5r | `A`, `B`, `C` = Probe10ms | feedthrough, ordering |
 | S6s, S6m | `A`, `B`, `C` = Probe10ms | computation time |
 
