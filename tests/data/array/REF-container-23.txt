@@ -1,4 +1,4 @@
-# Version 6
+# Version 7
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
@@ -221,6 +221,8 @@ array2scalar
 # Conversion table of scalar2array-2.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 1
 100663298 4 _D32_F64
+# Reset trigger of scalar2array-2.fmu: <LOCAL_OFFSET>
+-1
 # Inputs of array2scalar-3.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 4
 1 2 0
@@ -369,5 +371,7 @@ array2scalar
 0
 # Conversion table of array2scalar-3.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
+# Reset trigger of array2scalar-3.fmu: <LOCAL_OFFSET>
+-1
 # importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
 0 0

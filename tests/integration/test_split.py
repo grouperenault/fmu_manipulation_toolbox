@@ -97,3 +97,35 @@ def test_fmusplit_instances_of_one_fmu(area_dir):
 
     Assembly("two_balls.json", fmu_directory=out_dir, debug=True).make_fmu(filename="rebuilt.fmu")
     assert_identical_files("two_balls/resources/container.txt", out_dir / "rebuilt/resources/container.txt")
+
+
+@pytest.mark.area("containers/bouncing_ball")
+@pytest.mark.parametrize("fmi_version", [2, 3])
+def test_fmusplit_reset_ports(area_dir, fmi_version):
+    """The reset triggers come back as rules: an exposed one as an input, one fed by a link (converted to the
+    Boolean of an FMI-3 container) as a link; with them, the option `reset_ports`. The JSON rebuilds the same
+    container."""
+    Path("resettable.json").write_text(json.dumps({
+        "name": "resettable.fmu", "auto_link": False, "auto_input": False, "auto_output": False, "reset_ports": True,
+        "fmu": ["bb_position.fmu", "bb_velocity.fmu"],
+        "input": [["container.bb_position.reset", "bb_position.fmu", "container.reset"]],
+        "link": [["bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset"],
+                 ["bb_position.fmu", "is_ground", "bb_velocity.fmu", "container.reset"],
+                 ["bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"]],
+        "output": [["bb_position.fmu", "position1", "position"]],
+    }))
+    assembly = Assembly("resettable.json", debug=True)
+    assembly.make_fmu(fmi_version=fmi_version)
+    assembly.write_json("written.json")
+    assert json.loads(Path("written.json").read_text())["reset_ports"] is True
+
+    out_dir = _run_fmusplit("resettable")
+    split = json.loads((out_dir / "resettable.json").read_text())
+    assert split["reset_ports"] is True
+    assert ["container.bb_position.reset", "bb_position.fmu", "container.reset"] in split["input"]
+    assert ["bb_position.fmu", "is_ground", "bb_velocity.fmu", "container.reset"] in split["link"]
+    assert ["bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset"] in split["link"]
+
+    Assembly("resettable.json", fmu_directory=out_dir, debug=True).make_fmu(fmi_version=fmi_version,
+                                                                             filename="rebuilt.fmu")
+    assert_identical_files("resettable/resources/container.txt", out_dir / "rebuilt/resources/container.txt")

@@ -40,7 +40,7 @@ MAX_EXAMPLES = 3
 
 #: Options of a container, in the order of `Assembly.json_encode`.
 OPTIONS = ("step_size", "mt", "profiling", "sequential", "auto_link", "auto_input", "auto_output",
-           "auto_parameter", "auto_local", "ts_multiplier")
+           "auto_parameter", "auto_local", "ts_multiplier", "reset_ports")
 
 
 def fmu_name(reference: str) -> str:

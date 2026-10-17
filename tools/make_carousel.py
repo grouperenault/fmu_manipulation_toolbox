@@ -275,6 +275,45 @@ def instances(p, n, total):
                QRectF(img.width() * 0.02, img.height() * 0.13, img.width() * 0.44, img.height() * 0.66))
 
 
+def reset(p, n, total):
+    background(p, GREEN, n, total)
+    y = title_block(p, 110, "NEW · CONTAINERS", GREEN, "Reset an embedded FMU during the simulation",
+                    "A link to its container.reset input, or the importer through container.controller.reset: "
+                    "the FMU starts again at the current time.")
+    outer = QRectF(MARGIN, y + 10, W - 2 * MARGIN, 330)
+    path = QPainterPath()
+    path.addRoundedRect(outer, 30, 30)
+    p.setPen(QPen(LIGHT["green"], 4, Qt.PenStyle.DashLine))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPath(path)
+    text(p, QRectF(outer.x() + 30, outer.y() + 24, 600, 50), "container.fmu", 30, LIGHT["green"], bold=True,
+         family=MONO)
+    top = outer.y() + 120
+    source = QRectF(outer.x() + 30, top, 300, 150)
+    target = QRectF(outer.right() - 330, top, 300, 150)
+    box(p, source, "supervisor", "any FMU", BLUE)
+    box(p, target, "controller", "starts again", GREEN)
+    # The link, from an output of the supervisor to the reset input of the controller.
+    middle = top + 75
+    start, end = source.right() + 16, target.left() - 16
+    p.setPen(QPen(LIGHT["green"], 5))
+    p.drawLine(QPointF(start, middle), QPointF(end - 20, middle))
+    head = QPainterPath()
+    head.moveTo(end, middle)
+    head.lineTo(end - 28, middle - 16)
+    head.lineTo(end - 28, middle + 16)
+    head.closeSubpath()
+    p.fillPath(head, LIGHT["green"])
+    text(p, QRectF(start, middle - 56, end - start, 40), "restart", 24, MUTED, align=Qt.AlignmentFlag.AlignHCenter,
+         family=MONO)
+    text(p, QRectF(start - 20, middle + 16, end - start + 40, 40), "container.reset", 22, LIGHT["green"],
+         align=Qt.AlignmentFlag.AlignHCenter, family=MONO)
+    y = outer.bottom() + 50
+    bullets(p, y, ["From another FMU, or exposed to the importer",
+                   "Co-Simulation, Model-Exchange, sub-containers",
+                   "fmi2Reset / fmi3Reset of the container too"], LIGHT["green"], size=31, spacing=16)
+
+
 def compile_sources(p, n, total):
     background(p, GREEN, n, total)
     y = title_block(p, 110, "NEW · FMU TOOL", GREEN, "No binary for your platform? Compile the sources",
@@ -340,7 +379,8 @@ def get_it(p, n, total):
          TEXT, align=Qt.AlignmentFlag.AlignHCenter)
 
 
-SLIDES = (cover, tools, ai, model_exchange, link_assistant, instances, compile_sources, robust, install, get_it)
+SLIDES = (cover, tools, ai, model_exchange, link_assistant, instances, reset, compile_sources, robust, install,
+          get_it)
 
 
 def main():

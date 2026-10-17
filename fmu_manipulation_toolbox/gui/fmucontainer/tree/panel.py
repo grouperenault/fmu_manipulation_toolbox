@@ -82,6 +82,14 @@ class NodeTreePanel(QWidget):
         """Create/activate or deactivate the virtual `ts_multiplier` signal node (GUI-only)."""
         self._tree_widget.set_ts_multiplier(container_item, active, x=x, y=y)
 
+    def refresh_reset_ports(self):
+        """Sync the reset ports of the virtual ConfigurationNode with the `reset_ports` checkboxes (GUI-only)."""
+        self._tree_widget.refresh_reset_ports()
+
+    @property
+    def configuration_detail(self):
+        return self._detail_panel.configuration_detail
+
     def _on_scene_selection_changed(self):
         """Scene -> tree: select in tree when node is selected in graph."""
         try:
@@ -103,7 +111,7 @@ class NodeTreePanel(QWidget):
             return
         scene_item = selected[0]
         if isinstance(scene_item, ConfigurationNode):
-            self._detail_panel.show_empty()
+            self._detail_panel.show_configuration(scene_item)
             return
 
         if isinstance(scene_item, NodeItem):
@@ -169,8 +177,8 @@ class NodeTreePanel(QWidget):
     def _on_container_detail_changed(self):
         """Called when the container detail panel parameters are edited.
 
-        Keeps the container's `ts_multiplier` port on the (GUI-only)
-        ConfigurationNode in sync with the checkbox state.
+        Keeps the container's `ts_multiplier` port, and the reset ports of its
+        FMUs, on the (GUI-only) ConfigurationNode in sync with the checkboxes.
         """
         try:
             current = self._tree_widget.tree_view.currentIndex()
@@ -190,6 +198,7 @@ class NodeTreePanel(QWidget):
                 return
             active = bool(container_parameters.parameters.get("ts_multiplier", False))
             self._tree_widget.set_ts_multiplier(item, active)
+            self._tree_widget.refresh_reset_ports()
         except RuntimeError as e:
             logger.error(f"Error syncing ts_multiplier signal node: {e}")
 

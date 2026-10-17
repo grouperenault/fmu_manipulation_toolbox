@@ -65,7 +65,8 @@ class PortChecker:
         where = container_label(node)
         children = {str(child.get("name")) for child in node.get("container", [])}
 
-        container = FMUContainer(Path(where).stem or "container", Path(tempfile.gettempdir()))
+        container = FMUContainer(Path(where).stem or "container", Path(tempfile.gettempdir()),
+                                 reset_ports=bool(node.get("reset_ports", False)))
         loaded: set[str] = set()
         files = node.get("path", {})
         for reference in node.get("fmu", []):

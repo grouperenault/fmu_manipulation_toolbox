@@ -117,6 +117,9 @@ class Help:
         "-auto_local": "Automatically expose all local ports of contained FMUs at the container level.",
         "-ts_multiplier": "Enable time step multiplier for this container.\n"
                           "The multiplier can be set with input variable name 'container.ts_multiplier'",
+        "-reset_ports": "Add a reset input to each FMU of this container.\n"
+                        "Wire it from the 'configuration' node ('<fmu>.reset' ports): when it is true, the container "
+                        "resets the FMU and initializes it again at the current time.",
     }
 
 

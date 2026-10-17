@@ -191,6 +191,8 @@ class FMUSplitterDescription:
             "auto_link": False,
         }
         self.file_format = 1
+        self.fmi_version = 2  # of the container, read from its modelDescription.xml
+        self.reset_triggers: list[tuple[str, int]] = []  # (fmu_filename, local offset of `container.reset`)
         self.pending_conversions: list[tuple] = []  # (vr_from, vr_to, conversion_name)
         self.local_to_vr: dict[str, dict[int, int]] = {}  # fmi_type → (local_slot → container_vr)
         # fmu_filename → fmi_type → basename → frozenset of element names
@@ -222,6 +224,8 @@ class FMUSplitterDescription:
                 raise FMUSplitterError(f"'{filename}': {error}") from error
 
         fmi_version = model_description.fmi_version
+        if fmu_filename == ".":
+            self.fmi_version = fmi_version
         for port in model_description.iter_ports():
             fmi_type = port.fmi_type
             if fmi_type == "Enumeration":  # enumerations are handled as integers by the container
@@ -517,7 +521,15 @@ class FMUSplitterDescription:
                         conversion_name = tokens[2]
                         self.pending_conversions.append((vr_from, vr_to, conversion_name))
 
+                # reset trigger (`container.<fmu>.reset`)
+                if self.file_format >= 7:
+                    offset = int(self.get_line(file))
+                    if offset >= 0:
+                        self.reset_triggers.append((fmu_filename, offset))
+
             logger.debug("End of parsing.")
+
+        self._add_reset_triggers()
 
         # Apply pending conversions now that all FMU inputs/outputs have been parsed
         for vr_from, vr_to, conversion_name in self.pending_conversions:
@@ -575,6 +587,31 @@ class FMUSplitterDescription:
         self._aggregate_terminal_links()
 
         return self.config
+
+    def _add_reset_triggers(self):
+        """Rules of the `container.reset` ports (format ≥ 7), and the option `reset_ports`.
+
+        The trigger of an FMU is a local variable: an input of the container when it is exposed, or the variable of a
+        link (or its converted copy) otherwise. Without any wired trigger, nothing tells that the option was set: it
+        is not restored.
+        """
+        type_name = "boolean" if self.fmi_version == 2 else "boolean1"
+        for fmu_filename, offset in self.reset_triggers:
+            try:
+                container_vr = self.local_to_vr[type_name][offset]
+            except KeyError:
+                logger.warning(f"Reset trigger of '{fmu_filename}' not found (local {type_name} {offset}): skipped")
+                continue
+
+            # `local_to_vr` keeps the value references without their type byte.
+            variable = next((variable for vr, variable in self.vr_to_name["."][type_name].items()
+                             if vr & 0xFFFFFF == container_vr), None)
+            if variable is not None and variable["causality"] == "input":
+                self.config.setdefault("input", []).append([variable["name"], fmu_filename, "container.reset"])
+            else:
+                link = self.links[type_name].setdefault(container_vr, FMUSplitterLink())
+                link.add_reader(FMUSplitterPort(fmu_filename, "container.reset"))
+            self.config["reset_ports"] = True
 
     def _build_basename_map(self, fmu_filename: str):
         """For each fmi_type, scan variable names and build

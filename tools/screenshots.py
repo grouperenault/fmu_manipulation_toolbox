@@ -360,6 +360,27 @@ def container_vr():
     return window.grab()
 
 
+@shot("container-reset", "user-guide/fmucontainer/container-reset-gui.png")
+def container_reset():
+    window = container_window()
+    (velocity, position), = bouncing_balls(window)
+    from fmu_manipulation_toolbox.gui.fmucontainer.tree.model import TreeItemRoles
+    TreeItemRoles.get_container_params(window._tree.root).parameters["reset_ports"] = True
+    window._tree.refresh_reset_ports()
+    scene = window._graph.scene
+    configuration = scene.configuration_node()
+    configuration.setPos(380, 260)
+    wire = scene.add_wire(position, configuration)
+    wire.mappings = [(position.name, "is_ground", configuration.name, configuration.reset_port_name(velocity.name))]
+    configuration.reset_exposed[configuration.reset_port_name(position.name)] = True
+    settle()
+    select(window, configuration)
+    window._graph.view.fit_all()
+    settle()
+    discard(window)
+    return window.grab()
+
+
 def bouncing_balls(window, instances=False):
     work = copy_data("containers/bouncing_ball/bb_position.fmu", "containers/bouncing_ball/bb_velocity.fmu")
     folder = work / "containers/bouncing_ball"

@@ -1,4 +1,4 @@
-# Version 6
+# Version 7
 # Container flags <MT> <Profiling> <Sequential>
 0 1 0
 # Internal time step in seconds
@@ -199,6 +199,8 @@ bb_velocity
 0
 # Conversion table of bb_position.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
+# Reset trigger of bb_position.fmu: <LOCAL_OFFSET>
+-1
 # Inputs of bb_velocity.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
 # Clocked Inputs of bb_velocity.fmu - real64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
@@ -345,5 +347,7 @@ bb_velocity
 0
 # Conversion table of bb_velocity.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
+# Reset trigger of bb_velocity.fmu: <LOCAL_OFFSET>
+-1
 # importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
 0 0

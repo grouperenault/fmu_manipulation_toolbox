@@ -65,7 +65,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
     (void)visible; /* unused parameter */
 
-    container = container_new(instanceName, fmuGUID);
+    container = container_new(instanceName, fmuGUID, 2);
 
     if (container) {
         logger_function_t container_logger;
@@ -167,8 +167,14 @@ fmi2Status fmi2Terminate(fmi2Component c) {
 
 
 fmi2Status fmi2Reset(fmi2Component c) {
-    (void)c;
-    __NOT_IMPLEMENTED__
+    container_t* container = (container_t*)c;
+
+    if (container_reset(container) != FMU_STATUS_OK)
+        return fmi2Error;
+
+    container->state = CONTAINER_STATE_INSTANTIATED;
+
+    return fmi2OK;
 }
 
 
@@ -216,7 +222,7 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                                                                                                                                 \
     for (size_t i = 0; i < nvr; i += 1) {                                                                                       \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                             \
-        const container_port_t *port = &container->port_ ##type [local_vr];                                                     \
+        container_port_t *port = &container->port_ ##type [local_vr];                                                           \
         for(unsigned long j = 0; j < port->nb; j += 1) {                                                                        \
             const int fmu_id = port->links[j].fmu_id;                                                                           \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                                      \
@@ -237,6 +243,8 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                 }                                                                                                               \
             }                                                                                                                   \
         }                                                                                                                       \
+        if (container_cache_ ## type(container, port, &value[i], 1) < 0)                                                        \
+            return fmi2Error;                                                                                                   \
     }                                                                                                                           \
                                                                                                                                 \
     return fmi2OK;                                                                                                              \
@@ -252,7 +260,7 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
  
     for(size_t i = 0; i < nvr; i += 1) {
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
-        const container_port_t* port = &container->port_strings[local_vr];
+        container_port_t* port = &container->port_strings[local_vr];
         for(unsigned long j = 0; j < port->nb; j += 1) {
             const int fmu_id = port->links[j].fmu_id;
 
@@ -270,6 +278,8 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
                 }
             }
         }
+        if (container_cache_strings(container, port, &value[i], 1) < 0)
+            return fmi2Error;
     }
     return fmi2OK;
 }

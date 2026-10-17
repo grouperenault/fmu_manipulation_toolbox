@@ -68,9 +68,28 @@ int solver_register_me(solver_t *solver, unsigned long fmu_idx, size_t nx, size_
 }
 
 
+/* Flat buffers, allocated by solver_configure(). */
+static void solver_free_buffers(solver_t *solver) {
+    free(solver->x);
+    free(solver->dx);
+    free(solver->x_save);
+    free(solver->z);
+    free(solver->z_prev);
+    free(solver->k2);
+    free(solver->k3);
+    free(solver->k4);
+    free(solver->x_tmp);
+    solver->x = solver->dx = solver->x_save = solver->z = solver->z_prev = NULL;
+    solver->k2 = solver->k3 = solver->k4 = solver->x_tmp = NULL;
+}
+
+
 int solver_configure(solver_t *solver) {
     if (solver->nb_me == 0)
         return 0;
+
+    /* Called again by each ExitInitializationMode after a reset of the container. */
+    solver_free_buffers(solver);
 
     const int solver_integrator = solver->container->integers32[1];
     
@@ -131,15 +150,7 @@ fail:
 
 void solver_free(solver_t *solver) {
     if (!solver) return;
-    free(solver->x);
-    free(solver->dx);
-    free(solver->x_save);
-    free(solver->z);
-    free(solver->z_prev);
-    free(solver->k2);
-    free(solver->k3);
-    free(solver->k4);
-    free(solver->x_tmp);
+    solver_free_buffers(solver);
     free(solver->me);
     free(solver);
 }
@@ -220,22 +231,39 @@ static fmu_status_t solver_event_iteration(solver_t *solver) {
 }
 
 
+/* Back to Continuous Time Mode for one ME FMU, refreshing its slices of the
+   states and event indicators the event may have reset. */
+static fmu_status_t solver_leave_event_mode_entry(solver_t *solver, const solver_me_fmu_t *e) {
+    if (fmuEnterContinuousTimeMode(e->fmu) != FMU_STATUS_OK) {
+        logger(LOGGER_ERROR, "ME FMU '%s': cannot enter Continuous Time Mode.", e->fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+    if (fmuGetContinuousStates(e->fmu, &solver->x[e->x_off], e->nx) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    if (e->nz && fmuGetEventIndicators(e->fmu, &solver->z_prev[e->z_off], e->nz) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    return FMU_STATUS_OK;
+}
+
+
 /* Back to Continuous Time Mode, refreshing the states and event indicators the
    event may have reset. */
 fmu_status_t solver_leave_event_mode(solver_t *solver) {
     for (size_t i = 0; i < solver->nb_me; i += 1) {
-        solver_me_fmu_t *e = &solver->me[i];
-
-        if (fmuEnterContinuousTimeMode(e->fmu) != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "ME FMU '%s': cannot enter Continuous Time Mode.", e->fmu->name);
-            return FMU_STATUS_ERROR;
-        }
-        if (fmuGetContinuousStates(e->fmu, &solver->x[e->x_off], e->nx) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-        if (e->nz && fmuGetEventIndicators(e->fmu, &solver->z_prev[e->z_off], e->nz) != FMU_STATUS_OK)
+        if (solver_leave_event_mode_entry(solver, &solver->me[i]) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
     }
     return FMU_STATUS_OK;
+}
+
+
+fmu_status_t solver_leave_event_mode_fmu(solver_t *solver, unsigned long fmu_idx) {
+    for (size_t i = 0; i < solver->nb_me; i += 1) {
+        if (solver->me[i].fmu_idx == fmu_idx)
+            return solver_leave_event_mode_entry(solver, &solver->me[i]);
+    }
+    logger(LOGGER_ERROR, "Solver: FMU #%lu is not a Model-Exchange FMU.", fmu_idx);
+    return FMU_STATUS_ERROR;
 }
 
 

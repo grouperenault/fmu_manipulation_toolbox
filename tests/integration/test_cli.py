@@ -36,6 +36,16 @@ def test_fmucontainer_csv(area_dir):
     assert_identical_files("REF-container.txt", "cli-bouncing/resources/container.txt")
 
 
+@pytest.mark.area("containers/bouncing_ball")
+def test_fmucontainer_reset_ports(area_dir):
+    """`-reset-ports`: with the default auto_input, each FMU gets its exposed `container.<id>.reset` trigger."""
+    sys.argv = ["fmucontainer", "-container", "cli-bouncing.csv", "-fmu-directory", ".", "-reset-ports", "-debug"]
+    fmucontainer()
+    lines = Path("cli-bouncing/resources/container.txt").read_text().splitlines()
+    for fmu in ("bb_position.fmu", "bb_velocity.fmu"):
+        assert int(lines[lines.index(f"# Reset trigger of {fmu}: <LOCAL_OFFSET>") + 1]) >= 0
+
+
 @pytest.mark.area("containers/arch")
 def test_fmucontainer_json(area_dir):
     sys.argv = ["fmucontainer", "-fmu-directory", ".", "-container", "cli-flat.json", "-dump"]

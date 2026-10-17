@@ -73,7 +73,7 @@ fmi3Instance fmi3InstantiateCoSimulation(
     (void)intermediateUpdate; /* unused parameter */    
 
     container_t* container;
-    container = container_new(instanceName, instantiationToken);
+    container = container_new(instanceName, instantiationToken, 3);
 
     if (container) {
         logger_function_t container_logger;
@@ -168,8 +168,14 @@ fmi3Status fmi3Terminate(fmi3Instance instance) {
 
 
 fmi3Status fmi3Reset(fmi3Instance instance) {
-    (void)instance;
-    __NOT_IMPLEMENTED__
+    container_t* container = (container_t*)instance;
+
+    if (container_reset(container) != FMU_STATUS_OK)
+        return fmi3Error;
+
+    container->state = CONTAINER_STATE_INSTANTIATED;
+
+    return fmi3OK;
 }
 
 
@@ -313,7 +319,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                                                                                                                         \
     for (size_t i = 0; i < nValueReferences; i += 1) {                                                                  \
         const uint32_t local_vr = valueReferences[i] & 0xFFFFFF;                                                        \
-        const container_port_t *port = &container->port_ ##type [local_vr];                                             \
+        container_port_t *port = &container->port_ ##type [local_vr];                                                   \
         for(unsigned int j = 0; j < port->nb; j += 1) {                                                                 \
             const int fmu_id = port->links[j].fmu_id;                                                                   \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                              \
@@ -335,6 +341,8 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                 }                                                                                                       \
             }                                                                                                           \
         }                                                                                                               \
+        if (container_cache_ ## type(container, port, &value[value_index], port->dimension) < 0)                        \
+            return fmi3Error;                                                                                           \
         value_index += port->dimension;                                                                                 \
     }                                                                                                                   \
                                                                                                                         \
@@ -365,7 +373,7 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
 
     for (size_t i = 0; i < nvr; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
-        const container_port_t* port = &container->port_strings[vr];
+        container_port_t* port = &container->port_strings[vr];
         for (unsigned int j = 0; j < port->nb; j += 1) {
             const int fmu_id = port->links[j].fmu_id;
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
@@ -386,6 +394,8 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
                 }
             }
         }
+        if (container_cache_strings(container, port, &value[value_index], port->dimension) < 0)
+            return fmi3Error;
         value_index += port->dimension;
     }
 
@@ -409,7 +419,7 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
-        const container_port_t *port = &container->port_binaries[vr];
+        container_port_t *port = &container->port_binaries[vr];
         for (unsigned int j = 0; j < port->nb; j += 1) {
             const int fmu_id = port->links[j].fmu_id;
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
@@ -440,6 +450,9 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
                 }
             }
         }
+        if (container_cache_binaries(container, port, &valueSizes[value_index], &values[value_index],
+                                     port->dimension) < 0)
+            return fmi3Error;
         value_index += port->dimension;
     }
 

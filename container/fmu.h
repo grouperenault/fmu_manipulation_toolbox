@@ -402,6 +402,11 @@ typedef struct {
 
     fmu_kind_t                  kind;
 
+    /* Offset of `container.<fmu>.reset` in the local storage of booleans (FMI-2 container) or booleans1 (FMI-3
+       container), -1 if the FMU is never reset. */
+    long                        reset_trigger;
+    bool                        reset_pending;  /* reset at the start of the step: trigger cleared at its end */
+
     profile_t                   *profile;
 
     struct convert_table_s      *conversions;
@@ -510,9 +515,9 @@ extern fmu_status_t fmuSetClock(const fmu_t* fmu, const fmu_vr_t vr[],
 extern fmu_status_t fmuDoStep(fmu_t *fmu, 
                               fmi2Real currentCommunicationPoint, 
                               fmi2Real communicationStepSize);
-extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu);
+extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu, double start_time);
 extern fmu_status_t fmuExitInitializationMode(const fmu_t *fmu);
-extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu);
+extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu, double start_time);
 extern fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, fmi2String instanceName);
 extern fmu_status_t fmuInstantiateModelExchange(fmu_t *fmu, fmi2String instanceName);
 extern void fmuFreeInstance(const fmu_t *fmu);

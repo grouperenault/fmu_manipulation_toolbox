@@ -177,7 +177,7 @@ def _call_error(tool, arguments, tmp_path=None) -> str:
 @pytest.mark.parametrize("tool, arguments, expected", [
     ("set_container_options", {"options": {"stepsize": 1}},
      "unknown option 'stepsize' (allowed: auto_input, auto_link, auto_local, auto_output, auto_parameter, "
-     "mt, profiling, sequential, step_size, ts_multiplier)"),
+     "mt, profiling, reset_ports, sequential, step_size, ts_multiplier)"),
     ("set_container_options", {"options": {"step_size": -1}},
      "'options.step_size': Input should be greater than 0 (got -1)"),
     ("save_as_fmu", {"path": "out.fmu", "fmi_version": 7}, "'fmi_version': Input should be 2 or 3 (got 7)"),
@@ -293,7 +293,7 @@ def test_container_options_advertise_their_keys():
 
     assert set(options["properties"]) == {
         "step_size", "mt", "profiling", "sequential", "auto_link", "auto_input",
-        "auto_output", "auto_parameter", "auto_local", "ts_multiplier",
+        "auto_output", "auto_parameter", "auto_local", "ts_multiplier", "reset_ports",
     }
     assert options["additionalProperties"] is False
     assert all(field.get("description") for field in options["properties"].values())

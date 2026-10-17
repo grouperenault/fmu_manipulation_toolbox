@@ -84,6 +84,7 @@ class AssemblyIOMixin:
             auto_parameter=assembly_node.auto_parameter,
             auto_local=assembly_node.auto_local,
             ts_multiplier=assembly_node.ts_multiplier,
+            reset_ports=assembly_node.reset_ports,
         )
         logger.debug(f"SET CONTAINER: {container_name}: {container_parameters}")
         parent.setData(container_parameters, _NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
@@ -199,6 +200,14 @@ class AssemblyIOMixin:
                     child_params = child_item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
                     if child_params is not None:
                         child_params.parameters["ts_multiplier"] = True
+            # Same for the reserved `container.reset` input of an FMU or a sub-container of this level (option
+            # `reset_ports`): a wire ending on the `<fmu_without_.fmu>.reset` port of the ConfigurationNode, created
+            # by `refresh_reset_ports` once the whole tree is imported.
+            if link[3] == ConfigurationNode.RESET_RUNTIME_PORT_NAME and \
+                    (link[2] in assembly_node.children or link[2] in scene_names.values()):
+                logger.debug(f"RESET LINK detected: -> {link[2]}")
+                link[3] = ConfigurationNode.reset_port_name(link[2])
+                link[2] = ConfigurationNode.TITLE
             if link[0] in assembly_node.children and link[1] == ConfigurationNode.RUNTIME_PORT_NAME:
                 child_name = link[0]
                 link[0] = ConfigurationNode.TITLE
@@ -236,6 +245,9 @@ class AssemblyIOMixin:
         # Map from node name (unique in the scene) to its NodeItem (real FMUs only, excludes
         # the virtual ConfigurationNode which is never part of the Assembly model)
         nodes_by_name: dict[str, NodeItem] = {node.name: node for node in self._graph.scene.fmu_nodes()}
+
+        # The reset ports of the ConfigurationNode follow the `reset_ports` parameters, now all set.
+        self._tree.refresh_reset_ports()
 
         # The GUI-only ConfigurationNode (ts_multiplier), if already created by
         # `_assembly_node_to_items` above (via `set_ts_multiplier`). Links may
@@ -325,6 +337,12 @@ class AssemblyIOMixin:
 
         # Apply exposed input ports to scene nodes
         for _exposed_name, fmu_name, port_name in input_ports_list:
+            if port_name == ConfigurationNode.RESET_RUNTIME_PORT_NAME:
+                # Exposed reset of an FMU or a sub-container: checked in the detail panel of the ConfigurationNode
+                if configuration_node is not None:
+                    configuration_node.reset_exposed[ConfigurationNode.reset_port_name(fmu_name)] = True
+                    logger.debug(f"Exposed reset: {fmu_name}")
+                continue
             node = nodes_by_name.get(fmu_name)
             if node:
                 node.user_exposed_inputs[port_name] = True
@@ -454,9 +472,14 @@ class AssemblyIOMixin:
                 assembly_node.add_output(link[0], link[1], link[1])
                 remaining_links_list.append((assembly_node.name, link[1], link[2], link[3]))
             elif not from_is_local and to_is_local:
-                # Source is outside, destination is local → expose as input
-                assembly_node.add_input(link[3], link[2], link[3])
-                remaining_links_list.append((link[0], link[1], assembly_node.name, link[3]))
+                # Source is outside, destination is local → expose as input. The reset inputs of the FMUs
+                # share one port name: the input is named after the FMU.
+                if link[3] == ConfigurationNode.RESET_RUNTIME_PORT_NAME:
+                    input_name = ConfigurationNode.reset_input_name(link[2])
+                else:
+                    input_name = link[3]
+                assembly_node.add_input(input_name, link[2], link[3])
+                remaining_links_list.append((link[0], link[1], assembly_node.name, input_name))
             else:
                 # Neither end belongs to this node → pass through
                 remaining_links_list.append(link)
@@ -473,6 +496,14 @@ class AssemblyIOMixin:
         nodes_by_uid: dict[str, NodeItem] = {
             node.uid: node for node in self._graph.scene.fmu_nodes()
         }
+        configuration_node = self._graph.scene.configuration_node()
+
+        def _reset_exposed(name: str) -> bool:
+            """Whether the reset port of the FMU or sub-container *name* is checked "exposed"."""
+            if configuration_node is None:
+                return False
+            port = ConfigurationNode.reset_port_name(name)
+            return configuration_node.port_active(port) and configuration_node.reset_exposed.get(port, False)
 
         def _reference(node: NodeItem) -> str:
             """Name of `node` in the Assembly: its FMU file, or, for an instance, a sibling of the file named after
@@ -492,6 +523,10 @@ class AssemblyIOMixin:
                         sub_assembly_node = _item_to_assembly_node(assembly_node, child)
                         if sub_assembly_node:
                             assembly_node.add_sub_node(sub_assembly_node)
+                            if assembly_node.reset_ports and _reset_exposed(sub_assembly_node.name):
+                                assembly_node.add_input(ConfigurationNode.reset_input_name(sub_assembly_node.name),
+                                                        sub_assembly_node.name,
+                                                        ConfigurationNode.RESET_RUNTIME_PORT_NAME)
                 return assembly_node
             else:
                 uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
@@ -516,6 +551,9 @@ class AssemblyIOMixin:
                     if exposed:
                         logger.debug(f"EXPOSE INPUT: {node.name}/{port_name}")
                         parent_assembly_node.add_input(port_name, reference, port_name)
+                if parent_assembly_node.reset_ports and _reset_exposed(node.name):
+                    parent_assembly_node.add_input(ConfigurationNode.reset_input_name(node.name), reference,
+                                                   ConfigurationNode.RESET_RUNTIME_PORT_NAME)
                 return None
 
         root_item = self._tree.root
@@ -554,19 +592,31 @@ class AssemblyIOMixin:
                 # correctly on export. Inactive ports (checkbox unchecked,
                 # shown in red) are skipped: the target port would not even
                 # exist on the built container.
+                # A reset port drives the reserved `container.reset` input of its FMU, or sub-container, in the
+                # same way.
                 if is_cfg_b and fmu_to_name == ConfigurationNode.TITLE:
-                    if not wire.node_b.ts_multiplier_ports.get(port_to, False):
-                        logger.debug(f"SKIP inactive ts_multiplier link: {fmu_from_name}/{port_from} -> {port_to}")
+                    if not wire.node_b.port_active(port_to):
+                        logger.debug(f"SKIP inactive configuration link: {fmu_from_name}/{port_from} -> {port_to}")
                         continue
-                    fmu_to_path = ConfigurationNode.container_name_from_port(port_to)
-                    port_to = ConfigurationNode.RUNTIME_PORT_NAME
+                    if wire.node_b.is_reset_port(port_to):
+                        fmu_to_name = ConfigurationNode.fmu_name_from_reset_port(port_to)
+                        fmu_to_path = path_by_name.get(fmu_to_name, fmu_to_name)   # a sub-container keeps its name
+                        port_to = ConfigurationNode.RESET_RUNTIME_PORT_NAME
+                    else:
+                        fmu_to_path = ConfigurationNode.container_name_from_port(port_to)
+                        port_to = ConfigurationNode.RUNTIME_PORT_NAME
                     fmu_from_path = path_by_name[fmu_from_name]
                 elif is_cfg_a and fmu_from_name == ConfigurationNode.TITLE:
-                    if not wire.node_a.ts_multiplier_ports.get(port_from, False):
-                        logger.debug(f"SKIP inactive ts_multiplier link: {port_from} -> {fmu_to_name}/{port_to}")
+                    if not wire.node_a.port_active(port_from):
+                        logger.debug(f"SKIP inactive configuration link: {port_from} -> {fmu_to_name}/{port_to}")
                         continue
-                    fmu_from_path = ConfigurationNode.container_name_from_port(port_from)
-                    port_from = ConfigurationNode.RUNTIME_PORT_NAME
+                    if wire.node_a.is_reset_port(port_from):
+                        fmu_from_name = ConfigurationNode.fmu_name_from_reset_port(port_from)
+                        fmu_from_path = path_by_name.get(fmu_from_name, fmu_from_name)
+                        port_from = ConfigurationNode.RESET_RUNTIME_PORT_NAME
+                    else:
+                        fmu_from_path = ConfigurationNode.container_name_from_port(port_from)
+                        port_from = ConfigurationNode.RUNTIME_PORT_NAME
                     fmu_to_path = path_by_name[fmu_to_name]
                 else:
                     fmu_from_path = path_by_name[fmu_from_name]

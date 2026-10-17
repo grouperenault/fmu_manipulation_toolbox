@@ -27,6 +27,8 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
   - *multi-threading*: each embedded FMU will use its own thread to parallelize `doStep()` operation.  
   - *profiling*: performance indicators can be calculated by the container to help to identify the bottlenecks among 
     the embedded FMU's.
+  - *reset_ports*: each embedded FMU gets a `container.reset` input; when it is true, the container resets the FMU
+    during the simulation (see [Reset of Embedded FMUs](container-reset.md)).
 - routing table
   - Input ports: the list of the Container's inputs. Each input is linked to one input (or more) of one of the embedded FMU's.
   - Output ports: the list of the container's outputs. Each output is linked to one output of one of the embedded FMU's.
@@ -83,6 +85,7 @@ The `fmucontainer` command supports the following options:
 | `-sequential`                       | off            | Use sequential mode to schedule embedded FMUs.                                                                                                                                                                                       |
 | `-profile`                          | off            | Enable profiling mode to monitor `doStep()` performance of each embedded FMU.                                                                                                                                                        |
 | `-vr`                               | off            | Add a `TS_MULTIPLIER` input port to the container, allowing dynamic control of the step size.                                                                                                                                        |
+| `-reset-ports`                      | off            | Add a `container.reset` input to each embedded FMU, to reset it during the simulation. See [Reset of Embedded FMUs](container-reset.md).                                                                                            |
 | `-datalog`                          | off            | Log input, output, and local variables of the container into a CSV file.                                                                                                                                                             |
 | `-dump-json`                        | off            | Dump a JSON description file for each container.                                                                                                                                                                                     |
 | `-no-auto-input`                    | auto           | Disable automatic exposure of unconnected input ports from embedded FMUs.                                                                                                                                                            |
@@ -281,6 +284,7 @@ The `FMUContainer` constructor takes the following parameters:
 | `identifier` | *(required)* | used as `modelIdentifier` in `modelDescription.xml`   |
 | `fmu_directory` | *(required)* | Directory containing the source FMUs                  |
 | `fmi_version` | `2` | FMI version for the container interface (`2` or `3`)  |
+| `reset_ports` | `False` | Add a `container.reset` input to each embedded FMU (see [Reset of Embedded FMUs](container-reset.md)) |
 
 The following methods define the container topology:
 

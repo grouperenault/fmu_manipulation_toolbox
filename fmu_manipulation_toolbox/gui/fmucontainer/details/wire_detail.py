@@ -349,20 +349,17 @@ class _WireDirectionTab(QWidget):
         self._output_delegate.set_items(from_node.fmu_output_names)
         self._output_delegate.set_causalities(from_node.fmu_port_causality)
         self._output_delegate.set_aggregates(from_node.fmu_array_aggregate_elements.keys())
-        self._output_delegate.set_invalid_ports(self._inactive_ts_multiplier_ports(from_node))
+        self._output_delegate.set_invalid_ports(self._inactive_ports(from_node))
         self._input_delegate.set_items(to_node.fmu_input_names)
         self._input_delegate.set_causalities(to_node.fmu_port_causality)
         self._input_delegate.set_aggregates(to_node.fmu_array_aggregate_elements.keys())
-        self._input_delegate.set_invalid_ports(self._inactive_ts_multiplier_ports(to_node))
+        self._input_delegate.set_invalid_ports(self._inactive_ports(to_node))
 
     @staticmethod
-    def _inactive_ts_multiplier_ports(node) -> set[str]:
-        """Return the set of `ts_multiplier` ports on *node* (ConfigurationNode)
-        that are currently inactive (owning container's checkbox unchecked)."""
-        ports = getattr(node, "ts_multiplier_ports", None)
-        if not ports:
-            return set()
-        return {name for name, active in ports.items() if not active}
+    def _inactive_ports(node) -> set[str]:
+        """Return the set of `ts_multiplier` or reset ports on *node* (ConfigurationNode)
+        that are currently inactive (checkbox of the container unchecked)."""
+        return node.inactive_ports() if hasattr(node, "inactive_ports") else set()
 
     # ── Data access ─────────────────────────────────────────────
 

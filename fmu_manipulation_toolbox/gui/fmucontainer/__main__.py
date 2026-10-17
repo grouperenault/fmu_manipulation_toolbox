@@ -182,6 +182,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._tree.wire_detail.changed.connect(self._mark_dirty)
         self._tree.fmu_detail.changed.connect(self._mark_dirty)
         self._tree.container_detail.changed.connect(self._mark_dirty)
+        self._tree.configuration_detail.changed.connect(self._mark_dirty)
 
         # Tree model structural changes (drag-drop, rename, add/remove rows)
         self._tree.model.dataChanged.connect(lambda *_: self._mark_dirty())

@@ -1,4 +1,4 @@
-# Version 6
+# Version 7
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
@@ -232,6 +232,8 @@ not_bool
 0
 # Conversion table of constant3.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
+# Reset trigger of constant3.fmu: <LOCAL_OFFSET>
+-1
 # Inputs of passthrough3.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 1
 1 1 0
@@ -390,6 +392,8 @@ not_bool
 # Conversion table of passthrough3.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 1
 184549376 167772160 B1_B
+# Reset trigger of passthrough3.fmu: <LOCAL_OFFSET>
+-1
 # Inputs of not2.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>
 0
 # Clocked Inputs of not2.fmu - real64: <FMU_VR_CLOCK> <n> <LOCAL_OFFSET> <DIM> <FMU_VR>
@@ -535,5 +539,7 @@ not_bool
 0
 # Conversion table of not2.fmu: <VR_FROM> <VR_TO> <CONVERSION>
 0
+# Reset trigger of not2.fmu: <LOCAL_OFFSET>
+-1
 # importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
 0 0

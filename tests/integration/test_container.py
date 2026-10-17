@@ -51,6 +51,18 @@ def test_container_bouncing_ball_seq(area_dir):
 
 
 @pytest.mark.area("containers/bouncing_ball")
+def test_container_bouncing_ball_reset_ports(area_dir):
+    """`reset_ports`: the reset of bb_velocity is fed by a link, the one of bb_position is exposed by auto_input."""
+    assembly = Assembly("bouncing-reset.csv", default_reset_ports=True, debug=True)
+    assembly.make_fmu()
+    assembly.write_json("bouncing-reset.json")
+    assert_identical_files("REF-container-reset.txt", "bouncing-reset/resources/container.txt")
+    assert_identical_files("REF-bouncing-reset.json", "bouncing-reset.json")
+    assert_equivalent_xml("REF-modelDescription-reset.xml", "bouncing-reset/modelDescription.xml",
+                          ignore_attributes=VOLATILE_XML_ATTRIBUTES)
+
+
+@pytest.mark.area("containers/bouncing_ball")
 def test_container_bouncing_ball_profiling(area_dir):
     assembly = Assembly("bouncing-profiling.csv", default_profiling=True, debug=True)
     assembly.write_json("bouncing-profiling.json")

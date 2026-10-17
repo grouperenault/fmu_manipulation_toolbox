@@ -81,6 +81,13 @@ class ContainerOptions(BaseModel):
         description="Add a TS_MULTIPLIER input to scale the time step at "
                     "runtime.",
     )
+    reset_ports: bool | None = Field(
+        default=None,
+        description="Add a `container.reset` input to each embedded FMU: when "
+                    "true, the container resets the FMU and initializes it again "
+                    "at the current time. Wire it with a link, or expose it as "
+                    "`container.<fmu>.reset`.",
+    )
 
     def changes(self) -> dict[str, Any]:
         """Return only the options the client explicitly provided."""
