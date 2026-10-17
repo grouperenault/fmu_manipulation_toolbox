@@ -46,6 +46,20 @@ def _simulate(filename: str, **kwargs):
     return simulate(filename, **kwargs)
 
 
+def _slave_callbacks():
+    """Callbacks with a logger for an FMU2Slave: fmpy 0.3.32 otherwise calls the freed logger of the last simulation
+    given one (see tests/_helpers/simulation.py)."""
+    from fmpy.fmi1 import calloc, free
+    from fmpy.fmi2 import (fmi2CallbackAllocateMemoryTYPE, fmi2CallbackFreeMemoryTYPE, fmi2CallbackFunctions,
+                           fmi2CallbackLoggerTYPE)
+
+    callbacks = fmi2CallbackFunctions()
+    callbacks.logger = fmi2CallbackLoggerTYPE(lambda *args: None)
+    callbacks.allocateMemory = fmi2CallbackAllocateMemoryTYPE(calloc)
+    callbacks.freeMemory = fmi2CallbackFreeMemoryTYPE(free)
+    return callbacks
+
+
 def _trace(filename: str) -> list[dict]:
     with open(filename, newline="") as file:
         return list(csv.DictReader(file))
@@ -144,7 +158,8 @@ def test_y_init_is_frozen_after_initialization(probe_dir):
     vrs = {variable.name: variable.valueReference for variable in description.modelVariables}
     fmu = FMU2Slave(guid=description.guid, unzipDirectory=extract(filename),
                     modelIdentifier=description.coSimulation.modelIdentifier, instanceName="probe")
-    fmu.instantiate()
+    callbacks = _slave_callbacks()      # kept alive until freeInstance
+    fmu.instantiate(callbacks=callbacks)
     fmu.setupExperiment(startTime=0)
     fmu.enterInitializationMode()
     fmu.setReal([vrs["u_cont"]], [10.0])
@@ -308,3 +323,137 @@ def test_compare_differences(tmp_path):
     assert "Snapshot `after_initialization`: differences:" in report
     assert "| `y_init` | 5 | 1 |" in report
     assert "### S1 (container) vs S1 (Simulink)\n\nResults missing." in report
+
+
+# --------------------------------------------------------------------------- #
+#           Propagation of the links during the initialization                 #
+#                    (docs/local/init_propagation.md)                          #
+# --------------------------------------------------------------------------- #
+def _build_and_simulate(directory: Path, probes: Path, description: dict, fmi_version: int = 2,
+                        stop_time: float = 0.02) -> list[str]:
+    """Build `description` as a container in `directory` (current directory) and simulate it; the messages."""
+    import json
+    import shutil
+    from fmu_manipulation_toolbox.assembly import Assembly
+
+    for probe in probes.glob("*-host.fmu"):
+        shutil.copy(probe, directory)
+    json_file = directory / f"{Path(description['name']).stem}.json"
+    json_file.write_text(json.dumps(description))
+    Assembly(json_file).make_fmu(fmi_version=fmi_version)
+    messages = []
+    _simulate(directory / description["name"], stop_time=stop_time, output_interval=0.01, step_size=0.01,
+              logger=lambda *args: messages.append(args[-1].decode()), debug_logging=True)
+    return messages
+
+
+def _y_init(trace: Path) -> str:
+    return _snapshot(_trace(trace), "after_initialization")["y_init"]
+
+
+@pytest.mark.slow
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_compiler
+@pytest.mark.needs_container
+def test_propagation_chain(probe_dir, compiled_probes):
+    """S3: A.y_init -> B.u_cont, B.y_cont -> C.u_cont: B and C are initialized with the values of A and B."""
+    directory = _run_container().run("S3", probe_dir, compiled_probes)
+    assert [_y_init(directory / f"{i}.csv") for i in "ABC"] == ["5", "6", "7"]
+
+
+S3_LINKS = [["A.fmu", "y_init", "B.fmu", "u_cont"], ["B.fmu", "y_cont", "C.fmu", "u_cont"]]
+S3_STARTS = [["A.fmu", "trace_file", "A.csv"], ["B.fmu", "trace_file", "B.csv"], ["C.fmu", "trace_file", "C.csv"],
+             ["A.fmu", "p_real", 3.0], ["A.fmu", "u_cont", 2.0], ["C.fmu", "p_real", 2.0]]
+PATHS = {"A.fmu": "Probe10ms-host.fmu", "B.fmu": "Probe10ms-host.fmu", "C.fmu": "Probe10ms-host.fmu"}
+
+
+@pytest.mark.slow
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_compiler
+@pytest.mark.needs_container
+@pytest.mark.fmi3
+def test_propagation_fmi3_container(probe_dir, compiled_probes):
+    _build_and_simulate(probe_dir, compiled_probes,
+                        {"name": "chain3.fmu", "auto_link": False, "auto_input": False, "fmu": list(PATHS),
+                         "path": PATHS, "link": S3_LINKS, "start": S3_STARTS}, fmi_version=3)
+    assert [_y_init(probe_dir / f"{i}.csv") for i in "ABC"] == ["5", "6", "7"]
+
+
+@pytest.mark.slow
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_compiler
+@pytest.mark.needs_container
+def test_propagation_nested_container(probe_dir, compiled_probes):
+    """A in the container, B and C in a sub-container fed by A: each level propagates its links."""
+    sub = {"name": "sub.fmu", "auto_link": False, "auto_input": False, "fmu": ["B.fmu", "C.fmu"],
+           "path": {"B.fmu": "Probe10ms-host.fmu", "C.fmu": "Probe10ms-host.fmu"},
+           "input": [["u", "B.fmu", "u_cont"]], "link": [S3_LINKS[1]],
+           "start": [start for start in S3_STARTS if start[0] != "A.fmu"]}
+    _build_and_simulate(probe_dir, compiled_probes,
+                        {"name": "nested.fmu", "auto_link": False, "auto_input": False, "fmu": ["A.fmu"],
+                         "path": {"A.fmu": "Probe10ms-host.fmu"}, "container": [sub],
+                         "link": [["A.fmu", "y_init", "sub.fmu", "u"]],
+                         "start": [start for start in S3_STARTS if start[0] == "A.fmu"]})
+    assert [_y_init(probe_dir / f"{i}.csv") for i in "ABC"] == ["5", "6", "7"]
+
+
+@pytest.mark.slow
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_compiler
+@pytest.mark.needs_container
+@pytest.mark.parametrize("p_tunable, converges", [(0.0, True), (0.5, False)], ids=["converges", "diverges"])
+def test_propagation_loop(probe_dir, compiled_probes, p_tunable, converges):
+    """A.y_cont -> B.u_cont, B.y_cont -> A.u_cont (y_cont = u_cont + p_tunable): a fixed point when p_tunable = 0,
+    none otherwise (the propagation stops after its last sweep, with a warning)."""
+    messages = _build_and_simulate(probe_dir, compiled_probes,
+                                   {"name": "loop.fmu", "auto_link": False, "auto_input": False,
+                                    "fmu": ["A.fmu", "B.fmu"], "path": {"A.fmu": PATHS["A.fmu"], "B.fmu": PATHS["B.fmu"]},
+                                    "link": [["A.fmu", "y_cont", "B.fmu", "u_cont"],
+                                             ["B.fmu", "y_cont", "A.fmu", "u_cont"]],
+                                    "start": [["A.fmu", "trace_file", "A.csv"], ["B.fmu", "trace_file", "B.csv"],
+                                              ["A.fmu", "p_tunable", p_tunable], ["B.fmu", "u_cont", 3.0]]})
+    warned = any("did not converge" in message for message in messages)
+    assert warned != converges
+    before = _snapshot(_trace(probe_dir / "A.csv"), "after_initialization")
+    if converges:
+        assert any("links propagated in" in message for message in messages)
+        assert float(before["u_cont"]) == float(_snapshot(_trace(probe_dir / "B.csv"), "after_initialization")["y_cont"])
+    else:
+        assert float(before["u_cont"]) > 10      # 100 sweeps of +0.5
+
+
+@pytest.mark.slow
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_compiler
+@pytest.mark.needs_container
+def test_propagation_before_a_get_in_initialization_mode(probe_dir, compiled_probes):
+    """An output of the container read by the importer in Initialization Mode is already propagated."""
+    import shutil
+    from fmpy import extract, read_model_description
+    from fmpy.fmi2 import FMU2Slave
+    from fmu_manipulation_toolbox.assembly import Assembly
+    import json
+
+    for probe in compiled_probes.glob("*-host.fmu"):
+        shutil.copy(probe, probe_dir)
+    (probe_dir / "get.json").write_text(json.dumps(
+        {"name": "get.fmu", "auto_link": False, "auto_input": False, "fmu": list(PATHS), "path": PATHS,
+         "link": S3_LINKS, "input": [["a_u", "A.fmu", "u_cont"]], "output": [["C.fmu", "y_init", "c_init"]],
+         "start": [start for start in S3_STARTS if start[1] != "u_cont"]}))
+    Assembly(probe_dir / "get.json").make_fmu()
+    description = read_model_description("get.fmu")
+    vrs = {variable.name: variable.valueReference for variable in description.modelVariables}
+    fmu = FMU2Slave(guid=description.guid, unzipDirectory=extract("get.fmu"),
+                    modelIdentifier=description.coSimulation.modelIdentifier, instanceName="get")
+    callbacks = _slave_callbacks()      # kept alive until freeInstance
+    fmu.instantiate(callbacks=callbacks)
+    fmu.setupExperiment(startTime=0)
+    fmu.enterInitializationMode()
+    fmu.setReal([vrs["a_u"]], [2.0])
+    assert fmu.getReal([vrs["c_init"]]) == [7.0]          # 2 + (1 + (3 + 2))
+    fmu.setReal([vrs["a_u"]], [4.0])
+    assert fmu.getReal([vrs["c_init"]]) == [9.0]          # propagated again after a set
+    fmu.exitInitializationMode()
+    assert fmu.getReal([vrs["c_init"]]) == [9.0]
+    fmu.terminate()
+    fmu.freeInstance()

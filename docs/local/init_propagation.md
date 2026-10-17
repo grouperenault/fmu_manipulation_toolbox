@@ -1,6 +1,6 @@
 # Propagation of the links during the initialization of a container
 
-**Created**: 17 October 2026 — **Status**: Steps 1–2 done (17 October 2026), Step 3 to start — **Branch**: `feature/init-propagation` — **Roadmap**: not listed
+**Created**: 17 October 2026 — **Status**: Steps 1–3 done (17 October 2026), Step 4 to start — **Branch**: `feature/init-propagation` — **Roadmap**: not listed
 
 ## Context
 
@@ -140,6 +140,13 @@ Commit message: `Propagate the links during the initialization of the container`
   for the warning).
 - ME FMU and FMI 3.0 container cases; nested container.
 - The other REF results of the test suite: regenerated where the propagation changes them, each change reviewed.
+
+Done (`tests/integration/test_probe_fmu.py`): S3 (`5 / 6 / 7`, same propagation as Simulink; the remaining
+difference with the Simulink traces of S3 comes from the unconnected input `A.u_cont`, 2 in the container, 0 in
+Simulink), the same chain in an FMI 3.0 container and with B, C in a sub-container, a loop that converges and one
+that diverges (warning), an output of the container read in Initialization Mode before and after a set. The loops
+are built by the test (no new scenario of `tools/probe_fmu/scenarios`). No test FMU is a Model Exchange FMU whose
+initialization depends on its inputs: the ME containers of the test suite give unchanged results.
 
 Commit message: `Test the propagation of the links during the initialization`
 
