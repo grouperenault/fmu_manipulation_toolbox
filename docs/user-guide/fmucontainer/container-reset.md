@@ -116,6 +116,13 @@ The datalog writes one row just before the reset, at the same time as the row of
 
 ## Limitations
 
+- `container.reset` is a reserved name: an FMU with a real port of this name cannot be embedded with
+  `reset_ports` (the build stops with an error). A real port named `reset` is not concerned.
+- Exposed without explicit name (`auto_input`, or an input rule with an empty name), the reset input is named
+  `container.<fmu>.reset`: the build stops with an error if the container already has a variable of this name
+  (e.g. an input of a sub-container): give the input another name explicitly. An explicit name may feed several
+  reset ports, to reset several FMUs at once.
+
 - The reset of an FMU whose clocks are scheduled by the container (LS-BUS, `countdown` clocks) is not supported:
   the step fails with an error.
 - The embedded FMU must support `fmi2Reset` / `fmi3Reset`, and an initialization at a start time other than the

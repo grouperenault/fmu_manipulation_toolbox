@@ -451,6 +451,29 @@ def test_reset_input_fans_out(resettable):
     assert _reset_trigger(lines, "bb_position.fmu") == _reset_trigger(lines, "bb_velocity.fmu") == offset
 
 
+def test_reset_port_does_not_replace_a_real_port(tmp_path):
+    """An FMU with a real port named `container.reset` cannot be embedded with reset_ports: the port is not hidden."""
+    container = FMUContainer("test", tmp_path, reset_ports=True)
+    fmu = _fake_fmu("a.fmu", [("container.reset", "boolean", "input", 1)])
+    with pytest.raises(FMUContainerError, match="reserves this name"):
+        container.add_reset_port(fmu)
+    assert not fmu.ports["container.reset"].is_reset
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_default_reset_input_name_is_not_merged(resettable):
+    """Exposed without explicit name, a reset is not merged into a container input of the same name; an explicit
+    name still feeds several ports."""
+    resettable.add_input("container.bb_velocity.reset", "bb_position.fmu", "container.reset")
+    with pytest.raises(FMUContainerError, match="already has a variable"):
+        resettable.add_input("", "bb_velocity.fmu", "container.reset")
+    with pytest.raises(FMUContainerError, match="already has a variable"):
+        resettable.add_implicit_rule(auto_input=True, auto_output=False, auto_link=False)
+
+    resettable.add_input("container.bb_velocity.reset", "bb_velocity.fmu", "container.reset")
+    assert len(resettable.inputs["container.bb_velocity.reset"].cport_list) == 2
+
+
 @pytest.mark.area("containers/bouncing_ball")
 def test_reset_port_has_no_start_value(resettable):
     with pytest.raises(FMUContainerError, match="drives the reset"):

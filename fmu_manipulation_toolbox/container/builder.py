@@ -176,7 +176,13 @@ class FMUContainer:
 
         Args:
             fmu (EmbeddedFMU): The embedded FMU.
+
+        Raises:
+            FMUContainerError: If the FMU already has a port named `container.reset`.
         """
+        if self.RESET_PORT in fmu.ports:
+            raise FMUContainerError(f"FMU '{fmu.name}' has a port named '{self.RESET_PORT}': it cannot be embedded "
+                                    f"with the option reset_ports, which reserves this name.")
         port = EmbeddedFMUPort("boolean" if self.fmi_version == 2 else "boolean1", {
             "name": self.RESET_PORT,
             "valueReference": -1,   # no value reference in the FMU
@@ -191,6 +197,20 @@ class FMUContainer:
     def reset_input_name(self, fmu: EmbeddedFMU) -> str:
         """Name under which the container exposes the `container.reset` input of `fmu`."""
         return f"container.{fmu.id}.reset"
+
+    def _default_reset_input_name(self, fmu: EmbeddedFMU) -> str:
+        """`reset_input_name`, for an exposure without explicit name (`auto_input`, or `add_input` with an empty
+        name): an input or an output of the container may already have this name (e.g. an input of a sub-container
+        exposed by `auto_input`), and the reset must not be merged into it.
+
+        Raises:
+            FMUContainerError: If the name is already used by the container.
+        """
+        name = self.reset_input_name(fmu)
+        if name in self.inputs or name in self.outputs:
+            raise FMUContainerError(f"Cannot expose the reset of FMU '{fmu.name}' as '{name}': the container already "
+                                    f"has a variable of this name.")
+        return name
 
     def mark_ruled(self, cport: ContainerPort, rule: str):
         if cport in self.rules:
@@ -232,7 +252,8 @@ class FMUContainer:
 
         Args:
             container_port_name (str): Exposed name on the container. If empty,
-                defaults to `to_port_name`.
+                defaults to `to_port_name`, or `container.<id>.reset` for the
+                `container.reset` port (refused when that name is already used).
             to_fmu_filename (str): Filename of the embedded FMU.
             to_port_name (str): Name of the input port on the embedded FMU.
 
@@ -247,7 +268,8 @@ class FMUContainer:
             raise FMUContainerError(f"Cannot add input '{container_port_name or to_port_name}': {e.reason}") from e
 
         if not container_port_name:
-            container_port_name = self.reset_input_name(cport_to.fmu) if cport_to.port.is_reset else to_port_name
+            container_port_name = self._default_reset_input_name(cport_to.fmu) if cport_to.port.is_reset \
+                else to_port_name
 
         if cport_to.port.causality not in ("input", "parameter"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
@@ -529,7 +551,8 @@ class FMUContainer:
                     self.add_input(parameter_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
                 elif auto_input and cport.port.causality == 'input' :
-                    input_name = self.reset_input_name(cport.fmu) if cport.port.is_reset else self._auto_name(cport)
+                    input_name = self._default_reset_input_name(cport.fmu) if cport.port.is_reset \
+                        else self._auto_name(cport)
                     logger.info(f"AUTO INPUT: Expose {cport} as {input_name}")
                     self.add_input(input_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_input(input_name, cport.fmu.name, cport.port.name)
