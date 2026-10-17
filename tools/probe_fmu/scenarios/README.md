@@ -1,6 +1,6 @@
 # Comparison scenarios
 
-Scenarios of the importer comparison study (`docs/local/importer_comparison.md`, section *Study scenarios*): the
+Scenarios of the importer comparison study (`docs/local/done/importer_comparison.md`, section *Study scenarios*): the
 same assemblies of probe FMUs (`tools/probe_fmu`) are run as FMU Containers and as Simulink models, and the
 traces written by the probes are compared.
 

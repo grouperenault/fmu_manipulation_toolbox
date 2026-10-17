@@ -1,6 +1,6 @@
 # Probe FMU
 
-Internal tool of the importer comparison study (`docs/local/importer_comparison.md`): FMI 2.0 Co-Simulation FMUs
+Internal tool of the importer comparison study (`docs/local/done/importer_comparison.md`): FMI 2.0 Co-Simulation FMUs
 that trace every FMI call they receive, so that two importers (FMU Container, Simulink, ...) running the same
 assembly can be compared through the same lens.
 

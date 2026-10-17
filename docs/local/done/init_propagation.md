@@ -4,7 +4,7 @@
 
 ## Context
 
-The importer comparison study (`docs/local/importer_comparison.md`, report
+The importer comparison study (`docs/local/done/importer_comparison.md`, report
 `docs/local/importer_comparison_report.md`, finding 3) showed that:
 
 - the **container** does not propagate the links between its embedded FMUs during the initialization: every FMU

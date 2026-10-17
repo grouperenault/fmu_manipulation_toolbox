@@ -1,6 +1,6 @@
 # Report: FMU Container vs Simulink, seen by the probe FMU
 
-**Date**: 18 October 2026 — **Plan**: `docs/local/importer_comparison.md` (Step 4) — **Branch**:
+**Date**: 18 October 2026 — **Plan**: `docs/local/done/importer_comparison.md` (Step 4) — **Branch**:
 `feature/container-substep`
 
 ## TL;DR
