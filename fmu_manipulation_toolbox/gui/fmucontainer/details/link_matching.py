@@ -11,7 +11,8 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
-from fmu_manipulation_toolbox.container.types import FMI_TO_CONTAINER, CONVERSION_FUNCTION, is_lossy
+from fmu_manipulation_toolbox.container.types import (FMI_TO_CONTAINER, CONVERSION_FUNCTION, enumeration_as_integer,
+                                                      is_lossy)
 
 
 _SEPARATORS = re.compile(r"[._\-\[\]\s]+")
@@ -37,9 +38,7 @@ class PortInfo:
     def container_type(self) -> str:
         """Type of the port in the container ("" if unknown); an Enumeration is handled as an integer, as
         `EmbeddedFMU.port_attrs` does."""
-        fmi_type = self.fmi_type
-        if fmi_type == "Enumeration":
-            fmi_type = "Integer" if self.fmi_version == 2 else "Int32"
+        fmi_type = enumeration_as_integer(self.fmi_type, self.fmi_version)
         return FMI_TO_CONTAINER.get(self.fmi_version, {}).get(fmi_type, "")
 
 

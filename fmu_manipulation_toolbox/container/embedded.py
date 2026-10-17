@@ -11,7 +11,7 @@ from ..operations import FMU, OperationAbstract, FMUError
 from ..terminals import Terminals
 from .arrays import ArrayAggregate
 from .errors import FMUContainerError
-from .types import ALL_TYPES, CONTAINER_TO_FMI, FMI_TO_CONTAINER
+from .types import ALL_TYPES, CONTAINER_TO_FMI, FMI_TO_CONTAINER, enumeration_as_integer
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -344,9 +344,7 @@ class EmbeddedFMU(OperationAbstract):
 
     def port_attrs(self, fmu_port: ModelVariable):
         # Container will manage Enumeration as Integer
-        fmi_type = fmu_port.fmi_type
-        if fmi_type == "Enumeration":
-            fmi_type = "Integer" if self.fmi_version == 2 else "Int32"
+        fmi_type = enumeration_as_integer(fmu_port.fmi_type, self.fmi_version)
         port = EmbeddedFMUPort(fmi_type, fmu_port, fmi_version=self.fmi_version)
         self.ports[port.name] = port
 

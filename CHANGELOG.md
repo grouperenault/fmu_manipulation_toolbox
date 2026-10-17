@@ -144,6 +144,10 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   `container.txt`): the container freed buffers it had not allocated.
 - 🟠 **FIXED** the buffers of the Model-Exchange solver were allocated again, without being freed, at each
   initialization of the container.
+- 🟠 **FIXED** an FMI-3 `Enumeration` of an embedded FMU is accessed as an `Int64`, as FMI 3.0 requires: the
+  container handled it as an `Int32` and its `fmi3GetInt32`/`fmi3SetInt32` calls failed. Its container port is an
+  `Int64`, a link to an `Int32` port is converted (lossy), and an FMI-2 container cannot expose it (error message).
+  `fmusplit` and the link assistant of the GUI follow the same rule.
 - 🔵 **CHANGED** the Model-Exchange solver exchanges only the couplings between Model-Exchange FMUs at each
   evaluation; the inputs fed by Co-Simulation FMUs or by the importer are set once per step. Same results; the
   simulation loop of Model-Exchange FMUs fed by Co-Simulation FMUs takes about a third less time (1.5 times

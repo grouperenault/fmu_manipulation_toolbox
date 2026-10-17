@@ -28,7 +28,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 TOLERANCE = 1e-12
 
 #: Ports of `Feedthrough.fmu` (`<name>_input` -> `<name>_output`) linked from one instance to the next. No FMI-3
-#: `Enumeration`: the container handles it as an `Int32`, where FMI 3.0 accesses it as an `Int64`.
+#: `Enumeration`, not in the REF files (see `test_container_enumeration.py`).
 PORTS_3 = ("Float32_continuous", "Float64_continuous", "Float64_discrete", "Int8", "UInt8", "Int16", "UInt16",
            "Int32", "UInt32", "Int64", "UInt64", "Boolean", "String")
 PORTS_2 = ("Float64_continuous", "Float64_discrete", "Int32", "Boolean", "String", "Enumeration")

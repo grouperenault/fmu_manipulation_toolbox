@@ -8,7 +8,7 @@ from collections.abc import Iterable, Iterator
 from pathlib import Path
 
 from .container.types import (ALL_TYPES, CONTAINER_TO_FMI, CONVERSION_FUNCTION, FMI_TO_CONTAINER,
-                              START_VALUE_TYPES)
+                              START_VALUE_TYPES, enumeration_as_integer)
 from .model_description import ModelDescription, ModelDescriptionError
 from .terminals import Terminals, Terminal
 from .textfiles import ENCODING
@@ -227,9 +227,7 @@ class FMUSplitterDescription:
         if fmu_filename == ".":
             self.fmi_version = fmi_version
         for port in model_description.iter_ports():
-            fmi_type = port.fmi_type
-            if fmi_type == "Enumeration":  # enumerations are handled as integers by the container
-                fmi_type = "Integer" if fmi_version == 2 else "Int32"
+            fmi_type = enumeration_as_integer(port.fmi_type, fmi_version)  # as handled by the container
             container_type = FMI_TO_CONTAINER[fmi_version].get(fmi_type)
             if container_type is not None:
                 self.vr_to_name[fmu_filename][container_type][int(port["valueReference"])] = {

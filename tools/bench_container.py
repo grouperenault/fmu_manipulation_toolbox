@@ -39,7 +39,7 @@ STEP_SIZE = 0.001                       # internal time step of the containers
 COMMUNICATION_STEP = 0.01               # step of the importer: 10 internal steps
 
 #: Ports of `Feedthrough.fmu` (`<name>_input` -> `<name>_output`) linked from one instance to the next (no FMI-3
-#: `Enumeration`: the container handles it as an `Int32`).
+#: `Enumeration`, as in `tests/integration/test_container_perf.py`).
 PORTS = ("Float32_continuous", "Float64_continuous", "Float64_discrete", "Int8", "UInt8", "Int16", "UInt16", "Int32",
          "UInt32", "Int64", "UInt64", "Boolean", "String")
 #: Number of chained instances of Feedthrough in the cases A: 13 ports in and 13 out each.

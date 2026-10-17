@@ -48,6 +48,21 @@ FMI_TO_CONTAINER = {
     }
 }
 
+#: Integer type used for an `Enumeration`, by FMI version: FMI 2.0 accesses it with `fmi2GetInteger` and FMI 3.0 with
+#: `fmi3GetInt64`.
+ENUMERATION_TYPE = {
+    2: "Integer",
+    3: "Int64"
+}
+
+
+def enumeration_as_integer(fmi_type: str, fmi_version: int) -> str:
+    """FMI type handled by the container: an `Enumeration` is handled as the integer type used to access it."""
+    if fmi_type == "Enumeration":
+        return ENUMERATION_TYPE.get(fmi_version, fmi_type)
+    return fmi_type
+
+
 #: Container type -> FMI type, by FMI version (inverse of `FMI_TO_CONTAINER`).
 CONTAINER_TO_FMI = {
     fmi_version: {container_type: fmi_type for fmi_type, container_type in types.items()}

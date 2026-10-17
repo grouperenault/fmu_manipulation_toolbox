@@ -91,7 +91,7 @@ def test_fmi3_variable_without_causality_is_local():
         '<Float64 name="x" valueReference="5"/><Enumeration name="e" valueReference="6" declaredType="E"/>'
         '</ModelVariables></fmiModelDescription>')
     assert desc.vr_to_name["embedded.fmu"]["real64"][5] == {"name": "x", "causality": "local"}
-    assert desc.vr_to_name["embedded.fmu"]["integer32"][6] == {"name": "e", "causality": "local"}
+    assert desc.vr_to_name["embedded.fmu"]["integer64"][6] == {"name": "e", "causality": "local"}  # FMI 3.0: Int64
 
 
 def test_fmi2_type_definitions_are_not_variables():

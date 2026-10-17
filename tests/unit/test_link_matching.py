@@ -90,6 +90,10 @@ def test_invalid_regex_matches_nothing():
     # An Enumeration is handled as an integer by the container (`EmbeddedFMU.port_attrs`).
     (out("x", "Enumeration"), inp("x", "Int32"), None, OK, ()),
     (out("x", "Enumeration"), inp("x", "Float64"), None, WARNING, (LOSSY,)),   # as integer32 → real64
+    # FMI 3.0 accesses an Enumeration as an Int64.
+    (PortInfo("x", "output", "Enumeration", 3), inp("x", "Int64"), None, OK, ()),
+    (PortInfo("x", "output", "Enumeration", 3), inp("x", "Int32"), None, WARNING, (LOSSY,)),   # integer64 → 32
+    (out("x", "Integer"), PortInfo("x", "input", "Enumeration", 3), None, OK, ()),             # integer32 → 64
 ])
 def test_link_status(output, input, checks, level, codes):
     status = link_status(output, input, checks=checks)
