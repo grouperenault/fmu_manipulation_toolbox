@@ -25,7 +25,7 @@ function scenarios = probe_scenarios()
               'A', 'y_time', 'B', 'u_disc';
               'B', 'y_disc', 'C', 'u_disc'};
     compute = {'A', 'compute_time', '0.005'; 'B', 'compute_time', '0.005'; 'C', 'compute_time', '0.005';
-               'A', 'compute_sleep', 'false'; 'B', 'compute_sleep', 'false'; 'C', 'compute_sleep', 'false'};
+               'A', 'compute_sleep', 'off'; 'B', 'compute_sleep', 'off'; 'C', 'compute_sleep', 'off'};
     none = cell(0, 3);
     no_links = cell(0, 4);
 
