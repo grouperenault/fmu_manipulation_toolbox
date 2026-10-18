@@ -61,6 +61,10 @@ jobs:
       - name: Build
         run: cmake --build ${{ github.workspace }}/build ${{ inputs.build_args }}
 
+      - name: Native tests
+        if: inputs.source_dir == 'container'
+        run: ctest --test-dir ${{ github.workspace }}/build -C Release --output-on-failure
+
       - name: Archive artifacts
         uses: actions/upload-artifact@v6
         with:

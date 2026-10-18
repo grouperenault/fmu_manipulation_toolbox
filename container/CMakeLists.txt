@@ -19,7 +19,7 @@ endif()
 # -----------------------------------------------------------------------------
 # container: the shared library embedded in the container FMUs.
 # -----------------------------------------------------------------------------
-add_library(container SHARED
+set(CONTAINER_SOURCES
     config.c    config.h
     container.c container.h
     convert.c   convert.h
@@ -34,11 +34,48 @@ add_library(container SHARED
     solver.c    solver.h
     thread.c    thread.h
 )
-if(WIN32)
-    target_link_libraries(container PRIVATE Imagehlp.lib)
-elseif(NOT APPLE)
-    target_link_libraries(container PRIVATE Threads::Threads)
-endif()
+
+# container_link_platform(<target>): system libraries of the runtime.
+function(container_link_platform target)
+    if(WIN32)
+        target_link_libraries(${target} PRIVATE Imagehlp.lib)
+    elseif(NOT APPLE)
+        target_link_libraries(${target} PRIVATE Threads::Threads)
+    endif()
+endfunction()
+
+add_library(container SHARED ${CONTAINER_SOURCES})
+container_link_platform(container)
 fmutool_native_target(container)
+
+# -----------------------------------------------------------------------------
+# Native tests: the sources of the runtime compiled again with the tests, so
+# that the internal functions can be called (the shared library exports only
+# the FMI API). Run with: ctest --test-dir <build dir> -C <config>
+# -----------------------------------------------------------------------------
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(container_tests
+        ${CONTAINER_SOURCES}
+        tests/test.h
+        tests/test_main.c
+        tests/test_config.c
+        tests/test_configure.c
+        tests/test_thread.c
+    )
+    target_link_libraries(container_tests PRIVATE fmutool_flags)
+    target_include_directories(container_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${FMUTOOL_CMAKE_DIR}/../fmu_manipulation_toolbox/resources/fmi
+        ${CMAKE_CURRENT_BINARY_DIR}     # version.h
+    )
+    target_compile_definitions(container_tests PRIVATE
+        TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data"
+        TEST_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+    )
+    container_link_platform(container_tests)
+    add_dependencies(container_tests version_h)
+    add_test(NAME container_tests COMMAND container_tests)
+endif()
 
 fmutool_summary()

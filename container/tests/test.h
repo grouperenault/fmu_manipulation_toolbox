@@ -1,0 +1,47 @@
+#ifndef TEST_H
+#   define TEST_H
+
+#include <stdio.h>
+
+/*
+ * Minimal test harness of the native runtime: a test is a function that returns 0 on success. The assertions log
+ * the failing expression and make the test return 1.
+ */
+
+#define TEST_ASSERT(expression)                                                                     \
+    do {                                                                                            \
+        if (!(expression)) {                                                                        \
+            fprintf(stderr, "%s:%d: assertion failed: %s\n", __FILE__, __LINE__, #expression);      \
+            return 1;                                                                               \
+        }                                                                                           \
+    } while (0)
+
+#define TEST_ASSERT_EQUAL_INT(expected, actual)                                                     \
+    do {                                                                                            \
+        const long long _expected = (long long)(expected);                                          \
+        const long long _actual = (long long)(actual);                                              \
+        if (_expected != _actual) {                                                                 \
+            fprintf(stderr, "%s:%d: %s: expected %lld, got %lld\n", __FILE__, __LINE__, #actual,    \
+                    _expected, _actual);                                                            \
+            return 1;                                                                               \
+        }                                                                                           \
+    } while (0)
+
+typedef int (*test_function_t)(void);
+
+/* Directory of the test fixtures (container/tests/data), set by CMake. */
+#ifndef TEST_DATA_DIR
+#   error "TEST_DATA_DIR must be defined"
+#endif
+
+/* Tests of each module, registered in test_main.c */
+extern int test_config_lines(void);
+extern int test_config_long_line(void);
+extern int test_config_version(void);
+extern int test_thread_barrier(void);
+extern int test_configure_empty(void);
+
+/* Helper: writes content into a temporary file of the test directory. Returns 0 on success. */
+extern int test_write_file(const char *dirname, const char *filename, const char *content);
+
+#endif
