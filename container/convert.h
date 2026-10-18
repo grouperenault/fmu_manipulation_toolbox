@@ -49,6 +49,8 @@ extern void convert_proceed(const struct container_s *container,
                             const convert_table_t *table);
 extern convert_function_t convert_function_get(const char *function_name);
 extern int convert_destination_real(const char *function_name);
+extern int convert_check_range(const struct container_s *container, const char *function_name, fmu_vr_t from,
+                               fmu_vr_t to);
 
 #	ifdef __cplusplus
 }

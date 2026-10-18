@@ -14,8 +14,9 @@ A review of the native runtime of the container (`container/*.c`, 18 October 202
    (`container.c:2159`). `container_new()` allocates the container with `malloc()`: the barriers hold garbage. If
    the configuration fails in between after the embedded FMUs are loaded (instantiation of an embedded FMU,
    reading error of a later section, allocation failure...), `container_free()` → `container_stop_threads()` waits
-   on an uninitialized barrier (macOS: `dispatch_semaphore_wait(NULL)`). A missing library is not concerned:
-   `read_conf_fmu()` then drops the FMU array and `container_stop_threads()` is not called. Same deadlock if
+   on an uninitialized barrier (macOS: `dispatch_semaphore_wait(NULL)`). A missing library was not concerned:
+   `read_conf_fmu()` then dropped the FMU array (leaking the FMUs already loaded, fixed at step 7) and
+   `container_stop_threads()` was not called. Same deadlock if
    `fmu_launch_thread()` fails for the k-th FMU: the threads
    already launched wait for `nb_cs + 1` participants that never come.
 2. **The logger is a global state** (`container/logger.c`, `static logger_config`). Two instances of the container
@@ -198,6 +199,14 @@ Commit message: `Read the configuration in the C locale without changing the loc
   free, found at step 6).
 - C tests: one malformed `container.txt` per check (truncated line, too many start values, out of range VR or FMU
   index, missing value): an error, no crash (also run under the sanitizers of step 2).
+
+Done, with: the FMU index `-2` (profiling port) is accepted like `-1` (both refer to the local storage); a negative
+number of FMUs is refused; the name, identifier and GUID of an FMU are checked (and freed on an error);
+`read_conf_fmu()` no longer drops the FMU array when an FMU cannot be loaded (the FMUs already loaded were leaked):
+`read_conf_one_fmu()` releases the slot it loaded, `container_free()` the others; the VRs of `datalog.txt` are read
+with `%u`. Tests (`container/tests/test_malformed.c`): 13 malformed cases and a valid control case from the fixture
+`one_fmu`, and a truncated `datalog.txt`; against the previous runtime, they show the accepted out of range indexes,
+a `calloc` overflow and the heap-use-after-free of the datalog (ASan).
 
 Commit message: `Check the values read from container.txt by the runtime`
 

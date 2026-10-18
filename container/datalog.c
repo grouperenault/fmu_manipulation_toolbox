@@ -149,8 +149,7 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
 #define READ(type)                                                                                      \
     if (get_line(config)) {                                                                             \
         LOGGER_ERROR("Cannot determine datalog for " #type);                                            \
-        datalog_free(datalog);                                                                          \
-        return -3;                                                                                      \
+        return -3;   /* the datalog is freed by datalog_new() */                                        \
     }                                                                                                   \
     if (sscanf(config->line, "%lu", &datalog->nb_ ## type) < 1) {                                       \
         LOGGER_ERROR("Cannot get datalog definition of " #type);                                        \
@@ -169,7 +168,7 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
                 LOGGER_ERROR("Cannot get definition of " #type);                                        \
                 return -6;                                                                              \
             }                                                                                           \
-            if (sscanf(config->line, "%d %n", &datalog->vr_ ## type [i], &offset) < 1) {                \
+            if (sscanf(config->line, "%u %n", &datalog->vr_ ## type [i], &offset) < 1) {                \
                 LOGGER_ERROR("Cannot read definition of " #type);                                       \
                 return -7;                                                                              \
             }                                                                                           \

@@ -63,6 +63,7 @@ if(BUILD_TESTING)
         tests/test_configure.c
         tests/test_logger.c
         tests/test_locale.c
+        tests/test_malformed.c
         tests/test_thread.c
         tests/test_threads_lifecycle.c
     )
@@ -115,6 +116,7 @@ if(BUILD_TESTING)
     configure_file(tests/data/one_fmu/datalog.txt.in "${TEST_FIXTURES_DIR}/one_fmu_datalog/datalog.txt" @ONLY)
     container_fixture(one_fmu_mt            "{stub}"                    1)
     container_fixture(mt_instantiate_fails  "{stub-fail-instantiate}"   1)
+    container_fixture(malformed             "{stub}"                    0)  # container.txt rewritten by the tests
 endif()
 
 fmutool_summary()
