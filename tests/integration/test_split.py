@@ -27,9 +27,9 @@ def _run_fmusplit(stem: str):
     return Path(f"{stem}.dir")
 
 
-@pytest.mark.parametrize("version", [0, 1, 2, 3, 4, 5, 6])
+@pytest.mark.parametrize("version", [0, 1, 2, 3, 4, 5, 6, 7])
 def test_fmusplit_version(area_dir, version):
-    """container.txt file-format versions V0..V6 split into gain/integrate/sine."""
+    """container.txt file-format versions V0..V7 split into gain/integrate/sine (V7: with `reset_ports`)."""
     stem = f"container-V{version}"
     out_dir = _run_fmusplit(stem)
     assert (out_dir / "gain.fmu").exists()

@@ -119,13 +119,14 @@ compute them when they leave it): with strategy (b), these zeros were propagated
 
 - `fmu_manipulation_toolbox/container/builder.py`: graph of the embedded FMUs from the links (clocked links
   excluded), topological sort; inside a cycle, the order of the configuration. Written in `container.txt` as a new
-  section `# Initialization order` (list of FMU indexes) after the embedded FMU declarations: format **version 8**.
+  section `# Initialization order` (list of FMU indexes) after the embedded FMU declarations: format **version 7**
+  (shared with the reset triggers: no release since 2.0b1, which shipped version 6).
 - `container/container.c`: the runtime reads the section (`read_conf_init_order`, `container->init_order`), used
   by Step 2. Like the other sections, without compatibility with the older versions: the runtime is always shipped
   with the `container.txt` of its builder.
-- `fmu_manipulation_toolbox/split.py` (`fmusplit`) reads version 8 (the section is ignored).
-- The REF `container.txt` of the tests: `# Version 8` and the new section only.
-- `docs/developer/container-txt-format.md`: version 8.
+- `fmu_manipulation_toolbox/split.py` (`fmusplit`) reads version 7 (the section is ignored).
+- The REF `container.txt` of the tests: `# Version 7` and the new section only.
+- `docs/developer/container-txt-format.md`: version 7.
 - Unit tests: chain, fork, cycle, links to/from the container ports only (no edge), clocked links (no edge).
 
 Commit message: `Compute the initialization order of the embedded FMUs`

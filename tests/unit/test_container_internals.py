@@ -531,7 +531,7 @@ def _link(cport_from, *cports_to):
 
 
 def _order(links, fmus=("a", "b", "c", "d")):
-    container = SimpleNamespace(links={i: link for i, link in enumerate(links)})
+    container = SimpleNamespace(links={i: link for i, link in enumerate(links)}, _link_graph=FMUContainer._link_graph)
     return FMUContainer.initialization_order(container, {name: rank for rank, name in enumerate(fmus)})
 
 
@@ -557,3 +557,37 @@ def test_initialization_order(links, expected):
 ], ids=["importer-clock", "clock", "clocked", "reset", "self"])
 def test_initialization_order_ignores(link):
     assert _order([link]) == [0, 1, 2, 3]
+
+
+def _check_sequential(links, me=(), fmus=("a", "b", "c", "d")):
+    container = SimpleNamespace(links={i: link for i, link in enumerate(links)}, _link_graph=FMUContainer._link_graph,
+                                involved_fmu={name: SimpleNamespace(is_me=name in me) for name in fmus})
+    FMUContainer.check_sequential_order(container, {name: rank for rank, name in enumerate(fmus)})
+
+
+@pytest.mark.parametrize("links, expected", [
+    ([_link(_cport("c"), _cport("b"))], "a, c, b, d"),                                # chain c -> b
+    ([_link(_cport("d"), _cport("a"), _cport("b"))], "c, d, a, b"),                   # fork d -> a, b
+    ([_link(_cport("a"), _cport("b")), _link(_cport("b"), _cport("a")),
+      _link(_cport("d"), _cport("a"))], "c, d, a, b"),                                # loop a <-> b fed by d
+], ids=["chain", "fork", "loop-fed"])
+def test_sequential_order_mismatch_is_a_warning(links, expected, caplog):
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        _check_sequential(links)
+    assert "the order of the configuration does not match the topological order" in caplog.text
+    assert f"Topological order of the Co-Simulation FMUs: {expected}." in caplog.text
+
+
+@pytest.mark.parametrize("links, me", [
+    ([], ()),                                                                         # no link
+    ([_link(_cport("a"), _cport("b")), _link(_cport("b"), _cport("d"))], ()),         # chain along the configuration
+    ([_link(_cport("d"), _cport("a"))], ("d",)),                                      # an ME FMU feeds a CS FMU
+    ([_link(_cport("c"), _cport("d")), _link(_cport("d"), _cport("a"))], ("d",)),     # c -> a through an ME FMU
+    ([_link(_cport("a"), _cport("b")), _link(_cport("b"), _cport("a"))], ()),         # loop a <-> b
+    ([_link(_cport("b"), _cport("c")), _link(_cport("c"), _cport("b")),
+      _link(_cport("a"), _cport("c"))], ()),                                          # loop b <-> c fed by a
+], ids=["no-link", "chain", "me-source", "through-me", "loop", "loop-fed"])
+def test_sequential_order_match(links, me, caplog):
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        _check_sequential(links, me)
+    assert caplog.text == ""

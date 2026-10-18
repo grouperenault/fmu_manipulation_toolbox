@@ -1367,7 +1367,7 @@ fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_i
 
 
 /*
- * # Version 8
+ * # Version 7
  */
 static int read_version(config_file_t* file) {
     int version;

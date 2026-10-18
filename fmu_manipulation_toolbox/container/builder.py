@@ -866,6 +866,31 @@ class FMUContainer:
 
         ModelDescription(root).save(xml_filename)
 
+    @staticmethod
+    def _link_graph(links, fmu_rank: dict[str, int]) -> dict[int, set[int]]:
+        """Graph of the embedded FMUs of `fmu_rank`, with an edge from the FMU of an output to the FMU of an input it
+        is linked to. The clocks, the clocked variables, the `container.reset` triggers, the links of an FMU on
+        itself and the links with an FMU absent from `fmu_rank` make no edge.
+
+        Args:
+            links: The links of the container.
+            fmu_rank (dict[str, int]): Index of each embedded FMU in `container.txt`, by FMU name.
+
+        Returns:
+            dict[int, set[int]]: The indexes of the FMUs fed by each FMU, by FMU index.
+        """
+        successors: dict[int, set[int]] = {rank: set() for rank in fmu_rank.values()}
+        for link in links:
+            cport_from = link.cport_from
+            if cport_from is None or cport_from.port.clock or cport_from.port.type_name == "clock":
+                continue
+            for cport_to in link.cport_to_list:
+                if cport_to.port.is_reset or cport_to.port.clock or cport_to.fmu.name == cport_from.fmu.name:
+                    continue
+                if cport_from.fmu.name in fmu_rank and cport_to.fmu.name in fmu_rank:
+                    successors[fmu_rank[cport_from.fmu.name]].add(fmu_rank[cport_to.fmu.name])
+        return successors
+
     def initialization_order(self, fmu_rank: dict[str, int]) -> list[int]:
         """Order in which the embedded FMUs propagate their links during the initialization.
 
@@ -881,15 +906,7 @@ class FMUContainer:
         Returns:
             list[int]: The indexes of every embedded FMU, in initialization order.
         """
-        successors: dict[int, set[int]] = {rank: set() for rank in fmu_rank.values()}
-        for link in self.links.values():
-            cport_from = link.cport_from
-            if cport_from is None or cport_from.port.clock or cport_from.port.type_name == "clock":
-                continue
-            for cport_to in link.cport_to_list:
-                if cport_to.port.is_reset or cport_to.port.clock or cport_to.fmu.name == cport_from.fmu.name:
-                    continue
-                successors[fmu_rank[cport_from.fmu.name]].add(fmu_rank[cport_to.fmu.name])
+        successors = self._link_graph(self.links.values(), fmu_rank)
 
         nb_predecessors = {rank: 0 for rank in successors}
         for targets in successors.values():
@@ -913,6 +930,53 @@ class FMUContainer:
                 nb_predecessors[target] -= 1
         return order
 
+    def check_sequential_order(self, fmu_rank: dict[str, int]) -> None:
+        """Warn when the sequential scheduling steps the Co-Simulation FMUs against the order of their links.
+
+        In sequential mode, the Co-Simulation FMUs step one after the other in the order of the configuration, each
+        one with the outputs just computed by the previous ones: an FMU placed before an FMU it depends on gets the
+        outputs of the previous step. The links inside a loop are left out (one of them goes backwards whatever the
+        order), as are the Model-Exchange FMUs, which step together after the Co-Simulation FMUs.
+
+        Args:
+            fmu_rank (dict[str, int]): Index of each embedded FMU in `container.txt`, by FMU name.
+        """
+        cs_rank = {name: rank for name, rank in fmu_rank.items() if not self.involved_fmu[name].is_me}
+        successors = self._link_graph(self.links.values(), cs_rank)
+
+        def reachable(start: int) -> set[int]:
+            seen: set[int] = set()
+            stack = [start]
+            while stack:
+                for target in successors[stack.pop()]:
+                    if target not in seen:
+                        seen.add(target)
+                        stack.append(target)
+            return seen
+
+        # Predecessors of each FMU outside of its loops: a source reachable from its target is in a loop with it.
+        reachable_from = {rank: reachable(rank) for rank in successors}
+        predecessors: dict[int, set[int]] = {rank: set() for rank in successors}
+        for source, targets in successors.items():
+            for target in targets:
+                if source not in reachable_from[target]:
+                    predecessors[target].add(source)
+
+        if any(source > target for target, sources in predecessors.items() for source in sources):
+            # The FMUs of a loop wait for the predecessors of the whole loop.
+            waiting_for = {rank: set().union(*(predecessors[other] for other in successors
+                                               if other == rank or rank in reachable_from[other] and
+                                               other in reachable_from[rank]))
+                           for rank in successors}
+            order: list[int] = []
+            while len(order) < len(waiting_for):
+                order.append(min(rank for rank, sources in waiting_for.items()
+                                 if rank not in order and sources.issubset(order)))
+            name_of = {rank: name for name, rank in cs_rank.items()}
+            logger.warning(f"Sequential mode: the order of the configuration does not match the topological order "
+                           f"of the links. Topological order of the Co-Simulation FMUs: "
+                           f"{', '.join(name_of[rank] for rank in order)}.")
+
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
                      layout: ContainerLayout):
         print(f"# Version {CONTAINER_TXT_VERSION}", file=txt_file)
@@ -928,6 +992,8 @@ class FMUContainer:
 
         print("# Initialization order of the embedded FMU's", file=txt_file)
         print(" ".join(str(rank) for rank in self.initialization_order(fmu_rank)), file=txt_file)
+        if sequential:
+            self.check_sequential_order(fmu_rank)
 
 
         # Prepare data structure

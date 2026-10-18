@@ -139,7 +139,7 @@ mappings. Or the `.fmu` file is corrupted.
 
 **Symptom:** the importer cannot instantiate a container FMU, and its log shows:
 ```
-Configuration error(...): line #1: container.txt format version 7, this runtime reads version 8: build the container again with the version of FMU Manipulation Toolbox that provides this runtime.
+Configuration error(...): line #1: container.txt format version 6, this runtime reads version 7: build the container again with the version of FMU Manipulation Toolbox that provides this runtime.
 ```
 or `container.txt has no format version header`.
 
