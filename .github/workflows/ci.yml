@@ -258,8 +258,6 @@ jobs:
   sanitizers:
     needs: [build-native]
     runs-on: ubuntu-24.04
-    # Until the robustness fixes of the runtime are done (docs/local/native_robustness.md): reported, not blocking.
-    continue-on-error: true
     steps:
     - uses: actions/checkout@v5
       with:

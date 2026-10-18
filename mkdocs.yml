@@ -175,6 +175,7 @@ nav:
       - From Simulink to an FMU Container: examples/simulink-to-container.md
   - Developer:
       - container.txt Format: developer/container-txt-format.md
+      - Native Runtime: developer/native-runtime.md
       - Initialization FMI Sequence: developer/init-fmi-sequence.md
       - DoStep FMI Sequence: developer/dostep-fmi-sequence.md
   - Help:

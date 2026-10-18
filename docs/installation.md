@@ -173,6 +173,8 @@ build type defaults to `Release`. The following options can be given at configur
 | `FMUTOOL_WARNINGS_AS_ERRORS` | `OFF` | Treat compiler warnings as errors |
 | `FMUTOOL_STRICT_CONVERSION` | `OFF` | Warn about implicit conversions (`-Wconversion`, `-Wsign-conversion`) |
 | `FMUTOOL_PGO` | `OFF` | Profile-Guided Optimization: `OFF`, `GENERATE` or `USE` (see below) |
+| `FMUTOOL_SANITIZE` | `OFF` | GCC and Clang only: build with AddressSanitizer and UndefinedBehaviorSanitizer |
+| `BUILD_TESTING` | `ON` | Container only: build the native tests (`container_tests`) |
 | `BUILD_32` | `OFF` | Remoting only, Linux only: build 32-bit binaries |
 
 ??? note "Profile-Guided Optimization"
@@ -194,6 +196,11 @@ cd build
 cmake ..
 cmake --build . --config Release
 cd ..
+```
+
+The native tests of the container (`container/tests`) run with CTest, from the build folder:
+```bash
+ctest -C Release --output-on-failure
 ```
 
 #### Remoting code

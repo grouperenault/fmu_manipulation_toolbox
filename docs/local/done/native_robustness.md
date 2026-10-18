@@ -1,6 +1,6 @@
 # Robustness of the native runtime of the container
 
-**Created**: 18 October 2026 — **Status**: planned — **Branch**: `robustness` (from `integration`) — **Roadmap**:
+**Created**: 18 October 2026 — **Status**: done (18 October 2026) — **Branch**: `robustness` (from `integration`) — **Roadmap**:
 not listed
 
 ## Context
@@ -249,6 +249,13 @@ Commit message: `Write the datalog with full precision and quote its strings`
   failed configuration in MT mode, locale and process priority of the host left unchanged, checks of
   `container.txt`; 🔵 **CHANGED**: precision and quoting of the datalog.
 - Move this plan to `docs/local/done`.
+
+Done, with a new page `docs/developer/native-runtime.md` (numeric types, logger, locale, native tests,
+sanitizers) instead of a section of an existing one, and `FMUTOOL_SANITIZE` / `BUILD_TESTING` in
+`docs/installation.md`. The sanitizer job is blocking since its first green run. Found by the CI meanwhile: the
+runtime kept the `\r` of the CRLF line endings of a `container.txt` written on Windows (fixed); the time of the
+datalog differs in its last bit between macOS ARM (fused multiply-add) and MSVC: the LS-BUS tests compare it with a
+relative tolerance (`assert_equivalent_csv`, decided 2026-10-18).
 
 Commit message: `Document the robustness fixes of the native runtime`
 
