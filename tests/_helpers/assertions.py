@@ -4,8 +4,10 @@ The file comparisons normalise trailing blank lines and line endings so that a
 spurious final newline does not trigger a failure, while still detecting a
 genuine difference in the number of meaningful lines.
 """
+import csv
 import difflib
 import hashlib
+import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from collections.abc import Iterable
@@ -47,6 +49,34 @@ def assert_identical_files(filename1: PathLike, filename2: PathLike) -> None:
             f"vs.\n\n"
             f"{lineB}"
         )
+
+
+def assert_equivalent_csv(filename1: PathLike, filename2: PathLike, real_columns: Iterable[str] = ("time",),
+                          rel_tol: float = 1e-12) -> None:
+    """Assert two CSV files (e.g. datalogs) have the same header and rows. The values of `real_columns` are compared
+    with the relative tolerance `rel_tol`: written with every digit, their last bit depends on the platform (fused
+    multiply-add or not); every other field must be identical."""
+    assert Path(filename1).exists(), f"{filename1} does not exist"
+    assert Path(filename2).exists(), f"{filename2} does not exist"
+
+    with open(filename1, newline="") as file1, open(filename2, newline="") as file2:
+        rows1 = [row for row in csv.reader(file1) if row]
+        rows2 = [row for row in csv.reader(file2) if row]
+
+    assert rows1 and rows2 and rows1[0] == rows2[0], f"files {filename1} and {filename2} have different headers"
+    assert len(rows1) == len(rows2), (
+        f"files {filename1} and {filename2} mismatch: {len(rows1)} vs {len(rows2)} rows"
+    )
+    reals = {index for index, name in enumerate(rows1[0]) if name in set(real_columns)}
+    for lineno, (row1, row2) in enumerate(zip(rows1[1:], rows2[1:]), start=2):
+        assert len(row1) == len(row2), f"files {filename1} and {filename2} mismatch at line {lineno}"
+        for index, (value1, value2) in enumerate(zip(row1, row2)):
+            same = (math.isclose(float(value1), float(value2), rel_tol=rel_tol, abs_tol=rel_tol)
+                    if index in reals else value1 == value2)
+            assert same, (
+                f"files {filename1} and {filename2} mismatch at line {lineno}, column '{rows1[0][index]}': "
+                f"{value1} vs. {value2}"
+            )
 
 
 #: Attributes of `modelDescription.xml` that change on every container build, or with the version of the
