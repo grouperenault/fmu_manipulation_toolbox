@@ -91,6 +91,9 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   FMUs whose initialization depends on their inputs, may change. `container.txt` format version 8. See
   [Initialization of the embedded FMU's](docs/user-guide/fmucontainer/container.md#initialization-of-the-embedded-fmus)
   and [From Simulink to an FMU Container](docs/examples/simulink-to-container.md).
+- 🟢 **ADDED** in `sequential` mode, the build warns when the order of the Co-Simulation FMUs in the configuration
+  does not match the topological order of their links, and gives this order. See
+  [Sequential mode](docs/user-guide/fmucontainer/container.md#sequential-mode).
 - 🟢 **ADDED** documentation: [From Simulink to an FMU Container](docs/examples/simulink-to-container.md),
   how to rebuild a Simulink assembly of FMU blocks as a container (mapping of the concepts, worked example) and
   the behaviour differences to take into account: initialization, unconnected inputs, sample times, delays,

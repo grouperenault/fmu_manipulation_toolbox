@@ -178,8 +178,8 @@ input.
 The **default scheduling of the container** gives the same delays: on such a chain, the inputs received by each FMU
 at every step are the same as in Simulink. The `sequential` option steps the FMUs one
 after the other in the order of the `fmu` list, each one with the outputs just computed by the previous ones:
-along the order of the chain, the delays disappear, which changes the results compared to Simulink. Keep the
-default scheduling to reproduce Simulink.
+along the order of the chain, the delays disappear, which changes the results compared to Simulink (the build
+warns when the order of the `fmu` list does not follow the links). Keep the default scheduling to reproduce Simulink.
 
 ### Computation time
 

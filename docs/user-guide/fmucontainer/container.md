@@ -85,6 +85,21 @@ parent at 0.01 s and a sub-container at 0.02 s — the container behaves like an
 This makes it possible to gather FMU's of different rates in sub-containers of different steps, the parent at the
 fastest rate (see [One sub-container per sample time](../../examples/simulink-to-container.md#one-sub-container-per-sample-time)).
 
+## Sequential mode
+
+With the `sequential` option (`-sequential` on the command line), the Co-Simulation FMU's step one after the
+other in the order of the description, each one with the outputs just computed by the FMU's before it; the
+Model-Exchange FMU's step together after them. An FMU placed before an FMU it depends on gets the outputs of the
+previous step. When the order of the description does not match the order of the links between the Co-Simulation
+FMU's, the build reports a warning with the topological order of these FMU's:
+
+```
+Sequential mode: the order of the configuration does not match the topological order of the links. Topological order of the Co-Simulation FMUs: A.fmu, B.fmu, C.fmu.
+```
+
+Reorder the FMU's of the description to follow it. The links inside a loop (`A → B → A`) are not taken into
+account: one of them goes backwards whatever the order.
+
 ## Initialization of the embedded FMU's
 
 During the initialization, the container **propagates the links** between its embedded FMU's, as Simulink does:
