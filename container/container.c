@@ -349,27 +349,16 @@ static fmu_status_t container_handle_events(container_t *container) {
 /* Start values of one embedded FMU. early_set: all of them (before the initialization mode); otherwise only
    those flagged <RESET> (set again in initialization mode). */
 static void container_set_fmu_start_values(const fmu_t *fmu, int early_set) {
-#define SET_START(fmi_type, type)                                                               \
-    for(unsigned long j=0; j<fmu->fmu_io.start_ ## type .nb; j ++) {                            \
-        if (early_set || fmu->fmu_io.start_ ## type.start_values[j].reset)                      \
+#define SET_START(variable, fmi_type, c_type)                                                   \
+    for(unsigned long j=0; j<fmu->fmu_io.start_ ## variable .nb; j ++) {                        \
+        if (early_set || fmu->fmu_io.start_ ## variable.start_values[j].reset)                  \
             fmuSet ## fmi_type(fmu,                                                             \
-                &fmu->fmu_io.start_ ## type.start_values[j].vr, 1,                              \
-                fmu->fmu_io.start_ ## type.start_values[j].value, 1);                          \
+                &fmu->fmu_io.start_ ## variable.start_values[j].vr, 1,                          \
+                fmu->fmu_io.start_ ## variable.start_values[j].value, 1);                       \
     }
 
-    SET_START(Real64,       reals64);
-    SET_START(Real32,       reals32);
-    SET_START(Integer8,     integers8);
-    SET_START(UInteger8,    uintegers8);
-    SET_START(Integer16,    integers16);
-    SET_START(UInteger16,   uintegers16);
-    SET_START(Integer32,    integers32);
-    SET_START(UInteger32,   uintegers32);
-    SET_START(Integer64,    integers64);
-    SET_START(UInteger64,   uintegers64);
-    SET_START(Boolean,      booleans);
-    SET_START(Boolean1,     booleans1);
-    SET_START(String,       strings);
+    FOR_ALL_NUMERIC_TYPES(SET_START)
+    SET_START(strings, String, const char *)
     /* binaries and clocks don't support start values here */
 #undef SET_START
     return;
@@ -566,23 +555,12 @@ fmu_status_t container_reset(container_t* container) {
     }
 
     /* Local variables, as allocated by read_conf_local() */
-#define RESET_LOCAL(type, value)                                            \
-    for (unsigned long i = 0; i < container->nb_local_ ## type; i += 1)     \
-        container-> type [i] = value
+#define RESET_LOCAL(variable, fmi_type, c_type)                             \
+    for (unsigned long i = 0; i < container->nb_local_ ## variable; i += 1) \
+        container-> variable [i] = (c_type)0;
 
-    RESET_LOCAL(reals64, 0.0);
-    RESET_LOCAL(reals32, 0.0f);
-    RESET_LOCAL(integers8, 0);
-    RESET_LOCAL(uintegers8, 0);
-    RESET_LOCAL(integers16, 0);
-    RESET_LOCAL(uintegers16, 0);
-    RESET_LOCAL(integers32, 0);
-    RESET_LOCAL(uintegers32, 0);
-    RESET_LOCAL(integers64, 0);
-    RESET_LOCAL(uintegers64, 0);
-    RESET_LOCAL(booleans, 0);
-    RESET_LOCAL(booleans1, false);
-    RESET_LOCAL(clocks, false);
+    FOR_ALL_NUMERIC_TYPES(RESET_LOCAL)
+    RESET_LOCAL(clocks, Clock, bool)
 #undef RESET_LOCAL
     for (unsigned long i = 0; i < container->nb_local_strings; i += 1) {
         free(container->strings[i]);
@@ -600,26 +578,15 @@ fmu_status_t container_reset(container_t* container) {
     container->integers32[1] = 0;                /* Default: solver config (euler) */
 
     /* Values set by the importer */
-#define RESET_CACHE(type)                                                   \
-    for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {   \
-        container->port_ ## type [i].nb_cached = 0;                         \
-        container->port_ ## type [i].deferred = false;                      \
+#define RESET_CACHE(variable, fmi_type, c_type)                                 \
+    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {   \
+        container->port_ ## variable [i].nb_cached = 0;                         \
+        container->port_ ## variable [i].deferred = false;                      \
     }
 
-    RESET_CACHE(reals64);
-    RESET_CACHE(reals32);
-    RESET_CACHE(integers8);
-    RESET_CACHE(uintegers8);
-    RESET_CACHE(integers16);
-    RESET_CACHE(uintegers16);
-    RESET_CACHE(integers32);
-    RESET_CACHE(uintegers32);
-    RESET_CACHE(integers64);
-    RESET_CACHE(uintegers64);
-    RESET_CACHE(booleans);
-    RESET_CACHE(booleans1);
-    RESET_CACHE(strings);
-    RESET_CACHE(binaries);
+    FOR_ALL_NUMERIC_TYPES(RESET_CACHE)
+    RESET_CACHE(strings, String, char *)
+    RESET_CACHE(binaries, Binary, fmu_binary_t)
 #undef RESET_CACHE
 
     /* Clocks schedule */
@@ -989,40 +956,29 @@ static void container_clear_reset_triggers(container_t *container) {
  * of its beginning.
  */
 static fmu_status_t container_apply_deferred(container_t *container) {
-#define APPLY_DEFERRED(type, function_name)                                                                     \
-    for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {                                       \
-        container_port_t *port = &container->port_ ## type [i];                                                 \
-        if (!port->deferred)                                                                                    \
-            continue;                                                                                           \
-        port->deferred = false;                                                                                 \
-        const unsigned long nb = port->nb_cached;                                                               \
-        for (unsigned long j = 0; j < port->nb && nb > 0; j += 1) {                                             \
-            const long fmu_id = (long)port->links[j].fmu_id;                                                    \
-            const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                      \
-            if (fmu_id < 0) {                                                                                   \
-                for (unsigned long k = 0; k < nb; k += 1)                                                       \
-                    container-> type [fmu_vr + k] = container->cache_ ## type [port->cache_offset + k];         \
-            } else if (function_name(&container->fmu[fmu_id], &fmu_vr, 1,                                      \
-                                     &container->cache_ ## type [port->cache_offset], nb) != FMU_STATUS_OK) {  \
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set a deferred " #type " vr=%u.",          \
-                       container->fmu[fmu_id].name, fmu_vr);                                                    \
-                return FMU_STATUS_ERROR;                                                                        \
-            }                                                                                                   \
-        }                                                                                                       \
+#define APPLY_DEFERRED(variable, fmi_type, c_type)                                                                  \
+    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                       \
+        container_port_t *port = &container->port_ ## variable [i];                                                 \
+        if (!port->deferred)                                                                                        \
+            continue;                                                                                               \
+        port->deferred = false;                                                                                     \
+        const unsigned long nb = port->nb_cached;                                                                   \
+        for (unsigned long j = 0; j < port->nb && nb > 0; j += 1) {                                                 \
+            const long fmu_id = (long)port->links[j].fmu_id;                                                        \
+            const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                          \
+            if (fmu_id < 0) {                                                                                       \
+                for (unsigned long k = 0; k < nb; k += 1)                                                           \
+                    container-> variable [fmu_vr + k] = container->cache_ ## variable [port->cache_offset + k];     \
+            } else if (fmuSet ## fmi_type(&container->fmu[fmu_id], &fmu_vr, 1,                                      \
+                                     &container->cache_ ## variable [port->cache_offset], nb) != FMU_STATUS_OK) {   \
+                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set a deferred " #variable " vr=%u.",           \
+                       container->fmu[fmu_id].name, fmu_vr);                                                        \
+                return FMU_STATUS_ERROR;                                                                            \
+            }                                                                                                       \
+        }                                                                                                           \
     }
 
-    APPLY_DEFERRED(reals64,     fmuSetReal64);
-    APPLY_DEFERRED(reals32,     fmuSetReal32);
-    APPLY_DEFERRED(integers8,   fmuSetInteger8);
-    APPLY_DEFERRED(uintegers8,  fmuSetUInteger8);
-    APPLY_DEFERRED(integers16,  fmuSetInteger16);
-    APPLY_DEFERRED(uintegers16, fmuSetUInteger16);
-    APPLY_DEFERRED(integers32,  fmuSetInteger32);
-    APPLY_DEFERRED(uintegers32, fmuSetUInteger32);
-    APPLY_DEFERRED(integers64,  fmuSetInteger64);
-    APPLY_DEFERRED(uintegers64, fmuSetUInteger64);
-    APPLY_DEFERRED(booleans,    fmuSetBoolean);
-    APPLY_DEFERRED(booleans1,   fmuSetBoolean1);
+    FOR_ALL_NUMERIC_TYPES(APPLY_DEFERRED)
 #undef APPLY_DEFERRED
 
     for (unsigned long i = 0; i < container->nb_ports_strings; i += 1) {
@@ -1273,38 +1229,30 @@ int container_cache_binaries(container_t *container, container_port_t *port, con
 fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id) {
     const fmu_t *fmu = &container->fmu[fmu_id];
 
-#define SET_CACHE(type, function_name, cast)                                                                    \
-    for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {                                       \
-        const container_port_t *port = &container->port_ ## type [i];                                           \
+#define SET_CACHE_CAST(variable, fmi_type, cast)                                                                \
+    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                   \
+        const container_port_t *port = &container->port_ ## variable [i];                                       \
         if (port->nb_cached == 0)                                                                               \
             continue;                                                                                           \
         for (unsigned long j = 0; j < port->nb; j += 1) {                                                       \
             if (port->links[j].fmu_id != fmu_id)                                                                \
                 continue;                                                                                       \
-            if (function_name(fmu, &port->links[j].fmu_vr, 1,                                                   \
-                              cast &container->cache_ ## type [port->cache_offset],                             \
+            if (fmuSet ## fmi_type(fmu, &port->links[j].fmu_vr, 1,                                              \
+                              cast &container->cache_ ## variable [port->cache_offset],                         \
                               port->nb_cached) != FMU_STATUS_OK) {                                              \
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set again " #type " vr=%u.", fmu->name,     \
+                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set again " #variable " vr=%u.", fmu->name, \
                        port->links[j].fmu_vr);                                                                  \
                 return FMU_STATUS_ERROR;                                                                        \
             }                                                                                                   \
         }                                                                                                       \
     }
 
-    SET_CACHE(reals64,      fmuSetReal64,       );
-    SET_CACHE(reals32,      fmuSetReal32,       );
-    SET_CACHE(integers8,    fmuSetInteger8,     );
-    SET_CACHE(uintegers8,   fmuSetUInteger8,    );
-    SET_CACHE(integers16,   fmuSetInteger16,    );
-    SET_CACHE(uintegers16,  fmuSetUInteger16,   );
-    SET_CACHE(integers32,   fmuSetInteger32,    );
-    SET_CACHE(uintegers32,  fmuSetUInteger32,   );
-    SET_CACHE(integers64,   fmuSetInteger64,    );
-    SET_CACHE(uintegers64,  fmuSetUInteger64,   );
-    SET_CACHE(booleans,     fmuSetBoolean,      );
-    SET_CACHE(booleans1,    fmuSetBoolean1,     );
-    SET_CACHE(strings,      fmuSetString,       (const char * const *));
+#define SET_CACHE(variable, fmi_type, c_type) SET_CACHE_CAST(variable, fmi_type, )
+
+    FOR_ALL_NUMERIC_TYPES(SET_CACHE)
+    SET_CACHE_CAST(strings, String, (const char * const *))
 #undef SET_CACHE
+#undef SET_CACHE_CAST
 
     for (unsigned long i = 0; i < container->nb_ports_binaries; i += 1) {
         const container_port_t *port = &container->port_binaries[i];
@@ -1627,27 +1575,16 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         return -1;
     }
 
-#define ALLOC(type, value)                                                                      \
-    if (container->nb_local_ ## type) {                                                         \
-        CONFIG_ALLOC(container-> type, container->nb_local_ ## type);                           \
-        for(unsigned long i=0; i < container->nb_local_ ## type; i += 1)                        \
-            container-> type [i] = value;                                                       \
+#define ALLOC(variable, fmi_type, c_type)                                                       \
+    if (container->nb_local_ ## variable) {                                                     \
+        CONFIG_ALLOC(container-> variable, container->nb_local_ ## variable);                   \
+        for(unsigned long i=0; i < container->nb_local_ ## variable; i += 1)                    \
+            container-> variable [i] = (c_type)0;                                               \
     } else                                                                                      \
-        container-> type = NULL
+        container-> variable = NULL;
     
-    ALLOC(reals64, 0.0);
-    ALLOC(reals32, 0.0);
-    ALLOC(integers8, 0);
-    ALLOC(uintegers8, 0);
-    ALLOC(integers16, 0);
-    ALLOC(uintegers16, 0);
-    ALLOC(integers32, 0);
-    ALLOC(uintegers32, 0);
-    ALLOC(integers64, 0);
-    ALLOC(uintegers64, 0);
-    ALLOC(booleans, 0);
-    ALLOC(booleans1, false);
-    ALLOC(strings, NULL);
+    FOR_ALL_NUMERIC_TYPES(ALLOC)
+    ALLOC(strings, String, char *)
 
     /* Strings cannot be NULL */
     for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
@@ -1664,7 +1601,7 @@ static int read_conf_local(container_t* container, config_file_t* file) {
     } else
         container->binaries = NULL;
 
-    ALLOC(clocks, false);
+    ALLOC(clocks, Clock, bool)
 #undef ALLOC
 
     return 0;
@@ -1689,28 +1626,28 @@ static int read_conf_local(container_t* container, config_file_t* file) {
 static int read_conf_io(container_t* container, config_file_t* file) {
     unsigned long nb_links;
 
-#define READ_CONF_IO(type)                                                                                      \
+#define READ_CONF_IO(variable, fmi_type, c_type)                                                                \
     CONFIG_GETLINE;                                                                                             \
-    if (sscanf(file->line, "%lu %lu", &container->nb_ports_ ## type, &nb_links) < 2) {                          \
-        CONFIG_ERROR("Cannot read container I/O " #type ".");                                                   \
+    if (sscanf(file->line, "%lu %lu", &container->nb_ports_ ## variable, &nb_links) < 2) {                      \
+        CONFIG_ERROR("Cannot read container I/O " #variable ".");                                               \
         return -1;                                                                                              \
     }                                                                                                           \
-    if (container->nb_ports_ ## type > 0) {                                                                     \
-        CONFIG_ALLOC(container->vr_ ## type, nb_links);                                                         \
-        CONFIG_ALLOC(container->port_ ## type, container->nb_ports_ ## type);                                   \
+    if (container->nb_ports_ ## variable > 0) {                                                                 \
+        CONFIG_ALLOC(container->vr_ ## variable, nb_links);                                                     \
+        CONFIG_ALLOC(container->port_ ## variable, container->nb_ports_ ## variable);                           \
                                                                                                                 \
         unsigned long vr_counter = 0;                                                                           \
-        for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {                                   \
+        for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                               \
             container_port_t port;                                                                              \
             fmu_vr_t vr;                                                                                        \
             int offset;                                                                                         \
                                                                                                                 \
             CONFIG_GETLINE;                                                                                     \
             if (sscanf(file->line, "%d %ld %ld%n", &vr, &port.dimension, &port.nb, &offset) < 3) {              \
-                CONFIG_ERROR("Cannot read container I/O " #type " %luth details.", i);                          \
+                CONFIG_ERROR("Cannot read container I/O " #variable " %luth details.", i);                      \
                 return -1;                                                                                      \
             }                                                                                                   \
-            port.links = &container->vr_ ## type [vr_counter];                                                  \
+            port.links = &container->vr_ ## variable [vr_counter];                                              \
             port.cache_offset = CONTAINER_NO_CACHE;                                                             \
             port.nb_cached = 0;                                                                                 \
             port.deferred = false;                                                                              \
@@ -1721,72 +1658,50 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                     return -1;                                                                                  \
                 }                                                                                               \
                                                                                                                 \
-                if (sscanf(file->line+offset, " %ld %u%n", &container->vr_ ## type [vr_counter].fmu_id,         \
-                           &container->vr_ ## type [vr_counter].fmu_vr, &read) < 2) {                           \
-                    CONFIG_ERROR("Cannot read container I/O " #type " link details.");                          \
+                if (sscanf(file->line+offset, " %ld %u%n", &container->vr_ ## variable [vr_counter].fmu_id,     \
+                           &container->vr_ ## variable [vr_counter].fmu_vr, &read) < 2) {                       \
+                    CONFIG_ERROR("Cannot read container I/O " #variable " link details.");                      \
                     return -1;                                                                                  \
                 }                                                                                               \
                 offset += read;                                                                                 \
                 vr_counter += 1;                                                                                \
             }                                                                                                   \
             vr &= 0xFFFFFF;                                                                                     \
-            if (vr < container->nb_ports_ ## type)                                                              \
-                container->port_ ## type[vr] = port;                                                            \
+            if (vr < container->nb_ports_ ## variable)                                                          \
+                container->port_ ## variable[vr] = port;                                                        \
             else {                                                                                              \
-                CONFIG_ERROR("Cannot read container I/O " #type ": too many links.");                           \
+                CONFIG_ERROR("Cannot read container I/O " #variable ": too many links.");                       \
                 return -8;                                                                                      \
             }                                                                                                   \
         }                                                                                                       \
     } else {                                                                                                    \
-        container->vr_ ## type = NULL;                                                                          \
-        container->port_ ## type = NULL;                                                                        \
+        container->vr_ ## variable = NULL;                                                                      \
+        container->port_ ## variable = NULL;                                                                    \
     }
 
-    READ_CONF_IO(reals64);
-    READ_CONF_IO(reals32);
-    READ_CONF_IO(integers8);
-    READ_CONF_IO(uintegers8);
-    READ_CONF_IO(integers16);
-    READ_CONF_IO(uintegers16);
-    READ_CONF_IO(integers32);
-    READ_CONF_IO(uintegers32);
-    READ_CONF_IO(integers64);
-    READ_CONF_IO(uintegers64);
-    READ_CONF_IO(booleans);
-    READ_CONF_IO(booleans1);
-    READ_CONF_IO(strings);
-    READ_CONF_IO(binaries);
-    READ_CONF_IO(clocks);
+    FOR_ALL_NUMERIC_TYPES(READ_CONF_IO)
+    READ_CONF_IO(strings, String, char *)
+    READ_CONF_IO(binaries, Binary, fmu_binary_t)
+    READ_CONF_IO(clocks, Clock, bool)
 #undef READ_CONF_IO
 
     /* Cache of the ports with a link, to an embedded FMU or to a local variable (no clock): values set again at
        the reset of an FMU, or deferred while a step is pending. */
-#define SETUP_CACHE(type)                                                                                       \
-    for (unsigned long i = 0; i < container->nb_ports_ ## type; i += 1) {                                       \
-        container_port_t *port = &container->port_ ## type [i];                                                 \
+#define SETUP_CACHE(variable, fmi_type, c_type)                                                                 \
+    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                   \
+        container_port_t *port = &container->port_ ## variable [i];                                             \
         if (port->nb > 0) {                                                                                     \
-            port->cache_offset = container->nb_cache_ ## type;                                                  \
-            container->nb_cache_ ## type += port->dimension;                                                    \
+            port->cache_offset = container->nb_cache_ ## variable;                                              \
+            container->nb_cache_ ## variable += port->dimension;                                                \
         }                                                                                                       \
     }                                                                                                           \
-    if (container->nb_cache_ ## type > 0) {                                                                     \
-        CONFIG_ALLOC(container->cache_ ## type, container->nb_cache_ ## type);                                  \
+    if (container->nb_cache_ ## variable > 0) {                                                                 \
+        CONFIG_ALLOC(container->cache_ ## variable, container->nb_cache_ ## variable);                          \
     }
 
-    SETUP_CACHE(reals64);
-    SETUP_CACHE(reals32);
-    SETUP_CACHE(integers8);
-    SETUP_CACHE(uintegers8);
-    SETUP_CACHE(integers16);
-    SETUP_CACHE(uintegers16);
-    SETUP_CACHE(integers32);
-    SETUP_CACHE(uintegers32);
-    SETUP_CACHE(integers64);
-    SETUP_CACHE(uintegers64);
-    SETUP_CACHE(booleans);
-    SETUP_CACHE(booleans1);
-    SETUP_CACHE(strings);
-    SETUP_CACHE(binaries);
+    FOR_ALL_NUMERIC_TYPES(SETUP_CACHE)
+    SETUP_CACHE(strings, String, char *)
+    SETUP_CACHE(binaries, Binary, fmu_binary_t)
 #undef SETUP_CACHE
 
     return 0;
@@ -1877,25 +1792,14 @@ static int read_conf_io(container_t* container, config_file_t* file) {
 static int read_conf_fmu_io_in(fmu_io_t* fmu_io, config_file_t* file) {
     unsigned long nb_clocked;
 
-#define READER_FMU_IN(type)             \
-    READER_FMU_IO(type, in);            \
-    READER_FMU_CLOCKED_IO(type, in)
+#define READER_FMU_IN(variable, fmi_type, c_type)   \
+    READER_FMU_IO(variable, in)                     \
+    READER_FMU_CLOCKED_IO(variable, in)
 
-    READER_FMU_IN(reals64);
-    READER_FMU_IN(reals32);
-    READER_FMU_IN(integers8);
-    READER_FMU_IN(uintegers8);
-    READER_FMU_IN(integers16);
-    READER_FMU_IN(uintegers16);
-    READER_FMU_IN(integers32);
-    READER_FMU_IN(uintegers32);    
-    READER_FMU_IN(integers64);
-    READER_FMU_IN(uintegers64);
-    READER_FMU_IN(booleans);
-    READER_FMU_IN(booleans1);
-    READER_FMU_IN(strings);
-    READER_FMU_IN(binaries);
-    READER_FMU_IO(clocks, in); /* clock variables cannot be clocked ! */
+    FOR_ALL_NUMERIC_TYPES(READER_FMU_IN)
+    READER_FMU_IN(strings, String, char *)
+    READER_FMU_IN(binaries, Binary, fmu_binary_t)
+    READER_FMU_IO(clocks, in) /* clock variables cannot be clocked ! */
 
 #undef READER_FMU_IN
 
@@ -1906,25 +1810,14 @@ static int read_conf_fmu_io_in(fmu_io_t* fmu_io, config_file_t* file) {
 static int read_conf_fmu_io_out(fmu_io_t* fmu_io, config_file_t* file) {
     unsigned long nb_clocked;
 
-#define READER_FMU_OUT(type)            \
-    READER_FMU_IO(type, out);           \
-    READER_FMU_CLOCKED_IO(type, out)
+#define READER_FMU_OUT(variable, fmi_type, c_type)   \
+    READER_FMU_IO(variable, out)                     \
+    READER_FMU_CLOCKED_IO(variable, out)
 
-    READER_FMU_OUT(reals64);
-    READER_FMU_OUT(reals32);
-    READER_FMU_OUT(integers8);
-    READER_FMU_OUT(uintegers8);
-    READER_FMU_OUT(integers16);
-    READER_FMU_OUT(uintegers16);
-    READER_FMU_OUT(integers32);
-    READER_FMU_OUT(uintegers32);    
-    READER_FMU_OUT(integers64);
-    READER_FMU_OUT(uintegers64);
-    READER_FMU_OUT(booleans);
-    READER_FMU_OUT(booleans1);
-    READER_FMU_OUT(strings);
-    READER_FMU_OUT(binaries);
-    READER_FMU_IO(clocks, out); /* clock variables cannot be clocked ! */
+    FOR_ALL_NUMERIC_TYPES(READER_FMU_OUT)
+    READER_FMU_OUT(strings, String, char *)
+    READER_FMU_OUT(binaries, Binary, fmu_binary_t)
+    READER_FMU_IO(clocks, out) /* clock variables cannot be clocked ! */
 
 #undef READER_FMU_OUT
 
@@ -2411,25 +2304,14 @@ int container_configure(container_t* container, const char* resource_location) {
         return -6;
     }
 
-#define LOG_IO(type) \
-    if ((container->nb_local_ ## type > 0) || (container->nb_ports_ ## type > 0)) \
-        logger(LOGGER_DEBUG, "%-10s: %lu local variables and %lu ports", #type, container->nb_local_ ## type, container->nb_ports_ ## type)
+#define LOG_IO(variable, fmi_type, c_type) \
+    if ((container->nb_local_ ## variable > 0) || (container->nb_ports_ ## variable > 0)) \
+        logger(LOGGER_DEBUG, "%-10s: %lu local variables and %lu ports", #variable, container->nb_local_ ## variable, container->nb_ports_ ## variable);
 
-    LOG_IO(reals64);
-    LOG_IO(reals32);
-    LOG_IO(integers8);
-    LOG_IO(uintegers8);
-    LOG_IO(integers16);
-    LOG_IO(uintegers16);
-    LOG_IO(integers32);
-    LOG_IO(uintegers32);
-    LOG_IO(integers64);
-    LOG_IO(uintegers64);
-    LOG_IO(booleans);
-    LOG_IO(booleans1);
-    LOG_IO(strings);
-    LOG_IO(binaries);
-    LOG_IO(clocks);
+    FOR_ALL_NUMERIC_TYPES(LOG_IO)
+    LOG_IO(strings, String, char *)
+    LOG_IO(binaries, Binary, fmu_binary_t)
+    LOG_IO(clocks, Clock, bool)
 #undef LOG_IO
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -2447,57 +2329,30 @@ int container_configure(container_t* container, const char* resource_location) {
     if (container->fmu[i].fmu_io. type . orientation .nb > 0)\
         logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [" #orientation "] %lu ports", i, #type, container->fmu[i].fmu_io. type . orientation .nb);
         
-#define LOG_START(type) \
-    if (container->fmu[i].fmu_io.start_ ## type .nb > 0) \
-        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [start] %lu ", i, #type, container->fmu[i].fmu_io.start_ ## type .nb);
-    LOG_IO(in, reals64);
-    LOG_IO(in, reals32);
-    LOG_IO(in, integers8);
-    LOG_IO(in, uintegers8);
-    LOG_IO(in, integers16);
-    LOG_IO(in, uintegers16);
-    LOG_IO(in, integers32);
-    LOG_IO(in, uintegers32);
-    LOG_IO(in, integers64);
-    LOG_IO(in, uintegers64);
-    LOG_IO(in, booleans);
-    LOG_IO(in, booleans1);
+#define LOG_START(variable, fmi_type, c_type) \
+    if (container->fmu[i].fmu_io.start_ ## variable .nb > 0) \
+        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [start] %lu ", i, #variable, container->fmu[i].fmu_io.start_ ## variable .nb);
+
+#define LOG_IO_IN(variable, fmi_type, c_type) LOG_IO(in, variable)
+#define LOG_IO_OUT(variable, fmi_type, c_type) LOG_IO(out, variable)
+
+    FOR_ALL_NUMERIC_TYPES(LOG_IO_IN)
     LOG_IO(in, strings);
     LOG_IO(in, binaries);
     LOG_IO_CLASSIC(in, clocks);
 
-    LOG_START(reals64);
-    LOG_START(reals32);
-    LOG_START(integers8);
-    LOG_START(uintegers8);
-    LOG_START(integers16);
-    LOG_START(uintegers16);
-    LOG_START(integers32);
-    LOG_START(uintegers32);
-    LOG_START(integers64);
-    LOG_START(uintegers64);
-    LOG_START(booleans);
-    LOG_START(booleans1);
-    LOG_START(strings);
+    FOR_ALL_NUMERIC_TYPES(LOG_START)
+    LOG_START(strings, String, const char *)
 
-    LOG_IO(out, reals64);
-    LOG_IO(out, reals32);
-    LOG_IO(out, integers8);
-    LOG_IO(out, uintegers8);
-    LOG_IO(out, integers16);
-    LOG_IO(out, uintegers16);
-    LOG_IO(out, integers32);
-    LOG_IO(out, uintegers32);
-    LOG_IO(out, integers64);
-    LOG_IO(out, uintegers64);
-    LOG_IO(out, booleans);
-    LOG_IO(out, booleans1);
+    FOR_ALL_NUMERIC_TYPES(LOG_IO_OUT)
     LOG_IO(out, strings);
     LOG_IO(out, binaries);
     LOG_IO_CLASSIC(out, clocks);
 
 #undef LOG_IO
 #undef LOG_IO_CLASSIC
+#undef LOG_IO_IN
+#undef LOG_IO_OUT
 #undef LOG_START
     }
 
@@ -2608,48 +2463,26 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         container->cs_fmu = NULL;
         container->solver = NULL;
 
-#define INIT(type)                          \
-        container->nb_local_ ## type = 0;   \
-        container-> type = NULL;            \
-        container->nb_ports_ ## type = 0;   \
-        container->vr_ ## type = NULL;      \
-        container->port_ ## type = NULL
+#define INIT(variable, fmi_type, c_type)        \
+        container->nb_local_ ## variable = 0;   \
+        container-> variable = NULL;            \
+        container->nb_ports_ ## variable = 0;   \
+        container->vr_ ## variable = NULL;      \
+        container->port_ ## variable = NULL;
 
-        INIT(reals64);
-        INIT(reals32);
-        INIT(integers8);
-        INIT(uintegers8);
-        INIT(integers16);
-        INIT(uintegers16);
-        INIT(integers32);
-        INIT(uintegers32);
-        INIT(integers64);
-        INIT(uintegers64);
-        INIT(booleans);
-        INIT(booleans1);
-        INIT(strings);
-        INIT(binaries);
-        INIT(clocks);
+        FOR_ALL_NUMERIC_TYPES(INIT)
+        INIT(strings, String, char *)
+        INIT(binaries, Binary, fmu_binary_t)
+        INIT(clocks, Clock, bool)
 #undef INIT
 
-#define INIT_CACHE(type)                    \
-        container->nb_cache_ ## type = 0;   \
-        container->cache_ ## type = NULL
+#define INIT_CACHE(variable, fmi_type, c_type)  \
+        container->nb_cache_ ## variable = 0;   \
+        container->cache_ ## variable = NULL;
 
-        INIT_CACHE(reals64);
-        INIT_CACHE(reals32);
-        INIT_CACHE(integers8);
-        INIT_CACHE(uintegers8);
-        INIT_CACHE(integers16);
-        INIT_CACHE(uintegers16);
-        INIT_CACHE(integers32);
-        INIT_CACHE(uintegers32);
-        INIT_CACHE(integers64);
-        INIT_CACHE(uintegers64);
-        INIT_CACHE(booleans);
-        INIT_CACHE(booleans1);
-        INIT_CACHE(strings);
-        INIT_CACHE(binaries);
+        FOR_ALL_NUMERIC_TYPES(INIT_CACHE)
+        INIT_CACHE(strings, String, char *)
+        INIT_CACHE(binaries, Binary, fmu_binary_t)
 #undef INIT_CACHE
 
         /* allocated at the end of the configuration: freed by container_free() even if it fails before */
@@ -2705,44 +2538,26 @@ void container_free(container_t *container) {
     free(container->instance_name);
     free(container->uuid);
 
-#define FREE(type)                  \
-    free(container->vr_ ## type);   \
-    free(container->port_ ## type); \
-    free(container-> type)
+#define FREE(variable, fmi_type, c_type)    \
+    free(container->vr_ ## variable);       \
+    free(container->port_ ## variable);     \
+    free(container-> variable);
 
-    FREE(reals64);
-    FREE(reals32);
-    FREE(integers8);
-    FREE(uintegers8);
-    FREE(integers16);
-    FREE(uintegers16);
-    FREE(integers32);
-    FREE(uintegers32);
-    FREE(integers64);
-    FREE(uintegers64);
-    FREE(booleans);
-    FREE(booleans1);
+#define FREE_CACHE(variable, fmi_type, c_type) \
+    free(container->cache_ ## variable);
+
+    FOR_ALL_NUMERIC_TYPES(FREE)
     for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
         free(container->strings[i]);
-    FREE(strings);
+    FREE(strings, String, char *)
     for (unsigned long i = 0; i < container->nb_local_binaries; i += 1)
         free(container->binaries[i].data);
-    FREE(binaries);
-    FREE(clocks);
+    FREE(binaries, Binary, fmu_binary_t)
+    FREE(clocks, Clock, bool)
 #undef FREE
 
-    free(container->cache_reals64);
-    free(container->cache_reals32);
-    free(container->cache_integers8);
-    free(container->cache_uintegers8);
-    free(container->cache_integers16);
-    free(container->cache_uintegers16);
-    free(container->cache_integers32);
-    free(container->cache_uintegers32);
-    free(container->cache_integers64);
-    free(container->cache_uintegers64);
-    free(container->cache_booleans);
-    free(container->cache_booleans1);
+    FOR_ALL_NUMERIC_TYPES(FREE_CACHE)
+#undef FREE_CACHE
     for (unsigned long i = 0; i < container->nb_cache_strings; i += 1)
         free(container->cache_strings[i]);
     free(container->cache_strings);

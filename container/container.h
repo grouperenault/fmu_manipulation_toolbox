@@ -126,25 +126,14 @@ typedef struct container_s {
 	container_state_t			state;		/* managed in fmi2.c and fmi3.c */
 
 	/* storage of local variables (conveyed from one FMU to an other) */
-#define DECLARE_LOCAL(name, type) 					\
-	unsigned long				nb_local_ ## name;	\
-	type						* name
+#define DECLARE_LOCAL(variable, fmi_type, c_type) 	\
+	unsigned long				nb_local_ ## variable;	\
+	c_type						* variable;
 
-	DECLARE_LOCAL(reals64, double);
-	DECLARE_LOCAL(reals32, float);
-	DECLARE_LOCAL(integers8, int8_t);
-	DECLARE_LOCAL(uintegers8, uint8_t);
-	DECLARE_LOCAL(integers16, int16_t);
-	DECLARE_LOCAL(uintegers16, uint16_t);
-	DECLARE_LOCAL(integers32, int32_t);
-	DECLARE_LOCAL(uintegers32, uint32_t);
-	DECLARE_LOCAL(integers64, int64_t);
-	DECLARE_LOCAL(uintegers64, uint64_t);
-	DECLARE_LOCAL(booleans, int);
-	DECLARE_LOCAL(booleans1, bool);
-	DECLARE_LOCAL(strings, char *);
-	DECLARE_LOCAL(binaries, fmu_binary_t);	
-	DECLARE_LOCAL(clocks, bool);
+	FOR_ALL_NUMERIC_TYPES(DECLARE_LOCAL)
+	DECLARE_LOCAL(strings, String, char *)
+	DECLARE_LOCAL(binaries, Binary, fmu_binary_t)
+	DECLARE_LOCAL(clocks, Clock, bool)
 
 	const uint8_t 				**binaries_tmp;
 	size_t 						*binaries_size_tmp;
@@ -153,48 +142,26 @@ typedef struct container_s {
 #undef DECLARE_LOCAL
 
 	/* container ports definition */
-#define DECLARE_PORT(type)							\
-    unsigned long	   			nb_ports_ ## type;	\
-    container_vr_t				*vr_ ## type; /* used as buffer to optimize malloc() operations */ \
-    container_port_t            *port_ ## type
+#define DECLARE_PORT(variable, fmi_type, c_type)	\
+    unsigned long	   			nb_ports_ ## variable;	\
+    container_vr_t				*vr_ ## variable; /* used as buffer to optimize malloc() operations */ \
+    container_port_t            *port_ ## variable;
 
-    DECLARE_PORT(reals64);
-	DECLARE_PORT(reals32);
-    DECLARE_PORT(integers8);
-    DECLARE_PORT(uintegers8);
-    DECLARE_PORT(integers16);
-    DECLARE_PORT(uintegers16);
-    DECLARE_PORT(integers32);
-    DECLARE_PORT(uintegers32);
-    DECLARE_PORT(integers64);
-    DECLARE_PORT(uintegers64);
-    DECLARE_PORT(booleans);
-    DECLARE_PORT(booleans1);
-    DECLARE_PORT(strings);
-	DECLARE_PORT(binaries);
-	DECLARE_PORT(clocks);
+	FOR_ALL_NUMERIC_TYPES(DECLARE_PORT)
+	DECLARE_PORT(strings, String, char *)
+	DECLARE_PORT(binaries, Binary, fmu_binary_t)
+	DECLARE_PORT(clocks, Clock, bool)
 #undef DECLARE_PORT
 
 	/* values set by the importer on the ports forwarded to embedded FMUs, set again after the reset of an FMU
 	   (clocks are events: never cached) */
-#define DECLARE_CACHE(name, type)					\
-	unsigned long				nb_cache_ ## name;	\
-	type						*cache_ ## name
+#define DECLARE_CACHE(variable, fmi_type, c_type)	\
+	unsigned long				nb_cache_ ## variable;	\
+	c_type						*cache_ ## variable;
 
-	DECLARE_CACHE(reals64, double);
-	DECLARE_CACHE(reals32, float);
-	DECLARE_CACHE(integers8, int8_t);
-	DECLARE_CACHE(uintegers8, uint8_t);
-	DECLARE_CACHE(integers16, int16_t);
-	DECLARE_CACHE(uintegers16, uint16_t);
-	DECLARE_CACHE(integers32, int32_t);
-	DECLARE_CACHE(uintegers32, uint32_t);
-	DECLARE_CACHE(integers64, int64_t);
-	DECLARE_CACHE(uintegers64, uint64_t);
-	DECLARE_CACHE(booleans, int);
-	DECLARE_CACHE(booleans1, bool);
-	DECLARE_CACHE(strings, char *);
-	DECLARE_CACHE(binaries, fmu_binary_t);
+	FOR_ALL_NUMERIC_TYPES(DECLARE_CACHE)
+	DECLARE_CACHE(strings, String, char *)
+	DECLARE_CACHE(binaries, Binary, fmu_binary_t)
 #undef DECLARE_CACHE
 
 	convert_table_t				conversions;
@@ -244,22 +211,11 @@ extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);
 
 /* cache of the values set by the importer (see DECLARE_CACHE). nvalues: number of values in value[]. */
-#define DECLARE_CACHE_FUNCTION(name, type)                                                             \
-extern int container_cache_ ## name(container_t *container, container_port_t *port, const type value[], \
-                                    size_t nvalues)
+#define DECLARE_CACHE_FUNCTION(variable, fmi_type, c_type)                                                 \
+extern int container_cache_ ## variable(container_t *container, container_port_t *port, const c_type value[], \
+                                        size_t nvalues);
 
-DECLARE_CACHE_FUNCTION(reals64, double);
-DECLARE_CACHE_FUNCTION(reals32, float);
-DECLARE_CACHE_FUNCTION(integers8, int8_t);
-DECLARE_CACHE_FUNCTION(uintegers8, uint8_t);
-DECLARE_CACHE_FUNCTION(integers16, int16_t);
-DECLARE_CACHE_FUNCTION(uintegers16, uint16_t);
-DECLARE_CACHE_FUNCTION(integers32, int32_t);
-DECLARE_CACHE_FUNCTION(uintegers32, uint32_t);
-DECLARE_CACHE_FUNCTION(integers64, int64_t);
-DECLARE_CACHE_FUNCTION(uintegers64, uint64_t);
-DECLARE_CACHE_FUNCTION(booleans, int);
-DECLARE_CACHE_FUNCTION(booleans1, bool);
+FOR_ALL_NUMERIC_TYPES(DECLARE_CACHE_FUNCTION)
 #undef DECLARE_CACHE_FUNCTION
 extern int container_cache_strings(container_t *container, container_port_t *port, const char * const value[],
                                    size_t nvalues);

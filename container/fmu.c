@@ -14,28 +14,9 @@
  * FMI-importer supporting FMI-2.0 and FMI-3.0. FMUs are handled through fmu_t pointers.
  */
 
-/*
- * X-macro: lists all numeric types (field name, FMI type suffix).
- * Expand with: FOR_ALL_NUMERIC_TYPES(MACRO) where MACRO(variable, fmi_type)
- */
-#define FOR_ALL_NUMERIC_TYPES(X)                                                                    \
-    X(reals64,     Real64)                                                                          \
-    X(reals32,     Real32)                                                                          \
-    X(integers8,   Integer8)                                                                        \
-    X(uintegers8,  UInteger8)                                                                       \
-    X(integers16,  Integer16)                                                                       \
-    X(uintegers16, UInteger16)                                                                      \
-    X(integers32,  Integer32)                                                                       \
-    X(uintegers32, UInteger32)                                                                      \
-    X(integers64,  Integer64)                                                                       \
-    X(uintegers64, UInteger64)                                                                      \
-    X(booleans,    Boolean)                                                                         \
-    X(booleans1,   Boolean1)
-
-
 /* Shared per-type IO translation loops. Defined at file scope so the plain and
    the continuous-only exchange functions share one implementation. */
-#define SET_INPUT(variable, fmi_type)                                                               \
+#define SET_INPUT(variable, fmi_type, c_type)                                                       \
     for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                               \
         const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                 \
         const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr;                     \
@@ -45,7 +26,7 @@
             return status;                                                                          \
     }
 
-#define GET_OUTPUT(variable, fmi_type)                                                              \
+#define GET_OUTPUT(variable, fmi_type, c_type)                                                      \
     for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) {                                     \
         const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr;                      \
         const fmu_vr_t local_vr = fmu_io-> variable .out.translations[i].vr;                        \
@@ -120,7 +101,7 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
 #endif
 
 
-#define SET_CLOCKED_INPUT(variable, fmi_type)                                                               \
+#define SET_CLOCKED_INPUT(variable, fmi_type, c_type)                                                       \
     for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) {                            \
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .in[i];                            \
         if (container->clocks[clocked_port->clock_vr]) {                                                    \
@@ -245,8 +226,8 @@ fmu_status_t fmu_set_continuous_inputs(const fmu_t* fmu) {
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
-    SET_INPUT(reals64, Real64)
-    SET_INPUT(reals32, Real32)
+    SET_INPUT(reals64, Real64, double)
+    SET_INPUT(reals32, Real32, float)
 
     return status;
 }
@@ -257,8 +238,8 @@ fmu_status_t fmu_get_continuous_outputs(const fmu_t* fmu) {
     const fmu_io_t* fmu_io = &fmu->fmu_io;
     fmu_status_t status = FMU_STATUS_OK;
 
-    GET_OUTPUT(reals64, Real64)
-    GET_OUTPUT(reals32, Real32)
+    GET_OUTPUT(reals64, Real64, double)
+    GET_OUTPUT(reals32, Real32, float)
 
     /* cast conversion between local variables */
     convert_proceed(fmu->container, fmu->conversions);
@@ -291,7 +272,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
      * CLOCKED OUTPUTs
      */
 
-#define GET_CLOCKED_OUTPUT(variable, fmi_type)                                                              \
+#define GET_CLOCKED_OUTPUT(variable, fmi_type, c_type)                                                      \
     for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_out; i += 1) {                           \
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .out[i];                           \
         if (container->clocks[clocked_port->clock_vr]) {                                                    \
@@ -592,25 +573,14 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->reset_pending = false;
     fmu->component = NULL;  /* will be set by fmuInstantiateCoSimulation/ModelExchange() */
 
-#define INIT_FMU_DATA(type)                             \
-    fmu->fmu_io. type .in.translations = NULL;          \
-    fmu->fmu_io. type .out.translations = NULL;         \
-    fmu->fmu_io.start_ ## type .nb = 0;                 \
-    fmu->fmu_io.start_ ## type .start_values = NULL;
+#define INIT_FMU_DATA(variable, fmi_type, c_type)       \
+    fmu->fmu_io. variable .in.translations = NULL;      \
+    fmu->fmu_io. variable .out.translations = NULL;     \
+    fmu->fmu_io.start_ ## variable .nb = 0;             \
+    fmu->fmu_io.start_ ## variable .start_values = NULL;
 
-    INIT_FMU_DATA(reals64);
-    INIT_FMU_DATA(reals32);
-    INIT_FMU_DATA(integers8);
-    INIT_FMU_DATA(uintegers8);
-    INIT_FMU_DATA(integers16);
-    INIT_FMU_DATA(uintegers16);
-    INIT_FMU_DATA(integers32);
-    INIT_FMU_DATA(uintegers32);
-    INIT_FMU_DATA(integers64);
-    INIT_FMU_DATA(uintegers64);
-    INIT_FMU_DATA(booleans);
-    INIT_FMU_DATA(booleans1);
-    INIT_FMU_DATA(strings);
+    FOR_ALL_NUMERIC_TYPES(INIT_FMU_DATA)
+    INIT_FMU_DATA(strings, String, const char *)
 #undef INIT_FMU_DATA
 
     char library_filename[FMU_PATH_MAX_LEN];
@@ -675,40 +645,29 @@ void fmu_unload(fmu_t *fmu) {
     profile_free(fmu->profile);
 
 /* Free a plain translation port (in + out) and the associated start values  */
-#define FREE_FMU_DATA(type)                                             \
-    free(fmu->fmu_io. type .in.translations);                           \
-    free(fmu->fmu_io. type .out.translations);                          \
-    free(fmu->fmu_io.start_ ## type .start_values);                     \
-    free(fmu->fmu_io.start_values_ ## type)   /* flat values array */
+#define FREE_FMU_DATA(variable, fmi_type, c_type)                       \
+    free(fmu->fmu_io. variable .in.translations);                       \
+    free(fmu->fmu_io. variable .out.translations);                      \
+    free(fmu->fmu_io.start_ ## variable .start_values);                 \
+    free(fmu->fmu_io.start_values_ ## variable);  /* flat values array */
 
 /* Free a clocked port list: the per-entry translations arrays, then the
    array of port descriptors itself */
-#define FREE_CLOCKED_DATA(type) do {                                                \
-    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## type .nb_in; _i++)      \
-        free(fmu->fmu_io.clocked_ ## type .in[_i].translations_list.translations);  \
-    free(fmu->fmu_io.clocked_ ## type .in);                                         \
-    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## type .nb_out; _i++)     \
-        free(fmu->fmu_io.clocked_ ## type .out[_i].translations_list.translations); \
-    free(fmu->fmu_io.clocked_ ## type .out);                                        \
-} while(0)
+#define FREE_CLOCKED_DATA(variable, fmi_type, c_type) {                             \
+    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## variable .nb_in; _i++)  \
+        free(fmu->fmu_io.clocked_ ## variable .in[_i].translations_list.translations);\
+    free(fmu->fmu_io.clocked_ ## variable .in);                                     \
+    for (unsigned long _i = 0; _i < fmu->fmu_io.clocked_ ## variable .nb_out; _i++) \
+        free(fmu->fmu_io.clocked_ ## variable .out[_i].translations_list.translations);\
+    free(fmu->fmu_io.clocked_ ## variable .out);                                    \
+}
 
-    FREE_FMU_DATA(reals64);
-    FREE_FMU_DATA(reals32);
-    FREE_FMU_DATA(integers8);
-    FREE_FMU_DATA(uintegers8);
-    FREE_FMU_DATA(integers16);
-    FREE_FMU_DATA(uintegers16);
-    FREE_FMU_DATA(integers32);
-    FREE_FMU_DATA(uintegers32);
-    FREE_FMU_DATA(integers64);
-    FREE_FMU_DATA(uintegers64);
-    FREE_FMU_DATA(booleans);
-    FREE_FMU_DATA(booleans1);
+    FOR_ALL_NUMERIC_TYPES(FREE_FMU_DATA)
 
     /* strings: free each strdup'd value then the struct and flat array */
     for (unsigned long i = 0; i < fmu->fmu_io.start_strings.nb; i += 1)
         free((char*)*fmu->fmu_io.start_strings.start_values[i].value);
-    FREE_FMU_DATA(strings);
+    FREE_FMU_DATA(strings, String, const char *)
 
     free(fmu->fmu_io.binaries.in.translations);
     free(fmu->fmu_io.binaries.out.translations);
@@ -716,20 +675,9 @@ void fmu_unload(fmu_t *fmu) {
     free(fmu->fmu_io.clocks.in.translations);
     free(fmu->fmu_io.clocks.out.translations);
 
-    FREE_CLOCKED_DATA(reals64);
-    FREE_CLOCKED_DATA(reals32);
-    FREE_CLOCKED_DATA(integers8);
-    FREE_CLOCKED_DATA(uintegers8);
-    FREE_CLOCKED_DATA(integers16);
-    FREE_CLOCKED_DATA(uintegers16);
-    FREE_CLOCKED_DATA(integers32);
-    FREE_CLOCKED_DATA(uintegers32);
-    FREE_CLOCKED_DATA(integers64);
-    FREE_CLOCKED_DATA(uintegers64);
-    FREE_CLOCKED_DATA(booleans);
-    FREE_CLOCKED_DATA(booleans1);
-    FREE_CLOCKED_DATA(strings);
-    FREE_CLOCKED_DATA(binaries);
+    FOR_ALL_NUMERIC_TYPES(FREE_CLOCKED_DATA)
+    FREE_CLOCKED_DATA(strings, String, const char *)
+    FREE_CLOCKED_DATA(binaries, Binary, fmu_binary_t)
 
 #undef FREE_FMU_DATA
 #undef FREE_CLOCKED_DATA
