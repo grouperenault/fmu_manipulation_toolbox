@@ -231,6 +231,13 @@ Commit message: `Report the failures to set the start values of the embedded FMU
 - Tests: `tests/integration/test_datalog.py` checks the precision of the time and of a real (e.g. 1e-8) and a string
   with a comma, read back with the `csv` module; `datalog2pcap` unchanged on its REF.
 
+Done, in two commits (`FOR_ALL_NUMERIC_TYPES` in the datalog first, decided 2026-10-18; integers, booleans, binaries
+and clocks keep their formats). The names of the header are quoted like the strings (an FMI-2.0 array element
+`a[1,2]` has a comma). Tests: C test `datalog_rows` (time and real read back bit for bit, quoted header) instead of a
+Python test. The REF datalogs of `tests/data/ls-bus` are regenerated (time column only); the pcap made from one of
+them by `datalog2pcap` changes: with the exact times, 18 timestamps out of 134 are no longer 1 us early
+(`datalog2pcap` truncates the microseconds: `0.3` gave 299999 us).
+
 Commit message: `Write the datalog with full precision and quote its strings`
 
 ### Step 10 – Documentation

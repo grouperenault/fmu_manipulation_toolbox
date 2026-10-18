@@ -64,6 +64,7 @@ if(BUILD_TESTING)
         tests/test_logger.c
         tests/test_locale.c
         tests/test_malformed.c
+        tests/test_datalog.c
         tests/test_thread.c
         tests/test_threads_lifecycle.c
     )

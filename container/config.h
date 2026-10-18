@@ -47,6 +47,7 @@ typedef struct {
 /* C numeric locale (decimal dot) for the current thread only: the locale of the host is never changed. */
 typedef struct {
 #ifdef _WIN32
+    _locale_t                   locale;     /* C numeric locale, for the _l functions (_fprintf_l...) */
     int                         per_thread; /* setting of _configthreadlocale() before enter */
     char                        *previous;  /* LC_NUMERIC of the thread before enter */
 #else

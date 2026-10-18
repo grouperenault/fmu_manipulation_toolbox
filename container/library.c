@@ -18,7 +18,7 @@
  * Shared library loading/unloading and diagnosing.
  */
 
-#ifdef WIN32
+#ifdef _WIN32
 typedef enum {
     LIBRARY_DLL_NOT_FOUND,
     LIBRARY_DLL_MISSING_DEPENDENCIES,
@@ -203,4 +203,4 @@ static libray_status_t* libray_analyse(const logger_t *logger, hash_t* dll_db, c
 
     return status;
 }
-#endif /* WIN32 */
+#endif /* _WIN32 */

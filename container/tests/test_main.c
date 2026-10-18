@@ -29,6 +29,7 @@ static const struct {
     { "malformed_datalog_txt",          test_malformed_datalog_txt },
     { "start_value_refused",            test_start_value_refused },
     { "start_value_array",              test_start_value_array },
+    { "datalog_rows",                   test_datalog_rows },
 };
 
 

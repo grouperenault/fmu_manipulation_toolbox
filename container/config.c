@@ -136,7 +136,8 @@ int config_c_locale_init(config_c_locale_t *c_locale) {
 #ifdef _WIN32
     c_locale->per_thread = 0;
     c_locale->previous = NULL;
-    return 0;
+    c_locale->locale = _create_locale(LC_NUMERIC, "C");
+    return c_locale->locale ? 0 : -1;
 #else
     c_locale->previous = (locale_t)0;
     locale_t base = duplocale(LC_GLOBAL_LOCALE);
@@ -185,6 +186,7 @@ void config_c_locale_free(config_c_locale_t *c_locale) {
 #ifdef _WIN32
     free(c_locale->previous);
     c_locale->previous = NULL;
+    _free_locale(c_locale->locale);
 #else
     freelocale(c_locale->c_locale);
 #endif

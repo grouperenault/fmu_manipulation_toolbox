@@ -57,6 +57,7 @@ extern int test_malformed_container_txt(void);
 extern int test_malformed_datalog_txt(void);
 extern int test_start_value_refused(void);
 extern int test_start_value_array(void);
+extern int test_datalog_rows(void);
 
 /* Helper: writes content into a temporary file of the test directory. Returns 0 on success. */
 extern int test_write_file(const char *dirname, const char *filename, const char *content);
