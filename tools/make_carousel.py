@@ -5,9 +5,11 @@ Carousel announcing the FMU Manipulation Toolbox 2.0: 1080 x 1350 slides (4:5), 
 - PNG files, a preview of the pages;
 - WebP files, the slides shown on the page "What's new in 2.0" of the documentation (`docs/assets/release-2.0/`).
 
-    python tools/make_carousel.py --out DIR
+    python tools/make_carousel.py --out DIR               # every slide: PDF, PNG and WebP files
+    python tools/make_carousel.py --linkedin --out DIR    # the short selection of the LinkedIn post: PDF and PNG files
 
-Texts and slides are in SLIDES below; the images come from the documentation and the resources of the package.
+Texts and slides are in SLIDES below, the short selection in LINKEDIN_SLIDES; the images come from the documentation
+and the resources of the package.
 Requires PySide6 (with the `webp` image format plugin of Qt, shipped with the PySide6 wheels).
 """
 
@@ -148,6 +150,17 @@ def box(p: QPainter, rect: QRectF, title: str, subtitle: str, fill: QColor):
     text(p, rect.adjusted(20, 26, -20, 0), title, 32, bold=True, align=Qt.AlignmentFlag.AlignHCenter)
     text(p, rect.adjusted(20, 76, -20, 0), subtitle, 24, MUTED if fill == PANEL else TEXT,
          align=Qt.AlignmentFlag.AlignHCenter)
+
+
+def arrow(p: QPainter, start: float, end: float, y: float, color: QColor):
+    p.setPen(QPen(color, 5))
+    p.drawLine(QPointF(start, y), QPointF(end - 20, y))
+    head = QPainterPath()
+    head.moveTo(end, y)
+    head.lineTo(end - 28, y - 16)
+    head.lineTo(end - 28, y + 16)
+    head.closeSubpath()
+    p.fillPath(head, color)
 
 
 def code(p: QPainter, rect: QRectF, lines: list[tuple[str, str]]) -> float:
@@ -296,14 +309,7 @@ def reset(p, n, total):
     # The link, from an output of the supervisor to the reset input of the controller.
     middle = top + 75
     start, end = source.right() + 16, target.left() - 16
-    p.setPen(QPen(LIGHT["green"], 5))
-    p.drawLine(QPointF(start, middle), QPointF(end - 20, middle))
-    head = QPainterPath()
-    head.moveTo(end, middle)
-    head.lineTo(end - 28, middle - 16)
-    head.lineTo(end - 28, middle + 16)
-    head.closeSubpath()
-    p.fillPath(head, LIGHT["green"])
+    arrow(p, start, end, middle, LIGHT["green"])
     text(p, QRectF(start, middle - 56, end - start, 40), "restart", 24, MUTED, align=Qt.AlignmentFlag.AlignHCenter,
          family=MONO)
     text(p, QRectF(start - 20, middle + 16, end - start + 40, 40), "container.reset", 22, LIGHT["green"],
@@ -312,6 +318,34 @@ def reset(p, n, total):
     bullets(p, y, ["From another FMU, or exposed to the importer",
                    "Co-Simulation, Model-Exchange, sub-containers",
                    "fmi2Reset / fmi3Reset of the container too"], LIGHT["green"], size=31, spacing=16)
+
+
+def simulink(p, n, total):
+    background(p, BLUE, n, total)
+    y = title_block(p, 110, "NEW · CONTAINERS", BLUE, "From Simulink to an FMU Container",
+                    "Initialized as Simulink does: each FMU starts with the values of the FMUs it depends on.")
+    outer = QRectF(MARGIN, y + 10, W - 2 * MARGIN, 330)
+    path = QPainterPath()
+    path.addRoundedRect(outer, 30, 30)
+    p.setPen(QPen(LIGHT["blue"], 4, Qt.PenStyle.DashLine))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPath(path)
+    text(p, QRectF(outer.x() + 30, outer.y() + 24, 600, 50), "container.fmu", 30, LIGHT["blue"], bold=True,
+         family=MONO)
+    # A chain of links A -> B -> C, initialized in the order of the links.
+    gap = 60
+    width = (outer.width() - 2 * 30 - 2 * gap) / 3
+    top = outer.y() + 120
+    for rank, (name, order) in enumerate((("A", "initialized 1st"), ("B", "initialized 2nd"),
+                                          ("C", "initialized 3rd"))):
+        left = outer.x() + 30 + rank * (width + gap)
+        box(p, QRectF(left, top, width, 150), name, order, BLUE)
+        if rank:
+            arrow(p, left - gap + 8, left - 8, top + 75, LIGHT["blue"])
+    y = outer.bottom() + 50
+    bullets(p, y, ["The links are propagated at the initialization",
+                   "Same delays as Simulink with the default scheduling",
+                   "Migration guide: concepts, worked example"], LIGHT["blue"], size=31, spacing=16)
 
 
 def compile_sources(p, n, total):
@@ -379,17 +413,22 @@ def get_it(p, n, total):
          TEXT, align=Qt.AlignmentFlag.AlignHCenter)
 
 
-SLIDES = (cover, tools, ai, model_exchange, link_assistant, instances, reset, compile_sources, robust, install,
-          get_it)
+SLIDES = (cover, tools, ai, model_exchange, link_assistant, instances, reset, simulink, compile_sources, robust,
+          install, get_it)
+# A LinkedIn carousel is read in a few swipes: one new feature per slide, between the cover and the call to action.
+LINKEDIN_SLIDES = (cover, ai, model_exchange, link_assistant, reset, compile_sources, get_it)
 
 
 def main():
     parser = argparse.ArgumentParser(description="Make the carousel announcing the FMU Manipulation Toolbox 2.0.")
     parser.add_argument("--out", required=True, type=Path, metavar="DIR",
                         help="directory receiving the PDF, the PNG and the WebP files")
+    parser.add_argument("--linkedin", action="store_true",
+                        help="only the short selection of the LinkedIn post, without the WebP files")
     args = parser.parse_args()
     out: Path = args.out
     out.mkdir(parents=True, exist_ok=True)
+    slides = LINKEDIN_SLIDES if args.linkedin else SLIDES
 
     app = QGuiApplication(sys.argv[:1])
     pdf = QPdfWriter(str(out / "carousel-fmu-manipulation-toolbox-2.0.pdf"))
@@ -399,22 +438,22 @@ def main():
     pdf.setTitle("FMU Manipulation Toolbox 2.0")
     pdf_painter = QPainter(pdf)
     pdf_painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
-    for number, slide in enumerate(SLIDES, start=1):
+    for number, slide in enumerate(slides, start=1):
         if number > 1:
             pdf.newPage()
-        slide(pdf_painter, number, len(SLIDES))
+        slide(pdf_painter, number, len(slides))
         png = QImage(W, H, QImage.Format.Format_ARGB32)
         painter = QPainter(png)
         painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform
                                | QPainter.RenderHint.TextAntialiasing)
-        slide(painter, number, len(SLIDES))
+        slide(painter, number, len(slides))
         painter.end()
         png.save(str(out / f"slide-{number:02}.png"))
-        if not png.save(str(out / f"slide-{number:02}.webp"), "WEBP", WEBP_QUALITY):
+        if not args.linkedin and not png.save(str(out / f"slide-{number:02}.webp"), "WEBP", WEBP_QUALITY):
             raise RuntimeError("the webp image format plugin of Qt is missing")
     pdf_painter.end()
     app.processEvents()
-    print(f"{len(SLIDES)} slides written into {out}")
+    print(f"{len(slides)} slides written into {out}")
 
 
 if __name__ == "__main__":
