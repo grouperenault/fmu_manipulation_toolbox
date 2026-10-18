@@ -108,7 +108,7 @@ stub
 0
 # Start values of stub.fmu - real64: <FMU_VR> <DIM> <RESET> <VALUE>
 1 1
-2 1 0 10.0
+2 1 0 2.5
 # Start values of stub.fmu - real32: <FMU_VR> <DIM> <RESET> <VALUE>
 0 0
 # Start values of stub.fmu - integer8: <FMU_VR> <DIM> <RESET> <VALUE>

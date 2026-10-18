@@ -6,6 +6,10 @@ extern "C" {
 #	endif
 
 #include <stdio.h>
+#include <locale.h>
+#ifdef __APPLE__
+#   include <xlocale.h>
+#endif
 
 
 #ifdef _WIN32
@@ -37,6 +41,22 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
+                      C O N F I G _ C _ L O C A L E _ T
+----------------------------------------------------------------------------*/
+
+/* C numeric locale (decimal dot) for the current thread only: the locale of the host is never changed. */
+typedef struct {
+#ifdef _WIN32
+    int                         per_thread; /* setting of _configthreadlocale() before enter */
+    char                        *previous;  /* LC_NUMERIC of the thread before enter */
+#else
+    locale_t                    c_locale;   /* copy of the global locale with the C numeric category */
+    locale_t                    previous;   /* locale of the thread before enter */
+#endif
+} config_c_locale_t;
+
+
+/*----------------------------------------------------------------------------
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
@@ -45,6 +65,10 @@ extern int config_file_version(config_file_t* config_file, int *version);
 extern int config_file_open(config_file_t* config_file, const struct logger_s *logger, const char *dirname,
                             const char *filename);
 extern void config_file_close(config_file_t* config_file);
+extern int config_c_locale_init(config_c_locale_t *c_locale);
+extern void config_c_locale_enter(config_c_locale_t *c_locale);
+extern void config_c_locale_leave(config_c_locale_t *c_locale);
+extern void config_c_locale_free(config_c_locale_t *c_locale);
 extern void config_file_error(config_file_t *config_file, unsigned int code_line_number, const char *message, ...) __attribute__((__format__(__printf__, 3, 4)));
 
 #	ifdef __cplusplus

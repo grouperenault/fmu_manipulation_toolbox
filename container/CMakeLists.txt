@@ -62,6 +62,7 @@ if(BUILD_TESTING)
         tests/test_config.c
         tests/test_configure.c
         tests/test_logger.c
+        tests/test_locale.c
         tests/test_thread.c
         tests/test_threads_lifecycle.c
     )
@@ -109,6 +110,9 @@ if(BUILD_TESTING)
         )
     endfunction()
     container_fixture(one_fmu               "{stub}"                    0)
+    container_fixture(one_fmu_datalog       "{stub}"                    0)
+    set(DATALOG_FILE "${TEST_FIXTURES_DIR}/one_fmu_datalog/datalog.csv")
+    configure_file(tests/data/one_fmu/datalog.txt.in "${TEST_FIXTURES_DIR}/one_fmu_datalog/datalog.txt" @ONLY)
     container_fixture(one_fmu_mt            "{stub}"                    1)
     container_fixture(mt_instantiate_fails  "{stub-fail-instantiate}"   1)
 endif()

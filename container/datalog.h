@@ -17,6 +17,8 @@ extern "C" {
 
 typedef struct datalog_s {
     FILE                            *file;
+    config_c_locale_t               c_locale;   /* rows written with a decimal dot */
+    bool                            c_locale_ready;
 	DECLARE(reals64, double);
 	DECLARE(reals32, float);
 	DECLARE(integers8, int8_t);

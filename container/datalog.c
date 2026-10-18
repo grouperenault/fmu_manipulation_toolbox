@@ -16,9 +16,12 @@
  */
 
 void datalog_log(container_t *container) {
-    const datalog_t *datalog = container->datalog;
+    datalog_t *datalog = container->datalog;
 
     if (datalog) {
+        if (datalog->c_locale_ready)
+            config_c_locale_enter(&datalog->c_locale);
+
         /* write a row in datalog */
         fprintf(datalog->file, "%e", container->time);
 
@@ -80,6 +83,9 @@ void datalog_log(container_t *container) {
 #undef LOG3
 
         fprintf(datalog->file, "\n");
+
+        if (datalog->c_locale_ready)
+            config_c_locale_leave(&datalog->c_locale);
     }
 
     /* and process a step */
@@ -96,6 +102,7 @@ static datalog_t *datalog_init(void) {
     datalog_t *datalog = malloc(sizeof(*datalog));
     if (datalog) {
         datalog->file = NULL;
+        datalog->c_locale_ready = false;
 
         INIT(reals64);
         INIT(reals32);
@@ -219,6 +226,11 @@ datalog_t *datalog_new(const logger_t *logger, const char *dirname) {
     }
 
     config_file_close(&config);
+
+    if (config_c_locale_init(&datalog->c_locale))
+        LOGGER_WARNING("Cannot create the C numeric locale: the datalog uses the locale of the host.");
+    else
+        datalog->c_locale_ready = true;
      
     return datalog;
 
@@ -230,6 +242,8 @@ void datalog_free(datalog_t *datalog) {
     if (datalog) {
         if (datalog->file)
             fclose(datalog->file);
+        if (datalog->c_locale_ready)
+            config_c_locale_free(&datalog->c_locale);
 
 #define FREE(type) \
     free(datalog->vr_ ## type); \

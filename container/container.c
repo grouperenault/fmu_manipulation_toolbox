@@ -4,7 +4,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <locale.h>
 
 #include "config.h"
 #include "container.h"
@@ -2305,14 +2304,10 @@ static void resource_location_to_path(const char *location, char *dest, size_t s
 }
 
 
-int container_configure(container_t* container, const char* resource_location) {
+static int container_configure_c_locale(container_t* container, const char* resource_location) {
     const logger_t *logger = &container->logger;
     config_file_t file;
     char dirname[CONFIG_FILE_SZ];
-
-    LOGGER_WARNING("FMUContainer '" VERSION_TAG "'");
-    /* Force C locale for numeric values, to avoid issues with decimal separator */
-    setlocale(LC_NUMERIC, "C");
 
 
     /* The config parser registers ME FMUs into the solver as it reads them. */
@@ -2504,6 +2499,25 @@ int container_configure(container_t* container, const char* resource_location) {
     LOGGER_DEBUG("Container is configured.");
 
     return 0;
+}
+
+
+/* The configuration files are read with a decimal dot (C numeric locale), for this thread only. */
+int container_configure(container_t* container, const char* resource_location) {
+    const logger_t *logger = &container->logger;
+    config_c_locale_t c_locale;
+
+    LOGGER_WARNING("FMUContainer '" VERSION_TAG "'");
+    if (config_c_locale_init(&c_locale)) {
+        LOGGER_ERROR("Cannot create the C numeric locale.");
+        return -1;
+    }
+    config_c_locale_enter(&c_locale);
+    const int status = container_configure_c_locale(container, resource_location);
+    config_c_locale_leave(&c_locale);
+    config_c_locale_free(&c_locale);
+
+    return status;
 }
 
 

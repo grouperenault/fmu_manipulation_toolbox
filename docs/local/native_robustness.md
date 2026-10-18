@@ -186,6 +186,10 @@ Commit message: `Read the configuration in the C locale without changing the loc
 - Checks of the indexes read against the sizes allocated (local VRs + dimensions, `fmu_id`, clock VRs): a
   configuration error that names the line.
 - `strdup("")` checked.
+- `read_conf_clocks()`: its status is ignored by `container_configure()`, and the clock index `pos` is not checked
+  against `nb_local_clocks` (found at step 3).
+- `datalog_configure()`: the `READ` macro frees the datalog on an error, then `datalog_new()` frees it again (double
+  free, found at step 6).
 - C tests: one malformed `container.txt` per check (truncated line, too many start values, out of range VR or FMU
   index, missing value): an error, no crash (also run under the sanitizers of step 2).
 

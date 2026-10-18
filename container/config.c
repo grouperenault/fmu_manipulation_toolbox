@@ -126,3 +126,66 @@ void config_file_error(config_file_t *config_file, unsigned int code_line_number
 
     LOGGER_ERROR("Configuration error(%u): line #%u: %s", code_line_number, config_file->line_number, message_buffer);
 }
+
+
+/*
+ * C numeric locale of the current thread: the configuration files and the datalog use a decimal dot whatever the
+ * locale of the host. enter / leave switch the current thread only; they may be called several times.
+ */
+int config_c_locale_init(config_c_locale_t *c_locale) {
+#ifdef _WIN32
+    c_locale->per_thread = 0;
+    c_locale->previous = NULL;
+    return 0;
+#else
+    c_locale->previous = (locale_t)0;
+    locale_t base = duplocale(LC_GLOBAL_LOCALE);
+    if (!base)
+        return -1;
+    c_locale->c_locale = newlocale(LC_NUMERIC_MASK, "C", base);
+    if (!c_locale->c_locale) {
+        freelocale(base);
+        return -1;
+    }
+    return 0;
+#endif
+}
+
+
+void config_c_locale_enter(config_c_locale_t *c_locale) {
+#ifdef _WIN32
+    c_locale->per_thread = _configthreadlocale(_ENABLE_PER_THREAD_LOCALE);
+    const char *previous = setlocale(LC_NUMERIC, NULL);
+    c_locale->previous = previous ? _strdup(previous) : NULL;
+    setlocale(LC_NUMERIC, "C");
+#else
+    c_locale->previous = uselocale(c_locale->c_locale);
+#endif
+}
+
+
+void config_c_locale_leave(config_c_locale_t *c_locale) {
+#ifdef _WIN32
+    if (c_locale->previous) {
+        setlocale(LC_NUMERIC, c_locale->previous);
+        free(c_locale->previous);
+        c_locale->previous = NULL;
+    }
+    if (c_locale->per_thread != -1)
+        _configthreadlocale(c_locale->per_thread);
+#else
+    if (c_locale->previous)
+        uselocale(c_locale->previous);
+    c_locale->previous = (locale_t)0;
+#endif
+}
+
+
+void config_c_locale_free(config_c_locale_t *c_locale) {
+#ifdef _WIN32
+    free(c_locale->previous);
+    c_locale->previous = NULL;
+#else
+    freelocale(c_locale->c_locale);
+#endif
+}
