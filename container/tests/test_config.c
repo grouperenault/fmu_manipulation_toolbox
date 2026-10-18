@@ -15,7 +15,7 @@ int test_config_lines(void) {
     config_file_t file;
 
     TEST_ASSERT(test_write_file(TEST_CONFIG_DIR, "lines.txt", "# comment\nfirst\n\n# other comment\nlast") == 0);
-    TEST_ASSERT_EQUAL_INT(0, config_file_open(&file, TEST_CONFIG_DIR, "lines.txt"));
+    TEST_ASSERT_EQUAL_INT(0, config_file_open(&file, NULL, TEST_CONFIG_DIR, "lines.txt"));
 
     TEST_ASSERT_EQUAL_INT(0, get_line(&file));
     TEST_ASSERT(strcmp(file.line, "first") == 0);
@@ -44,7 +44,7 @@ int test_config_long_line(void) {
     free(content);
     TEST_ASSERT(written == 0);
 
-    TEST_ASSERT_EQUAL_INT(0, config_file_open(&file, TEST_CONFIG_DIR, "long.txt"));
+    TEST_ASSERT_EQUAL_INT(0, config_file_open(&file, NULL, TEST_CONFIG_DIR, "long.txt"));
     TEST_ASSERT_EQUAL_INT(0, get_line(&file));
     TEST_ASSERT_EQUAL_INT(len, strlen(file.line));
     TEST_ASSERT_EQUAL_INT(0, get_line(&file));
@@ -60,13 +60,13 @@ int test_config_version(void) {
     int version = 0;
 
     TEST_ASSERT(test_write_file(TEST_CONFIG_DIR, "version.txt", "# Version 42\n") == 0);
-    TEST_ASSERT_EQUAL_INT(0, config_file_open(&file, TEST_CONFIG_DIR, "version.txt"));
+    TEST_ASSERT_EQUAL_INT(0, config_file_open(&file, NULL, TEST_CONFIG_DIR, "version.txt"));
     TEST_ASSERT_EQUAL_INT(0, config_file_version(&file, &version));
     TEST_ASSERT_EQUAL_INT(42, version);
     config_file_close(&file);
 
     TEST_ASSERT(test_write_file(TEST_CONFIG_DIR, "no_version.txt", "# Other header\n") == 0);
-    TEST_ASSERT_EQUAL_INT(0, config_file_open(&file, TEST_CONFIG_DIR, "no_version.txt"));
+    TEST_ASSERT_EQUAL_INT(0, config_file_open(&file, NULL, TEST_CONFIG_DIR, "no_version.txt"));
     TEST_ASSERT_EQUAL_INT(-1, config_file_version(&file, &version));
     config_file_close(&file);
 

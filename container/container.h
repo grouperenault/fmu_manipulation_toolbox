@@ -99,6 +99,8 @@ typedef enum {
 ----------------------------------------------------------------------------*/
 
 typedef struct container_s {
+	logger_t					logger;		/* logger of this instance, given by its importer */
+
 	/* configuration */
 	int							profiling;
 	int							nb_fmu;

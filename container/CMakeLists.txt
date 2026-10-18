@@ -61,6 +61,7 @@ if(BUILD_TESTING)
         tests/test_main.c
         tests/test_config.c
         tests/test_configure.c
+        tests/test_logger.c
         tests/test_thread.c
         tests/test_threads_lifecycle.c
     )

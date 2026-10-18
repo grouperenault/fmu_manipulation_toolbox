@@ -20,6 +20,8 @@ static const struct {
     { "configure_one_fmu",              test_configure_one_fmu },
     { "configure_one_fmu_mt",           test_configure_one_fmu_mt },
     { "configure_mt_instantiate_fails", test_configure_mt_instantiate_fails },
+    { "logger_two_instances",           test_logger_two_instances },
+    { "logger_fmi3_null_callback",      test_logger_fmi3_null_callback },
 };
 
 

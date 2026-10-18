@@ -122,16 +122,18 @@ static datalog_t *datalog_init(void) {
 
 
 int datalog_configure(config_file_t *config, datalog_t *datalog) {
-   logger(LOGGER_WARNING, "Container enable DATALOG.");
+    const logger_t *logger = config->logger;
+
+   LOGGER_WARNING("Container enable DATALOG.");
 
     if (get_line(config)) {
-        logger(LOGGER_ERROR, "Cannot determine datalog file name");
+        LOGGER_ERROR("Cannot determine datalog file name");
         return -1;
     }
 
     datalog->file = fopen(config->line, "wt");
     if (!datalog->file) {
-        logger(LOGGER_ERROR, "Cannot open datalog file '%s': %s", config->line, strerror(errno));
+        LOGGER_ERROR("Cannot open datalog file '%s': %s", config->line, strerror(errno));
         return -2;
     }
     fprintf(datalog->file, "time");
@@ -139,29 +141,29 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
 
 #define READ(type)                                                                                      \
     if (get_line(config)) {                                                                             \
-        logger(LOGGER_ERROR, "Cannot determine datalog for " #type);                                    \
+        LOGGER_ERROR("Cannot determine datalog for " #type);                                            \
         datalog_free(datalog);                                                                          \
         return -3;                                                                                      \
     }                                                                                                   \
     if (sscanf(config->line, "%lu", &datalog->nb_ ## type) < 1) {                                       \
-        logger(LOGGER_ERROR, "Cannot get datalog definition of " #type);                                \
+        LOGGER_ERROR("Cannot get datalog definition of " #type);                                        \
         return -4;                                                                                      \
     }                                                                                                   \
     if (datalog->nb_ ## type) {                                                                         \
         datalog->vr_ ## type = malloc(datalog->nb_ ## type * sizeof(*datalog->vr_ ## type));            \
         datalog->values_ ## type = malloc(datalog->nb_ ## type * sizeof(*datalog->values_ ## type));    \
         if (!datalog->vr_ ## type || !datalog->values_## type) {                                        \
-            logger(LOGGER_ERROR, "Cannot allocate memory for definition of " #type);                    \
+            LOGGER_ERROR("Cannot allocate memory for definition of " #type);                            \
             return -5;                                                                                  \
         }                                                                                               \
         for(unsigned long i=0; i < datalog->nb_ ## type; i += 1) {                                      \
             int offset = 0;                                                                             \
             if (get_line(config)) {                                                                     \
-                logger(LOGGER_ERROR, "Cannot get definition of " #type);                                \
+                LOGGER_ERROR("Cannot get definition of " #type);                                        \
                 return -6;                                                                              \
             }                                                                                           \
             if (sscanf(config->line, "%d %n", &datalog->vr_ ## type [i], &offset) < 1) {                \
-                logger(LOGGER_ERROR, "Cannot read definition of " #type);                               \
+                LOGGER_ERROR("Cannot read definition of " #type);                                       \
                 return -7;                                                                              \
             }                                                                                           \
             fprintf(datalog->file, ",%s", config->line+offset);                                         \
@@ -185,7 +187,7 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
     if (datalog->nb_binaries > 0) {
         datalog->size_binaries = malloc(datalog->nb_binaries * sizeof(*datalog->size_binaries));
         if (! datalog->size_binaries) {
-            logger(LOGGER_ERROR, "Cannot allocate memory for size of binaries");
+            LOGGER_ERROR("Cannot allocate memory for size of binaries");
             return -5;
         }
     }
@@ -197,15 +199,15 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
 }
 
 
-datalog_t *datalog_new(const char *dirname) {
+datalog_t *datalog_new(const logger_t *logger, const char *dirname) {
     config_file_t config;
 
-    if (config_file_open(&config, dirname, "datalog.txt"))
+    if (config_file_open(&config, logger, dirname, "datalog.txt"))
         return NULL;
 
     datalog_t *datalog = datalog_init();
     if (!datalog) {
-        logger(LOGGER_ERROR, "Cannot allocate datalog memory.");
+        LOGGER_ERROR("Cannot allocate datalog memory.");
         config_file_close(&config);
         return NULL;
     }

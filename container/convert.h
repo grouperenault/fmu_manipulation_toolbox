@@ -42,7 +42,8 @@ typedef struct convert_table_s {
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
-extern convert_table_t *convert_new(unsigned long nb);
+struct logger_s;
+extern convert_table_t *convert_new(const struct logger_s *logger, unsigned long nb);
 extern void convert_free(convert_table_t *table);
 extern void convert_proceed(const struct container_s *container,
                             const convert_table_t *table);

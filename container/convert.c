@@ -24,7 +24,7 @@
  *   U8..U64    : unsigned integers (uint8_t .. uint64_t)
  *   B / B1     : container boolean (int) / bit-packed boolean (bool)
  */
-convert_table_t *convert_new(unsigned long nb) {
+convert_table_t *convert_new(const logger_t *logger, unsigned long nb) {
     convert_table_t *table = NULL;
 
     if (nb > 0) { 
@@ -33,12 +33,12 @@ convert_table_t *convert_new(unsigned long nb) {
             table->nb = nb;
             table->entries = malloc(nb * sizeof(*table->entries));
             if (! table->entries) {
-                logger(LOGGER_ERROR, "Cannot allocate conversion table for %lu entries.", nb);
+                LOGGER_ERROR("Cannot allocate conversion table for %lu entries.", nb);
                 free(table);
                 table = NULL;
             }
         } else
-            logger(LOGGER_ERROR, "Cannot allocate conversion table");
+            LOGGER_ERROR("Cannot allocate conversion table");
     } 
     return table;
 }

@@ -31,7 +31,10 @@
 
 fmu_status_t container_enter_event_mode(container_t *container) {
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e| Container entering in EVENT mode", container->time);
+    const logger_t *logger = &container->logger;
+#endif
+#ifdef DEBUG
+    LOGGER_DEBUG("[DEBUG] time=%e| Container entering in EVENT mode", container->time);
 #endif
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (fmuEnterEventMode(&container->fmu[i]) != FMU_STATUS_OK)
@@ -43,7 +46,10 @@ fmu_status_t container_enter_event_mode(container_t *container) {
 
 fmu_status_t container_enter_step_mode(container_t *container) {
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e: Container entering in STEP mode", container->time);
+    const logger_t *logger = &container->logger;
+#endif
+#ifdef DEBUG
+    LOGGER_DEBUG("[DEBUG] time=%e: Container entering in STEP mode", container->time);
 #endif
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         if (fmuEnterStepMode(container->cs_fmu[i]) != FMU_STATUS_OK)
@@ -59,13 +65,14 @@ static inline int is_close (const container_t *container, double r1, double r2) 
 
 
 static void container_set_next_event_time(container_t *container) {
+    const logger_t *logger = &container->logger;
     double *event_interval = container->clocks_list.buffer_interval;
     int *event_qualifier = container->clocks_list.buffer_qualifier;
     fmu_vr_t *fmu_vr = container->clocks_list.fmu_vr;
     double next_interval = container->next_step;
 
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | Get next scheduled ticks (nb_fmu=%lu)", container->time, container->clocks_list.nb_fmu);
+    LOGGER_DEBUG("[DEBUG] time=%e | Get next scheduled ticks (nb_fmu=%lu)", container->time, container->clocks_list.nb_fmu);
 #endif
     /* Get all clocks intervals */
     for(unsigned long i = 0; i < container->clocks_list.nb_fmu; i += 1) {
@@ -73,7 +80,7 @@ static void container_set_next_event_time(container_t *container) {
         const fmu_t *fmu = &container->fmu[counter->fmu_id];
 
         if (fmuGetIntervalDecimal(fmu, fmu_vr, counter->nb, event_interval, event_qualifier) != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "FMU '%s' Cannot get next event interval", fmu->name);
+            LOGGER_ERROR("FMU '%s' Cannot get next event interval", fmu->name);
             return;
         }
 
@@ -95,7 +102,7 @@ static void container_set_next_event_time(container_t *container) {
         if (qualifier == fmi3IntervalUnchanged) {
             interval = container->clocks_list.buffer_previous[i] - container->next_step;
             if (interval < container->tolerance) {
-                logger(LOGGER_ERROR, "Clock '%s' vr=%u has no previous interval and fmi3IntervalUnchanged was set.",
+                LOGGER_ERROR("Clock '%s' vr=%u has no previous interval and fmi3IntervalUnchanged was set.",
                     container->fmu[container->clocks_list.fmu_id[i]].name, container->clocks_list.fmu_vr[i]);
                 return;
             }
@@ -142,12 +149,12 @@ static void container_set_next_event_time(container_t *container) {
 
 #ifdef DEBUG
     if (nb_events) {
-        logger(LOGGER_DEBUG, "[DEBUG] time=%e | Next event t=%e (interval=%e): %lu clock ticks", container->time, 
+        LOGGER_DEBUG("[DEBUG] time=%e | Next event t=%e (interval=%e): %lu clock ticks", container->time, 
             container->time + next_interval, next_interval, nb_events);
         for (unsigned long i = 0; i < nb_events; i += 1) {
-            logger(LOGGER_DEBUG, "[DEBUG] > scheduled tick of clock '%s' vr = %u",
+            LOGGER_DEBUG("[DEBUG] > scheduled tick of clock '%s' vr = %u",
                 container->fmu[container->clocks_list.next_clocks[i].fmu_id].name,
-                               container->clocks_list.next_clocks[i].fmu_vr);
+                container->clocks_list.next_clocks[i].fmu_vr);
         }
     }
 #endif
@@ -179,12 +186,15 @@ void container_clocks_deactivate(container_t *container) {
 
 
 static fmu_status_t container_proceed_event(container_t *container) {
+#ifdef DEBUG
+    const logger_t *logger = &container->logger;
+#endif
     /* Activate clocks of next event and notify FMU */
     for(unsigned long i = 0; i < container->clocks_list.nb_next_clocks; i += 1) {
         container_clock_t *container_clock = &container->clocks_list.next_clocks[i];
         const bool value = true;
 #ifdef DEBUG
-        logger(LOGGER_DEBUG, "[DEBUG] time=%e | Activate Clock '%s' vr=%u", 
+        LOGGER_DEBUG("[DEBUG] time=%e | Activate Clock '%s' vr=%u", 
             container->time, container->fmu[container_clock->fmu_id].name, container_clock->fmu_vr);
 #endif
         container->clocks[container_clock->local_vr] = true;
@@ -218,6 +228,7 @@ static double container_nominal_step(const container_t *container) {
 
 /* Shorten the step so it lands on the earliest announced time event. */
 static void container_bound_next_step(container_t *container) {
+    const logger_t *logger = &container->logger;
     for (int i = 0; i < container->nb_fmu; i += 1) {
         const fmu_t *fmu = &container->fmu[i];
 
@@ -233,20 +244,21 @@ static void container_bound_next_step(container_t *container) {
 
         if (dt + container->tolerance < container->next_step) {
             container->next_step = dt;
-            logger(LOGGER_DEBUG, "%s: next event time %g, updating next step to %g.",
-                   fmu->name, fmu->next_event_time, container->next_step);
+            LOGGER_DEBUG("%s: next event time %g, updating next step to %g.",
+                         fmu->name, fmu->next_event_time, container->next_step);
         }
     }
 }
 
 
 static fmu_status_t container_update_discrete_state(container_t *container) {
+    const logger_t *logger = &container->logger;
     bool more_event;
     int iter;
 
     container->next_step = container_nominal_step(container);
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | container_update_discrete_state()", container->time);
+    LOGGER_DEBUG("[DEBUG] time=%e | container_update_discrete_state()", container->time);
 #endif
     for (iter = 0; iter < CONTAINER_MAX_EVENT_ITER; iter += 1) {
         /* Gauss-Seidel sweep in configuration order, so a value produced by FMU i
@@ -286,8 +298,8 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
             break;
     }
 
-    if (iter >= CONTAINER_MAX_EVENT_ITER) {        logger(LOGGER_ERROR, "Container: event iteration did not converge after %d steps.",
-               CONTAINER_MAX_EVENT_ITER);
+    if (iter >= CONTAINER_MAX_EVENT_ITER) {
+        LOGGER_ERROR("Container: event iteration did not converge after %d steps.", CONTAINER_MAX_EVENT_ITER);
         return FMU_STATUS_ERROR;
     }
 
@@ -366,13 +378,14 @@ static void container_set_fmu_start_values(const fmu_t *fmu, int early_set) {
 
 
 static void container_set_start_values(container_t* container, int early_set) {
+    const logger_t *logger = &container->logger;
     if (early_set)
-        logger(LOGGER_DEBUG, "Setting start values...");
+        LOGGER_DEBUG("Setting start values...");
     else
-        logger(LOGGER_DEBUG, "Re-setting some start values...");
+        LOGGER_DEBUG("Re-setting some start values...");
     for (int i = 0; i < container->nb_fmu; i += 1)
         container_set_fmu_start_values(&container->fmu[i], early_set);
-    logger(LOGGER_DEBUG, "Start values are set.");
+    LOGGER_DEBUG("Start values are set.");
     return;
 }
 
@@ -414,13 +427,14 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
  * warns). Clocks and clocked variables are not propagated.
  */
 static fmu_status_t container_exit_fmus_initialization(container_t* container) {
+    const logger_t *logger = &container->logger;
     for (int k = 0; k < container->nb_fmu; k += 1) {
         fmu_t *fmu = &container->fmu[container->init_order[k]];
         fmu_status_t status;
 
         status = fmu_set_inputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed to get its inputs at the initialization.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed to get its inputs at the initialization.", fmu->name);
             return status;
         }
 
@@ -438,15 +452,15 @@ static fmu_status_t container_exit_fmus_initialization(container_t* container) {
                     return FMU_STATUS_ERROR;
             }
             if (more_event) {
-                logger(LOGGER_ERROR, "Container: event iteration of FMU '%s' did not converge at the initialization.",
-                       fmu->name);
+                LOGGER_ERROR("Container: event iteration of FMU '%s' did not converge at the initialization.",
+                             fmu->name);
                 return FMU_STATUS_ERROR;
             }
         }
 
         status = fmu_get_outputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed to give its outputs at the initialization.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed to give its outputs at the initialization.", fmu->name);
             return status;
         }
     }
@@ -484,11 +498,12 @@ static void container_init_values(container_t* container) {
 }
 
 fmu_status_t container_exit_initialization_mode(container_t* container) {
+    const logger_t *logger = &container->logger;
     fmu_status_t status;
     
     /* Resolve ME FMU pointers and allocate the solver's flat state buffers. */
     if (solver_configure(container->solver)) {
-        logger(LOGGER_ERROR, "Cannot build ME solver.");
+        LOGGER_ERROR("Cannot build ME solver.");
         return -9;
     }
 
@@ -513,7 +528,7 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
         return status;
 
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | first container->next_step = %e", container->time, container->next_step);
+    LOGGER_DEBUG("[DEBUG] time=%e | first container->next_step = %e", container->time, container->next_step);
 #endif
 
     return status;
@@ -521,12 +536,13 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
 
 
 fmu_status_t container_terminate(container_t* container) {
+    const logger_t *logger = &container->logger;
     fmu_status_t status = FMU_STATUS_OK;
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_status_t fmu_status = fmuTerminate(&container->fmu[i]);
         if (fmu_status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed to terminate.", container->fmu[i].name);
+            LOGGER_ERROR("Container: FMU '%s' failed to terminate.", container->fmu[i].name);
             status = FMU_STATUS_ERROR;
         }
     }
@@ -538,11 +554,12 @@ fmu_status_t container_terminate(container_t* container) {
 /* fmi2Reset / fmi3Reset of the container: every embedded FMU is reset, and the container goes back to its state
    right after its instantiation. The datalog goes on in the same file. */
 fmu_status_t container_reset(container_t* container) {
+    const logger_t *logger = &container->logger;
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t *fmu = &container->fmu[i];
 
         if (fmuReset(fmu) != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed to reset.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed to reset.", fmu->name);
             return FMU_STATUS_ERROR;
         }
         fmu->need_event_udpate = false;
@@ -566,7 +583,7 @@ fmu_status_t container_reset(container_t* container) {
         free(container->strings[i]);
         container->strings[i] = strdup("");
         if (!container->strings[i]) {
-            logger(LOGGER_ERROR, "Container: cannot allocate memory to reset a string.");
+            LOGGER_ERROR("Container: cannot allocate memory to reset a string.");
             return FMU_STATUS_ERROR;
         }
     }
@@ -601,7 +618,7 @@ fmu_status_t container_reset(container_t* container) {
     container->time = container->start_time;
     container->need_event_update = false;
 
-    logger(LOGGER_DEBUG, "Container is reset.");
+    LOGGER_DEBUG("Container is reset.");
 
     return FMU_STATUS_OK;
 }
@@ -612,6 +629,7 @@ fmu_status_t container_reset(container_t* container) {
 ----------------------------------------------------------------------------*/
 
 static fmu_status_t container_do_one_step_sequential(container_t *container) {
+    const logger_t *logger = &container->logger;
     fmu_status_t status = FMU_STATUS_OK;
 
     container->need_event_update = false;
@@ -624,7 +642,7 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
 
         status = fmu_set_inputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", fmu->name);
             return status;
         }
 
@@ -637,7 +655,7 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
 
         status = fmu_get_outputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed getting outputs.", fmu->name);
             return status;
         }
     }
@@ -651,7 +669,7 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
         fmu_t *fmu = container->solver->me[i].fmu;
         status = fmu_set_continuous_inputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", fmu->name);
             return status;
         }
     }
@@ -667,7 +685,7 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
         fmu_t *fmu = container->solver->me[i].fmu;
         status = fmu_get_outputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed getting outputs.", fmu->name);
             return status;
         }
     }
@@ -677,6 +695,7 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
 
 
 static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
+    const logger_t *logger = &container->logger;
     fmu_status_t status = FMU_STATUS_OK;
 
     container->need_event_update = false;
@@ -686,7 +705,7 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
         fmu_t* fmu = container->cs_fmu[i];
         status = fmu_set_inputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed setting inputs. %d", fmu->name, fmu->status);
+            LOGGER_ERROR("Container: FMU '%s' failed setting inputs. %d", fmu->name, fmu->status);
             return status;
         }
     }
@@ -710,7 +729,7 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
 
         status = fmu_get_outputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed getting outputs.", fmu->name);
             return status;
         }
     }
@@ -723,7 +742,7 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
         fmu_t *fmu = container->solver->me[i].fmu;
         status = fmu_set_continuous_inputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed setting inputs.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed setting inputs.", fmu->name);
             return status;
         }
     }
@@ -735,7 +754,7 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
         fmu_t *fmu = container->solver->me[i].fmu;
         status = fmu_get_outputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed getting outputs.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed getting outputs.", fmu->name);
             return status;
         }
     }
@@ -745,6 +764,7 @@ static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
 
 
 static fmu_status_t container_do_one_step_parallel(container_t* container) {
+    const logger_t *logger = &container->logger;
     fmu_status_t status = FMU_STATUS_OK;
 
     /* STEP MODE */
@@ -756,7 +776,7 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         status = fmu_set_inputs(container->cs_fmu[i]);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", container->cs_fmu[i]->name);
+            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", container->cs_fmu[i]->name);
             return status;
         }
     }
@@ -764,7 +784,7 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
         fmu_t* fmu = container->cs_fmu[i];
         status = fmuDoStep(fmu, container->time, container->next_step);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed doStep.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
             return status;
         }
         container->need_event_update |= fmu->need_event_udpate;
@@ -772,7 +792,7 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         status = fmu_get_outputs(container->cs_fmu[i]);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed get outputs.", container->cs_fmu[i]->name);
+            LOGGER_ERROR("Container: FMU '%s' failed get outputs.", container->cs_fmu[i]->name);
             return status;
         }
     }
@@ -785,7 +805,7 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
         fmu_t *fmu = container->solver->me[i].fmu;
         status = fmu_set_continuous_inputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed set inputs.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", fmu->name);
             return status;
         }
     }
@@ -798,7 +818,7 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
         fmu_t *fmu = container->solver->me[i].fmu;
         status = fmu_get_outputs(fmu);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Container: FMU '%s' failed get outputs.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed get outputs.", fmu->name);
             return status;
         }
     }
@@ -841,18 +861,19 @@ static bool container_fmu_has_scheduled_clocks(const container_t *container, int
 
 /* Reset the FMU and initialize it again at the current time, as the container does at its initialization. */
 static fmu_status_t container_reset_fmu(container_t *container, int fmu_id) {
+    const logger_t *logger = &container->logger;
     fmu_t *fmu = &container->fmu[fmu_id];
 
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | Reset FMU '%s'", container->time, fmu->name);
+    LOGGER_DEBUG("[DEBUG] time=%e | Reset FMU '%s'", container->time, fmu->name);
 
     if (container_fmu_has_scheduled_clocks(container, fmu_id)) {
-        logger(LOGGER_ERROR, "Container: FMU '%s' cannot be reset: the reset of an FMU with scheduled clocks is "
-               "not supported.", fmu->name);
+        LOGGER_ERROR("Container: FMU '%s' cannot be reset: the reset of an FMU with scheduled clocks is "
+                     "not supported.", fmu->name);
         return FMU_STATUS_ERROR;
     }
 
     if (fmuReset(fmu) != FMU_STATUS_OK) {
-        logger(LOGGER_ERROR, "Container: FMU '%s' cannot be reset (time=%e).", fmu->name, container->time);
+        LOGGER_ERROR("Container: FMU '%s' cannot be reset (time=%e).", fmu->name, container->time);
         return FMU_STATUS_ERROR;
     }
 
@@ -892,7 +913,7 @@ static fmu_status_t container_reset_fmu(container_t *container, int fmu_id) {
             return FMU_STATUS_ERROR;
     }
     if (more_event) {
-        logger(LOGGER_ERROR, "Container: event iteration of FMU '%s' did not converge after its reset.", fmu->name);
+        LOGGER_ERROR("Container: event iteration of FMU '%s' did not converge after its reset.", fmu->name);
         return FMU_STATUS_ERROR;
     }
 
@@ -956,6 +977,7 @@ static void container_clear_reset_triggers(container_t *container) {
  * of its beginning.
  */
 static fmu_status_t container_apply_deferred(container_t *container) {
+    const logger_t *logger = &container->logger;
 #define APPLY_DEFERRED(variable, fmi_type, c_type)                                                                  \
     for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                       \
         container_port_t *port = &container->port_ ## variable [i];                                                 \
@@ -971,8 +993,8 @@ static fmu_status_t container_apply_deferred(container_t *container) {
                     container-> variable [fmu_vr + k] = container->cache_ ## variable [port->cache_offset + k];     \
             } else if (fmuSet ## fmi_type(&container->fmu[fmu_id], &fmu_vr, 1,                                      \
                                      &container->cache_ ## variable [port->cache_offset], nb) != FMU_STATUS_OK) {   \
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set a deferred " #variable " vr=%u.",           \
-                       container->fmu[fmu_id].name, fmu_vr);                                                        \
+                LOGGER_ERROR("Container: FMU '%s' failed to set a deferred " #variable " vr=%u.",                   \
+                             container->fmu[fmu_id].name, fmu_vr);                                                  \
                 return FMU_STATUS_ERROR;                                                                            \
             }                                                                                                       \
         }                                                                                                           \
@@ -998,8 +1020,8 @@ static fmu_status_t container_apply_deferred(container_t *container) {
             } else if (fmuSetString(&container->fmu[fmu_id], &fmu_vr, 1,
                                     (const char * const *)&container->cache_strings[port->cache_offset], nb)
                        != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set a deferred string vr=%u.",
-                       container->fmu[fmu_id].name, fmu_vr);
+                LOGGER_ERROR("Container: FMU '%s' failed to set a deferred string vr=%u.",
+                             container->fmu[fmu_id].name, fmu_vr);
                 return FMU_STATUS_ERROR;
             }
         }
@@ -1019,7 +1041,7 @@ static fmu_status_t container_apply_deferred(container_t *container) {
         if (!size || !data) {
             free(size);
             free(data);
-            logger(LOGGER_ERROR, "Cannot allocate memory to set a deferred binary.");
+            LOGGER_ERROR("Cannot allocate memory to set a deferred binary.");
             return FMU_STATUS_ERROR;
         }
         for (unsigned long k = 0; k < nb; k += 1) {
@@ -1036,7 +1058,7 @@ static fmu_status_t container_apply_deferred(container_t *container) {
                     if (local->max_size < size[k]) {
                         uint8_t *buffer = realloc(local->data, size[k]);
                         if (!buffer) {
-                            logger(LOGGER_ERROR, "Cannot allocate memory to set a deferred binary.");
+                            LOGGER_ERROR("Cannot allocate memory to set a deferred binary.");
                             status = FMU_STATUS_ERROR;
                             break;
                         }
@@ -1049,8 +1071,8 @@ static fmu_status_t container_apply_deferred(container_t *container) {
             } else {
                 status = fmuSetBinary(&container->fmu[fmu_id], &fmu_vr, 1, size, data, nb);
                 if (status != FMU_STATUS_OK)
-                    logger(LOGGER_ERROR, "Container: FMU '%s' failed to set a deferred binary vr=%u.",
-                           container->fmu[fmu_id].name, fmu_vr);
+                    LOGGER_ERROR("Container: FMU '%s' failed to set a deferred binary vr=%u.",
+                                 container->fmu[fmu_id].name, fmu_vr);
             }
         }
         free(size);
@@ -1064,8 +1086,9 @@ static fmu_status_t container_apply_deferred(container_t *container) {
 
 
 fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
+    const logger_t *logger = &container->logger;
 #ifdef DEBUG
-    logger(LOGGER_DEBUG, "[DEBUG] time=%e | container_do_step(%e, %e)", container->time, currentCommunicationPoint, communicationStepSize);
+    LOGGER_DEBUG("[DEBUG] time=%e | container_do_step(%e, %e)", container->time, currentCommunicationPoint, communicationStepSize);
 #endif
     fmu_status_t status = FMU_STATUS_OK;
     const double end_time = currentCommunicationPoint + communicationStepSize;
@@ -1088,13 +1111,13 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
             break;
 
 #ifdef DEBUG
-        logger(LOGGER_DEBUG, "[DEBUG] time=%e | container internal step ts=%e (end_time=%e)", container->time, ts, end_time);
+        LOGGER_DEBUG("[DEBUG] time=%e | container internal step ts=%e (end_time=%e)", container->time, ts, end_time);
 #endif
         while(! is_close(container, container->time, target_time)) {
             /* RESET of embedded FMUs */
             status = container_reset_fmus(container);
             if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container cannot reset FMUs (time=%e)", container->time);
+                LOGGER_ERROR("Container cannot reset FMUs (time=%e)", container->time);
                 return status;
             }
 
@@ -1103,11 +1126,11 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
                 container->next_step = target_time - container->time;
             }
 #ifdef DEBUG
-            logger(LOGGER_DEBUG, "[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
+            LOGGER_DEBUG("[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
 #endif
             status = container->do_step(container);
             if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container cannot Do Step (time=%e)", container->time);
+                LOGGER_ERROR("Container cannot Do Step (time=%e)", container->time);
                 return status;
             }
             container_clear_reset_triggers(container);
@@ -1116,7 +1139,7 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
             /* EVENT MODE */
             status = container_handle_events(container);
             if ( status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container cannot Handle Events (time=%e)", container->time);
+                LOGGER_ERROR("Container cannot Handle Events (time=%e)", container->time);
                 return status;
             }
         }
@@ -1149,6 +1172,7 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
 #define CACHE_FUNCTION(type, c_type, format, cast)                                                              \
 int container_cache_ ## type(container_t *container, container_port_t *port, const c_type value[],              \
                              size_t nvalues) {                                                                  \
+    const logger_t *logger = &container->logger;                                                                \
     if (port->cache_offset == CONTAINER_NO_CACHE)                                                               \
         return 0;                                                                                               \
     if (nvalues > port->dimension)                                                                              \
@@ -1156,8 +1180,8 @@ int container_cache_ ## type(container_t *container, container_port_t *port, con
     for (size_t k = 0; k < nvalues; k += 1)                                                                     \
         container->cache_ ## type [port->cache_offset + k] = value[k];                                          \
     port->nb_cached = (unsigned long)nvalues;   /* at most the dimension of the port */                         \
-    logger(LOGGER_DEBUG, "[DEBUG] Cache " #type " [%lu] = " format " (%zu value(s))", port->cache_offset,       \
-           (cast)value[0], nvalues);                                                                            \
+    LOGGER_DEBUG("[DEBUG] Cache " #type " [%lu] = " format " (%zu value(s))", port->cache_offset,               \
+                 (cast)value[0], nvalues);                                                                      \
     return 0;                                                                                                   \
 }
 
@@ -1178,6 +1202,7 @@ CACHE_FUNCTION(booleans1,   bool,       "%d",           int)
 
 int container_cache_strings(container_t *container, container_port_t *port, const char * const value[],
                             size_t nvalues) {
+    const logger_t *logger = &container->logger;
     if (port->cache_offset == CONTAINER_NO_CACHE)
         return 0;
     if (nvalues > port->dimension)
@@ -1187,19 +1212,20 @@ int container_cache_strings(container_t *container, container_port_t *port, cons
         free(*cached);
         *cached = strdup(value[k]);
         if (!*cached) {
-            logger(LOGGER_ERROR, "Cannot allocate memory to cache a string.");
+            LOGGER_ERROR("Cannot allocate memory to cache a string.");
             port->nb_cached = 0;
             return -1;
         }
     }
     port->nb_cached = (unsigned long)nvalues;   /* at most the dimension of the port */
-    logger(LOGGER_DEBUG, "[DEBUG] Cache strings [%lu] = %s (%zu value(s))", port->cache_offset, value[0], nvalues);
+    LOGGER_DEBUG("[DEBUG] Cache strings [%lu] = %s (%zu value(s))", port->cache_offset, value[0], nvalues);
     return 0;
 }
 
 
 int container_cache_binaries(container_t *container, container_port_t *port, const size_t size[],
                              const uint8_t * const value[], size_t nvalues) {
+    const logger_t *logger = &container->logger;
     if (port->cache_offset == CONTAINER_NO_CACHE)
         return 0;
     if (nvalues > port->dimension)
@@ -1209,7 +1235,7 @@ int container_cache_binaries(container_t *container, container_port_t *port, con
         if (cached->max_size < size[k]) {
             uint8_t *data = realloc(cached->data, size[k]);
             if (!data) {
-                logger(LOGGER_ERROR, "Cannot allocate memory to cache a binary.");
+                LOGGER_ERROR("Cannot allocate memory to cache a binary.");
                 port->nb_cached = 0;
                 return -1;
             }
@@ -1220,13 +1246,14 @@ int container_cache_binaries(container_t *container, container_port_t *port, con
         memcpy(cached->data, value[k], size[k]);
     }
     port->nb_cached = (unsigned long)nvalues;   /* at most the dimension of the port */
-    logger(LOGGER_DEBUG, "[DEBUG] Cache binaries [%lu] = %zu byte(s) (%zu value(s))", port->cache_offset, size[0],
-           nvalues);
+    LOGGER_DEBUG("[DEBUG] Cache binaries [%lu] = %zu byte(s) (%zu value(s))", port->cache_offset, size[0],
+                 nvalues);
     return 0;
 }
 
 
 fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id) {
+    const logger_t *logger = &container->logger;
     const fmu_t *fmu = &container->fmu[fmu_id];
 
 #define SET_CACHE_CAST(variable, fmi_type, cast)                                                                \
@@ -1240,8 +1267,8 @@ fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_i
             if (fmuSet ## fmi_type(fmu, &port->links[j].fmu_vr, 1,                                              \
                               cast &container->cache_ ## variable [port->cache_offset],                         \
                               port->nb_cached) != FMU_STATUS_OK) {                                              \
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set again " #variable " vr=%u.", fmu->name, \
-                       port->links[j].fmu_vr);                                                                  \
+                LOGGER_ERROR("Container: FMU '%s' failed to set again " #variable " vr=%u.", fmu->name,         \
+                             port->links[j].fmu_vr);                                                            \
                 return FMU_STATUS_ERROR;                                                                        \
             }                                                                                                   \
         }                                                                                                       \
@@ -1265,7 +1292,7 @@ fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_i
         if (!size || !data) {
             free(size);
             free(data);
-            logger(LOGGER_ERROR, "Cannot allocate memory to set again a binary.");
+            LOGGER_ERROR("Cannot allocate memory to set again a binary.");
             return FMU_STATUS_ERROR;
         }
         for (unsigned long k = 0; k < port->nb_cached; k += 1) {
@@ -1279,8 +1306,8 @@ fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_i
                 continue;
             status = fmuSetBinary(fmu, &port->links[j].fmu_vr, 1, size, data, port->nb_cached);
             if (status != FMU_STATUS_OK)
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed to set again binaries vr=%u.", fmu->name,
-                       port->links[j].fmu_vr);
+                LOGGER_ERROR("Container: FMU '%s' failed to set again binaries vr=%u.", fmu->name,
+                             port->links[j].fmu_vr);
         }
         free(size);
         free(data);
@@ -1288,7 +1315,7 @@ fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_i
             return status;
     }
 
-    logger(LOGGER_DEBUG, "[DEBUG] FMU '%s': cached values are set again.", fmu->name);
+    LOGGER_DEBUG("[DEBUG] FMU '%s': cached values are set again.", fmu->name);
     return FMU_STATUS_OK;
 }
 
@@ -1342,6 +1369,7 @@ static int read_version(config_file_t* file) {
  * 1 0 0 
  */
 static int read_flags(container_t* container, config_file_t* file) {
+    const logger_t *logger = &container->logger;
     int mt, sequential;
 
     CONFIG_GETLINE;
@@ -1351,21 +1379,21 @@ static int read_flags(container_t* container, config_file_t* file) {
     }
     
     if (sequential) {
-        logger(LOGGER_WARNING, "Container use SEQUENTIAL mode.");
+        LOGGER_WARNING("Container use SEQUENTIAL mode.");
         container->do_step = container_do_one_step_sequential;
     } else {
         if (mt) {
-            logger(LOGGER_WARNING, "Container use PARALLEL mode with MULTI thread");
+            LOGGER_WARNING("Container use PARALLEL mode with MULTI thread");
             container->do_step = container_do_one_step_parallel_mt;
             container->mt = true;
         } else {
-            logger(LOGGER_WARNING, "Container use PARALLEL mode with MONO thread.");
+            LOGGER_WARNING("Container use PARALLEL mode with MONO thread.");
             container->do_step = container_do_one_step_parallel;
         }
     }
 
     if (container->profiling)
-        logger(LOGGER_WARNING, "Container use PROFILING");
+        LOGGER_WARNING("Container use PROFILING");
 
     return 0;
 }
@@ -1376,6 +1404,7 @@ static int read_flags(container_t* container, config_file_t* file) {
  * .001
  */
 static int read_conf_time_step(container_t* container, config_file_t* file) {
+    const logger_t *logger = &container->logger;
     CONFIG_GETLINE;
     if (sscanf(file->line, "%le", &container->time_step) < 1) {
         CONFIG_ERROR("Cannot read time_step.");
@@ -1390,7 +1419,7 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
         return -1;
     }
 
-    logger(LOGGER_DEBUG, "Container time_step = %es", container->time_step);
+    LOGGER_DEBUG("Container time_step = %es", container->time_step);
 
     return 0;
 }
@@ -1509,6 +1538,7 @@ static int read_conf_init_order(container_t *container, config_file_t *file) {
 
 
 static int read_conf_fmu(container_t *container, const char *dirname, config_file_t* file) {
+    const logger_t *logger = &container->logger;
     int nb_cs, nb_me;
 
     CONFIG_GETLINE;
@@ -1518,7 +1548,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
     }
 
     const int nb_fmu = nb_cs + nb_me;
-    logger(LOGGER_DEBUG, "%d FMUs to be loaded (%d CS, %d ME).", nb_fmu, nb_cs, nb_me);
+    LOGGER_DEBUG("%d FMUs to be loaded (%d CS, %d ME).", nb_fmu, nb_cs, nb_me);
     if (!nb_fmu) {
         container->fmu = NULL;
         return 0;
@@ -2026,7 +2056,7 @@ static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
         return -2;
     }
 
-    fmu->conversions = convert_new(nb);
+    fmu->conversions = convert_new(&fmu->container->logger, nb);
     if (nb && !fmu->conversions) {
         CONFIG_ERROR("Cannot allocate conversion table for %lu entries.", nb);
         return -3;
@@ -2161,11 +2191,12 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
  * for them: when one cannot be launched, the gate is opened without barriers_ready and those already launched end.
  */
 static int container_start_threads(container_t *container) {
+    const logger_t *logger = &container->logger;
     if (!container->mt)
         return 0;
 
     if (thread_gate_init(&container->threads_gate)) {
-        logger(LOGGER_ERROR, "Cannot initialize the start of the threads.");
+        LOGGER_ERROR("Cannot initialize the start of the threads.");
         return -1;
     }
     container->threads_gate_ready = true;
@@ -2173,7 +2204,7 @@ static int container_start_threads(container_t *container) {
     int status = 0;
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         if (fmu_launch_thread(container->cs_fmu[i])) {
-            logger(LOGGER_ERROR, "Cannot launch FMU '%s' thread.", container->cs_fmu[i]->name);
+            LOGGER_ERROR("Cannot launch FMU '%s' thread.", container->cs_fmu[i]->name);
             status = -2;
             break;
         }
@@ -2181,12 +2212,12 @@ static int container_start_threads(container_t *container) {
     }
 
     if (!status) {
-        logger(LOGGER_DEBUG, "Container barrier is configured with %u participants", container->nb_cs + 1);
+        LOGGER_DEBUG("Container barrier is configured with %u participants", container->nb_cs + 1);
         if (thread_barrier_init(&container->barrier_start, container->nb_cs + 1)) {
-            logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
+            LOGGER_ERROR("Cannot initialize thread barrier.");
             status = -1;
         } else if (thread_barrier_init(&container->barrier_end, container->nb_cs + 1)) {
-            logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
+            LOGGER_ERROR("Cannot initialize thread barrier.");
             thread_barrier_destroy(&container->barrier_start);
             status = -1;
         } else
@@ -2201,10 +2232,11 @@ static int container_start_threads(container_t *container) {
 
 
 static void container_stop_threads(container_t *container) {
+    const logger_t *logger = &container->logger;
     if (!container->threads_gate_ready)
         return;
 
-    logger(LOGGER_DEBUG, "Stopping threads...");
+    LOGGER_DEBUG("Stopping threads...");
     if (container->barriers_ready) {
         container->cancel = true;
         thread_barrier_wait(&container->barrier_start);
@@ -2212,7 +2244,7 @@ static void container_stop_threads(container_t *container) {
 
     for (unsigned int i = 0; i < container->nb_threads; i += 1) {
         fmu_t *fmu = container->cs_fmu[i];
-        logger(LOGGER_DEBUG, "Waiting for FMU '%s' thread to finish.", fmu->name);
+        LOGGER_DEBUG("Waiting for FMU '%s' thread to finish.", fmu->name);
         thread_join(fmu->thread);
         fmu->thread = NULL;
     }
@@ -2274,10 +2306,11 @@ static void resource_location_to_path(const char *location, char *dest, size_t s
 
 
 int container_configure(container_t* container, const char* resource_location) {
+    const logger_t *logger = &container->logger;
     config_file_t file;
     char dirname[CONFIG_FILE_SZ];
 
-    logger(LOGGER_WARNING, "FMUContainer '" VERSION_TAG "'");
+    LOGGER_WARNING("FMUContainer '" VERSION_TAG "'");
     /* Force C locale for numeric values, to avoid issues with decimal separator */
     setlocale(LC_NUMERIC, "C");
 
@@ -2285,13 +2318,13 @@ int container_configure(container_t* container, const char* resource_location) {
     /* The config parser registers ME FMUs into the solver as it reads them. */
     container->solver = solver_new(container);
     if (!container->solver) {
-        logger(LOGGER_ERROR, "Cannot allocate ME solver.");
+        LOGGER_ERROR("Cannot allocate ME solver.");
         return -1;
     }
 
     resource_location_to_path(resource_location, dirname, sizeof(dirname));
-    if (config_file_open(&file, dirname, "container.txt")) {
-        logger(LOGGER_ERROR, "Cannot open '%s/container.txt': %s.", dirname, strerror(errno));
+    if (config_file_open(&file, logger, dirname, "container.txt")) {
+        LOGGER_ERROR("Cannot open '%s/container.txt': %s.", dirname, strerror(errno));
         return -1;
     }
 
@@ -2317,25 +2350,25 @@ int container_configure(container_t* container, const char* resource_location) {
 
     if (read_conf_init_order(container, &file)) {
         config_file_close(&file);
-        logger(LOGGER_ERROR, "Cannot read the initialization order.");
+        LOGGER_ERROR("Cannot read the initialization order.");
         return -4;
     }
 
     if (read_conf_local(container, &file)) {
         config_file_close(&file);
-        logger(LOGGER_ERROR, "Cannot allocate local variables.");
+        LOGGER_ERROR("Cannot allocate local variables.");
         return -5;
     }
 
     if (read_conf_io(container, &file)) {
         config_file_close(&file);
-        logger(LOGGER_ERROR, "Cannot read translation table.");
+        LOGGER_ERROR("Cannot read translation table.");
         return -6;
     }
 
 #define LOG_IO(variable, fmi_type, c_type) \
     if ((container->nb_local_ ## variable > 0) || (container->nb_ports_ ## variable > 0)) \
-        logger(LOGGER_DEBUG, "%-10s: %lu local variables and %lu ports", #variable, container->nb_local_ ## variable, container->nb_ports_ ## variable);
+        LOGGER_DEBUG("%-10s: %lu local variables and %lu ports", #variable, container->nb_local_ ## variable, container->nb_ports_ ## variable);
 
     FOR_ALL_NUMERIC_TYPES(LOG_IO)
     LOG_IO(strings, String, char *)
@@ -2346,21 +2379,21 @@ int container_configure(container_t* container, const char* resource_location) {
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (read_conf_fmu_io(&container->fmu[i], &file)) {
             config_file_close(&file);
-            logger(LOGGER_ERROR, "Cannot read I/O table for FMU#%d", i);
+            LOGGER_ERROR("Cannot read I/O table for FMU#%d", i);
             return -7;
         }
 
 #define LOG_IO(orientation, type) \
     if ((container->fmu[i].fmu_io. type . orientation .nb > 0) || (container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation > 0)) \
-        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [" #orientation "] %lu ports and %lu clocked", i, #type, container->fmu[i].fmu_io. type . orientation .nb, container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation);
+        LOGGER_DEBUG("FMU#%2d: %-10s: [" #orientation "] %lu ports and %lu clocked", i, #type, container->fmu[i].fmu_io. type . orientation .nb, container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation);
 
 #define LOG_IO_CLASSIC(orientation, type) \
     if (container->fmu[i].fmu_io. type . orientation .nb > 0)\
-        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [" #orientation "] %lu ports", i, #type, container->fmu[i].fmu_io. type . orientation .nb);
+        LOGGER_DEBUG("FMU#%2d: %-10s: [" #orientation "] %lu ports", i, #type, container->fmu[i].fmu_io. type . orientation .nb);
         
 #define LOG_START(variable, fmi_type, c_type) \
     if (container->fmu[i].fmu_io.start_ ## variable .nb > 0) \
-        logger(LOGGER_DEBUG, "FMU#%2d: %-10s: [start] %lu ", i, #variable, container->fmu[i].fmu_io.start_ ## variable .nb);
+        LOGGER_DEBUG("FMU#%2d: %-10s: [start] %lu ", i, #variable, container->fmu[i].fmu_io.start_ ## variable .nb);
 
 #define LOG_IO_IN(variable, fmi_type, c_type) LOG_IO(in, variable)
 #define LOG_IO_OUT(variable, fmi_type, c_type) LOG_IO(out, variable)
@@ -2387,11 +2420,11 @@ int container_configure(container_t* container, const char* resource_location) {
 
     read_conf_clocks(container, &file);
     if (container->clocks_list.nb_fmu)
-        logger(LOGGER_DEBUG, "Container will tick for clocks from %lu FMUs", container->clocks_list.nb_fmu);
+        LOGGER_DEBUG("Container will tick for clocks from %lu FMUs", container->clocks_list.nb_fmu);
 
     config_file_close(&file);
 
-    logger(LOGGER_DEBUG, "Instanciate embedded FMUs...");
+    LOGGER_DEBUG("Instanciate embedded FMUs...");
     for (int i = 0; i < container->nb_fmu; i += 1) {
         fmu_t *fmu = &container->fmu[i];
         const bool is_me = (fmu->kind == FMU_KIND_ME);
@@ -2400,17 +2433,17 @@ int container_configure(container_t* container, const char* resource_location) {
         const size_t len = strlen(container->instance_name) + 1 + strlen(fmu->name) + 1;
         fmu->instance_name = malloc(len);
         if (!fmu->instance_name) {
-            logger(LOGGER_ERROR, "Cannot allocate the instance name of FMU '%s'", fmu->name);
+            LOGGER_ERROR("Cannot allocate the instance name of FMU '%s'", fmu->name);
             return -8;
         }
         snprintf(fmu->instance_name, len, "%s.%s", container->instance_name, fmu->name);
-        logger(LOGGER_DEBUG, "FMU#%d: Instanciate '%s' as '%s' for %s", i, fmu->name, fmu->instance_name,
-               is_me ? "ModelExchange" : "CoSimulation");
+        LOGGER_DEBUG("FMU#%d: Instanciate '%s' as '%s' for %s", i, fmu->name, fmu->instance_name,
+                     is_me ? "ModelExchange" : "CoSimulation");
 
         fmu_status_t status = is_me ? fmuInstantiateModelExchange(fmu, fmu->instance_name)
                                     : fmuInstantiateCoSimulation(fmu, fmu->instance_name);
         if (status != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "Cannot Instantiate FMU '%s'", fmu->name);
+            LOGGER_ERROR("Cannot Instantiate FMU '%s'", fmu->name);
             return -8;
         }
     }
@@ -2420,14 +2453,14 @@ int container_configure(container_t* container, const char* resource_location) {
     container->next_step = container->time_step; /* Default: no next event time */
     container->time = container->start_time;
     
-    container->datalog = datalog_new(dirname);
+    container->datalog = datalog_new(logger, dirname);
 
 
     /* Allocate buffer for arrays of strings and arrays of binaries */
     if (container->nb_local_strings) {
         container->strings_tmp = malloc(container->nb_local_strings * sizeof(*container->strings_tmp));
         if (!container->strings_tmp) {
-             logger(LOGGER_ERROR, "Cannot allocate buffer for strings.");
+             LOGGER_ERROR("Cannot allocate buffer for strings.");
              return -9;
         }
     } else
@@ -2437,7 +2470,7 @@ int container_configure(container_t* container, const char* resource_location) {
         container->binaries_tmp = malloc(container->nb_local_binaries * sizeof(*container->binaries_tmp));
         container->binaries_size_tmp = malloc(container->nb_local_binaries * sizeof(*container->binaries_size_tmp));
         if (!container->binaries_tmp || !container->binaries_size_tmp) {
-            logger(LOGGER_ERROR, "Cannot allocate buffer for binaries.");
+            LOGGER_ERROR("Cannot allocate buffer for binaries.");
              return -9;
         }
     } else {
@@ -2450,7 +2483,7 @@ int container_configure(container_t* container, const char* resource_location) {
     if (container->nb_fmu > 0) {
         container->cs_fmu = malloc((size_t)container->nb_fmu * sizeof(*container->cs_fmu));
         if (!container->cs_fmu) {
-            logger(LOGGER_ERROR, "Cannot allocate CS working set.");
+            LOGGER_ERROR("Cannot allocate CS working set.");
             return -9;
         }
         for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -2460,11 +2493,11 @@ int container_configure(container_t* container, const char* resource_location) {
     }
 
     if (container_start_threads(container)) {
-        logger(LOGGER_ERROR, "Cannot start threads.");
+        LOGGER_ERROR("Cannot start threads.");
         return -10;
     }
 
-    logger(LOGGER_DEBUG, "Container is configured.");
+    LOGGER_DEBUG("Container is configured.");
 
     return 0;
 }

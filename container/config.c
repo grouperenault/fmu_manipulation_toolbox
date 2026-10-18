@@ -15,6 +15,7 @@
  * Return 0, -1 at the end of the file, -2 when the buffer cannot grow.
  */
 static int read_line(config_file_t* config_file) {
+    const logger_t *logger = config_file->logger;
     size_t len = 0;
 
     config_file->line[0] = '\0';
@@ -27,7 +28,7 @@ static int read_line(config_file_t* config_file) {
 
         char *line = realloc(config_file->line, 2 * config_file->line_size);
         if (!line) {
-            logger(LOGGER_ERROR, "Cannot allocate memory to read line #%u.", config_file->line_number + 1);
+            LOGGER_ERROR("Cannot allocate memory to read line #%u.", config_file->line_number + 1);
             return -2;
         }
         config_file->line = line;
@@ -73,9 +74,10 @@ int config_file_version(config_file_t* config_file, int *version) {
 }
 
 
-int config_file_open(config_file_t* config_file, const char *dirname, const char *filename) {
+int config_file_open(config_file_t* config_file, const logger_t *logger, const char *dirname, const char *filename) {
     char full_path[CONFIG_FILE_SZ];
 
+    config_file->logger = logger;
     STRLCPY(full_path, dirname, sizeof(full_path));
     STRLCAT(full_path, "/", sizeof(full_path));
     STRLCAT(full_path, filename, sizeof(full_path));
@@ -83,20 +85,20 @@ int config_file_open(config_file_t* config_file, const char *dirname, const char
     config_file->line = NULL;
     config_file->fp = fopen(full_path, "rt");
     if (! config_file->fp) {
-        logger(LOGGER_DEBUG, "Cannot open configuration file '%s'.", full_path);
+        LOGGER_DEBUG("Cannot open configuration file '%s'.", full_path);
         return -1;
     }
 
     config_file->line_size = CONFIG_FILE_SZ;
     config_file->line = malloc(config_file->line_size);
     if (! config_file->line) {
-        logger(LOGGER_ERROR, "Cannot allocate memory to read configuration file '%s'.", full_path);
+        LOGGER_ERROR("Cannot allocate memory to read configuration file '%s'.", full_path);
         fclose(config_file->fp);
         config_file->fp = NULL;
         return -1;
     }
 
-    logger(LOGGER_DEBUG, "Reading '%s'...", filename);
+    LOGGER_DEBUG("Reading '%s'...", filename);
 
     config_file->line_number = 0;
 
@@ -114,6 +116,7 @@ void config_file_close(config_file_t* config_file) {
 }
 
 void config_file_error(config_file_t *config_file, unsigned int code_line_number, const char *message, ...) {
+    const logger_t *logger = config_file->logger;
     char message_buffer[256];
     va_list ap;
 
@@ -121,5 +124,5 @@ void config_file_error(config_file_t *config_file, unsigned int code_line_number
     vsnprintf(message_buffer, sizeof(message_buffer), message, ap);
     va_end(ap);
 
-    logger(LOGGER_ERROR, "Configuration error(%u): line #%u: %s", code_line_number, config_file->line_number, message_buffer);
+    LOGGER_ERROR("Configuration error(%u): line #%u: %s", code_line_number, config_file->line_number, message_buffer);
 }
