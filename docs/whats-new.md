@@ -24,13 +24,15 @@ Version 2.0 is the biggest release of FMU Manipulation Toolbox so far.
 
 ![Reset an embedded FMU during the simulation](assets/release-2.0/slide-07.webp){ loading=lazy }
 
-![No binary for your platform? Compile the sources of the FMU](assets/release-2.0/slide-08.webp){ loading=lazy }
+![From Simulink to an FMU Container: initialized as Simulink does](assets/release-2.0/slide-08.webp){ loading=lazy }
 
-![Safer edits, stricter checks](assets/release-2.0/slide-09.webp){ loading=lazy }
+![No binary for your platform? Compile the sources of the FMU](assets/release-2.0/slide-09.webp){ loading=lazy }
 
-![Install only what you need](assets/release-2.0/slide-10.webp){ loading=lazy }
+![Safer edits, stricter checks](assets/release-2.0/slide-10.webp){ loading=lazy }
 
-![Try 2.0 and tell us what you think](assets/release-2.0/slide-11.webp){ loading=lazy }
+![Install only what you need](assets/release-2.0/slide-11.webp){ loading=lazy }
+
+![Try 2.0 and tell us what you think](assets/release-2.0/slide-12.webp){ loading=lazy }
 
 </div>
 </div>
@@ -47,6 +49,10 @@ Version 2.0 is the biggest release of FMU Manipulation Toolbox so far.
 - :material-restart: **Reset of embedded FMUs** — an FMU of the container, or the importer, can
   [reset another embedded FMU](user-guide/fmucontainer/container-reset.md) during the simulation: it starts again
   at the current time.
+- :material-swap-horizontal: **From Simulink to an FMU Container** — the container
+  [initializes its FMUs as Simulink does](user-guide/fmucontainer/container.md#initialization-of-the-embedded-fmus):
+  each one starts with the values of the FMUs it depends on. A [migration guide](examples/simulink-to-container.md)
+  maps the Simulink concepts to the container and lists the behaviour differences to take into account.
 - :material-link-variant: **Link Assistant** — [connect FMUs with hundreds of ports by
   rule](user-guide/fmucontainer/gui-usage.md#link-assistant): same name, prefix or suffix, regular expression,
   similar names; review the proposals, then apply.

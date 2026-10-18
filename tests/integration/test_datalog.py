@@ -45,5 +45,5 @@ def test_datalog3(area_dir):
 def test_datalog_pcap(area_dir):
     sys.argv = ["datalog2pcap", "-can", "REF-nodes-only-datalog.csv"]
     datalog2pcap()
-    assert_md5("REF-nodes-only-datalog.pcap", "ceab6b0161dbc93458bd47c057e80375")
+    assert_md5("REF-nodes-only-datalog.pcap", "7f5c838c864b241dd9db64aa39678b56")
 

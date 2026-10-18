@@ -13,6 +13,31 @@ extern "C" {
 
 
 /*----------------------------------------------------------------------------
+                     F O R _ A L L _ N U M E R I C _ T Y P E S
+----------------------------------------------------------------------------*/
+
+/*
+ * X-macro: lists all numeric types (field name, FMI type suffix, C type).
+ * Expand with: FOR_ALL_NUMERIC_TYPES(MACRO) where MACRO(variable, fmi_type, c_type)
+ * Each expansion of MACRO must be a complete statement or declaration: no
+ * separator is inserted between the expansions.
+ */
+#define FOR_ALL_NUMERIC_TYPES(X)                                                                    \
+    X(reals64,     Real64,     double)                                                              \
+    X(reals32,     Real32,     float)                                                               \
+    X(integers8,   Integer8,   int8_t)                                                              \
+    X(uintegers8,  UInteger8,  uint8_t)                                                             \
+    X(integers16,  Integer16,  int16_t)                                                             \
+    X(uintegers16, UInteger16, uint16_t)                                                            \
+    X(integers32,  Integer32,  int32_t)                                                             \
+    X(uintegers32, UInteger32, uint32_t)                                                            \
+    X(integers64,  Integer64,  int64_t)                                                             \
+    X(uintegers64, UInteger64, uint64_t)                                                            \
+    X(booleans,    Boolean,    int)                                                                 \
+    X(booleans1,   Boolean1,   bool)
+
+
+/*----------------------------------------------------------------------------
                             F M U _ V R _ T
 ----------------------------------------------------------------------------*/
 
@@ -76,31 +101,21 @@ typedef struct {
                           F M U _ S T A R T _ xxx _ T
 ----------------------------------------------------------------------------*/
 
-#define DECLARE_START_TYPE(name, type)  \
-typedef struct {                        \
-    unsigned long               nb;     \
-    struct {                            \
-        fmu_vr_t                vr;     \
-        int                     reset;  \
-        type                    *value; \
-    } *start_values;                    \
-} fmu_start_ ## name ## _t
+#define DECLARE_START_TYPE(variable, fmi_type, c_type)  \
+typedef struct {                                        \
+    unsigned long               nb;                     \
+    struct {                                            \
+        fmu_vr_t                vr;                     \
+        unsigned int            dimension;  /* number of values (array) */ \
+        int                     reset;                  \
+        c_type                  *value;                 \
+    } *start_values;                                    \
+} fmu_start_ ## variable ## _t;
 
-DECLARE_START_TYPE(reals64,     double);
-DECLARE_START_TYPE(reals32,     float);
-DECLARE_START_TYPE(integers8,   int8_t);
-DECLARE_START_TYPE(uintegers8,  uint8_t);
-DECLARE_START_TYPE(integers16,  int16_t);
-DECLARE_START_TYPE(uintegers16, uint16_t);
-DECLARE_START_TYPE(integers32,  int32_t);
-DECLARE_START_TYPE(uintegers32, uint32_t);
-DECLARE_START_TYPE(integers64,  int64_t);
-DECLARE_START_TYPE(uintegers64, uint64_t);
-DECLARE_START_TYPE(booleans,    int);
-DECLARE_START_TYPE(booleans1,   bool);
-DECLARE_START_TYPE(strings,     const char *);
+FOR_ALL_NUMERIC_TYPES(DECLARE_START_TYPE)
+DECLARE_START_TYPE(strings, String, const char *)
 
-#undef DECLARE_TYPE_START
+#undef DECLARE_START_TYPE
 
 
 /*----------------------------------------------------------------------------

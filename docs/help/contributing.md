@@ -151,6 +151,13 @@ python tools/make_carousel.py --out /tmp/carousel
 cp /tmp/carousel/*.webp docs/assets/release-2.0/
 ```
 
+The LinkedIn post uses a shorter carousel, sized for LinkedIn: the cover, one slide per main new feature and the
+call to action (`LINKEDIN_SLIDES`). `--linkedin` writes only its PDF and its PNG preview:
+
+```bash
+python tools/make_carousel.py --linkedin --out /tmp/carousel-linkedin
+```
+
 The banner announcing the page, at the top of the site, is withdrawn by removing the `announce` block of
 `overrides/main.html`; the page stays.
 

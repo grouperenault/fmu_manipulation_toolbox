@@ -31,10 +31,11 @@ static fmu_status_t solver_integrate_euler(solver_t *solver, double t, double h)
 static fmu_status_t solver_integrate_rk4(solver_t *solver, double t, double h);
 
 solver_t *solver_new(container_t *container) {
-    logger(LOGGER_ERROR, "Solver configure....");
+    const logger_t *logger = &container->logger;
+    LOGGER_ERROR("Solver configure....");
     solver_t *solver = calloc(1, sizeof(*solver));
     if (!solver) {
-        logger(LOGGER_ERROR, "solver allocation failed.");
+        LOGGER_ERROR("solver allocation failed.");
         return NULL;
     }
     solver->container = container;
@@ -48,9 +49,10 @@ solver_t *solver_new(container_t *container) {
 
 
 int solver_register_me(solver_t *solver, unsigned long fmu_idx, size_t nx, size_t nz) {
+    const logger_t *logger = &solver->container->logger;
     void *p = realloc(solver->me, (solver->nb_me + 1) * sizeof(*solver->me));
     if (!p) {
-        logger(LOGGER_ERROR, "solver_register_me: allocation failed.");
+        LOGGER_ERROR("solver_register_me: allocation failed.");
         return -1;
     }
     solver->me = p;
@@ -168,6 +170,7 @@ static int solver_select_inputs(const fmu_translation_list_t *list, const bool *
    are set once before the integration. */
 static int solver_find_couplings(solver_t *solver) {
     const container_t *container = solver->container;
+    const logger_t *logger = &container->logger;
     const unsigned long nb64 = container->nb_local_reals64, nb32 = container->nb_local_reals32;
     bool *produced64 = calloc(nb64 + 1, sizeof(bool)), *produced32 = calloc(nb32 + 1, sizeof(bool));
     bool *consumed64 = calloc(nb64 + 1, sizeof(bool)), *consumed32 = calloc(nb32 + 1, sizeof(bool));
@@ -198,14 +201,14 @@ static int solver_find_couplings(solver_t *solver) {
             e->feeds_me = outputs64[k] && consumed64[k];
         for (unsigned long k = 0; k < nb32 && !e->feeds_me; k += 1)
             e->feeds_me = outputs32[k] && consumed32[k];
-        logger(LOGGER_DEBUG, "Solver: ME FMU '%s': %lu coupled continuous input(s), %s an ME FMU.", e->fmu->name,
-               e->coupled_reals64.nb + e->coupled_reals32.nb, e->feeds_me ? "feeds" : "does not feed");
+        LOGGER_DEBUG("Solver: ME FMU '%s': %lu coupled continuous input(s), %s an ME FMU.", e->fmu->name,
+                     e->coupled_reals64.nb + e->coupled_reals32.nb, e->feeds_me ? "feeds" : "does not feed");
     }
     status = 0;
 
 end:
     if (status)
-        logger(LOGGER_ERROR, "Solver: cannot allocate the ME couplings.");
+        LOGGER_ERROR("Solver: cannot allocate the ME couplings.");
     free(produced64);
     free(produced32);
     free(consumed64);
@@ -217,6 +220,7 @@ end:
 
 
 int solver_configure(solver_t *solver) {
+    const logger_t *logger = &solver->container->logger;
     if (solver->nb_me == 0)
         return 0;
 
@@ -227,15 +231,15 @@ int solver_configure(solver_t *solver) {
     
     switch(solver_integrator) {
         case 0: /* Euler */
-            logger(LOGGER_WARNING, "Solver configured to use Euler integrator.");
+            LOGGER_WARNING("Solver configured to use Euler integrator.");
             solver->integrator = solver_integrate_euler;
             break;
         case 1: /* RK4 */
-            logger(LOGGER_WARNING, "Solver configured to use RK4 integrator.");
+            LOGGER_WARNING("Solver configured to use RK4 integrator.");
             solver->integrator = solver_integrate_rk4;
             break;
         default:
-            logger(LOGGER_ERROR, "Solver configured to use default Euler integrator. (%d)", solver_integrator);
+            LOGGER_ERROR("Solver configured to use default Euler integrator. (%d)", solver_integrator);
             solver->integrator = solver_integrate_euler;
             break;
     }
@@ -278,7 +282,7 @@ int solver_configure(solver_t *solver) {
     return 0;
 
 fail:
-    logger(LOGGER_ERROR, "solver_build: allocation failed.");
+    LOGGER_ERROR("solver_build: allocation failed.");
     return -1;
 }
 
@@ -313,25 +317,26 @@ static fmu_status_t solver_propagate(solver_t *solver) {
         return FMU_STATUS_OK;
 
     const container_t *container = solver->container;
+    const logger_t *logger = &container->logger;
     for (size_t i = 0; i < solver->nb_me; i += 1) {
         const solver_me_fmu_t *e = &solver->me[i];
 
         for (unsigned long k = 0; k < e->coupled_reals64.nb; k += 1) {
             const fmu_translation_t *t = &e->coupled_reals64.translations[k];
             if (fmuSetReal64(e->fmu, &t->fmu_vr, 1, &container->reals64[t->vr], t->dimension) != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "ME FMU '%s': cannot set inputs.", e->fmu->name);
+                LOGGER_ERROR("ME FMU '%s': cannot set inputs.", e->fmu->name);
                 return FMU_STATUS_ERROR;
             }
         }
         for (unsigned long k = 0; k < e->coupled_reals32.nb; k += 1) {
             const fmu_translation_t *t = &e->coupled_reals32.translations[k];
             if (fmuSetReal32(e->fmu, &t->fmu_vr, 1, &container->reals32[t->vr], t->dimension) != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "ME FMU '%s': cannot set inputs.", e->fmu->name);
+                LOGGER_ERROR("ME FMU '%s': cannot set inputs.", e->fmu->name);
                 return FMU_STATUS_ERROR;
             }
         }
         if (e->feeds_me && fmu_get_continuous_outputs(e->fmu) != FMU_STATUS_OK) {
-            logger(LOGGER_ERROR, "ME FMU '%s': cannot get outputs.", e->fmu->name);
+            LOGGER_ERROR("ME FMU '%s': cannot get outputs.", e->fmu->name);
             return FMU_STATUS_ERROR;
         }
     }
@@ -349,6 +354,7 @@ static fmu_status_t solver_propagate(solver_t *solver) {
    produced by me[i] reaches me[i+1] within the same pass and the outputs read
    back reflect the freshly updated discrete state. */
 static fmu_status_t solver_event_iteration(solver_t *solver) {
+    const logger_t *logger = &solver->container->logger;
     for (int iter = 0; iter < solver->max_event_iter; iter += 1) {
         bool more_event = false;
 
@@ -357,7 +363,7 @@ static fmu_status_t solver_event_iteration(solver_t *solver) {
             bool need_update = false;
 
             if (fmu_set_inputs(fmu) != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "ME FMU '%s': cannot set inputs.", fmu->name);
+                LOGGER_ERROR("ME FMU '%s': cannot set inputs.", fmu->name);
                 return FMU_STATUS_ERROR;
             }
 
@@ -367,7 +373,7 @@ static fmu_status_t solver_event_iteration(solver_t *solver) {
             more_event |= need_update;
 
             if (fmu_get_outputs(fmu) != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "ME FMU '%s': cannot get outputs.", fmu->name);
+                LOGGER_ERROR("ME FMU '%s': cannot get outputs.", fmu->name);
                 return FMU_STATUS_ERROR;
             }
         }
@@ -376,8 +382,8 @@ static fmu_status_t solver_event_iteration(solver_t *solver) {
             return FMU_STATUS_OK;
     }
 
-    logger(LOGGER_ERROR, "Solver: event iteration did not converge after %d steps.",
-           solver->max_event_iter);
+    LOGGER_ERROR("Solver: event iteration did not converge after %d steps.",
+                 solver->max_event_iter);
     return FMU_STATUS_ERROR;
 }
 
@@ -385,8 +391,9 @@ static fmu_status_t solver_event_iteration(solver_t *solver) {
 /* Back to Continuous Time Mode for one ME FMU, refreshing its slices of the
    states and event indicators the event may have reset. */
 static fmu_status_t solver_leave_event_mode_entry(solver_t *solver, const solver_me_fmu_t *e) {
+    const logger_t *logger = &solver->container->logger;
     if (fmuEnterContinuousTimeMode(e->fmu) != FMU_STATUS_OK) {
-        logger(LOGGER_ERROR, "ME FMU '%s': cannot enter Continuous Time Mode.", e->fmu->name);
+        LOGGER_ERROR("ME FMU '%s': cannot enter Continuous Time Mode.", e->fmu->name);
         return FMU_STATUS_ERROR;
     }
     if (fmuGetContinuousStates(e->fmu, &solver->x[e->x_off], e->nx) != FMU_STATUS_OK)
@@ -409,11 +416,12 @@ fmu_status_t solver_leave_event_mode(solver_t *solver) {
 
 
 fmu_status_t solver_leave_event_mode_fmu(solver_t *solver, unsigned long fmu_idx) {
+    const logger_t *logger = &solver->container->logger;
     for (size_t i = 0; i < solver->nb_me; i += 1) {
         if (solver->me[i].fmu_idx == fmu_idx)
             return solver_leave_event_mode_entry(solver, &solver->me[i]);
     }
-    logger(LOGGER_ERROR, "Solver: FMU #%lu is not a Model-Exchange FMU.", fmu_idx);
+    LOGGER_ERROR("Solver: FMU #%lu is not a Model-Exchange FMU.", fmu_idx);
     return FMU_STATUS_ERROR;
 }
 
@@ -573,6 +581,7 @@ static fmu_status_t solver_integrate_rk4(solver_t *solver, double t, double h) {
 ----------------------------------------------------------------------------*/
 
 fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total) {
+    const logger_t *logger = &solver->container->logger;
     if (solver->nb_me == 0) return FMU_STATUS_OK;
 
     const double tol = solver->container->tolerance;
@@ -685,6 +694,6 @@ fmu_status_t solver_do_step(solver_t *solver, double t0, double h_total) {
         }
     }
 
-    logger(LOGGER_ERROR, "Solver: doStep did not converge (t=%g, t_end=%g).", t, t_end);
+    LOGGER_ERROR("Solver: doStep did not converge (t=%g, t_end=%g).", t, t_end);
     return FMU_STATUS_ERROR;
 }

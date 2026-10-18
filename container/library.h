@@ -25,7 +25,8 @@ typedef void* library_t;
 ----------------------------------------------------------------------------*/
 
 extern void* library_symbol(library_t library, const char *symbol_name);
-extern library_t library_load(const char* library_filename);
+struct logger_s;
+extern library_t library_load(const struct logger_s *logger, const char* library_filename);
 extern int library_unload(library_t library);
 
 #	ifdef __cplusplus

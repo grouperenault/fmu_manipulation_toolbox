@@ -6,6 +6,7 @@ set(FMUTOOL_CMAKE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
 option(FMUTOOL_WARNINGS_AS_ERRORS "Treat compiler warnings as errors"       OFF)
 option(FMUTOOL_STRICT_CONVERSION  "Enable -Wconversion / -Wsign-conversion" OFF)
+option(FMUTOOL_SANITIZE           "Build with AddressSanitizer and UndefinedBehaviorSanitizer (GCC, Clang)" OFF)
 
 set(CMAKE_C_STANDARD 23)
 
@@ -83,6 +84,19 @@ else()
     if(FMUTOOL_STRICT_CONVERSION)
         target_compile_options(fmutool_flags INTERFACE -Wconversion -Wsign-conversion)
     endif()
+    if(FMUTOOL_SANITIZE)
+        # Any undefined behaviour aborts, so that a test fails on it.
+        target_compile_options(fmutool_flags INTERFACE
+            -fsanitize=address,undefined
+            -fno-sanitize-recover=undefined
+            -fno-omit-frame-pointer
+            -g
+        )
+        target_link_options(fmutool_flags INTERFACE -fsanitize=address,undefined)
+    endif()
+endif()
+if(FMUTOOL_SANITIZE AND MSVC)
+    message(FATAL_ERROR "FMUTOOL_SANITIZE is supported with GCC and Clang only.")
 endif()
 
 # -----------------------------------------------------------------------------
@@ -142,5 +156,6 @@ function(fmutool_summary)
     message(STATUS "  Build type  : ${CMAKE_BUILD_TYPE}${CMAKE_CONFIGURATION_TYPES}")
     message(STATUS "  IPO/LTO     : ${FMUTOOL_IPO_SUPPORTED}")
     message(STATUS "  Options     : FMUTOOL_WARNINGS_AS_ERRORS=${FMUTOOL_WARNINGS_AS_ERRORS}"
-                   " FMUTOOL_STRICT_CONVERSION=${FMUTOOL_STRICT_CONVERSION} FMUTOOL_PGO=${FMUTOOL_PGO}")
+                   " FMUTOOL_STRICT_CONVERSION=${FMUTOOL_STRICT_CONVERSION} FMUTOOL_PGO=${FMUTOOL_PGO}"
+                   " FMUTOOL_SANITIZE=${FMUTOOL_SANITIZE}")
 endfunction()

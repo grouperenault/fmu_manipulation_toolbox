@@ -19,7 +19,7 @@ endif()
 # -----------------------------------------------------------------------------
 # container: the shared library embedded in the container FMUs.
 # -----------------------------------------------------------------------------
-add_library(container SHARED
+set(CONTAINER_SOURCES
     config.c    config.h
     container.c container.h
     convert.c   convert.h
@@ -34,11 +34,90 @@ add_library(container SHARED
     solver.c    solver.h
     thread.c    thread.h
 )
-if(WIN32)
-    target_link_libraries(container PRIVATE Imagehlp.lib)
-elseif(NOT APPLE)
-    target_link_libraries(container PRIVATE Threads::Threads)
-endif()
+
+# container_link_platform(<target>): system libraries of the runtime.
+function(container_link_platform target)
+    if(WIN32)
+        target_link_libraries(${target} PRIVATE Imagehlp.lib)
+    elseif(NOT APPLE)
+        target_link_libraries(${target} PRIVATE Threads::Threads)
+    endif()
+endfunction()
+
+add_library(container SHARED ${CONTAINER_SOURCES})
+container_link_platform(container)
 fmutool_native_target(container)
+
+# -----------------------------------------------------------------------------
+# Native tests: the sources of the runtime compiled again with the tests, so
+# that the internal functions can be called (the shared library exports only
+# the FMI API). Run with: ctest --test-dir <build dir> -C <config>
+# -----------------------------------------------------------------------------
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(container_tests
+        ${CONTAINER_SOURCES}
+        tests/test.h
+        tests/test_main.c
+        tests/test_config.c
+        tests/test_configure.c
+        tests/test_logger.c
+        tests/test_locale.c
+        tests/test_malformed.c
+        tests/test_datalog.c
+        tests/test_thread.c
+        tests/test_threads_lifecycle.c
+    )
+    target_link_libraries(container_tests PRIVATE fmutool_flags)
+    target_include_directories(container_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${FMUTOOL_CMAKE_DIR}/../fmu_manipulation_toolbox/resources/fmi
+        ${CMAKE_CURRENT_BINARY_DIR}     # version.h
+    )
+    target_compile_definitions(container_tests PRIVATE
+        TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data"
+        TEST_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+    )
+    container_link_platform(container_tests)
+    add_dependencies(container_tests version_h)
+    add_test(NAME container_tests COMMAND container_tests)
+
+    # FMI 2.0 FMU of the tests, embedded in the fixtures made of tests/data/one_fmu/container.txt.in.
+    add_library(stub_fmu MODULE tests/stub_fmu.c)
+    target_link_libraries(stub_fmu PRIVATE fmutool_flags)
+    target_include_directories(stub_fmu PRIVATE ${FMUTOOL_CMAKE_DIR}/../fmu_manipulation_toolbox/resources/fmi)
+    if(WIN32)
+        set(_stub_suffix ".dll")
+    elseif(APPLE)
+        set(_stub_suffix ".dylib")
+    else()
+        set(_stub_suffix ".so")
+    endif()
+    set_target_properties(stub_fmu PROPERTIES PREFIX "" SUFFIX "${_stub_suffix}" C_VISIBILITY_PRESET hidden)
+    add_dependencies(container_tests stub_fmu)
+
+    set(TEST_FIXTURES_DIR "${CMAKE_CURRENT_BINARY_DIR}/fixtures")
+    target_compile_definitions(container_tests PRIVATE TEST_FIXTURES_DIR="${TEST_FIXTURES_DIR}")
+
+    # container_fixture(<name> <guid> <mt>): container.txt with the stub FMU, given its GUID (which selects its
+    # behaviour, see tests/stub_fmu.c) and the multi-thread flag.
+    function(container_fixture name guid mt)
+        set(GUID "${guid}")
+        set(MT "${mt}")
+        set(_dir "${TEST_FIXTURES_DIR}/${name}")
+        configure_file(tests/data/one_fmu/container.txt.in "${_dir}/container.txt" @ONLY)
+        add_custom_command(TARGET stub_fmu POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_dir}/00/binaries/${FMI_PLATFORM}"
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:stub_fmu> "${_dir}/00/binaries/${FMI_PLATFORM}/stub${_stub_suffix}"
+        )
+    endfunction()
+    container_fixture(one_fmu               "{stub}"                    0)
+    container_fixture(one_fmu_datalog       "{stub}"                    0)
+    set(DATALOG_FILE "${TEST_FIXTURES_DIR}/one_fmu_datalog/datalog.csv")
+    configure_file(tests/data/one_fmu/datalog.txt.in "${TEST_FIXTURES_DIR}/one_fmu_datalog/datalog.txt" @ONLY)
+    container_fixture(one_fmu_mt            "{stub}"                    1)
+    container_fixture(mt_instantiate_fails  "{stub-fail-instantiate}"   1)
+    container_fixture(malformed             "{stub}"                    0)  # container.txt rewritten by the tests
+endif()
 
 fmutool_summary()

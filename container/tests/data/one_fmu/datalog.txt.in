@@ -1,0 +1,33 @@
+# Datalog filename
+@DATALOG_FILE@
+# real64: <VR> <NAME>
+1
+2 x
+# real32: <VR> <NAME>
+0
+# integer8: <VR> <NAME>
+0
+# uinteger8: <VR> <NAME>
+0
+# integer16: <VR> <NAME>
+0
+# uinteger16: <VR> <NAME>
+0
+# integer32: <VR> <NAME>
+0
+# uinteger32: <VR> <NAME>
+0
+# integer64: <VR> <NAME>
+0
+# uinteger64: <VR> <NAME>
+0
+# boolean: <VR> <NAME>
+0
+# boolean1: <VR> <NAME>
+0
+# string: <VR> <NAME>
+0
+# binary: <VR> <NAME>
+0
+# clock: <VR> <NAME>
+0

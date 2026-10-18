@@ -31,6 +31,9 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   sdist). The remoting code is now compiled in C23 with the same warnings and optimizations as the container
   (IPO/LTO, optional PGO). The build options are renamed `FMUTOOL_WARNINGS_AS_ERRORS`, `FMUTOOL_STRICT_CONVERSION`
   and `FMUTOOL_PGO` (formerly `CONTAINER_*`). See the [Installation Guide](docs/installation.md).
+- 🟢 **ADDED** native tests of the container runtime (`container/tests`, run by CTest and by the CI on every
+  platform) and the build option `FMUTOOL_SANITIZE` (AddressSanitizer and UndefinedBehaviorSanitizer), used by a new
+  CI job. See [Native runtime of the container](docs/developer/native-runtime.md).
 
 ## AI Assistant (MCP server)
 
@@ -79,11 +82,17 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## FMU Container
 
+- 🟢 **ADDED** **several instances of the same FMU** in a container: each instance has its own name
+  (`bb_position-1.fmu`, ...) and its file in the new optional `path` block of the JSON; the Container Builder,
+  the MCP tools, SSP import and `fmusplit` handle them. See
+  [Embedding the same FMU several times](docs/user-guide/fmucontainer/container.md#embedding-the-same-fmu-several-times).
 - 🟠 **FIXED** a container called with a communication step that is not a multiple of its internal step (e.g. a
   sub-container at 0.02 s in a parent at 0.01 s) returned without reaching the end of the step, and made its
   internal step later with the inputs of a later instant. Each internal step now uses the inputs of its beginning
   and holds its outputs until its end; the warning "CommunicationStepSize should be divisible" is removed. See
   [Communication step and internal step](docs/user-guide/fmucontainer/container.md#communication-step-and-internal-step).
+- 🟠 **FIXED** a `TS_MULTIPLIER` below 1 (e.g. 0, received during the initialization) gave a nominal step of 0 and
+  a `doStep` of 0 to the embedded FMUs: it counts as 1, as it already did for the step of the container.
 - 🔵 **CHANGED** the container **propagates the links** between its embedded FMUs **during the initialization**:
   in the order of the links, each FMU gets its linked inputs, leaves its Initialization Mode, then its outputs are
   read for the FMUs after it, so that an FMU is initialized with the values of the FMUs it depends on (as Simulink
@@ -179,6 +188,30 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   evaluation; the inputs fed by Co-Simulation FMUs or by the importer are set once per step. Same results; the
   simulation loop of Model-Exchange FMUs fed by Co-Simulation FMUs takes about a third less time (1.5 times
   faster), about 5 % less without coupling between them.
+
+- 🟠 **FIXED** several instances of containers in one process: each instance has its own logger. They overwrote
+  each other's logging callback and debug flag, and an instance could log through the name of an instance already
+  freed. `fmi2SetDebugLogging` / `fmi3SetDebugLogging` only change their own instance. A `NULL` logging callback,
+  allowed by FMI 3.0, no longer crashes.
+- 🟠 **FIXED** a multi-thread container whose configuration fails (e.g. an embedded FMU that cannot be
+  instantiated) crashed or hung when it was freed. The worker threads are started once all of them are launched,
+  and stopped only if they were.
+- 🟠 **FIXED** the container no longer changes the host process: the numeric locale of the importer is left
+  unchanged (`container.txt` is read with a decimal dot on the thread of the instantiation only), and on Windows
+  the priority class of the process is no longer raised (the worker threads keep a high priority).
+- 🟠 **FIXED** the runtime checks the values read from `container.txt`: value references, FMU indexes, clocks and
+  local variables out of range, malformed lines and too many start values are configuration errors instead of
+  out-of-bounds accesses. An embedded FMU that cannot be loaded no longer leaks the FMUs loaded before it.
+- 🟠 **FIXED** a container built on Windows could not load its embedded FMUs on Linux or macOS: the runtime kept the
+  `\r` of the CRLF line endings of `container.txt` in the names it reads.
+- 🟠 **FIXED** a start value refused by an embedded FMU went unnoticed: it is logged and makes the initialization
+  (or the reset of the FMU) fail. The start value of an FMI-3 array was given with one value instead of all of them.
+- 🟠 **FIXED** the instantiation returns `NULL` instead of crashing on an allocation failure or invalid arguments
+  (`NULL` callbacks, GUID or resource location).
+- 🔵 **CHANGED** datalog: the time and the reals are written with every significant digit (`%.17g`, `%.9g`
+  for `Float32`) instead of 7 and 6 decimals, always with a decimal dot; strings and column names with a comma, a
+  double quote or a line break are quoted (RFC 4180). See
+  [Container with datalog](docs/user-guide/fmucontainer/datalog.md#csv-format).
 
 ## fmutool and the Python API
 
