@@ -84,13 +84,7 @@ def clean_argv():
 #                         Session setup / teardown                             #
 # --------------------------------------------------------------------------- #
 def pytest_sessionstart(session):
-    """Wipe the ``tests/tmp`` working tree so each run starts from a clean slate.
-
-    Under pytest-xdist, only the controller wipes it: a worker (re)started during the run would otherwise delete
-    the working directories of the tests running in the other workers.
-    """
-    if hasattr(session.config, "workerinput"):
-        return
+    """Wipe the ``tests/tmp`` working tree so each run starts from a clean slate."""
     if TMP_DIR.exists():
         shutil.rmtree(TMP_DIR, ignore_errors=True)
 
