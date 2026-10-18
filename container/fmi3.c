@@ -73,26 +73,26 @@ fmi3Instance fmi3InstantiateCoSimulation(
     (void)instanceEnvironment; /* unused parameter */
     (void)intermediateUpdate; /* unused parameter */    
 
-    container_t* container;
-    container = container_new(instanceName, instantiationToken, 3);
+    /* NULL on an allocation failure: no logger yet to report it */
+    container_t* container = container_new(instanceName, instantiationToken, 3);
+    if (!container)
+        return NULL;
 
-    if (container) {
-        const logger_t *logger = &container->logger;
-        logger_function_t container_logger;
-        container_logger.logger_fmi3 = logMessage;     /* may be NULL: no message is sent */
-        logger_init(&container->logger, FMU_3, container_logger, instanceEnvironment, container->instance_name,
-                    loggingOn);
-        /* logging is available starting this point ! */
+    const logger_t *logger = &container->logger;
+    logger_function_t container_logger;
+    container_logger.logger_fmi3 = logMessage;     /* may be NULL: no message is sent */
+    logger_init(&container->logger, FMU_3, container_logger, instanceEnvironment, container->instance_name,
+                loggingOn);
+    /* logging is available starting this point ! */
 
-        LOGGER_DEBUG("Container model loading...");
+    LOGGER_DEBUG("Container model loading...");
 
-        if (container_configure(container, resourcePath)) {
-            LOGGER_ERROR("Cannot read container configuration.");
-            container_free(container);
-            return NULL;
-        }
-        LOGGER_DEBUG("Container configuration read.");
+    if (container_configure(container, resourcePath)) {
+        LOGGER_ERROR("Cannot read container configuration.");
+        container_free(container);
+        return NULL;
     }
+    LOGGER_DEBUG("Container configuration read.");
 
     container->state = CONTAINER_STATE_INSTANTIATED;
 

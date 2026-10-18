@@ -2322,6 +2322,10 @@ int container_configure(container_t* container, const char* resource_location) {
         return -1;
     }
 
+    if (!resource_location) {
+        LOGGER_ERROR("No resource location: the container needs its resources.");
+        return -1;
+    }
     resource_location_to_path(resource_location, dirname, sizeof(dirname));
     if (config_file_open(&file, logger, dirname, "container.txt")) {
         LOGGER_ERROR("Cannot open '%s/container.txt': %s.", dirname, strerror(errno));
@@ -2507,13 +2511,23 @@ int container_configure(container_t* container, const char* resource_location) {
              C O N S T R U C T O R   /   D E S T R U C T O R
 ----------------------------------------------------------------------------*/
 
+/* NULL if an argument is NULL or on an allocation failure. Every member not set below starts at zero. */
 container_t *container_new(const char *instance_name, const char *fmu_uuid, int fmi_version) {
-    container_t *container = malloc(sizeof(*container));
+    if (!instance_name || !fmu_uuid)
+        return NULL;
+
+    container_t *container = calloc(1, sizeof(*container));
     if (container) {
         container->allocate_memory = calloc;
         container->free_memory = free;
         container->instance_name = strdup(instance_name);
         container->uuid = strdup(fmu_uuid);
+        if (!container->instance_name || !container->uuid) {
+            free(container->instance_name);
+            free(container->uuid);
+            free(container);
+            return NULL;
+        }
         container->fmi_version = fmi_version;
 
         container->nb_fmu = 0;

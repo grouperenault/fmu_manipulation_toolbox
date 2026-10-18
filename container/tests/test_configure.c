@@ -20,3 +20,17 @@ int test_configure_empty(void) {
 
     return 0;
 }
+
+
+int test_container_new_null(void) {
+    TEST_ASSERT(container_new(NULL, "{uuid}", 2) == NULL);
+    TEST_ASSERT(container_new("name", NULL, 2) == NULL);
+
+    container_t *container = container_new("name", "{uuid}", 2);
+    TEST_ASSERT(container != NULL);
+    TEST_ASSERT(container->logger.callback.logger_fmi2 == NULL);   /* every member starts at zero */
+    TEST_ASSERT(container_configure(container, NULL) != 0);        /* no resources */
+    container_free(container);
+
+    return 0;
+}

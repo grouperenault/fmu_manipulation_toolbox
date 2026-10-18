@@ -62,39 +62,41 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
     const fmi2CallbackFunctions* functions,
     fmi2Boolean visible,
     fmi2Boolean loggingOn) {
-    container_t* container;
-
     (void)visible; /* unused parameter */
 
-    container = container_new(instanceName, fmuGUID, 2);
+    if (!functions)
+        return NULL;
 
-    if (container) {
-        const logger_t *logger = &container->logger;
-        logger_function_t container_logger;
-        container_logger.logger_fmi2 = functions->logger;
-        if (functions->allocateMemory) {
-            container->allocate_memory = functions->allocateMemory;
-            container->free_memory = functions->freeMemory;
-        }
-        logger_init(&container->logger, FMU_2, container_logger, functions->componentEnvironment,
-                    container->instance_name, loggingOn);
-        /* logging is available starting this point ! */
+    /* NULL on an allocation failure: no logger yet to report it */
+    container_t *container = container_new(instanceName, fmuGUID, 2);
+    if (!container)
+        return NULL;
 
-        if (fmuType != fmi2CoSimulation) {
-            LOGGER_ERROR("Only CoSimulation mode is supported.");
-            container_free(container);
-            return NULL;
-        } 
-
-        LOGGER_DEBUG("Container model loading...");
-
-        if (container_configure(container, fmuResourceLocation)) {
-            LOGGER_ERROR("Cannot read container configuration.");
-            container_free(container);
-            return NULL;
-        }
-        LOGGER_DEBUG("Container configuration read.");
+    const logger_t *logger = &container->logger;
+    logger_function_t container_logger;
+    container_logger.logger_fmi2 = functions->logger;
+    if (functions->allocateMemory) {
+        container->allocate_memory = functions->allocateMemory;
+        container->free_memory = functions->freeMemory;
     }
+    logger_init(&container->logger, FMU_2, container_logger, functions->componentEnvironment,
+                container->instance_name, loggingOn);
+    /* logging is available starting this point ! */
+
+    if (fmuType != fmi2CoSimulation) {
+        LOGGER_ERROR("Only CoSimulation mode is supported.");
+        container_free(container);
+        return NULL;
+    }
+
+    LOGGER_DEBUG("Container model loading...");
+
+    if (container_configure(container, fmuResourceLocation)) {
+        LOGGER_ERROR("Cannot read container configuration.");
+        container_free(container);
+        return NULL;
+    }
+    LOGGER_DEBUG("Container configuration read.");
 
     container->state = CONTAINER_STATE_INSTANTIATED;
     

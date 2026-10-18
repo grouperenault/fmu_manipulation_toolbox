@@ -86,3 +86,22 @@ int test_logger_fmi3_null_callback(void) {
 
     return 0;
 }
+
+
+int test_instantiate_invalid_arguments(void) {
+    logger_environment_t env = { 0 };
+    fmi2CallbackFunctions functions;
+    char location[4096];
+
+    snprintf(location, sizeof(location), "file://%s/one_fmu", TEST_FIXTURES_DIR);
+    memset(&functions, 0, sizeof(functions));
+    functions.logger = test_logger_fmi2;
+    functions.componentEnvironment = &env;
+
+    TEST_ASSERT(fmi2Instantiate("name", fmi2CoSimulation, "{uuid}", location, NULL, fmi2False, fmi2False) == NULL);
+    TEST_ASSERT(fmi2Instantiate("name", fmi2CoSimulation, NULL, location, &functions, fmi2False, fmi2False) == NULL);
+    TEST_ASSERT(fmi3InstantiateCoSimulation("name", "{uuid}", NULL, fmi3False, fmi3False, fmi3False, fmi3False,
+                                            NULL, 0, NULL, NULL, NULL) == NULL);
+
+    return 0;
+}

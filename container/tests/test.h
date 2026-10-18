@@ -45,11 +45,13 @@ extern int test_config_version(void);
 extern int test_thread_barrier(void);
 extern int test_thread_barrier_consecutive(void);
 extern int test_configure_empty(void);
+extern int test_container_new_null(void);
 extern int test_configure_one_fmu(void);
 extern int test_configure_one_fmu_mt(void);
 extern int test_configure_mt_instantiate_fails(void);
 extern int test_logger_two_instances(void);
 extern int test_logger_fmi3_null_callback(void);
+extern int test_instantiate_invalid_arguments(void);
 
 /* Helper: writes content into a temporary file of the test directory. Returns 0 on success. */
 extern int test_write_file(const char *dirname, const char *filename, const char *content);

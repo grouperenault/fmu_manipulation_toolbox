@@ -17,11 +17,13 @@ static const struct {
     { "thread_barrier",                 test_thread_barrier },
     { "thread_barrier_consecutive",     test_thread_barrier_consecutive },
     { "configure_empty",                test_configure_empty },
+    { "container_new_null",             test_container_new_null },
     { "configure_one_fmu",              test_configure_one_fmu },
     { "configure_one_fmu_mt",           test_configure_one_fmu_mt },
     { "configure_mt_instantiate_fails", test_configure_mt_instantiate_fails },
     { "logger_two_instances",           test_logger_two_instances },
     { "logger_fmi3_null_callback",      test_logger_fmi3_null_callback },
+    { "instantiate_invalid_arguments",  test_instantiate_invalid_arguments },
 };
 
 
