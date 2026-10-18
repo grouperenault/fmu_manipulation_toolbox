@@ -253,6 +253,61 @@ jobs:
         path: ${{ github.workspace }}/dist
         retention-days: 1
 
+  # Native runtime of the container under AddressSanitizer and UndefinedBehaviorSanitizer: the C tests (with the
+  # leak detection), then the integration tests with the instrumented linux64 runtime.
+  sanitizers:
+    needs: [build-native]
+    runs-on: ubuntu-24.04
+    # Until the robustness fixes of the runtime are done (docs/local/native_robustness.md): reported, not blocking.
+    continue-on-error: true
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+    - uses: actions/download-artifact@v7
+      with:
+        name: remoting-linux64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
+    - uses: actions/download-artifact@v7
+      with:
+        name: container-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+    - uses: actions/download-artifact@v7
+      with:
+        name: container-darwin64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
+    # Replaces the linux64 runtime of the package by the instrumented one.
+    - name: Build the instrumented runtime
+      run: |
+        cmake -B ${{ github.workspace }}/build-sanitize -S ${{ github.workspace }}/container \
+              -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFMUTOOL_SANITIZE=ON
+        cmake --build ${{ github.workspace }}/build-sanitize
+    - name: Native tests
+      env:
+        UBSAN_OPTIONS: "print_stacktrace=1"
+      run: ctest --test-dir ${{ github.workspace }}/build-sanitize --output-on-failure
+    - name: Set up Python ${{ env.NEWEST_PYTHON }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ env.NEWEST_PYTHON }}
+        cache: pip
+        cache-dependency-path: pyproject.toml
+    - name: Install libEGL.so.1
+      run: |
+        sudo apt-get install freeglut3-dev
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[all]"
+    - name: Integration tests with the instrumented runtime
+      run: |
+        # Python is not instrumented: the ASan runtime is loaded first; the leaks of the interpreter are not reported.
+        export LD_PRELOAD="$(gcc -print-file-name=libasan.so)"
+        export ASAN_OPTIONS="detect_leaks=0"
+        export UBSAN_OPTIONS="print_stacktrace=1"
+        cd tests
+        pytest -v -m "not gui" integration
+
   tests-macos:
     needs: [build-native]
     runs-on: macos-latest
