@@ -33,13 +33,21 @@ typedef int (*test_function_t)(void);
 #ifndef TEST_DATA_DIR
 #   error "TEST_DATA_DIR must be defined"
 #endif
+/* Directory of the fixtures built with the stub FMU (tests/stub_fmu.c), set by CMake. */
+#ifndef TEST_FIXTURES_DIR
+#   error "TEST_FIXTURES_DIR must be defined"
+#endif
 
 /* Tests of each module, registered in test_main.c */
 extern int test_config_lines(void);
 extern int test_config_long_line(void);
 extern int test_config_version(void);
 extern int test_thread_barrier(void);
+extern int test_thread_barrier_consecutive(void);
 extern int test_configure_empty(void);
+extern int test_configure_one_fmu(void);
+extern int test_configure_one_fmu_mt(void);
+extern int test_configure_mt_instantiate_fails(void);
 
 /* Helper: writes content into a temporary file of the test directory. Returns 0 on success. */
 extern int test_write_file(const char *dirname, const char *filename, const char *content);

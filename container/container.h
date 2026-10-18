@@ -185,6 +185,10 @@ typedef struct container_s {
 
 	thread_barrier_t			barrier_start;			/* used for parallel execution of FMUs */
 	thread_barrier_t			barrier_end;			/* used for parallel execution of FMUs */
+	bool						barriers_ready;			/* barrier_start and barrier_end are initialized */
+	thread_gate_t				threads_gate;			/* opened once every worker thread is launched */
+	bool						threads_gate_ready;		/* threads_gate is initialized */
+	unsigned int				nb_threads;				/* worker threads launched: cs_fmu[0 .. nb_threads-1] */
 
 	struct datalog_s			*datalog;
 

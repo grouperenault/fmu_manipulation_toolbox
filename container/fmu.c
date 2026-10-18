@@ -347,6 +347,11 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
 static void *fmu_do_step_thread(fmu_t* fmu) {
     container_t* container =fmu->container;
 
+    /* barriers_ready is set before the gate is opened: false if the threads could not all be started */
+    thread_gate_wait(&container->threads_gate);
+    if (!container->barriers_ready)
+        return NULL;
+
     while (true) {
         thread_barrier_wait(&container->barrier_start);   /* WAIT 1st SYNC */
 

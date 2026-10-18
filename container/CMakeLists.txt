@@ -62,6 +62,7 @@ if(BUILD_TESTING)
         tests/test_config.c
         tests/test_configure.c
         tests/test_thread.c
+        tests/test_threads_lifecycle.c
     )
     target_link_libraries(container_tests PRIVATE fmutool_flags)
     target_include_directories(container_tests PRIVATE
@@ -76,6 +77,39 @@ if(BUILD_TESTING)
     container_link_platform(container_tests)
     add_dependencies(container_tests version_h)
     add_test(NAME container_tests COMMAND container_tests)
+
+    # FMI 2.0 FMU of the tests, embedded in the fixtures made of tests/data/one_fmu/container.txt.in.
+    add_library(stub_fmu MODULE tests/stub_fmu.c)
+    target_link_libraries(stub_fmu PRIVATE fmutool_flags)
+    target_include_directories(stub_fmu PRIVATE ${FMUTOOL_CMAKE_DIR}/../fmu_manipulation_toolbox/resources/fmi)
+    if(WIN32)
+        set(_stub_suffix ".dll")
+    elseif(APPLE)
+        set(_stub_suffix ".dylib")
+    else()
+        set(_stub_suffix ".so")
+    endif()
+    set_target_properties(stub_fmu PROPERTIES PREFIX "" SUFFIX "${_stub_suffix}" C_VISIBILITY_PRESET hidden)
+    add_dependencies(container_tests stub_fmu)
+
+    set(TEST_FIXTURES_DIR "${CMAKE_CURRENT_BINARY_DIR}/fixtures")
+    target_compile_definitions(container_tests PRIVATE TEST_FIXTURES_DIR="${TEST_FIXTURES_DIR}")
+
+    # container_fixture(<name> <guid> <mt>): container.txt with the stub FMU, given its GUID (which selects its
+    # behaviour, see tests/stub_fmu.c) and the multi-thread flag.
+    function(container_fixture name guid mt)
+        set(GUID "${guid}")
+        set(MT "${mt}")
+        set(_dir "${TEST_FIXTURES_DIR}/${name}")
+        configure_file(tests/data/one_fmu/container.txt.in "${_dir}/container.txt" @ONLY)
+        add_custom_command(TARGET stub_fmu POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_dir}/00/binaries/${FMI_PLATFORM}"
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:stub_fmu> "${_dir}/00/binaries/${FMI_PLATFORM}/stub${_stub_suffix}"
+        )
+    endfunction()
+    container_fixture(one_fmu               "{stub}"                    0)
+    container_fixture(one_fmu_mt            "{stub}"                    1)
+    container_fixture(mt_instantiate_fails  "{stub-fail-instantiate}"   1)
 endif()
 
 fmutool_summary()

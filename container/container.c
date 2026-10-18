@@ -2156,47 +2156,76 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
 }
 
 
+/*
+ * The worker threads wait on threads_gate until every one of them is launched and the barriers are initialized
+ * for them: when one cannot be launched, the gate is opened without barriers_ready and those already launched end.
+ */
 static int container_start_threads(container_t *container) {
-    if (container->mt) {
+    if (!container->mt)
+        return 0;
+
+    if (thread_gate_init(&container->threads_gate)) {
+        logger(LOGGER_ERROR, "Cannot initialize the start of the threads.");
+        return -1;
+    }
+    container->threads_gate_ready = true;
+
+    int status = 0;
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        if (fmu_launch_thread(container->cs_fmu[i])) {
+            logger(LOGGER_ERROR, "Cannot launch FMU '%s' thread.", container->cs_fmu[i]->name);
+            status = -2;
+            break;
+        }
+        container->nb_threads += 1;
+    }
+
+    if (!status) {
         logger(LOGGER_DEBUG, "Container barrier is configured with %u participants", container->nb_cs + 1);
         if (thread_barrier_init(&container->barrier_start, container->nb_cs + 1)) {
             logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
-            return -1;
-        }
-        if (thread_barrier_init(&container->barrier_end, container->nb_cs + 1)) {
+            status = -1;
+        } else if (thread_barrier_init(&container->barrier_end, container->nb_cs + 1)) {
             logger(LOGGER_ERROR, "Cannot initialize thread barrier.");
-            return -1;
-        }
-        for (unsigned int i = 0; i < container->nb_cs; i += 1)
-            if (fmu_launch_thread(container->cs_fmu[i])) {
-                logger(LOGGER_ERROR, "Cannot launch FMU '%s' thread.", container->cs_fmu[i]->name);
-                return -2;
-            }
+            thread_barrier_destroy(&container->barrier_start);
+            status = -1;
+        } else
+            container->barriers_ready = true;
     }
 
-    return 0;
+    /* without barriers_ready, the launched threads end as soon as the gate is open */
+    thread_gate_open(&container->threads_gate);
+
+    return status;
 }
 
 
 static void container_stop_threads(container_t *container) {
-    if (container->mt) {
-        logger(LOGGER_DEBUG, "Stopping threads...");
+    if (!container->threads_gate_ready)
+        return;
+
+    logger(LOGGER_DEBUG, "Stopping threads...");
+    if (container->barriers_ready) {
         container->cancel = true;
-
         thread_barrier_wait(&container->barrier_start);
+    }
 
-        for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-            fmu_t *fmu = container->cs_fmu[i];
-            logger(LOGGER_DEBUG, "Waiting for FMU '%s' thread to finish.", fmu->name);
-            thread_join(fmu->thread);
-            fmu->thread = NULL;
-        }
+    for (unsigned int i = 0; i < container->nb_threads; i += 1) {
+        fmu_t *fmu = container->cs_fmu[i];
+        logger(LOGGER_DEBUG, "Waiting for FMU '%s' thread to finish.", fmu->name);
+        thread_join(fmu->thread);
+        fmu->thread = NULL;
+    }
+    container->nb_threads = 0;
 
-        
+    if (container->barriers_ready) {
         thread_barrier_destroy(&container->barrier_start);
         thread_barrier_destroy(&container->barrier_end);
+        container->barriers_ready = false;
     }
-    
+    thread_gate_destroy(&container->threads_gate);
+    container->threads_gate_ready = false;
+
     return;
 }
 
@@ -2505,6 +2534,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         container->clocks_list.fmu_id = NULL;
         container->clocks_list.buffer_qualifier = NULL;    /* nb_local_clocks */
         container->clocks_list.buffer_interval = NULL;     /* nb_local_clocks */
+        container->clocks_list.buffer_previous = NULL;     /* nb_local_clocks */
         container->clocks_list.next_clocks = NULL;         /* nb_local_clocks */
         container->clocks_list.clock_index = NULL;         /* nb_local_clocks */
 
@@ -2514,16 +2544,19 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
 
         container->mt = false;
         container->cancel = false;
+        container->barriers_ready = false;
+        container->threads_gate_ready = false;
+        container->nb_threads = 0;
     }
     return container;
 }
 
 
 void container_free(container_t *container) {
-    if (container->fmu) {
-        /* Stop threads before freeing FMUs */
-        container_stop_threads(container);
+    /* Stop threads before freeing FMUs */
+    container_stop_threads(container);
 
+    if (container->fmu) {
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmuFreeInstance(&container->fmu[i]);
             fmu_unload(&container->fmu[i]);
@@ -2571,6 +2604,7 @@ void container_free(container_t *container) {
     free(container->clocks_list.counter);
     free(container->clocks_list.buffer_qualifier);
     free(container->clocks_list.buffer_interval);
+    free(container->clocks_list.buffer_previous);
     free(container->clocks_list.fmu_vr);
     free(container->clocks_list.clock_index);
     free(container->clocks_list.fmu_id);

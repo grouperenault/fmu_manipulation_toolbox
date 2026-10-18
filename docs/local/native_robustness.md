@@ -12,9 +12,11 @@ A review of the native runtime of the container (`container/*.c`, 18 October 202
 1. **Thread shutdown after a failed configuration (MT mode).** `read_flags()` sets `container->mt = true`
    (`container/container.c:1360`) long before `container_start_threads()` initializes the barriers
    (`container.c:2159`). `container_new()` allocates the container with `malloc()`: the barriers hold garbage. If
-   the configuration fails in between (library of an embedded FMU not found, allocation failure...),
-   `container_free()` → `container_stop_threads()` waits on an uninitialized barrier (macOS:
-   `dispatch_semaphore_wait(NULL)`). Same deadlock if `fmu_launch_thread()` fails for the k-th FMU: the threads
+   the configuration fails in between after the embedded FMUs are loaded (instantiation of an embedded FMU,
+   reading error of a later section, allocation failure...), `container_free()` → `container_stop_threads()` waits
+   on an uninitialized barrier (macOS: `dispatch_semaphore_wait(NULL)`). A missing library is not concerned:
+   `read_conf_fmu()` then drops the FMU array and `container_stop_threads()` is not called. Same deadlock if
+   `fmu_launch_thread()` fails for the k-th FMU: the threads
    already launched wait for `nb_cs + 1` participants that never come.
 2. **The logger is a global state** (`container/logger.c`, `static logger_config`). Two instances of the container
    in one process overwrite each other's callback, environment, instance name and debug flag; after the
@@ -128,8 +130,14 @@ Commit message: `Run the native runtime under ASan and UBSan in the CI`
 - `container/thread.c`: decision 4.
 - macOS barrier: generation counter (decision 11), comment of `container/thread.h` updated; C test with
   consecutive waits on the same barrier; performance of the MT mode measured before and after.
-- Tests: configuration that fails after `read_flags()` in MT mode (missing library of an embedded FMU): no hang, no
-  crash (C test and Python test).
+- Tests: configuration that fails after `read_flags()` in MT mode (instantiation of the embedded FMU refused): no
+  hang, no crash (C test, with a stub FMI 2.0 FMU built by the tests, `container/tests/stub_fmu.c`).
+
+Done: the worker threads wait on a gate (`thread_gate_t`) until all of them are launched and the barriers are
+initialized; on a failure the gate is opened without `barriers_ready` and the launched threads end. The macOS barrier
+parks the threads of a phase on the semaphore of its parity. `clocks_list.buffer_previous` is now initialized and
+freed. Performance of the MT mode unchanged (`tools/bench_container.py A-mt`, 10 runs: 1.329 / 1.344 s min / mean
+before, 1.327 / 1.359 s after, same digest).
 
 Commit message: `Stop the worker threads cleanly when the configuration of the container fails`
 
