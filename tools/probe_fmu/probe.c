@@ -12,6 +12,7 @@
 #define _POSIX_C_SOURCE 200809L     /* clock_gettime, nanosleep, snprintf */
 #endif
 
+#include <locale.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -488,6 +489,9 @@ fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2Str
                               fmi2Boolean visible, fmi2Boolean loggingOn) {
     (void)fmuResourceLocation;
     (void)visible;
+
+    /* Force the C locale for numeric values: the trace must use '.' as decimal separator. */
+    setlocale(LC_NUMERIC, "C");
 
     probe_t *probe = calloc(1, sizeof(probe_t));
     if (!probe)
