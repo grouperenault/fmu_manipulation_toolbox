@@ -20,7 +20,7 @@ static const char *datalog_txt =
 
 
 static char *read_file(const char *path) {
-    FILE *fp = fopen(path, "rb");
+    FILE *fp = fopen(path, "rt");   /* text: the CRLF of a Windows checkout are read as LF */
     if (!fp)
         return NULL;
     char *content = calloc(1, 65536);

@@ -41,7 +41,7 @@ static const malformed_case_t cases[] = {
 
 
 static char *read_file(const char *path) {
-    FILE *fp = fopen(path, "rb");
+    FILE *fp = fopen(path, "rt");   /* text: the CRLF of a Windows checkout are read as LF */
     if (!fp)
         return NULL;
     fseek(fp, 0, SEEK_END);
