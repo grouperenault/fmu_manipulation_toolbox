@@ -144,3 +144,34 @@ int test_malformed_datalog_txt(void) {
 
     return 0;
 }
+
+
+/* Status of container_setup_experiment(), which sets the start values, with the start value line `line`. */
+static int setup_with_start_value(const char *original, const char *line, fmu_status_t *status) {
+    const malformed_case_t c = { "start value", 111, "2 1 0 2.5", line, 1 };
+
+    TEST_ASSERT_EQUAL_INT(0, write_case(original, &c));
+    container_t *container = container_new("start", "{uuid}", 2);
+    TEST_ASSERT(container != NULL);
+    TEST_ASSERT_EQUAL_INT(0, container_configure(container, "file://" MALFORMED_DIR));
+    *status = container_setup_experiment(container, false, 0.0, 0.0, false, 0.0);
+    container_free(container);
+
+    return 0;
+}
+
+
+int test_start_value_refused(void) {
+    char *original = read_file(TEST_FIXTURES_DIR "/one_fmu/container.txt");
+    fmu_status_t accepted, refused;
+
+    TEST_ASSERT(original != NULL);
+    const int status = setup_with_start_value(original, "2 1 0 2.5", &accepted) ||
+                       setup_with_start_value(original, "20 1 0 2.5", &refused);    /* the stub FMU has VR 0-15 */
+    free(original);
+    TEST_ASSERT_EQUAL_INT(0, status);
+    TEST_ASSERT_EQUAL_INT(FMU_STATUS_OK, accepted);
+    TEST_ASSERT_EQUAL_INT(FMU_STATUS_ERROR, refused);
+
+    return 0;
+}

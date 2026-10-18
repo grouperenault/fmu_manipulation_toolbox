@@ -359,33 +359,40 @@ static fmu_status_t container_handle_events(container_t *container) {
 
 /* Start values of one embedded FMU. early_set: all of them (before the initialization mode); otherwise only
    those flagged <RESET> (set again in initialization mode). */
-static void container_set_fmu_start_values(const fmu_t *fmu, int early_set) {
+static fmu_status_t container_set_fmu_start_values(const fmu_t *fmu, int early_set) {
+    const logger_t *logger = &fmu->container->logger;
+
 #define SET_START(variable, fmi_type, c_type)                                                   \
     for(unsigned long j=0; j<fmu->fmu_io.start_ ## variable .nb; j ++) {                        \
-        if (early_set || fmu->fmu_io.start_ ## variable.start_values[j].reset)                  \
+        if ((early_set || fmu->fmu_io.start_ ## variable.start_values[j].reset) &&              \
             fmuSet ## fmi_type(fmu,                                                             \
                 &fmu->fmu_io.start_ ## variable.start_values[j].vr, 1,                          \
-                fmu->fmu_io.start_ ## variable.start_values[j].value, 1);                       \
+                fmu->fmu_io.start_ ## variable.start_values[j].value, 1) != FMU_STATUS_OK) {    \
+            LOGGER_ERROR("Container: FMU '%s' refused the start value of " #variable " vr=%u.", \
+                         fmu->name, fmu->fmu_io.start_ ## variable.start_values[j].vr);         \
+            return FMU_STATUS_ERROR;                                                            \
+        }                                                                                       \
     }
 
     FOR_ALL_NUMERIC_TYPES(SET_START)
     SET_START(strings, String, const char *)
     /* binaries and clocks don't support start values here */
 #undef SET_START
-    return;
+    return FMU_STATUS_OK;
 }
 
 
-static void container_set_start_values(container_t* container, int early_set) {
+static fmu_status_t container_set_start_values(container_t* container, int early_set) {
     const logger_t *logger = &container->logger;
     if (early_set)
         LOGGER_DEBUG("Setting start values...");
     else
         LOGGER_DEBUG("Re-setting some start values...");
     for (int i = 0; i < container->nb_fmu; i += 1)
-        container_set_fmu_start_values(&container->fmu[i], early_set);
+        if (container_set_fmu_start_values(&container->fmu[i], early_set) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
     LOGGER_DEBUG("Start values are set.");
-    return;
+    return FMU_STATUS_OK;
 }
 
 
@@ -406,9 +413,8 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
     }
 
     container->time = container->start_time;
-    container_set_start_values(container, 1);
-    
-    return FMU_STATUS_OK;
+
+    return container_set_start_values(container, 1);
 }
 
 
@@ -473,9 +479,7 @@ fmu_status_t container_enter_initialization_mode(container_t* container) {
             return FMU_STATUS_ERROR;
     }
 
-    container_set_start_values(container, 0);
-
-    return FMU_STATUS_OK;
+    return container_set_start_values(container, 0);
 }
 
 
@@ -878,13 +882,15 @@ static fmu_status_t container_reset_fmu(container_t *container, int fmu_id) {
 
     if (fmuSetupExperiment(fmu, container->time) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
-    container_set_fmu_start_values(fmu, 1);
+    if (container_set_fmu_start_values(fmu, 1) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
     if (container_set_fmu_cache(container, (unsigned long)fmu_id) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
 
     if (fmuEnterInitializationMode(fmu, container->time) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
-    container_set_fmu_start_values(fmu, 0);
+    if (container_set_fmu_start_values(fmu, 0) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
     if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
     if (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK)

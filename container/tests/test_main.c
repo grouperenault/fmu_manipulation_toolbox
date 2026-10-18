@@ -27,6 +27,7 @@ static const struct {
     { "locale_decimal_comma",           test_locale_decimal_comma },
     { "malformed_container_txt",        test_malformed_container_txt },
     { "malformed_datalog_txt",          test_malformed_datalog_txt },
+    { "start_value_refused",            test_start_value_refused },
 };
 
 
