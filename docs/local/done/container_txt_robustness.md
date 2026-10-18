@@ -38,17 +38,17 @@ reading were found instead:
    to write the header) and `#define CONTAINER_TXT_VERSION` on the C side (used by the runtime to check it); a test
    checks that they are equal.
 4. **Branch**: first planned on `feature/init-propagation` after the propagation plan; implemented on
-   `feature/robustness-container-txt`, after the merge of the propagation (format version 8).
+   `feature/robustness-container-txt`, after the merge of the propagation (format version 7).
 
 ## Steps
 
 ### Step 1 – Version constants and version check
 
-- `fmu_manipulation_toolbox/container/types.py`: `CONTAINER_TXT_VERSION = 8`, next to `ALL_TYPES` (module shared
+- `fmu_manipulation_toolbox/container/types.py`: `CONTAINER_TXT_VERSION = 7`, next to `ALL_TYPES` (module shared
   by the writer and by `split.py`).
 - `fmu_manipulation_toolbox/container/builder.py`: the header is written from `CONTAINER_TXT_VERSION` instead of
-  the literal `# Version 8`.
-- `container/container.h`: `#define CONTAINER_TXT_VERSION 8`.
+  the literal `# Version 7`.
+- `container/container.h`: `#define CONTAINER_TXT_VERSION 7`.
 - `container/config.c` / `config.h`: a function that reads the first line of the file **without** skipping the
   comments and parses `# Version %d` (the line is counted in `line_number`, so that the next errors keep their
   line numbers).
@@ -63,7 +63,7 @@ reading were found instead:
   - unit test: `CONTAINER_TXT_VERSION` of `types.py` equals the `#define` of `container/container.h` (parsed from
     the source tree);
   - integration tests (rebuilt runtime): a built container whose `container.txt` header is changed to
-    `# Version 7`, then removed: the instantiation fails and the log contains the expected message; the unchanged
+    `# Version 6`, then removed: the instantiation fails and the log contains the expected message; the unchanged
     container still instantiates.
 
 Commit message: `Check the format version of container.txt in the runtime`

@@ -88,7 +88,7 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   in the order of the links, each FMU gets its linked inputs, leaves its Initialization Mode, then its outputs are
   read for the FMUs after it, so that an FMU is initialized with the values of the FMUs it depends on (as Simulink
   does). A loop of links is cut before its first FMU (warning at the build). The initial values, and the results of the
-  FMUs whose initialization depends on their inputs, may change. `container.txt` format version 8. See
+  FMUs whose initialization depends on their inputs, may change. `container.txt` format version 7. See
   [Initialization of the embedded FMU's](docs/user-guide/fmucontainer/container.md#initialization-of-the-embedded-fmus)
   and [From Simulink to an FMU Container](docs/examples/simulink-to-container.md).
 - 🟢 **ADDED** in `sequential` mode, the build warns when the order of the Co-Simulation FMUs in the configuration

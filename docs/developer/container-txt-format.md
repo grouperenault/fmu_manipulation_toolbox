@@ -32,7 +32,7 @@ The file is organized into the following sections, in order:
 2. [Container Flags](#2-container-flags)
 3. [Internal Time Step](#3-internal-time-step)
 4. [Embedded FMU Declarations](#4-embedded-fmu-declarations)
-   - [Initialization Order](#4b-initialization-order) (version ≥ 8)
+   - [Initialization Order](#4b-initialization-order) (version ≥ 7)
 5. [Local Variables Count](#5-local-variables-count)
 6. [Container I/O Table](#6-container-io-table)
 7. [Per-FMU I/O Sections](#7-per-fmu-io-sections) (repeated for each embedded FMU)
@@ -70,9 +70,8 @@ refused when the container is instantiated, with one of the errors:
 | 3 | 1.9.2 | Added binary and clock types; added clocked I/O sections; added importer clocks section |
 | 4 | 1.9.3 | Added `<DIM>` (dimension) field in I/O lines to support array variables |
 | 5 | 1.9.4 | Local variables addressed by their **storage offset**: `<LOCAL_OFFSET>` instead of the local VR in the per-FMU I/O lines, and as `<FMU_VR>` of the local lines of the container I/O table (an array occupies several slots) |
-| 6 | 2.0 | Model-Exchange support: FMU count split into `<nb_fmu_cs> <nb_fmu_me>`, ME entries carry `<nx> <nz>`; reserved `integer32` slot for the ME solver |
-| 7 | 2.0 | Reset trigger of each embedded FMU (`container.<fmu>.reset`), after its conversion table |
-| 8 | 2.0 | Initialization order of the embedded FMUs, after their declarations |
+| 6 | 2.0b1 | Model-Exchange support: FMU count split into `<nb_fmu_cs> <nb_fmu_me>`, ME entries carry `<nx> <nz>`; reserved `integer32` slot for the ME solver |
+| 7 | 2.0 | Reset trigger of each embedded FMU (`container.<fmu>.reset`), after its conversion table; initialization order of the embedded FMUs, after their declarations |
 
 ---
 
@@ -170,7 +169,7 @@ The FMU's resources are stored in subdirectories named by index: `resources/00/`
 <FMU_INDEX> <FMU_INDEX> ...
 ```
 
-Version ≥ 8. Every index of the embedded FMUs (their order in section 4, from 0) once, in the order in which they
+Version ≥ 7. Every index of the embedded FMUs (their order in section 4, from 0) once, in the order in which they
 propagate their links during the initialization of the container: a topological sort of the graph of the embedded
 FMUs, with an edge from the FMU of an output to the FMU of each input it is linked to. The clocks, the clocked
 variables and the `container.reset` triggers make no edge. Inside a loop, and between independent FMUs, the order
