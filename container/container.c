@@ -1454,7 +1454,11 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
                              int index, fmu_kind_t kind) {
     const bool is_me = (kind == FMU_KIND_ME);
     char directory[CONFIG_FILE_SZ];
-    snprintf(directory, CONFIG_FILE_SZ, "%s/%02x", dirname, index);
+    const int directory_len = snprintf(directory, CONFIG_FILE_SZ, "%s/%02x", dirname, index);
+    if (directory_len < 0 || directory_len >= CONFIG_FILE_SZ) {
+        CONFIG_ERROR("Path of the directory of FMU#%d is too long.", index);
+        return -1;
+    }
 
     CONFIG_GETLINE;
     char *name = strdup(file->line);
