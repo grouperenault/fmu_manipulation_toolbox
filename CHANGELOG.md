@@ -79,11 +79,17 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## FMU Container
 
+- 🟢 **ADDED** **several instances of the same FMU** in a container: each instance has its own name
+  (`bb_position-1.fmu`, ...) and its file in the new optional `path` block of the JSON; the Container Builder,
+  the MCP tools, SSP import and `fmusplit` handle them. See
+  [Embedding the same FMU several times](docs/user-guide/fmucontainer/container.md#embedding-the-same-fmu-several-times).
 - 🟠 **FIXED** a container called with a communication step that is not a multiple of its internal step (e.g. a
   sub-container at 0.02 s in a parent at 0.01 s) returned without reaching the end of the step, and made its
   internal step later with the inputs of a later instant. Each internal step now uses the inputs of its beginning
   and holds its outputs until its end; the warning "CommunicationStepSize should be divisible" is removed. See
   [Communication step and internal step](docs/user-guide/fmucontainer/container.md#communication-step-and-internal-step).
+- 🟠 **FIXED** a `TS_MULTIPLIER` below 1 (e.g. 0, received during the initialization) gave a nominal step of 0 and
+  a `doStep` of 0 to the embedded FMUs: it counts as 1, as it already did for the step of the container.
 - 🔵 **CHANGED** the container **propagates the links** between its embedded FMUs **during the initialization**:
   in the order of the links, each FMU gets its linked inputs, leaves its Initialization Mode, then its outputs are
   read for the FMUs after it, so that an FMU is initialized with the values of the FMUs it depends on (as Simulink
