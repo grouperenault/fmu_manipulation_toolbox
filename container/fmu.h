@@ -106,6 +106,7 @@ typedef struct {                                        \
     unsigned long               nb;                     \
     struct {                                            \
         fmu_vr_t                vr;                     \
+        unsigned int            dimension;  /* number of values (array) */ \
         int                     reset;                  \
         c_type                  *value;                 \
     } *start_values;                                    \

@@ -216,6 +216,11 @@ Commit message: `Check the values read from container.txt by the runtime`
   propagate it.
 - Test: an FMU that refuses a start value (probe FMU, or a start value of a wrong VR in a test `container.txt`).
 
+Done. `fmuSet*` does not tell a warning from an error (both are `FMU_STATUS_ERROR`): decided (2026-10-18) that any
+status other than OK fails, like the other exchanges of the runtime. Found meanwhile: the start values were set with
+one value (`nvalues = 1`) even for an FMI-3.0 array (the builder writes one line with `<DIM>` values): the dimension
+is now kept in `fmu_start_<type>_t` and given as the number of values (separate commit).
+
 Commit message: `Report the failures to set the start values of the embedded FMUs`
 
 ### Step 9 – Datalog (points 13, 14) and cleanup (point 17)

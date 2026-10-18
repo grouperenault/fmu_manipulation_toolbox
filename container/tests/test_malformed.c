@@ -19,23 +19,24 @@ typedef struct {
     const char      *expected;      /* its content, checked before the replacement */
     const char      *replacement;   /* may span several lines; NULL: the file is cut before this line */
     int             valid;          /* 1 if the configuration must succeed */
+    int             nb_lines;       /* lines replaced from `line` */
 } malformed_case_t;
 
 static const malformed_case_t cases[] = {
-    { "control: valid input added",         52,  "0",          "1\n0 1 3",             1 },
-    { "port out of range",                  18,  "0 1 1 -1 0", "5 1 1 -1 0",           0 },
-    { "local variable out of range",        18,  "0 1 1 -1 0", "0 1 1 -1 1",           0 },
-    { "FMU index out of range",             19,  "1 1 1 0 2",  "1 1 1 1 2",            0 },
-    { "negative number of FMUs",            7,   "1 0",        "-1 0",                 0 },
-    { "FMU input out of range",             52,  "0",          "1\n1 1 3",             0 },
-    { "clocked input truncated",            54,  "0 0",        "1 1\n0 1 0 1",         0 },
-    { "clocked input: clock out of range",  54,  "0 0",        "1 1\n0 1 0 1 3",       0 },
-    { "start values: one count only",       110, "1 1",        "1",                    0 },
-    { "start values: too many",             111, "2 1 0 2.5",  "2 2 0 2.5 3.5",        0 },
-    { "conversion out of range",            195, "0",          "1\n0 0 F32_F64",       0 },
-    { "conversion unknown",                 195, "0",          "1\n0 0 F64_XYZ",       0 },
-    { "clocks: FMU index out of range",     199, "0 0",        "1 1\n3 1 0 0",         0 },
-    { "file truncated",                     100, NULL,         NULL,                   0 },
+    { "control: valid input added",         52,  "0",          "1\n0 1 3",             1, 1 },
+    { "port out of range",                  18,  "0 1 1 -1 0", "5 1 1 -1 0",           0, 1 },
+    { "local variable out of range",        18,  "0 1 1 -1 0", "0 1 1 -1 1",           0, 1 },
+    { "FMU index out of range",             19,  "1 1 1 0 2",  "1 1 1 1 2",            0, 1 },
+    { "negative number of FMUs",            7,   "1 0",        "-1 0",                 0, 1 },
+    { "FMU input out of range",             52,  "0",          "1\n1 1 3",             0, 1 },
+    { "clocked input truncated",            54,  "0 0",        "1 1\n0 1 0 1",         0, 1 },
+    { "clocked input: clock out of range",  54,  "0 0",        "1 1\n0 1 0 1 3",       0, 1 },
+    { "start values: one count only",       110, "1 1",        "1",                    0, 1 },
+    { "start values: too many",             111, "2 1 0 2.5",  "2 2 0 2.5 3.5",        0, 1 },
+    { "conversion out of range",            195, "0",          "1\n0 0 F32_F64",       0, 1 },
+    { "conversion unknown",                 195, "0",          "1\n0 0 F64_XYZ",       0, 1 },
+    { "clocks: FMU index out of range",     199, "0 0",        "1 1\n3 1 0 0",         0, 1 },
+    { "file truncated",                     100, NULL,         NULL,                   0, 1 },
 };
 
 
@@ -66,10 +67,13 @@ static int write_case(const char *original, const malformed_case_t *c) {
 
     int status = -1;
     int number = 1;
+    const int last = c->line + c->nb_lines - 1;
     for (const char *line = original; *line; number += 1) {
         const char *end = strchr(line, '\n');
         const size_t len = end ? (size_t)(end - line) : strlen(line);
-        if (number == c->line) {
+        if (number > c->line && number <= last) {
+            /* replaced with the line c->line */
+        } else if (number == c->line) {
             if (!c->expected)
                 status = 0;                 /* cut the file here */
             else if (strlen(c->expected) == len && strncmp(line, c->expected, len) == 0) {
@@ -148,7 +152,7 @@ int test_malformed_datalog_txt(void) {
 
 /* Status of container_setup_experiment(), which sets the start values, with the start value line `line`. */
 static int setup_with_start_value(const char *original, const char *line, fmu_status_t *status) {
-    const malformed_case_t c = { "start value", 111, "2 1 0 2.5", line, 1 };
+    const malformed_case_t c = { "start value", 111, "2 1 0 2.5", line, 1, 1 };
 
     TEST_ASSERT_EQUAL_INT(0, write_case(original, &c));
     container_t *container = container_new("start", "{uuid}", 2);
@@ -172,6 +176,32 @@ int test_start_value_refused(void) {
     TEST_ASSERT_EQUAL_INT(0, status);
     TEST_ASSERT_EQUAL_INT(FMU_STATUS_OK, accepted);
     TEST_ASSERT_EQUAL_INT(FMU_STATUS_ERROR, refused);
+
+    return 0;
+}
+
+
+int test_start_value_array(void) {
+    char *original = read_file(TEST_FIXTURES_DIR "/one_fmu/container.txt");
+    const malformed_case_t c = { "array start value", 110, "1 1", "1 3\n2 3 0 1.5 2.5 3.5", 1, 2 };
+
+    TEST_ASSERT(original != NULL);
+    const int written = write_case(original, &c);
+    free(original);
+    TEST_ASSERT_EQUAL_INT(0, written);
+
+    container_t *container = container_new("array", "{uuid}", 2);
+    TEST_ASSERT(container != NULL);
+    TEST_ASSERT_EQUAL_INT(0, container_configure(container, "file://" MALFORMED_DIR));
+    const fmu_start_reals64_t *start = &container->fmu[0].fmu_io.start_reals64;
+    const int nb = (int)start->nb;
+    const unsigned int dimension = nb ? start->start_values[0].dimension : 0;
+    const double last = nb ? start->start_values[0].value[2] : 0.0;
+    container_free(container);
+
+    TEST_ASSERT_EQUAL_INT(1, nb);
+    TEST_ASSERT_EQUAL_INT(3, dimension);    /* given as the number of values to fmuSetReal64() */
+    TEST_ASSERT(last == 3.5);
 
     return 0;
 }
