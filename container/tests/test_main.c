@@ -14,6 +14,7 @@ static const struct {
     { "config_lines",       test_config_lines },
     { "config_long_line",   test_config_long_line },
     { "config_version",     test_config_version },
+    { "config_crlf",        test_config_crlf },
     { "thread_barrier",                 test_thread_barrier },
     { "thread_barrier_consecutive",     test_thread_barrier_consecutive },
     { "configure_empty",                test_configure_empty },

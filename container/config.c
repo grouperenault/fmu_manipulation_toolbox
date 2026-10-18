@@ -39,8 +39,10 @@ static int read_line(config_file_t* config_file) {
         return -1;
     config_file->line_number += 1;
 
-    /* CHOMP() */
+    /* CHOMP(): "\n" or "\r\n" (a file written on Windows, read on another platform) */
     if (config_file->line[len - 1] == '\n')
+        config_file->line[--len] = '\0';
+    if (len > 0 && config_file->line[len - 1] == '\r')
         config_file->line[len - 1] = '\0';
 
     return 0;

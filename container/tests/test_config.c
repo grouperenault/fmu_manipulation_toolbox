@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -68,6 +69,30 @@ int test_config_version(void) {
     TEST_ASSERT(test_write_file(TEST_CONFIG_DIR, "no_version.txt", "# Other header\n") == 0);
     TEST_ASSERT_EQUAL_INT(0, config_file_open(&file, NULL, TEST_CONFIG_DIR, "no_version.txt"));
     TEST_ASSERT_EQUAL_INT(-1, config_file_version(&file, &version));
+    config_file_close(&file);
+
+    return 0;
+}
+
+
+/* A file written on Windows (CRLF), whatever the platform that reads it. */
+int test_config_crlf(void) {
+    config_file_t file;
+    char path[4096];
+
+    snprintf(path, sizeof(path), "%s/crlf.txt", TEST_CONFIG_DIR);
+    FILE *fp = fopen(path, "wb");   /* binary: the CRLF are written as is */
+    TEST_ASSERT(fp != NULL);
+    fputs("# comment\r\nstub\r\n\r\nlast\r\n", fp);
+    fclose(fp);
+
+    TEST_ASSERT_EQUAL_INT(0, config_file_open(&file, NULL, TEST_CONFIG_DIR, "crlf.txt"));
+    TEST_ASSERT_EQUAL_INT(0, get_line(&file));
+    TEST_ASSERT(strcmp(file.line, "stub") == 0);
+    TEST_ASSERT_EQUAL_INT(0, get_line(&file));
+    TEST_ASSERT(strcmp(file.line, "") == 0);
+    TEST_ASSERT_EQUAL_INT(0, get_line(&file));
+    TEST_ASSERT(strcmp(file.line, "last") == 0);
     config_file_close(&file);
 
     return 0;

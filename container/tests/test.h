@@ -42,6 +42,7 @@ typedef int (*test_function_t)(void);
 extern int test_config_lines(void);
 extern int test_config_long_line(void);
 extern int test_config_version(void);
+extern int test_config_crlf(void);
 extern int test_thread_barrier(void);
 extern int test_thread_barrier_consecutive(void);
 extern int test_configure_empty(void);
