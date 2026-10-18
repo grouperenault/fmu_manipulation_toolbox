@@ -96,6 +96,12 @@ A review of the native runtime of the container (`container/*.c`, 18 October 202
 11. **macOS barrier (point 16)**: a generation counter makes it reusable for consecutive waits; its impact on the
     performance is measured (`tests/integration/test_container_perf.py` / benchmarks, MT mode) before and after.
 
+12. **Locale of the datalog** (2026-10-18, after step 6): the datalog keeps writing its rows with the C numeric
+    locale, so that a decimal comma never breaks the columns of the CSV. POSIX: `uselocale()` around each row
+    (measured: 15 ns for enter + leave, against 535 ns for the `fprintf` of 3 doubles). Windows: the switch of
+    `_configthreadlocale()` + `setlocale()` at each row is replaced at step 9 by a `_locale_t` created once
+    (`_create_locale(LC_NUMERIC, "C")`) and `_fprintf_l()`.
+
 ## Steps
 
 ### Step 1 – Native test target
@@ -205,7 +211,8 @@ Commit message: `Report the failures to set the start values of the embedded FMU
 
 ### Step 9 – Datalog (points 13, 14) and cleanup (point 17)
 
-- `container/datalog.c`: formats and quoting of decision 6.
+- `container/datalog.c`: formats and quoting of decision 6; on Windows, rows written with `_fprintf_l()` and a C
+  numeric `_locale_t` created once (decision 12), through a small printing macro shared with POSIX.
 - `container/library.c`: `_WIN32`.
 - Tests: `tests/integration/test_datalog.py` checks the precision of the time and of a real (e.g. 1e-8) and a string
   with a comma, read back with the `csv` module; `datalog2pcap` unchanged on its REF.
