@@ -167,7 +167,7 @@ static int setup_with_start_value(const char *original, const char *line, fmu_st
 
 int test_start_value_refused(void) {
     char *original = read_file(TEST_FIXTURES_DIR "/one_fmu/container.txt");
-    fmu_status_t accepted, refused;
+    fmu_status_t accepted = FMU_STATUS_ERROR, refused = FMU_STATUS_OK;    /* both wrong until set */
 
     TEST_ASSERT(original != NULL);
     const int status = setup_with_start_value(original, "2 1 0 2.5", &accepted) ||

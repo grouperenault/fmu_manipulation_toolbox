@@ -59,9 +59,9 @@ int test_datalog_rows(void) {
     if (row)
         *row++ = '\0';
     const int header_ok = strcmp(csv, "time,\"a[1,2]\",\"say \"\"hi\"\"\"") == 0;
-    char *end;
+    char *end = NULL;
     const double time = has_row ? strtod(row, &end) : 0.0;
-    const double value = (has_row && *end == ',') ? strtod(end + 1, NULL) : 0.0;
+    const double value = (end && *end == ',') ? strtod(end + 1, NULL) : 0.0;
     free(csv);
 
     TEST_ASSERT(header_ok);
