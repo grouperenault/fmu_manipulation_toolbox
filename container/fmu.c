@@ -933,8 +933,9 @@ fmu_status_t fmuSetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, cons
     fmu_status_t status = FMU_STATUS_OK;
 
 #ifdef DEBUG
-    for(int i = 0; i<nvr; i += 1)
-        LOGGER_DEBUG("[DEBUG] time=%e | fmuSetClock(fmu=%s, vr=%d, value=%d)", fmu->container->time, fmu->name, vr[i], value[i]);
+    for (size_t i = 0; i < nvr; i += 1)
+        LOGGER_DEBUG("[DEBUG] time=%e | fmuSetClock(fmu=%s, vr=%u, value=%d)", fmu->container->time, fmu->name, vr[i],
+                     value[i]);
 #endif
     if (fmu->fmi_version == FMU_2) {
         LOGGER_ERROR("%s: fmuSetClock not supported.", fmu->name);
