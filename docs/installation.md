@@ -7,7 +7,7 @@ This guide walks you through installing **FMU Manipulation Toolbox** on your sys
 ### Supported Operating Systems
 
 - ✅ **Windows 10/11** (primary platform, fully tested)
-- ✅ **Linux** (Ubuntu 22.04 and compatible distributions)
+- ✅ **Linux** (Ubuntu 22.04 and compatible distributions, with glibc 2.35 or newer)
 - ✅ **macOS** (Darwin)
 
 ### Required Dependencies
@@ -19,7 +19,7 @@ This guide walks you through installing **FMU Manipulation Toolbox** on your sys
 
 - **C Compiler** with C23 support (for the container) or C99 (for remoting)
   - Windows: Visual Studio 2022+ or MinGW
-  - Linux: GCC 13+ or Clang 16+
+  - Linux: GCC 11+ or Clang 16+
   - macOS: Xcode Command Line Tools (with recent Clang)
 - **CMake 3.21 or higher**
 

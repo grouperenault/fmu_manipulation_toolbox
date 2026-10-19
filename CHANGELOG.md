@@ -12,6 +12,8 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   October 2025. On Python 3.9, pip installs 1.9.4.2, the last release supporting it.
 - 🟢 **ADDED** Python 3.14 is supported, and tested by the CI on Windows, Linux and macOS. Python 3.13 remains the
   recommended version.
+- 🟠 **FIXED** the Linux binaries (container, remoting) load again on Ubuntu 22.04 and the distributions with
+  glibc 2.35 or newer: those of 1.9.4.2, built on Ubuntu 24.04, required glibc 2.38.
 - 🔵 **CHANGED** `PySide6` (the GUI toolkit) is no longer installed by default. `pip install fmu-manipulation-toolbox`
   only installs the **CLI** (`fmutool`, `fmucontainer`, `fmusplit`, `datalog2pcap`) and the
   **Python API**, neither of which import `PySide6`. Extras: `gui` for the **Graphical User
