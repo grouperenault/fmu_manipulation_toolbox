@@ -169,6 +169,20 @@ You can create nested containers to organize complex assemblies:
 
 After renaming a container, the **Container Details** panel is refreshed immediately to reflect the new name.
 
+### Step Size Column
+
+The second column of the tree view shows the step size of each item, in seconds. It is informative: it cannot be
+edited.
+
+- **FMU**: the step size declared by the FMU (`stepSize` of its `DefaultExperiment`); empty if the FMU declares none.
+- **Container**: its `step_size` parameter (see [Container Details](#container-details)). When `step_size` is
+  empty, the column shows, in *italics*, the step size deduced when the container is built: the least common
+  multiple of the step sizes of the FMUs that cannot handle a variable step size or, if all of them can, the
+  largest step size; 0.1 s if no FMU declares a step size. A sub-container counts as an FMU that can handle a
+  variable step size.
+
+The column is updated when FMUs or containers are added, moved, replaced or removed, and when `step_size` is changed.
+
 ### Context Menu (Right-click on Tree View)
 
 ![Context menu of the tree view](fmucontainer-tree-menu.png)
@@ -476,7 +490,7 @@ When a container is selected in the tree view, the detail panel shows its config
 
 | Parameter | Type | Description |
 |---|---|---|
-| `step_size` | text | Fixed time step (in seconds) for the container's internal solver |
+| `step_size` | text | Fixed time step (in seconds) for the container's internal solver; when empty, deduced from the embedded FMUs (see [Step Size Column](#step-size-column)) |
 | `mt` | checkbox | Enable multi-threading (each FMU runs in its own thread) |
 | `profiling` | checkbox | Enable performance profiling of embedded FMUs |
 | `sequential` | checkbox | Force sequential execution order |

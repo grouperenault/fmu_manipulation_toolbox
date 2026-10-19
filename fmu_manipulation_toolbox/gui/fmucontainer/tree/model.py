@@ -12,7 +12,14 @@ from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameter
 
 
 class _NodeTreeModel(QStandardItemModel):
-    """Model that only allows drop on "Container" items."""
+    """Model that only allows drop on "Container" items.
+
+    Column 0 holds the name of the FMU or container, and all the data roles; column 1 shows the step size,
+    read-only (see `NodeTreeWidget.refresh_step_sizes`).
+    """
+    COLUMN_NAME = 0
+    COLUMN_STEP_SIZE = 1
+
     # Custom data roles stored on column 0 items
     ROLE_CONTAINER_PARAMETERS = Qt.ItemDataRole.UserRole + 1
     ROLE_NODE_UID = Qt.ItemDataRole.UserRole + 2
@@ -21,10 +28,17 @@ class _NodeTreeModel(QStandardItemModel):
     def canDropMimeData(self, data, action, row, column, parent):
         if not parent.isValid():
             return False                        # not at invisible root level
+        parent = parent.siblingAtColumn(self.COLUMN_NAME)
         item = self.itemFromIndex(parent)
         if item is None or not item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS):
             return False                        # only on a Container
-        return super().canDropMimeData(data, action, row, column, parent)
+        return super().canDropMimeData(data, action, row, self.COLUMN_NAME, parent)
+
+    def dropMimeData(self, data, action, row, column, parent):
+        # A drop over the step size column lands in the name column, as the dragged items come from it.
+        if parent.isValid():
+            parent = parent.siblingAtColumn(self.COLUMN_NAME)
+        return super().dropMimeData(data, action, row, self.COLUMN_NAME, parent)
 
 
 class TreeItemRoles:

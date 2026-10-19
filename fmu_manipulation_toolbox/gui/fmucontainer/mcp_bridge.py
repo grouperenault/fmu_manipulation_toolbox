@@ -471,6 +471,7 @@ class QtAssemblyBridge:
             raise ValueError(f"Unknown container option(s): {sorted(unknown)}. Allowed: {sorted(allowed)}")
         params.parameters.update(options)
         self._window._tree.refresh_reset_ports()     # `reset_ports` has an effect on the root container
+        self._window._tree.refresh_step_sizes()
         self._mark_dirty()
         logger.info(f"[AI] Container options updated: {options}")
         return dict(params.parameters)

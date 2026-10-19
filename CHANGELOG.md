@@ -304,6 +304,9 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   `<fmu>.reset` port per FMU, or sub-container, to the `configuration` node; a wire to it resets the FMU. Selecting
   the node lists its reset ports, to expose them as container inputs. See
   [The configuration Node](docs/user-guide/fmucontainer/gui-usage.md#the-configuration-node).
+- 🟢 **ADDED** `fmucontainer-gui`: a second, read-only, column of the tree view shows the step size of each FMU and
+  container; the step size of a container whose `step_size` is empty is the one deduced at build time, in italics.
+  See [Step Size Column](docs/user-guide/fmucontainer/gui-usage.md#step-size-column).
 
 # Version 1.9.4.2
 * ADDED: Container thread synchronization on macOS now uses a semaphore instead of a barrier

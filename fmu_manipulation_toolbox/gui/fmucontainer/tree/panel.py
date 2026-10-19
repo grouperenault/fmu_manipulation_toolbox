@@ -86,6 +86,10 @@ class NodeTreePanel(QWidget):
         """Sync the reset ports of the virtual ConfigurationNode with the `reset_ports` checkboxes (GUI-only)."""
         self._tree_widget.refresh_reset_ports()
 
+    def refresh_step_sizes(self):
+        """Refresh the (read-only) step size column of the tree."""
+        self._tree_widget.refresh_step_sizes()
+
     @property
     def configuration_detail(self):
         return self._detail_panel.configuration_detail
@@ -166,7 +170,7 @@ class NodeTreePanel(QWidget):
     def _on_container_changed(self, container_parameters):
         """Called when a container item is edited (e.g. renamed)."""
         try:
-            current = self._tree_widget.tree_view.currentIndex()
+            current = self._tree_widget.tree_view.currentIndex().siblingAtColumn(_NodeTreeModel.COLUMN_NAME)
             if current.isValid():
                 item = self._tree_widget.model.itemFromIndex(current)
                 if item and TreeItemRoles.get_container_params(item) is container_parameters:
@@ -178,10 +182,12 @@ class NodeTreePanel(QWidget):
         """Called when the container detail panel parameters are edited.
 
         Keeps the container's `ts_multiplier` port, and the reset ports of its
-        FMUs, on the (GUI-only) ConfigurationNode in sync with the checkboxes.
+        FMUs, on the (GUI-only) ConfigurationNode in sync with the checkboxes,
+        and the step size column with `step_size`.
         """
         try:
-            current = self._tree_widget.tree_view.currentIndex()
+            self._tree_widget.refresh_step_sizes()
+            current = self._tree_widget.tree_view.currentIndex().siblingAtColumn(_NodeTreeModel.COLUMN_NAME)
             if not current.isValid():
                 # Fall back to the actual selection: `currentIndex()` may not
                 # have been updated yet (e.g. right after programmatically

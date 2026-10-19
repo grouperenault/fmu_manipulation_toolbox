@@ -4,12 +4,13 @@ NodeTreeWidget: tree view and scene synchronization for FMU container builder.
 
 import logging
 
-from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSize
+from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSize, QTimer
 from PySide6.QtGui import QStandardItem, QIcon
 from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog,
-                               QMenu, QAbstractItemView)
+                               QMenu, QAbstractItemView, QHeaderView)
 from pathlib import Path
 
+from fmu_manipulation_toolbox.container.builder import DEFAULT_STEP_SIZE, deduce_step_size
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, ConfigurationNode
 from fmu_manipulation_toolbox.gui.helper import LastDirectory
@@ -28,6 +29,7 @@ class NodeTreeWidget(QWidget):
     • Context menu for add/delete/rename
     • Drag-and-drop hierarchy management
     • Icon management and item builders
+    • Read-only step size column (FMU step size, or container step size, deduced when empty)
 
     Signals:
     • container_changed(ContainerParameters) - emitted when a container item is edited
@@ -45,10 +47,10 @@ class NodeTreeWidget(QWidget):
 
         # ── Model ────────────────────────────────────────────────────────
         self._model = _NodeTreeModel()
-        self._model.setHorizontalHeaderLabels(["Name"])
+        self._model.setHorizontalHeaderLabels(["Name", "Step size"])
 
         root_item = self._make_container_item("container.fmu", is_root=True)
-        self._model.appendRow(root_item)
+        self._append_row(self._model.invisibleRootItem(), root_item)
         self._root: QStandardItem = root_item
 
         # ── View ───────────────────────────────────────────────────────────
@@ -62,6 +64,10 @@ class NodeTreeWidget(QWidget):
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
         self._tree.setIconSize(QSize(30, 30))
         self._tree.setUniformRowHeights(True)
+        header = self._tree.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(_NodeTreeModel.COLUMN_NAME, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(_NodeTreeModel.COLUMN_STEP_SIZE, QHeaderView.ResizeMode.ResizeToContents)
         self._tree.expandAll()
 
         # Enforce .fmu extension when a container is renamed in-place
@@ -79,6 +85,16 @@ class NodeTreeWidget(QWidget):
         self._model.rowsInserted.connect(lambda *_: self.refresh_reset_ports())
         self._model.rowsRemoved.connect(lambda *_: self.refresh_reset_ports())
         self._model.rowsMoved.connect(lambda *_: self.refresh_reset_ports())
+        # The step sizes of the containers follow their content: refreshed once the current change is over
+        # (a drag and drop inserts the moved rows before removing the original ones).
+        self._step_size_timer = QTimer(self)
+        self._step_size_timer.setSingleShot(True)
+        self._step_size_timer.setInterval(0)
+        self._step_size_timer.timeout.connect(self.refresh_step_sizes)
+        self._model.rowsInserted.connect(lambda *_: self._step_size_timer.start())
+        self._model.rowsRemoved.connect(lambda *_: self._step_size_timer.start())
+        self._model.rowsMoved.connect(lambda *_: self._step_size_timer.start())
+        self.refresh_step_sizes()
 
         # ── Layout ──────────────────────────────────────────────────
         lay = QVBoxLayout(self)
@@ -120,6 +136,18 @@ class NodeTreeWidget(QWidget):
         return name
 
     # ── Row builders ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _make_step_size_item() -> QStandardItem:
+        """Read-only cell of the step size column."""
+        item = QStandardItem()
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        return item
+
+    def _append_row(self, parent: QStandardItem, item: QStandardItem):
+        """Append *item* to *parent*, with its step size cell: a row selected right away spans both columns."""
+        parent.appendRow([item, self._make_step_size_item()])
 
     def _make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
         item = QStandardItem(name)
@@ -198,7 +226,7 @@ class NodeTreeWidget(QWidget):
             return
         target = self._pending_parent or self._root
         node_item = self._make_node_item(node)
-        target.appendRow(node_item)
+        self._append_row(target, node_item)
         self._tree.expandAll()
         self._select_tree_item(node_item)
 
@@ -218,6 +246,7 @@ class NodeTreeWidget(QWidget):
         self._model.blockSignals(True)
         item.setText(node.title)
         self._model.blockSignals(False)
+        self.refresh_step_sizes()
 
     def _remove_uid_from(self, parent: QStandardItem, uid: str) -> bool:
         for r in range(parent.rowCount()):
@@ -325,6 +354,77 @@ class NodeTreeWidget(QWidget):
                 node = nodes_by_uid.get(TreeItemRoles.get_node_uid(child))
                 if node is not None:
                     wanted.add(node.name)
+
+    # ── Step size column (read-only) ───────────────────────────────────
+
+    def refresh_step_sizes(self):
+        """Show the step size of each FMU, and of each container: its `step_size` parameter, or when empty the
+        step size the builder deduces from its content (shown in italics)."""
+        try:
+            nodes_by_uid = {node.uid: node for node in self._graph.scene.fmu_nodes()}
+            root = self._model.invisibleRootItem()
+            for r in range(root.rowCount()):
+                item = root.child(r, _NodeTreeModel.COLUMN_NAME)
+                if item is not None:
+                    self._refresh_step_size(item, nodes_by_uid)
+        except RuntimeError:
+            pass  # C++ objects already deleted (application shutdown)
+
+    def _refresh_step_size(self, item: QStandardItem, nodes_by_uid: dict) -> tuple[float | None, bool]:
+        """Show the step size of *item* and of its content. Return the step size of *item* (`None` if unknown), and
+        whether it can handle a variable communication step size, as the parent container sees it."""
+        container_parameters = TreeItemRoles.get_container_params(item)
+        if container_parameters is None:
+            node = nodes_by_uid.get(TreeItemRoles.get_node_uid(item))
+            if node is None:
+                self._set_step_size_cell(item, None, deduced=False, tooltip="")
+                return None, True
+            step_size = self._parse_step_size(node.fmu_step_size)
+            self._set_step_size_cell(item, step_size, deduced=False, tooltip="Step size of the FMU")
+            return step_size, node.fmu_variable_step_size
+
+        content = []
+        for r in range(item.rowCount()):
+            child = item.child(r, _NodeTreeModel.COLUMN_NAME)
+            if child is not None:
+                content.append(self._refresh_step_size(child, nodes_by_uid))
+        step_size = self._parse_step_size(container_parameters.parameters.get("step_size"))
+        if step_size is not None:
+            self._set_step_size_cell(item, step_size, deduced=False, tooltip="Step size of the container")
+        else:
+            step_size = deduce_step_size([(s, variable) for s, variable in content if s is not None])
+            if step_size is None:
+                step_size = DEFAULT_STEP_SIZE
+            self._set_step_size_cell(item, step_size, deduced=True,
+                                     tooltip="Step size deduced from the content of the container")
+        # A container handles variable communication step sizes (see FMUContainer.make_fmu_xml).
+        return step_size, True
+
+    @staticmethod
+    def _parse_step_size(value) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _set_step_size_cell(self, item: QStandardItem, step_size: float | None, deduced: bool, tooltip: str):
+        """Fill the step size cell of the row of *item*, created if missing (e.g. rows inserted by a drop)."""
+        parent = item.parent() or self._model.invisibleRootItem()
+        cell = parent.child(item.row(), _NodeTreeModel.COLUMN_STEP_SIZE)
+        if cell is None:
+            cell = self._make_step_size_item()
+            parent.setChild(item.row(), _NodeTreeModel.COLUMN_STEP_SIZE, cell)
+        # Dropping over the step size column of a container drops into the container.
+        cell.setDropEnabled(item.isDropEnabled())
+        text = f"{step_size} s" if step_size is not None else ""
+        if cell.text() != text:
+            cell.setText(text)
+        font = cell.font()
+        if font.italic() != deduced:
+            font.setItalic(deduced)
+            cell.setFont(font)
+        if cell.toolTip() != tooltip:
+            cell.setToolTip(tooltip)
 
     def _validate_wire(self, node_a, node_b) -> bool:
         """The ConfigurationNode can be wired to any FMU; the only forbidden
@@ -456,7 +556,7 @@ class NodeTreeWidget(QWidget):
     # ── Context menu ────────────────────────────��─────────────────────
 
     def _on_context_menu(self, pos):
-        index = self._tree.indexAt(pos)
+        index = self._tree.indexAt(pos).siblingAtColumn(_NodeTreeModel.COLUMN_NAME)
         target, item = self._resolve_target(index)
 
         menu = QMenu(self)
@@ -489,7 +589,7 @@ class NodeTreeWidget(QWidget):
             name, ok = QInputDialog.getText(self, "New Container", "Name:")
             if ok and name.strip():
                 ctn_item = self._make_container_item(self._ensure_fmu_ext(name.strip()))
-                target.appendRow(ctn_item)
+                self._append_row(target, ctn_item)
                 self._tree.expandAll()
                 self._select_tree_item(ctn_item)
 

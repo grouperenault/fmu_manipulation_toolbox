@@ -30,10 +30,37 @@ from .types import ALL_TYPES, CONTAINER_TXT_VERSION
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
+# Step size of a container whose FMUs declare none.
+DEFAULT_STEP_SIZE = 0.1
+
 
 def _exact(value: float) -> Fraction:
     """A step size as a fraction, from its shortest decimal representation: `0.3` is 3/10, not the binary float."""
     return Fraction(repr(float(value)))
+
+
+def deduce_step_size(step_sizes: list[tuple[float, bool]]) -> float | None:
+    """Deduce the step size of a container from the step sizes of its FMUs.
+
+    The step size is the least common multiple of the step sizes of the FMUs that cannot handle variable step
+    sizes, computed exactly (`0.1` and `0.25` give `0.5`). If all FMUs support variable steps, it is the largest
+    step size. Step sizes that are not strictly positive are ignored.
+
+    Args:
+        step_sizes: One `(step_size, variable)` pair per FMU, `variable` telling whether the FMU can handle a
+            variable communication step size.
+
+    Returns:
+        float | None: The deduced step size in seconds, or `None` without any usable step size.
+    """
+    step_sizes = [(step_size, variable) for step_size, variable in step_sizes if step_size > 0]
+    fixed = [_exact(step_size) for step_size, variable in step_sizes if not variable]
+    if fixed:
+        # lcm(a/b, c/d) = lcm(a, c) / gcd(b, d)
+        return float(Fraction(math.lcm(*(f.numerator for f in fixed)), math.gcd(*(f.denominator for f in fixed))))
+    if step_sizes:
+        return max(step_size for step_size, _ in step_sizes)
+    return None
 
 
 @dataclass
@@ -584,24 +611,20 @@ class FMUContainer:
         Returns:
             float: Computed step size in seconds.
         """
-        default_step_size = 0.1
         step_sizes = {fmu.name: fmu.step_size for fmu in self.involved_fmu.values() if fmu.step_size}
         for name, step_size in list(step_sizes.items()):
             if step_size < 0:
                 logger.warning(f"FMU '{name}' declares a negative step size ({step_size}s): ignored.")
                 del step_sizes[name]
 
-        fixed = [_exact(step_sizes[fmu.name]) for fmu in self.involved_fmu.values()
-                 if fmu.name in step_sizes and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false"]
-        if fixed:
-            # lcm(a/b, c/d) = lcm(a, c) / gcd(b, d)
-            return float(Fraction(math.lcm(*(f.numerator for f in fixed)), math.gcd(*(f.denominator for f in fixed))))
-        if step_sizes:
-            # all involved FMUs can Handle Variable Communication StepSize
-            return max(step_sizes.values())
+        step_size = deduce_step_size([
+            (step_sizes[fmu.name], fmu.capabilities["canHandleVariableCommunicationStepSize"] != "false")
+            for fmu in self.involved_fmu.values() if fmu.name in step_sizes])
+        if step_size is not None:
+            return step_size
 
-        logger.warning(f"Defaulting to step_size={default_step_size}")
-        return default_step_size
+        logger.warning(f"Defaulting to step_size={DEFAULT_STEP_SIZE}")
+        return DEFAULT_STEP_SIZE
 
     def sanity_check(self, step_size: float | None):
         """Validate the container configuration before building.

@@ -68,6 +68,8 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.user_exposed_outputs: dict[str, bool] = {}
         self.user_exposed_inputs: dict[str, bool] = {}
         self.fmu_step_size: str | None = None
+        # Whether the FMU can handle a variable communication step size (Co-Simulation takes precedence).
+        self.fmu_variable_step_size: bool = False
         self.fmu_generator: str = ""
         self.fmu_fmi_version: int | None = None
         # FMI kind advertised by the FMU descriptor.
@@ -230,9 +232,12 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     def cosimulation_attrs(self, attrs):
         self.fmu_is_cosimulation = True
+        self.fmu_variable_step_size = attrs.get("canHandleVariableCommunicationStepSize", "false") == "true"
 
     def modelexchange_attrs(self, attrs):
         self.fmu_is_model_exchange = True
+        if not self.fmu_is_cosimulation:
+            self.fmu_variable_step_size = attrs.get("canHandleVariableCommunicationStepSize", "false") == "true"
 
     def port_attrs(self, fmu_port: ModelVariable) -> int:
         causality = fmu_port.get("causality", "local")
@@ -420,6 +425,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_start_values.clear()
         self.fmu_array_aggregate_elements.clear()
         self.fmu_step_size = None
+        self.fmu_variable_step_size = False
         self.fmu_generator = ""
         self.fmu_fmi_version = None
         self.fmu_is_model_exchange = False
