@@ -119,6 +119,16 @@ class NodeTreeWidget(QWidget):
     def pending_parent(self) -> QStandardItem | None:
         return self._pending_parent
 
+    def selected_name_indexes(self) -> list:
+        """Indexes of the name column of the selected rows. A row counts as selected as soon as one of its cells is,
+        unlike `QItemSelectionModel.selectedRows`, which needs all the columns of the row selected."""
+        indexes = []
+        for index in self._tree.selectionModel().selectedIndexes():
+            index = index.siblingAtColumn(_NodeTreeModel.COLUMN_NAME)
+            if index not in indexes:
+                indexes.append(index)
+        return indexes
+
     @pending_parent.setter
     def pending_parent(self, value: QStandardItem | None):
         self._pending_parent = value
@@ -511,7 +521,7 @@ class NodeTreeWidget(QWidget):
             for node in self._graph.scene.nodes():
                 node.set_title_highlighted(False)
 
-            selected_rows = list(self._tree.selectionModel().selectedRows(0))
+            selected_rows = self.selected_name_indexes()
 
             # Validate single selection (should always be ≤1 due to SingleSelection mode)
             if len(selected_rows) > 1:

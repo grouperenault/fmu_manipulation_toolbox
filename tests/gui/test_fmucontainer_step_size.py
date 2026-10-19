@@ -11,7 +11,7 @@ pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
 try:
-    from PySide6.QtCore import Qt
+    from PySide6.QtCore import Qt, QItemSelectionModel
     from PySide6.QtWidgets import QApplication
 
     _app = QApplication.instance() or QApplication([])
@@ -142,3 +142,11 @@ def test_drop_over_the_step_size_column(window, ball):
     assert TreeItemRoles.get_node_uid(moved) == node.uid
     assert _cell(window, moved).text() == "0.001 s"
     assert _cell(window, sub).text() == "0.001 s"
+
+
+def test_selecting_the_name_cell_shows_the_container(window):
+    """A row counts as selected when only its name cell is, as when it is selected by the program."""
+    tree = window._tree.tree_view
+    stack = window._tree._detail_panel._stack
+    tree.selectionModel().setCurrentIndex(window._tree.root.index(), QItemSelectionModel.SelectionFlag.ClearAndSelect)
+    assert stack.currentWidget() is window._tree.container_detail

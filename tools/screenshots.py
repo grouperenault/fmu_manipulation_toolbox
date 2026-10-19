@@ -450,7 +450,8 @@ def container_details():
     tree = window._tree.tree_view
     window._graph.scene.clearSelection()
     tree.selectionModel().setCurrentIndex(window._tree.root.index(),
-                                          QItemSelectionModel.SelectionFlag.ClearAndSelect)
+                                          QItemSelectionModel.SelectionFlag.ClearAndSelect
+                                          | QItemSelectionModel.SelectionFlag.Rows)
     settle()
     discard(window)
     return cropped(window.grab(), rect_in(window._tree, window).adjusted(-8, -8, 8, 8))

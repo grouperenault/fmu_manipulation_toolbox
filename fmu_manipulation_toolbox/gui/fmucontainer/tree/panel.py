@@ -132,7 +132,7 @@ class NodeTreePanel(QWidget):
         """Tree -> scene: select in graph when node is selected in tree."""
         self._tree_widget.on_tree_selection_changed(_selected, _deselected)
         try:
-            selected_rows = list(self._tree_widget.tree_view.selectionModel().selectedRows(0))
+            selected_rows = self._tree_widget.selected_name_indexes()
         except RuntimeError as e:
             logger.error(f"Error getting tree selection: {e}")
             self._detail_panel.show_empty()
@@ -192,7 +192,7 @@ class NodeTreePanel(QWidget):
                 # Fall back to the actual selection: `currentIndex()` may not
                 # have been updated yet (e.g. right after programmatically
                 # selecting a just-created container item).
-                selected_rows = list(self._tree_widget.tree_view.selectionModel().selectedRows(0))
+                selected_rows = self._tree_widget.selected_name_indexes()
                 if not selected_rows:
                     return
                 current = selected_rows[0]
