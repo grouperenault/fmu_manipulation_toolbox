@@ -567,6 +567,31 @@ def link_assistant_manual():
     return pixmap
 
 
+@shot("link-assistant-regex", "user-guide/fmucontainer/link-assistant-regex.png")
+def link_assistant_regex():
+    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant import LinkAssistantDialog
+    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant_demo import generate
+    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_matching import RegexRule
+    side_a, side_b, existing = generate(400)
+    dialog = offscreen(LinkAssistantDialog, side_a, side_b, existing, size=(1300, 900))
+    dialog._criterion.set_kind(RegexRule)
+    pattern, replacement = dialog._criterion.regex_fields
+    pattern.setText(r"sensor\.(\w+)\.(\w+)")
+    replacement.setText(r"sensor_\2_\1")
+    dialog._on_run()
+    settle()
+    # "Match by", the criterion and the first 8 suggestions, cut under the last of them.
+    table = dialog._suggestions_table
+    bottom = table.viewport().mapTo(dialog, QPoint(0, table.rowViewportPosition(7) + table.rowHeight(7))).y()
+    rows = rect_in(table, dialog)
+    rows.setBottom(bottom)
+    crop = around(rect_in(dialog._match_by, dialog), rect_in(dialog._criterion, dialog), rows, margin=12)
+    crop.setBottom(bottom)
+    pixmap = cropped(dialog.grab(), crop)
+    dialog._staged = []
+    return pixmap
+
+
 # ── Main ────────────────────────────────────────────────────────────────
 
 def main():

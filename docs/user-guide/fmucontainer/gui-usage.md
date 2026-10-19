@@ -405,18 +405,137 @@ A *criterion* proposes, for each free output, the input it should be linked to. 
 | Criterion | Parameters | Example |
 |---|---|---|
 | **Same name** | — | `vehicle.speed` → `vehicle.speed` |
-| **Replace prefix / suffix** | Prefix and suffix of the output name, replaced by those of the input name | `engine.out.speed` → `ecu.in.engine_speed` (`engine.out.` → `ecu.in.engine_`) |
-| **Regular expression** | A regular expression matching the **whole** output name, and the input name built from its groups (`\1`, `\2`, …) | `^sensor\.(\w+)\.(\w+)$` → `sensor_\2_\1` |
+| [**Replace prefix / suffix**](#replace-prefix-suffix) | Prefix and suffix of the output name, replaced by those of the input name | `engine.out.speed` → `ecu.in.engine_speed` (`engine.out.` → `ecu.in.engine_`) |
+| [**Regular expression**](#regular-expression) | A regular expression matching the **whole** output name, and the input name built from its groups (`\1`, `\2`, …) | `sensor\.(\w+)\.(\w+)` → `sensor_\2_\1` |
 | **Similar names** | Minimum similarity score (1.00 to 0.50) | `chassis.pressure` → `chassis.press` |
 
 Options of the criterion:
 
 | Option | Effect |
 |---|---|
-| **ignore case and separators** | Names are compared without case nor separators (`.` `_` `-` `[` `]`), for every criterion: `Throttle_Pos` matches `throttle.pos`. Checked by default |
+| **ignore case and separators** | Names are compared without case nor separators (`.` `_` `-` `[` `]` and spaces), for every criterion: `Throttle_Pos` matches `throttle.pos`. Checked by default |
 | **parameters as targets** | Also propose the parameters of the target FMU, not only its inputs |
 | **Allow only: compatible types** | Checked (default): a link between types without conversion is an error ✖. Unchecked: it is only a warning ⚠ |
 | **Allow only: same units** | Checked: a link between different units is an error ✖. Unchecked (default): it is a warning ⚠ |
+
+###### How a criterion finds the input
+
+Every criterion works the same way: it takes the free outputs one by one, in the order of the source
+FMU, builds from the name of each one the name of an input, and looks for that name among the free
+inputs of the target FMU. An output whose name does not fit the criterion, or whose input does not
+exist, gets no suggestion.
+
+- With **ignore case and separators**, the name built is compared to the input names without case
+  nor separators: `ecu.in.engine_speed` finds the input `ECU_In_Engine_Speed`.
+- An input is proposed only once: when two outputs lead to the same input (`engine.out.speed` and
+  `engine.out.Speed`), only the first one gets a suggestion.
+- **Same name** builds the name of the output itself; **Similar names** does not build a name, it
+  looks for the closest input name (see the score below).
+
+###### Replace prefix / suffix
+
+The four fields read as a rewriting of the name:
+**Output:** `prefix` … `suffix` **→ Input:** `prefix` … `suffix`. The **…** stands for the rest
+of the name, kept as is.
+
+1. The output name must start with the output prefix and end with the output suffix; the other
+   outputs are skipped.
+2. The prefix and the suffix are removed: what remains is the *core* of the name. It cannot be
+   empty: an output named exactly `engine.out.` is skipped.
+3. The input name is the input prefix, followed by the core, followed by the input suffix.
+
+With the output prefix `engine.out.` and the input prefix `ecu.in.engine_` (suffixes empty), as in
+the screenshot at the top of the [Link Assistant](#link-assistant) section:
+
+| Output | Core | Input looked for |
+|---|---|---|
+| `engine.out.speed` | `speed` | `ecu.in.engine_speed` |
+| `engine.out.torque_max` | `torque_max` | `ecu.in.engine_torque_max` |
+| `engine.in.speed` | — | none: the output does not start with `engine.out.` |
+
+Other uses:
+
+| Output prefix | Output suffix | Input prefix | Input suffix | Example |
+|---|---|---|---|---|
+| *(empty)* | `_meas` | *(empty)* | `_cmd` | `throttle_meas` → `throttle_cmd` |
+| `bus1.` | `_out` | `ecu.` | `_in` | `bus1.speed_out` → `ecu.speed_in` |
+
+!!! warning "Things to know"
+    - An empty field means *no prefix* (or *no suffix*), not *anything*. To replace only a suffix,
+      leave both prefixes empty; with the four fields empty, the criterion is **Same name**.
+    - The fields are plain text: no wildcard, and `.` is a dot. When the part to replace is not at
+      the start or at the end of the name (e.g. `engine.<anything>.out.speed`), use a
+      [regular expression](#regular-expression).
+    - With **ignore case and separators**, the fields too are compared without case nor
+      separators: `engine.out.` also takes `Engine_Out_Torque`, and typing `engine_out_` gives the
+      same result. Unchecked, everything is compared character by character.
+
+###### Regular expression
+
+Two fields: the **pattern**, applied to the output name, and the **replacement**, which builds the
+input name. They use the syntax of Python regular expressions
+([`re` module](https://docs.python.org/3/library/re.html#regular-expression-syntax)).
+
+1. The pattern must match the **whole** output name, as if it began with `^` and ended with `$`
+   (writing them is allowed). The outputs it does not match are skipped.
+2. The parts of the pattern in parentheses are the *groups*, numbered from left to right. The
+   replacement uses them with `\1`, `\2`, …
+3. The name built by the replacement is looked for among the free inputs.
+
+With the pattern `sensor\.(\w+)\.(\w+)` and the replacement `sensor_\2_\1`:
+
+| Output | `\1` | `\2` | Input looked for |
+|---|---|---|---|
+| `sensor.front.temp` | `front` | `temp` | `sensor_temp_front` |
+| `sensor.rear.pressure` | `rear` | `pressure` | `sensor_pressure_rear` |
+| `sensor.front.temp.raw` | — | — | none: `\w+` does not take the `.` of `.raw`, so the pattern does not match the whole name |
+
+![Link Assistant — the groups of a regular expression swapped in the input name](link-assistant-regex.png)
+
+Useful syntax in the pattern:
+
+| Pattern | Matches |
+|---|---|
+| `\.` | A dot. A plain `.` matches any character |
+| `.*` / `.+` | Any text, possibly empty / of at least one character |
+| `\w+` | A word: letters, digits and `_`, but not `.` nor `[` |
+| `\d+` | A number |
+| `(…)` | A group, reused in the replacement |
+| `(?:…)` | Parentheses that are not a group, e.g. `(?:out|output)` for `out` or `output` |
+| `[._]` | One character among `.` and `_` |
+| `\[(\d+)\]` | An array index such as `[3]`: the brackets must be escaped |
+
+In the replacement:
+
+| Replacement | Gives |
+|---|---|
+| `\1`, `\2`, … | The text of the group 1, 2, … |
+| `\g<0>` | The whole output name |
+| `\g<1>0` | The group 1 followed by the digit `0` (`\10` would be the group 10) |
+| `\g<pos>` | The group named `pos` in the pattern: `(?P<pos>\w+)` |
+
+More examples:
+
+| Pattern | Replacement | Example |
+|---|---|---|
+| `engine\.out\.(.*)` | `ecu.in.engine_\1` | `engine.out.speed` → `ecu.in.engine_speed` |
+| `pump\[(\d+)\]\.speed` | `pump\1_speed` | `pump[2].speed` → `pump2_speed` |
+| `(.*)\.(?:out|output)` | `\1.in` | `valve.out` → `valve.in`, `pump.output` → `pump.in` |
+
+!!! warning "Things to know"
+    - A group is written `\1` in the replacement; `$1`, used by other tools, is taken literally.
+    - **ignore case and separators** makes the pattern ignore the case, not the separators: the
+      pattern applies to the real output name, so write its separators as they are (`engine\.out`),
+      or accept several (`engine[._]out`). The name built by the replacement is then compared to the
+      inputs without case nor separators: `ecu.in.engine_\1` also finds `ecu_in_Engine_Speed`.
+    - A pattern that is not a valid regular expression is framed in red, and gives no suggestion.
+
+###### Similar names
+
+The score compares the output name to each input name (both without case nor separators when the
+option is checked): 1.00 for identical names, lower as they differ. For each output, the input with
+the best score above the threshold is proposed. A suggestion whose score is below 1.00 gets a ⚠
+status, to be reviewed, unless it is already ✖.
 
 The suggestions are updated a moment after each change of the criterion, of its parameters or of
 an option. Each one is checked when it can be applied, and gets a status:
