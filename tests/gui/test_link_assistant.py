@@ -199,3 +199,14 @@ def test_header_counters(dialog):
     fed = len(dialog._busy_inputs() & {port.name for port in inputs})
     assert dialog._counter_source.text() == f"Σ {len(outputs)}   ● {linked}   ○ {len(outputs) - linked}"
     assert dialog._counter_target.text() == f"Σ {len(inputs)}   ● {fed}   ○ {len(inputs) - fed}"
+
+
+def test_column_headers_are_not_truncated(dialog):
+    """The columns are at least as wide as their header needs, whatever the fonts and the style of the platform."""
+    tables = [dialog._suggestions_table, dialog._staged_table,
+              dialog._outputs_table, dialog._inputs_table]
+    for table in tables:
+        header = table.horizontalHeader()
+        for column in range(header.count() - 1):                # the last section is stretched
+            if table.model().headerData(column, header.orientation()):
+                assert header.sectionSize(column) >= header.sectionSizeHint(column)

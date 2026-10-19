@@ -315,6 +315,15 @@ def _table(model) -> QTableView:
     return table
 
 
+def _set_column_widths(table: QTableView, widths: dict[int, int]):
+    """Set the width of some columns of *table*, never below what their header needs: the fonts, the padding of the
+    style and the sort indicator differ between the platforms (the header of a column fitted on macOS is truncated
+    on Windows)."""
+    header = table.horizontalHeader()
+    for column, width in widths.items():
+        table.setColumnWidth(column, max(width, header.sectionSizeHint(column)))
+
+
 def _button(text: str, css_class: str) -> QPushButton:
     """A push button; its width is set by `_same_width` once every button of the window exists."""
     button = QPushButton(text)
@@ -647,8 +656,7 @@ class LinkAssistantDialog(QDialog):
         self._suggestions_filter.setSourceModel(self._suggestions_model)
         self._suggestions_table = _table(self._suggestions_filter)
         self._suggestions_table.setColumnWidth(0, 30)
-        for column, width in ((1, 280), (2, 70), (3, 280), (4, 70), (5, 90)):
-            self._suggestions_table.setColumnWidth(column, width)
+        _set_column_widths(self._suggestions_table, {1: 280, 2: 70, 3: 280, 4: 70, 5: 90})
         self._suggestions_table.doubleClicked.connect(self._on_suggestion_double_clicked)
 
         self._suggestions_summary = _Summary()
@@ -697,9 +705,7 @@ class LinkAssistantDialog(QDialog):
         proxy.setSourceModel(model)
         table = _table(proxy)
         table.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
-        table.setColumnWidth(0, 240)
-        table.setColumnWidth(1, 70)
-        table.setColumnWidth(2, 60)
+        _set_column_widths(table, {0: 240, 1: 70, 2: 60})
         table.selectionModel().selectionChanged.connect(self._update_preview)
 
         text = QLineEdit()
@@ -759,8 +765,7 @@ class LinkAssistantDialog(QDialog):
         self._staged_filter = _LevelFilter(lambda row: self._staged_model.statuses[row].level, self)
         self._staged_filter.setSourceModel(self._staged_model)
         self._staged_table = _table(self._staged_filter)
-        for column, width in ((0, 80), (1, 300), (2, 300), (3, 130)):
-            self._staged_table.setColumnWidth(column, width)
+        _set_column_widths(self._staged_table, {0: 80, 1: 300, 2: 300, 3: 130})
 
         self._staged_summary = _Summary()
         staged_level = _level_combo()
