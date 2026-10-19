@@ -106,6 +106,8 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
 void fmi2FreeInstance(fmi2Component c) {
     container_t* container = (container_t*)c;
+    if (!container)
+        return;     /* FMI-2.0: the call is ignored */
     const logger_t *logger = &container->logger;
 
     LOGGER_DEBUG("Container instance '%s' release", container->instance_name);

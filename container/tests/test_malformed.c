@@ -36,6 +36,8 @@ static const malformed_case_t cases[] = {
     { "conversion out of range",            195, "0",          "1\n0 0 F32_F64",       0, 1 },
     { "conversion unknown",                 195, "0",          "1\n0 0 F64_XYZ",       0, 1 },
     { "clocks: FMU index out of range",     199, "0 0",        "1 1\n3 1 0 0",         0, 1 },
+    { "string start values: one missing",   135, "0 0",        "2 2\n0 1 0\nhello",     0, 1 },
+    { "string start values: array",         135, "0 0",        "1 2\n0 2 0\na\nb",      1, 1 },
     { "file truncated",                     100, NULL,         NULL,                   0, 1 },
 };
 

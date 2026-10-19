@@ -683,9 +683,10 @@ void fmu_unload(fmu_t *fmu) {
 
     FOR_ALL_NUMERIC_TYPES(FREE_FMU_DATA)
 
-    /* strings: free each strdup'd value then the struct and flat array */
-    for (unsigned long i = 0; i < fmu->fmu_io.start_strings.nb; i += 1)
-        free((char*)*fmu->fmu_io.start_strings.start_values[i].value);
+    /* strings: free each strdup'd value (every value of an array; NULL if not read, after a configuration
+       error) then the struct and flat array */
+    for (unsigned long i = 0; i < fmu->fmu_io.nb_start_values_strings; i += 1)
+        free((char*)fmu->fmu_io.start_values_strings[i]);
     FREE_FMU_DATA(strings, String, const char *)
 
     free(fmu->fmu_io.binaries.in.translations);

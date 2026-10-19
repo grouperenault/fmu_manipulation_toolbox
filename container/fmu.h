@@ -167,6 +167,7 @@ typedef struct {
     int                         *start_values_booleans;
     bool                        *start_values_booleans1;
     const char                  **start_values_strings;
+    unsigned long               nb_start_values_strings;    /* size of start_values_strings */
     fmu_start_reals64_t         start_reals64;
     fmu_start_reals32_t         start_reals32;
     fmu_start_integers8_t       start_integers8;

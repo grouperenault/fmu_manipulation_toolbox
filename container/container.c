@@ -1995,6 +1995,7 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
     
     CONFIG_ALLOC(fmu_io->start_strings.start_values, fmu_io->start_strings.nb);
     CONFIG_ALLOC(fmu_io->start_values_strings, nb);
+    fmu_io->nb_start_values_strings = nb;
 
     for (unsigned long i = 0; i < fmu_io->start_strings.nb; i += 1) {
         unsigned int dimension;

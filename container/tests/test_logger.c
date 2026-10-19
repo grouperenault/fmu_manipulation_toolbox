@@ -102,6 +102,8 @@ int test_instantiate_invalid_arguments(void) {
     TEST_ASSERT(fmi2Instantiate("name", fmi2CoSimulation, NULL, location, &functions, fmi2False, fmi2False) == NULL);
     TEST_ASSERT(fmi3InstantiateCoSimulation("name", "{uuid}", NULL, fmi3False, fmi3False, fmi3False, fmi3False,
                                             NULL, 0, NULL, NULL, NULL) == NULL);
+    fmi2FreeInstance(NULL);     /* ignored, as FMI requires */
+    fmi3FreeInstance(NULL);
 
     return 0;
 }

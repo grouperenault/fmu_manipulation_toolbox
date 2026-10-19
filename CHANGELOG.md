@@ -210,6 +210,11 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   (or the reset of the FMU) fail. The start value of an FMI-3 array was given with one value instead of all of them.
 - 🟠 **FIXED** the instantiation returns `NULL` instead of crashing on an allocation failure or invalid arguments
   (`NULL` callbacks, GUID or resource location).
+- 🟠 **FIXED** the `String` start values: an array of strings leaked all its values but the first one, and a
+  `container.txt` cut in their section crashed the importer when the container was freed. `fmi2FreeInstance` /
+  `fmi3FreeInstance` with a `NULL` instance are ignored, as FMI requires, instead of crashing.
+- 🟠 **FIXED** a path of the directory of an embedded FMU too long for the runtime is a configuration error: it was
+  cut without notice, and the FMU was looked for in a wrong directory.
 - 🔵 **CHANGED** datalog: the time and the reals are written with every significant digit (`%.17g`, `%.9g`
   for `Float32`) instead of 7 and 6 decimals, always with a decimal dot; strings and column names with a comma, a
   double quote or a line break are quoted (RFC 4180). See
@@ -307,6 +312,11 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 - 🟢 **ADDED** `fmucontainer-gui`: a second, read-only, column of the tree view shows the step size of each FMU and
   container; the step size of a container whose `step_size` is empty is the one deduced at build time, in italics.
   See [Step Size Column](docs/user-guide/fmucontainer/gui-usage.md#step-size-column).
+- 🟠 **FIXED** `fmucontainer-gui`: the column headers of the **Link Assistant** (e.g. *Direction* of the staged links)
+  were truncated on Windows; a column is never narrower than its header.
+- 🟢 **ADDED** documentation: the criteria of the **Link Assistant** step by step, **Replace prefix / suffix** and
+  **Regular expression** with examples, a syntax reminder and the pitfalls. See
+  [Rules tab](docs/user-guide/fmucontainer/gui-usage.md#rules-tab).
 
 # Version 1.9.4.2
 * ADDED: Container thread synchronization on macOS now uses a semaphore instead of a barrier

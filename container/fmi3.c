@@ -102,6 +102,8 @@ fmi3Instance fmi3InstantiateCoSimulation(
 
 void fmi3FreeInstance(fmi3Instance instance) {
     container_t* container = (container_t*)instance;
+    if (!container)
+        return;     /* FMI-3.0: the call is ignored */
     const logger_t *logger = &container->logger;
 
     LOGGER_DEBUG("Container instance '%s' to be freed...", container->instance_name);
