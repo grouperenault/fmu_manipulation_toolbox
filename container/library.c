@@ -54,7 +54,8 @@ static void library_load_error(const logger_t *logger, const char* library_filen
 library_t library_load(const logger_t *logger, const char* library_filename) {
     library_t handle;
 #ifdef _WIN32
-    handle = LoadLibraryA(library_filename);
+    /* Dependencies are searched first in the directory of the DLL */
+    handle = LoadLibraryExA(library_filename, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
 #else
     handle = dlopen(library_filename, RTLD_LAZY);	/* RTLD_LOCAL can lead to failure */
 #endif
@@ -125,7 +126,7 @@ static libray_status_t* libray_try_load(const char* filename) {
     if (handle) {
         FreeLibrary(handle);
 
-        handle = LoadLibraryA(filename);
+        handle = LoadLibraryExA(filename, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
         if (handle) {
             FreeLibrary(handle);
             *status = LIBRARY_DLL_OK;

@@ -150,6 +150,19 @@ of FMU Manipulation Toolbox: the file was edited or copied from another containe
 FMU Manipulation Toolbox. To rebuild a container whose description is lost, `fmusplit` extracts the embedded FMUs
 and a description file from it.
 
+### ❌ FMU fails to load: missing DLL dependencies
+
+**Symptom:** a container or a remoted FMU cannot be instantiated, and its log shows `DLL ... has missing
+dependencies.` followed by `Cannot load ...`.
+
+**Cause:** the DLL of the FMU depends on DLLs that are found neither in its directory (`binaries/win64` or `win32`)
+nor in the system directories or the `PATH`.
+
+**Solution:** on Windows, the runtime searches the dependencies of the DLL first in its own directory: add the
+missing DLLs to the `binaries/<platform>` directory of the FMU. On Linux and macOS, the dependencies of a shared
+library are found in its directory only if it is linked with an `RPATH` set to `$ORIGIN` (`@loader_path` on macOS):
+ask the provider of the FMU for such a build.
+
 ### ❌ FMU Variable Editor: changes are not saved
 
 **Symptom:** After editing variable names or descriptions, saving the FMU does not apply the changes.

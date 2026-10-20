@@ -90,7 +90,8 @@ static library_t library_load(const char* library_filename) {
     library_t handle;
     SERVER_LOG("Loading Dynamic Library `%s'\n", library_filename);
 #ifdef _WIN32
-    handle = LoadLibraryA(library_filename);
+    /* Dependencies are searched first in the directory of the DLL */
+    handle = LoadLibraryExA(library_filename, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
 #else
     handle = dlopen(library_filename, RTLD_LAZY | RTLD_LOCAL);
 #endif

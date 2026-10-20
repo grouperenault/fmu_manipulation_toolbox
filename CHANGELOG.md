@@ -177,6 +177,9 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 - 🟠 **FIXED** the runtime reads the lines of `container.txt` of any length: a line longer than 4095 characters
   (the start values of a large array, a string start value of more than 4095 characters) was cut and shifted the
   reading of the rest of the file, so that the container failed to instantiate.
+- 🟠 **FIXED** Windows: an embedded FMU, or an FMU run by the remoting server, whose DLL depends on other DLLs
+  shipped next to it in `binaries/win64` (or `win32`) failed to load. The dependencies of the DLL are now searched
+  first in its own directory.
 - 🔵 **CHANGED** the runtime checks the format version of `container.txt` and refuses, with an explicit error, a
   container whose `container.txt` does not come from the same version of the toolbox. See
   [Troubleshooting](docs/help/troubleshooting.md#fmu-container-fails-to-instantiate-format-version-of-containertxt).
