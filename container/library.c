@@ -5,6 +5,8 @@
 #ifdef _WIN32
 #   include <windows.h>
 #   include <imagehlp.h>
+#   include <stdio.h>
+#   include <string.h>
 #else
 #   include <dlfcn.h>
 #   include <unistd.h> 
@@ -119,14 +121,28 @@ static LPVOID GetPtrFromRVA(DWORD rva, PIMAGE_NT_HEADERS pNTHeader, PBYTE imageB
 }
 
 
+static const char *libray_last_separator(const char *filename) {
+    const char *backslash = strrchr(filename, '\\');
+    const char *slash = strrchr(filename, '/');
+
+    if (!backslash)
+        return slash;
+    if (!slash)
+        return backslash;
+    return (backslash > slash) ? backslash : slash;
+}
+
+
 static libray_status_t* libray_try_load(const char* filename) {
     libray_status_t* status = malloc(sizeof(*status));
+    /* A bare DLL name is searched with the standard search order: the flag requires a path */
+    const DWORD flags = libray_last_separator(filename) ? LOAD_WITH_ALTERED_SEARCH_PATH : 0;
 
     HINSTANCE handle = LoadLibraryExA(filename, NULL, DONT_RESOLVE_DLL_REFERENCES);
     if (handle) {
         FreeLibrary(handle);
 
-        handle = LoadLibraryExA(filename, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+        handle = LoadLibraryExA(filename, NULL, flags);
         if (handle) {
             FreeLibrary(handle);
             *status = LIBRARY_DLL_OK;
@@ -157,7 +173,29 @@ static void libray_log_status(const logger_t *logger, const char* filename, libr
 }
 
 
+/*
+ * The dependencies of a DLL are searched first in its directory, as library_load() does:
+ * return the path of the dependency in this directory if it exists, its bare name otherwise.
+ */
+static const char *libray_dependency_path(char *path, size_t size, const char *filename, const char *dll_filename) {
+    const char *separator = libray_last_separator(filename);
+
+    if (separator) {
+        const int dir_len = (int)(separator - filename);
+        const int len = snprintf(path, size, "%.*s\\%s", dir_len, filename, dll_filename);
+        if (len > 0 && (size_t)len < size) {
+            const DWORD attributes = GetFileAttributesA(path);
+            if (attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY))
+                return path;
+        }
+    }
+
+    return dll_filename;
+}
+
+
 static void libray_analyse_deeply(const logger_t *logger, hash_t* dll_db, const char* filename) {
+    char dependency_path[MAX_PATH];
     PLOADED_IMAGE image = ImageLoad(filename, NULL);
     if (!image) {
         LOGGER_ERROR("Cannot ImageLoad(%s)", filename);
@@ -173,7 +211,8 @@ static void libray_analyse_deeply(const logger_t *logger, hash_t* dll_db, const 
                 if ((importDesc->TimeDateStamp == 0) && (importDesc->Name == 0))
                     break;
                 const char* dll_filename = GetPtrFromRVA(importDesc->Name, image->FileHeader, image->MappedAddress);
-                libray_analyse(logger, dll_db, dll_filename);
+                libray_analyse(logger, dll_db,
+                               libray_dependency_path(dependency_path, sizeof(dependency_path), filename, dll_filename));
                 importDesc++;
             }
         }
