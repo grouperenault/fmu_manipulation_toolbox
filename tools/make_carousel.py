@@ -10,7 +10,8 @@ Carousel announcing the FMU Manipulation Toolbox 2.0: 1080 x 1350 slides (4:5), 
 
 Texts and slides are in SLIDES below, the short selection in LINKEDIN_SLIDES; the images come from the documentation
 and the resources of the package.
-Requires PySide6 (with the `webp` image format plugin of Qt, shipped with the PySide6 wheels).
+Requires PySide6 (with the `webp` image format plugin of Qt, shipped with the PySide6 wheels), and segno for the QR
+code of the LinkedIn selection.
 """
 
 import argparse
@@ -24,6 +25,7 @@ from PySide6.QtGui import (QGuiApplication, QImage, QPainter, QColor, QFont, QPa
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "fmu_manipulation_toolbox" / "resources"
 DOC = ROOT / "docs"
+DOC_URL = "https://grouperenault.github.io/fmu_manipulation_toolbox/"
 
 W, H = 1080, 1350
 MARGIN = 80
@@ -173,6 +175,25 @@ def code(p: QPainter, rect: QRectF, lines: list[tuple[str, str]]) -> float:
         text(p, QRectF(rect.x() + 34, y + 40, rect.width() - 68, 50), comment, 22, MUTED)
         y += 98
     return rect.bottom()
+
+
+def qr_code(p: QPainter, rect: QRectF, url: str):
+    """Dark modules on a white rounded tile: phone cameras read a light background more reliably."""
+    import segno  # only the LinkedIn selection needs it
+    matrix = [list(row) for row in segno.make(url, error="m", micro=False).matrix_iter(scale=1, border=0)]
+    quiet = 3  # modules of white margin around the code
+    module = rect.width() / (len(matrix) + 2 * quiet)
+    path = QPainterPath()
+    path.addRoundedRect(rect, 18, 18)
+    p.fillPath(path, QColor("white"))
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor("black"))
+    for row, modules in enumerate(matrix):
+        for column, dark in enumerate(modules):
+            if dark:
+                # A slight overlap avoids hairlines between adjacent modules in the PDF viewers.
+                p.drawRect(QRectF(rect.x() + (quiet + column) * module, rect.y() + (quiet + row) * module,
+                                  module + 0.5, module + 0.5))
 
 
 def title_block(p, y, kick, kick_color, title, subtitle=None):
@@ -413,10 +434,27 @@ def get_it(p, n, total):
          TEXT, align=Qt.AlignmentFlag.AlignHCenter)
 
 
+def get_it_qr(p, n, total):
+    """The call to action of the LinkedIn post: a QR code to the documentation, links in a PDF being hard to follow."""
+    background(p, GREEN, n, total)
+    icon = image(RES / "icon.png")
+    p.drawImage(QRectF((W - 180) / 2, 110, 180, 180), icon)
+    text(p, QRectF(MARGIN, 330, W - 2 * MARGIN, 200), "Try 2.0 and tell us what you think", 60, bold=True,
+         align=Qt.AlignmentFlag.AlignHCenter)
+    text(p, QRectF(MARGIN, 520, W - 2 * MARGIN, 50), "Scan for the documentation", 30, MUTED,
+         align=Qt.AlignmentFlag.AlignHCenter)
+    size = 420
+    qr_code(p, QRectF((W - size) / 2, 585, size, size), DOC_URL)
+    text(p, QRectF(MARGIN - 20, 1030, W - 2 * MARGIN + 40, 60), DOC_URL.removeprefix("https://").rstrip("/"), 31,
+         LIGHT["green"], bold=True, align=Qt.AlignmentFlag.AlignHCenter)
+    text(p, QRectF(MARGIN, 1110, W - 2 * MARGIN, 120), "Open source · issues, ideas and stars welcome", 30,
+         TEXT, align=Qt.AlignmentFlag.AlignHCenter)
+
+
 SLIDES = (cover, tools, ai, model_exchange, link_assistant, instances, reset, simulink, compile_sources, robust,
           install, get_it)
 # A LinkedIn carousel is read in a few swipes: one new feature per slide, between the cover and the call to action.
-LINKEDIN_SLIDES = (cover, ai, model_exchange, link_assistant, reset, compile_sources, get_it)
+LINKEDIN_SLIDES = (cover, ai, model_exchange, link_assistant, reset, compile_sources, get_it_qr)
 
 
 def main():

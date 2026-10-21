@@ -152,7 +152,8 @@ cp /tmp/carousel/*.webp docs/assets/release-2.0/
 ```
 
 The LinkedIn post uses a shorter carousel, sized for LinkedIn: the cover, one slide per main new feature and the
-call to action (`LINKEDIN_SLIDES`). `--linkedin` writes only its PDF and its PNG preview:
+call to action, whose QR code points to the documentation (`LINKEDIN_SLIDES`). `--linkedin` writes only its PDF and
+its PNG preview; the QR code needs `segno` (`pip install segno`):
 
 ```bash
 python tools/make_carousel.py --linkedin --out /tmp/carousel-linkedin
