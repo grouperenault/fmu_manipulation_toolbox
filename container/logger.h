@@ -54,8 +54,11 @@ extern void logger_embedded_fmu3(void *fmu,
 /*
  * Logging macros: they use the variable `logger` (const logger_t *) of the calling scope, e.g.
  *     const logger_t *logger = &container->logger;
+ * LOGGER_DEBUG tests the debug flag inline: when it is off, neither logger_message() is called nor its arguments
+ * evaluated, which matters in the per-value paths (getters, setters, cache of the importer values).
  */
-#define LOGGER_DEBUG(...)       logger_message(logger, LOGGER_LEVEL_DEBUG, __VA_ARGS__)
+#define LOGGER_DEBUG(...)       do { if (logger && logger->debug) \
+                                         logger_message(logger, LOGGER_LEVEL_DEBUG, __VA_ARGS__); } while (0)
 #define LOGGER_WARNING(...)     logger_message(logger, LOGGER_LEVEL_WARNING, __VA_ARGS__)
 #define LOGGER_ERROR(...)       logger_message(logger, LOGGER_LEVEL_ERROR, __VA_ARGS__)
 
