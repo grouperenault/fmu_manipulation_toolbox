@@ -84,7 +84,7 @@ class Help:
         '-only-parameters': "apply operation only on ports with  causality = 'parameter'. This "
                             "option is available from version 1.3.",
 
-        '-only-inputs': "apply operation only on ports with  causality = 'parameter'. This "
+        '-only-inputs': "apply operation only on ports with  causality = 'input'. This "
                         "option is available from version 1.3.",
 
         '-only-outputs': "apply operation only on ports with  causality = 'output'. This "
