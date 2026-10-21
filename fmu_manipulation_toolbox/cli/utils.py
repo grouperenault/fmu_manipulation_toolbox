@@ -1,3 +1,4 @@
+import argparse
 import logging
 import sys
 from enum import IntEnum
@@ -56,6 +57,12 @@ def close_logger(logger: logging.Logger):
         handler.close()
     logger.setLevel(logging.NOTSET)
     logger.propagate = True
+
+
+class ParagraphHelpFormatter(argparse.HelpFormatter):
+    """HelpFormatter that keeps the explicit line breaks of the help texts and wraps each line separately."""
+    def _split_lines(self, text, width):
+        return [line for paragraph in text.splitlines() for line in super()._split_lines(paragraph, width)]
 
 
 def make_wide(formatter, w=120, h=36):

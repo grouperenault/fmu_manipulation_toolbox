@@ -270,7 +270,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         event.accept()
 
     def set_tooltip(self, widget, usage):
-        widget.setToolTip("\n".join(textwrap.wrap(self.help.usage(usage))))
+        widget.setToolTip("\n".join(line for paragraph in self.help.usage(usage).splitlines()
+                                     for line in textwrap.wrap(paragraph)))
 
     def reload_fmu(self):
         if self.dropped_fmu.fmu:

@@ -28,8 +28,8 @@ class Help:
                              "version 1.1. See https://en.wikipedia.org/wiki/Regular_expression to have more detail "
                              "of expected format.",
 
-        '-remove-all': "equivalent to '-remove-regexp .*'. Typical use case is to use it with -only-* options. "
-                       "Example:  in order ro suppress all parameters of FMU:   -only-parameters -remove-all",
+        '-remove-all': "equivalent to '-remove-regexp .*'. Typical use case is to use it with -only-* options.\n"
+                       "Example: in order to suppress all parameters of FMU: -only-parameters -remove-all",
 
         '-dump-csv': "list all names of the ports of the input fmu and store them inside path/to/list.csv. "
                      "This file is ';' separated. It contains two columns in order to be easily reused by "

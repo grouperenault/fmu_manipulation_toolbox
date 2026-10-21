@@ -3,7 +3,7 @@ import os
 import shlex
 import sys
 
-from .utils import setup_logger, close_logger, make_wide, ExitCode, ErrorCounter
+from .utils import setup_logger, close_logger, make_wide, ParagraphHelpFormatter, ExitCode, ErrorCounter
 from ..operations import (OperationSummary, OperationError, OperationRemoveRegexp,
                           OperationRemoveSources, OperationTrimUntil, OperationKeepOnlyRegexp, OperationMergeTopLevel,
                           OperationStripTopLevel, OperationRenameFromCSV, OperationSaveNamesToCSV, FMU, FMUError)
@@ -23,7 +23,7 @@ def fmutool():
 
     parser = argparse.ArgumentParser(prog='fmutool',
                                      description="Analyse and Manipulate a FMU by modifying its 'modelDescription.xml'",
-                                     formatter_class=make_wide(argparse.HelpFormatter),
+                                     formatter_class=make_wide(ParagraphHelpFormatter),
                                      add_help=False,
                                      epilog="see: https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/README.md")
 
