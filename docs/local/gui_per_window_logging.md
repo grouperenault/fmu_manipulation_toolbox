@@ -144,6 +144,8 @@ the next registry change.
 
 Commit message: `Test the log isolation between several GUI windows`
 
+**Done.** Two FMU Tool windows are tested in step 4, two Container Builder windows with the AI Assistant in step 5.
+
 ### Step 7 — User documentation
 
 - `docs/user-guide/fmutool/gui-usage.md` (Log Area), `docs/user-guide/fmutool/fmueditor.md` (Status Bar and Log

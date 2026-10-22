@@ -331,3 +331,52 @@ def test_fmutool_compile_options_dialog_names_the_compiler(qtbot):
     qtbot.addWidget(dialog)
     message = dialog.findChildren(QLabel)[0].text()
     assert "msvc (cl.exe)" in message and "Program Files" not in message
+
+
+# ── Several windows ───────────────────────────────────────────────────────
+def test_status_bars_of_two_windows_are_independent(qtbot):
+    """A record belongs to the window of the last user event: the other window does not show it."""
+    import logging
+    from PySide6.QtCore import Qt
+    logger = logging.getLogger("fmu_manipulation_toolbox")
+    editor, builder = FMUEditorWindow(), FMUContainerWindow()
+    for window in (editor, builder):
+        qtbot.addWidget(window)
+
+    qtbot.mouseClick(editor._search_edit, Qt.MouseButton.LeftButton)
+    logger.info("editor record")
+    qtbot.mouseClick(builder._status_bar, Qt.MouseButton.LeftButton)   # also opens its log window
+    logger.info("builder record")
+
+    assert editor._status_bar.text() == "editor record"
+    assert builder._status_bar.text() == "builder record"
+    builder_log = builder._status_bar._log_window.view.toPlainText()
+    assert "builder record" in builder_log and "editor record" not in builder_log
+
+
+def test_verbose_mode_is_specific_to_its_window(qtbot, capsys):
+    import logging
+    from fmu_manipulation_toolbox.gui.helper import GuiLogHandler, window_log_context
+    logger = logging.getLogger("fmu_manipulation_toolbox")
+    verbose, quiet = FMUContainerWindow(), FMUContainerWindow()
+    for window in (verbose, quiet):
+        qtbot.addWidget(window)
+    verbose._debug_checkbox.setChecked(True)
+    capsys.readouterr()
+
+    # Opening another window does not turn the Verbose Mode off.
+    editor = FMUEditorWindow()
+    qtbot.addWidget(editor)
+    assert logger.level == logging.DEBUG
+    assert GuiLogHandler.install().is_window_verbose(verbose)
+
+    with window_log_context(quiet):
+        logger.debug("quiet debug")
+        logger.info("quiet info")
+    with window_log_context(verbose):
+        logger.debug("verbose debug")
+    assert capsys.readouterr().out.splitlines() == ["DEBUG    | verbose debug"]
+    assert "quiet debug" not in quiet._status_bar.show_log_window().view.toPlainText()
+
+    verbose._debug_checkbox.setChecked(False)
+    assert logger.level == logging.INFO
