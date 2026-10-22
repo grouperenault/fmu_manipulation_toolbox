@@ -1,6 +1,6 @@
 # Plan: one log per GUI window
 
-**Created**: 22 October 2026 — **Status**: in progress, decisions taken —
+**Created**: 22 October 2026 — **Status**: done (22 October 2026) —
 **Origin**: user report: "the windows opened by the toolbox launcher share the same logger, which is confusing when
 two or more windows are open, especially FMU Tool"
 
@@ -154,3 +154,5 @@ Commit message: `Test the log isolation between several GUI windows`
 - `CHANGELOG.md`.
 
 Commit message: `Document the per-window log of the GUI`
+
+**Done.** Also `docs/user-guide/launcher.md`.

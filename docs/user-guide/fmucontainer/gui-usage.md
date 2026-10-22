@@ -679,8 +679,9 @@ Click **Configuration** to open a popup menu with:
 ![Configuration menu](fmucontainer-configuration.png)
 
 - **Generate FMI-2 / FMI-3**: choose the target FMI version for the output container.
-- **Verbose Mode**: enable detailed logging (`DEBUG` messages in the [log window](#log), and a copy of every log
-  message on the standard output of the terminal that launched the GUI) and keep intermediate build artifacts.
+- **Verbose Mode**: enable detailed logging for this window (`DEBUG` messages in the [log window](#log), and a copy
+  of its log messages on the standard output of the terminal that launched the GUI) and keep intermediate build
+  artifacts. The other windows are not affected.
 - **Enable Datalog**: include a `datalog.txt` configuration in the generated FMU (useful for simulation trace export).
 - **AI Assistant On / Off**: start or stop the MCP server of the [AI Assistant](ai-assistant.md) (only when the
   `mcp` extra is installed).
@@ -706,7 +707,10 @@ These messages also remain available in the [log window](#log).
 
 ## Log
 
-Every component of the Container Builder (graph, tree, build, import, AI Assistant) writes to a single log.
+Every component of the Container Builder (graph, tree, build, import, AI Assistant) writes to the log of its window.
+With several windows opened from the [launcher](../launcher.md), each window has its own log: an action, or a request
+of the AI Assistant of a window, is only logged in that window. The few messages that do not come from a window are
+shown in all of them.
 
 ### Status Bar
 
@@ -718,7 +722,7 @@ Click the status bar to open the log window.
 
 ### Log Window
 
-The log window lists every message since the Container Builder was launched (the last 5000 ones). It is not modal:
+The log window lists every message of this window since it was opened (the last 5000 ones). It is not modal:
 it can stay open next to the main window and receives new messages as they arrive.
 
 | Control | Description |
@@ -726,11 +730,12 @@ it can stay open next to the main window and receives new messages as they arriv
 | **Level** (Debug / Info / Warning / Error) | Show only the messages of this level or above |
 | **Search…** | Show only the messages containing this text (case-insensitive) |
 | **Save Logs…** | Save the displayed messages in a text file |
-| **Clear** | Forget all messages (they are not shown again when the window is reopened) |
+| **Clear** | Forget the messages of this window (they are not shown again when the log window is reopened); the other windows keep theirs |
 | **Close** | Close the window; the log keeps being recorded |
 
 !!! tip "Debug messages"
-    `DEBUG` messages are only recorded while **Verbose Mode** is enabled (see [Configuration](#configuration)).
+    `DEBUG` messages are only recorded while **Verbose Mode** of the window is enabled (see
+    [Configuration](#configuration)).
 
 ## Typical Workflow
 

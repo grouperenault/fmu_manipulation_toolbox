@@ -47,6 +47,8 @@ The window is organized as a single grid:
 ### 4. Log Area (center)
 - A scrollable text log reporting every action performed: the FMU summary (printed automatically
   after loading), each applied operation, and any warning or error.
+- Each FMU Tool window has its own log area: with several windows opened from the [launcher](../launcher.md), an
+  operation is only logged in the window that runs it.
 - This is **not** an editable/sortable port table — port names are only shown as part of the
   logged text (e.g. the `-summary` output or CSV export confirmation).
 

@@ -305,9 +305,14 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   search, **Save Logs…** and **Clear**. In `fmucontainer-gui`, the messages that were lost outside the progress
   dialog are now visible there, among them the `[AI] …` change journal and the token of the AI Assistant. See the
   [Container Builder GUI guide](docs/user-guide/fmucontainer/gui-usage.md#log).
-- 🔵 **CHANGED** `fmucontainer-gui`: **Verbose Mode** sets the level of the whole log (`DEBUG`) and copies it on the
-  standard output; without it, nothing is written on the standard output (the tree view and the AI Assistant used to
-  write their messages there in any case).
+- 🔵 **CHANGED** `fmucontainer-gui`: **Verbose Mode** sets the level of the log of its window (`DEBUG`) and copies
+  its messages on the standard output; without it, nothing is written on the standard output (the tree view and the
+  AI Assistant used to write their messages there in any case).
+- 🟠 **FIXED** `fmutoolbox`: the windows opened from the launcher shared one log. Each window now has its own: an
+  operation of an FMU Tool window, a build or a request of the AI Assistant of a Container Builder are only shown in
+  that window (log area, status bar, log window), **Clear** only forgets the messages of its window, and opening a
+  window no longer turns off the **Verbose Mode** of an open Container Builder. The few messages that do not come
+  from a window are shown in all of them. See the [Launcher guide](docs/user-guide/launcher.md).
 - 🟢 **ADDED** `fmucontainer-gui`: the `reset_ports` checkbox of a container (root included) adds a
   `<fmu>.reset` port per FMU, or sub-container, to the `configuration` node; a wire to it resets the FMU. Selecting
   the node lists its reset ports, to expose them as container inputs. See

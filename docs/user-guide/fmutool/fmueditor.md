@@ -105,9 +105,12 @@ as-is.
 The status bar, left of the buttons, shows the last message of level **Info** or above (for example
 `FMU saved as '…'.`, or an error while loading an FMU), in the colour of its level. It stays until the next message.
 
-Click the status bar to open the log window: it lists every message since the editor was launched, with a level
-filter, a case-insensitive search, **Save Logs…** (saves the displayed messages in a text file), **Clear** and
+Click the status bar to open the log window: it lists every message of this editor window since it was opened, with
+a level filter, a case-insensitive search, **Save Logs…** (saves the displayed messages in a text file), **Clear** and
 **Close**. It is the same window as in the [FMU Container Builder](../fmucontainer/gui-usage.md#log-window).
+
+The status bar and the log window only show the messages of their own editor window: other windows opened from the
+[launcher](../launcher.md) have their own log.
 
 ## Unsaved Changes Detection
 
