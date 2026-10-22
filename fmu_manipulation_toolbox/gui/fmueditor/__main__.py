@@ -18,9 +18,9 @@ from PySide6.QtWidgets import (
 )
 
 from fmu_manipulation_toolbox.operations import FMU, ModelVariable, OperationAbstract
-from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, GuiLogHandler, LogStatusBar,
-                                                 UnsavedChangesWindowMixin, LastDirectory,
+from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, UnsavedChangesWindowMixin, LastDirectory,
                                                  get_fmu_icon_path)
+from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogStatusBar
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")

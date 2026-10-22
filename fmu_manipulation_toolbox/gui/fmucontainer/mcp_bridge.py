@@ -37,7 +37,7 @@ from fmu_manipulation_toolbox.assistant.auth import (
 )
 from fmu_manipulation_toolbox.assistant.bridge import SUPPORTED_FMI_VERSIONS
 
-from fmu_manipulation_toolbox.gui.helper import GuiLogHandler, window_log_context
+from fmu_manipulation_toolbox.gui.log import GuiLogHandler, window_log_context
 
 from .details import ContainerParameters
 from .graph import NodeItem

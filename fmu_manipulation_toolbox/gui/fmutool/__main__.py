@@ -9,8 +9,8 @@ from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLine
 from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
-from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, busy_cursor, LogWidget, GuiLogHandler,
-                                                 LastDirectory, get_fmu_icon_path, window_log_context)
+from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget, LastDirectory, get_fmu_icon_path
+from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogWidget, busy_cursor, window_log_context
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)

@@ -356,7 +356,7 @@ def test_status_bars_of_two_windows_are_independent(qtbot):
 
 def test_verbose_mode_is_specific_to_its_window(qtbot, capsys):
     import logging
-    from fmu_manipulation_toolbox.gui.helper import GuiLogHandler, window_log_context
+    from fmu_manipulation_toolbox.gui.log import GuiLogHandler, window_log_context
     logger = logging.getLogger("fmu_manipulation_toolbox")
     verbose, quiet = FMUContainerWindow(), FMUContainerWindow()
     for window in (verbose, quiet):

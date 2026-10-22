@@ -408,7 +408,7 @@ def test_the_server_logs_only_in_its_window(qapp, data_dir):
     worker thread (synchronous tools), belong to the window of the server."""
     from fmu_manipulation_toolbox.gui.fmucontainer.__main__ import MainWindow
     from fmu_manipulation_toolbox.gui.fmucontainer.mcp_bridge import MainThreadInvoker, QtAssemblyBridge
-    from fmu_manipulation_toolbox.gui.helper import GuiLogHandler, window_log_context
+    from fmu_manipulation_toolbox.gui.log import GuiLogHandler, window_log_context
 
     handler = GuiLogHandler.install()
     first, second = MainWindow(), MainWindow()

@@ -4,7 +4,7 @@
 **Roadmap**: not listed — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
 The messages of the `fmu_manipulation_toolbox` logger are read in three places: the console of the CLI
-(`cli/utils.py`, `LEVEL    | message`, coloured), the log widget of the GUIs (`gui/helper.py`, `LogWidget`: colour
+(`cli/utils.py`, `LEVEL    | message`, coloured), the log widget of the GUIs (`gui/log.py`, `LogWidget`: colour
 and `WARNING: ` / `ERROR: ` / `CRITICAL: ` prefix), and the MCP tools (captured text). Their wording, levels and
 prefixes grew operation by operation and are not consistent. The goal is a short written convention, then the
 alignment of the existing messages.

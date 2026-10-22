@@ -156,3 +156,11 @@ Commit message: `Test the log isolation between several GUI windows`
 Commit message: `Document the per-window log of the GUI`
 
 **Done.** Also `docs/user-guide/launcher.md`.
+
+### Follow-up — `gui/log.py`
+
+The log code (handler, filters, `window_log_context`, `LogWidget`, `LogStatusBar`, `LogWindow`, `save_log_text`,
+`busy_cursor`, `RunTask`) is moved from `gui/helper.py` to its own module `gui/log.py`, which imports `helper`
+(`LastDirectory`, `MenuSelector`) and not the reverse. No re-export from `helper`.
+
+Commit message: `Move the GUI log code from gui/helper.py to gui/log.py`

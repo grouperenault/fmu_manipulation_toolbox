@@ -15,8 +15,8 @@ from PySide6.QtWidgets import (
     QMenu, QWidgetAction, QMainWindow, QMessageBox
 )
 
-from fmu_manipulation_toolbox.gui.helper import (Application, RunTask, UnsavedChangesWindowMixin, LastDirectory,
-                                                 GuiLogHandler, LogStatusBar, window_log_context)
+from fmu_manipulation_toolbox.gui.helper import Application, UnsavedChangesWindowMixin, LastDirectory
+from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogStatusBar, RunTask, window_log_context
 
 from .graph import NodeGraphWidget, NodeItem
 from .tree import NodeTreePanel
