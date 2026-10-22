@@ -150,7 +150,7 @@ This installs the package in development mode (see [Step 4](#step-4-install-the-
 | *(none)* | `xmlschema`, `elementpath`, `colorama`: CLI and Python API |
 | `gui` | `PySide6`: graphical tools |
 | `mcp` | `fastmcp`, `uvicorn`: MCP server and AI Assistant |
-| `test` | `pytest`, `pytest-qt`, `pytest-cov`, `coverage-badge`, `fmpy`, `numpy`, `PySide6` |
+| `test` | `pytest`, `pytest-qt`, `pytest-cov`, `anybadge`, `fmpy`, `numpy`, `PySide6` |
 | `all` | `gui` + `mcp` + `test` |
 
 The dependencies and their versions are declared in `pyproject.toml`.

@@ -145,7 +145,9 @@ jobs:
       if: github.ref == 'refs/heads/main' && matrix.python-version == env.NEWEST_PYTHON
       run: |
         cd tests
-        coverage-badge -f -o /coverage.svg
+        # Total of the coverage measured by pytest-cov (`tests/.coverage`), as an integer percentage.
+        $total = coverage report --format=total
+        anybadge --value=$total --file=/coverage.svg --overwrite coverage
         cd ..
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
