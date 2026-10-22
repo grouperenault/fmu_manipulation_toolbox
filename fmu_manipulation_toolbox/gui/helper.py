@@ -557,11 +557,17 @@ class GuiLogHandler(logging.Handler):
             widget = top.parentWidget()
         return None
 
-    def accepts(self, window: QWidget | None, owner: int | None, levelno: int) -> bool:
-        """Whether a view of ``window`` shows a record of ``owner``; a view of no window shows every record."""
-        if window is None:
+    def _key(self, window: QWidget | int | None) -> int | None:
+        return self.window_key(window) if isinstance(window, QWidget) else window
+
+    def accepts(self, window: QWidget | int | None, owner: int | None, levelno: int) -> bool:
+        """Whether a view of ``window`` (a widget or a key) shows a record of ``owner``.
+
+        A view of no window shows every record.
+        """
+        key = self._key(window)
+        if key is None:
             return True
-        key = self.window_key(window)
         return owner in (key, None) and levelno >= self._levels.get(key, logging.NOTSET)
 
     # ── Records ────────────────────────────────────────────────────────────
@@ -588,7 +594,7 @@ class GuiLogHandler(logging.Handler):
         self.record_emitted.emit(owner, record.levelno, text)
 
     def connect_with_history(self, slot: Callable[[int | None, int, str], None],
-                             window: QWidget | None = None) -> list[tuple[int, str]]:
+                             window: QWidget | int | None = None) -> list[tuple[int, str]]:
         """Connect ``slot`` to the records and return the history of ``window`` it has not seen.
 
         Done under the handler lock, so that no record is lost or duplicated
@@ -599,12 +605,13 @@ class GuiLogHandler(logging.Handler):
             self.record_emitted.connect(slot)
         return history
 
-    def _history(self, window: QWidget | None) -> deque[tuple[int, str]]:
-        if window is None:
+    def _history(self, window: QWidget | int | None) -> deque[tuple[int, str]]:
+        key = self._key(window)
+        if key is None:
             return self.history
-        return self._histories.get(self.window_key(window), deque())
+        return self._histories.get(key, deque())
 
-    def clear(self, window: QWidget | None = None):
+    def clear(self, window: QWidget | int | None = None):
         """Forget the history of ``window``, or every history."""
         with self.lock:
             if window is None:
@@ -704,6 +711,7 @@ class WidgetLogHandler(logging.Handler):
 class LogStatusBar(QStatusBar):
     """Shows the last record (INFO and above) of a ``GuiLogHandler``; a click opens the ``LogWindow``.
 
+    Bound to a registered *window*, it only shows the records of that window and the records without owner.
     Until the first record, it shows *initial_text* ("Ready"), which is not a record: it is neither in the
     history of the handler nor in the ``LogWindow``.
     """
@@ -711,10 +719,12 @@ class LogStatusBar(QStatusBar):
     clicked = Signal()
     INITIAL_TEXT = "Ready"
 
-    def __init__(self, handler: GuiLogHandler, parent=None, level=logging.INFO, initial_text: str = INITIAL_TEXT):
+    def __init__(self, handler: GuiLogHandler, parent=None, level=logging.INFO, initial_text: str = INITIAL_TEXT,
+                 window: QWidget | None = None):
         super().__init__(parent)
         self._handler = handler
         self._level = level
+        self._window = window
         self._log_window: LogWindow | None = None
 
         self._label = QLabel(initial_text)
@@ -733,7 +743,7 @@ class LogStatusBar(QStatusBar):
         return self._label.text()
 
     def _on_record(self, owner: int | None, levelno: int, text: str):
-        if levelno < self._level:
+        if levelno < self._level or not self._handler.accepts(self._window, owner, levelno):
             return
         lines = text.strip().splitlines() or [""]
         self._label.setText(lines[0] + (" …" if len(lines) > 1 else ""))
@@ -746,7 +756,7 @@ class LogStatusBar(QStatusBar):
 
     def show_log_window(self) -> "LogWindow":
         if self._log_window is None:
-            self._log_window = LogWindow(self._handler, parent=self.window())
+            self._log_window = LogWindow(self._handler, parent=self.window(), window=self._window)
         self._log_window.show()
         self._log_window.raise_()
         self._log_window.activateWindow()
@@ -754,16 +764,20 @@ class LogStatusBar(QStatusBar):
 
 
 class LogWindow(QDialog):
-    """Non-modal window with the whole log of a ``GuiLogHandler``, a level filter and a search."""
+    """Non-modal window with the whole log of a ``GuiLogHandler``, a level filter and a search.
+
+    Bound to a registered *window*, it only shows the records of that window and the records without owner.
+    """
 
     LEVELS = (("Debug", logging.DEBUG), ("Info", logging.INFO), ("Warning", logging.WARNING),
               ("Error", logging.ERROR))
 
-    def __init__(self, handler: GuiLogHandler, parent=None):
+    def __init__(self, handler: GuiLogHandler, parent=None, window: QWidget | None = None):
         super().__init__(parent)
         self.setWindowTitle("Log")
         self.setModal(False)
         self._handler = handler
+        self._window = window
         self._records: deque[tuple[int, str]] = deque(maxlen=handler.history.maxlen)
 
         self.level_combo = MenuSelector()
@@ -817,7 +831,7 @@ class LogWindow(QDialog):
         layout.addWidget(self.view, 1)
         layout.addLayout(button_layout)
 
-        self._records.extend(handler.connect_with_history(self._on_record))
+        self._records.extend(handler.connect_with_history(self._on_record, window))
         self._refresh()
 
     def _accepts(self, levelno: int, text: str) -> bool:
@@ -825,6 +839,8 @@ class LogWindow(QDialog):
         return levelno >= self.level_combo.currentData() and search in text.lower()
 
     def _on_record(self, owner: int | None, levelno: int, text: str):
+        if not self._handler.accepts(self._window, owner, levelno):
+            return
         self._records.append((levelno, text))
         if self._accepts(levelno, text):
             self.view.append_record(levelno, text)
@@ -836,8 +852,8 @@ class LogWindow(QDialog):
                 self.view.append_record(levelno, text)
 
     def clear(self):
-        """Forget the whole log, also for the next opening of the window."""
-        self._handler.clear()
+        """Forget the log of its window, also for the next opening of the window; the other windows keep theirs."""
+        self._handler.clear(self._window)
         self._records.clear()
         self.view.clear()
 
@@ -853,7 +869,11 @@ def busy_cursor():
 
 
 class RunTask(QDialog):
-    """Runs a task on the main thread and shows the records it logs, through the shared ``GuiLogHandler``."""
+    """Runs a task on the main thread and shows the records it logs, through the shared ``GuiLogHandler``.
+
+    The records of the task belong to the registered window of *parent*, even when the user acts in another window
+    while the task runs.
+    """
 
     def __init__(self, task: Callable, *args, parent=None, title="Run command...", **kwargs):
         super().__init__(parent)
@@ -884,19 +904,24 @@ class RunTask(QDialog):
         self.show()
 
         log_handler = GuiLogHandler.install()
+        self._log_handler = log_handler
+        self._owner = log_handler.owner_of(parent)
         log_handler.record_emitted.connect(self._on_record)
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        logger.debug(f"Starting {title}...")
-        try:
-            task(*args, **kwargs)
-            logger.info(f"✅ {title} finished.")
-        except Exception as e:
-            logger.critical(f"Unexpected error: {e}")
-            logger.critical(f"Operation aborted.")
+        with window_log_context(self._owner) if parent is not None else contextlib.nullcontext():
+            logger.debug(f"Starting {title}...")
+            try:
+                task(*args, **kwargs)
+                logger.info(f"✅ {title} finished.")
+            except Exception as e:
+                logger.critical(f"Unexpected error: {e}")
+                logger.critical(f"Operation aborted.")
         QApplication.restoreOverrideCursor()
         log_handler.record_emitted.disconnect(self._on_record)
 
     def _on_record(self, owner: int | None, levelno: int, text: str):
+        if not self._log_handler.accepts(self._owner, owner, levelno):
+            return
         self.text.append_record(levelno, text)
         # The task blocks the main thread: repaint each record immediately.
         QApplication.processEvents()

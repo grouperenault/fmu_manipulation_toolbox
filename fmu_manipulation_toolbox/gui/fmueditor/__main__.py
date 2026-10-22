@@ -451,8 +451,9 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         top_bar.addLayout(info_grid, 1)
 
         # Bottom bar: status + buttons
-        self._status_bar = LogStatusBar(GuiLogHandler.install())
-        logger.setLevel(logging.INFO)
+        log_handler = GuiLogHandler.install()
+        log_handler.register_window(self)
+        self._status_bar = LogStatusBar(log_handler, window=self)
 
         button_bar = QHBoxLayout()
         button_bar.addWidget(self._status_bar, 1)
@@ -484,6 +485,11 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         """Load an FMU file programmatically."""
         from pathlib import Path
         self._drop_zone.set_fmu(Path(fmu_path))
+
+    def closeEvent(self, event):
+        super().closeEvent(event)  # UnsavedChangesWindowMixin may ignore() to cancel
+        if event.isAccepted():
+            GuiLogHandler.install().unregister_window(self)
 
     # -- Unsaved changes detection -----------------------------------------------
 

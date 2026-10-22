@@ -217,6 +217,59 @@ def test_clear_forgets_the_history_of_one_window(windows, handler):
     assert _histories(handler, first, second) == [[], ["shared"]]
 
 
+# ── Views bound to a window ───────────────────────────────────────────────
+def test_status_bar_of_a_window_ignores_the_records_of_the_others(qtbot, windows, handler):
+    first, second = windows
+    bar = LogStatusBar(handler, window=first)
+    qtbot.addWidget(bar)
+    with window_log_context(first):
+        logger.info("mine")
+    with window_log_context(second):
+        logger.warning("not mine")
+    assert bar.text() == "mine"
+    with window_log_context(None):
+        logger.info("shared")
+    assert bar.text() == "shared"
+
+
+def test_log_window_of_a_window_shows_its_history_and_live_records(qtbot, windows, handler):
+    first, second = windows
+    with window_log_context(first):
+        logger.info("old mine")
+    with window_log_context(second):
+        logger.info("old not mine")
+    window = LogWindow(handler, window=first)
+    qtbot.addWidget(window)
+    with window_log_context(second):
+        logger.info("new not mine")
+    with window_log_context(first):
+        logger.info("new mine")
+    assert _view_lines(window) == ["old mine", "new mine"]
+
+
+def test_log_window_clear_keeps_the_log_of_the_other_windows(qtbot, windows, handler):
+    first, second = windows
+    with window_log_context(None):
+        logger.info("shared")
+    LogWindow(handler, window=first).clear()
+    assert _histories(handler, first, second) == [[], ["shared"]]
+
+
+def test_run_task_pins_its_parent_window(qtbot, windows, handler):
+    first, second = windows
+
+    def task():
+        handler.current_owner = handler.window_key(second)   # the user clicks in another window
+        logger.info("task record")
+
+    dialog = RunTask(task, parent=first, title="Pinned")
+    qtbot.addWidget(dialog)
+    with window_log_context(second):
+        logger.info("other window")
+    assert dialog.text.toPlainText().splitlines() == ["task record", "✅ Pinned finished."]
+    assert _histories(handler, first, second) == [["task record", "✅ Pinned finished."], ["other window"]]
+
+
 # ── LogStatusBar ──────────────────────────────────────────────────────────
 def test_status_bar_shows_ready_until_the_first_record(status_bar, handler):
     assert status_bar.text() == "Ready"

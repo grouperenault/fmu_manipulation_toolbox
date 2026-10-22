@@ -1,6 +1,6 @@
 # Plan: one log per GUI window
 
-**Created**: 22 October 2026 — **Status**: in progress, decision D5 open —
+**Created**: 22 October 2026 — **Status**: in progress, decisions taken —
 **Origin**: user report: "the windows opened by the toolbox launcher share the same logger, which is confusing when
 two or more windows are open, especially FMU Tool"
 
@@ -28,7 +28,7 @@ windows.
 | D2 | Record without owner (logged outside any window: import time, a thread without context…) | **Shown in every window** (nothing is lost) |
 | D3 | Logger level / Verbose Mode | **Per window**: the logger level is the lowest level requested by the open windows; each window only keeps the records at or above its own level; the Verbose Mode stdout copy only prints the records of the windows in Verbose Mode (and the records without owner) |
 | D4 | How a main-thread record finds its window | **Application event filter + pinning**: each user input event (mouse press, key press, drop) makes the top-level window owning the target widget the *current window*. `RunTask`, `busy_cursor`, FMU loading and the MCP threads **pin** their window explicitly, so that a click in another window during `processEvents()` does not redirect the end of a running task. No slot is modified. |
-| D5 | **Open** — **Clear** in the log window | Proposal: clears the history of this window only (its own records and its copy of the records without owner); the other windows are not affected |
+| D5 | **Clear** in the log window | **Clears the history of this window only (its own records and its copy of the records without owner); the other windows are not affected** |
 | D6 | History size | **One bounded history (5000) **per window**, so that a verbose window does not evict the history of the others. A record without owner is copied in the history of every registered window; a window opened later does not receive the records without owner emitted before its opening** |
 | D7 | A window not registered (the launcher itself) | **Its records have no owner (D2)** |
 
@@ -89,6 +89,9 @@ thread through the installed handler) or a key from `GuiLogHandler.window_key` (
 - `RunTask` pins its parent window for the duration of the task.
 
 Commit message: `Show only the records of their own window in the status bar and the log window`
+
+**Done.** The windows are unregistered in `closeEvent` (the launcher keeps them alive after closing, so `destroyed`
+is not enough).
 
 ### Step 3 — Verbose Mode per window (Container Builder)
 

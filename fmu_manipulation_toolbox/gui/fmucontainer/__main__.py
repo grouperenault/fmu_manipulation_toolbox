@@ -36,7 +36,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         # Verbose Mode sets the level and copies the logs on stdout.
         self._stdout_handler = logging.StreamHandler(sys.stdout)
         self._stdout_handler.setFormatter(logging.Formatter("%(levelname)-8s | %(message)s"))
-        logger.setLevel(logging.INFO)
+        GuiLogHandler.install().register_window(self)
 
         splitter = QSplitter()
         self._graph = NodeGraphWidget()
@@ -163,7 +163,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         central.setLayout(main_layout)
         self.setCentralWidget(central)
 
-        self._status_bar = LogStatusBar(GuiLogHandler.install())
+        self._status_bar = LogStatusBar(GuiLogHandler.install(), window=self)
         # The text of the status bar is as far from the buttons as from the bottom of the window.
         self._status_bar.setContentsMargins(0, 0, 0, 4)
         self.setStatusBar(self._status_bar)
@@ -250,6 +250,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             if self._mcp_controller is not None:
                 self._mcp_controller.stop()
             logger.removeHandler(self._stdout_handler)
+            GuiLogHandler.install().unregister_window(self)
 
     def _on_node_replaced(self, node):
         """Refresh the detail panel after an in-place FMU replacement."""
