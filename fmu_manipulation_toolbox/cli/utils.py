@@ -62,7 +62,8 @@ def close_logger(logger: logging.Logger):
 class ParagraphHelpFormatter(argparse.HelpFormatter):
     """HelpFormatter that keeps the explicit line breaks of the help texts and wraps each line separately."""
     def _split_lines(self, text, width):
-        return [line for paragraph in text.splitlines() for line in super()._split_lines(paragraph, width)]
+        proxy_super = super()  # workaround for python 3.10
+        return [line for paragraph in text.splitlines() for line in proxy_super._split_lines(paragraph, width)]
 
 
 def make_wide(formatter, w=120, h=36):
