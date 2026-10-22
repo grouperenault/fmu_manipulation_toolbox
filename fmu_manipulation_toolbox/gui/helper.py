@@ -1,13 +1,16 @@
+import contextvars
 import logging
 import os
+import threading
 
 import contextlib
 from collections import deque
 from collections.abc import Callable
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
-                               QHBoxLayout, QPushButton, QMessageBox, QTableView, QHeaderView, QLineEdit, QMenu)
+                               QHBoxLayout, QPushButton, QMessageBox, QTableView, QHeaderView, QLineEdit, QMenu,
+                               QWidget)
 from PySide6.QtGui import QDesktopServices, QIcon, QAction
-from PySide6.QtCore import Qt, Signal, QObject, QPoint, QDir, QUrl, QRect, QSize
+from PySide6.QtCore import Qt, Signal, QObject, QEvent, QPoint, QDir, QUrl, QRect, QSize
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage, QGuiApplication, QTextCursor
 
 from pathlib import Path
@@ -445,27 +448,128 @@ class MenuSelector(QPushButton):
         self.currentIndexChanged.emit(index)
 
 
+#: Owner window pinned by ``window_log_context``; ``_NOT_PINNED`` lets the handler use the window of the last user event.
+_NOT_PINNED = object()
+_pinned_owner: contextvars.ContextVar = contextvars.ContextVar("fmu_manipulation_toolbox_log_owner",
+                                                               default=_NOT_PINNED)
+
+
 class GuiLogHandler(logging.Handler):
     """The single GUI sink of the toolbox logger.
 
-    It keeps a bounded history of the records and broadcasts each one through the
-    ``record_emitted(levelno, text)`` Qt signal. It never touches a widget: records
-    logged from a worker thread (e.g. the MCP tools) reach the views through a
-    queued connection, on the Qt main thread. Create it on the Qt main thread.
+    Each record belongs to the window that emitted it (its *owner*), or to no window. The owner is the window pinned
+    by ``window_log_context`` if any, otherwise, on the main thread, the window of the last user event (mouse press,
+    key press, drop), otherwise none. Only the windows registered with ``register_window`` own records; a record
+    without owner is meant for every window.
+
+    It keeps a bounded history per registered window and broadcasts each record through the
+    ``record_emitted(owner, levelno, text)`` Qt signal, ``owner`` being a key from ``window_key`` or ``None``. It never
+    touches a widget: records logged from a worker thread (e.g. the MCP tools) reach the views through a queued
+    connection, on the Qt main thread. Create it on the Qt main thread.
+
+    Each registered window has its own level: records of a window below its level are dropped, and the logger level is
+    the lowest level of the registered windows.
     """
 
     HISTORY_SIZE = 5000
+    DEFAULT_LEVEL = logging.INFO
+    USER_EVENTS = (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick, QEvent.Type.KeyPress,
+                   QEvent.Type.Drop)
 
     class _Emitter(QObject):
-        record_emitted = Signal(int, str)
+        record_emitted = Signal(object, int, str)
+
+    class _EventTracker(QObject):
+        """Application event filter: the window of each user event becomes the current owner of the records."""
+
+        def __init__(self, handler: "GuiLogHandler"):
+            super().__init__()
+            self._handler = handler
+
+        def eventFilter(self, watched, event):
+            if event.type() in GuiLogHandler.USER_EVENTS and isinstance(watched, QWidget):
+                self._handler.current_owner = self._handler.owner_of(watched)
+            return False
 
     _installed: "GuiLogHandler | None" = None
 
     def __init__(self, history_size: int = HISTORY_SIZE):
         super().__init__()
+        self._history_size = history_size
+        #: Every record, for the views bound to no window.
         self.history: deque[tuple[int, str]] = deque(maxlen=history_size)
+        self._histories: dict[int, deque[tuple[int, str]]] = {}
+        self._levels: dict[int, int] = {}
+        #: Owner of the records of the main thread when no window is pinned: the window of the last user event.
+        self.current_owner: int | None = None
         self._emitter = GuiLogHandler._Emitter()
         self.record_emitted = self._emitter.record_emitted
+        self._event_tracker = GuiLogHandler._EventTracker(self)
+
+    # ── Windows ────────────────────────────────────────────────────────────
+    @staticmethod
+    def window_key(window: QWidget) -> int:
+        return id(window)
+
+    def register_window(self, window: QWidget, level: int = DEFAULT_LEVEL):
+        """Make ``window`` an owner of records, until ``unregister_window`` or its destruction."""
+        key = self.window_key(window)
+        with self.lock:
+            self._levels[key] = level
+            self._histories[key] = deque(maxlen=self._history_size)
+        window.destroyed.connect(lambda *_: self._unregister_key(key))
+        self._update_logger_level()
+
+    def unregister_window(self, window: QWidget):
+        self._unregister_key(self.window_key(window))
+
+    def _unregister_key(self, key: int):
+        with self.lock:
+            registered = self._levels.pop(key, None) is not None
+            self._histories.pop(key, None)
+            if self.current_owner == key:
+                self.current_owner = None
+        if registered:
+            self._update_logger_level()
+
+    def is_registered(self, window: QWidget) -> bool:
+        return self.window_key(window) in self._levels
+
+    def window_level(self, window: QWidget) -> int:
+        return self._levels.get(self.window_key(window), logging.NOTSET)
+
+    def set_window_level(self, window: QWidget, level: int):
+        key = self.window_key(window)
+        if key in self._levels:
+            self._levels[key] = level
+            self._update_logger_level()
+
+    def _update_logger_level(self):
+        levels = list(self._levels.values())
+        logger.setLevel(min(levels) if levels else self.DEFAULT_LEVEL)
+
+    def owner_of(self, widget: QWidget | None) -> int | None:
+        """The key of the registered window ``widget`` belongs to, through the parents of its dialogs. Main thread."""
+        while widget is not None:
+            top = widget.window()
+            if self.window_key(top) in self._levels:
+                return self.window_key(top)
+            widget = top.parentWidget()
+        return None
+
+    def accepts(self, window: QWidget | None, owner: int | None, levelno: int) -> bool:
+        """Whether a view of ``window`` shows a record of ``owner``; a view of no window shows every record."""
+        if window is None:
+            return True
+        key = self.window_key(window)
+        return owner in (key, None) and levelno >= self._levels.get(key, logging.NOTSET)
+
+    # ── Records ────────────────────────────────────────────────────────────
+    def _owner(self) -> int | None:
+        owner = _pinned_owner.get()
+        if owner is _NOT_PINNED:
+            owner = self.current_owner if threading.current_thread() is threading.main_thread() else None
+        return owner if owner in self._levels else None
 
     def emit(self, record: logging.LogRecord):
         try:
@@ -473,39 +577,79 @@ class GuiLogHandler(logging.Handler):
         except Exception:  # noqa: BLE001 - logging must never raise
             self.handleError(record)
             return
-        # Handler.handle() holds self.lock: history and signal stay in the same order.
+        # Handler.handle() holds self.lock: histories and signal stay in the same order.
+        owner = self._owner()
+        if owner is not None and record.levelno < self._levels[owner]:
+            return
         self.history.append((record.levelno, text))
-        self.record_emitted.emit(record.levelno, text)
+        for key, history in self._histories.items():
+            if owner in (key, None) and record.levelno >= self._levels[key]:
+                history.append((record.levelno, text))
+        self.record_emitted.emit(owner, record.levelno, text)
 
-    def connect_with_history(self, slot: Callable[[int, str], None]) -> list[tuple[int, str]]:
-        """Connect ``slot`` to the records and return the history it has not seen.
+    def connect_with_history(self, slot: Callable[[int | None, int, str], None],
+                             window: QWidget | None = None) -> list[tuple[int, str]]:
+        """Connect ``slot`` to the records and return the history of ``window`` it has not seen.
 
         Done under the handler lock, so that no record is lost or duplicated
         between the copy of the history and the connection.
         """
         with self.lock:
-            history = list(self.history)
+            history = list(self._history(window))
             self.record_emitted.connect(slot)
         return history
 
-    def clear(self):
+    def _history(self, window: QWidget | None) -> deque[tuple[int, str]]:
+        if window is None:
+            return self.history
+        return self._histories.get(self.window_key(window), deque())
+
+    def clear(self, window: QWidget | None = None):
+        """Forget the history of ``window``, or every history."""
         with self.lock:
-            self.history.clear()
+            if window is None:
+                self.history.clear()
+                for history in self._histories.values():
+                    history.clear()
+            else:
+                self._history(window).clear()
 
     @classmethod
     def install(cls) -> "GuiLogHandler":
-        """Attach the application-wide handler to the toolbox logger (once)."""
+        """Attach the application-wide handler to the toolbox logger, and its event filter to the application (once)."""
         if cls._installed is None:
             cls._installed = cls()
             logger.addHandler(cls._installed)
+            application = QApplication.instance()
+            if application is not None:
+                application.installEventFilter(cls._installed._event_tracker)
         return cls._installed
 
     @classmethod
     def uninstall(cls):
         if cls._installed is not None:
+            application = QApplication.instance()
+            if application is not None:
+                application.removeEventFilter(cls._installed._event_tracker)
             logger.removeHandler(cls._installed)
             cls._installed.close()
             cls._installed = None
+
+
+@contextlib.contextmanager
+def window_log_context(window: QWidget | int | None):
+    """Make ``window`` the owner of the records logged in the block, in this thread (and the tasks it starts).
+
+    ``window`` is a widget of the window (resolved on the main thread), a key from ``GuiLogHandler.window_key``
+    (usable in any thread), or ``None`` for records without owner. It wins over the window of the user events.
+    """
+    if isinstance(window, QWidget):
+        window = GuiLogHandler.install().owner_of(window)
+    token = _pinned_owner.set(window)
+    try:
+        yield
+    finally:
+        _pinned_owner.reset(token)
 
 
 class LogWidget(QTextBrowser):
@@ -588,7 +732,7 @@ class LogStatusBar(QStatusBar):
     def text(self) -> str:
         return self._label.text()
 
-    def _on_record(self, levelno: int, text: str):
+    def _on_record(self, owner: int | None, levelno: int, text: str):
         if levelno < self._level:
             return
         lines = text.strip().splitlines() or [""]
@@ -680,7 +824,7 @@ class LogWindow(QDialog):
         search = self.search_edit.text().lower()
         return levelno >= self.level_combo.currentData() and search in text.lower()
 
-    def _on_record(self, levelno: int, text: str):
+    def _on_record(self, owner: int | None, levelno: int, text: str):
         self._records.append((levelno, text))
         if self._accepts(levelno, text):
             self.view.append_record(levelno, text)
@@ -752,7 +896,7 @@ class RunTask(QDialog):
         QApplication.restoreOverrideCursor()
         log_handler.record_emitted.disconnect(self._on_record)
 
-    def _on_record(self, levelno: int, text: str):
+    def _on_record(self, owner: int | None, levelno: int, text: str):
         self.text.append_record(levelno, text)
         # The task blocks the main thread: repaint each record immediately.
         QApplication.processEvents()

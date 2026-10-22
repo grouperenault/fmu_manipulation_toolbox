@@ -1,8 +1,8 @@
 """Tests for the GUI log components of ``gui/helper.py``.
 
-``GuiLogHandler`` is the single GUI sink of the toolbox logger; ``LogStatusBar``
-shows its last record and ``LogWindow`` its whole history, with a level filter
-and a search. ``WidgetLogHandler`` writes directly into a ``LogWidget``.
+``GuiLogHandler`` is the single GUI sink of the toolbox logger, which knows the
+window each record belongs to; ``LogStatusBar`` shows its last record and
+``LogWindow`` its whole history, with a level filter and a search. ``WidgetLogHandler`` writes directly into a ``LogWidget``.
 """
 import logging
 import threading
@@ -14,11 +14,11 @@ pytest.importorskip("pytestqt")
 
 try:
     from PySide6.QtCore import QObject, Qt, QThread
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QDialog, QPushButton, QWidget
 
     _app = QApplication.instance() or QApplication([])
     from fmu_manipulation_toolbox.gui.helper import (GuiLogHandler, LastDirectory, LogStatusBar, LogWidget, LogWindow,
-                                                     RunTask, WidgetLogHandler)
+                                                     RunTask, WidgetLogHandler, window_log_context)
     from fmu_manipulation_toolbox.gui.style import log_color
 except Exception as exc:  # pragma: no cover - environment dependent
     pytest.skip(f"GUI dependencies not available: {exc}", allow_module_level=True)
@@ -73,7 +73,7 @@ class _Receiver(QObject):
         super().__init__()
         self.received = []
 
-    def on_record(self, levelno, text):
+    def on_record(self, owner, levelno, text):
         self.received.append((text, QThread.currentThread()))
 
 
@@ -87,6 +87,134 @@ def test_record_from_a_worker_thread_is_delivered_on_the_main_thread(qtbot, hand
 
     qtbot.waitUntil(lambda: bool(receiver.received))
     assert receiver.received == [("from worker", QApplication.instance().thread())]
+
+
+# ── Owner window of the records ───────────────────────────────────────────
+def _histories(handler, *windows):
+    return [[text for _, text in handler.connect_with_history(lambda *_: None, window)] for window in windows]
+
+
+@pytest.fixture
+def windows(qtbot, handler, monkeypatch):
+    """Two windows registered with ``handler`` (the installed one) at INFO level, the application event filter on."""
+    monkeypatch.setattr(GuiLogHandler, "_installed", handler)
+    first, second = QWidget(), QWidget()
+    for window in (first, second):
+        qtbot.addWidget(window)
+        handler.register_window(window)
+    QApplication.instance().installEventFilter(handler._event_tracker)
+    yield first, second
+    QApplication.instance().removeEventFilter(handler._event_tracker)
+
+
+def test_record_belongs_to_the_pinned_window(windows, handler):
+    first, second = windows
+    with window_log_context(first):
+        logger.info("first")
+    with window_log_context(second):
+        logger.info("second")
+    assert _histories(handler, first, second) == [["first"], ["second"]]
+
+
+def test_nested_pins_are_restored(windows, handler):
+    first, second = windows
+    with window_log_context(first):
+        with window_log_context(second):
+            logger.info("inner")
+        logger.info("outer")
+    assert _histories(handler, first, second) == [["outer"], ["inner"]]
+
+
+def test_record_without_owner_belongs_to_every_window(windows, handler):
+    first, second = windows
+    handler.current_owner = None
+    logger.info("shared")
+    with window_log_context(None):
+        logger.info("explicitly shared")
+    assert _histories(handler, first, second) == [["shared", "explicitly shared"]] * 2
+
+
+def test_user_event_makes_its_window_the_owner(qtbot, windows, handler):
+    first, second = windows
+    button = QPushButton("act", second)
+    second.show()
+    qtbot.mouseClick(button, Qt.MouseButton.LeftButton)
+    logger.info("after click")
+    assert _histories(handler, first, second) == [[], ["after click"]]
+
+
+def test_dialog_records_belong_to_its_parent_window(qtbot, windows, handler):
+    first, _ = windows
+    dialog = QDialog(first)
+    qtbot.addWidget(dialog)
+    assert handler.owner_of(QPushButton(dialog)) == handler.window_key(first)
+
+
+def test_unregistered_window_owns_no_record(qtbot, windows, handler):
+    first, second = windows
+    launcher = QWidget()
+    qtbot.addWidget(launcher)
+    assert handler.owner_of(launcher) is None
+    with window_log_context(GuiLogHandler.window_key(launcher)):
+        logger.info("from the launcher")
+    assert _histories(handler, first, second) == [["from the launcher"]] * 2
+
+
+def test_worker_thread_uses_its_pinned_window_only(windows, handler):
+    first, second = windows
+    handler.current_owner = handler.window_key(first)       # not seen by a worker thread
+    key = handler.window_key(second)
+
+    def work():
+        logger.info("unpinned")
+        with window_log_context(key):
+            logger.info("pinned")
+
+    worker = threading.Thread(target=work)
+    worker.start()
+    worker.join()
+    assert _histories(handler, first, second) == [["unpinned"], ["unpinned", "pinned"]]
+
+
+def test_each_window_has_its_own_level(windows, handler):
+    first, second = windows
+    handler.set_window_level(first, logging.DEBUG)
+    assert logger.level == logging.DEBUG
+    with window_log_context(first):
+        logger.debug("debug of first")
+    with window_log_context(second):
+        logger.debug("debug of second")            # below the level of its window: dropped
+    with window_log_context(None):
+        logger.debug("shared debug")
+    assert _histories(handler, first, second) == [["debug of first", "shared debug"], []]
+    assert handler.accepts(first, None, logging.DEBUG)
+    assert not handler.accepts(second, None, logging.DEBUG)
+    assert not handler.accepts(second, handler.window_key(first), logging.ERROR)
+    assert handler.accepts(None, handler.window_key(first), logging.DEBUG)
+
+
+def test_logger_level_is_the_lowest_window_level(qtbot, windows, handler):
+    first, second = windows
+    handler.set_window_level(second, logging.DEBUG)
+    assert logger.level == logging.DEBUG
+    handler.unregister_window(second)
+    assert logger.level == logging.INFO
+    assert not handler.is_registered(second)
+
+    doomed = QWidget()
+    handler.register_window(doomed, logging.DEBUG)
+    assert logger.level == logging.DEBUG
+    doomed.deleteLater()
+    qtbot.waitUntil(lambda: logger.level == logging.INFO)
+    assert handler._levels.keys() == {handler.window_key(first)}
+
+
+def test_clear_forgets_the_history_of_one_window(windows, handler):
+    first, second = windows
+    with window_log_context(None):
+        logger.info("shared")
+    handler.clear(first)
+    assert _histories(handler, first, second) == [[], ["shared"]]
 
 
 # ── LogStatusBar ──────────────────────────────────────────────────────────
