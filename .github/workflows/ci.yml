@@ -1,0 +1,420 @@
+# Continuous integration: build the native binaries, run the test suite on the
+# supported platforms and produce the distributable package. This workflow is
+# also exposed via `workflow_call` so the release workflow can reuse the exact
+# same build+test+package pipeline before publishing.
+name: CI
+
+on:
+  # Validate branches through their pull request...
+  pull_request:
+  # ...and only run on direct pushes to the default branch. This avoids the
+  # duplicate run you get when pushing to a branch that already has an open PR
+  # (which would fire both `push` and `pull_request`). Tags are handled by
+  # release.yml.
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  workflow_call:
+
+# Least-privilege default; only `tests-win64` raises it (coverage badge).
+permissions:
+  contents: read
+
+# Newest supported Python: the single leg that refreshes the coverage badge, builds, checks and uploads the
+# package. Keep it in sync with the last entry of the `python-version` matrices (a matrix cannot read `env`).
+env:
+  NEWEST_PYTHON: "3.14"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Build all native targets (remoting + container) through the reusable
+  # workflow. Each matrix entry maps to one platform/artifact.
+  # The Linux binaries are built on the oldest supported Ubuntu: they then only
+  # require its glibc (2.35) and load on the newer distributions as well.
+  build-native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # remoting: 32-bit Windows
+          - os: windows-latest
+            source_dir: remoting
+            configure_args: "-DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -A Win32"
+            build_args: "--config Release"
+            artifact_name: remoting-win32
+            resource_subdir: win32
+          # remoting: 64-bit Windows
+          - os: windows-latest
+            source_dir: remoting
+            configure_args: "-DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -A x64"
+            build_args: "--config Release"
+            artifact_name: remoting-win64
+            resource_subdir: win64
+          # remoting: 32-bit Linux (needs gcc-multilib)
+          - os: ubuntu-22.04
+            source_dir: remoting
+            configure_args: "-DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release -DBUILD_32=ON"
+            build_args: "--config Release"
+            artifact_name: remoting-linux32
+            resource_subdir: linux32
+            install_multilib: true
+          # remoting: 64-bit Linux
+          - os: ubuntu-22.04
+            source_dir: remoting
+            configure_args: "-DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release"
+            build_args: "--config Release"
+            artifact_name: remoting-linux64
+            resource_subdir: linux64
+          # container: 64-bit Windows
+          - os: windows-latest
+            source_dir: container
+            configure_args: "-DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -A x64"
+            build_args: "--config Release"
+            artifact_name: container-win64
+            resource_subdir: win64
+          # container: 64-bit Linux
+          - os: ubuntu-22.04
+            source_dir: container
+            configure_args: "-DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release"
+            build_args: "--config Release"
+            artifact_name: container-linux64
+            resource_subdir: linux64
+          # container: macOS (Apple Silicon; default generator and flags)
+          - os: macos-latest
+            source_dir: container
+            artifact_name: container-darwin64
+            resource_subdir: darwin64
+    uses: ./.github/workflows/build-native.yml
+    with:
+      os: ${{ matrix.os }}
+      source_dir: ${{ matrix.source_dir }}
+      configure_args: ${{ matrix.configure_args }}
+      build_args: ${{ matrix.build_args }}
+      artifact_name: ${{ matrix.artifact_name }}
+      resource_subdir: ${{ matrix.resource_subdir }}
+      install_multilib: ${{ matrix.install_multilib || false }}
+
+  tests-win64:
+    needs: [build-native]
+    runs-on: windows-latest
+    # Needs write access to push the coverage badge to the `badges` branch.
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
+        python-version: ["3.10", "3.14"]
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/download-artifact@v7
+      with:
+        name: remoting-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+    - uses: actions/download-artifact@v7
+      with:
+        name: remoting-win32
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
+    - uses: actions/download-artifact@v7
+      with:
+        name: container-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+        # Reuse the downloaded wheels (PySide6, fmpy...) between runs; the key follows the declared dependencies.
+        cache: pip
+        cache-dependency-path: pyproject.toml
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # The tests use the installed package (editable install, every extra).
+        pip install -e ".[all]"
+    # Coverage slows the run down: it is only measured on the leg that refreshes the badge (NEWEST_PYTHON).
+    - name: Test suite run
+      run: |
+        cd tests
+        pytest ${{ matrix.python-version == env.NEWEST_PYTHON && '--cov=fmu_manipulation_toolbox' || '' }}
+    # The coverage badge is refreshed from a single leg (NEWEST_PYTHON) on `main` only.
+    - name: Switch to `badges` branch and copy badge
+      if: github.ref == 'refs/heads/main' && matrix.python-version == env.NEWEST_PYTHON
+      run: |
+        cd tests
+        # Total of the coverage measured by pytest-cov (`tests/.coverage`), as an integer percentage.
+        $total = coverage report --format=total
+        anybadge --value=$total --file=/coverage.svg --overwrite coverage
+        cd ..
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+
+        git fetch origin badges
+        git checkout badges
+
+        cp /coverage.svg .github/badges/coverage.svg
+
+    - name: Commit badge to `badges` branch
+      if: github.ref == 'refs/heads/main' && matrix.python-version == env.NEWEST_PYTHON
+      uses: stefanzweifel/git-auto-commit-action@v7
+      with:
+        commit_message: "Update coverage badge"
+        branch: badges
+        file_pattern: .github/badges/coverage.svg
+
+  tests-linux:
+    needs: [build-native]
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
+        python-version: ["3.10", "3.14"]
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        # The package version comes from the git tags (setuptools-scm): the whole history is needed, a shallow clone
+        # would give a wrong version.
+        fetch-depth: 0
+    - uses: actions/download-artifact@v7
+      with:
+        name: remoting-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+    - uses: actions/download-artifact@v7
+      with:
+        name: remoting-win32
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
+    - uses: actions/download-artifact@v7
+      with:
+        name: remoting-linux32
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux32/
+    - uses: actions/download-artifact@v7
+      with:
+        name: remoting-linux64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
+    - uses: actions/download-artifact@v7
+      with:
+        name: container-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+    - uses: actions/download-artifact@v7
+      with:
+        name: container-linux64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
+    - uses: actions/download-artifact@v7
+      with:
+        name: container-darwin64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+        # Reuse the downloaded wheels (PySide6, fmpy...) between runs; the key follows the declared dependencies.
+        cache: pip
+        cache-dependency-path: pyproject.toml
+    - name: Install libEGL.so.1
+      run: |
+        sudo apt-get install freeglut3-dev
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+        # The tests use the installed package (editable install, every extra).
+        pip install -e ".[all]"
+    - name: Test with pytest
+      env:
+        # QtWebEngine is unstable headless on the GitHub runners; disabling the
+        # Chromium sandbox/GPU avoids spurious crashes.
+        QTWEBENGINE_DISABLE_SANDBOX: "1"
+        QTWEBENGINE_CHROMIUM_FLAGS: "--no-sandbox --disable-gpu"
+      run: |
+        cd tests
+        pytest -v
+    - name: Package
+      if: matrix.python-version == env.NEWEST_PYTHON
+      run: |
+        # Build the sdist and the wheel separately from the sources: the sdist does not ship the prebuilt binaries,
+        # so a wheel built from it (the default of `python -m build`) would not contain them either.
+        python -m build --sdist --wheel
+    - name: Check the package
+      if: matrix.python-version == env.NEWEST_PYTHON
+      run: |
+        pip install twine "validate-pyproject[all]"
+        validate-pyproject pyproject.toml
+        # Metadata and README rendering, as PyPI checks them.
+        twine check --strict dist/*
+        # Content of the very files to be published: reference files of tests/data/packaging (data files and
+        # binaries of the wheel, metadata, entry points) and rules computed from the files tracked by git.
+        # On a deliberate change, update the reference with `--write` (see docs/local/done/packaging.md, phase 4).
+        python tools/dist_inventory.py --dist dist --check tests/data/packaging
+    - name: Archive Artifacts
+      if: matrix.python-version == env.NEWEST_PYTHON
+      uses: actions/upload-artifact@v6
+      with:
+        name: package
+        path: ${{ github.workspace }}/dist
+        retention-days: 1
+
+  # Native runtime of the container under AddressSanitizer and UndefinedBehaviorSanitizer: the C tests (with the
+  # leak detection), then the integration tests with the instrumented linux64 runtime.
+  sanitizers:
+    needs: [build-native]
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v5
+      with:
+        fetch-depth: 0
+    - uses: actions/download-artifact@v7
+      with:
+        name: remoting-linux64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
+    - uses: actions/download-artifact@v7
+      with:
+        name: container-win64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+    - uses: actions/download-artifact@v7
+      with:
+        name: container-darwin64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
+    # Replaces the linux64 runtime of the package by the instrumented one.
+    - name: Build the instrumented runtime
+      run: |
+        cmake -B ${{ github.workspace }}/build-sanitize -S ${{ github.workspace }}/container \
+              -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFMUTOOL_SANITIZE=ON
+        cmake --build ${{ github.workspace }}/build-sanitize
+    - name: Native tests
+      env:
+        UBSAN_OPTIONS: "print_stacktrace=1"
+      run: ctest --test-dir ${{ github.workspace }}/build-sanitize --output-on-failure
+    - name: Set up Python ${{ env.NEWEST_PYTHON }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ env.NEWEST_PYTHON }}
+        cache: pip
+        cache-dependency-path: pyproject.toml
+    - name: Install libEGL.so.1
+      run: |
+        sudo apt-get install freeglut3-dev
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[all]"
+    - name: Integration tests with the instrumented runtime
+      run: |
+        # Python is not instrumented: the ASan runtime is loaded first; the leaks of the interpreter are not reported.
+        export LD_PRELOAD="$(gcc -print-file-name=libasan.so)"
+        export ASAN_OPTIONS="detect_leaks=0"
+        export UBSAN_OPTIONS="print_stacktrace=1"
+        cd tests
+        pytest -v -m "not gui" integration
+
+  tests-macos:
+    needs: [build-native]
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
+        python-version: ["3.10", "3.14"]
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/download-artifact@v7
+      with:
+        name: container-darwin64
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+        # Reuse the downloaded wheels (PySide6, fmpy...) between runs; the key follows the declared dependencies.
+        cache: pip
+        cache-dependency-path: pyproject.toml
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # The tests use the installed package (editable install, every extra).
+        pip install -e ".[all]"
+    # `windows_only` tests (remoting, container-mt) are skipped automatically by
+    # the conftest hook; the remaining simulations use the darwin64 container
+    # binary downloaded above.
+    - name: Test with pytest
+      env:
+        # QtWebEngine segfaults in QtWebEngineWidgets on the arm64 macOS runners.
+        # The GUI suite is already exercised by the Windows job, so skip it here.
+        QTWEBENGINE_DISABLE_SANDBOX: "1"
+      run: |
+        cd tests
+        pytest -v -m "not gui"
+
+  # Validate the *built wheel* (not the sources): install it into a clean
+  # environment on every OS and check that imports, metadata, entry points and
+  # bundled binaries/data files are all present and working.
+  smoke-wheel:
+    needs: [tests-linux]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+        # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
+        python-version: ["3.10", "3.14"]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/download-artifact@v7
+      with:
+        name: package
+        path: dist
+    - uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install the built wheel
+      shell: bash
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install dist/*.whl
+    - name: Verify import, metadata and bundled resources
+      shell: bash
+      run: |
+        python - <<'PY'
+        import sys
+        from importlib.metadata import version
+        from importlib.resources import files
+        import fmu_manipulation_toolbox  # noqa: F401
+        print("import OK, version", version("fmu_manipulation_toolbox"))
+        res = files("fmu_manipulation_toolbox") / "resources"
+        assert (res / "license.txt").is_file(), "license.txt missing from wheel"
+        binaries = {
+            "linux": ["linux64/container.so", "linux64/client_sm.so"],
+            "win32": ["win64/container.dll", "win64/client_sm.dll"],
+            "darwin": ["darwin64/container.dylib"],
+        }
+        key = "win32" if sys.platform.startswith("win") else ("darwin" if sys.platform == "darwin" else "linux")
+        for rel in binaries[key]:
+            assert (res / rel).is_file(), f"bundled binary missing from wheel: {rel}"
+        print("bundled resources OK for", key)
+        PY
+    - name: Check the version against the tag
+      # Releases only: the published version must be the one of the tag (V1.9.4.2 -> 1.9.4.2).
+      if: github.ref_type == 'tag'
+      shell: bash
+      run: |
+        python -m pip install packaging
+        python - <<'PY'
+        import os
+        from importlib.metadata import version
+        from packaging.version import Version
+        tag = os.environ["GITHUB_REF_NAME"]
+        expected = str(Version(tag.lstrip("vV")))
+        installed = version("fmu_manipulation_toolbox")
+        assert installed == expected, f"installed version {installed} differs from tag {tag} ({expected})"
+        print(f"version {installed} matches tag {tag}")
+        PY
+    - name: Smoke-test CLI entry point
+      run: fmutool -h
+
+
+
+
+
+

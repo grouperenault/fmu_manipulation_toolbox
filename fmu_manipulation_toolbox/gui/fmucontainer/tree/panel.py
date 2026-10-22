@@ -5,14 +5,13 @@ import logging
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QStandardItem
 from PySide6.QtWidgets import QWidget, QTreeView, QVBoxLayout, QSplitter
-from typing import *
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import DetailPanelStack
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem, ConfigurationNode
 from .model import _NodeTreeModel, TreeItemRoles
 from .widget import NodeTreeWidget
 
-tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
+logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
 class NodeTreePanel(QWidget):
@@ -65,11 +64,11 @@ class NodeTreePanel(QWidget):
         return self._detail_panel.container_detail
 
     @property
-    def pending_parent(self) -> Optional[QStandardItem]:
+    def pending_parent(self) -> QStandardItem | None:
         return self._tree_widget.pending_parent
 
     @pending_parent.setter
-    def pending_parent(self, value: Optional[QStandardItem]):
+    def pending_parent(self, value: QStandardItem | None):
         self._tree_widget.pending_parent = value
 
     def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
@@ -83,71 +82,75 @@ class NodeTreePanel(QWidget):
         """Create/activate or deactivate the virtual `ts_multiplier` signal node (GUI-only)."""
         self._tree_widget.set_ts_multiplier(container_item, active, x=x, y=y)
 
+    def refresh_reset_ports(self):
+        """Sync the reset ports of the virtual ConfigurationNode with the `reset_ports` checkboxes (GUI-only)."""
+        self._tree_widget.refresh_reset_ports()
+
+    def refresh_step_sizes(self):
+        """Refresh the (read-only) step size column of the tree."""
+        self._tree_widget.refresh_step_sizes()
+
+    @property
+    def configuration_detail(self):
+        return self._detail_panel.configuration_detail
+
     def _on_scene_selection_changed(self):
         """Scene -> tree: select in tree when node is selected in graph."""
-        tree_logger.debug("Panel: scene selection changed event received")
         try:
             self._detail_panel.sync_edits()
         except RuntimeError:
-            tree_logger.debug("Detail panel sync failed during shutdown")
+            logger.debug("Detail panel sync failed during shutdown")
         self._tree_widget.on_scene_selection_changed()
         try:
             selected = self._graph.scene.selectedItems()
         except RuntimeError:
-            tree_logger.warning("Scene already deleted during selection change")
+            logger.warning("Scene already deleted during selection change")
             self._detail_panel.show_empty()
             return
         if len(selected) > 1:
-            tree_logger.warning(f"Multiple scene selections detected ({len(selected)}), expected max 1")
+            logger.warning(f"Multiple scene selections detected ({len(selected)}), expected max 1")
             return
         if not selected:
-            tree_logger.debug("Scene selection cleared")
             self._detail_panel.show_empty()
             return
         scene_item = selected[0]
         if isinstance(scene_item, ConfigurationNode):
-            tree_logger.debug("Scene selection: ConfigurationNode (ts_multiplier) — no details shown")
-            self._detail_panel.show_empty()
+            self._detail_panel.show_configuration(scene_item)
             return
 
         if isinstance(scene_item, NodeItem):
-            tree_logger.debug(f"Scene selection: Node '{scene_item.title}'")
             self._detail_panel.show_fmu(scene_item)
             return
 
         if isinstance(scene_item, WireItem):
-            tree_logger.debug(f"Scene selection: Wire (between nodes)")
             self._detail_panel.show_wire(scene_item)
             return
-        tree_logger.debug(f"Unknown selection type: {type(scene_item)}")
+        logger.debug(f"Unknown selection type: {type(scene_item)}")
         self._detail_panel.show_empty()
 
     def _on_tree_selection_changed(self, _selected, _deselected):
         """Tree -> scene: select in graph when node is selected in tree."""
-        tree_logger.debug("Panel: tree selection changed event received")
         self._tree_widget.on_tree_selection_changed(_selected, _deselected)
         try:
-            selected_rows = list(self._tree_widget.tree_view.selectionModel().selectedRows(0))
+            selected_rows = self._tree_widget.selected_name_indexes()
         except RuntimeError as e:
-            tree_logger.error(f"Error getting tree selection: {e}")
+            logger.error(f"Error getting tree selection: {e}")
             self._detail_panel.show_empty()
             return
         if len(selected_rows) > 1:
-            tree_logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
+            logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
             return
         if not selected_rows:
-            tree_logger.debug("Tree selection cleared")
             self._detail_panel.show_empty()
             return
         index = selected_rows[0]
         item = self._tree_widget.model.itemFromIndex(index)
         if item is None:
-            tree_logger.error("Tree item is None for selected index")
+            logger.error("Tree item is None for selected index")
             self._detail_panel.show_empty()
             return
         container_parameters = TreeItemRoles.get_container_params(item)
         if container_parameters is not None:
-            tree_logger.debug(f"Tree selection: Container '{container_parameters.name}'")
             self._detail_panel.show_container(container_parameters)
             return
         uid = TreeItemRoles.get_node_uid(item)
@@ -155,42 +158,41 @@ class NodeTreePanel(QWidget):
             try:
                 scene_nodes = self._graph.scene.nodes()
             except RuntimeError as e:
-                tree_logger.error(f"Error getting scene nodes: {e}")
+                logger.error(f"Error getting scene nodes: {e}")
                 return
             for node in scene_nodes:
                 if node.uid == uid:
-                    tree_logger.debug(f"Tree selection: FMU Node '{node.title}'")
                     self._detail_panel.show_fmu(node)
                     return
-        tree_logger.warning(f"Tree item selected but no matching scene node found (uid={uid})")
+        logger.warning(f"Tree item selected but no matching scene node found (uid={uid})")
         self._detail_panel.show_empty()
 
     def _on_container_changed(self, container_parameters):
         """Called when a container item is edited (e.g. renamed)."""
-        tree_logger.debug(f"Container changed event: {container_parameters.name}")
         try:
-            current = self._tree_widget.tree_view.currentIndex()
+            current = self._tree_widget.tree_view.currentIndex().siblingAtColumn(_NodeTreeModel.COLUMN_NAME)
             if current.isValid():
                 item = self._tree_widget.model.itemFromIndex(current)
                 if item and TreeItemRoles.get_container_params(item) is container_parameters:
-                    tree_logger.debug(f"Refreshing detail panel for changed container: {container_parameters.name}")
                     self._detail_panel.show_container(container_parameters)
         except RuntimeError as e:
-            tree_logger.error(f"Error refreshing container detail panel: {e}")
+            logger.error(f"Error refreshing container detail panel: {e}")
 
     def _on_container_detail_changed(self):
         """Called when the container detail panel parameters are edited.
 
-        Keeps the container's `ts_multiplier` port on the (GUI-only)
-        ConfigurationNode in sync with the checkbox state.
+        Keeps the container's `ts_multiplier` port, and the reset ports of its
+        FMUs, on the (GUI-only) ConfigurationNode in sync with the checkboxes,
+        and the step size column with `step_size`.
         """
         try:
-            current = self._tree_widget.tree_view.currentIndex()
+            self._tree_widget.refresh_step_sizes()
+            current = self._tree_widget.tree_view.currentIndex().siblingAtColumn(_NodeTreeModel.COLUMN_NAME)
             if not current.isValid():
                 # Fall back to the actual selection: `currentIndex()` may not
                 # have been updated yet (e.g. right after programmatically
                 # selecting a just-created container item).
-                selected_rows = list(self._tree_widget.tree_view.selectionModel().selectedRows(0))
+                selected_rows = self._tree_widget.selected_name_indexes()
                 if not selected_rows:
                     return
                 current = selected_rows[0]
@@ -202,6 +204,7 @@ class NodeTreePanel(QWidget):
                 return
             active = bool(container_parameters.parameters.get("ts_multiplier", False))
             self._tree_widget.set_ts_multiplier(item, active)
+            self._tree_widget.refresh_reset_ports()
         except RuntimeError as e:
-            tree_logger.error(f"Error syncing ts_multiplier signal node: {e}")
+            logger.error(f"Error syncing ts_multiplier signal node: {e}")
 

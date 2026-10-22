@@ -15,13 +15,13 @@
 ----------------------------------------------------------------------------*/
 
 /* unimplemented fmi2 functions */
-#define __NOT_IMPLEMENTED__                                                         \
-    logger(LOGGER_ERROR, "Function '%s' is not implemented", __func__);             \
+#define __NOT_IMPLEMENTED__                                                                                 \
+    logger_message(&((container_t *)c)->logger, LOGGER_LEVEL_ERROR, "Function '%s' is not implemented", __func__);  \
     return fmi2Error;
 
 #define ASSERT_CONTAINER_STATE(_container, _state)                                  \
     if (_container->state != _state) {                                              \
-    	logger(LOGGER_ERROR, "Must be in state %s to call %s", #_state, __func__);  \
+    	logger_message(&(_container)->logger, LOGGER_LEVEL_ERROR, "Must be in state %s to call %s", #_state, __func__); \
         return fmi2Error;                                                           \
     }
 
@@ -44,11 +44,12 @@ fmi2Status  fmi2SetDebugLogging(fmi2Component c,
     size_t nCategories,
     const fmi2String categories[]) {
 
-    (void)c; /* unused parameter */
+    container_t* container = (container_t*)c;
+
     (void)nCategories; /* unused parameter */
     (void)categories; /* unused parameter */
 
-    logger_set_debug(loggingOn);
+    container->logger.debug = loggingOn;
 
     return fmi2OK;
 }
@@ -61,37 +62,41 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
     const fmi2CallbackFunctions* functions,
     fmi2Boolean visible,
     fmi2Boolean loggingOn) {
-    container_t* container;
-
     (void)visible; /* unused parameter */
 
-    container = container_new(instanceName, fmuGUID);
+    if (!functions)
+        return NULL;
 
-    if (container) {
-        logger_function_t container_logger;
-        container_logger.logger_fmi2 = functions->logger;
-        if (functions->allocateMemory) {
-            container->allocate_memory = functions->allocateMemory;
-            container->free_memory = functions->freeMemory;
-        }
-        logger_init(FMU_2, container_logger, functions->componentEnvironment, container->instance_name, loggingOn); 
-        /* logger() is available starting this point ! */
+    /* NULL on an allocation failure: no logger yet to report it */
+    container_t *container = container_new(instanceName, fmuGUID, 2);
+    if (!container)
+        return NULL;
 
-        if (fmuType != fmi2CoSimulation) {
-            logger(LOGGER_ERROR, "Only CoSimulation mode is supported.");
-            container_free(container);
-            return NULL;
-        } 
-
-        logger(LOGGER_DEBUG, "Container model loading...");
-
-        if (container_configure(container, fmuResourceLocation)) {
-            logger(LOGGER_ERROR, "Cannot read container configuration.");
-            container_free(container);
-            return NULL;
-        }
-        logger(LOGGER_DEBUG, "Container configuration read.");
+    const logger_t *logger = &container->logger;
+    logger_function_t container_logger;
+    container_logger.logger_fmi2 = functions->logger;
+    if (functions->allocateMemory) {
+        container->allocate_memory = functions->allocateMemory;
+        container->free_memory = functions->freeMemory;
     }
+    logger_init(&container->logger, FMU_2, container_logger, functions->componentEnvironment,
+                container->instance_name, loggingOn);
+    /* logging is available starting this point ! */
+
+    if (fmuType != fmi2CoSimulation) {
+        LOGGER_ERROR("Only CoSimulation mode is supported.");
+        container_free(container);
+        return NULL;
+    }
+
+    LOGGER_DEBUG("Container model loading...");
+
+    if (container_configure(container, fmuResourceLocation)) {
+        LOGGER_ERROR("Cannot read container configuration.");
+        container_free(container);
+        return NULL;
+    }
+    LOGGER_DEBUG("Container configuration read.");
 
     container->state = CONTAINER_STATE_INSTANTIATED;
     
@@ -101,8 +106,11 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
 void fmi2FreeInstance(fmi2Component c) {
     container_t* container = (container_t*)c;
+    if (!container)
+        return;     /* FMI-2.0: the call is ignored */
+    const logger_t *logger = &container->logger;
 
-    logger(LOGGER_DEBUG, "Container instance '%s' release", container->instance_name);
+    LOGGER_DEBUG("Container instance '%s' release", container->instance_name);
     container_free(container);
 
     return;
@@ -167,8 +175,14 @@ fmi2Status fmi2Terminate(fmi2Component c) {
 
 
 fmi2Status fmi2Reset(fmi2Component c) {
-    (void)c;
-    __NOT_IMPLEMENTED__
+    container_t* container = (container_t*)c;
+
+    if (container_reset(container) != FMU_STATUS_OK)
+        return fmi2Error;
+
+    container->state = CONTAINER_STATE_INSTANTIATED;
+
+    return fmi2OK;
 }
 
 
@@ -176,6 +190,7 @@ fmi2Status fmi2Reset(fmi2Component c) {
 #define FMI_GETTER(type, fmi_type, function_name)                                                                       \
 fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2 ## fmi_type value[]) { \
     container_t* container = (container_t*)c;                                                                           \
+    const logger_t *logger = &container->logger;                                                                        \
                                                                                                                         \
     for (size_t i = 0; i < nvr; i += 1) {                                                                               \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                     \
@@ -185,7 +200,7 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                                                                                                                         \
         if (fmu_id < 0) {                                                                                               \
             if (fmu_vr >= container->nb_local_ ## type) {                                                               \
-                logger(LOGGER_ERROR, "Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);    \
+                LOGGER_ERROR("Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);            \
                 return fmi2Error;                                                                                       \
             }                                                                                                           \
             value[i] = container-> type [fmu_vr];                                                                       \
@@ -194,7 +209,7 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                                                                                                                         \
             fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[i], 1);                                        \
             if (status != FMU_STATUS_OK) {                                                                              \
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed to get " #fmi_type " vr=%d.", fmu->name, fmu_vr);      \
+                LOGGER_ERROR("Container: FMU '%s' failed to get " #fmi_type " vr=%d.", fmu->name, fmu_vr);              \
                 return fmi2Error;                                                                                       \
             }                                                                                                           \
         }                                                                                                               \
@@ -213,17 +228,22 @@ FMI_GETTER(strings,     String,     fmuGetString)
 #define FMI_SETTER(type, fmi_type, function_name)                                                                               \
 fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2 ## fmi_type value[]) {   \
     container_t* container = (container_t*)c;                                                                                   \
+    const logger_t *logger = &container->logger;                                                                                \
                                                                                                                                 \
     for (size_t i = 0; i < nvr; i += 1) {                                                                                       \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                             \
-        const container_port_t *port = &container->port_ ##type [local_vr];                                                     \
+        container_port_t *port = &container->port_ ##type [local_vr];                                                           \
         for(unsigned long j = 0; j < port->nb; j += 1) {                                                                        \
+            if (container->step_pending) {      /* a step of the container is pending: applied after it */                      \
+                port->deferred = true;                                                                                          \
+                break;                                                                                                          \
+            }                                                                                                                   \
             const int fmu_id = port->links[j].fmu_id;                                                                           \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                                      \
                                                                                                                                 \
             if (fmu_id < 0) {                                                                                                   \
                 if (fmu_vr >= container->nb_local_ ## type) {                                                                   \
-                    logger(LOGGER_ERROR, "Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);        \
+                    LOGGER_ERROR("Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);                \
                     return fmi2Error;                                                                                           \
                 }                                                                                                               \
                 container-> type [fmu_vr] = value[i];                                                                           \
@@ -232,11 +252,13 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                                                                                                                                 \
                 fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[i], 1);                                            \
                 if (status != FMU_STATUS_OK) {                                                                                  \
-                    logger(LOGGER_ERROR, "Container: FMU '%s' failed to set " #fmi_type " vr=%d.", fmu->name, fmu_vr);          \
+                    LOGGER_ERROR("Container: FMU '%s' failed to set " #fmi_type " vr=%d.", fmu->name, fmu_vr);                  \
                     return fmi2Error;                                                                                           \
                 }                                                                                                               \
             }                                                                                                                   \
         }                                                                                                                       \
+        if (container_cache_ ## type(container, port, &value[i], 1) < 0)                                                        \
+            return fmi2Error;                                                                                                   \
     }                                                                                                                           \
                                                                                                                                 \
     return fmi2OK;                                                                                                              \
@@ -249,11 +271,16 @@ FMI_SETTER(booleans,    Boolean,    fmuSetBoolean)
 
 fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[]) {
     container_t* container = (container_t*)c;
+    const logger_t *logger = &container->logger;
  
     for(size_t i = 0; i < nvr; i += 1) {
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
-        const container_port_t* port = &container->port_strings[local_vr];
+        container_port_t* port = &container->port_strings[local_vr];
         for(unsigned long j = 0; j < port->nb; j += 1) {
+            if (container->step_pending) {      /* a step of the container is pending: applied after it */
+                port->deferred = true;
+                break;
+            }
             const int fmu_id = port->links[j].fmu_id;
 
             if (fmu_id < 0) {
@@ -265,11 +292,13 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
                 
                 fmu_status_t status = fmuSetString(fmu, &fmu_vr, 1, &value[i], 1);
                 if (status != FMU_STATUS_OK) {
-                    logger(LOGGER_ERROR, "Container: FMU '%s' failed to set string vr=%d.", fmu->name, fmu_vr);
+                    LOGGER_ERROR("Container: FMU '%s' failed to set string vr=%d.", fmu->name, fmu_vr);
                     return fmi2Error;
                 }
             }
         }
+        if (container_cache_strings(container, port, &value[i], 1) < 0)
+            return fmi2Error;
     }
     return fmi2OK;
 }
@@ -488,6 +517,100 @@ fmi2Status fmi2GetStringStatus(fmi2Component c, const fmi2StatusKind s, fmi2Stri
     (void)c; /* unused parameter */
     (void)s; /* unused parameter */
     (void)value; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+/*----------------------------------------------------------------------------
+        F M I 2   F U N C T I O N S   ( M O D E L   E X C H A N G E )
+----------------------------------------------------------------------------*/
+
+/* The container only exposes a Co-Simulation interface. */
+
+fmi2Status fmi2EnterEventMode(fmi2Component c) {
+    (void)c; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2NewDiscreteStates(fmi2Component c, fmi2EventInfo* fmi2eventInfo) {
+    (void)c; /* unused parameter */
+    (void)fmi2eventInfo; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2EnterContinuousTimeMode(fmi2Component c) {
+    (void)c; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2CompletedIntegratorStep(fmi2Component c,
+    fmi2Boolean noSetFMUStatePriorToCurrentPoint,
+    fmi2Boolean* enterEventMode,
+    fmi2Boolean* terminateSimulation) {
+    (void)c; /* unused parameter */
+    (void)noSetFMUStatePriorToCurrentPoint; /* unused parameter */
+    (void)enterEventMode; /* unused parameter */
+    (void)terminateSimulation; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2SetTime(fmi2Component c, fmi2Real time) {
+    (void)c; /* unused parameter */
+    (void)time; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2SetContinuousStates(fmi2Component c, const fmi2Real x[], size_t nx) {
+    (void)c; /* unused parameter */
+    (void)x; /* unused parameter */
+    (void)nx; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2GetDerivatives(fmi2Component c, fmi2Real derivatives[], size_t nx) {
+    (void)c; /* unused parameter */
+    (void)derivatives; /* unused parameter */
+    (void)nx; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2GetEventIndicators(fmi2Component c, fmi2Real eventIndicators[], size_t ni) {
+    (void)c; /* unused parameter */
+    (void)eventIndicators; /* unused parameter */
+    (void)ni; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2GetContinuousStates(fmi2Component c, fmi2Real x[], size_t nx) {
+    (void)c; /* unused parameter */
+    (void)x; /* unused parameter */
+    (void)nx; /* unused parameter */
+
+    __NOT_IMPLEMENTED__
+}
+
+
+fmi2Status fmi2GetNominalsOfContinuousStates(fmi2Component c, fmi2Real x_nominal[], size_t nx) {
+    (void)c; /* unused parameter */
+    (void)x_nominal; /* unused parameter */
+    (void)nx; /* unused parameter */
 
     __NOT_IMPLEMENTED__
 }

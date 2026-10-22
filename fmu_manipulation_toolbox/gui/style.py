@@ -72,7 +72,7 @@ _COMMON_STYLE = """
         background-color: #b5bab9
     }}
     QLabel.title {{
-        font: 14pt bold "Verdana";
+        font: bold 14pt "Verdana";
     }}
     QLabel.dropped_fmu:hover {{
         background-color: #c6cbca
@@ -161,6 +161,9 @@ _COMMON_STYLE = """
     }}
     QTabBar::tab:top:first, QTabBar::tab:bottom:first {{
         margin-left: 0;
+    }}
+    QTabWidget.equal_tabs QTabBar::tab {{
+        min-width: 120px;
     }}
     QLabel.caption {{
         color: #888888;
@@ -256,6 +259,18 @@ _COMMON_STYLE = """
     QListWidget#PortListView::item:alternate {{
         background-color: #35353d;
     }}
+    QLineEdit[invalid="true"] {{
+        border: 1px solid #F54927;
+    }}
+    QLabel.status_ok {{
+        color: #7fbf6a;
+    }}
+    QLabel.status_warning {{
+        color: #F7C61B;
+    }}
+    QLabel.status_error {{
+        color: #F54927;
+    }}
 """
 
 # ─── Build final stylesheet with OS-specific values ───
@@ -306,6 +321,14 @@ log_color = {
     "WARNING": "#F7C61B",
     "ERROR": "#F54927",
     "CRITICAL": "#FF00FF",
+}
+
+# ─── Link assistant ───
+# Colors of the statuses of a link (same as the labels `QLabel.status_*` above, and as `log_color`).
+status_color = {
+    "OK": "#7fbf6a",
+    "WARNING": log_color["WARNING"],
+    "ERROR": log_color["ERROR"],
 }
 
 

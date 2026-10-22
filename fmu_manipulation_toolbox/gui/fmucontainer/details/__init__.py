@@ -5,6 +5,7 @@ Re-exports all public classes so existing imports continue to work:
 """
 
 from .container_detail import ContainerParameters, ContainerDetailWidget
+from .configuration_detail import ConfigurationDetailWidget
 from .fmu_detail import FMUDetailWidget
 from .wire_detail import WireDetailWidget
 from .stack import DetailPanelStack
@@ -12,6 +13,7 @@ from .stack import DetailPanelStack
 __all__ = [
     "ContainerParameters",
     "ContainerDetailWidget",
+    "ConfigurationDetailWidget",
     "FMUDetailWidget",
     "WireDetailWidget",
     "DetailPanelStack",

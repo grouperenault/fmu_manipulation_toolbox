@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<fmiModelDescription
+  fmiVersion="2.0"
+  modelName="bouncing-profiling"
+  generationTool="FMUContainer-0.0.dev0"
+  generationDateAndTime="2026-01-01T10:51:23Z"
+  guid="927db609-ac72-4b29-a648-19ec705e9a66"
+  description="FMUContainer with bb_position.fmu, bb_velocity.fmu"
+  author="nl"
+  license="Proprietary"
+  copyright="See Embedded FMU's copyrights."
+  variableNamingConvention="structured">
+
+  <CoSimulation
+    modelIdentifier="bouncing-profiling"
+    canHandleVariableCommunicationStepSize="true"
+    canBeInstantiatedOnlyOncePerProcess="true"
+    canNotUseMemoryManagementFunctions="true"
+    canGetAndSetFMUstate="false"
+    canSerializeFMUstate="false"
+    providesDirectionalDerivative="false"
+    needsExecutionTool="false">
+  </CoSimulation>
+
+  <LogCategories>
+    <Category name="Info"
+              description="Info log messages." />
+    <Category name="Error"
+              description="Error log messages." />
+  </LogCategories>
+
+  <DefaultExperiment stepSize="0.001" startTime="0.0" stopTime="10.0"/>
+
+  <ModelVariables>
+    <ScalarVariable valueReference="0" name="time" causality="independent"><Real /></ScalarVariable>
+    <ScalarVariable name="container.bb_position.rt_ratio" valueReference="1" causality="local" variability="continuous" description="RT ratio for embedded FMU 'bb_position.fmu'"><Real /></ScalarVariable>
+    <ScalarVariable name="container.bb_velocity.rt_ratio" valueReference="2" causality="local" variability="continuous" description="RT ratio for embedded FMU 'bb_velocity.fmu'"><Real /></ScalarVariable>
+    <ScalarVariable name="bb_position.is_ground" valueReference="167772160" causality="local" variability="discrete" initial="calculated" description="is_ground"><Boolean /></ScalarVariable>
+    <ScalarVariable name="bb_velocity.velocity" valueReference="3" causality="local" variability="continuous" initial="calculated" description="velocity"><Real /></ScalarVariable>
+    <ScalarVariable name="position" valueReference="4" causality="output" variability="continuous" initial="calculated" description="position1"><Real /></ScalarVariable>
+    <ScalarVariable name="velocity" valueReference="5" causality="output" variability="continuous" initial="calculated" description="velocity"><Real /></ScalarVariable>
+  </ModelVariables>
+
+  <ModelStructure>
+    <Outputs>
+      <Unknown index="6"/>
+      <Unknown index="7"/>
+    </Outputs>
+    <InitialUnknowns>
+      <Unknown index="6"/>
+      <Unknown index="7"/>
+    </InitialUnknowns>
+  </ModelStructure>
+
+</fmiModelDescription>

@@ -7,59 +7,40 @@
 #include "logger.h"
 
 /*
- * logger facilities conforming to FMI-2.0 and 3.0 specifications.
+ * logger facilities conforming to FMI-2.0 and 3.0 specifications. Each instance of the container has its own
+ * logger (container_t.logger).
  */
 
- static struct {
-    fmu_version_t       version;
-    logger_function_t   callback;
-    void                *environment;
-    const char          *instance_name;
-    int                 debug;
-} logger_config = { 0, {NULL}, NULL, NULL, 0};
-
-
-void logger_init(fmu_version_t  version, logger_function_t callback, void *environment, const char *instance_name, int debug) {
-    logger_config.version = version;
-    logger_config.callback = callback;
-    logger_config.environment = environment;
-    logger_config.instance_name = instance_name;
-    logger_config.debug = debug;
+void logger_init(logger_t *logger, fmu_version_t version, logger_function_t callback, void *environment,
+                 const char *instance_name, int debug) {
+    logger->version = version;
+    logger->callback = callback;
+    logger->environment = environment;
+    logger->instance_name = instance_name;
+    logger->debug = debug;
 
     return;
 }
 
 
-void logger_set_debug(int debug)  {
-    logger_config.debug = debug;
-
-    return;
-}
-
-
-int logger_get_debug(void) {
-    return logger_config.debug;
-}
-
-
-static void logger_log(int status, const char *message) {
+static void logger_log(const logger_t *logger, int level, const char *message) {
 	const char* category = "Error";
-	if (status == LOGGER_DEBUG)
+	if (level == LOGGER_LEVEL_DEBUG)
 		category = "Info";
 	
-    switch(logger_config.version) {
+    switch(logger->version) {
     case FMU_2:
-        logger_config.callback.logger_fmi2(logger_config.environment,
-                                           logger_config.instance_name,
-                                           status, category, "%s", message);
+        if (logger->callback.logger_fmi2)
+            logger->callback.logger_fmi2(logger->environment, logger->instance_name, level, category, "%s",
+                                         message);
         break;
 
     case FMU_3:
-        logger_config.callback.logger_fmi3(logger_config.environment,
-                                           status, category, message);
+        if (logger->callback.logger_fmi3)
+            logger->callback.logger_fmi3(logger->environment, level, category, message);
         break;
 
-    default: /* Normally never reached. */
+    default: /* not initialized yet (native tests) */
         printf("%s\n", message);
     }
 
@@ -67,15 +48,15 @@ static void logger_log(int status, const char *message) {
 }
 
 
-void logger(int status, const char *message, ...) {
-    if ((status != LOGGER_DEBUG) || (logger_config.debug)) {
+void logger_message(const logger_t *logger, int level, const char *message, ...) {
+    if (logger && ((level != LOGGER_LEVEL_DEBUG) || (logger->debug))) {
         va_list ap;
         va_start(ap, message);
         char buffer[4096];
 
         vsnprintf(buffer, sizeof(buffer), message, ap);
         va_end(ap);
-        logger_log(status, buffer);                
+        logger_log(logger, level, buffer);
     }
 
     return;
@@ -83,14 +64,15 @@ void logger(int status, const char *message, ...) {
 
 
 /*
- * These two funcions are given to loaded FMU's to use common logger
+ * These two funcions are given to loaded FMU's to use the logger of their container
  */
 void logger_embedded_fmu2(void *fmu, fmi2String instanceName, fmi2Status status,
                           fmi2String category, fmi2String message, ...) {
     (void)instanceName; /* unused parameter */
     (void)category; /* unused parameter */
+    const logger_t *logger = &((fmu_t *)fmu)->container->logger;
 
-    if ((status != 0) || (logger_config.debug)) {
+    if ((status != 0) || (logger->debug)) {
         char buffer[4096];
         va_list ap;
         va_start(ap, message);
@@ -98,7 +80,7 @@ void logger_embedded_fmu2(void *fmu, fmi2String instanceName, fmi2Status status,
         vsnprintf(buffer+strlen(buffer), sizeof(buffer)-strlen(buffer), message, ap);
         va_end(ap);
 
-        logger_log(status, buffer);
+        logger_log(logger, status, buffer);
     }
     return;
 }
@@ -106,12 +88,13 @@ void logger_embedded_fmu2(void *fmu, fmi2String instanceName, fmi2Status status,
 
 void logger_embedded_fmu3(void * fmu, fmi3Status status, fmi3String category, fmi3String message) {
     (void)category; /* unused parameter */
-    
-    if ((status != 0) || (logger_config.debug)) {
+    const logger_t *logger = &((fmu_t *)fmu)->container->logger;
+
+    if ((status != 0) || (logger->debug)) {
         char buffer[4096];
         snprintf(buffer, sizeof(buffer), "%s: %s", ((fmu_t *)fmu)->name, message);
 
-        logger_log(status, buffer);
+        logger_log(logger, status, buffer);
     }
     return;
 }

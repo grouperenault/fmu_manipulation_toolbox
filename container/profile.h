@@ -26,7 +26,8 @@ typedef struct {
                             P R O T O T Y P E S
 ----------------------------------------------------------------------------*/
 
-extern profile_t *profile_new(void);
+struct logger_s;
+extern profile_t *profile_new(const struct logger_s *logger);
 extern void profile_free(profile_t *profile);
 extern void profile_tic(profile_t *profile);
 extern double profile_toc(profile_t *profile, double current_time);

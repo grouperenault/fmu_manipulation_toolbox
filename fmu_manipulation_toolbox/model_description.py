@@ -1,0 +1,492 @@
+"""In-memory model of `modelDescription.xml`, based on ElementTree.
+
+It replaces the hand-written expat/print rewriting of `modelDescription.xml`. It loads the
+descriptor into an ElementTree, gives access to its variables and model
+structure, and writes it back. Operations modify the tree **in place**, so
+everything they do not touch (annotations, aliases, comments, namespaces,
+type definitions, ...) is preserved, and escaping is done by the serializer.
+
+Conformity with FMI 2.0.5 and FMI 3.0.2 (fmi-standard.org):
+
+- The file is written in UTF-8 and starts with the XML declaration, as required
+  by both standards (FMI-2 §2.2, FMI-3 §2.4: "The first line of an XML file
+  [...] must contain the encoding scheme [...] always UTF-8").
+- Element order is preserved: it is significant for both standards (e.g. the
+  order of `<ScalarVariable>` defines the FMI-2 `index`, the order of
+  `<ContinuousStateDerivative>` defines the FMI-3 state vector).
+- FMI-2 type definitions (`<TypeDefinitions><SimpleType><Real/>`) share their
+  tag names with variable types; only children of `<ModelVariables>` are
+  considered as variables.
+
+This module has no dependency on the rest of the package.
+"""
+import logging
+import xml.etree.ElementTree as ET
+from io import BytesIO
+from pathlib import Path
+from typing import IO
+from collections.abc import Iterator, MutableMapping
+
+logger = logging.getLogger("fmu_manipulation_toolbox")
+
+__all__ = ["ModelDescription", "ModelDescriptionError", "ModelVariable", "PrefixedAttributes"]
+
+PathOrBytes = str | Path | bytes
+
+XML_DECLARATION = b'<?xml version="1.0" encoding="UTF-8"?>\n'
+
+
+class ModelDescriptionError(Exception):
+    """Raised when a `modelDescription.xml` cannot be loaded or is not an FMI 2.0/3.0 descriptor."""
+
+
+class _TreeBuilder(ET.TreeBuilder):
+    """`TreeBuilder` that also keeps what ElementTree drops by default.
+
+    - namespace prefixes, to write vendor annotations back with their own
+      prefixes instead of `ns0:`;
+    - comments and processing instructions located before or after the root
+      element (`TreeBuilder` only inserts those found inside the root).
+    """
+
+    def __init__(self):
+        super().__init__(insert_comments=True, insert_pis=True)
+        self.namespaces: list[tuple[str, str]] = []
+        self.prolog: list[ET.Element] = []
+        self.epilog: list[ET.Element] = []
+        self._depth = 0
+        self._root_seen = False
+
+    def start_ns(self, prefix: str, uri: str):
+        self.namespaces.append((prefix, uri))
+
+    def start(self, tag, attrs):
+        self._depth += 1
+        self._root_seen = True
+        return super().start(tag, attrs)
+
+    def end(self, tag):
+        self._depth -= 1
+        return super().end(tag)
+
+    def comment(self, text):
+        if self._depth:
+            return super().comment(text)
+        self._outside_root().append(ET.Comment(text))
+
+    def pi(self, target, text=None):
+        if self._depth:
+            return super().pi(target, text)
+        self._outside_root().append(ET.ProcessingInstruction(target, text))
+
+    def _outside_root(self) -> list[ET.Element]:
+        return self.epilog if self._root_seen else self.prolog
+
+
+class _StartValue(MutableMapping):
+    """FMI-3 `<Start value="..."/>` element seen as the `{"start": value}` mapping.
+
+    `ModelVariable` exposes the start values of `String`/`Binary` variables as an
+    extra attribute level holding the key `start`; this proxy keeps that view
+    while reading from and writing to the `<Start>` element itself.
+    """
+
+    KEY = "start"
+
+    def __init__(self, element: ET.Element):
+        self.element = element
+
+    def __getitem__(self, key):
+        if key != self.KEY:
+            raise KeyError(key)
+        return self.element.get("value", "")
+
+    def __setitem__(self, key, value):
+        if key != self.KEY:
+            raise KeyError(key)
+        self.element.set("value", value)
+
+    def __delitem__(self, key):
+        if key != self.KEY:
+            raise KeyError(key)
+        self.element.attrib.pop("value", None)
+
+    def __iter__(self):
+        return iter((self.KEY,))
+
+    def __len__(self):
+        return 1
+
+
+class PrefixedAttributes(MutableMapping):
+    """Attributes of an element, with namespaced names written `prefix:name`.
+
+    ElementTree names a namespaced attribute `{uri}name`. Callbacks written for
+    the former expat implementation expect the name found in the file, e.g.
+    `xsi:noNamespaceSchemaLocation`; this view translates names both ways and
+    reads from / writes to the element's `attrib`.
+    """
+
+    def __init__(self, attrib: dict[str, str], namespaces: list[tuple[str, str]]):
+        self.attrib = attrib
+        self._prefixes = {uri: prefix for prefix, uri in namespaces if prefix}
+        self._uris = {prefix: uri for prefix, uri in namespaces if prefix}
+
+    def _prefixed(self, key: str) -> str:
+        if key.startswith("{"):
+            uri, name = key[1:].split("}", 1)
+            if uri in self._prefixes:
+                return f"{self._prefixes[uri]}:{name}"
+        return key
+
+    def _qualified(self, key: str) -> str:
+        prefix, separator, name = key.partition(":")
+        if separator and prefix in self._uris:
+            return f"{{{self._uris[prefix]}}}{name}"
+        return key
+
+    def __getitem__(self, key):
+        return self.attrib[self._qualified(key)]
+
+    def __setitem__(self, key, value):
+        self.attrib[self._qualified(key)] = value
+
+    def __delitem__(self, key):
+        del self.attrib[self._qualified(key)]
+
+    def __iter__(self):
+        return (self._prefixed(key) for key in list(self.attrib))
+
+    def __len__(self):
+        return len(self.attrib)
+
+    def __repr__(self):
+        return repr(dict(self.items()))
+
+
+class ModelVariable:
+    """View on one variable of `<ModelVariables>`.
+
+    This is the object given to
+    [OperationAbstract.port_attrs][fmu_manipulation_toolbox.operations.OperationAbstract.port_attrs]
+    for each variable. It gives dict-like access to the attributes of every
+    level (`[]`, `get()`, `in`): for FMI 2.0, the `<ScalarVariable>` attributes
+    and those of its type element (e.g. `<Real>`); for FMI 3.0, the attributes
+    of the variable element and the values of its `<Start>` elements (`String`
+    and `Binary` variables), under the key `start`. It reads and writes the tree
+    directly: `attrs_list` holds the `attrib` dictionaries of the underlying
+    elements, so a change made through this view is a change of the document.
+
+    Attributes:
+        element (ET.Element): `<ScalarVariable>` (FMI-2) or the typed variable
+            element, e.g. `<Float64>` (FMI-3).
+        fmi_version (int): `2` or `3`.
+    """
+
+    def __init__(self, element: ET.Element, fmi_version: int):
+        self.element = element
+        self.fmi_version = fmi_version
+
+    @property
+    def typed_element(self) -> ET.Element | None:
+        """Element carrying the type: the child `<Real>`, `<Integer>`... (FMI-2) or the variable itself (FMI-3)."""
+        if self.fmi_version == 3:
+            return self.element
+        for child in self.element:
+            if child.tag in ModelDescription.FMI2_VARIABLE_TYPES:
+                return child
+        return None
+
+    @property
+    def fmi_type(self) -> str | None:
+        typed = self.typed_element
+        return typed.tag if typed is not None else None
+
+    @fmi_type.setter
+    def fmi_type(self, fmi_type: str):
+        typed = self.typed_element
+        if typed is None:
+            raise ModelDescriptionError(f"Variable '{self.element.get('name')}' has no type element")
+        typed.tag = fmi_type
+
+    @property
+    def attrs_list(self) -> list[MutableMapping[str, str]]:
+        """Attribute dictionaries, outermost element first.
+
+        FMI-2: `[<ScalarVariable> attributes, <Real>/<Integer>/... attributes]`.
+        FMI-3: `[<Float64>/... attributes]`, followed by one `{"start": value}`
+        mapping per `<Start>` element (`String` and `Binary` variables).
+        """
+        if self.fmi_version == 2:
+            typed = self.typed_element
+            return [self.element.attrib] + ([typed.attrib] if typed is not None else [])
+        return [self.element.attrib] + [_StartValue(start) for start in self.element.findall("Start")]
+
+    @property
+    def dimensions(self) -> list[tuple[str, int]]:
+        """FMI-3 `<Dimension>` elements as `("start", size)` or `("valueReference", vr)`.
+
+        A single dimension of size 1 is reported as a scalar (`[]`).
+        """
+        if self.fmi_version == 2:
+            return []
+        dimensions = [(key, int(value))
+                      for dimension in self.element.findall("Dimension")
+                      for key, value in dimension.attrib.items()]
+        return [] if dimensions == [("start", 1)] else dimensions
+
+    def __contains__(self, item) -> bool:
+        return any(item in attrs for attrs in self.attrs_list)
+
+    def __getitem__(self, item) -> str:
+        for attrs in self.attrs_list:
+            if item in attrs:
+                return attrs[item]
+        raise KeyError(item)
+
+    def __setitem__(self, key, value):
+        """Change an existing attribute. Raises `KeyError` if no level holds `key`: attributes are not created."""
+        for attrs in self.attrs_list:
+            if key in attrs:
+                attrs[key] = value
+                return
+        raise KeyError(key)
+
+    def get(self, item, default_value=None):
+        try:
+            return self[item]
+        except KeyError:
+            return default_value
+
+    def __repr__(self):
+        return f"<ModelVariable {self.fmi_type} '{self.element.get('name')}'>"
+
+
+class ModelDescription:
+    """`modelDescription.xml` loaded as an ElementTree.
+
+    Attributes:
+        root (ET.Element): The `<fmiModelDescription>` element.
+        fmi_version (int): Major FMI version, `2` or `3`.
+        namespaces (list[tuple[str, str]]): `(prefix, uri)` declarations found
+            in the document, restored when saving.
+        prolog (list[ET.Element]): Comments and processing instructions before
+            the root element.
+        epilog (list[ET.Element]): Comments and processing instructions after
+            the root element.
+    """
+
+    FMI2_VARIABLE_TYPES = ("Real", "Integer", "Boolean", "String", "Enumeration")
+    FMI3_VARIABLE_TYPES = ("Float32", "Float64",
+                           "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64",
+                           "Boolean", "String", "Binary", "Enumeration", "Clock")
+    INTERFACE_TYPES = ("ModelExchange", "CoSimulation", "ScheduledExecution")  # ScheduledExecution: FMI-3 only
+    FMI2_STRUCTURE_SECTIONS = ("Outputs", "Derivatives", "InitialUnknowns")
+    FMI3_STRUCTURE_ELEMENTS = ("Output", "ContinuousStateDerivative", "ClockedState", "InitialUnknown",
+                               "EventIndicator")
+
+    def __init__(self, root: ET.Element, namespaces=(), prolog=(), epilog=()):
+        if root.tag != "fmiModelDescription":
+            raise ModelDescriptionError(f"Root element is <{root.tag}>, expected <fmiModelDescription>")
+        self.root = root
+        self.namespaces: list[tuple[str, str]] = list(namespaces)
+        self.prolog: list[ET.Element] = list(prolog)
+        self.epilog: list[ET.Element] = list(epilog)
+        self.fmi_version = self._major_version(root.get("fmiVersion"))
+        self._parents: dict[ET.Element, ET.Element] = {}
+
+    @staticmethod
+    def _major_version(fmi_version: str | None) -> int:
+        try:
+            major = int(fmi_version.split(".", 1)[0])
+        except (AttributeError, ValueError):
+            raise ModelDescriptionError(f"Invalid fmiVersion '{fmi_version}'")
+        if major not in (2, 3):
+            raise ModelDescriptionError(f"Unsupported fmiVersion '{fmi_version}': expected FMI 2.0 or 3.0")
+        return major
+
+    # ------------------------------------------------------------------ I/O
+    @classmethod
+    def load(cls, source: PathOrBytes) -> "ModelDescription":
+        """Parse a descriptor from a file path or from its raw bytes.
+
+        Raises:
+            ModelDescriptionError: If the document is not well-formed or is not
+                an FMI 2.0/3.0 model description.
+        """
+        builder = _TreeBuilder()
+        parser = ET.XMLParser(target=builder)
+        try:
+            if isinstance(source, bytes):
+                parser.feed(source)
+            else:
+                with open(source, "rb") as file:
+                    for chunk in iter(lambda: file.read(1 << 16), b""):
+                        parser.feed(chunk)
+            root = parser.close()
+        except ET.ParseError as error:
+            raise ModelDescriptionError(f"'{source if not isinstance(source, bytes) else '<bytes>'}' "
+                                        f"is not well-formed XML: {error}") from error
+        return cls(root, builder.namespaces, builder.prolog, builder.epilog)
+
+    def save(self, destination: str | Path | IO[bytes]) -> None:
+        """Write the descriptor in UTF-8, with the XML declaration on the first line."""
+        if isinstance(destination, (str, Path)):
+            with open(destination, "wb") as file:
+                self._write(file)
+        else:
+            self._write(destination)
+
+    def to_bytes(self) -> bytes:
+        buffer = BytesIO()
+        self._write(buffer)
+        return buffer.getvalue()
+
+    def _write(self, file: IO[bytes]) -> None:
+        self._register_namespaces()
+        file.write(XML_DECLARATION)
+        for node in self.prolog:
+            file.write(ET.tostring(node, encoding="utf-8") + b"\n")
+        ET.ElementTree(self.root).write(file, encoding="utf-8", xml_declaration=False, short_empty_elements=True)
+        for node in self.epilog:
+            file.write(b"\n" + ET.tostring(node, encoding="utf-8"))
+        file.write(b"\n")
+
+    def _register_namespaces(self) -> None:
+        # ElementTree only knows a global prefix registry: (re-)register just
+        # before writing so that another document cannot steal a prefix.
+        for prefix, uri in self.namespaces:
+            if prefix:  # a default namespace cannot be registered: ElementTree writes it with a generated prefix
+                try:
+                    ET.register_namespace(prefix, uri)
+                except ValueError:  # reserved "ns<digits>" prefixes
+                    pass
+
+    # ------------------------------------------------------------ Structure
+    @property
+    def variable_types(self) -> tuple[str, ...]:
+        return self.FMI2_VARIABLE_TYPES if self.fmi_version == 2 else self.FMI3_VARIABLE_TYPES
+
+    @property
+    def model_variables(self) -> ET.Element:
+        model_variables = self.root.find("ModelVariables")
+        if model_variables is None:
+            raise ModelDescriptionError("<ModelVariables> is missing")
+        return model_variables
+
+    @property
+    def model_structure(self) -> ET.Element | None:
+        return self.root.find("ModelStructure")
+
+    @property
+    def default_experiment(self) -> ET.Element | None:
+        return self.root.find("DefaultExperiment")
+
+    @property
+    def interfaces(self) -> dict[str, ET.Element]:
+        """Interface type elements present in the document, e.g. `{"CoSimulation": <element>}`."""
+        return {child.tag: child for child in self.root if child.tag in self.INTERFACE_TYPES}
+
+    def variables(self) -> list[ET.Element]:
+        """Variable elements, in document order (comments excluded).
+
+        For FMI-2, the position in this list plus one is the `index` used by
+        `<ModelStructure>` and by the `derivative` attribute.
+        """
+        tags = ("ScalarVariable",) if self.fmi_version == 2 else self.FMI3_VARIABLE_TYPES
+        return [element for element in self.model_variables if element.tag in tags]
+
+    def iter_ports(self) -> Iterator[ModelVariable]:
+        """Views on the variables, in document order."""
+        for element in self.variables():
+            yield ModelVariable(element, self.fmi_version)
+
+    def model_structure_entries(self) -> list[tuple[str, ET.Element]]:
+        """Entries of `<ModelStructure>` as `(section, element)`, in document order.
+
+        FMI-2: `section` is the enclosing list (`"Outputs"`, `"Derivatives"`,
+        `"InitialUnknowns"`) and `element` an `<Unknown>` (1-based `index`).
+        FMI-3: `section` is the tag of the entry itself (`"Output"`,
+        `"ContinuousStateDerivative"`, ...) which refers to a `valueReference`.
+        This is the convention of `OperationAbstract.model_structure_attrs`.
+        """
+        structure = self.model_structure
+        if structure is None:
+            return []
+        if self.fmi_version == 2:
+            return [(section.tag, unknown)
+                    for section in structure if section.tag in self.FMI2_STRUCTURE_SECTIONS
+                    for unknown in section if unknown.tag == "Unknown"]
+        return [(entry.tag, entry) for entry in structure if entry.tag in self.FMI3_STRUCTURE_ELEMENTS]
+
+    def attributes(self, element: ET.Element) -> PrefixedAttributes:
+        """Attributes of `element`, namespaced ones named `prefix:name` as in the file."""
+        return PrefixedAttributes(element.attrib, self.namespaces)
+
+    def model_exchange_sizes(self, label: str = "") -> tuple[int, int]:
+        """Number of continuous states (`nx`) and of event indicators (`nz`).
+
+        - FMI 2.0: `nx` is the number of `<Unknown>` entries of `<Derivatives>`
+          (FMI-2 variables are scalar), `nz` the `numberOfEventIndicators`
+          attribute of `<fmiModelDescription>`.
+        - FMI 3.0: `nx` and `nz` count the elements of the variables listed by
+          `<ContinuousStateDerivative>` and `<EventIndicator>`: an array counts
+          for its number of elements, its dimensions being given by
+          `<Dimension start>` or by the start value of a structural parameter.
+
+        An FMI 3.0 entry whose size cannot be resolved counts for one element,
+        with a warning.
+
+        Args:
+            label (str): Name of the FMU, used in the warnings.
+
+        Returns:
+            tuple[int, int]: `(nx, nz)`.
+        """
+        entries = self.model_structure_entries()
+        if self.fmi_version == 2:
+            nx = sum(1 for section, _ in entries if section == "Derivatives")
+            return nx, int(self.root.get("numberOfEventIndicators", 0))
+
+        ports = {port.get("valueReference"): port for port in self.iter_ports()}
+        sizes = {"ContinuousStateDerivative": 0, "EventIndicator": 0}
+        for section, entry in entries:
+            if section in sizes:
+                sizes[section] += self._size_of(section, entry.get("valueReference"), ports, label)
+        return sizes["ContinuousStateDerivative"], sizes["EventIndicator"]
+
+    @staticmethod
+    def _size_of(section: str, vr: str | None, ports: dict[str, "ModelVariable"], label: str) -> int:
+        """Number of elements of the FMI 3.0 variable `vr` (1 if it cannot be resolved)."""
+        if vr is None:
+            logger.warning(f"'{label}': <{section}> without valueReference. Assuming 1 element.")
+            return 1
+        port = ports.get(vr)
+        if port is None:
+            logger.warning(f"'{label}': <{section}> refers to unknown variable vr={vr}. Assuming 1 element.")
+            return 1
+
+        size = 1
+        for kind, value in port.dimensions:
+            if kind == "start":
+                size *= value
+                continue
+            # Dimension given by a structural parameter: use its start value.
+            parameter = ports.get(str(value))
+            try:
+                size *= int(parameter.get("start"))
+            except (AttributeError, TypeError, ValueError):
+                logger.warning(f"'{label}': <{section}> vr={vr} has a dimension given by structuralParameter "
+                               f"vr={value} whose value cannot be resolved. Assuming 1 element.")
+                return 1
+        return size
+
+    def parent_of(self, element: ET.Element) -> ET.Element | None:
+        """Parent of `element`, or `None` for the root. Raises `KeyError` if not in the document."""
+        if element is self.root:
+            return None
+        parent = self._parents.get(element)
+        if parent is None or not any(child is element for child in parent):
+            self._parents = {child: parent for parent in self.root.iter() for child in parent}
+            parent = self._parents[element]
+        return parent

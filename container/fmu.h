@@ -13,6 +13,31 @@ extern "C" {
 
 
 /*----------------------------------------------------------------------------
+                     F O R _ A L L _ N U M E R I C _ T Y P E S
+----------------------------------------------------------------------------*/
+
+/*
+ * X-macro: lists all numeric types (field name, FMI type suffix, C type).
+ * Expand with: FOR_ALL_NUMERIC_TYPES(MACRO) where MACRO(variable, fmi_type, c_type)
+ * Each expansion of MACRO must be a complete statement or declaration: no
+ * separator is inserted between the expansions.
+ */
+#define FOR_ALL_NUMERIC_TYPES(X)                                                                    \
+    X(reals64,     Real64,     double)                                                              \
+    X(reals32,     Real32,     float)                                                               \
+    X(integers8,   Integer8,   int8_t)                                                              \
+    X(uintegers8,  UInteger8,  uint8_t)                                                             \
+    X(integers16,  Integer16,  int16_t)                                                             \
+    X(uintegers16, UInteger16, uint16_t)                                                            \
+    X(integers32,  Integer32,  int32_t)                                                             \
+    X(uintegers32, UInteger32, uint32_t)                                                            \
+    X(integers64,  Integer64,  int64_t)                                                             \
+    X(uintegers64, UInteger64, uint64_t)                                                            \
+    X(booleans,    Boolean,    int)                                                                 \
+    X(booleans1,   Boolean1,   bool)
+
+
+/*----------------------------------------------------------------------------
                             F M U _ V R _ T
 ----------------------------------------------------------------------------*/
 
@@ -76,31 +101,21 @@ typedef struct {
                           F M U _ S T A R T _ xxx _ T
 ----------------------------------------------------------------------------*/
 
-#define DECLARE_START_TYPE(name, type)  \
-typedef struct {                        \
-    unsigned long               nb;     \
-    struct {                            \
-        fmu_vr_t                vr;     \
-        int                     reset;  \
-        type                    *value; \
-    } *start_values;                    \
-} fmu_start_ ## name ## _t
+#define DECLARE_START_TYPE(variable, fmi_type, c_type)  \
+typedef struct {                                        \
+    unsigned long               nb;                     \
+    struct {                                            \
+        fmu_vr_t                vr;                     \
+        unsigned int            dimension;  /* number of values (array) */ \
+        int                     reset;                  \
+        c_type                  *value;                 \
+    } *start_values;                                    \
+} fmu_start_ ## variable ## _t;
 
-DECLARE_START_TYPE(reals64,     double);
-DECLARE_START_TYPE(reals32,     float);
-DECLARE_START_TYPE(integers8,   int8_t);
-DECLARE_START_TYPE(uintegers8,  uint8_t);
-DECLARE_START_TYPE(integers16,  int16_t);
-DECLARE_START_TYPE(uintegers16, uint16_t);
-DECLARE_START_TYPE(integers32,  int32_t);
-DECLARE_START_TYPE(uintegers32, uint32_t);
-DECLARE_START_TYPE(integers64,  int64_t);
-DECLARE_START_TYPE(uintegers64, uint64_t);
-DECLARE_START_TYPE(booleans,    int);
-DECLARE_START_TYPE(booleans1,   bool);
-DECLARE_START_TYPE(strings,     const char *);
+FOR_ALL_NUMERIC_TYPES(DECLARE_START_TYPE)
+DECLARE_START_TYPE(strings, String, const char *)
 
-#undef DECLARE_TYPE_START
+#undef DECLARE_START_TYPE
 
 
 /*----------------------------------------------------------------------------
@@ -152,6 +167,7 @@ typedef struct {
     int                         *start_values_booleans;
     bool                        *start_values_booleans1;
     const char                  **start_values_strings;
+    unsigned long               nb_start_values_strings;    /* size of start_values_strings */
     fmu_start_reals64_t         start_reals64;
     fmu_start_reals32_t         start_reals32;
     fmu_start_integers8_t       start_integers8;
@@ -177,6 +193,15 @@ typedef struct {
     size_t      size;
     size_t      max_size;
 } fmu_binary_t; 
+
+
+/*----------------------------------------------------------------------------
+                             F M U _ K I N D _ T
+----------------------------------------------------------------------------*/
+typedef enum {
+    FMU_KIND_CS = 0,
+    FMU_KIND_ME = 1
+} fmu_kind_t;
 
 
 /*----------------------------------------------------------------------------
@@ -210,6 +235,7 @@ typedef union {
         DECLARE_FMI_FUNCTION(fmi2SerializeFMUstate);
         DECLARE_FMI_FUNCTION(fmi2DeSerializeFMUstate);
         DECLARE_FMI_FUNCTION(fmi2GetDirectionalDerivative);
+        /* Co-Simulation */
         DECLARE_FMI_FUNCTION(fmi2SetRealInputDerivatives);
         DECLARE_FMI_FUNCTION(fmi2GetRealOutputDerivatives);
         DECLARE_FMI_FUNCTION(fmi2DoStep);
@@ -219,11 +245,21 @@ typedef union {
         DECLARE_FMI_FUNCTION(fmi2GetIntegerStatus);
         DECLARE_FMI_FUNCTION(fmi2GetBooleanStatus);
         DECLARE_FMI_FUNCTION(fmi2GetStringStatus);
+        /* Model Exchange */
+        DECLARE_FMI_FUNCTION(fmi2EnterEventMode);
+        DECLARE_FMI_FUNCTION(fmi2NewDiscreteStates);
+        DECLARE_FMI_FUNCTION(fmi2EnterContinuousTimeMode);
+        DECLARE_FMI_FUNCTION(fmi2CompletedIntegratorStep);
+        DECLARE_FMI_FUNCTION(fmi2SetTime);
+        DECLARE_FMI_FUNCTION(fmi2SetContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi2GetDerivatives);
+        DECLARE_FMI_FUNCTION(fmi2GetEventIndicators);
+        DECLARE_FMI_FUNCTION(fmi2GetContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi2GetNominalsOfContinuousStates);
     } version_2;
     struct {
         DECLARE_FMI_FUNCTION(fmi3GetVersion);
         DECLARE_FMI_FUNCTION(fmi3SetDebugLogging);
-        DECLARE_FMI_FUNCTION(fmi3InstantiateCoSimulation);
         DECLARE_FMI_FUNCTION(fmi3FreeInstance);
         DECLARE_FMI_FUNCTION(fmi3EnterInitializationMode);
         DECLARE_FMI_FUNCTION(fmi3ExitInitializationMode);
@@ -280,9 +316,26 @@ typedef union {
         DECLARE_FMI_FUNCTION(fmi3SetShiftFraction);
         DECLARE_FMI_FUNCTION(fmi3EvaluateDiscreteStates);
         DECLARE_FMI_FUNCTION(fmi3UpdateDiscreteStates);
+        /* Co-Simulation */
+        DECLARE_FMI_FUNCTION(fmi3InstantiateCoSimulation);
         DECLARE_FMI_FUNCTION(fmi3EnterStepMode);
         DECLARE_FMI_FUNCTION(fmi3GetOutputDerivatives);
         DECLARE_FMI_FUNCTION(fmi3DoStep);
+        /* Scheduled Execution */
+        DECLARE_FMI_FUNCTION(fmi3InstantiateScheduledExecution);
+        DECLARE_FMI_FUNCTION(fmi3ActivateModelPartition);
+        /* Model Exchange */
+        DECLARE_FMI_FUNCTION(fmi3InstantiateModelExchange);
+        DECLARE_FMI_FUNCTION(fmi3EnterContinuousTimeMode);
+        DECLARE_FMI_FUNCTION(fmi3CompletedIntegratorStep);
+        DECLARE_FMI_FUNCTION(fmi3SetTime);
+        DECLARE_FMI_FUNCTION(fmi3SetContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi3GetContinuousStateDerivatives);
+        DECLARE_FMI_FUNCTION(fmi3GetEventIndicators);
+        DECLARE_FMI_FUNCTION(fmi3GetContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi3GetNominalsOfContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi3GetNumberOfContinuousStates);
+        DECLARE_FMI_FUNCTION(fmi3GetNumberOfEventIndicators);
     } version_3;
 } fmu_interface_t;
 #	undef DECLARE_FMI_FUNCTION
@@ -340,6 +393,7 @@ typedef enum {
 
 typedef struct {
     char                        *name; /* based on directory */
+    char                        *instance_name; /* <container instance>.<name>: given to fmi*Instantiate() */
     int                         index; /* index of this FMU in container */
 	library_t                   library;
 	char						resource_dir[FMU_PATH_MAX_LEN];
@@ -357,7 +411,18 @@ typedef struct {
 
     bool                        support_event;
     bool                        need_event_udpate;
-	
+
+    /* Next event time announced by the last UpdateDiscreteStates. */
+    bool                        have_next_event_time;
+    double                      next_event_time;
+
+    fmu_kind_t                  kind;
+
+    /* Offset of `container.<fmu>.reset` in the local storage of booleans (FMI-2 container) or booleans1 (FMI-3
+       container), -1 if the FMU is never reset. */
+    long                        reset_trigger;
+    bool                        reset_pending;  /* reset at the start of the step: trigger cleared at its end */
+
     profile_t                   *profile;
 
     struct convert_table_s      *conversions;
@@ -376,17 +441,31 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 extern fmu_status_t fmu_set_inputs(const fmu_t *fmu);
+extern fmu_status_t fmu_set_continuous_inputs(const fmu_t *fmu);
 extern fmu_status_t fmu_set_clocks(const fmu_t* fmu);
 extern fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
+extern fmu_status_t fmu_get_continuous_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu);
-extern fmu_status_t fmuUpdateDiscreteStates(const fmu_t *fmu, bool *discreteStatesNeedUpdate);
+extern fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,
                                    const char *identifier, const char *guid,
-                                   fmu_version_t fmi_version, int support_event);
+                                   fmu_version_t fmi_version, int support_event,
+                                   fmu_kind_t kind);
 extern int fmu_launch_thread(fmu_t *fmu);
 extern void fmu_unload(fmu_t *fmu);
+
+/* Thin FMI-2/3 dispatchers for the Model Exchange primitives (used by
+   the collective Euler solver in solver.c). They are stateless: state buffers
+   are passed in by the solver. */
+extern fmu_status_t fmuSetTime(fmu_t *fmu, double t);
+extern fmu_status_t fmuSetContinuousStates(fmu_t *fmu, const double *x, size_t nx);
+extern fmu_status_t fmuGetContinuousStates(fmu_t *fmu, double *x, size_t nx);
+extern fmu_status_t fmuGetContinuousStateDerivatives(fmu_t *fmu, double *dx, size_t nx);
+extern fmu_status_t fmuGetEventIndicators(fmu_t *fmu, double *z, size_t nz);
+extern fmu_status_t fmuCompletedIntegratorStep(fmu_t *fmu, bool *enter_event_mode);
+extern fmu_status_t fmuEnterContinuousTimeMode(fmu_t *fmu);
 
 extern fmu_status_t fmuGetReal64(const fmu_t *fmu, const fmu_vr_t vr[],
                                  size_t nvr, double value[], size_t nvalues);
@@ -452,10 +531,11 @@ extern fmu_status_t fmuSetClock(const fmu_t* fmu, const fmu_vr_t vr[],
 extern fmu_status_t fmuDoStep(fmu_t *fmu, 
                               fmi2Real currentCommunicationPoint, 
                               fmi2Real communicationStepSize);
-extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu);
+extern fmu_status_t fmuEnterInitializationMode(const fmu_t *fmu, double start_time);
 extern fmu_status_t fmuExitInitializationMode(const fmu_t *fmu);
-extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu);
+extern fmu_status_t fmuSetupExperiment(const fmu_t *fmu, double start_time);
 extern fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, fmi2String instanceName);
+extern fmu_status_t fmuInstantiateModelExchange(fmu_t *fmu, fmi2String instanceName);
 extern void fmuFreeInstance(const fmu_t *fmu);
 extern fmu_status_t fmuTerminate(const fmu_t *fmu);
 extern fmu_status_t fmuReset(const fmu_t *fmu);

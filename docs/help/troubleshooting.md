@@ -130,8 +130,38 @@ mappings. Or the `.fmu` file is corrupted.
 **Solution:**
 
 1. Select the wire
-2. Use the **Auto-Connect** button to re-create mappings from matching port names (populates both A → B and B → A tabs)
+2. Click **Link Assistant**: it opens on **Same name** and proposes the links between ports of matching names;
+   click **Stage checked links**, switch the direction (**B → A**) to do the same, then **Apply**
+   (see [Link Assistant](../user-guide/fmucontainer/gui-usage.md#link-assistant))
 3. Manually adjust if needed using the combo-box dropdowns in each tab
+
+### ❌ FMU Container fails to instantiate: format version of container.txt
+
+**Symptom:** the importer cannot instantiate a container FMU, and its log shows:
+```
+Configuration error(...): line #1: container.txt format version 6, this runtime reads version 7: build the container again with the version of FMU Manipulation Toolbox that provides this runtime.
+```
+or `container.txt has no format version header`.
+
+**Cause:** the `resources/container.txt` of the container and its runtime (`binaries/`) come from different versions
+of FMU Manipulation Toolbox: the file was edited or copied from another container, or the binaries were replaced.
+
+**Solution:** build the container again (`fmucontainer`, the Python API or `fmucontainer-gui`) with one version of
+FMU Manipulation Toolbox. To rebuild a container whose description is lost, `fmusplit` extracts the embedded FMUs
+and a description file from it.
+
+### ❌ FMU fails to load: missing DLL dependencies
+
+**Symptom:** a container or a remoted FMU cannot be instantiated, and its log shows `DLL ... has missing
+dependencies.` followed by `Cannot load ...`.
+
+**Cause:** the DLL of the FMU depends on DLLs that are found neither in its directory (`binaries/win64` or `win32`)
+nor in the system directories or the `PATH`.
+
+**Solution:** on Windows, the runtime searches the dependencies of the DLL first in its own directory: add the
+missing DLLs to the `binaries/<platform>` directory of the FMU. On Linux and macOS, the dependencies of a shared
+library are found in its directory only if it is linked with an `RPATH` set to `$ORIGIN` (`@loader_path` on macOS):
+ask the provider of the FMU for such a build.
 
 ### ❌ FMU Variable Editor: changes are not saved
 

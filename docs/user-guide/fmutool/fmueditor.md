@@ -23,7 +23,7 @@ The interface is organized into the following areas:
 | **FMU Info** (top-right) | Metadata: name, generator tool, date, step size, experiment settings |
 | **Filter Bar** (middle) | Text field to filter variables across all columns |
 | **Variable Table** (center) | Sortable, editable table of all FMU variables |
-| **Bottom Bar** | Save button, quit button, and status messages |
+| **Bottom Bar** | Status bar (last log message), quit button, and save button |
 
 ## Loading an FMU
 
@@ -69,6 +69,8 @@ Each variable is tagged with a color-coded icon:
 - **Edit a description**: double-click on the **Description** cell.
 - Modified values are highlighted in **orange** to indicate unsaved changes.
 
+![A modified description, in orange, with the variables filtered on "m"](fmueditor-edit.png)
+
 ### Sorting and Filtering
 
 - **Sort**: click any column header to sort ascending/descending.
@@ -97,6 +99,18 @@ The **Start Time** and **Stop Time** fields in the top-right area are editable:
 
 Only modified variables and experiment settings are written — unchanged variables pass through
 as-is.
+
+## Status Bar and Log Window
+
+The status bar, left of the buttons, shows the last message of level **Info** or above (for example
+`FMU saved as '…'.`, or an error while loading an FMU), in the colour of its level. It stays until the next message.
+
+Click the status bar to open the log window: it lists every message of this editor window since it was opened, with
+a level filter, a case-insensitive search, **Save Logs…** (saves the displayed messages in a text file), **Clear** and
+**Close**. It is the same window as in the [FMU Container Builder](../fmucontainer/gui-usage.md#log-window).
+
+The status bar and the log window only show the messages of their own editor window: other windows opened from the
+[launcher](../launcher.md) have their own log.
 
 ## Unsaved Changes Detection
 

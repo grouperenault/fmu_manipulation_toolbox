@@ -1,12 +1,14 @@
 """NodeGraphScene — manages nodes and wires in the graph."""
 
 from pathlib import Path
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
 from PySide6.QtCore import Qt, QPointF, Signal
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsSceneMouseEvent, QMessageBox
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsSceneMouseEvent
 from PySide6.QtGui import QBrush
 
+
+from fmu_manipulation_toolbox.assembly import instance_name
 
 from .constants import NODE_TITLE_HEIGHT, COLOR_BACKGROUND
 from .node import NodeItem, ConfigurationNode
@@ -33,15 +35,15 @@ class NodeGraphScene(QGraphicsScene):
 
         self.setBackgroundBrush(QBrush(COLOR_BACKGROUND))
 
-        self._drag_wire: Optional[_DragWireItem] = None
-        self._drag_start_node: Optional[NodeItem] = None
-        self._drag_target_node: Optional[NodeItem] = None
+        self._drag_wire: _DragWireItem | None = None
+        self._drag_start_node: NodeItem | None = None
+        self._drag_target_node: NodeItem | None = None
 
         # Optional external validator: callable(node_a, node_b) -> bool.
         # Used by NodeTreeWidget to restrict wiring of the ConfigurationNode
         # (e.g. forbidding two ConfigurationNodes together). If None, all
         # wires are allowed.
-        self.wire_validator: Optional[Callable[[NodeItem, NodeItem], bool]] = None
+        self.wire_validator: Callable[[NodeItem, NodeItem], bool] | None = None
 
         self.selectionChanged.connect(self._enforce_single_selection)
 
@@ -55,37 +57,32 @@ class NodeGraphScene(QGraphicsScene):
 
     # -- Public API ----------------------------------------------------------
 
-    def add_node(self, fmu_path: Path, x: float = 0, y: float = 0) -> Optional[NodeItem]:
+    def add_node(self, fmu_path: Path, x: float = 0, y: float = 0, name: str | None = None) -> NodeItem:
+        """Add a node for the FMU `fmu_path`.
+
+        The node is named `name` (defaults to the file name), made unique in the scene: when the name is already
+        used — the same file added again, or another file with the same name — the node is an instance named
+        `<stem>-<n>.fmu`, with the smallest free `n`.
+        """
         fmu_path = Path(fmu_path)
-        # Check for duplicate FMU (same resolved path)
-        resolved = fmu_path.resolve()
-        for existing in self.fmu_nodes():
-            if existing.fmu_path.resolve() == resolved:
-                parent_widget = None
-                for view in self.views():
-                    parent_widget = view
-                    break
-                msg = QMessageBox(parent_widget)
-                msg.setIcon(QMessageBox.Icon.Warning)
-                msg.setWindowTitle("Duplicate FMU")
-                msg.setText(
-                    f"'{fmu_path.name}' is already present in the assembly.\n"
-                    "It is not yet possible to include the same FMU more than once."
-                )
-                msg.setStandardButtons(QMessageBox.StandardButton.Ok)
-                btn_ok = msg.button(QMessageBox.StandardButton.Ok)
-                btn_ok.setProperty("class", "info")
-                btn_ok.setMinimumWidth(150)
-                msg.exec()
-                return None
-        node = NodeItem(fmu_path, x=x, y=y)
+        node = NodeItem(fmu_path, x=x, y=y, name=self.free_name(name or fmu_path.name))
         self.addItem(node)
         self.clearSelection()
         node.setSelected(True)
         self.node_added.emit(node)
         return node
 
-    def configuration_node(self) -> Optional[ConfigurationNode]:
+    def free_name(self, name: str, ignored: NodeItem | None = None) -> str:
+        """`name`, or the first free instance name derived from it, given the names of the FMU nodes of the scene
+        (except `ignored`)."""
+        return instance_name(name, [node.name for node in self.fmu_nodes() if node is not ignored])
+
+    def replace_node_fmu(self, node: NodeItem, fmu_path: Path):
+        """Replace the FMU of `node` only; its name is recomputed from the new file (smallest free name)."""
+        node.replace_fmu(fmu_path, self.free_name(fmu_path.name, ignored=node))
+        self.node_replaced.emit(node)
+
+    def configuration_node(self) -> ConfigurationNode | None:
         """Return the singleton ConfigurationNode currently in the scene, if any."""
         for it in self.items():
             if isinstance(it, ConfigurationNode):
@@ -111,7 +108,7 @@ class NodeGraphScene(QGraphicsScene):
             self.node_removed.emit(node)
             self.removeItem(node)
 
-    def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> Optional[WireItem]:
+    def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> WireItem | None:
         """Connect two nodes with a wire. Returns None if invalid."""
         if node_a is node_b:
             return None
@@ -142,14 +139,14 @@ class NodeGraphScene(QGraphicsScene):
                 item.remove_wires()
                 self.removeItem(item)
 
-    def nodes(self) -> List[NodeItem]:
+    def nodes(self) -> list[NodeItem]:
         return [it for it in self.items() if isinstance(it, NodeItem)]
 
-    def fmu_nodes(self) -> List[NodeItem]:
+    def fmu_nodes(self) -> list[NodeItem]:
         """Return only nodes backed by a real FMU (excludes ConfigurationNode)."""
         return [it for it in self.items() if isinstance(it, NodeItem) and not isinstance(it, ConfigurationNode)]
 
-    def wires(self) -> List[WireItem]:
+    def wires(self) -> list[WireItem]:
         return [it for it in self.items() if isinstance(it, WireItem)]
 
     def clear_all(self):
@@ -160,7 +157,7 @@ class NodeGraphScene(QGraphicsScene):
 
     # -- Interaction: wire drag from node body ---------------------------------
 
-    def _node_at(self, scene_pos: QPointF) -> Optional[NodeItem]:
+    def _node_at(self, scene_pos: QPointF) -> NodeItem | None:
         for item in self.items(scene_pos, Qt.ItemSelectionMode.IntersectsItemBoundingRect):
             if isinstance(item, NodeItem):
                 return item

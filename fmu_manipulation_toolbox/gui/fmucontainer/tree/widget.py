@@ -4,20 +4,20 @@ NodeTreeWidget: tree view and scene synchronization for FMU container builder.
 
 import logging
 
-from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSize
+from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSize, QTimer
 from PySide6.QtGui import QStandardItem, QIcon
 from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog,
-                               QMenu, QAbstractItemView)
+                               QMenu, QAbstractItemView, QHeaderView)
 from pathlib import Path
-from typing import *
 
+from fmu_manipulation_toolbox.container.builder import DEFAULT_STEP_SIZE, deduce_step_size
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, ConfigurationNode
 from fmu_manipulation_toolbox.gui.helper import LastDirectory
 from .model import _NodeTreeModel, TreeItemRoles
 from .sync import SelectionSynchronizer
 
-tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
+logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
 class NodeTreeWidget(QWidget):
@@ -29,6 +29,7 @@ class NodeTreeWidget(QWidget):
     • Context menu for add/delete/rename
     • Drag-and-drop hierarchy management
     • Icon management and item builders
+    • Read-only step size column (FMU step size, or container step size, deduced when empty)
 
     Signals:
     • container_changed(ContainerParameters) - emitted when a container item is edited
@@ -39,17 +40,17 @@ class NodeTreeWidget(QWidget):
     def __init__(self, graph_widget, parent=None):
         super().__init__(parent)
         self._graph = graph_widget
-        self._pending_parent: Optional[QStandardItem] = None
+        self._pending_parent: QStandardItem | None = None
         resources_dir = Path(__file__).resolve().parent.parent.parent.parent / "resources"
         self._icon_container = QIcon(str(resources_dir / "container.png"))
         self._icon_fmu = QIcon(str(resources_dir / "icon_fmu.png"))
 
         # ── Model ────────────────────────────────────────────────────────
         self._model = _NodeTreeModel()
-        self._model.setHorizontalHeaderLabels(["Name"])
+        self._model.setHorizontalHeaderLabels(["Name", "Step size"])
 
         root_item = self._make_container_item("container.fmu", is_root=True)
-        self._model.appendRow(root_item)
+        self._append_row(self._model.invisibleRootItem(), root_item)
         self._root: QStandardItem = root_item
 
         # ── View ───────────────────────────────────────────────────────────
@@ -63,6 +64,10 @@ class NodeTreeWidget(QWidget):
         self._tree.customContextMenuRequested.connect(self._on_context_menu)
         self._tree.setIconSize(QSize(30, 30))
         self._tree.setUniformRowHeights(True)
+        header = self._tree.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(_NodeTreeModel.COLUMN_NAME, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(_NodeTreeModel.COLUMN_STEP_SIZE, QHeaderView.ResizeMode.ResizeToContents)
         self._tree.expandAll()
 
         # Enforce .fmu extension when a container is renamed in-place
@@ -76,7 +81,20 @@ class NodeTreeWidget(QWidget):
         self._tree.selectionModel().selectionChanged.connect(self.on_tree_selection_changed)
         # Restrict ConfigurationNode wiring (see _validate_wire)
         self._graph.scene.wire_validator = self._validate_wire
-        tree_logger.debug("NodeTreeWidget initialized")
+        # The reset ports of the ConfigurationNode follow the content of the containers
+        self._model.rowsInserted.connect(lambda *_: self.refresh_reset_ports())
+        self._model.rowsRemoved.connect(lambda *_: self.refresh_reset_ports())
+        self._model.rowsMoved.connect(lambda *_: self.refresh_reset_ports())
+        # The step sizes of the containers follow their content: refreshed once the current change is over
+        # (a drag and drop inserts the moved rows before removing the original ones).
+        self._step_size_timer = QTimer(self)
+        self._step_size_timer.setSingleShot(True)
+        self._step_size_timer.setInterval(0)
+        self._step_size_timer.timeout.connect(self.refresh_step_sizes)
+        self._model.rowsInserted.connect(lambda *_: self._step_size_timer.start())
+        self._model.rowsRemoved.connect(lambda *_: self._step_size_timer.start())
+        self._model.rowsMoved.connect(lambda *_: self._step_size_timer.start())
+        self.refresh_step_sizes()
 
         # ── Layout ──────────────────────────────────────────────────
         lay = QVBoxLayout(self)
@@ -98,11 +116,21 @@ class NodeTreeWidget(QWidget):
         return self._tree
 
     @property
-    def pending_parent(self) -> Optional[QStandardItem]:
+    def pending_parent(self) -> QStandardItem | None:
         return self._pending_parent
 
+    def selected_name_indexes(self) -> list:
+        """Indexes of the name column of the selected rows. A row counts as selected as soon as one of its cells is,
+        unlike `QItemSelectionModel.selectedRows`, which needs all the columns of the row selected."""
+        indexes = []
+        for index in self._tree.selectionModel().selectedIndexes():
+            index = index.siblingAtColumn(_NodeTreeModel.COLUMN_NAME)
+            if index not in indexes:
+                indexes.append(index)
+        return indexes
+
     @pending_parent.setter
-    def pending_parent(self, value: Optional[QStandardItem]):
+    def pending_parent(self, value: QStandardItem | None):
         self._pending_parent = value
 
     def make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
@@ -118,6 +146,18 @@ class NodeTreeWidget(QWidget):
         return name
 
     # ── Row builders ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _make_step_size_item() -> QStandardItem:
+        """Read-only cell of the step size column."""
+        item = QStandardItem()
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+        item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        return item
+
+    def _append_row(self, parent: QStandardItem, item: QStandardItem):
+        """Append *item* to *parent*, with its step size cell: a row selected right away spans both columns."""
+        parent.appendRow([item, self._make_step_size_item()])
 
     def _make_container_item(self, name: str, is_root: bool = False) -> QStandardItem:
         item = QStandardItem(name)
@@ -159,7 +199,7 @@ class NodeTreeWidget(QWidget):
         old_name = container_parameters.name
         # Keep data model in sync with the visible name.
         container_parameters.name = fixed
-        tree_logger.debug(f"Container renamed: {fixed}")
+        logger.debug(f"Container renamed: {fixed}")
 
         # Keep the ConfigurationNode's port (if any) in sync with the new name.
         # It is GUI/graph-only: it has no TreeView row of its own to rename.
@@ -196,7 +236,7 @@ class NodeTreeWidget(QWidget):
             return
         target = self._pending_parent or self._root
         node_item = self._make_node_item(node)
-        target.appendRow(node_item)
+        self._append_row(target, node_item)
         self._tree.expandAll()
         self._select_tree_item(node_item)
 
@@ -216,6 +256,7 @@ class NodeTreeWidget(QWidget):
         self._model.blockSignals(True)
         item.setText(node.title)
         self._model.blockSignals(False)
+        self.refresh_step_sizes()
 
     def _remove_uid_from(self, parent: QStandardItem, uid: str) -> bool:
         for r in range(parent.rowCount()):
@@ -229,7 +270,7 @@ class NodeTreeWidget(QWidget):
                 return True
         return False
 
-    def _find_tree_item_by_uid(self, parent: QStandardItem, uid: str) -> Optional[QStandardItem]:
+    def _find_tree_item_by_uid(self, parent: QStandardItem, uid: str) -> QStandardItem | None:
         """Recursively find a Node item by UID."""
         for r in range(parent.rowCount()):
             child = parent.child(r, 0)
@@ -279,6 +320,122 @@ class NodeTreeWidget(QWidget):
         if node.is_empty():
             self._graph.scene.remove_configuration_node()
 
+    # ── ConfigurationNode: reset ports (reset_ports, GUI/graph-only) ──────
+
+    def refresh_reset_ports(self):
+        """Activate the reset port of each FMU or sub-container of the containers with `reset_ports` checked (root
+        included), and deactivate the other ones (kept while a wire references them, see `set_reset_port_active`).
+        The ConfigurationNode is created on demand, and removed once empty."""
+        try:
+            scene = self._graph.scene
+            wanted: set[str] = set()
+            self._collect_reset_ports(self._model.invisibleRootItem(), wanted)
+            node = scene.configuration_node()
+            if node is None:
+                if not wanted:
+                    return
+                node = scene.get_or_create_configuration_node()
+            for port, active in list(node.reset_ports.items()):
+                fmu_name = ConfigurationNode.fmu_name_from_reset_port(port)
+                if active and fmu_name not in wanted:
+                    node.set_reset_port_active(fmu_name, False)
+            for fmu_name in sorted(wanted):
+                if not node.reset_ports.get(ConfigurationNode.reset_port_name(fmu_name), False):
+                    node.set_reset_port_active(fmu_name, True)
+            if node.is_empty():
+                scene.remove_configuration_node()
+        except RuntimeError:
+            pass  # C++ objects already deleted (application shutdown)
+
+    def _collect_reset_ports(self, item: QStandardItem, wanted: set[str]):
+        """Names of the FMUs and sub-containers that get a reset port, below *item*."""
+        container_parameters = TreeItemRoles.get_container_params(item)
+        resettable = container_parameters is not None and bool(container_parameters.parameters.get("reset_ports"))
+        nodes_by_uid = {node.uid: node for node in self._graph.scene.fmu_nodes()} if resettable else {}
+        for r in range(item.rowCount()):
+            child = item.child(r, 0)
+            if child is None:
+                continue
+            if TreeItemRoles.get_container_params(child) is not None:
+                if resettable:
+                    wanted.add(child.text())
+                self._collect_reset_ports(child, wanted)
+            elif resettable:
+                node = nodes_by_uid.get(TreeItemRoles.get_node_uid(child))
+                if node is not None:
+                    wanted.add(node.name)
+
+    # ── Step size column (read-only) ───────────────────────────────────
+
+    def refresh_step_sizes(self):
+        """Show the step size of each FMU, and of each container: its `step_size` parameter, or when empty the
+        step size the builder deduces from its content (shown in italics)."""
+        try:
+            nodes_by_uid = {node.uid: node for node in self._graph.scene.fmu_nodes()}
+            root = self._model.invisibleRootItem()
+            for r in range(root.rowCount()):
+                item = root.child(r, _NodeTreeModel.COLUMN_NAME)
+                if item is not None:
+                    self._refresh_step_size(item, nodes_by_uid)
+        except RuntimeError:
+            pass  # C++ objects already deleted (application shutdown)
+
+    def _refresh_step_size(self, item: QStandardItem, nodes_by_uid: dict) -> tuple[float | None, bool]:
+        """Show the step size of *item* and of its content. Return the step size of *item* (`None` if unknown), and
+        whether it can handle a variable communication step size, as the parent container sees it."""
+        container_parameters = TreeItemRoles.get_container_params(item)
+        if container_parameters is None:
+            node = nodes_by_uid.get(TreeItemRoles.get_node_uid(item))
+            if node is None:
+                self._set_step_size_cell(item, None, deduced=False, tooltip="")
+                return None, True
+            step_size = self._parse_step_size(node.fmu_step_size)
+            self._set_step_size_cell(item, step_size, deduced=False, tooltip="Step size of the FMU")
+            return step_size, node.fmu_variable_step_size
+
+        content = []
+        for r in range(item.rowCount()):
+            child = item.child(r, _NodeTreeModel.COLUMN_NAME)
+            if child is not None:
+                content.append(self._refresh_step_size(child, nodes_by_uid))
+        step_size = self._parse_step_size(container_parameters.parameters.get("step_size"))
+        if step_size is not None:
+            self._set_step_size_cell(item, step_size, deduced=False, tooltip="Step size of the container")
+        else:
+            step_size = deduce_step_size([(s, variable) for s, variable in content if s is not None])
+            if step_size is None:
+                step_size = DEFAULT_STEP_SIZE
+            self._set_step_size_cell(item, step_size, deduced=True,
+                                     tooltip="Step size deduced from the content of the container")
+        # A container handles variable communication step sizes (see FMUContainer.make_fmu_xml).
+        return step_size, True
+
+    @staticmethod
+    def _parse_step_size(value) -> float | None:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _set_step_size_cell(self, item: QStandardItem, step_size: float | None, deduced: bool, tooltip: str):
+        """Fill the step size cell of the row of *item*, created if missing (e.g. rows inserted by a drop)."""
+        parent = item.parent() or self._model.invisibleRootItem()
+        cell = parent.child(item.row(), _NodeTreeModel.COLUMN_STEP_SIZE)
+        if cell is None:
+            cell = self._make_step_size_item()
+            parent.setChild(item.row(), _NodeTreeModel.COLUMN_STEP_SIZE, cell)
+        # Dropping over the step size column of a container drops into the container.
+        cell.setDropEnabled(item.isDropEnabled())
+        text = f"{step_size} s" if step_size is not None else ""
+        if cell.text() != text:
+            cell.setText(text)
+        font = cell.font()
+        if font.italic() != deduced:
+            font.setItalic(deduced)
+            cell.setFont(font)
+        if cell.toolTip() != tooltip:
+            cell.setToolTip(tooltip)
+
     def _validate_wire(self, node_a, node_b) -> bool:
         """The ConfigurationNode can be wired to any FMU; the only forbidden
         combination is two ConfigurationNodes together (it is a singleton
@@ -300,8 +457,12 @@ class NodeTreeWidget(QWidget):
 
         # Suppress scene signals while modifying tree (but allow tree signals to process normally)
         try:
-            scene = self._graph.scene
-            scene.blockSignals(True)
+            try:
+                scene = self._graph.scene
+                scene.blockSignals(True)
+            except RuntimeError:
+                # C++ scene already deleted (e.g. during application shutdown)
+                return
 
             try:
                 selected = scene.selectedItems()
@@ -334,17 +495,14 @@ class NodeTreeWidget(QWidget):
                 idx = self._model.indexFromItem(node_to_select)
                 self._tree.setCurrentIndex(idx)
                 self._tree.scrollTo(idx, QAbstractItemView.ScrollHint.EnsureVisible)
-                tree_logger.debug(f"Tree item highlighted from scene (NodeItem: {node_to_select.text()})")
-            else:
-                if selected:
-                    # There are items but not NodeItems (likely a WireItem)
-                    tree_logger.debug(f"Scene selection is WireItem, tree selection cleared")
-                else:
-                    # No items selected in scene
-                    tree_logger.debug("Scene selection cleared")
 
         except Exception as e:
-            tree_logger.error(f"Error during scene selection sync: {e}")
+            try:
+                logger.error(f"Error during scene selection sync: {e}")
+            except (OSError, ValueError):
+                # stdio may be closed at interpreter shutdown; the error
+                # would otherwise mask the benign (RuntimeError) cause.
+                pass
 
     def on_tree_selection_changed(self, _selected, _deselected):
         """Tree -> scene: select in graph when node is selected in tree.
@@ -356,21 +514,21 @@ class NodeTreeWidget(QWidget):
             try:
                 self._graph.scene.clearSelection()
             except RuntimeError:
+                # C++ scene already deleted (e.g. during application shutdown)
                 return
 
             # First, remove highlight from all nodes
             for node in self._graph.scene.nodes():
                 node.set_title_highlighted(False)
 
-            selected_rows = list(self._tree.selectionModel().selectedRows(0))
+            selected_rows = self.selected_name_indexes()
 
             # Validate single selection (should always be ≤1 due to SingleSelection mode)
             if len(selected_rows) > 1:
-                tree_logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
+                logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
                 return
 
             if not selected_rows:
-                tree_logger.debug("Tree selection cleared")
                 return
 
             # Process the single selected item
@@ -382,7 +540,6 @@ class NodeTreeWidget(QWidget):
             # Check if container
             container_parameters = TreeItemRoles.get_container_params(item)
             if container_parameters is not None:
-                tree_logger.debug(f"Container selected in tree: {container_parameters.name}")
                 # Container selected: highlight immediate FMU child nodes
                 for r in range(item.rowCount()):
                     child = item.child(r, 0)
@@ -397,7 +554,6 @@ class NodeTreeWidget(QWidget):
             # Check if FMU node
             uid = TreeItemRoles.get_node_uid(item)
             if uid:
-                tree_logger.debug(f"FMU node selected in tree: {uid}")
                 try:
                     scene_nodes = self._graph.scene.nodes()
                 except RuntimeError:
@@ -410,7 +566,7 @@ class NodeTreeWidget(QWidget):
     # ── Context menu ────────────────────────────��─────────────────────
 
     def _on_context_menu(self, pos):
-        index = self._tree.indexAt(pos)
+        index = self._tree.indexAt(pos).siblingAtColumn(_NodeTreeModel.COLUMN_NAME)
         target, item = self._resolve_target(index)
 
         menu = QMenu(self)
@@ -443,7 +599,7 @@ class NodeTreeWidget(QWidget):
             name, ok = QInputDialog.getText(self, "New Container", "Name:")
             if ok and name.strip():
                 ctn_item = self._make_container_item(self._ensure_fmu_ext(name.strip()))
-                target.appendRow(ctn_item)
+                self._append_row(target, ctn_item)
                 self._tree.expandAll()
                 self._select_tree_item(ctn_item)
 
@@ -494,7 +650,7 @@ class NodeTreeWidget(QWidget):
             else:
                 self._remove_scene_node(child.data(_NodeTreeModel.ROLE_NODE_UID))
 
-    def _remove_scene_node(self, uid: Optional[str]):
+    def _remove_scene_node(self, uid: str | None):
         """Remove the matching node from the graphics scene."""
         if uid is None:
             return
@@ -503,4 +659,3 @@ class NodeTreeWidget(QWidget):
                 node.remove_wires()
                 self._graph.scene.removeItem(node)
                 return
-

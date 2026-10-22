@@ -1,7 +1,6 @@
 """NodeGraphWidget — reusable composite widget (scene + view)."""
 
 from pathlib import Path
-from typing import Optional
 
 from PySide6.QtWidgets import QWidget, QVBoxLayout
 
@@ -38,10 +37,11 @@ class NodeGraphWidget(QWidget):
         x: float = 0,
         y: float = 0,
         fmu_path: Path = Path(""),
-    ) -> Optional[NodeItem]:
-        return self.scene.add_node(fmu_path, x, y)
+        name: str | None = None,
+    ) -> NodeItem:
+        return self.scene.add_node(fmu_path, x, y, name=name)
 
-    def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> Optional[WireItem]:
+    def add_wire(self, node_a: NodeItem, node_b: NodeItem) -> WireItem | None:
         return self.scene.add_wire(node_a, node_b)
 
     def clear(self):

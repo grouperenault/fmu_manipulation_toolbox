@@ -19,15 +19,25 @@ FMU Manipulation Toolbox is shipped with `fmucontainer` command which makes it e
 
 The `fmucontainer` command creates a FMU, named Container, from a description file. This file contains multiple parameters:
 
-- *time_step*: a FMU Container acts as a fixed step time "solver" for its embedded FMU's.
+- *time_step*: a FMU Container acts as a fixed step time "solver" for its embedded FMU's. For
+  [Model-Exchange](#model-exchange-support) FMU's, this time step is also used as the integration
+  step of the built-in solver. When it is not given, it is deduced from the embedded FMU's (see
+  [Default time step](#default-time-step)).
 - optional features
   - *multi-threading*: each embedded FMU will use its own thread to parallelize `doStep()` operation.  
   - *profiling*: performance indicators can be calculated by the container to help to identify the bottlenecks among 
     the embedded FMU's.
+  - *reset_ports*: each embedded FMU gets a `container.reset` input; when it is true, the container resets the FMU
+    during the simulation (see [Reset of Embedded FMUs](container-reset.md)).
 - routing table
   - Input ports: the list of the Container's inputs. Each input is linked to one input (or more) of one of the embedded FMU's.
   - Output ports: the list of the container's outputs. Each output is linked to one output of one of the embedded FMU's.
-  - Connections between embedded FMU's
+  - Connections between embedded FMU's. When the types differ, the value is converted (lossy conversions, such as
+    `Float64` to `Float32` or a number to a boolean, are reported by a warning).
+
+  Each input of an embedded FMU is fed by **one** source: a container input or a connection, not both, and not
+  two connections. An output can be exposed and connected at the same time. Every port named in the routing table
+  must exist: an unknown FMU or port stops the build with an error.
   - Explicitly ignored ports (only port with `causality = "output"` can be ignored)
 - Automation of routing table
   - *auto_input* exposes automatically the (unconnected) ports of embedded FMU's with `causality = "input"`
@@ -35,9 +45,80 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
   - *auto_local* expose automatically the ports of embedded FMU's with `causality = "local"`
   - *auto_parameter* expose automatically the ports of embedded FMU's with `causality = "parameter"`
   - *auto_link* links automatically ports of embedded FMU's which are left previously unconnected and have the same
-    names and types
+    names and types. The [instances](#embedding-the-same-fmu-several-times) of an FMU are never auto-linked: they
+    share the port names of the FMU, so an output would feed the inputs of every instance.
+
+  When *auto_input* or *auto_output* exposes a port whose name is already used by an input or an output of the
+  container, the port is exposed as `<fmu>.<port>` instead (e.g. `bb_position-1.position1`), so that every
+  variable of the container keeps a distinct name.
 
 Some of these parameters can be defined by Command Line Interface or by the input files.
+
+To rebuild as a container an assembly of FMUs made in Simulink, see
+[From Simulink to an FMU Container](../../examples/simulink-to-container.md).
+
+## Default time step
+
+When no time step is given, the container deduces it from the `stepSize` of the embedded FMU's
+(`<DefaultExperiment>` of their `modelDescription.xml`):
+
+- the FMU's which cannot handle a variable communication step size impose their step: the container step is
+  their **least common multiple**, computed exactly (`0.1` and `0.25` give `0.5`, `0.2` and `0.3` give `0.6`);
+- if all FMU's handle a variable step size, the container step is the largest of their step sizes;
+- FMU's without `stepSize` are ignored; if none declares one, the step is `0.1` second.
+
+When the time step is given, a warning is reported for each FMU with a fixed step that does not divide it.
+
+## Communication step and internal step
+
+The importer of a container (a simulation tool, or the parent of a nested container) calls it with its own
+*communication step* `h`; the container steps its embedded FMU's with its *internal step* `H` (its time step,
+times the `TS_MULTIPLIER` input when [enabled](container-vr.md)). When `h` is not a multiple of `H` — for instance a
+parent at 0.01 s and a sub-container at 0.02 s — the container behaves like an FMU with a fixed internal step:
+
+- each internal step `[T, T + H]` uses the **inputs of its beginning** `T`: the values set by the importer during
+  the step are kept for the following steps;
+- its **outputs are held** until the end `T + H` of the step;
+- the internal step is made by the call of the importer that reaches its end, and the container is at the end of
+  every communication step.
+
+This makes it possible to gather FMU's of different rates in sub-containers of different steps, the parent at the
+fastest rate (see [One sub-container per sample time](../../examples/simulink-to-container.md#one-sub-container-per-sample-time)).
+
+## Sequential mode
+
+With the `sequential` option (`-sequential` on the command line), the Co-Simulation FMU's step one after the
+other in the order of the description, each one with the outputs just computed by the FMU's before it; the
+Model-Exchange FMU's step together after them. An FMU placed before an FMU it depends on gets the outputs of the
+previous step. When the order of the description does not match the order of the links between the Co-Simulation
+FMU's, the build reports a warning with the topological order of these FMU's:
+
+```
+Sequential mode: the order of the configuration does not match the topological order of the links. Topological order of the Co-Simulation FMUs: A.fmu, B.fmu, C.fmu.
+```
+
+Reorder the FMU's of the description to follow it. The links inside a loop (`A → B → A`) are not taken into
+account: one of them goes backwards whatever the order.
+
+## Initialization of the embedded FMU's
+
+During the initialization, the container **propagates the links** between its embedded FMU's, as Simulink does:
+each FMU is initialized with the values computed by the FMU's it depends on. When the container leaves its
+*Initialization Mode*, it takes its FMU's in the order of their links: each FMU gets its linked inputs, leaves its
+*Initialization Mode*, then its outputs are read for the FMU's after it. In a chain `A → B → C`, `B` is
+initialized with the outputs of `A`, then `C` with the outputs of `B`.
+
+- **Loops of links** (`A → B → A`): a loop is cut before its first FMU in the description, which is initialized
+  with the value the link has before the propagation; the build reports a warning.
+- **Outputs read during the initialization**: an importer that reads an output of the container before the end of
+  its initialization gets the value of the embedded FMU, not propagated yet: the propagation happens when the
+  container leaves its *Initialization Mode*. A nested container propagates its own links.
+- Clocks and clocked variables (LS-BUS) are not propagated: they are handled once the FMU's leave the
+  initialization.
+- The [reset of an embedded FMU](container-reset.md) initializes it again with the current values of its inputs,
+  without propagation to the other FMU's.
+
+The FMI calls are detailed in [Initialization FMI Sequence](../../developer/init-fmi-sequence.md).
 
 Several formats are supported as description files:
 - a `CSV` format: define only the routing table. Other options should be defined as command line options.
@@ -58,6 +139,7 @@ The `fmucontainer` command supports the following options:
 | `-sequential`                       | off            | Use sequential mode to schedule embedded FMUs.                                                                                                                                                                                       |
 | `-profile`                          | off            | Enable profiling mode to monitor `doStep()` performance of each embedded FMU.                                                                                                                                                        |
 | `-vr`                               | off            | Add a `TS_MULTIPLIER` input port to the container, allowing dynamic control of the step size.                                                                                                                                        |
+| `-reset-ports`                      | off            | Add a `container.reset` input to each embedded FMU, to reset it during the simulation. See [Reset of Embedded FMUs](container-reset.md).                                                                                            |
 | `-datalog`                          | off            | Log input, output, and local variables of the container into a CSV file.                                                                                                                                                             |
 | `-dump-json`                        | off            | Dump a JSON description file for each container.                                                                                                                                                                                     |
 | `-no-auto-input`                    | auto           | Disable automatic exposure of unconnected input ports from embedded FMUs.                                                                                                                                                            |
@@ -65,7 +147,7 @@ The `fmucontainer` command supports the following options:
 | `-no-auto-link`                     | auto           | Disable automatic linking of ports with matching names and types.                                                                                                                                                                    |
 | `-auto-local`                       | off            | Expose local variables of the embedded FMUs.                                                                                                                                                                                         |
 | `-auto-parameter`                   | off            | Expose parameters of the embedded FMUs.                                                                                                                                                                                              |
-| `-debug`                            | off            | Enable verbose logging during the build process.                                                                                                                                                                                     |
+| `-debug`                            | off            | Enable verbose logging during the build process, and keep the build directory (`<container name>/` in the FMU directory).                                                                                                             |
 
 **Example:**
 
@@ -79,7 +161,9 @@ and profiling active. The source FMUs are located in the `./my_fmus` directory.
 ![Routing](routing.png "Routing table")
 
 ## CSV Input file
-This is the historic input file format. It has been superseded by the Json input file format.
+This is the historic input file format. It has been superseded by the Json input file format. It cannot describe
+an FMU [embedded several times](#embedding-the-same-fmu-several-times): exporting such an assembly to CSV is
+refused.
 
 Example: 
   * Two FMU's to be assembled: `bb_position.fmu` and `bb_velocity.fmu`
@@ -118,6 +202,35 @@ Note: the optional `:0.1` suffix means the timestep should be `0.1` second.
 fmucontainer -container container.json
 ```
 
+### Embedding the same FMU several times
+
+Each embedded FMU is designated by its name in the `link`, `input`, `output`, `start` and `drop` blocks. Usually,
+the name is the path of the FMU file. To embed the same FMU several times in one container, give each instance its
+own name, and its file in the optional `path` block:
+
+```json
+{
+  "name": "two_balls.fmu",
+  "fmu": ["bb_position.fmu", "bb_velocity.fmu", "bb_position-1.fmu", "bb_velocity-1.fmu"],
+  "path": {"bb_position-1.fmu": "bb_position.fmu", "bb_velocity-1.fmu": "bb_velocity.fmu"},
+  "link": [["bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset"],
+           ["bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"],
+           ["bb_position-1.fmu", "is_ground", "bb_velocity-1.fmu", "reset"],
+           ["bb_velocity-1.fmu", "velocity", "bb_position-1.fmu", "velocity"]],
+  "output": [["bb_position.fmu", "position1", "position"],
+             ["bb_position-1.fmu", "position1", "position_2"]]
+}
+```
+
+- The `path` block maps an instance name to its FMU file; a name absent from it is its own file. It is written
+  only when the assembly has instances, so other descriptions are unchanged.
+- The tools name the instances `<stem>-<n>.fmu` (`bb_position-1.fmu`, `bb_position-2.fmu`...), with the smallest
+  free `n`; any name unique in its container is accepted.
+- Each instance is a distinct embedded FMU: it is extracted in its own directory of the container, its library is
+  loaded from there, and it is instantiated under its own name (`<container instance>.<instance name>`).
+- `fmusplit` writes one FMU file per instance (`bb_position.fmu`, `bb_position-1.fmu`...), so the JSON it produces
+  needs no `path` block.
+
 ## SSP Input file
  
 This feature is still alpha. User interface may change in the future.
@@ -133,6 +246,9 @@ will generate an FMU container :
 2. build a container accordingly to the SSP
 
 Note: the optional `:0.1` suffix means the timestep should be `0.1` second.
+
+Several components of the SSP may share one FMU source: each of them is embedded as an
+[instance](#embedding-the-same-fmu-several-times) of that FMU (`model.fmu`, then `model-1.fmu`...).
 
 # Python API
 
@@ -205,7 +321,13 @@ container.add_implicit_rule(auto_input=True, auto_output=True, auto_link=True)
 container.make_fmu("bouncing.fmu", step_size=0.1, mt=True)
 ```
 
-The resulting `bouncing.fmu` is generated in the `fmu_directory`.
+The resulting `bouncing.fmu` is generated in the `fmu_directory`. The container is assembled in the
+directory `fmu_directory/<container name without .fmu>` (`bouncing/` here), which is **deleted** after the build,
+unless `debug=True`: make sure no directory of yours has that name. `make_fmu` can be called several times on the
+same `FMUContainer`, e.g. to build several variants.
+
+The methods defining the topology raise `FMUContainerError` when a rule cannot be applied: unknown FMU or port,
+wrong causality, incompatible types or dimensions, input already fed, start value of the wrong format.
 
 ## FMUContainer Reference
 
@@ -216,12 +338,13 @@ The `FMUContainer` constructor takes the following parameters:
 | `identifier` | *(required)* | used as `modelIdentifier` in `modelDescription.xml`   |
 | `fmu_directory` | *(required)* | Directory containing the source FMUs                  |
 | `fmi_version` | `2` | FMI version for the container interface (`2` or `3`)  |
+| `reset_ports` | `False` | Add a `container.reset` input to each embedded FMU (see [Reset of Embedded FMUs](container-reset.md)) |
 
 The following methods define the container topology:
 
 | Method | Description |
 |--------|-------------|
-| `get_fmu(fmu_filename)` | Load an embedded FMU from `fmu_directory` |
+| `get_fmu(fmu_filename, name=None)` | Load an embedded FMU from `fmu_directory`; `name` designates an [instance](#embedding-the-same-fmu-several-times) of an FMU embedded several times (e.g. `get_fmu("model.fmu", "model-1.fmu")`), then used by the other methods |
 | `add_input(exposed_name, fmu_name, port_name)` | Expose a port of an embedded FMU as a container input |
 | `add_output(fmu_name, port_name, exposed_name)` | Expose a port of an embedded FMU as a container output |
 | `add_link(from_fmu, from_port, to_fmu, to_port)` | Connect an output to an input between embedded FMUs |
@@ -250,14 +373,20 @@ Feel free to [create a ticket](https://github.com/grouperenault/fmu_manipulation
 let us know your needs.
 
 
+A container may embed FMU's in **Co-Simulation** mode as well as in **Model-Exchange** mode, and both
+kinds can be freely mixed inside the same container. The mode used for each embedded FMU is detected
+automatically — see [Model-Exchange support](#model-exchange-support) below.
+
 ## FMI-2.0 Containers
 Without any additional option, `fmucontainer` will produce FMI-2.0 containers. These containers may embed
 - *FMU 2.0* in cosimulation mode without any particular limitation.
+- *FMU 2.0* in [Model-Exchange mode](#model-exchange-support).
 - *FMU 3.0* in cosimulation mode with limitations:
   - Variables with FMI-3.0 specific types can be used for routing but cannot be exposed (as input, output, parameter or local).
     Note: `boolean` is redefined in FMI-3.0. So cannot be exposed from an FMU-3.0.
   - Early Return feature is not supported
   - Arrays are not supported
+- *FMU 3.0* in [Model-Exchange mode](#model-exchange-support) (same type/exposition limitations as above).
 
 ## FMI-3.0 Containers
 To produce FMI-3.0 compliant containers, use option `-fmi 3` in `fmucontainer` command line.
@@ -265,10 +394,49 @@ Those containers may embed
 
 - *FMU 2.0* in cosimulation mode with limitations:
   - `boolean` variables can be used for routing but cannot be exposed (as input, output, parameter or local).
-   
+
+- *FMU 2.0* in [Model-Exchange mode](#model-exchange-support).
+
 - *FMU 3.0* in cosimulation mode with limitations:
   - Early Return feature is _not_ supported
   - Arrays are not supported
+
+- *FMU 3.0* in [Model-Exchange mode](#model-exchange-support).
+
+## Model-Exchange support
+
+In addition to Co-Simulation, `fmucontainer` can embed **Model-Exchange (ME)** FMU's. In that case the
+container itself provides the numerical solver: it integrates the continuous states of the embedded ME
+FMU's and handles their events.
+
+!!! info "Automatic mode selection"
+    The mode of each embedded FMU is detected automatically from its `modelDescription.xml`; there is
+    **no command-line option** to select it:
+
+    - An FMU that only provides **Model-Exchange** is embedded in Model-Exchange mode.
+    - An FMU that provides **both** Co-Simulation and Model-Exchange is embedded in **Co-Simulation**
+      mode (Co-Simulation takes precedence).
+
+How it works:
+
+- All Model-Exchange FMU's are advanced together by a **built-in fixed-step solver** (forward Euler),
+  using the container's [*time_step*](#how-to-create-an-fmu-container) as the integration step. Keep the
+  step small enough for the dynamics of your ME models.
+- State events (via event indicators) and time events are detected and handled so that the coupled set
+  of ME FMU's stays consistent.
+- During the integration, only the couplings between ME FMU's are exchanged at each evaluation of the
+  solver: the inputs fed by Co-Simulation FMU's or by the importer do not change during a step, they are
+  set once per step.
+- The number of continuous states (`nx`) and of event indicators (`nz`) is computed automatically from
+  the FMU's `<ModelStructure>` (FMI-2.0 `<Derivatives>` / FMI-3.0 `<ContinuousStateDerivative>` and
+  `<EventIndicator>`). You can inspect these values with `fmudump`, which now reports `nx` and `nz` for
+  any FMU providing Model-Exchange.
+- Both FMI-2.0 and FMI-3.0 Model-Exchange FMU's are supported, in either an FMI-2.0 or an FMI-3.0
+  container. The routing/exposition rules and type limitations listed above apply identically to
+  Model-Exchange FMU's.
+
+No change to the description file (CSV/JSON/SSP) nor to the Python API is required: simply reference a
+Model-Exchange FMU like any other embedded FMU and build the container as usual.
 
 
 ## Connecting FMI-2 and FMI-3 arrays

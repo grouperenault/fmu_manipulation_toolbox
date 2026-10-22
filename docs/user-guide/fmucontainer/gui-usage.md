@@ -23,6 +23,7 @@ The interface is split into three main areas:
 | **Tree View** (top-right) | Hierarchical structure of containers and FMUs |
 | **Detail Panel** (bottom-right) | Properties of the selected node, wire, or container |
 | **Button Bar** (bottom) | Configuration, load/save, and export actions |
+| **Status Bar** (very bottom) | Last log message; click it to open the [log window](#log) |
 
 ## Node Graph
 
@@ -36,7 +37,29 @@ There are three ways to add FMUs to the canvas:
 - **Right-click → Add FMU…**: opens a file dialog to select one or more `.fmu` files.
 - **Tree View → Right-click → Add FMU…**: adds FMUs under a specific container in the hierarchy.
 
-Each FMU node displays its filename as a title.
+Each FMU node displays its name as a title: the filename of its FMU. The same FMU can be added several
+times: each new node is an **instance** of it, named `<stem>-<n>.fmu` with the smallest free `n`
+(`bb_position-1.fmu`, `bb_position-2.fmu`...); another file with an already used filename is named the same way.
+The FMU detail panel of an instance shows the FMU it is an instance of. Wires, start values and exposed ports
+belong to one node, and a saved JSON keeps the file of each instance (see
+[Embedding the same FMU several times](container.md#embedding-the-same-fmu-several-times)).
+
+![Two instances of each bouncing ball FMU](fmucontainer-instances.png)
+
+!!! note "Instances and automatic rules"
+    The instances of an FMU are never linked by `auto_link`: wire them explicitly. When `auto_input` or
+    `auto_output` exposes a port whose name is already used, it is exposed as `<fmu>.<port>`
+    (e.g. `bb_position-1.position1`).
+
+!!! note "Title bar color — Co-Simulation vs Model-Exchange"
+    The color of a node's title bar reflects the FMI interface used to embed the FMU:
+
+    - **Blue** — the FMU is embedded in **Co-Simulation** mode (default). FMUs advertising both
+      Co-Simulation and Model-Exchange are also shown in blue, since Co-Simulation takes precedence.
+    - **Green** — the FMU only provides **Model-Exchange** and is therefore integrated by the
+      container's built-in solver (see [Model-Exchange support](container.md#model-exchange-support)).
+
+    This lets you tell at a glance which embedded FMUs rely on the container's solver.
 
 ### Connecting FMUs with Wires
 
@@ -74,6 +97,8 @@ and route wires around nodes for better readability.
 You can add as many waypoints as needed. The wire becomes a polyline passing through each
 waypoint in order.
 
+![A selected wire with a waypoint](fmucontainer-waypoints.png)
+
 !!! tip "Visibility"
     Waypoint handles are only visible when the wire is **selected**. Click on a wire to
     select it and reveal its handles.
@@ -91,6 +116,8 @@ waypoint in order.
 | **Delete** | Select items, then press ++delete++ or ++backspace++ |
 
 ### Context Menu (Right-click on Canvas)
+
+![Context menu of a node](fmucontainer-canvas-menu.png)
 
 | Action | Description |
 |---|---|
@@ -110,11 +137,14 @@ To replace an FMU with a different version or an alternative file:
 3. Click **Browse…** to select a new `.fmu` file
 4. Click **OK** to apply the replacement
 
-The replacement is done **in place**: all wires, start values, and exposed input/output ports are
-preserved. If a port name referenced by a start value, a wire mapping, or an exposed input/output
+The replacement is done **in place**, for the selected node only, even when it is an instance of an FMU
+added several times: all wires, start values, and exposed input/output ports are preserved. The node is renamed
+after the new file (with the smallest free `-<n>` suffix if that name is used). If a port name referenced by a start value, a wire mapping, or an exposed input/output
 no longer exists in the new FMU, it appears in **red** in the detail panels — allowing you to
 review and correct invalid references. The affected wire itself is also drawn in **red** on the
 canvas, so broken connections are immediately visible without having to open every wire's details.
+
+![A wire to a port that no longer exists, in red on the canvas and in the Wire Details](fmucontainer-invalid-wire.png)
 
 !!! tip "Typical use case"
     Use this feature when a new version of an FMU is available: replace the file and instantly
@@ -139,7 +169,23 @@ You can create nested containers to organize complex assemblies:
 
 After renaming a container, the **Container Details** panel is refreshed immediately to reflect the new name.
 
+### Step Size Column
+
+The second column of the tree view shows the step size of each item, in seconds. It is informative: it cannot be
+edited.
+
+- **FMU**: the step size declared by the FMU (`stepSize` of its `DefaultExperiment`); empty if the FMU declares none.
+- **Container**: its `step_size` parameter (see [Container Details](#container-details)). When `step_size` is
+  empty, the column shows, in *italics*, the step size deduced when the container is built: the least common
+  multiple of the step sizes of the FMUs that cannot handle a variable step size or, if all of them can, the
+  largest step size; 0.1 s if no FMU declares a step size. A sub-container counts as an FMU that can handle a
+  variable step size.
+
+The column is updated when FMUs or containers are added, moved, replaced or removed, and when `step_size` is changed.
+
 ### Context Menu (Right-click on Tree View)
+
+![Context menu of the tree view](fmucontainer-tree-menu.png)
 
 | Action | Description |
 |---|---|
@@ -158,6 +204,8 @@ When an FMU node is selected, the detail panel shows:
 
 - **FMU name**, generator tool, and step size
 - Three tabs: **Start Values**, **Input Ports**, and **Output Ports**
+
+![FMU details: a start value set on the parameter mu](fmucontainer-fmu-details.png)
 
 #### Start Values tab
 
@@ -217,6 +265,8 @@ Lists all output ports with a checkbox to explicitly expose them at the containe
     automatically propagated up through each parent container so that it remains reachable
     from the root container.
 
+<a id="port-style-indicators"></a>
+
 !!! note "Port Style Indicators"
     Ports are displayed with different text styles to indicate their nature:
 
@@ -274,7 +324,7 @@ Each tab has its own **Add link** / **Remove link** buttons to manage mappings f
     A wire is drawn in **red** on the canvas whenever at least one of its port mappings is
     invalid: either because the referenced port no longer exists on the FMU (e.g. after
     [Replace FMU](#replacing-an-fmu)), or because it targets an inactive
-    [`configuration` node port](#the-configuration-node-ts_multiplier) (`ts_multiplier` unchecked).
+    [`configuration` node port](#the-configuration-node) (`ts_multiplier` unchecked).
     In both cases, the invalid port name is also shown in red inside the *Wire Details* table
     so you can quickly locate and fix (or simply understand) the broken mapping.
 
@@ -304,19 +354,14 @@ occurs through terminal connections rather than individual variable ports.
 
 The arrowheads on the wire update automatically to reflect the configured directions.
 
-Below the tabs, a global button is available:
+Below the tabs, global buttons are available:
 
 | Button | Description |
 |---|---|
-| **Auto-Connect** | Automatically map ports that share the same name — in **both** directions at once |
+| **Link Assistant** | Open the [Link Assistant](#link-assistant) to define many links at once |
 | **Remove All** | Remove all link definitions between A and B (both directions) |
 | **Import** | Import link definitions from a CSV file |
 | **Export** | Export link definitions to a CSV file |
-
-!!! tip "Auto-Connect"
-    The **Auto-Connect** button matches output and input ports by name in both directions —
-    it will create A → B mappings where A has an output matching a B input, and B → A mappings
-    where B has an output matching an A input.
 
 !!! info "CSV Format for Import/Export"
     The CSV file uses 4 columns: `FMU From`, `Port From`, `FMU To`, `Port To`.
@@ -324,13 +369,247 @@ Below the tabs, a global button is available:
     are included in the same file. This makes it easy to edit link definitions in a spreadsheet
     and re-import them.
 
+#### Link Assistant
+
+When the FMUs have hundreds of ports, filling the tables of the *Wire Details* panel one link at
+a time is tedious. The **Link Assistant** button opens a window that proposes links in bulk, lets
+you review them, and writes them into the wire only when you click **Apply**.
+
+![Link Assistant — Rules tab](link-assistant-rules.png)
+
+The window works on the wire that was selected when it was opened. It does not block the rest of
+the Container Builder: you can keep looking at the graph. Clicking **Link Assistant** again brings
+it to the front; on another wire, it closes the open assistant first (asking for confirmation if
+links are staged there).
+
+**Header** — the two FMUs in the order of the current direction (`source.fmu → target.fmu`). Below
+each name, the counters of its ports:
+
+| Symbol | Meaning |
+|---|---|
+| **Σ** | Total number of outputs (source) or inputs (target) |
+| **●** | Outputs already linked on this wire, or inputs already fed: by a link of any wire of the FMU, by an exposed input, or by a staged link |
+| **○** | Free ports |
+
+The selector on the right switches the direction (**A → B** / **B → A**). The staged links of both
+directions are kept, so both directions can be prepared before applying.
+
+The window has two tabs, **Rules** and **Manual**, which share the list of
+[staged links](#staged-links) at the bottom.
+
+##### Rules tab
+
+A *criterion* proposes, for each free output, the input it should be linked to. Choose it with
+**Match by**:
+
+| Criterion | Parameters | Example |
+|---|---|---|
+| **Same name** | — | `vehicle.speed` → `vehicle.speed` |
+| [**Replace prefix / suffix**](#replace-prefix-suffix) | Prefix and suffix of the output name, replaced by those of the input name | `engine.out.speed` → `ecu.in.engine_speed` (`engine.out.` → `ecu.in.engine_`) |
+| [**Regular expression**](#regular-expression) | A regular expression matching the **whole** output name, and the input name built from its groups (`\1`, `\2`, …) | `sensor\.(\w+)\.(\w+)` → `sensor_\2_\1` |
+| **Similar names** | Minimum similarity score (1.00 to 0.50) | `chassis.pressure` → `chassis.press` |
+
+Options of the criterion:
+
+| Option | Effect |
+|---|---|
+| **ignore case and separators** | Names are compared without case nor separators (`.` `_` `-` `[` `]` and spaces), for every criterion: `Throttle_Pos` matches `throttle.pos`. Checked by default |
+| **parameters as targets** | Also propose the parameters of the target FMU, not only its inputs |
+| **Allow only: compatible types** | Checked (default): a link between types without conversion is an error ✖. Unchecked: it is only a warning ⚠ |
+| **Allow only: same units** | Checked: a link between different units is an error ✖. Unchecked (default): it is a warning ⚠ |
+
+###### How a criterion finds the input
+
+Every criterion works the same way: it takes the free outputs one by one, in the order of the source
+FMU, builds from the name of each one the name of an input, and looks for that name among the free
+inputs of the target FMU. An output whose name does not fit the criterion, or whose input does not
+exist, gets no suggestion.
+
+- With **ignore case and separators**, the name built is compared to the input names without case
+  nor separators: `ecu.in.engine_speed` finds the input `ECU_In_Engine_Speed`.
+- An input is proposed only once: when two outputs lead to the same input (`engine.out.speed` and
+  `engine.out.Speed`), only the first one gets a suggestion.
+- **Same name** builds the name of the output itself; **Similar names** does not build a name, it
+  looks for the closest input name (see the score below).
+
+###### Replace prefix / suffix
+
+The four fields read as a rewriting of the name:
+**Output:** `prefix` … `suffix` **→ Input:** `prefix` … `suffix`. The **…** stands for the rest
+of the name, kept as is.
+
+1. The output name must start with the output prefix and end with the output suffix; the other
+   outputs are skipped.
+2. The prefix and the suffix are removed: what remains is the *core* of the name. It cannot be
+   empty: an output named exactly `engine.out.` is skipped.
+3. The input name is the input prefix, followed by the core, followed by the input suffix.
+
+With the output prefix `engine.out.` and the input prefix `ecu.in.engine_` (suffixes empty), as in
+the screenshot at the top of the [Link Assistant](#link-assistant) section:
+
+| Output | Core | Input looked for |
+|---|---|---|
+| `engine.out.speed` | `speed` | `ecu.in.engine_speed` |
+| `engine.out.torque_max` | `torque_max` | `ecu.in.engine_torque_max` |
+| `engine.in.speed` | — | none: the output does not start with `engine.out.` |
+
+Other uses:
+
+| Output prefix | Output suffix | Input prefix | Input suffix | Example |
+|---|---|---|---|---|
+| *(empty)* | `_meas` | *(empty)* | `_cmd` | `throttle_meas` → `throttle_cmd` |
+| `bus1.` | `_out` | `ecu.` | `_in` | `bus1.speed_out` → `ecu.speed_in` |
+
+!!! warning "Things to know"
+    - An empty field means *no prefix* (or *no suffix*), not *anything*. To replace only a suffix,
+      leave both prefixes empty; with the four fields empty, the criterion is **Same name**.
+    - The fields are plain text: no wildcard, and `.` is a dot. When the part to replace is not at
+      the start or at the end of the name (e.g. `engine.<anything>.out.speed`), use a
+      [regular expression](#regular-expression).
+    - With **ignore case and separators**, the fields too are compared without case nor
+      separators: `engine.out.` also takes `Engine_Out_Torque`, and typing `engine_out_` gives the
+      same result. Unchecked, everything is compared character by character.
+
+###### Regular expression
+
+Two fields: the **pattern**, applied to the output name, and the **replacement**, which builds the
+input name. They use the syntax of Python regular expressions
+([`re` module](https://docs.python.org/3/library/re.html#regular-expression-syntax)).
+
+1. The pattern must match the **whole** output name, as if it began with `^` and ended with `$`
+   (writing them is allowed). The outputs it does not match are skipped.
+2. The parts of the pattern in parentheses are the *groups*, numbered from left to right. The
+   replacement uses them with `\1`, `\2`, …
+3. The name built by the replacement is looked for among the free inputs.
+
+With the pattern `sensor\.(\w+)\.(\w+)` and the replacement `sensor_\2_\1`:
+
+| Output | `\1` | `\2` | Input looked for |
+|---|---|---|---|
+| `sensor.front.temp` | `front` | `temp` | `sensor_temp_front` |
+| `sensor.rear.pressure` | `rear` | `pressure` | `sensor_pressure_rear` |
+| `sensor.front.temp.raw` | — | — | none: `\w+` does not take the `.` of `.raw`, so the pattern does not match the whole name |
+
+![Link Assistant — the groups of a regular expression swapped in the input name](link-assistant-regex.png)
+
+Useful syntax in the pattern:
+
+| Pattern | Matches |
+|---|---|
+| `\.` | A dot. A plain `.` matches any character |
+| `.*` / `.+` | Any text, possibly empty / of at least one character |
+| `\w+` | A word: letters, digits and `_`, but not `.` nor `[` |
+| `\d+` | A number |
+| `(…)` | A group, reused in the replacement |
+| `(?:…)` | Parentheses that are not a group, e.g. `(?:out|output)` for `out` or `output` |
+| `[._]` | One character among `.` and `_` |
+| `\[(\d+)\]` | An array index such as `[3]`: the brackets must be escaped |
+
+In the replacement:
+
+| Replacement | Gives |
+|---|---|
+| `\1`, `\2`, … | The text of the group 1, 2, … |
+| `\g<0>` | The whole output name |
+| `\g<1>0` | The group 1 followed by the digit `0` (`\10` would be the group 10) |
+| `\g<pos>` | The group named `pos` in the pattern: `(?P<pos>\w+)` |
+
+More examples:
+
+| Pattern | Replacement | Example |
+|---|---|---|
+| `engine\.out\.(.*)` | `ecu.in.engine_\1` | `engine.out.speed` → `ecu.in.engine_speed` |
+| `pump\[(\d+)\]\.speed` | `pump\1_speed` | `pump[2].speed` → `pump2_speed` |
+| `(.*)\.(?:out|output)` | `\1.in` | `valve.out` → `valve.in`, `pump.output` → `pump.in` |
+
+!!! warning "Things to know"
+    - A group is written `\1` in the replacement; `$1`, used by other tools, is taken literally.
+    - **ignore case and separators** makes the pattern ignore the case, not the separators: the
+      pattern applies to the real output name, so write its separators as they are (`engine\.out`),
+      or accept several (`engine[._]out`). The name built by the replacement is then compared to the
+      inputs without case nor separators: `ecu.in.engine_\1` also finds `ecu_in_Engine_Speed`.
+    - A pattern that is not a valid regular expression is framed in red, and gives no suggestion.
+
+###### Similar names
+
+The score compares the output name to each input name (both without case nor separators when the
+option is checked): 1.00 for identical names, lower as they differ. For each output, the input with
+the best score above the threshold is proposed. A suggestion whose score is below 1.00 gets a ⚠
+status, to be reviewed, unless it is already ✖.
+
+The suggestions are updated a moment after each change of the criterion, of its parameters or of
+an option. Each one is checked when it can be applied, and gets a status:
+
+| Status | Meaning |
+|---|---|
+| **✔** | The link can be applied |
+| **⚠** | The link can be applied, but should be reviewed: lossy type conversion (e.g. `Real` → `Int32`), different units, or a name found by **Similar names** |
+| **✖** | The link cannot be applied: the input is already fed, the types cannot be converted, the arrays have different sizes |
+
+Review the suggestions (the **Show** selector and the **Filter** field narrow the table), then
+click **Stage checked links ↓**; a double-click on a row stages that suggestion only.
+**Check all** and **Uncheck all** act on the rows shown. The staged links leave the
+suggestions; the other suggestions keep their check boxes. Then pick another criterion: it only
+sees the ports still free.
+
+!!! tip "Typical sequence"
+    Start with **Same name**, stage; then **Replace prefix / suffix** or **Regular expression**
+    for the families of signals named differently, stage; then **Similar names** for what is
+    left, reviewing each suggestion; link the last ports in the **Manual** tab.
+
+!!! note "Large FMUs"
+    If a search takes more than 0.3 s (e.g. **Similar names** on FMUs with thousands of ports),
+    the suggestions are no longer updated while typing: a **Run ▶** button appears to search
+    again.
+
+##### Manual tab
+
+![Link Assistant — Manual tab](link-assistant-manual.png)
+
+The outputs of the source FMU (left) and the inputs of the target FMU (right), each list below the
+name of its FMU, with the type, unit and description of each port. Narrow them with the
+**Filter** field (name or description) and the type selector; **only free ports** hides the ports
+already linked, fed or staged; **show parameters** also lists the parameters of the target FMU.
+
+Select ports in both lists (++shift++ / ++ctrl++ for several), check the preview below
+**Link selection ↓**, and click it:
+
+- as many outputs as inputs: they are paired in the order of the lists;
+- one output and several inputs: the output feeds every selected input.
+
+##### Staged links
+
+The links staged by both tabs, with their direction, their origin (criterion or *manual*) and
+their status. The status is computed again on each change: two staged links feeding the same input
+are both ✖.
+
+| Button | Description |
+|---|---|
+| **Remove selected** / **Remove All** | Remove staged links; their ports are free again and the suggestions of the **Rules** tab come back |
+| **Cancel** | Close the window without changing the wire (asks for confirmation if links are staged) |
+| **Apply *n* links** | Add the staged links to the wire, then close the window. Disabled while a link is ✖ |
+
+The links already defined on the wire are kept. If an input was fed in the *Wire Details* panel
+while the assistant was open, its staged link is not added (a message tells how many).
+
+!!! note "FMI-2 arrays"
+    An FMI-2 array aggregate and its elements (e.g. `u` and `u[1]`, `u[2]`) are one input for the
+    assistant: staging one of them takes the others, and an aggregate is linked only to an array
+    of the same size.
+
+!!! info "Settings kept for the session"
+    The parameters of each criterion and **ignore case and separators** are kept until the
+    Container Builder is closed. The assistant always opens on **Same name**.
+
 ### Container Details
 
 When a container is selected in the tree view, the detail panel shows its configuration parameters:
 
+![Container details of the root container](fmucontainer-container-details.png)
+
 | Parameter | Type | Description |
 |---|---|---|
-| `step_size` | text | Fixed time step (in seconds) for the container's internal solver |
+| `step_size` | text | Fixed time step (in seconds) for the container's internal solver; when empty, deduced from the embedded FMUs (see [Step Size Column](#step-size-column)) |
 | `mt` | checkbox | Enable multi-threading (each FMU runs in its own thread) |
 | `profiling` | checkbox | Enable performance profiling of embedded FMUs |
 | `sequential` | checkbox | Force sequential execution order |
@@ -340,36 +619,47 @@ When a container is selected in the tree view, the detail panel shows its config
 | `auto_parameter` | checkbox | Automatically expose parameter ports |
 | `auto_local` | checkbox | Automatically expose local variables |
 | `ts_multiplier` | checkbox | Add a `TS_MULTIPLIER` input for dynamic step size control |
+| `reset_ports` | checkbox | Add a reset input to each FMU of the container (see [Reset of Embedded FMUs](container-reset.md)) |
 
-### The `configuration` Node (`ts_multiplier`)
+### The `configuration` Node
 
 As soon as at least one **sub-container** (not the root container) has its `ts_multiplier`
-parameter checked, a virtual node titled **configuration** automatically appears on the canvas.
+parameter checked, or one container (the root included) has its `reset_ports` parameter checked,
+a virtual node titled **configuration** automatically appears on the canvas.
 This node is a **visual aid**: it does not correspond to any real FMU file, and it never gets its
 own row in the tree view — it exists purely to help you keep track of which FMU drives the
-`TS_MULTIPLIER` input of which sub-container.
+`TS_MULTIPLIER` input of which sub-container, and the reset of which FMU.
 
 - The node exposes **one input port per checked sub-container**, named
   `<container_name>.ts_multiplier` (the `.fmu` suffix of the container name is stripped).
+- It also exposes **one Boolean input port per FMU, or sub-container, of each container with
+  `reset_ports` checked**, named `<fmu_name>.reset` (the `.fmu` suffix is stripped): see
+  [Reset of Embedded FMUs](container-reset.md).
 - It can be wired from **any FMU** in the assembly, like a regular node — drag from the FMU's
   body onto the `configuration` node body to create the wire.
 - It can be **moved** freely but **cannot be deleted** manually while it is still relevant.
-- Selecting the `configuration` node shows an empty detail panel (there is nothing to configure
-  on the node itself).
+- Selecting the `configuration` node shows its reset ports, each with an **Exposed** checkbox:
+  an exposed port becomes the input `container.<fmu>.reset` of the container of the FMU (the
+  ports are exposed anyway when `auto_input` is checked).
 - Checking `ts_multiplier` on the **root** container has **no effect**: the root container is
-  never added to the `configuration` node.
+  never added to the `configuration` node. `reset_ports` applies to the root container too.
+
+![Reset ports in the FMU Container Builder](container-reset-gui.png)
 
 !!! important "This wire is a real link, not just a visual note"
     Unlike the `configuration` node itself (a pure GUI convenience), a wire connected to it **is**
     exported: it corresponds to a real link driving the target sub-container's reserved
     `container.ts_multiplier` runtime input (the actual input FMI port exposed by that container
-    when `ts_multiplier` is enabled). When **importing** a JSON or FMU container, a link whose
-    destination is a sub-container name with port `container.ts_multiplier` is automatically
-    reconstructed as a wire to the `configuration` node's matching dynamic port. On **export**,
-    the reverse translation is applied, so the round-trip is lossless.
+    when `ts_multiplier` is enabled), or the reserved `container.reset` input of the FMU. When
+    **importing** a JSON or FMU container, a link whose destination is a sub-container name with
+    port `container.ts_multiplier`, or an FMU with port `container.reset`, is automatically
+    reconstructed as a wire to the `configuration` node's matching dynamic port; an input rule on
+    `container.reset` checks its **Exposed** box. On **export**, the reverse translation is applied,
+    so the round-trip is lossless.
 
-!!! note "Unchecking `ts_multiplier`"
-    Unchecking `ts_multiplier` on a sub-container does **not** delete its port nor an existing
+!!! note "Unchecking `ts_multiplier` or `reset_ports`"
+    Unchecking `ts_multiplier` on a sub-container (or `reset_ports` on a container, or moving an FMU
+    out of it) does **not** delete its port nor an existing
     wire connected to it. Instead, the port becomes inactive and any wire referencing it is drawn
     in **red** (both on the canvas and in the *Wire Details* panel, see [Wire Details](#wire-details)),
     to flag the now-invalid connection. Re-checking `ts_multiplier` automatically restores the
@@ -386,9 +676,15 @@ own row in the tree view — it exists purely to help you keep track of which FM
 
 Click **Configuration** to open a popup menu with:
 
+![Configuration menu](fmucontainer-configuration.png)
+
 - **Generate FMI-2 / FMI-3**: choose the target FMI version for the output container.
-- **Verbose Mode**: enable detailed logging and keep intermediate build artifacts.
+- **Verbose Mode**: enable detailed logging for this window (`DEBUG` messages in the [log window](#log), and a copy
+  of its log messages on the standard output of the terminal that launched the GUI) and keep intermediate build
+  artifacts. The other windows are not affected.
 - **Enable Datalog**: include a `datalog.txt` configuration in the generated FMU (useful for simulation trace export).
+- **AI Assistant On / Off**: start or stop the MCP server of the [AI Assistant](ai-assistant.md) (only when the
+  `mcp` extra is installed).
 
 ### Actions
 
@@ -401,12 +697,45 @@ Click **Configuration** to open a popup menu with:
 | **Exit** | Close the window (prompts if there are unsaved changes) |
 
 During **Load**, **Import**, **Export**, and **Save** operations, a progress dialog shows execution logs in real time.
+These messages also remain available in the [log window](#log).
 
 !!! tip "Relative FMU paths"
     When exporting with **Export as JSON**, the FMU paths written in the `fmu` and `link` blocks
     are automatically made relative to the directory where the JSON file is saved. This keeps the
     exported assembly portable as long as the FMU files stay in the same relative layout — see
     also the [FMU location](#importing-an-assembly-file) requirement when re-importing.
+
+## Log
+
+Every component of the Container Builder (graph, tree, build, import, AI Assistant) writes to the log of its window.
+With several windows opened from the [launcher](../launcher.md), each window has its own log: an action, or a request
+of the AI Assistant of a window, is only logged in that window. The few messages that do not come from a window are
+shown in all of them.
+
+### Status Bar
+
+The status bar, under the button bar, shows the last message of level **Info** or above, in the colour of its level
+(grey for information, yellow for warnings, red for errors). It stays until the next message. A message spanning
+several lines is shown by its first line followed by `…`.
+
+Click the status bar to open the log window.
+
+### Log Window
+
+The log window lists every message of this window since it was opened (the last 5000 ones). It is not modal:
+it can stay open next to the main window and receives new messages as they arrive.
+
+| Control | Description |
+|---|---|
+| **Level** (Debug / Info / Warning / Error) | Show only the messages of this level or above |
+| **Search…** | Show only the messages containing this text (case-insensitive) |
+| **Save Logs…** | Save the displayed messages in a text file |
+| **Clear** | Forget the messages of this window (they are not shown again when the log window is reopened); the other windows keep theirs |
+| **Close** | Close the window; the log keeps being recorded |
+
+!!! tip "Debug messages"
+    `DEBUG` messages are only recorded while **Verbose Mode** of the window is enabled (see
+    [Configuration](#configuration)).
 
 ## Typical Workflow
 

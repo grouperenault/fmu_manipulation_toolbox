@@ -24,7 +24,7 @@
  *   U8..U64    : unsigned integers (uint8_t .. uint64_t)
  *   B / B1     : container boolean (int) / bit-packed boolean (bool)
  */
-convert_table_t *convert_new(unsigned long nb) {
+convert_table_t *convert_new(const logger_t *logger, unsigned long nb) {
     convert_table_t *table = NULL;
 
     if (nb > 0) { 
@@ -33,12 +33,12 @@ convert_table_t *convert_new(unsigned long nb) {
             table->nb = nb;
             table->entries = malloc(nb * sizeof(*table->entries));
             if (! table->entries) {
-                logger(LOGGER_ERROR, "Cannot allocate conversion table for %lu entries.", nb);
+                LOGGER_ERROR("Cannot allocate conversion table for %lu entries.", nb);
                 free(table);
                 table = NULL;
             }
         } else
-            logger(LOGGER_ERROR, "Cannot allocate conversion table");
+            LOGGER_ERROR("Cannot allocate conversion table");
     } 
     return table;
 }
@@ -293,6 +293,55 @@ CONVERSION_FUNCTION_B(B1_D32, booleans1, bool, integers32,  int32_t)
 CONVERSION_FUNCTION_B(B1_U32, booleans1, bool, uintegers32, uint32_t)
 CONVERSION_FUNCTION_B(B1_D64, booleans1, bool, integers64,  int64_t)
 CONVERSION_FUNCTION_B(B1_U64, booleans1, bool, uintegers64, uint64_t)
+
+
+/* 64 or 32 when the conversion `<FROM>_<TO>` (lossy ones start with `_`) gives a real64 (`F64`) or a real32 (`F32`),
+   0 otherwise. */
+int convert_destination_real(const char *function_name) {
+    const char *to = strrchr(function_name, '_');
+
+    if (to && strcmp(to, "_F64") == 0)
+        return 64;
+    if (to && strcmp(to, "_F32") == 0)
+        return 32;
+    return 0;
+}
+
+
+/* Number of local variables of the container of the type of a code of the conversion names, or -1 if unknown. */
+static long convert_nb_local(const container_t *container, const char *code, size_t len) {
+#define CODE(x, variable) if (len == strlen(x) && strncmp(code, x, len) == 0) return (long)container->nb_local_ ## variable
+    CODE("F64", reals64);
+    CODE("F32", reals32);
+    CODE("D8",  integers8);
+    CODE("U8",  uintegers8);
+    CODE("D16", integers16);
+    CODE("U16", uintegers16);
+    CODE("D32", integers32);
+    CODE("U32", uintegers32);
+    CODE("D64", integers64);
+    CODE("U64", uintegers64);
+    CODE("B",   booleans);
+    CODE("B1",  booleans1);
+#undef CODE
+    return -1;
+}
+
+
+/* 0 if the local variables `from` and `to` of the conversion `<FROM>_<TO>` (lossy ones start with `_`) exist. */
+int convert_check_range(const container_t *container, const char *function_name, fmu_vr_t from, fmu_vr_t to) {
+    const char *name = (function_name[0] == '_') ? function_name + 1 : function_name;
+    const char *separator = strchr(name, '_');
+
+    if (!separator)
+        return -1;
+    const long nb_from = convert_nb_local(container, name, (size_t)(separator - name));
+    const long nb_to = convert_nb_local(container, separator + 1, strlen(separator + 1));
+    if (nb_from < 0 || nb_to < 0 || (long)from >= nb_from || (long)to >= nb_to)
+        return -1;
+
+    return 0;
+}
 
 
 convert_function_t convert_function_get(const char *function_name) {

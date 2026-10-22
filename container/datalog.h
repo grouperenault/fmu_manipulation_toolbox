@@ -10,29 +10,20 @@ extern "C" {
 /*----------------------------------------------------------------------------
                             D A T A L O G _ T
 ----------------------------------------------------------------------------*/
-#define DECLARE(type, c_type) 							\
-    unsigned long                   nb_ ## type; 		\
-    fmu_vr_t                        *vr_ ## type; 		\
-    c_type                          *values_ ## type
+#define DECLARE(variable, fmi_type, c_type)             \
+    unsigned long                   nb_ ## variable;    \
+    fmu_vr_t                        *vr_ ## variable;   \
+    c_type                          *values_ ## variable;
 
 typedef struct datalog_s {
     FILE                            *file;
-	DECLARE(reals64, double);
-	DECLARE(reals32, float);
-	DECLARE(integers8, int8_t);
-	DECLARE(uintegers8, uint8_t);
-	DECLARE(integers16, int16_t);
-	DECLARE(uintegers16, uint16_t);
-	DECLARE(integers32, int32_t);
-	DECLARE(uintegers32, uint32_t);
-	DECLARE(integers64, int64_t);
-	DECLARE(uintegers64, uint64_t);
-	DECLARE(booleans, int);
-	DECLARE(booleans1, bool);
-	DECLARE(strings, const char *);
-	DECLARE(binaries, const uint8_t *);
+    config_c_locale_t               c_locale;   /* rows written with a decimal dot */
+    bool                            c_locale_ready;
+    FOR_ALL_NUMERIC_TYPES(DECLARE)
+    DECLARE(strings, String, const char *)
+    DECLARE(binaries, Binary, const uint8_t *)
     size_t                          *size_binaries;
-	DECLARE(clocks, bool);
+    DECLARE(clocks, Clock, bool)
 } datalog_t;
 
 #undef DECLARE
@@ -43,7 +34,8 @@ typedef struct datalog_s {
 ----------------------------------------------------------------------------*/
 
 extern void datalog_log(container_t* container);
-extern datalog_t *datalog_new(const char *dirname);
+struct logger_s;
+extern datalog_t *datalog_new(const struct logger_s *logger, const char *dirname);
 extern int datalog_configure(config_file_t *config, datalog_t *datalog);
 extern void datalog_free(datalog_t *datalog);
 

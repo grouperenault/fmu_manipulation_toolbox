@@ -9,10 +9,11 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget
 from .wire_detail import WireDetailWidget
 from .fmu_detail import FMUDetailWidget
 from .container_detail import ContainerParameters, ContainerDetailWidget
+from .configuration_detail import ConfigurationDetailWidget
 
 
 class DetailPanelStack(QWidget):
-    """Manages the detail panels (WireDetail, FMUDetail, ContainerDetail).
+    """Manages the detail panels (WireDetail, FMUDetail, ContainerDetail, ConfigurationDetail).
 
     Responsibilities:
     • Stack widget containing all detail panel types
@@ -28,12 +29,14 @@ class DetailPanelStack(QWidget):
         self._wire_detail = WireDetailWidget()  # page 1
         self._fmu_detail = FMUDetailWidget()  # page 2
         self._container_detail = ContainerDetailWidget()  # page 3
+        self._configuration_detail = ConfigurationDetailWidget()  # page 4
 
         self._stack = QStackedWidget()
         self._stack.addWidget(self._empty_widget)
         self._stack.addWidget(self._wire_detail)
         self._stack.addWidget(self._fmu_detail)
         self._stack.addWidget(self._container_detail)
+        self._stack.addWidget(self._configuration_detail)
         self._stack.setCurrentIndex(0)
 
         # ── Layout ──────────────────────────────────────────────────
@@ -54,6 +57,10 @@ class DetailPanelStack(QWidget):
     @property
     def container_detail(self) -> ContainerDetailWidget:
         return self._container_detail
+
+    @property
+    def configuration_detail(self) -> ConfigurationDetailWidget:
+        return self._configuration_detail
 
     def sync_edits(self):
         """Flush any pending edits from detail panels."""
@@ -86,3 +93,8 @@ class DetailPanelStack(QWidget):
         self._container_detail.set_container(container_parameters)
         self._stack.setCurrentWidget(self._container_detail)
 
+    def show_configuration(self, node):
+        """Show the configuration detail panel (reset ports of the ConfigurationNode)."""
+        self._wire_detail.clear_highlight()
+        self._configuration_detail.set_node(node)
+        self._stack.setCurrentWidget(self._configuration_detail)

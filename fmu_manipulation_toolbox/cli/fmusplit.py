@@ -2,7 +2,7 @@ import argparse
 import logging
 import sys
 
-from .utils import setup_logger, close_logger, make_wide
+from .utils import setup_logger, close_logger, make_wide, ExitCode
 from ..split import FMUSplitter, FMUSplitterError
 from ..version import __version__ as version
 
@@ -37,11 +37,11 @@ def fmusplit():
         except FMUSplitterError as e:
             logger.fatal(f"{fmu_filename}: {e}")
             close_logger(logger)
-            sys.exit(-1)
+            sys.exit(ExitCode.INVALID_INPUT)
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")
             close_logger(logger)
-            sys.exit(-2)
+            sys.exit(ExitCode.INPUT_UNREADABLE)
 
     close_logger(logger)
 

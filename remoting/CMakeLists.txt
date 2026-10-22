@@ -1,134 +1,49 @@
-cmake_minimum_required(VERSION 3.18)
-set (CMAKE_C_STANDARD 99)
-project (remoting)
-set(VERSION "1.0")
+cmake_minimum_required(VERSION 3.21)
 
-set (CMAKE_C_STANDARD 99)
-option(BUILD_32 "Build for 32bits target" OFF)
-option(BUILD_TESTER "Build tester executbale" OFF)
+# 32-bit Linux build. Set before project() so that the compiler checks, and
+# therefore FMI_PLATFORM, see a 32-bit target. (macOS: no 32-bit support,
+# Windows: use the -A Win32 generator option instead.)
+option(BUILD_32 "Build for a 32-bit Linux target" OFF)
+if(BUILD_32)
+    string(APPEND CMAKE_C_FLAGS " -m32")
+endif()
 
-if (WIN32)
-    if ("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8")
-        set(FMI_PLATFORM win64)
-    else ()
-        set(FMI_PLATFORM win32)
-	endif ()
-else ()
-    set(THREADS_PREFER_PTHREAD_FLAG ON)
-    find_package(Threads REQUIRED)
-    
+project(remoting C)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/fmutool.cmake)
+
+if(NOT WIN32)
     include(CheckFunctionExists)
     check_function_exists(semtimedop HAVE_SEMTIMEDOP)
-
-    if (APPLE)
-        set(FMI_PLATFORM darwin64)
-        # Compilation in 32 bits mode is no longer supported in MacOS 
-    else ()
-        if (BUILD_32)
-           set(FMI_PLATFORM linux32)
-           set(BITNESS "-m32")
-        else ()
-           set(FMI_PLATFORM linux64)
-        endif ()
-    endif()
-
-endif ()
-
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
-    ${CMAKE_CURRENT_BINARY_DIR}/config.h)
-
-message("FMI_PLATFORM: ${FMI_PLATFORM}")
-
-# Version.h creation
-find_package(Git QUIET)
-if(NOT Git_FOUND)
-    message(WARNING "Git not found")
-    set(GIT_TAG, "LOCAL Version")
-else()
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} describe --tags --always
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_TAG
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        RESULT_VARIABLE GIT_RESULT
-    )
 endif()
-message("--- Version: ${GIT_TAG}")
-configure_file(
-    ${CMAKE_SOURCE_DIR}/version.h.in
-    ${CMAKE_CURRENT_BINARY_DIR}/version.h
-)
+configure_file(config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
-# Version.h: regenerated at every build so the git
-# version is always current, not frozen at CMake configure time.
-set(VERSION_H ${CMAKE_CURRENT_BINARY_DIR}/version.h)
-add_custom_target(version_h ALL
-    BYPRODUCTS ${VERSION_H}
-    COMMAND ${CMAKE_COMMAND}
-        -DSRC_DIR=${CMAKE_SOURCE_DIR}
-        -DIN_FILE=${CMAKE_SOURCE_DIR}/version.h.in
-        -DOUT_FILE=${VERSION_H}
-        -P ${CMAKE_SOURCE_DIR}/cmake/gen_version.cmake
-    COMMENT "Generating version.h from git"
-    VERBATIM
-)
-
-
-if (MSVC)
-  add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
-endif ()
-
-#
-# shared memory server
-#
+# -----------------------------------------------------------------------------
+# server_sm: the executable that loads the original FMU.
+# -----------------------------------------------------------------------------
 add_executable(server_sm
     communication.c communication.h
-    process.c process.h 
-    server.c server.h
-    ${CMAKE_CURRENT_BINARY_DIR}/config.h
+    process.c       process.h
+    server.c        server.h
 )
-
-set_target_properties(server_sm PROPERTIES COMPILE_OPTIONS "${BITNESS}" LINK_FLAGS "${BITNESS}")
-target_include_directories(server_sm PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../fmi
-    ${CMAKE_CURRENT_BINARY_DIR})
-
-if (UNIX)
-    target_link_libraries(server_sm ${CMAKE_DL_LIBS})
-    if (NOT APPLE)
-        target_link_libraries(server_sm rt Threads::Threads)
-    endif()
-endif ()
-
-set_target_properties(server_sm PROPERTIES
-					  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}"
-					  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}")
-
-
-#
-# shared memory client_sm #
-#
-add_library(client_sm SHARED
-	client.c client.h
-    communication.c communication.h
-    process.c process.h 
-    ${CMAKE_CURRENT_BINARY_DIR}/config.h
-)
-
-set_target_properties(client_sm PROPERTIES PREFIX "" COMPILE_OPTIONS "${BITNESS}" LINK_FLAGS "${BITNESS}")
-
-target_include_directories(client_sm PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../fmi
-    ${CMAKE_CURRENT_BINARY_DIR})
-
-if (UNIX AND NOT APPLE)
-        target_link_libraries(client_sm rt Threads::Threads)
+if(UNIX)
+    target_link_libraries(server_sm PRIVATE ${CMAKE_DL_LIBS})
 endif()
+if(UNIX AND NOT APPLE)
+    target_link_libraries(server_sm PRIVATE rt Threads::Threads)
+endif()
+fmutool_native_target(server_sm)
 
-set_target_properties(client_sm PROPERTIES
-					  RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}"
-					  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../fmu_manipulation_toolbox/resources/${FMI_PLATFORM}")
+# -----------------------------------------------------------------------------
+# client_sm: the shared library embedded in the FMU, talking to server_sm.
+# -----------------------------------------------------------------------------
+add_library(client_sm SHARED
+    client.c        client.h
+    communication.c communication.h
+    process.c       process.h
+)
+if(UNIX AND NOT APPLE)
+    target_link_libraries(client_sm PRIVATE rt Threads::Threads)
+endif()
+fmutool_native_target(client_sm)
 
-# Ensure version.h is regenerated before container is compiled, so the current
-# git commit id is picked up within the same build.
-add_dependencies(client_sm version_h)
+fmutool_summary()

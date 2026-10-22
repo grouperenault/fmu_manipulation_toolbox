@@ -6,15 +6,17 @@ Main application interface for building FMU containers composing multiple FMUs.
 
 import logging
 import sys
+from importlib.util import find_spec
 from pathlib import Path
 
 from PySide6.QtWidgets import (
     QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
     QPushButton, QCheckBox, QRadioButton, QButtonGroup, QFrame,
-    QMenu, QWidgetAction, QMainWindow
+    QMenu, QWidgetAction, QMainWindow, QMessageBox
 )
 
-from fmu_manipulation_toolbox.gui.helper import Application, RunTask, UnsavedChangesWindowMixin, LastDirectory
+from fmu_manipulation_toolbox.gui.helper import Application, UnsavedChangesWindowMixin, LastDirectory
+from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogStatusBar, RunTask, window_log_context
 
 from .graph import NodeGraphWidget, NodeItem
 from .tree import NodeTreePanel
@@ -22,7 +24,6 @@ from .assembly_io import AssemblyIOMixin
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
-tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
 
 
 class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
@@ -32,8 +33,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._dirty = False
         self._check_unsaved_changes = lambda: self._dirty  # Use the mixin
 
-        # Setup tree logger with stdout handler
-        self._setup_tree_logger()
+        GuiLogHandler.install().register_window(self)
 
         splitter = QSplitter()
         self._graph = NodeGraphWidget()
@@ -94,6 +94,22 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._fmi_group.addButton(self._fmi2_radio, 2)
         self._fmi_group.addButton(self._fmi3_radio, 3)
 
+        # AI Assistant (MCP server) on/off radio buttons.
+        # Only offered when the optional 'fastmcp' package is installed.
+        self._mcp_controller = None
+        self._ai_available = find_spec("fastmcp") is not None
+        self._ai_on_radio = None
+        self._ai_off_radio = None
+        if self._ai_available:
+            self._ai_on_radio = QRadioButton("AI Assistant On")
+            self._ai_off_radio = QRadioButton("AI Assistant Off")
+            self._ai_off_radio.setChecked(True)
+            self._ai_on_radio.setToolTip("Start a local MCP server so an AI agent can help build the container")
+            self._ai_group = QButtonGroup(self)
+            self._ai_group.addButton(self._ai_off_radio, 0)
+            self._ai_group.addButton(self._ai_on_radio, 1)
+            self._ai_on_radio.toggled.connect(self._on_ai_assistant_toggled)
+
         # "Configuration" popup menu grouping FMI version + debug
         config_widget = QWidget()
         config_layout = QVBoxLayout(config_widget)
@@ -106,6 +122,13 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         config_layout.addWidget(separator)
         config_layout.addWidget(self._debug_checkbox)
         config_layout.addWidget(self._datalog_checkbox)
+        if self._ai_available:
+            ai_separator = QFrame()
+            ai_separator.setFrameShape(QFrame.Shape.HLine)
+            ai_separator.setFrameShadow(QFrame.Shadow.Sunken)
+            config_layout.addWidget(ai_separator)
+            config_layout.addWidget(self._ai_on_radio)
+            config_layout.addWidget(self._ai_off_radio)
 
         config_action = QWidgetAction(self)
         config_action.setDefaultWidget(config_widget)
@@ -128,13 +151,19 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         button_bar.addWidget(self._save_button)
 
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(8, 8, 8, 8)
+        # No bottom margin: the status bar is right below; see the margins of the status bar.
+        main_layout.setContentsMargins(8, 8, 8, 0)
         main_layout.addWidget(splitter, 1)
         main_layout.addLayout(button_bar)
 
         central = QWidget()
         central.setLayout(main_layout)
         self.setCentralWidget(central)
+
+        self._status_bar = LogStatusBar(GuiLogHandler.install(), window=self)
+        # The text of the status bar is as far from the buttons as from the bottom of the window.
+        self._status_bar.setContentsMargins(0, 0, 0, 4)
+        self.setStatusBar(self._status_bar)
 
         self.setWindowTitle("FMU Container Builder")
         self.resize(1600, 900)
@@ -150,6 +179,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._tree.wire_detail.changed.connect(self._mark_dirty)
         self._tree.fmu_detail.changed.connect(self._mark_dirty)
         self._tree.container_detail.changed.connect(self._mark_dirty)
+        self._tree.configuration_detail.changed.connect(self._mark_dirty)
 
         # Tree model structural changes (drag-drop, rename, add/remove rows)
         self._tree.model.dataChanged.connect(lambda *_: self._mark_dirty())
@@ -162,6 +192,62 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
     def _mark_dirty(self):
         self._dirty = True
 
+    def _on_ai_assistant_toggled(self, checked: bool):
+        """Start/stop the MCP server (AI assistant) from the Configuration menu."""
+        if checked:
+            try:
+                from fmu_manipulation_toolbox.assistant import McpUnavailableError
+                from .mcp_bridge import McpServerController
+            except ImportError as e:
+                self._ai_assistant_error(f"Cannot load MCP support: {e}")
+                return
+            try:
+                if self._mcp_controller is None:
+                    self._mcp_controller = McpServerController(self)
+                    # Delivered on the main thread (controller is a QObject).
+                    self._mcp_controller.error.connect(self._ai_assistant_error)
+                    # Only once the server really listens: starting it is not enough.
+                    self._mcp_controller.ready.connect(
+                        lambda url: logger.info(f"AI Assistant enabled — connect your MCP client to {url}"))
+                self._mcp_controller.start()
+            except McpUnavailableError as e:
+                self._ai_assistant_error(str(e))
+            except OSError as e:
+                self._ai_assistant_error(str(e))
+            except Exception as e:  # noqa: BLE001
+                self._ai_assistant_error(f"Cannot start AI Assistant: {e}")
+        else:
+            if self._mcp_controller is not None:
+                self._mcp_controller.stop()
+                logger.info("AI Assistant disabled.")
+
+    def _ai_assistant_error(self, message: str):
+        """Report an AI-assistant activation failure and revert the radio.
+
+        Always runs on the Qt main thread (direct calls, or queued via the
+        controller's ``error`` signal).
+        """
+        logger.error(message)
+        # Reverting to Off also stops the server via the toggled handler.
+        self._ai_off_radio.setChecked(True)
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setWindowTitle("AI Assistant")
+        msg.setText(message)
+        msg.setStandardButtons(QMessageBox.StandardButton.Ok)
+        btn_ok = msg.button(QMessageBox.StandardButton.Ok)
+        btn_ok.setProperty("class", "info")
+        btn_ok.setMinimumWidth(150)
+        msg.exec()
+
+    def closeEvent(self, event):
+        """Ensure the MCP server is stopped before the window actually closes."""
+        super().closeEvent(event)  # UnsavedChangesWindowMixin may ignore() to cancel
+        if event.isAccepted():
+            if self._mcp_controller is not None:
+                self._mcp_controller.stop()
+            GuiLogHandler.install().unregister_window(self)
+
     def _on_node_replaced(self, node):
         """Refresh the detail panel after an in-place FMU replacement."""
         self._tree.fmu_detail._current_node = None
@@ -169,23 +255,12 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._tree.update_node_item(node)
         self._mark_dirty()
 
-    @staticmethod
-    def _setup_tree_logger():
-        """Configure tree logger with stdout handler."""
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setFormatter(logging.Formatter("%(levelname)-8s | %(message)s"))
-        tree_logger.addHandler(handler)
-        tree_logger.setLevel(logging.INFO)
-        tree_logger.propagate = False
-
-    @staticmethod
-    def _on_debug_mode_changed(state):
-        """Update tree logger level when debug checkbox changes."""
+    def _on_debug_mode_changed(self, state):
+        """Verbose Mode of this window: DEBUG level and a copy of its logs on stdout."""
+        GuiLogHandler.install().set_window_verbose(self, bool(state))
         if state:
-            tree_logger.setLevel(logging.DEBUG)
-            tree_logger.debug("Debug mode enabled - tree logger set to DEBUG level")
-        else:
-            tree_logger.setLevel(logging.INFO)
+            with window_log_context(self):
+                logger.debug("Verbose mode enabled")
 
     def _on_node_added_update_dir(self, node: NodeItem):
         """Track the directory of the last FMU added to the scene."""
@@ -202,8 +277,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             logger.info("Load cancelled")
             return
 
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container", level=log_level)
+        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container")
         # Re-assert the container's own directory: loading may have updated
         # LastDirectory to the (extracted) FMUs' sub-directory instead.
         LastDirectory.update(input_path)
@@ -218,8 +292,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             logger.info("Import cancelled")
             return
 
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly", level=log_level)
+        RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly")
         # Re-assert the imported file's own directory: importing adds FMU nodes
         # that may live in a different (sub)directory, which would otherwise
         # overwrite LastDirectory via _on_node_added_update_dir.
@@ -234,8 +307,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             logger.info("Save cancelled")
             return
 
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
-        RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON", level=log_level)
+        RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON")
 
     def _on_save_clicked(self):
         root_name = Path(self._tree.root.text()).with_suffix(".fmu").name
@@ -247,9 +319,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
         fmi_version = self._fmi_group.checkedId()
         datalog = self._datalog_checkbox.isChecked()
-        log_level = logging.DEBUG if self._debug_checkbox.isChecked() else logging.INFO
         RunTask(self.save_as_fmu, output_path, fmi_version, datalog,
-                parent=self, title="Saving as FMU", level=log_level)
+                parent=self, title="Saving as FMU")
 
 
 def main():
