@@ -2,7 +2,7 @@
 
 ``GuiLogHandler`` is the single GUI sink of the toolbox logger, which knows the
 window each record belongs to; ``LogStatusBar`` shows its last record and
-``LogWindow`` its whole history, with a level filter and a search. ``WidgetLogHandler`` writes directly into a ``LogWidget``.
+``LogWindow`` its whole history, with a level filter and a search.
 """
 import logging
 import threading
@@ -18,7 +18,7 @@ try:
 
     _app = QApplication.instance() or QApplication([])
     from fmu_manipulation_toolbox.gui.helper import (GuiLogHandler, LastDirectory, LogStatusBar, LogWidget, LogWindow,
-                                                     RunTask, WidgetLogHandler, window_log_context)
+                                                     RunTask, busy_cursor, window_log_context)
     from fmu_manipulation_toolbox.gui.style import log_color
 except Exception as exc:  # pragma: no cover - environment dependent
     pytest.skip(f"GUI dependencies not available: {exc}", allow_module_level=True)
@@ -411,23 +411,6 @@ def test_log_window_saves_the_displayed_lines(qtbot, handler, tmp_path, monkeypa
     assert target.read_text(encoding="utf-8").splitlines() == ["kept line"]
 
 
-# ── WidgetLogHandler ──────────────────────────────────────────────────────
-def test_widget_handler_writes_prefixed_records_until_stopped(qtbot):
-    widget = LogWidget()
-    qtbot.addWidget(widget)
-    previous_level = logger.level
-    logger.setLevel(logging.INFO)
-    widget_handler = WidgetLogHandler(widget)
-    try:
-        logger.info("plain")
-        logger.error("broken")
-    finally:
-        widget_handler.stop()
-        logger.setLevel(previous_level)
-    logger.error("after stop")
-    assert widget.toPlainText().splitlines() == ["plain", "ERROR: broken"]
-
-
 # ── RunTask ───────────────────────────────────────────────────────────────
 def test_run_task_shows_the_records_of_the_task_through_the_shared_handler(qtbot):
     previous_level = logger.level
@@ -441,6 +424,14 @@ def test_run_task_shows_the_records_of_the_task_through_the_shared_handler(qtbot
     assert dialog.text.toPlainText().splitlines() == ["WARNING: task warning", "✅ Doing finished."]
     assert logger.level == previous_level
     assert any(text == "task warning" for _, text in GuiLogHandler.install().history)
+
+
+def test_busy_cursor_pins_its_window(windows, handler):
+    first, second = windows
+    with busy_cursor(window=first):
+        GuiLogHandler.current_owner = handler.window_key(second)   # the user clicks in another window
+        logger.info("task record")
+    assert _histories(handler, first, second) == [["task record"], []]
 
 
 def test_run_task_reports_an_exception_of_the_task(qtbot):

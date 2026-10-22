@@ -4,13 +4,13 @@ import sys
 import textwrap
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QWidget, QGridLayout, QLabel, QLineEdit, QPushButton,
+from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton,
                                QInputDialog, QMenu, QDialog, QHBoxLayout, QVBoxLayout)
 from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
-from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, busy_cursor, LogWidget, WidgetLogHandler,
-                                                 LastDirectory, get_fmu_icon_path)
+from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, busy_cursor, LogWidget, GuiLogHandler,
+                                                 LastDirectory, get_fmu_icon_path, window_log_context)
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
@@ -223,8 +223,9 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         # Text
         line += 1
         self.log_widget = LogWidget()
-        self.log_handler = WidgetLogHandler(self.log_widget)
-        logger.setLevel(logging.INFO)
+        self.log_handler = GuiLogHandler.install()
+        self.log_handler.register_window(self)
+        self.log_handler.record_emitted.connect(self._on_record)
         self.log_widget.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
         self.layout.addWidget(self.log_widget, line, 0, 1, WIDTH + 1)
 
@@ -257,16 +258,28 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         # show the window
         self.show()
 
-        logger.info(" " * 80 + f"Version {version}")
-        logger.info(self.__doc__)
+        with window_log_context(self):
+            logger.info(" " * 80 + f"Version {version}")
+            logger.info(self.__doc__)
 
     def load(self, fmu_path: str):
         """Load an FMU file programmatically."""
         from pathlib import Path
-        self.dropped_fmu.set_fmu(Path(fmu_path))
+        with window_log_context(self):
+            self.dropped_fmu.set_fmu(Path(fmu_path))
+
+    def _on_record(self, owner: int | None, levelno: int, text: str):
+        """Show the records of this window (and the records without owner) in the log area."""
+        if not self.log_handler.accepts(self, owner, levelno):
+            return
+        self.log_widget.append_record(levelno, text)
+        # The operations block the main thread: repaint each record immediately.
+        QApplication.processEvents()
 
     def closeEvent(self, event):
-        self.log_handler.stop()
+        if self.log_handler.is_registered(self):
+            self.log_handler.record_emitted.disconnect(self._on_record)
+            self.log_handler.unregister_window(self)
         event.accept()
 
     def set_tooltip(self, widget, usage):
@@ -293,9 +306,9 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             filename = LastDirectory.get_save_file_name(self, "Select a file", "FMU files (*.fmu)",
                                                         default_name=os.path.basename(fmu.fmu_filename))
             if filename:
-                with busy_cursor():
+                with busy_cursor(window=self):
                     fmu.repack(filename)
-                logger.info(f"Modified version saved as {filename}.")
+                    logger.info(f"Modified version saved as {filename}.")
 
     def save_log(self):
         filename = LastDirectory.get_save_file_name(self, "Select a file", "TXT files (*.txt)",
@@ -408,6 +421,10 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             self.fmu_title.setText('')
 
     def apply_operation(self, operation):
+        with window_log_context(self):
+            self._apply_operation(operation)
+
+    def _apply_operation(self, operation):
         if self.dropped_fmu.fmu:
             self.log_widget.moveCursor(QTextCursor.MoveOperation.End)
             fmu_filename = os.path.basename(self.dropped_fmu.fmu.fmu_filename)

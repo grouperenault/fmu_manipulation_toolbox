@@ -202,6 +202,29 @@ def test_fmutool_logs_into_its_log_widget(qtbot):
     assert "WARNING: tool warning" in window.log_widget.toPlainText()
 
 
+def test_fmutool_windows_keep_their_own_log(qtbot, bouncing_ball):
+    """With two FMU Tool windows, an operation is only logged in the window that runs it."""
+    import logging
+    from fmu_manipulation_toolbox.operations import OperationAbstract
+
+    class Probe(OperationAbstract):
+        read_only = True
+
+        def closure(self):
+            logging.getLogger("fmu_manipulation_toolbox").info("probe record")
+
+    first, second = FMUToolWindow(), FMUToolWindow()
+    for window in (first, second):
+        qtbot.addWidget(window)
+    first.load(bouncing_ball)
+    second_log = second.log_widget.toPlainText()
+    assert "bouncing_ball.fmu" not in second_log
+
+    first.apply_operation(Probe())
+    assert "probe record" in first.log_widget.toPlainText()
+    assert second.log_widget.toPlainText() == second_log
+
+
 # ── FMU Editor GUI ────────────────────────────────────────────────────────
 def test_fmueditor_window_opens(qtbot):
     window = FMUEditorWindow()

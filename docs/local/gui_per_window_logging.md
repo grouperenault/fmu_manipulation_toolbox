@@ -116,6 +116,9 @@ was also given to `qtbot` ("shared QObject was deleted directly" at exit).
 
 Commit message: `Keep the log of each FMU Tool window to its own operations`
 
+**Done.** The welcome messages of the window are pinned too: without it, opening FMU Tool from the launcher (an
+unregistered window) would show them in every window.
+
 ### Step 5 — AI Assistant threads (Container Builder)
 
 - Pin the window in `_UvicornThread.run` and in the tasks run by `MainThreadInvoker`.

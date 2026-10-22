@@ -742,7 +742,7 @@ def window_log_context(window: QWidget | int | None):
 
 
 class LogWidget(QTextBrowser):
-    """Coloured log view. It is fed through ``append_record``; see ``WidgetLogHandler``."""
+    """Coloured log view. It is fed through ``append_record``, by a view of the ``GuiLogHandler`` records."""
 
     LOG_PREFIX = {
         logging.WARNING: "WARNING: ",
@@ -767,27 +767,6 @@ class LogWidget(QTextBrowser):
         self.setTextColor(QColor(_level_color(levelno)))
         self.insertPlainText(self.LOG_PREFIX.get(levelno, "") + text + "\n")
         self.ensureCursorVisible()
-
-
-class WidgetLogHandler(logging.Handler):
-    """Writes the toolbox logs directly into a ``LogWidget`` (main thread only).
-
-    Used where the log is displayed while a synchronous task runs on the main
-    thread (FMU Tool): each record is repainted immediately.
-    """
-
-    def __init__(self, widget: LogWidget, level=logging.NOTSET):
-        super().__init__(level)
-        self.widget = widget
-        logger.addHandler(self)
-
-    def emit(self, record: logging.LogRecord):
-        self.widget.append_record(record.levelno, self.format(record))
-        QApplication.processEvents()
-
-    def stop(self):
-        logger.removeHandler(self)
-        self.close()
 
 
 class LogStatusBar(QStatusBar):
@@ -941,11 +920,15 @@ class LogWindow(QDialog):
 
 
 @contextlib.contextmanager
-def busy_cursor():
-    """Show the wait cursor while a task blocks the main thread; the cursor is restored even on error."""
+def busy_cursor(window: QWidget | None = None):
+    """Show the wait cursor while a task blocks the main thread; the cursor is restored even on error.
+
+    With a *window*, the records of the task belong to it, even when the user acts in another window meanwhile.
+    """
     QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
     try:
-        yield
+        with window_log_context(window) if window is not None else contextlib.nullcontext():
+            yield
     finally:
         QApplication.restoreOverrideCursor()
 
