@@ -1,4 +1,3 @@
-from typing import *
 
 class Help:
     _usage = {
@@ -29,8 +28,8 @@ class Help:
                              "version 1.1. See https://en.wikipedia.org/wiki/Regular_expression to have more detail "
                              "of expected format.",
 
-        '-remove-all': "equivalent to '-remove-regexp .*'. Typical use case is to use it with -only-* options. "
-                       "Example:  in order ro suppress all parameters of FMU:   -only-parameters -remove-all",
+        '-remove-all': "equivalent to '-remove-regexp .*'. Typical use case is to use it with -only-* options.\n"
+                       "Example: in order to suppress all parameters of FMU: -only-parameters -remove-all",
 
         '-dump-csv': "list all names of the ports of the input fmu and store them inside path/to/list.csv. "
                      "This file is ';' separated. It contains two columns in order to be easily reused by "
@@ -66,10 +65,26 @@ class Help:
 
         '-remove-sources': "Remove sources folder from the FMU. This option is available from version 1.3.",
 
+        '-compile-sources': "compile the sources embedded in the FMU for the current platform, when its binary is "
+                            "missing. A C compiler is required (Visual Studio on Windows). This option is "
+                            "available from version 2.0. Resulting fmu should be saved by using -output option.",
+
+        '-compile-options': "with -compile-sources: additional options of the compiler, e.g. "
+                            "-compile-options=\"-DFOO=1 -I/opt/include\" (use '=' when the value starts with '-'). "
+                            "This option is available from version 2.0.",
+
+        '-link-options': "with -compile-sources: additional options of the linker, e.g. "
+                         "-link-options=-L/opt/lib (use '=' when the value starts with '-'). This option is "
+                         "available from version 2.0.",
+
+        '-link-libraries': "with -compile-sources: additional libraries to link with, by name and separated by "
+                           "commas, e.g. -link-libraries foo,bar (-lfoo -lbar, or foo.lib bar.lib with Visual "
+                           "Studio). This option is available from version 2.0.",
+
         '-only-parameters': "apply operation only on ports with  causality = 'parameter'. This "
                             "option is available from version 1.3.",
 
-        '-only-inputs': "apply operation only on ports with  causality = 'parameter'. This "
+        '-only-inputs': "apply operation only on ports with  causality = 'input'. This "
                         "option is available from version 1.3.",
 
         '-only-outputs': "apply operation only on ports with  causality = 'output'. This "
@@ -102,6 +117,9 @@ class Help:
         "-auto_local": "Automatically expose all local ports of contained FMUs at the container level.",
         "-ts_multiplier": "Enable time step multiplier for this container.\n"
                           "The multiplier can be set with input variable name 'container.ts_multiplier'",
+        "-reset_ports": "Add a reset input to each FMU of this container.\n"
+                        "Wire it from the 'configuration' node ('<fmu>.reset' ports): when it is true, the container "
+                        "resets the FMU and initializes it again at the current time.",
     }
 
 

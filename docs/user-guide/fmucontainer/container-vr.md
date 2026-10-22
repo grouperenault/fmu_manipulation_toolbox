@@ -17,7 +17,7 @@ The objective of this study is to use the output of **sched2** to dynamically sc
 the **VanDerPol** FMU, whose default value is 0.1.
 
 The same assembly can be built visually with the [FMU Container Builder GUI](gui-usage.md), using
-the [`configuration` node](gui-usage.md#the-configuration-node-ts_multiplier) to wire **sched2**'s
+the [`configuration` node](gui-usage.md#the-configuration-node) to wire **sched2**'s
 output to **VanDerPol**'s `ts_multiplier` input:
 
 ![FMU Container Builder GUI](container-vr-gui.png)

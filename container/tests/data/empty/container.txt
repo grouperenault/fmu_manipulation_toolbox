@@ -1,0 +1,46 @@
+# Version 7
+# Container flags <MT> <Profiling> <Sequential>
+0 0 0
+# Internal time step in seconds
+0.001
+# NB of embedded FMU's
+0 0
+# Initialization order of the embedded FMU's
+
+# NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
+1 0 0 0 0 0 2 0 0 0 0 0 1 0 0
+# CONTAINER I/O: <VR> <DIM> <NB> <FMU_INDEX> <FMU_VR> [<FMU_INDEX> <FMU_VR>]
+# real64
+1 1
+0 1 1 -1 0
+# real32
+0 0
+# integer8
+0 0
+# uinteger8
+0 0
+# integer16
+0 0
+# uinteger16
+0 0
+# integer32
+0 0
+# uinteger32
+0 0
+# integer64
+0 0
+# uinteger64
+0 0
+# boolean
+0 0
+# boolean1
+0 0
+# string
+1 1
+201326592 1 1 -1 0
+# binary
+0 0
+# clock
+0 0
+# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
+0 0

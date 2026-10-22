@@ -21,11 +21,19 @@ The window is organized as a single grid:
 
 ### 1. Drop Zone / Loading Area (top-left)
 - **Drop zone**: click it, or drag & drop a `.fmu` file onto it, to load an FMU.
-- The loaded FMU name is shown next to it, together with the online **help** icon (opens the
-  documentation website).
+- The loaded FMU name is shown above the drop zone and the buttons.
 
 ### 2. Operation Buttons (grid, upper area)
-- One color-coded button per available operation (see [Button Color Code](#button-color-code)).
+- One color-coded button per available operation (see [Button Color Code](#button-color-code)), in a
+  grid of 4 × 4 buttons next to the drop zone, one line per kind of operation:
+
+| | | | |
+|---|---|---|---|
+| Check | Save description.xml | Save port names | Compile sources |
+| Add Win32 remoting | Add Win32 frontend | Add Win64 remoting | Add Win64 frontend |
+| Rename ports from CSV | Trim Until | Remove Toplevel | Merge Toplevel |
+| Remove Regexp | Keep only Regexp | Remove all | Remove sources |
+
 - Clicking a button immediately applies the corresponding operation to the loaded FMU (some
   buttons prompt for a value or a file first).
 
@@ -39,6 +47,8 @@ The window is organized as a single grid:
 ### 4. Log Area (center)
 - A scrollable text log reporting every action performed: the FMU summary (printed automatically
   after loading), each applied operation, and any warning or error.
+- Each FMU Tool window has its own log area: with several windows opened from the [launcher](../launcher.md), an
+  operation is only logged in the window that runs it.
 - This is **not** an editable/sortable port table — port names are only shown as part of the
   logged text (e.g. the `-summary` output or CSV export confirmation).
 
@@ -54,9 +64,9 @@ The interface uses an intuitive color code (matching the operation's effect):
 | Color | Action Type | Examples |
 |-------|-------------|----------|
 | 🔴 **Red** | Remove information | Remove Regexp, Keep only Regexp, Remove all, Remove sources |
-| 🟠 **Orange** | Modify `modelDescription.xml` | Rename ports from CSV, Remove Toplevel, Merge Toplevel, Trim Until |
-| 🟢 **Green** | Add components or check | Add Win32/Win64 remoting, Add Win32/Win64 frontend, Check |
-| 🟣 **Purple** | Extract and save | Save port names, Save description.xml, Save log as, Save modified FMU as |
+| 🟠 **Orange** | Modify `modelDescription.xml` | Rename ports from CSV, Trim Until, Remove Toplevel, Merge Toplevel |
+| 🟢 **Green** | Check, export, or add components | Check, Save description.xml, Save port names, Compile sources, Add Win32/Win64 remoting, Add Win32/Win64 frontend |
+| 🟣 **Purple** | Save the results | Save log as, Save modified FMU as |
 | 🔵 **Blue** | Filter scope or exit | Apply only on, Reload, Exit |
 
 ## Typical Workflow
@@ -79,7 +89,7 @@ to review everything that has been applied so far.
 
 ### Step 3: Apply Transformations
 
-#### 🟣 Save Port Names to CSV
+#### 🟢 Save Port Names to CSV
 
 **Use Case:** Prepare a file for renaming ports
 
@@ -131,6 +141,37 @@ Controller.Gain
    (e.g. keep only `parameter` checked)
 2. Click **Remove all** (removes every remaining port matching the filter)
 
+#### 🟢 Compile Sources
+
+**Use Case:** The FMU embeds its C sources (`sources/` folder) but has no binary for your platform (e.g. a
+Windows-only FMU used on Linux or macOS)
+
+1. Click **Compile sources**
+2. Read the progress in the log area
+
+**Result:** The sources are compiled for the current platform and the binary is added to
+`binaries/<platform>/` of the in-memory FMU — remember to use **Save modified FMU as** afterwards. If the binary
+already exists, nothing is compiled. A C compiler is required, see
+[Compiling the Sources of an FMU](cli-usage.md#compile-sources) for the prerequisites and the limits.
+
+![Compile sources in the log area](fmutool-compile.png)
+
+**If the compilation fails** (the compiler messages are shown as errors in the log area), a dialog asks for
+additional options, written for the compiler it names (the examples shown in the empty fields follow it):
+
+- **Compiler options**: added to every compilation, e.g. `-DFOO=1 -I/opt/include` (Visual Studio:
+  `/DFOO=1 /IC:\include`);
+- **Linker options**: added to the link, e.g. `-L/opt/lib` (Visual Studio: `/LIBPATH:C:\lib`);
+- **Libraries**: names separated by commas, e.g. `foo,bar` (`-lfoo -lbar`, or `foo.lib bar.lib` with Visual
+  Studio).
+
+**Retry** compiles again with these options; the dialog comes back after each failure, until the compilation
+succeeds or you click **Cancel**. The options are kept until the application is closed: they are used for the next
+compilations, and pre-filled in the dialog. The dialog does not open when the FMU has no sources or when no compiler
+is found: other options would not help.
+
+![Additional options after a compilation failure](fmutool-compile-options.png)
+
 #### 🟢 Add Binary Interface (Windows FMUs)
 
 **Use Case:** Add a 64-bit interface to a 32-bit-only Windows FMU
@@ -153,6 +194,8 @@ FMI 2.0 co-simulation FMUs).
 1. Click **Check**
 2. Read the result in the log area (compliant / not compliant, with XSD validation details)
 
+![Result of Check in the log area](fmutool-check.png)
+
 ### Step 4: Restrict the Scope of an Operation
 
 Use **Apply only on:** to limit *any* subsequent operation to a subset of causalities:
@@ -163,6 +206,8 @@ Use **Apply only on:** to limit *any* subsequent operation to a subset of causal
 
 The button label reflects the current selection (e.g. `parameter, input`), or **All causalities**
 when nothing is excluded.
+
+![Apply only on: inputs and parameters](fmutool-filter.png)
 
 ### Step 5: Save Modified FMU
 
@@ -268,8 +313,11 @@ sudo apt-get install libxcb-cursor0
 
 ### Interface is Frozen
 
+While an operation runs (or the FMU is saved), the mouse shows the wait cursor and the window does not respond.
+
 **Solution:**
-1. Wait — very large FMUs can take a while to load or to log a full summary.
+1. Wait — very large FMUs can take a while to load or to log a full summary, and **Compile sources** takes as
+   long as the compiler.
 2. If it is truly stuck, close the application and relaunch with a smaller FMU, or use the
    command line / Python API instead.
 

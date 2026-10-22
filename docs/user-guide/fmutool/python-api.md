@@ -46,6 +46,21 @@ except FMUError as e:
     print(f"Cannot load FMU: {e}")
 ```
 
+Every failure to open an FMU (missing file, not a ZIP archive, no `modelDescription.xml`) raises
+`FMUError`. A `modelDescription.xml` that cannot be read (not well-formed XML, not FMI 2.0 or 3.0)
+raises `FMUError` from `apply_operation()`.
+
+The temporary directory is removed by `fmu.close()`, or automatically when the object is
+garbage-collected or the interpreter exits. To control when it happens, use the FMU as a context
+manager:
+
+```python
+with FMU("path/to/module.fmu") as fmu:
+    fmu.apply_operation(OperationStripTopLevel())
+    fmu.repack("path/to/module-stripped.fmu")
+# The temporary directory is removed here; `fmu` can no longer be used.
+```
+
 ### Apply an Operation
 
 ```python
@@ -229,6 +244,62 @@ fmu.apply_operation(operation)
 fmu.repack("module-no-src.fmu")
 ```
 
+## Compile the Sources
+
+`OperationCompileSources` compiles the sources embedded in an FMU when the binary of the current platform is
+missing (see [Compile Sources](cli-usage.md#compile-sources) for the prerequisites and the limits). It raises
+`OperationError` if the binary cannot be built.
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationError
+from fmu_manipulation_toolbox.compiler import OperationCompileSources
+
+with FMU("module.fmu") as fmu:
+    try:
+        fmu.apply_operation(OperationCompileSources())
+    except OperationError as error:
+        print(f"Cannot compile: {error}")
+    else:
+        fmu.repack("module-compiled.fmu")
+```
+
+Additional compiler options, linker options and libraries (by name) are given to the operation; after a failure,
+`compilation_failed` tells whether the compiler or the linker failed (other options may help) or whether nothing
+could be compiled (no sources, no compiler):
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationError
+from fmu_manipulation_toolbox.compiler import OperationCompileSources
+
+operation = OperationCompileSources(compiler_options=["-DFOO=1"], linker_options=["-L/opt/lib"],
+                                    libraries=["foo"])
+with FMU("module.fmu") as fmu:
+    try:
+        fmu.apply_operation(operation)
+    except OperationError:
+        if operation.compilation_failed:
+            print("The compiler failed: see the log, and try other options.")
+        raise
+    fmu.repack("module-compiled.fmu")
+```
+
+`SourceCompiler` gives access to the steps, e.g. to know what would be built without compiling:
+
+```python
+from fmu_manipulation_toolbox.operations import FMU
+from fmu_manipulation_toolbox.compiler import SourceCompiler, Toolchain
+
+with FMU("module.fmu") as fmu:
+    md = fmu.model_description
+    compiler = SourceCompiler(fmu.tmp_directory, md.fmi_version)
+    print(SourceCompiler.host_platform(md.fmi_version))         # e.g. 'x86_64-linux'
+    for configuration in compiler.build_configurations(md):
+        print(configuration.model_identifier, compiler.binary_path(configuration.model_identifier))
+        for source in configuration.source_files:
+            print("   ", source.name)
+    print(Toolchain.find().family)                               # 'gcc', 'clang' or 'msvc'
+```
+
 ## Remoting Operations
 
 ```python
@@ -298,7 +369,7 @@ fmu.repack("module-transformed.fmu")
 You can create your own operation by subclassing `OperationAbstract`:
 
 ```python
-from fmu_manipulation_toolbox.operations import FMU, OperationAbstract, FMUPort
+from fmu_manipulation_toolbox.operations import FMU, OperationAbstract, ModelVariable
 
 class OperationCountPorts(OperationAbstract):
     """Count ports by type."""
@@ -306,7 +377,7 @@ class OperationCountPorts(OperationAbstract):
     def __init__(self):
         self.counts = {}
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         fmi_type = fmu_port.fmi_type
         self.counts[fmi_type] = self.counts.get(fmi_type, 0) + 1
         return 0  # 0 = keep port, non-zero = remove port
@@ -322,14 +393,31 @@ class OperationCountPorts(OperationAbstract):
 |--------|------------|
 | `fmi_attrs(attrs)` | `<fmiModelDescription>` element is parsed |
 | `cosimulation_attrs(attrs)` | `<CoSimulation>` element is parsed |
+| `modelexchange_attrs(attrs)` | `<ModelExchange>` element is parsed |
 | `experiment_attrs(attrs)` | `<DefaultExperiment>` element is parsed |
 | `port_attrs(fmu_port) -> int` | Each port/variable. Return `0` to keep, non-zero to remove |
-| `closure()` | After the full descriptor has been parsed |
+| `model_structure_attrs(section, attrs)` | Each entry of `<ModelStructure>` |
+| `closure()` | After the full descriptor has been parsed, before it is written back |
 
-The `fmu_port` argument is an `FMUPort` object that supports dict-like access to attributes:
+The `attrs` dictionaries are those of the descriptor: changing them changes the FMU. For changes the
+callbacks cannot express (adding or removing an element), the whole descriptor is available as
+`self.model_description`, an ElementTree-based
+[`ModelDescription`](../../API/model_description.md) modified in place.
+
+An operation is refused with `OperationError`, and the FMU left unchanged, if its result would break the
+FMI standard: removing every variable, removing a variable still referenced by a kept one (state of a
+derivative, clock, structural parameter of an array, `previous`), or giving the same name to several
+variables.
+
+The `fmu_port` argument is a
+[`ModelVariable`](../../API/model_description.md#fmu_manipulation_toolbox.model_description.ModelVariable): a view
+on the variable of the descriptor, with dict-like access to the attributes of every level (for FMI 2.0, those of
+`<ScalarVariable>` and of its type element, e.g. `<Real>`; for FMI 3.0, those of the variable element, and the
+`<Start>` values of `String` and `Binary` variables under the key `start`). Changing an existing attribute changes
+the FMU; `[]` does not create attributes.
 
 ```python
-def port_attrs(self, fmu_port: FMUPort) -> int:
+def port_attrs(self, fmu_port: ModelVariable) -> int:
     name = fmu_port["name"]
     causality = fmu_port.get("causality", "local")
     value_ref = fmu_port["valueReference"]
@@ -340,6 +428,12 @@ def port_attrs(self, fmu_port: FMUPort) -> int:
 
     return 0
 ```
+
+!!! note "Migrating from version 1.x"
+    `FMUPort` was removed in 2.0. The ports given to `port_attrs` are `ModelVariable` objects, with the same
+    interface: replace `FMUPort` by `ModelVariable` in the imports and annotations of your operations and
+    checkers. Building a port by hand (`FMUPort()` and `push_attrs()`) is no longer possible: a port is always a
+    view on a descriptor (`ModelDescription.load(...).iter_ports()`).
 
 ## Automation and Scripts
 

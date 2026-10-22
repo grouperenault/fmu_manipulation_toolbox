@@ -63,14 +63,15 @@ FMU Information:
 fmutool -input module.fmu -check
 ```
 
-**Output:**
-```
-Checking FMU: module.fmu
-✓ modelDescription.xml is valid
-✓ Schema validation passed
-⚠ Warning: Variable 'temp' has no description
-✓ All value references are unique
-```
+Two built-in checkers are run, followed by the custom ones (see [FMU Checker](checker.md)):
+
+- the **XSD schema** of the FMI version (every violation is reported, not only the first one);
+- the **semantic rules** that the schema cannot express: unique names and value references, allowed
+  `causality`/`variability`/`initial` combinations, presence of `start` values, references between
+  variables and in `<ModelStructure>`.
+
+Each violation is logged as an error. If any checker logs an error, `fmutool` exits with status `7`,
+after having performed the other requested actions (e.g. `-output`), so that `-check` can be used in CI.
 
 ### List All Ports in CSV
 
@@ -260,6 +261,77 @@ fmutool -input module.fmu -remove-sources -output module-no-src.fmu
 
 **Effect:** The `sources/` folder is removed from the FMU.
 
+### Compile Sources
+
+```bash
+fmutool -input module.fmu -compile-sources -output module-compiled.fmu
+```
+
+**Effect:** When the FMU embeds its C (or C++) sources but no binary for the current platform, the sources are
+compiled and the shared library is added to `binaries/<platform>/` (e.g. `binaries/linux64/` for FMI 2.0,
+`binaries/x86_64-linux/` for FMI 3.0). If the binary already exists, nothing is compiled. The sources are kept, and
+`modelDescription.xml` is not changed.
+
+```
+INFO     | Compiling 'BouncingBall' for x86_64-linux with gcc.
+INFO     | Compiling 'sources/fmi3Functions.c'.
+INFO     | Compiling 'sources/model.c'.
+INFO     | Compiling 'sources/cosimulation.c'.
+INFO     | Linking 'BouncingBall.so'.
+INFO     | Binary 'binaries/x86_64-linux/BouncingBall.so' is built.
+```
+
+**Prerequisite:** a C compiler for the current platform:
+
+| Platform | Compiler |
+|----------|----------|
+| Windows | Visual Studio, or its *Build Tools*, with the *Desktop development with C++* workload: found automatically. Otherwise, `cl.exe` from the `PATH` (Developer Command Prompt). |
+| Linux | `cc` (e.g. `sudo apt-get install build-essential`), or the compiler given by the `CC` environment variable (`CXX` for C++). |
+| macOS | `cc` of the Xcode Command Line Tools (`xcode-select --install`), or `CC` / `CXX`. |
+
+**What is compiled:** the files listed by the FMU: `<SourceFiles>` of `modelDescription.xml` (FMI 2.0), or
+`sources/buildDescription.xml` (FMI 3.0) with its preprocessor definitions, include directories and libraries.
+The FMI headers are provided by FMU Manipulation Toolbox. The shared library is built for the current platform
+only (no cross-compilation), with optimizations (`-O2` / `/O2`) and, on Windows, the static C runtime (`/MT`) and `/bigobj` (large object
+files, e.g. generated code).
+
+**Additional options:** FMI 2.0 `<SourceFiles>` only lists file names: when the sources need a preprocessor
+definition, an include directory or a library, give them with:
+
+| Option | Content | Example |
+|--------|---------|---------|
+| `-compile-options` | options added to every compilation | `-compile-options="-DFOO=1 -I/opt/include"` |
+| `-link-options` | options added to the link, before the libraries | `-link-options=-L/opt/lib` (`/LIBPATH:C:\lib` with Visual Studio) |
+| `-link-libraries` | libraries, by name, separated by commas | `-link-libraries foo,bar` (`-lfoo -lbar`, or `foo.lib bar.lib` with Visual Studio) |
+
+```bash
+fmutool -input module.fmu -compile-sources -compile-options=-DFOO=1 -link-libraries foo -output module-compiled.fmu
+```
+
+They come in addition to what the build description of the FMU gives, and need `-compile-sources` (otherwise:
+exit code `2`). The options are written for the compiler in use (shown by the first line of the log, e.g.
+`… with gcc.`).
+
+!!! note
+    A value that starts with `-` and contains no space must be written with `=`: `-compile-options=-DFOO`, not
+    `-compile-options -DFOO` (the command line parser would take `-DFOO` for an option). With several options,
+    quotes are enough: `-compile-options "-DFOO -DBAR"`.
+
+**Errors** (exit code `5`, no output FMU): no `sources/` folder, no list of the sources to compile, no compiler
+found, or compilation failure. The compiler messages are shown as errors (as warnings when the compilation
+succeeds).
+
+**Limits:**
+
+- The presence of the binary is checked, not its architecture: an FMU with an Intel-only `darwin64` binary is not
+  recompiled on a Mac with Apple Silicon. Remove the binary first (e.g. with a zip tool) to force the compilation.
+- An FMU without list of its sources is not compiled: the sources to use (and the preprocessor definitions they
+  need) cannot be guessed.
+- FMI 2.0 gives no library to link with nor preprocessor definition: when the compiler or the linker reports a
+  missing symbol or definition, use the additional options above.
+- `compilerOptions` of `buildDescription.xml` are only used when they are written for the compiler in use (`gcc`,
+  `clang` or `cl`).
+
 ### Extract Model Descriptor
 
 ```bash
@@ -384,6 +456,25 @@ datalog2pcap -can datalog.csv
 |---|---|
 | `-can filename.csv` | Datalog CSV file with CAN data and clocks. |
 | `-debug` | Enable verbose logging. |
+
+## Exit Codes
+
+`fmutool`, `fmucontainer` and `fmusplit` share the same exit codes:
+
+| Code | Meaning |
+|-----:|---------|
+| `0`  | Success |
+| `1`  | Unexpected internal error (reported with a Python traceback) |
+| `2`  | Invalid command line (also `-input` and `-output` pointing to the same file) |
+| `3`  | Input file missing or unreadable |
+| `4`  | Invalid input: not an FMU or not a container, invalid assembly, unreadable `modelDescription.xml` |
+| `5`  | Operation or build refused or failed (e.g. an operation that would break the FMI standard) |
+| `6`  | Output cannot be written |
+| `7`  | `-check`: the FMU is not compliant |
+
+!!! note
+    Earlier versions exited with negative codes (`-1` to `-6`, seen as `255` to `250` by the shell),
+    with a different meaning for each tool: see the changelog.
 
 ## Automation and Scripts
 

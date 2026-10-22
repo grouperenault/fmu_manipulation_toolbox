@@ -8,10 +8,15 @@ repo_name: grouperenault/fmu_manipulation_toolbox
 repo_url: https://github.com/grouperenault/fmu_manipulation_toolbox
 edit_uri: edit/main/docs/
 
+# Internal plans and audits (docs/local) are kept with the sources but not published.
+exclude_docs: |
+  local/
+
 copyright: Copyright &copy; 2024-2026 Renault Group
 
 theme:
   name: material
+  custom_dir: overrides
   language: en
   palette:
     - media: "(prefers-color-scheme: dark)"
@@ -36,6 +41,7 @@ theme:
     text: Roboto
     code: Roboto Mono
   features:
+    - announce.dismiss
     - header.autohide
     - content.code.annotate
     - content.code.copy
@@ -135,6 +141,7 @@ markdown_extensions:
 nav:
   - Getting Started:
     - Overview: index.md
+    - What's new in 2.0: whats-new.md
     - Installation: installation.md
     - Quick Start: tutorials/getting-started.md
   - User Guide:
@@ -150,18 +157,25 @@ nav:
     - FMU Container:
       - Concept: user-guide/fmucontainer/container.md
       - Container Builder: user-guide/fmucontainer/gui-usage.md
+      - AI Assistant (MCP): user-guide/fmucontainer/ai-assistant.md
       - Variable Step Size: user-guide/fmucontainer/container-vr.md
+      - Reset of Embedded FMUs: user-guide/fmucontainer/container-reset.md
       - Datalog: user-guide/fmucontainer/datalog.md
       - LS-BUS Support: user-guide/fmucontainer/ls-bus.md
   - API documentation:
       - Assembly: API/assembly.md
       - Checker: API/checker.md
+      - Compiler: API/compiler.md
       - Container: API/container.md
+      - Model description: API/model_description.md
       - Operations: API/operations.md
       - Remoting: API/remoting.md
-  - Examples: examples/examples.md
+  - Examples:
+      - Common Use Cases: examples/examples.md
+      - From Simulink to an FMU Container: examples/simulink-to-container.md
   - Developer:
       - container.txt Format: developer/container-txt-format.md
+      - Native Runtime: developer/native-runtime.md
       - Initialization FMI Sequence: developer/init-fmi-sequence.md
       - DoStep FMI Sequence: developer/dostep-fmi-sequence.md
   - Help:
@@ -170,4 +184,7 @@ nav:
 
 extra_css:
   - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/carousel.js
 

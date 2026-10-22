@@ -7,7 +7,7 @@ import logging
 import os
 import sys
 from enum import Enum
-from typing import List, Optional, Any, Dict
+from typing import Any
 
 from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel
 from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen
@@ -17,10 +17,10 @@ from PySide6.QtWidgets import (
     QLineEdit, QGridLayout, QPlainTextEdit, QSizePolicy,
 )
 
-from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
-from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, StatusBar,
-                                                 UnsavedChangesWindowMixin, LastDirectory,
+from fmu_manipulation_toolbox.operations import FMU, ModelVariable, OperationAbstract
+from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, UnsavedChangesWindowMixin, LastDirectory,
                                                  get_fmu_icon_path)
+from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogStatusBar
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -59,15 +59,17 @@ class FMUVariable:
 class OperationCollectPorts(OperationAbstract):
     """Collects variables, FMU info and the DefaultExperiment."""
 
+    read_only = True
+
     def __init__(self):
-        self.variables: List[FMUVariable] = []
+        self.variables: list[FMUVariable] = []
         # FMU metadata
         self.model_name: str = ""
         self.generation_tool: str = ""
         self.generation_date: str = ""
         self.fmu_description: str = ""
         # FMI version (2 or 3), detected while parsing
-        self.fmi_version: Optional[int] = None
+        self.fmi_version: int | None = None
         # DefaultExperiment
         self.start_time: str = ""
         self.stop_time: str = ""
@@ -91,7 +93,7 @@ class OperationCollectPorts(OperationAbstract):
         self.stop_time = attrs.get("stopTime", "")
         self.step_size = attrs.get("stepSize", "")
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         causality_str = fmu_port.get("causality", "local")
         try:
             causality = Causality(causality_str)
@@ -111,10 +113,10 @@ class OperationCollectPorts(OperationAbstract):
 class OperationApplyEdits(OperationAbstract):
     """Applies edits (name, description, experiment) to the FMU."""
 
-    def __init__(self, edits: Dict[str, FMUVariable],
-                 start_time: Optional[str] = None,
-                 stop_time: Optional[str] = None,
-                 fmu_description: Optional[str] = None):
+    def __init__(self, edits: dict[str, FMUVariable],
+                 start_time: str | None = None,
+                 stop_time: str | None = None,
+                 fmu_description: str | None = None):
         """
         Args:
             edits: dictionary {original_name: modified FMUVariable}
@@ -150,14 +152,14 @@ class OperationApplyEdits(OperationAbstract):
 
 
     @staticmethod
-    def _set_port_attr(fmu_port: FMUPort, key: str, value: str):
+    def _set_port_attr(fmu_port: ModelVariable, key: str, value: str):
         """Modify a port attribute, creating it if it does not exist."""
         try:
             fmu_port[key] = value
         except KeyError:
             fmu_port.attrs_list[0][key] = value
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         original_name = fmu_port["name"]
         var = self.edits.get(original_name)
         if var is None:
@@ -221,9 +223,9 @@ class FMUVariableModel(QAbstractTableModel):
 
     MODIFIED_COLOR = QColor("#FF9800")
 
-    def __init__(self, variables: Optional[List[FMUVariable]] = None, parent=None):
+    def __init__(self, variables: list[FMUVariable] | None = None, parent=None):
         super().__init__(parent)
-        self._variables: List[FMUVariable] = variables or []
+        self._variables: list[FMUVariable] = variables or []
 
     def rowCount(self, parent=QModelIndex()) -> int:
         return len(self._variables)
@@ -287,13 +289,13 @@ class FMUVariableModel(QAbstractTableModel):
         self.dataChanged.emit(index, index, [role])
         return True
 
-    def set_variables(self, variables: List[FMUVariable]):
+    def set_variables(self, variables: list[FMUVariable]):
         self.beginResetModel()
         self._variables = variables
         self.endResetModel()
 
     @property
-    def variables(self) -> List[FMUVariable]:
+    def variables(self) -> list[FMUVariable]:
         """Direct access to the variable list."""
         return self._variables
 
@@ -449,8 +451,9 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         top_bar.addLayout(info_grid, 1)
 
         # Bottom bar: status + buttons
-        self._status_bar = StatusBar()
-        self._status_bar.setSizeGripEnabled(False)
+        log_handler = GuiLogHandler.install()
+        log_handler.register_window(self)
+        self._status_bar = LogStatusBar(log_handler, window=self)
 
         button_bar = QHBoxLayout()
         button_bar.addWidget(self._status_bar, 1)
@@ -483,6 +486,11 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
         from pathlib import Path
         self._drop_zone.set_fmu(Path(fmu_path))
 
+    def closeEvent(self, event):
+        super().closeEvent(event)  # UnsavedChangesWindowMixin may ignore() to cancel
+        if event.isAccepted():
+            GuiLogHandler.install().unregister_window(self)
+
     # -- Unsaved changes detection -----------------------------------------------
 
     def _has_unsaved_changes(self) -> bool:
@@ -500,7 +508,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
 
     # -- Slot: FMU loaded ------------------------------------------------------
 
-    def _on_fmu_loaded(self, fmu: Optional[FMU]):
+    def _on_fmu_loaded(self, fmu: FMU | None):
         if fmu is None:
             self._fmu_title.setText("")
             self._generation_tool_label.setText("")
@@ -570,7 +578,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
             return
 
         # Variable modifications
-        edits: Dict[str, FMUVariable] = {}
+        edits: dict[str, FMUVariable] = {}
         for var in self._model.variables:
             if var.is_modified:
                 edits[var.original_name] = var

@@ -5,6 +5,8 @@
 #ifdef _WIN32
 #   include <windows.h>
 #   include <imagehlp.h>
+#   include <stdio.h>
+#   include <string.h>
 #else
 #   include <dlfcn.h>
 #   include <unistd.h> 
@@ -18,14 +20,14 @@
  * Shared library loading/unloading and diagnosing.
  */
 
-#ifdef WIN32
+#ifdef _WIN32
 typedef enum {
     LIBRARY_DLL_NOT_FOUND,
     LIBRARY_DLL_MISSING_DEPENDENCIES,
     LIBRARY_DLL_OK
 } libray_status_t;
 
-static libray_status_t* libray_analyse(hash_t* dll_db, const char* filename);
+static libray_status_t* libray_analyse(const logger_t *logger, hash_t* dll_db, const char* filename);
 #endif
 
 void *library_symbol(library_t library, const char *symbol_name) {
@@ -37,29 +39,30 @@ void *library_symbol(library_t library, const char *symbol_name) {
 }
 
 
-static void library_load_error(const char* library_filename) {
+static void library_load_error(const logger_t *logger, const char* library_filename) {
 #ifdef _WIN32
     hash_t* dll_db = hash_new();
-    libray_analyse(dll_db, library_filename);
+    libray_analyse(logger, dll_db, library_filename);
     hash_free(dll_db);
 #else
-    logger(LOGGER_ERROR, "dlopen Error: %s", dlerror());
+    LOGGER_ERROR("dlopen Error: %s", dlerror());
 #endif
-    logger(LOGGER_ERROR, "Cannot load `%s'", library_filename);
+    LOGGER_ERROR("Cannot load `%s'", library_filename);
 
     return; /* Never reached */
 }
 
 
-library_t library_load(const char* library_filename) {
+library_t library_load(const logger_t *logger, const char* library_filename) {
     library_t handle;
 #ifdef _WIN32
-    handle = LoadLibraryA(library_filename);
+    /* Dependencies are searched first in the directory of the DLL */
+    handle = LoadLibraryExA(library_filename, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
 #else
     handle = dlopen(library_filename, RTLD_LAZY);	/* RTLD_LOCAL can lead to failure */
 #endif
     if (!handle)
-        library_load_error(library_filename);
+        library_load_error(logger, library_filename);
 
     return handle;
 }
@@ -118,14 +121,28 @@ static LPVOID GetPtrFromRVA(DWORD rva, PIMAGE_NT_HEADERS pNTHeader, PBYTE imageB
 }
 
 
+static const char *libray_last_separator(const char *filename) {
+    const char *backslash = strrchr(filename, '\\');
+    const char *slash = strrchr(filename, '/');
+
+    if (!backslash)
+        return slash;
+    if (!slash)
+        return backslash;
+    return (backslash > slash) ? backslash : slash;
+}
+
+
 static libray_status_t* libray_try_load(const char* filename) {
     libray_status_t* status = malloc(sizeof(*status));
+    /* A bare DLL name is searched with the standard search order: the flag requires a path */
+    const DWORD flags = libray_last_separator(filename) ? LOAD_WITH_ALTERED_SEARCH_PATH : 0;
 
     HINSTANCE handle = LoadLibraryExA(filename, NULL, DONT_RESOLVE_DLL_REFERENCES);
     if (handle) {
         FreeLibrary(handle);
 
-        handle = LoadLibraryA(filename);
+        handle = LoadLibraryExA(filename, NULL, flags);
         if (handle) {
             FreeLibrary(handle);
             *status = LIBRARY_DLL_OK;
@@ -141,25 +158,47 @@ static libray_status_t* libray_try_load(const char* filename) {
 }
 
 
-static void libray_log_status(const char* filename, libray_status_t* status) {
+static void libray_log_status(const logger_t *logger, const char* filename, libray_status_t* status) {
     switch (*status) {
     case LIBRARY_DLL_OK:
-        logger(LOGGER_WARNING, "DLL `%s' is found.", filename);
+        LOGGER_WARNING("DLL `%s' is found.", filename);
         break;
     case LIBRARY_DLL_NOT_FOUND:
-        logger(LOGGER_WARNING, "DLL `%s' is not found.", filename);
+        LOGGER_WARNING("DLL `%s' is not found.", filename);
         break;
     case LIBRARY_DLL_MISSING_DEPENDENCIES:
-        logger(LOGGER_WARNING, "DLL `%s' has missing dependencies.", filename);
+        LOGGER_WARNING("DLL `%s' has missing dependencies.", filename);
         break;
     }
 }
 
 
-static void libray_analyse_deeply(hash_t* dll_db, const char* filename) {
+/*
+ * The dependencies of a DLL are searched first in its directory, as library_load() does:
+ * return the path of the dependency in this directory if it exists, its bare name otherwise.
+ */
+static const char *libray_dependency_path(char *path, size_t size, const char *filename, const char *dll_filename) {
+    const char *separator = libray_last_separator(filename);
+
+    if (separator) {
+        const int dir_len = (int)(separator - filename);
+        const int len = snprintf(path, size, "%.*s\\%s", dir_len, filename, dll_filename);
+        if (len > 0 && (size_t)len < size) {
+            const DWORD attributes = GetFileAttributesA(path);
+            if (attributes != INVALID_FILE_ATTRIBUTES && !(attributes & FILE_ATTRIBUTE_DIRECTORY))
+                return path;
+        }
+    }
+
+    return dll_filename;
+}
+
+
+static void libray_analyse_deeply(const logger_t *logger, hash_t* dll_db, const char* filename) {
+    char dependency_path[MAX_PATH];
     PLOADED_IMAGE image = ImageLoad(filename, NULL);
     if (!image) {
-        logger(LOGGER_ERROR, "Cannot ImageLoad(%s)", filename);
+        LOGGER_ERROR("Cannot ImageLoad(%s)", filename);
     }
     else {
         if (image->FileHeader->OptionalHeader.NumberOfRvaAndSizes >= 2) {
@@ -172,7 +211,8 @@ static void libray_analyse_deeply(hash_t* dll_db, const char* filename) {
                 if ((importDesc->TimeDateStamp == 0) && (importDesc->Name == 0))
                     break;
                 const char* dll_filename = GetPtrFromRVA(importDesc->Name, image->FileHeader, image->MappedAddress);
-                libray_analyse(dll_db, dll_filename);
+                libray_analyse(logger, dll_db,
+                               libray_dependency_path(dependency_path, sizeof(dependency_path), filename, dll_filename));
                 importDesc++;
             }
         }
@@ -182,25 +222,25 @@ static void libray_analyse_deeply(hash_t* dll_db, const char* filename) {
 }
 
 
-static libray_status_t* libray_analyse_really(hash_t* dll_db, const char* filename) {
+static libray_status_t* libray_analyse_really(const logger_t *logger, hash_t* dll_db, const char* filename) {
     libray_status_t* status = libray_try_load(filename);
     hash_set_value(dll_db, strdup(filename), status);
     if (*status == LIBRARY_DLL_MISSING_DEPENDENCIES)
-        libray_analyse_deeply(dll_db, filename);
+        libray_analyse_deeply(logger, dll_db, filename);
 
-    libray_log_status(filename, status);
+    libray_log_status(logger, filename, status);
 
     return status;
 }
 
 
-static libray_status_t* libray_analyse(hash_t* dll_db, const char* filename) {
+static libray_status_t* libray_analyse(const logger_t *logger, hash_t* dll_db, const char* filename) {
     libray_status_t* status;
 
     status = hash_get_value(dll_db, filename);
     if (!status)
-        status = libray_analyse_really(dll_db, filename);
+        status = libray_analyse_really(logger, dll_db, filename);
 
     return status;
 }
-#endif /* WIN32 */
+#endif /* _WIN32 */

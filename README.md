@@ -1,4 +1,4 @@
-![](fmu_manipulation_toolbox/resources/fmu_manipulation_toolbox.png)
+![](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/main/fmu_manipulation_toolbox/resources/fmu_manipulation_toolbox.png)
 
 ![](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/refs/heads/badges/.github/badges/python-version.svg)
 ![](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/refs/heads/badges/.github/badges/fmi-version.svg)
@@ -39,7 +39,7 @@ Major features:
 - Alter FMU by modifying its `modelDescription.xml` file. NOTE: manipulating this file can be risky.
   When possible, it is preferable to communicate with the FMU developer and adapt the FMU generation process.
 - Add binary interfaces. Typical use case is porting 32-bit FMUs to 64-bit systems (or vice versa). 
-- Combine FMUs into [FMU Containers](docs/user-guide/fmucontainer/container.md) and allow your favourite FMI tool to orchestrate complex assembly of FMUs.
+- Combine FMUs into [FMU Containers](https://grouperenault.github.io/fmu_manipulation_toolbox/user-guide/fmucontainer/container/) and allow your favourite FMI tool to orchestrate complex assembly of FMUs.
 
 FMI versions 2.0 and 3.0 are supported.
 
@@ -50,9 +50,27 @@ Two options available to install FMU Manipulation Toolbox:
 - (*Easiest option*) Install from PyPI: `pip install fmu-manipulation-toolbox`. This will install the latest
   version of FMU Manipulation Toolbox and all its dependencies. See [PyPI page](https://pypi.org/project/fmu-manipulation-toolbox/).
 - Compile and install from [GitHub repository](https://github.com/grouperenault/fmu_manipulation_toolbox). You will need 
-  - Python required packages. See [`requirements.txt`](requirements.txt).
+  - pip ≥ 21.3. The Python dependencies are declared in [`pyproject.toml`](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/pyproject.toml)
+    and installed by `pip install .` (see [Development](#-development)).
   - C compiler with C23 support (for the container) or C99 (for remoting)
   - CMake ≥ 3.21
+
+By default, `pip install fmu-manipulation-toolbox` only installs the **CLI** and **Python API** (no GUI toolkit
+required). If you also want the **Graphical User Interfaces** (`fmutoolbox`, `fmutool-gui`, `fmueditor`,
+`fmucontainer-gui`), install the `gui` extra, which pulls in [PySide6](https://pypi.org/project/PySide6/):
+
+```bash
+pip install "fmu-manipulation-toolbox[gui]"
+```
+
+To let an AI agent assemble FMU containers for you through a
+[Model Context Protocol](https://modelcontextprotocol.io/) server
+(`fmutool-mcp`, or the Container Builder's *AI Assistant* menu), install the `mcp`
+extra:
+
+```bash
+pip install "fmu-manipulation-toolbox[mcp]"
+```
 
 
 ### Supported platforms
@@ -65,9 +83,11 @@ FMU Manipulation Toolbox is packaged for:
 
 # 🖥️ Graphical User Interface
 
-FMU Manipulation Toolbox is released with a GUI. You can launch it with the following command `fmutoolbox`
+FMU Manipulation Toolbox is released with a GUI. It requires the `gui` extra
+(`pip install "fmu-manipulation-toolbox[gui]"`) to pull in [PySide6](https://pypi.org/project/PySide6/).
+You can launch it with the following command `fmutoolbox`
 
-![GUI](docs/gui-launcher.png "GUI")
+![GUI](https://raw.githubusercontent.com/grouperenault/fmu_manipulation_toolbox/main/docs/gui-launcher.png "GUI")
 
 Button color descriptions:
 - red: remove information from the `modelDescription.xml`
@@ -176,7 +196,7 @@ fmu.repack(r"bouncing_ball-renamed.fmu")
 
 ### Available Operations
 
-All operations are located in [`operations.py`](fmu_manipulation_toolbox/operations.py):
+All operations are located in [`operations.py`](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/fmu_manipulation_toolbox/operations.py):
 
 | Operation | Description |
 |---|---|
@@ -201,7 +221,7 @@ fmu_manipulation_toolbox/      # Python package
 ├── gui/                       #   Graphical User Interface (PySide6)
 ├── resources/                 #   Pre-built binaries, XSD schemas, icons
 ├── operations.py              #   FMU operations (rename, filter, etc.)
-├── container.py               #   FMU Container logic
+├── container/                 #   FMU Container builder (writes container.txt for the C runtime)
 ├── assembly.py                #   Assembly description parsing
 ├── checker.py                 #   FMU compliance checker
 ├── remoting.py                #   32/64-bit remoting support
@@ -223,7 +243,7 @@ Key design points:
 
 ### Prerequisites
 
-- Python ≥ 3.9
+- Python ≥ 3.10
 - C compiler with C23 support (for the container) or C99 (for remoting) — only needed for building the container/remoting binaries
 - CMake ≥ 3.21 — only needed for building the C code
 
@@ -234,9 +254,14 @@ Key design points:
 git clone https://github.com/grouperenault/fmu_manipulation_toolbox.git
 cd fmu_manipulation_toolbox
 
-# Install dependencies
-pip install -r requirements.txt
+# Install the package in editable mode, with every extra (GUI, MCP, tests); needs pip >= 21.3
+pip install -e ".[all]"
 ```
+
+> **Note:** the tests run against the installed package: without this step, pytest stops with
+> `ModuleNotFoundError: No module named 'fmu_manipulation_toolbox'`. `pip install -r requirements.txt` is
+> equivalent (the file only contains `-e .[all]`). If you only need the CLI/API dependencies, use
+> `pip install -e .` (add `[gui]`, `[mcp]` and/or `[test]` as needed, e.g. `pip install -e ".[gui,test]"`).
 
 ### Building C code (optional)
 
@@ -254,12 +279,13 @@ Same process applies for the `remoting/` directory.
 ### Running tests
 
 ```bash
-pytest tests/test_suite.py
+cd tests
+pytest
 ```
 
 With coverage report:
 ```bash
-pytest tests/test_suite.py --cov=fmu_manipulation_toolbox --cov-report=html
+pytest --cov=fmu_manipulation_toolbox --cov-report=html
 ```
 
 ### Building documentation locally
@@ -276,7 +302,7 @@ Then open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
 
 # 🤝 Contributing
 
-Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) for details on
+Contributions are welcome! Please read the [Contributing Guide](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/CONTRIBUTING.md) for details on
 how to report issues, suggest improvements, and interact with the development team.
 
 > **Note:** For legal reasons, pull requests cannot be accepted. If you have ideas for improvements,
@@ -285,11 +311,11 @@ how to report issues, suggest improvements, and interact with the development te
 
 # 📋 Changelog
 
-See the [Changelog](CHANGELOG.md) for a detailed list of changes across versions.
+See the [Changelog](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/CHANGELOG.md) for a detailed list of changes across versions.
 
 
 # 📄 License
 
-This project is licensed under the **BSD-2-Clause** license. See [LICENSE.txt](LICENSE.txt) for details.
+This project is licensed under the **BSD-2-Clause** license. See [LICENSE.txt](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/LICENSE.txt) for details.
 
 Copyright © 2024-2026 Renault SAS

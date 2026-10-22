@@ -4,7 +4,6 @@ Container detail panel for FMU container builder.
 Contains classes for displaying and editing container parameters.
 """
 
-from typing import *
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QStandardItemModel, QStandardItem
@@ -19,7 +18,7 @@ from fmu_manipulation_toolbox.help import Help
 class ContainerParameters:
     def __init__(self, name: str, step_size="", mt=False, profiling=False, sequential=False, auto_link=True,
                  auto_input=True, auto_output=True, auto_parameter=False, auto_local=False, ts_multiplier=False,
-                 **_):
+                 reset_ports=False, **_):
         self.name = name
         self.parameters = {
             "step_size": step_size,
@@ -32,6 +31,7 @@ class ContainerParameters:
             "auto_parameter": auto_parameter,
             "auto_local": auto_local,
             "ts_multiplier": ts_multiplier,
+            "reset_ports": reset_ports,
         }
 
     def __repr__(self):
@@ -46,7 +46,7 @@ class ContainerDetailWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        self._container_parameters: Optional[ContainerParameters] = None
+        self._container_parameters: ContainerParameters | None = None
 
         self._name_label = QLabel()
         font = self._name_label.font()

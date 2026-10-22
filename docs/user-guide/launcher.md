@@ -24,6 +24,10 @@ The launcher window offers three buttons:
 Each button opens the corresponding tool in a **separate window**. You can have multiple tools
 open at the same time.
 
+Each window has its **own log**: the messages of an action (loading an FMU, an operation, a build, the AI Assistant
+of a Container Builder) are only shown in the window where it runs. The few messages that do not come from a window
+are shown in all the open windows.
+
 !!! tip "Direct launch"
     You can also launch each tool individually from the command line without going through the
     launcher. See the table above for the corresponding commands.

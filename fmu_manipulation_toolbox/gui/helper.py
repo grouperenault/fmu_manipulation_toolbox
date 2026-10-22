@@ -1,22 +1,21 @@
 import logging
 import os
 
-from typing import *
-from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QStatusBar, QDialog, QTextBrowser, QVBoxLayout,
-                               QHBoxLayout, QPushButton, QMessageBox, QMainWindow, QTableView, QHeaderView)
-from PySide6.QtGui import QDesktopServices, QIcon
-from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl, QRect
+from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QPushButton, QMessageBox, QTableView, QHeaderView,
+                               QMenu)
+from PySide6.QtGui import QDesktopServices, QIcon, QAction
+from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl, QRect, QSize
 from PySide6.QtGui import QPixmap, QPainter, QColor, QImage, QGuiApplication
 
 from pathlib import Path
 
-from fmu_manipulation_toolbox.gui.style import gui_style, log_color
+from fmu_manipulation_toolbox.gui.style import gui_style
 from fmu_manipulation_toolbox.operations import FMU
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
-def get_fmu_icon_path(fmu: FMU, fmi_version: Optional[int]) -> Optional[Path]:
+def get_fmu_icon_path(fmu: FMU, fmi_version: int | None) -> Path | None:
     """Return the path to the FMU model icon inside its extraction directory.
 
     The icon location depends on the FMI version:
@@ -60,7 +59,7 @@ class LastDirectory:
         return cls._directory
 
     @classmethod
-    def update(cls, path: Optional[Union[str, "Path"]]) -> None:
+    def update(cls, path: str | Path | None) -> None:
         """Update the remembered directory from a file (or directory) path."""
         if not path:
             return
@@ -79,7 +78,7 @@ class LastDirectory:
         return filename
 
     @classmethod
-    def get_open_file_names(cls, parent=None, caption: str = "", filter: str = "") -> List[str]:
+    def get_open_file_names(cls, parent=None, caption: str = "", filter: str = "") -> list[str]:
         """Wrapper around QFileDialog.getOpenFileNames using/updating the last directory."""
         filenames, _ = QFileDialog.getOpenFileNames(parent, caption, cls.get(), filter)
         if filenames:
@@ -145,10 +144,10 @@ def crop_transparent_border(image: QImage) -> QImage:
     return img.copy(QRect(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1))
 
 
-def load_scaled_pixmap(source: Union[Path, str, QImage], max_width: int, max_height: int,
+def load_scaled_pixmap(source: Path | str | QImage, max_width: int, max_height: int,
                        keep_aspect_ratio: bool = True,
-                       mask_path: Optional[Path] = None,
-                       trim_transparent: bool = False) -> Optional[QPixmap]:
+                       mask_path: Path | None = None,
+                       trim_transparent: bool = False) -> QPixmap | None:
     """Load *source* and scale it to fit within *max_width* x *max_height*.
 
     The pixmap is rendered at the screen device-pixel-ratio and tagged with it,
@@ -276,7 +275,7 @@ class DropZoneWidget(QLabel):
 
     # -- Display ----------------------------------------------------------------
 
-    def set_image(self, filename:Optional[Path]=None):
+    def set_image(self, filename:Path | None=None):
         """Display the FMU thumbnail (with rounded mask) or the placeholder."""
         resources = Path(__file__).parent.parent / "resources"
 
@@ -350,143 +349,70 @@ class DropZoneWidget(QLabel):
         self.fmu_loaded.emit(self.fmu)
 
 
-class StatusBar(QStatusBar):
-    class StatusBarLogHandler(logging.Handler):
-        """Affiche les logs dans une QStatusBar avec une couleur par niveau."""
-
-        LOG_COLORS = {
-            logging.DEBUG: log_color["DEBUG"],
-            logging.INFO: log_color["INFO"],
-            logging.WARNING: log_color["WARNING"],
-            logging.ERROR: log_color["ERROR"],
-            logging.CRITICAL: log_color["CRITICAL"],
-        }
-
-        def __init__(self, status_bar: QStatusBar, level=logging.INFO):
-            super().__init__(level)
-            self._status_bar = status_bar
-            logger.addHandler(self)
-            logger.setLevel(level)
-
-        def emit(self, record: logging.LogRecord):
-            color = self.LOG_COLORS.get(record.levelno, log_color["INFO"])
-            self._status_bar.setStyleSheet(f"QStatusBar {{ color: {color}; }}")
-            self._status_bar.showMessage(self.format(record), 10000)
+class MenuSelector(QPushButton):
+    """One choice among a few items: a push button (class `quit`) opening a menu, as the other selectors of the
+    application ("Configuration" of the Container Builder, `FilterWidget` of FMU Tool). The items are not checkable
+    (one choice only): the current one is in bold. Offers the part of the `QComboBox` interface used by the GUI."""
+    currentIndexChanged = Signal(int)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._log_handler = StatusBar.StatusBarLogHandler(self)
+        self.setProperty("class", "quit")
+        self._menu = QMenu(self)
+        self._actions: list[QAction] = []
+        self._items: list[tuple[str, object]] = []
+        self._index = -1
+        self.setMenu(self._menu)
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        logger.removeHandler(self._log_handler)
-        self._log_handler.close()
+    def addItem(self, text: str, data=None):
+        action = QAction(text, self)
+        index = len(self._items)
+        action.triggered.connect(lambda _=False, i=index: self.setCurrentIndex(i))
+        self._actions.append(action)
+        self._menu.addAction(action)
+        self._items.append((text, data))
+        if self._index < 0:
+            self.setCurrentIndex(0)
 
+    def clear(self):
+        self._menu.clear()
+        self._actions = []
+        self._items = []
+        self._index = -1
+        self.setText("")
 
-class LogWidget(QTextBrowser):
-    class LogHandler(logging.Handler):
-        LOG_COLOR = {
-            logging.DEBUG: QColor(log_color["DEBUG"]),
-            logging.INFO: QColor(log_color["INFO"]),
-            logging.WARNING: QColor(log_color["WARNING"]),
-            logging.ERROR: QColor(log_color["ERROR"]),
-            logging.CRITICAL: QColor(log_color["CRITICAL"]),
-        }
-        LOG_PREFIX = {
-            logging.DEBUG: "",
-            logging.INFO: "",
-            logging.WARNING: "WARNING: ",
-            logging.ERROR: "ERROR: ",
-            logging.CRITICAL: "CRITICAL: ",
-        }
+    def count(self) -> int:
+        return len(self._items)
 
-        def __init__(self, text_browser, level):
-            super().__init__(level)
-            self.text_browser: QTextBrowser = text_browser
-            logger.addHandler(self)
-            logger.setLevel(level)
+    def currentIndex(self) -> int:
+        return self._index
 
-        def emit(self, record) -> None:
-            self.text_browser.setTextColor(self.LOG_COLOR[record.levelno])
-            self.text_browser.insertPlainText(self.LOG_PREFIX[record.levelno])
-            self.text_browser.insertPlainText(self.format(record) + "\n")
-            self.text_browser.ensureCursorVisible()
-            # Keep the RunTask dialog responsive and repaint log lines immediately.
-            QApplication.processEvents()
+    def currentData(self):
+        return self._items[self._index][1] if 0 <= self._index < len(self._items) else None
 
-    def __init__(self, parent=None, level=logging.INFO, width=1200, height=500):
-        super().__init__(parent)
+    def currentText(self) -> str:
+        return self._items[self._index][0] if 0 <= self._index < len(self._items) else ""
 
-        self.setMinimumWidth(width)
-        self.setMinimumHeight(height)
-        self.setSearchPaths([str(Path(__file__).parent.parent / "resources")])
-        self.log_handler = LogWidget.LogHandler(self, level)
+    def findData(self, data) -> int:
+        return next((index for index, (_, value) in enumerate(self._items) if value == data), -1)
 
-    def loadResource(self, _, name):
-        image_path = Path(__file__).parent.parent / "resources" / name.toString()
-        return QPixmap(str(image_path))
+    def sizeHint(self):
+        """Wide enough for the longest item, and for the arrow of the menu."""
+        hint = super().sizeHint()
+        texts = [text for text, _ in self._items] or [self.text()]
+        width = max(self.fontMetrics().horizontalAdvance(text) for text in texts) + 60
+        return hint.expandedTo(QSize(width, hint.height()))
 
-    def stop_logging(self):
-        logger.removeHandler(self.log_handler)
-
-
-class RunTask(QDialog):
-    def __init__(self, task: Callable, *args, parent=None, title="Run command...",  level=logging.INFO, **kwargs):
-        super().__init__(parent)
-
-        self.setWindowTitle(title)
-        self.text = LogWidget(height=300, level=level)
-
-        self.save_button = QPushButton("Save Logs...")
-        self.save_button.setProperty("class", "info")
-        self.save_button.setMinimumWidth(150)
-        self.save_button.clicked.connect(self.save_logs)
-
-
-
-        self.close_button = QPushButton("Close")
-        self.close_button.setProperty("class", "quit")
-        self.close_button.setMinimumWidth(150)
-        self.close_button.clicked.connect(self.close)
-
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        button_layout.addWidget(self.save_button)
-        button_layout.addWidget(self.close_button)
-
-        layout = QVBoxLayout()
-        self.setLayout(layout)
-        layout.addWidget(self.text)
-        layout.addLayout(button_layout)
-
-        self.show()
-
-        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
-        logger.debug(f"Starting {title}...")
-        try:
-            task(*args, **kwargs)
-            logger.info(f"✅ {title} finished.")
-        except Exception as e:
-            logger.critical(f"Unexpected error: {e}")
-            logger.critical(f"Operation aborted.")
-        QApplication.restoreOverrideCursor()
-        self.text.stop_logging()
-
-    def save_logs(self):
-        """Open a file dialog to save the current log content as a .txt file."""
-        filename = LastDirectory.get_save_file_name(
-            parent=self,
-            caption="Save Logs",
-            filter="Text files (*.txt);;All files (*)",
-            default_name="logs.txt",
-        )
-        if not filename:
+    def setCurrentIndex(self, index: int):
+        if index == self._index or not 0 <= index < len(self._items):
             return
-
-        try:
-            with open(filename, "w", encoding="utf-8") as f:
-                f.write(self.text.toPlainText())
-        except OSError as e:
-            QMessageBox.critical(self, "Save Logs", f"Cannot save logs: {e}")
+        self._index = index
+        self.setText(self._items[index][0])
+        for position, action in enumerate(self._actions):
+            font = action.font()
+            font.setBold(position == index)
+            action.setFont(font)
+        self.currentIndexChanged.emit(index)
 
 
 class UnsavedChangesWindowMixin:

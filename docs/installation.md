@@ -7,21 +7,32 @@ This guide walks you through installing **FMU Manipulation Toolbox** on your sys
 ### Supported Operating Systems
 
 - ✅ **Windows 10/11** (primary platform, fully tested)
-- ✅ **Linux** (Ubuntu 22.04 and compatible distributions)
+- ✅ **Linux** (Ubuntu 22.04 and compatible distributions, with glibc 2.35 or newer)
 - ✅ **macOS** (Darwin)
 
 ### Required Dependencies
 
-- **Python 3.9 or higher**
-- **pip** (Python package manager)
+- **Python 3.10 or higher** (see [Supported Python Versions](#supported-python-versions))
+- **pip** (Python package manager); pip 21.3 or higher for an installation from source in development mode
 
 ### Optional Dependencies (for compilation from source)
 
 - **C Compiler** with C23 support (for the container) or C99 (for remoting)
   - Windows: Visual Studio 2022+ or MinGW
-  - Linux: GCC 13+ or Clang 16+
+  - Linux: GCC 11+ or Clang 16+
   - macOS: Xcode Command Line Tools (with recent Clang)
 - **CMake 3.21 or higher**
+
+### Optional Dependencies (to compile the sources of an FMU)
+
+The **Compile sources** operation (`fmutool -compile-sources`) needs a C compiler for the current platform
+(CMake is not needed):
+
+- Windows: Visual Studio or its *Build Tools*, with the *Desktop development with C++* workload
+- Linux: `cc` (e.g. `sudo apt-get install build-essential`), or the compiler given by `CC` / `CXX`
+- macOS: Xcode Command Line Tools (`xcode-select --install`)
+
+See [Compile Sources](user-guide/fmutool/cli-usage.md#compile-sources).
 
 ## Method 1: Installation via PyPI (Recommended)
 
@@ -33,10 +44,45 @@ This is the simplest and fastest method to install FMU Manipulation Toolbox.
 pip install fmu-manipulation-toolbox
 ```
 
+This installs the **CLI** (`fmutool`, `fmucontainer`, `fmusplit`, `datalog2pcap`) and the **Python API**. It does
+**not** pull in the GUI toolkit ([PySide6](https://pypi.org/project/PySide6/)), which is a heavy dependency only
+needed by the graphical tools.
+
+### Installation with the Graphical User Interfaces
+
+If you also want to use `fmutoolbox`, `fmutool-gui`, `fmueditor` or `fmucontainer-gui`, install the `gui` extra:
+
+```bash
+pip install "fmu-manipulation-toolbox[gui]"
+```
+
+### Installation with the AI Assistant (MCP server)
+
+The toolbox can expose its FMU Container assembly capabilities to an AI agent through an
+[MCP server](user-guide/fmucontainer/ai-assistant.md), either as a standalone command
+(`fmutool-mcp`, no GUI needed) or from the Container Builder window. This optional
+feature requires the `fastmcp` package, available through the `mcp` extra:
+
+```bash
+# Standalone MCP server only (no GUI)
+pip install "fmu-manipulation-toolbox[mcp]"
+
+# MCP server + the graphical tools
+pip install "fmu-manipulation-toolbox[gui,mcp]"
+```
+
+!!! tip "Which install do I need?"
+
+    - **CLI / Python API only** (scripting, CI/CD, servers): `pip install fmu-manipulation-toolbox`
+    - **GUI tools** (interactive use): `pip install "fmu-manipulation-toolbox[gui]"`
+    - **AI Assistant alone** (MCP server for Claude Desktop, VS Code, ...):
+      `pip install "fmu-manipulation-toolbox[mcp]"`
+    - **GUI tools + AI Assistant** (MCP server): `pip install "fmu-manipulation-toolbox[gui,mcp]"`
+
 ### Installation with Upgrade
 
 ```bash
-pip install --upgrade fmu-manipulation-toolbox
+pip install --upgrade "fmu-manipulation-toolbox[gui]"
 ```
 
 ### Installing a Specific Version
@@ -55,22 +101,27 @@ pip show fmu-manipulation-toolbox
 fmutool -h
 fmucontainer -h
 
-# Test GUI commands
+# Test GUI commands (requires the `gui` extra, see above)
 fmutoolbox         # Launcher with all GUI tools
 fmutool-gui        # FMU analysis & modification
 fmueditor          # FMU variable editor
 fmucontainer-gui   # FMU container builder
+
+# Test the MCP server (requires the `mcp` extra)
+fmutool-mcp --help
 ```
 
-**Expected Output:**
+**Expected Output** (excerpt):
 ```
-Name: fmu-manipulation-toolbox
-Version: 1.9.2
-Summary: FMU Manipulation Toolbox
-Home-page: https://github.com/grouperenault/fmu_manipulation_toolbox
-Author: Renault
-License: BSD-2-Clause
+Name: fmu_manipulation_toolbox
+Version: 1.9.4.2
+Summary: FMU Manipulation Toolbox is a python package which helps to analyze, modify, validate, combine or split ...
+License-Expression: BSD-2-Clause
 ```
+
+!!! note
+    The version is displayed without the `V` prefix of the git tags (`V1.9.4.2` → `1.9.4.2`). A package installed
+    from a git checkout gets a development version computed from the last tag, e.g. `1.9.4.3.dev79+g230faf6`.
 
 ## Method 2: Installation from Source
 
@@ -86,28 +137,53 @@ git clone https://github.com/grouperenault/fmu_manipulation_toolbox.git
 cd fmu_manipulation_toolbox
 ```
 
-### Step 2: Install Python Dependencies
+### Step 2: Install the Package and its Dependencies
 
 ```bash
-pip install -r requirements.txt
+pip install -e ".[all]"
 ```
 
-**Contents of requirements.txt:**
-```
-PySide6 >= 6.8.0
-xmlschema >= 3.3.1
-elementpath >= 4.4.0
-colorama >= 0.4.6
-fmpy >= 0.3.20
-pytest >= 8.4.2
-pytest-cov >= 7.0.0
-coverage-badge >= 1.1.2
-```
+This installs the package in development mode (see [Step 4](#step-4-install-the-package)) with all its extras:
+
+| Extra | Contents |
+|-------|----------|
+| *(none)* | `xmlschema`, `elementpath`, `colorama`: CLI and Python API |
+| `gui` | `PySide6`: graphical tools |
+| `mcp` | `fastmcp`, `uvicorn`: MCP server and AI Assistant |
+| `test` | `pytest`, `pytest-qt`, `pytest-cov`, `coverage-badge`, `fmpy`, `numpy`, `PySide6` |
+| `all` | `gui` + `mcp` + `test` |
+
+The dependencies and their versions are declared in `pyproject.toml`.
+
+!!! note
+    `pip install -r requirements.txt` is equivalent: the file only contains `-e .[all]`. The package must be
+    installed to run the tests: they import the installed `fmu_manipulation_toolbox`.
 
 ### Step 3: Compile C Components
 
-Two native components are written in C and should be compiled. The container requires a C23 compatible compiler, while the remoting
-code requires a C99 compatible compiler that should be able to produce 64-bit and 32-bit objects.
+Two native components are written in C and should be compiled. Both require a C23 compatible compiler; the remoting code
+also needs a compiler able to produce 64-bit and 32-bit objects. The binaries are written to
+`fmu_manipulation_toolbox/resources/<platform>/` (`win32`, `win64`, `linux32`, `linux64` or `darwin64`).
+
+Both CMake projects share their build settings, located in the `cmake/` folder at the root of the repository. The
+build type defaults to `Release`. The following options can be given at configuration time (`cmake .. -D<option>=<value>`):
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `FMUTOOL_WARNINGS_AS_ERRORS` | `OFF` | Treat compiler warnings as errors |
+| `FMUTOOL_STRICT_CONVERSION` | `OFF` | Warn about implicit conversions (`-Wconversion`, `-Wsign-conversion`) |
+| `FMUTOOL_PGO` | `OFF` | Profile-Guided Optimization: `OFF`, `GENERATE` or `USE` (see below) |
+| `FMUTOOL_SANITIZE` | `OFF` | GCC and Clang only: build with AddressSanitizer and UndefinedBehaviorSanitizer |
+| `BUILD_TESTING` | `ON` | Container only: build the native tests (`container_tests`) |
+| `BUILD_32` | `OFF` | Remoting only, Linux only: build 32-bit binaries |
+
+??? note "Profile-Guided Optimization"
+    1. Configure with `-DFMUTOOL_PGO=GENERATE` and build. The binaries are instrumented and write profile data to
+       `<build folder>/pgo-data/` when they run.
+    2. Run a representative simulation with these binaries.
+    3. With Clang only, merge the profiles:
+       `llvm-profdata merge -output=pgo-data/default.profdata pgo-data/*.profraw`.
+    4. Reconfigure with `-DFMUTOOL_PGO=USE` and rebuild.
 
 
 #### Container code
@@ -118,8 +194,13 @@ cd container
 mkdir build
 cd build
 cmake ..
-cmake --build .
+cmake --build . --config Release
 cd ..
+```
+
+The native tests of the container (`container/tests`) run with CTest, from the build folder:
+```bash
+ctest -C Release --output-on-failure
 ```
 
 #### Remoting code
@@ -131,12 +212,12 @@ cd ..
     mkdir build32
     cd build32
     cmake .. -A Win32
-    cmake --build .
+    cmake --build . --config Release
     cd ..
     mkdir build64
     cd build64
     cmake .. -A x64
-    cmake --build .
+    cmake --build . --config Release
     cd ..
     ```
 
@@ -147,12 +228,12 @@ cd ..
     mkdir build32
     cd build32
     cmake .. -DBUILD_32=ON
-    cmake --build .
+    cmake --build . --config Release
     cd ..
     mkdir build64
     cd build64
     cmake ..
-    cmake --build .
+    cmake --build . --config Release
     cd ..
     ```
 
@@ -164,14 +245,26 @@ cd ..
 
 #### Development Mode Installation (changes take effect immediately)
 
+Requires pip 21.3 or higher (editable installation of a `pyproject.toml` project). Skip this step if you ran
+`pip install -e ".[all]"` at step 2.
+
 ```bash
+# CLI/API only
 pip install -e .
+
+# With GUI and/or test dependencies
+pip install -e ".[gui]"
+pip install -e ".[gui,test]"
+# With the AI Assistant (MCP server)
+pip install -e ".[gui,mcp]"
 ```
 
 #### Standard Installation
 
 ```bash
 pip install .
+# or, with the GUI toolkit:
+pip install ".[gui]"
 ```
 
 ## Installation in a Virtual Environment (Recommended)
@@ -293,18 +386,29 @@ pip uninstall fmu-manipulation-toolbox
 For complete uninstallation (with dependencies):
 
 ```bash
-pip uninstall fmu-manipulation-toolbox PySide6 xmlschema elementpath colorama fmpy
+pip uninstall fmu-manipulation-toolbox xmlschema elementpath colorama
+
+# If you installed the `gui` and/or `test` extras, also remove:
+pip uninstall PySide6 fmpy
+
+# If you installed the `mcp` extra (AI Assistant), also remove:
+pip uninstall fastmcp
 ```
 
 ## Supported Python Versions
 
 | Python Version | Support                   |
 |----------------|---------------------------|
-| 3.9            | ✅ Supported               |
+| 3.9            | ❌ Not supported: version 1.9.4.2 at most |
 | 3.10           | ✅ Supported               |
 | 3.11           | ✅ Supported               |
 | 3.12           | ✅ Supported               |
 | 3.13           | ✅ Supported (Recommended) |
+| 3.14           | ✅ Supported               |
+
+!!! note "Python 3.9"
+    Python 3.9 reached its end of life in October 2025. Version 2.0 requires Python 3.10 or higher; on Python 3.9,
+    `pip install fmu-manipulation-toolbox` automatically installs 1.9.4.2, the last release supporting it.
 
 
 ## Next Steps

@@ -2,11 +2,7 @@
 Selection synchronization utilities for the tree/scene coordination.
 """
 
-import logging
-
 from PySide6.QtWidgets import QTreeView
-
-tree_logger = logging.getLogger("fmu_manipulation_toolbox.gui.tree")
 
 
 class SelectionSynchronizer:
@@ -32,13 +28,11 @@ class SelectionSynchronizer:
         """Block signals at entry."""
         self._tree_signals_blocked = self._tree_view.selectionModel().blockSignals(True)
         self._scene_signals_blocked = self._scene.blockSignals(True)
-        tree_logger.debug("Selection synchronizer entered - signals blocked")
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
         """Restore signals at exit."""
         self._tree_view.selectionModel().blockSignals(self._tree_signals_blocked)
         self._scene.blockSignals(self._scene_signals_blocked)
-        tree_logger.debug("Selection synchronizer exited - signals restored")
         return False
 

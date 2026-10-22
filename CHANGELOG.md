@@ -1,6 +1,331 @@
 # FMU Manipulation Toolbox changelog
 This package was formerly known as `fmutool`.
 
+# Upstream
+
+Not released yet. Changes since 1.9.4.2, by theme: 🟢 **ADDED** new feature, 🔵 **CHANGED** change of behaviour or
+API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in scripts, custom operations or checkers.
+
+## Installation and platforms
+
+- 🔴 **BREAKING** Python 3.10 or higher is required: Python 3.9 reached its end of life in
+  October 2025. On Python 3.9, pip installs 1.9.4.2, the last release supporting it.
+- 🟢 **ADDED** Python 3.14 is supported, and tested by the CI on Windows, Linux and macOS. Python 3.13 remains the
+  recommended version.
+- 🟠 **FIXED** the Linux binaries (container, remoting) load again on Ubuntu 22.04 and the distributions with
+  glibc 2.35 or newer: those of 1.9.4.2, built on Ubuntu 24.04, required glibc 2.38.
+- 🔵 **CHANGED** `PySide6` (the GUI toolkit) is no longer installed by default. `pip install fmu-manipulation-toolbox`
+  only installs the **CLI** (`fmutool`, `fmucontainer`, `fmusplit`, `datalog2pcap`) and the
+  **Python API**, neither of which import `PySide6`. Extras: `gui` for the **Graphical User
+  Interfaces** (`fmutoolbox`, `fmutool-gui`, `fmueditor`, `fmucontainer-gui`), `mcp` for the AI
+  Assistant, `all` for everything including the test tools:
+  `pip install "fmu-manipulation-toolbox[gui]"`. See the [Installation Guide](docs/installation.md).
+- 🔵 **CHANGED** packaging: the package is described by `pyproject.toml` (`setup.py` and `setup.cfg` are removed)
+  and its version comes from the git tags (setuptools-scm). The version is displayed without
+  the `V` prefix of the tags: `1.9.4.2` instead of `V1.9.4.2`. The source distribution (sdist)
+  contains the Python package and the C sources of the native binaries (`container/`,
+  `remoting/`; the FMI headers are in the package, `resources/fmi/`), without the test data, the documentation and
+  the prebuilt binaries; the wheel is unchanged and embeds the binaries.
+- 🔵 **CHANGED** development: `requirements.txt` only contains `-e .[all]`, the dependencies being declared
+  in `pyproject.toml`; the tests need the package installed (`pip install -e ".[all]"`,
+  pip >= 21.3). CI and test suite improved.
+- 🔵 **CHANGED** native code: `container` and `remoting` share their CMake settings (`cmake/` folder, included in the
+  sdist). The remoting code is now compiled in C23 with the same warnings and optimizations as the container
+  (IPO/LTO, optional PGO). The build options are renamed `FMUTOOL_WARNINGS_AS_ERRORS`, `FMUTOOL_STRICT_CONVERSION`
+  and `FMUTOOL_PGO` (formerly `CONTAINER_*`). See the [Installation Guide](docs/installation.md).
+- 🟢 **ADDED** native tests of the container runtime (`container/tests`, run by CTest and by the CI on every
+  platform) and the build option `FMUTOOL_SANITIZE` (AddressSanitizer and UndefinedBehaviorSanitizer), used by a new
+  CI job. See [Native runtime of the container](docs/developer/native-runtime.md).
+
+## AI Assistant (MCP server)
+
+- 🟢 **ADDED** `fmucontainer-gui`: **AI Assistant** — the Container Builder can expose its assembly
+  capabilities to an AI agent (e.g. GitHub Copilot in *Agent* mode) through a
+  [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server. Toggle it from the
+  **Configuration** menu (*AI Assistant On/Off*); the agent drives the live canvas, with every
+  action marked as an unsaved change and written to the log panel. The server uses the
+  Streamable HTTP transport bound to `127.0.0.1:8765/mcp` (port overridable with
+  `FMUCONTAINER_MCP_PORT`); the time the tools wait for the GUI is configurable with
+  `FMUCONTAINER_MCP_TIMEOUT` (60 s by default, ten times that for builds). The address is written to the log once
+  the server really listens, and a server that cannot start is reported. The guide has a
+  [Troubleshooting](docs/user-guide/fmucontainer/ai-assistant.md#troubleshooting) section (IDE proxy, `localhost`).
+- 🟢 **ADDED** `fmutool-mcp`: a **standalone MCP server**, launched by the MCP client over the **stdio**
+  transport (Claude Desktop, VS Code, Cline, ...) and requiring neither a display nor a running
+  GUI. It serves the same tools as the GUI assistant, on top of the public `Assembly` API.
+  `--root DIR` (or `FMUCONTAINER_MCP_ROOT`) confines the agent to a directory tree;
+  `--transport http` is also available for clients that attach to an already-running server.
+- 🟢 **ADDED** MCP tools: assembly edition (`add_fmu`, `remove_fmu`, `add_link`, `add_links` in bulk with
+  per-link failures, `remove_link`, `expose_input`/`expose_output`, `set_start_value`/
+  `unset_start_value`, `set_container_options`, `save_as_json`, `save_as_fmu` reporting its
+  progress), port introspection filterable by causality or name pattern and paginated, and
+  **single-FMU tools** (`summarize_fmu`, `check_fmu`, `dump_ports_csv`, `rename_ports_from_csv`,
+  `apply_operation`), which never modify their source FMU. Four prompts (`build_container`,
+  `diagnose_assembly`, `inspect_fmu`, `analyze_assembly`) and reference resources (`guide://usage`,
+  `fmi://conventions`, `container://options`, `assembly://current`, `fmu://{name}/ports`) carry
+  the know-how of the tool to any MCP client. Invalid arguments are reported with a short,
+  actionable message.
+- 🟢 **ADDED** MCP answers sized for small contexts (local models such as Qwen): pages of 50 ports (200 at
+  most), without the undeclared attributes and with descriptions cut after 80 characters;
+  `check_fmu` reports a whole verdict (`compliant`: schema valid and no checker error) and
+  groups the messages of the same rule; `get_assembly_json` gives a large assembly one container,
+  then one section, at a time; the tool definitions take about 4,400 tokens. See the
+  *Local models* section of the [AI Assistant guide](docs/user-guide/fmucontainer/ai-assistant.md).
+- 🟢 **ADDED** MCP **assembly analysis**, nested containers included: the `analyze_assembly` tool summarises an
+  assembly (container tree, options, exposed ports and links grouped by FMU and name prefix) or lints it:
+  structural traps (nested `mt`, step ratios, inputs fed twice, duplicate outputs, fan-outs...) and the ports,
+  checked by replaying the assembly into the container builder without building it (refused entries, lossy
+  conversions, different units, inputs left unfed). The `analyze_assembly` prompt describes the content and the
+  behaviour of the loaded assembly; `diagnose_assembly` starts from the lint. `get_assembly_json` and
+  `assembly://current` designate the FMUs by name, like the other tools. See *Analysing an assembly* in the
+  [AI Assistant guide](docs/user-guide/fmucontainer/ai-assistant.md).
+- 🟢 **ADDED** optional **bearer-token authentication** for the HTTP transport (`--token generate`, or
+  `FMUCONTAINER_MCP_TOKEN`). The loopback interface keeps remote machines out, but not the other
+  processes of the same machine, which can otherwise read and write files through the server.
+
+## FMU Container
+
+- 🟢 **ADDED** **several instances of the same FMU** in a container: each instance has its own name
+  (`bb_position-1.fmu`, ...) and its file in the new optional `path` block of the JSON; the Container Builder,
+  the MCP tools, SSP import and `fmusplit` handle them. See
+  [Embedding the same FMU several times](docs/user-guide/fmucontainer/container.md#embedding-the-same-fmu-several-times).
+- 🟠 **FIXED** a container called with a communication step that is not a multiple of its internal step (e.g. a
+  sub-container at 0.02 s in a parent at 0.01 s) returned without reaching the end of the step, and made its
+  internal step later with the inputs of a later instant. Each internal step now uses the inputs of its beginning
+  and holds its outputs until its end; the warning "CommunicationStepSize should be divisible" is removed. See
+  [Communication step and internal step](docs/user-guide/fmucontainer/container.md#communication-step-and-internal-step).
+- 🟠 **FIXED** a `TS_MULTIPLIER` below 1 (e.g. 0, received during the initialization) gave a nominal step of 0 and
+  a `doStep` of 0 to the embedded FMUs: it counts as 1, as it already did for the step of the container.
+- 🔵 **CHANGED** the container **propagates the links** between its embedded FMUs **during the initialization**:
+  in the order of the links, each FMU gets its linked inputs, leaves its Initialization Mode, then its outputs are
+  read for the FMUs after it, so that an FMU is initialized with the values of the FMUs it depends on (as Simulink
+  does). A loop of links is cut before its first FMU (warning at the build). The initial values, and the results of the
+  FMUs whose initialization depends on their inputs, may change. `container.txt` format version 7. See
+  [Initialization of the embedded FMU's](docs/user-guide/fmucontainer/container.md#initialization-of-the-embedded-fmus)
+  and [From Simulink to an FMU Container](docs/examples/simulink-to-container.md).
+- 🟢 **ADDED** in `sequential` mode, the build warns when the order of the Co-Simulation FMUs in the configuration
+  does not match the topological order of their links, and gives this order. See
+  [Sequential mode](docs/user-guide/fmucontainer/container.md#sequential-mode).
+- 🟢 **ADDED** documentation: [From Simulink to an FMU Container](docs/examples/simulink-to-container.md),
+  how to rebuild a Simulink assembly of FMU blocks as a container (mapping of the concepts, worked example) and
+  the behaviour differences to take into account: initialization, unconnected inputs, sample times, delays,
+  computation time.
+- 🟢 **ADDED** `fmucontainer-gui`: **Link Assistant** — a window opened from the *Wire Details* panel to define
+  in bulk the links of a wire between FMUs with hundreds of ports. Tab **Rules**: a criterion (same name,
+  prefix / suffix replacement, regular expression, similar names), optionally ignoring case and separators,
+  proposes links updated while typing, with a status (✔, ⚠ lossy conversion / different units / similar
+  name, ✖ input already fed / types not convertible / arrays of different sizes) and check boxes. Tab
+  **Manual**: two filtered port lists to pair the leftovers. The staged links of both tabs and both
+  directions are written into the wire by **Apply** only. See the
+  [Link Assistant](docs/user-guide/fmucontainer/gui-usage.md#link-assistant).
+- 🔵 **CHANGED** `fmucontainer-gui`: the **Auto-Connect** button of the *Wire Details* panel is replaced by
+  **Link Assistant**, which opens on the *Same name* criterion: the links of same name are proposed for
+  review, one direction at a time, instead of being added at once in both directions. The tabs of the panel
+  have one width.
+- 🟠 **FIXED** GUI: the titles styled `title` (FMU name in FMU Tool and FMU Editor) were not bold nor larger:
+  the font rule of the stylesheet was ignored by Qt.
+
+- 🟢 **ADDED** **Model-Exchange FMUs** can be embedded: all of them are advanced in a single container-wide
+  loop by an embedded fixed-step solver (forward Euler by default, RK4 available), so that their
+  state derivatives, state events and time events stay consistent; Co-Simulation and
+  Model-Exchange FMUs can be mixed, and an FMU providing both is embedded in Co-Simulation mode.
+  The number of continuous states and of event indicators is computed from `<ModelStructure>`.
+  `container.txt` format version 6.
+- 🔴 **BREAKING** a rule naming an unknown FMU or port, or setting a start value on a `binary`
+  or `clock` port, stops the build with `FMUContainerError`. Such rules were logged and ignored,
+  so a typo silently produced a container without the connection.
+- 🔴 **BREAKING** an input of an embedded FMU is fed by one source only: a container input
+  and a connection to the same input, two connections, or the same connection declared twice
+  are refused (`FMUContainerError`). The container used to write the input twice per step.
+  Input clocks (LS-BUS) are not concerned.
+- 🟠 **FIXED** the default time step (when none is given) is the exact least common multiple of the step
+  sizes of the FMUs with a fixed step (`0.2` and `0.3` give `0.6`). A step size that is not
+  1/n second was truncated (`0.3` gave `0.333`), a step size above 1 second was ignored, and a
+  single FMU without `stepSize` made the container fall back to 0.1 second.
+- 🟠 **FIXED** a JSON boolean (`true`, `false`) is accepted as the start value of a `Boolean` port in a
+  description file; only the strings `"true"`, `"false"`, `"0"` and `"1"` were.
+- 🟠 **FIXED** no more "should be divisible" warning for a time step that is an exact multiple of an FMU
+  step size (`0.3` and `0.1`).
+- 🟠 **FIXED** a connection feeding several inputs of the same converted type (e.g. a `Real` output to two
+  `Boolean` inputs) produced an invalid `container.txt`.
+- 🟠 **FIXED** the `modelDescription.xml` of the container is built with ElementTree: names and
+  descriptions coming from the embedded FMUs are escaped (a `&`, `<` or `"` made the descriptor
+  invalid), and the file is written in UTF-8 as required by FMI 2.0 and 3.0 (it declared
+  ISO-8859-1 but was written with the encoding of the locale). In FMI-2 containers with
+  profiling or `ts_multiplier`, `<ModelStructure>` listed local variables instead of the outputs.
+- 🔵 **CHANGED** Python API: the container builder is a package, `fmu_manipulation_toolbox.container`
+  (`builder`, `embedded`, `rules`, `layout`, `txt`, `types`, ...); every class is still
+  importable from `fmu_manipulation_toolbox.container`, and the container types and conversions
+  are defined in `fmu_manipulation_toolbox.container.types`. `FMUContainer.make_fmu` no longer
+  modifies the container (the value references are allocated at each build by
+  `ContainerLayout`), so it can be called several times. Removed: `ContainerPort.vr`,
+  `ContainerInput.vr`, `Link.vr`, `FMUContainer.vr_table`, `ValueReferenceTable.set_link_vr`
+  (replaced by `add_link`); `Link.vr_converted` becomes `Link.conversions`; `make_fmu_xml`,
+  `make_fmu_txt` and `make_datalog` take the `ContainerLayout`; `Clock.container_vr`/
+  `Clock.fmu_vr` become `Clock.fmu_vr`/`Clock.vr`. `EmbeddedFMU` removes the temporary directory
+  of its FMU once analysed.
+- 🟢 **ADDED** **Reset of embedded FMUs** during the simulation: with the option `reset_ports` (JSON key
+  `reset_ports`, CLI `-reset-ports`, `FMUContainer(reset_ports=True)`, AI Assistant option), each embedded FMU
+  gets a Boolean input `container.reset`, fed by a link or exposed as `container.<fmu>.reset`. When it is true,
+  the container resets the FMU and initializes it again at the current time (start values, values set by the
+  importer, current inputs), in every execution mode, for Co-Simulation and Model-Exchange FMUs and for
+  sub-containers; the input goes back to false at the end of the step. `fmusplit` restores these links and inputs.
+  `container.txt` format version 7. See [Reset of Embedded FMUs](docs/user-guide/fmucontainer/container-reset.md).
+- 🟢 **ADDED** `fmi2Reset` / `fmi3Reset` of a container: every embedded FMU is reset and the container goes back to
+  its state after instantiation. They returned an error ("not implemented").
+- 🟠 **FIXED** an importer could crash when the configuration of a container failed (e.g. a damaged
+  `container.txt`): the container freed buffers it had not allocated.
+- 🟠 **FIXED** the runtime reads the lines of `container.txt` of any length: a line longer than 4095 characters
+  (the start values of a large array, a string start value of more than 4095 characters) was cut and shifted the
+  reading of the rest of the file, so that the container failed to instantiate.
+- 🟠 **FIXED** Windows: an embedded FMU, or an FMU run by the remoting server, whose DLL depends on other DLLs
+  shipped next to it in `binaries/win64` (or `win32`) failed to load. The dependencies of the DLL are now searched
+  first in its own directory.
+- 🔵 **CHANGED** the runtime checks the format version of `container.txt` and refuses, with an explicit error, a
+  container whose `container.txt` does not come from the same version of the toolbox. See
+  [Troubleshooting](docs/help/troubleshooting.md#fmu-container-fails-to-instantiate-format-version-of-containertxt).
+- 🟠 **FIXED** the buffers of the Model-Exchange solver were allocated again, without being freed, at each
+  initialization of the container.
+- 🟠 **FIXED** an FMI-3 `Enumeration` of an embedded FMU is accessed as an `Int64`, as FMI 3.0 requires: the
+  container handled it as an `Int32` and its `fmi3GetInt32`/`fmi3SetInt32` calls failed. Its container port is an
+  `Int64`, a link to an `Int32` port is converted (lossy), and an FMI-2 container cannot expose it (error message).
+  `fmusplit` and the link assistant of the GUI follow the same rule.
+- 🔵 **CHANGED** the Model-Exchange solver exchanges only the couplings between Model-Exchange FMUs at each
+  evaluation; the inputs fed by Co-Simulation FMUs or by the importer are set once per step. Same results; the
+  simulation loop of Model-Exchange FMUs fed by Co-Simulation FMUs takes about a third less time (1.5 times
+  faster), about 5 % less without coupling between them.
+
+- 🟠 **FIXED** several instances of containers in one process: each instance has its own logger. They overwrote
+  each other's logging callback and debug flag, and an instance could log through the name of an instance already
+  freed. `fmi2SetDebugLogging` / `fmi3SetDebugLogging` only change their own instance. A `NULL` logging callback,
+  allowed by FMI 3.0, no longer crashes.
+- 🟠 **FIXED** a multi-thread container whose configuration fails (e.g. an embedded FMU that cannot be
+  instantiated) crashed or hung when it was freed. The worker threads are started once all of them are launched,
+  and stopped only if they were.
+- 🟠 **FIXED** the container no longer changes the host process: the numeric locale of the importer is left
+  unchanged (`container.txt` is read with a decimal dot on the thread of the instantiation only), and on Windows
+  the priority class of the process is no longer raised (the worker threads keep a high priority).
+- 🟠 **FIXED** the runtime checks the values read from `container.txt`: value references, FMU indexes, clocks and
+  local variables out of range, malformed lines and too many start values are configuration errors instead of
+  out-of-bounds accesses. An embedded FMU that cannot be loaded no longer leaks the FMUs loaded before it.
+- 🟠 **FIXED** a container built on Windows could not load its embedded FMUs on Linux or macOS: the runtime kept the
+  `\r` of the CRLF line endings of `container.txt` in the names it reads.
+- 🟠 **FIXED** a start value refused by an embedded FMU went unnoticed: it is logged and makes the initialization
+  (or the reset of the FMU) fail. The start value of an FMI-3 array was given with one value instead of all of them.
+- 🟠 **FIXED** the instantiation returns `NULL` instead of crashing on an allocation failure or invalid arguments
+  (`NULL` callbacks, GUID or resource location).
+- 🟠 **FIXED** the `String` start values: an array of strings leaked all its values but the first one, and a
+  `container.txt` cut in their section crashed the importer when the container was freed. `fmi2FreeInstance` /
+  `fmi3FreeInstance` with a `NULL` instance are ignored, as FMI requires, instead of crashing.
+- 🟠 **FIXED** a path of the directory of an embedded FMU too long for the runtime is a configuration error: it was
+  cut without notice, and the FMU was looked for in a wrong directory.
+- 🔵 **CHANGED** datalog: the time and the reals are written with every significant digit (`%.17g`, `%.9g`
+  for `Float32`) instead of 7 and 6 decimals, always with a decimal dot; strings and column names with a comma, a
+  double quote or a line break are quoted (RFC 4180). See
+  [Container with datalog](docs/user-guide/fmucontainer/datalog.md#csv-format).
+
+## fmutool and the Python API
+
+- 🟢 **ADDED** compilation of the sources embedded in an FMU when the binary of the current platform is missing:
+  `fmutool -compile-sources`, the **Compile sources** button of `fmutool-gui`, and `OperationCompileSources` /
+  `SourceCompiler` (`fmu_manipulation_toolbox.compiler`) in the Python API. FMI 2.0 (`<SourceFiles>`) and FMI 3.0
+  (`sources/buildDescription.xml`), C and C++, with the C compiler of the platform (Visual Studio on Windows, `cc`
+  or `CC` elsewhere). The FMI headers are now part of the package (`resources/fmi/`). Additional compiler options,
+  linker options and libraries can be given (`-compile-options`, `-link-options`, `-link-libraries`; in
+  `fmutool-gui`, a dialog asks for them after a compilation failure). See
+  [Compile Sources](docs/user-guide/fmutool/cli-usage.md#compile-sources).
+- 🔵 **CHANGED** operations modify `modelDescription.xml` in place with ElementTree instead of
+  re-generating it, so that everything an operation does not touch is kept as is. Fixes text and
+  attribute values written unescaped or unescaped twice (which produced invalid XML, and made the
+  second of two chained operations fail), and the loss of `<Annotations>` of FMI-2 variables,
+  FMI-3 `<Alias>`, all but the first `<Start>` of FMI-3 `String` arrays, empty FMI-3
+  `<Start value="">`, FMI-3 `<Dimension start="1">` (the array became a scalar), comments and
+  the XML declaration (required by FMI 2.0 and 3.0). The descriptor is always written in UTF-8.
+  Operations can reach the whole tree through their new `model_description` attribute.
+  Namespaced attributes are still given to the callbacks as `prefix:name`, but the `xmlns:*`
+  declarations are no longer listed (`-summary` no longer prints them).
+- 🔴 **BREAKING** `FMUPort` is removed. The ports given to `OperationAbstract.port_attrs` are
+  `ModelVariable` objects (`fmu_manipulation_toolbox.model_description`, also importable from
+  `fmu_manipulation_toolbox.operations`), views on the descriptor tree with the same interface
+  (`[]`, `get()`, `in`, `fmi_type`, `attrs_list`, `dimensions`): replace `FMUPort` by
+  `ModelVariable` in the imports and annotations of custom operations and checkers. Ports can
+  no longer be built by hand (`FMUPort()`, `push_attrs()`).
+- 🔵 **CHANGED** an operation is refused with `OperationError`, leaving the FMU unchanged, if its result
+  would break the FMI standard: removing every variable, removing a variable still referenced by
+  a kept one (`derivative`, `previous`, `clocks`, `<Dimension valueReference>`), or giving the
+  same name to several variables (or FMI-3 aliases).
+- 🟠 **FIXED** removing ports from an FMI-2 FMU did not renumber the `derivative` attribute, which then
+  pointed to the wrong variable.
+- 🟠 **FIXED** `-remove-sources` also removes the `<SourceFiles>` elements of the descriptor, and works on
+  Model Exchange-only FMUs.
+- 🟢 **ADDED** `OperationSemanticCheck`, a built-in checker for the rules of FMI 2.0 and 3.0 that the XSD
+  cannot express: unique names and value references, allowed `causality`/`variability`/`initial`
+  combinations, `start` values, references between variables and in `<ModelStructure>`.
+- 🟢 **ADDED** `fmutool -check` exits with status 7 when a checker reports an error, so that it can be used
+  in CI. The XSD checker reports every violation instead of the first one only.
+- 🟠 **FIXED** checkers: XSD validation errors were lost instead of being reported (malformed logging
+  call); `get_checkers()` added the checkers registered through entry points again at each
+  call; a custom checker that cannot be imported (from a file or an entry point) is reported and
+  skipped instead of stopping `fmutool`, with a hint when it still imports `FMUPort`.
+- 🔵 **CHANGED** an `FMU` parses its `modelDescription.xml` once for all the operations applied to it, and
+  read-only operations (summary, CSV dump, checkers) no longer rewrite it. `FMU` can be used as
+  a context manager (`with FMU(...) as fmu:`) and has a `close()` method; its temporary
+  directory is also removed at interpreter exit, and when opening fails.
+- 🟠 **FIXED** opening a file that is not a ZIP archive, or a directory, raised a raw exception instead of
+  `FMUError`. `fmutool` reports these errors, and an unreadable `modelDescription.xml`, with a
+  clear message instead of a traceback.
+
+## Command line and files
+
+- 🔴 **BREAKING** `fmutool`, `fmucontainer` and `fmusplit` exit with positive codes, shared by
+  the three tools: 2 invalid command line, 3 input missing or unreadable, 4 invalid input,
+  5 operation or build refused or failed, 6 output cannot be written, 7 `-check` found the FMU
+  non-compliant (see the CLI guide). They used negative codes (`-1` to `-6`), with a different
+  meaning for each tool. Scripts that test the exact value must be updated.
+- 🟠 **FIXED** text files are written and read in UTF-8 on every platform: assembly descriptions (CSV, JSON),
+  the port names CSV (`-dump-csv`, `-rename-from-csv`), `container.txt` and `datalog.txt`, and the
+  log saved by `fmutool-gui`. They used the platform encoding, cp1252 on most Windows
+  installations, so a non-ASCII name written on one platform was misread on another. A UTF-8 byte
+  order mark (added by Excel) is accepted, and a file that is not UTF-8 is still read with the
+  platform encoding, with a warning.
+- 🟠 **FIXED** reading an SSP archive: the elements of `SystemStructure.ssd` are recognized by their namespace
+  (SSP 1.0) instead of the literal `ssd:` prefix. A valid SSD using another prefix or a default
+  namespace failed with `AttributeError`. An invalid SSD (other namespace, not well-formed,
+  reference to an unknown element) raises `AssemblyError` with a clear message.
+- 🟠 **FIXED** `fmusplit` failed with `KeyError` on an FMI-3 variable without `causality` attribute.
+
+## Graphical User Interfaces
+
+- 🔵 **CHANGED** `fmutool-gui`: the operation buttons are laid out in a 4 × 4 grid, one line per theme: analysis
+  and export, binary interfaces (green), name changes (orange), removals (red). **Save port names**, **Save
+  description.xml** and the new **Compile sources** are green; purple is kept for **Save log as** and **Save
+  modified FMU as**. The **?** help icon is removed (the documentation is reachable from `fmutoolbox`). The
+  wait cursor is shown while an operation runs or the FMU is saved, as in `fmucontainer-gui`.
+- 🟢 **ADDED** `fmucontainer-gui` and `fmueditor`: the status bar shows the last log message (Info level and above)
+  in the colour of its level; a click opens a log window with every message since the launch, a level filter, a
+  search, **Save Logs…** and **Clear**. In `fmucontainer-gui`, the messages that were lost outside the progress
+  dialog are now visible there, among them the `[AI] …` change journal and the token of the AI Assistant. See the
+  [Container Builder GUI guide](docs/user-guide/fmucontainer/gui-usage.md#log).
+- 🔵 **CHANGED** `fmucontainer-gui`: **Verbose Mode** sets the level of the log of its window (`DEBUG`) and copies
+  its messages on the standard output; without it, nothing is written on the standard output (the tree view and the
+  AI Assistant used to write their messages there in any case).
+- 🟠 **FIXED** `fmutoolbox`: the windows opened from the launcher shared one log. Each window now has its own: an
+  operation of an FMU Tool window, a build or a request of the AI Assistant of a Container Builder are only shown in
+  that window (log area, status bar, log window), **Clear** only forgets the messages of its window, and opening a
+  window no longer turns off the **Verbose Mode** of an open Container Builder. The few messages that do not come
+  from a window are shown in all of them. See the [Launcher guide](docs/user-guide/launcher.md).
+- 🟢 **ADDED** `fmucontainer-gui`: the `reset_ports` checkbox of a container (root included) adds a
+  `<fmu>.reset` port per FMU, or sub-container, to the `configuration` node; a wire to it resets the FMU. Selecting
+  the node lists its reset ports, to expose them as container inputs. See
+  [The configuration Node](docs/user-guide/fmucontainer/gui-usage.md#the-configuration-node).
+- 🟢 **ADDED** `fmucontainer-gui`: a second, read-only, column of the tree view shows the step size of each FMU and
+  container; the step size of a container whose `step_size` is empty is the one deduced at build time, in italics.
+  See [Step Size Column](docs/user-guide/fmucontainer/gui-usage.md#step-size-column).
+- 🟠 **FIXED** `fmucontainer-gui`: the column headers of the **Link Assistant** (e.g. *Direction* of the staged links)
+  were truncated on Windows; a column is never narrower than its header.
+- 🟢 **ADDED** documentation: the criteria of the **Link Assistant** step by step, **Replace prefix / suffix** and
+  **Regular expression** with examples, a syntax reminder and the pitfalls. See
+  [Rules tab](docs/user-guide/fmucontainer/gui-usage.md#rules-tab).
+
 # Version 1.9.4.2
 * ADDED: Container thread synchronization on macOS now uses a semaphore instead of a barrier
          (macOS does not implement POSIX `pthread_barrier`).

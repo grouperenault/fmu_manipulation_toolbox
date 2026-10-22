@@ -1,7 +1,6 @@
 """WireItem and helpers — connections between nodes in the graph."""
 
 import math
-from typing import List, Optional
 
 from PySide6.QtCore import Qt, QPointF
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QPainterPath, QPainterPathStroker
@@ -92,12 +91,12 @@ class WireItem(QGraphicsPathItem):
         node_a.wires.append(self)
         node_b.wires.append(self)
 
-        self._waypoints: List[QPointF] = []
-        self._handles: List[_WaypointHandle] = []
-        self.mappings: List[tuple] = []
-        self.terminal_mappings: List[tuple] = []
+        self._waypoints: list[QPointF] = []
+        self._handles: list[_WaypointHandle] = []
+        self.mappings: list[tuple] = []
+        self.terminal_mappings: list[tuple] = []
         # Direction highlight from WireDetails tab: None, 'a_to_b', 'b_to_a', 'terminals'
-        self._highlight_mode: Optional[str] = None
+        self._highlight_mode: str | None = None
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -110,8 +109,8 @@ class WireItem(QGraphicsPathItem):
 
     def _directions(self) -> tuple:
         """Return (a_to_b, b_to_a) booleans from mappings."""
-        a_name = self.node_a.fmu_path.name
-        b_name = self.node_b.fmu_path.name
+        a_name = self.node_a.name
+        b_name = self.node_b.name
         a_to_b = any(m[0] == a_name and m[2] == b_name for m in self.mappings)
         b_to_a = any(m[0] == b_name and m[2] == a_name for m in self.mappings)
         return a_to_b, b_to_a
@@ -119,29 +118,29 @@ class WireItem(QGraphicsPathItem):
     def is_invalid(self) -> bool:
         """True if this wire has at least one invalid mapping:
 
-        * a mapping referencing an inactive `ts_multiplier` port on the
-          (GUI-only) ConfigurationNode (the owning container's checkbox is
+        * a mapping referencing an inactive `ts_multiplier` or reset port on the
+          (GUI-only) ConfigurationNode (the checkbox of the container is
           currently unchecked), or
         * a mapping (port or terminal) whose port/terminal name no longer
           exists on the corresponding FMU — typically after "Replace FMU"
           (same invalidity already shown in red in the WireDetails panel).
         """
         for node in (self.node_a, self.node_b):
-            ports = getattr(node, "ts_multiplier_ports", None)
-            if not ports:
+            inactive_ports = node.inactive_ports() if hasattr(node, "inactive_ports") else set()
+            if not inactive_ports:
                 continue
-            my_name = node.fmu_path.name
+            my_name = node.name
             for m in self.mappings:
                 if len(m) < 4:
                     continue
                 fmu_from, port_from, fmu_to, port_to = m
-                if fmu_from == my_name and port_from in ports and not ports[port_from]:
+                if fmu_from == my_name and port_from in inactive_ports:
                     return True
-                if fmu_to == my_name and port_to in ports and not ports[port_to]:
+                if fmu_to == my_name and port_to in inactive_ports:
                     return True
 
-        name_a = self.node_a.fmu_path.name
-        name_b = self.node_b.fmu_path.name
+        name_a = self.node_a.name
+        name_b = self.node_b.name
 
         def _node_for(fmu_name):
             if fmu_name == name_a:
@@ -176,7 +175,7 @@ class WireItem(QGraphicsPathItem):
 
     # -- Highlight (from WireDetails tab selection) ---------------------------
 
-    def set_highlight_mode(self, mode: Optional[str]):
+    def set_highlight_mode(self, mode: str | None):
         """Set direction indicator shown on the wire.
 
         *mode* is one of: None, 'a_to_b', 'b_to_a', 'terminals'.
@@ -215,7 +214,7 @@ class WireItem(QGraphicsPathItem):
 
     # -- All points of the polyline -------------------------------------------
 
-    def _all_points(self) -> List[QPointF]:
+    def _all_points(self) -> list[QPointF]:
         """Return [anchor_a, wp0, wp1, …, anchor_b] in scene coords."""
         cb = self.node_b.center_scene_pos()
         ca = self.node_a.center_scene_pos()

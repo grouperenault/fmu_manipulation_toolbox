@@ -5,18 +5,20 @@ Contains classes for displaying and editing wire connection mappings.
 """
 
 import csv
-from typing import *
+from collections.abc import Iterable
 
 from PySide6.QtCore import Qt, Signal, QModelIndex, QSortFilterProxyModel
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor
 from PySide6.QtWidgets import (
     QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout, QHBoxLayout,
     QStyledItemDelegate, QAbstractItemView, QPushButton, QDialog, QLineEdit,
-    QFrame, QListWidget, QListWidgetItem, QTabWidget,
+    QFrame, QListWidget, QListWidgetItem, QTabWidget, QMessageBox,
 )
 
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem
 from fmu_manipulation_toolbox.gui.helper import unlock_column_resize, LastDirectory
+from .link_assistant import LinkAssistantDialog, WireSide
+from .link_matching import PortInfo, with_overlaps
 
 
 class _PortListSelectorDialog(QDialog):
@@ -36,9 +38,9 @@ class _PortListSelectorDialog(QDialog):
         self.setWindowFlags(Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self.setGeometry(100, 100, 400, 400)
 
-        self._items: List[str] = []
-        self._causalities: Dict[str, str] = {}
-        self._aggregates: Set[str] = set()
+        self._items: list[str] = []
+        self._causalities: dict[str, str] = {}
+        self._aggregates: set[str] = set()
         self._selected_text = ""
 
         # -- Search bar --
@@ -85,12 +87,12 @@ class _PortListSelectorDialog(QDialog):
         lay.addWidget(self._list_widget, 1)
         lay.addLayout(btn_layout)
 
-    def set_items(self, items: List[str]):
+    def set_items(self, items: list[str]):
         """Set the list of available items."""
         self._items = list(items)
         self._update_list_widget()
 
-    def set_causalities(self, causalities: Dict[str, str]):
+    def set_causalities(self, causalities: dict[str, str]):
         """Set causality info for displaying parameter ports in italics."""
         self._causalities = causalities
         self._update_list_widget()
@@ -176,17 +178,17 @@ class _PortComboDelegate(QStyledItemDelegate):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._items: List[str] = []
-        self._causalities: Dict[str, str] = {}
-        self._aggregates: Set[str] = set()
+        self._items: list[str] = []
+        self._causalities: dict[str, str] = {}
+        self._aggregates: set[str] = set()
         # Ports that exist on the node but are currently invalid (e.g. an
         # inactive `ts_multiplier` port on the ConfigurationNode, GUI-only).
-        self._invalid_ports: Set[str] = set()
+        self._invalid_ports: set[str] = set()
 
-    def set_items(self, items: List[str]):
+    def set_items(self, items: list[str]):
         self._items = list(items)
 
-    def set_causalities(self, causalities: Dict[str, str]):
+    def set_causalities(self, causalities: dict[str, str]):
         """Set the causality info for ports."""
         self._causalities = causalities
 
@@ -282,8 +284,8 @@ class _WireDirectionTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._from_node: Optional[NodeItem] = None
-        self._to_node: Optional[NodeItem] = None
+        self._from_node: NodeItem | None = None
+        self._to_node: NodeItem | None = None
 
         # -- Table model (2 columns) --
         self._model = QStandardItemModel(0, 2)
@@ -347,20 +349,17 @@ class _WireDirectionTab(QWidget):
         self._output_delegate.set_items(from_node.fmu_output_names)
         self._output_delegate.set_causalities(from_node.fmu_port_causality)
         self._output_delegate.set_aggregates(from_node.fmu_array_aggregate_elements.keys())
-        self._output_delegate.set_invalid_ports(self._inactive_ts_multiplier_ports(from_node))
+        self._output_delegate.set_invalid_ports(self._inactive_ports(from_node))
         self._input_delegate.set_items(to_node.fmu_input_names)
         self._input_delegate.set_causalities(to_node.fmu_port_causality)
         self._input_delegate.set_aggregates(to_node.fmu_array_aggregate_elements.keys())
-        self._input_delegate.set_invalid_ports(self._inactive_ts_multiplier_ports(to_node))
+        self._input_delegate.set_invalid_ports(self._inactive_ports(to_node))
 
     @staticmethod
-    def _inactive_ts_multiplier_ports(node) -> Set[str]:
-        """Return the set of `ts_multiplier` ports on *node* (ConfigurationNode)
-        that are currently inactive (owning container's checkbox unchecked)."""
-        ports = getattr(node, "ts_multiplier_ports", None)
-        if not ports:
-            return set()
-        return {name for name, active in ports.items() if not active}
+    def _inactive_ports(node) -> set[str]:
+        """Return the set of `ts_multiplier` or reset ports on *node* (ConfigurationNode)
+        that are currently inactive (checkbox of the container unchecked)."""
+        return node.inactive_ports() if hasattr(node, "inactive_ports") else set()
 
     # ── Data access ─────────────────────────────────────────────
 
@@ -368,13 +367,13 @@ class _WireDirectionTab(QWidget):
         """Close any active cell editor to avoid commitData warnings."""
         self._table.setCurrentIndex(QModelIndex())
 
-    def mappings(self) -> List[tuple]:
+    def mappings(self) -> list[tuple]:
         """Return list of 4-tuples (from_fmu, output, to_fmu, input)."""
         if not self._from_node or not self._to_node:
             return []
         result = []
-        from_name = self._from_node.fmu_path.name
-        to_name = self._to_node.fmu_path.name
+        from_name = self._from_node.name
+        to_name = self._to_node.name
         for r in range(self._model.rowCount()):
             out_item = self._model.item(r, 0)
             in_item = self._model.item(r, 1)
@@ -382,14 +381,14 @@ class _WireDirectionTab(QWidget):
                 result.append((from_name, out_item.text(), to_name, in_item.text()))
         return result
 
-    def load_mappings(self, mappings: List[tuple]):
+    def load_mappings(self, mappings: list[tuple]):
         """Populate the table from 4-tuples (only keep rows matching this direction)."""
         self._close_editor()
         self._model.removeRows(0, self._model.rowCount())
         if not self._from_node or not self._to_node:
             return
-        from_name = self._from_node.fmu_path.name
-        to_name = self._to_node.fmu_path.name
+        from_name = self._from_node.name
+        to_name = self._to_node.name
         for m in mappings:
             if len(m) >= 4 and m[0] == from_name and m[2] == to_name:
                 out_item = QStandardItem(m[1])
@@ -411,29 +410,6 @@ class _WireDirectionTab(QWidget):
         """Remove all rows from this direction tab."""
         self._close_editor()
         self._model.removeRows(0, self._model.rowCount())
-
-    # ── Auto-connect ────────────────────────────────────────────
-
-    def auto_connect(self, existing: set):
-        """Add rows for matching output/input port names not in *existing*."""
-        if not self._from_node or not self._to_node:
-            return
-        self._close_editor()
-        from_name = self._from_node.fmu_path.name
-        to_name = self._to_node.fmu_path.name
-        to_inputs = set(self._to_node.fmu_input_names)
-        for name in self._from_node.fmu_output_names:
-            if name in to_inputs:
-                m = (from_name, name, to_name, name)
-                if m not in existing:
-                    out_item = QStandardItem(name)
-                    in_item = QStandardItem(name)
-                    out_causality = self._from_node.fmu_port_causality.get(name, "output")
-                    in_causality = self._to_node.fmu_port_causality.get(name, "input")
-                    out_item.setData(out_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
-                    in_item.setData(in_causality, _PortComboDelegate.ROLE_PORT_CAUSALITIES)
-                    self._model.appendRow([out_item, in_item])
-                    existing.add(m)
 
     # ── Slots ───────────────────────────────────────────────────
 
@@ -475,9 +451,9 @@ class _TerminalComboDelegate(QStyledItemDelegate):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._items: List[str] = []
+        self._items: list[str] = []
 
-    def set_items(self, items: List[str]):
+    def set_items(self, items: list[str]):
         self._items = list(items)
 
     def createEditor(self, parent, option, index):
@@ -550,8 +526,8 @@ class _WireTerminalsTab(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._node_a: Optional[NodeItem] = None
-        self._node_b: Optional[NodeItem] = None
+        self._node_a: NodeItem | None = None
+        self._node_b: NodeItem | None = None
 
         # -- Table model (2 columns) --
         self._model = QStandardItemModel(0, 2)
@@ -623,13 +599,13 @@ class _WireTerminalsTab(QWidget):
     def _close_editor(self):
         self._table.setCurrentIndex(QModelIndex())
 
-    def terminal_mappings(self) -> List[tuple]:
+    def terminal_mappings(self) -> list[tuple]:
         """Return list of 4-tuples (fmu_a_name, terminal_a, fmu_b_name, terminal_b)."""
         if not self._node_a or not self._node_b:
             return []
         result = []
-        a_name = self._node_a.fmu_path.name
-        b_name = self._node_b.fmu_path.name
+        a_name = self._node_a.name
+        b_name = self._node_b.name
         for r in range(self._model.rowCount()):
             item_a = self._model.item(r, 0)
             item_b = self._model.item(r, 1)
@@ -637,14 +613,14 @@ class _WireTerminalsTab(QWidget):
                 result.append((a_name, item_a.text(), b_name, item_b.text()))
         return result
 
-    def load_terminal_mappings(self, mappings: List[tuple]):
+    def load_terminal_mappings(self, mappings: list[tuple]):
         """Populate from 4-tuples (fmu_a, terminal_a, fmu_b, terminal_b)."""
         self._close_editor()
         self._model.removeRows(0, self._model.rowCount())
         if not self._node_a or not self._node_b:
             return
-        a_name = self._node_a.fmu_path.name
-        b_name = self._node_b.fmu_path.name
+        a_name = self._node_a.name
+        b_name = self._node_b.name
         for m in mappings:
             if len(m) >= 4 and m[0] == a_name and m[2] == b_name:
                 self._model.appendRow([QStandardItem(m[1]), QStandardItem(m[3])])
@@ -689,14 +665,16 @@ class WireDetailWidget(QWidget):
     """WireItem details with two tabs – one per direction (A → B and B → A).
 
     Each tab shows a 2-column table (Output Port, Input Port).
-    The *Auto-Connect* button populates **both** directions at once.
+    The *Assistant…* button opens the link assistant (`LinkAssistantDialog`) on the wire.
     """
 
     changed = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._wire: Optional[WireItem] = None
+        self._wire: WireItem | None = None
+        self._assistant: LinkAssistantDialog | None = None
+        self._assistant_wire: WireItem | None = None
 
         # -- Title --
         self._name_label = QLabel()
@@ -715,15 +693,18 @@ class WireDetailWidget(QWidget):
         self._tab_terminals.changed.connect(self._on_tab_changed)
 
         self._tabs = QTabWidget()
+        self._tabs.setProperty("class", "equal_tabs")         # tabs of one width, see `gui.style`
         self._tabs.addTab(self._tab_ab, "A → B")
         self._tabs.addTab(self._tab_ba, "B → A")
         self._tabs.addTab(self._tab_terminals, "Terminals")
         self._tabs.currentChanged.connect(self._on_current_tab_changed)
 
         # -- Buttons --
-        self._auto_btn = QPushButton("Auto-Connect")
-        self._auto_btn.setProperty("class", "info")
-        self._auto_btn.clicked.connect(self._on_auto_connect)
+        self._assistant_btn = QPushButton("Link Assistant")
+        self._assistant_btn.setProperty("class", "info")
+        self._assistant_btn.setToolTip("Define the links of the wire in bulk: same name, prefix / suffix, regex, "
+                                       "similar names, or manual pairing")
+        self._assistant_btn.clicked.connect(self._on_assistant)
 
         self._remove_all_btn = QPushButton("Remove All")
         self._remove_all_btn.setProperty("class", "removal")
@@ -737,19 +718,17 @@ class WireDetailWidget(QWidget):
         self._import_btn.setProperty("class", "removal")
         self._import_btn.clicked.connect(self._on_import)
 
-        btn_width = max(
-            self._auto_btn.sizeHint().width(),
-            self._remove_all_btn.sizeHint().width(),
-            self._export_btn.sizeHint().width(),
-            self._import_btn.sizeHint().width(),
-            150,
-        )
-        for btn in (self._auto_btn, self._remove_all_btn, self._export_btn, self._import_btn):
+        # One width for every button of the panel, those of the tabs included, so that they line up.
+        buttons = [self._assistant_btn, self._remove_all_btn, self._import_btn, self._export_btn]
+        for tab in (self._tab_ab, self._tab_ba, self._tab_terminals):
+            buttons += [tab._add_btn, tab._remove_btn]
+        btn_width = max([btn.sizeHint().width() for btn in buttons] + [150])
+        for btn in buttons:
             btn.setMinimumWidth(btn_width)
 
         btn_lay = QHBoxLayout()
         btn_lay.setContentsMargins(0, 0, 0, 0)
-        btn_lay.addWidget(self._auto_btn)
+        btn_lay.addWidget(self._assistant_btn)
         btn_lay.addWidget(self._remove_all_btn)
         btn_lay.addWidget(self._import_btn)
         btn_lay.addWidget(self._export_btn)
@@ -805,14 +784,46 @@ class WireDetailWidget(QWidget):
 
     # ── Slots ────────────────────────────────────────────────────
 
-    def _on_auto_connect(self):
+    def _on_assistant(self):
+        """Open the link assistant on the displayed wire (one assistant at a time)."""
         if self._wire is None:
             return
-        existing = set(self._wire.mappings)
-        self._tab_ab.auto_connect(existing)
-        self._tab_ba.auto_connect(existing)
+        if self._assistant is not None and self._assistant.isVisible():
+            if self._assistant_wire is self._wire:
+                self._assistant.raise_()
+                self._assistant.activateWindow()
+                return
+            if not self._assistant.close():     # the user kept the links staged on the other wire
+                self._assistant.raise_()
+                return
         self.sync_to_wire()
+        side_a, side_b = wire_sides(self._wire)
+        wire = self._wire
+        self._assistant = LinkAssistantDialog(side_a, side_b, list(wire.mappings), self.window())
+        self._assistant_wire = wire
+        self._assistant.applied.connect(lambda mappings: self._on_assistant_applied(wire, mappings))
+        self._assistant.show()
+
+    def _on_assistant_applied(self, wire: WireItem, mappings: list[tuple]):
+        """Add the links of the assistant to *wire*. The wire may have changed since the assistant was opened: a
+        link already there is not added twice, and a link to an input fed meanwhile on the wire is skipped."""
+        if wire.scene() is None:
+            QMessageBox.warning(self, "Link assistant", "The wire has been deleted: no link added.")
+            return
+        if wire is self._wire:
+            self.sync_to_wire()
+        current = list(wire.mappings)
+        fed = {(m[2], m[3]) for m in current if len(m) >= 4}
+        added = [tuple(m) for m in mappings if (m[2], m[3]) not in fed]
+        skipped = len(mappings) - len(added)
+        wire.mappings = current + added
+        wire.update()
+        if wire is self._wire:
+            self._load_from_wire()
         self.changed.emit()
+        if skipped:
+            QMessageBox.warning(self, "Link assistant",
+                                f"{skipped} link(s) not added: their input was fed meanwhile on the wire.")
 
     def _on_remove_all(self):
         if self._wire is None:
@@ -899,3 +910,33 @@ class WireDetailWidget(QWidget):
         except RuntimeError:
             pass
 
+
+
+def _ports(node: NodeItem) -> list[PortInfo]:
+    """Ports of *node* as seen by the link assistant (inputs, parameters and outputs, FMI-2 aggregates included)."""
+    fmi_version = node.fmu_fmi_version or 2
+    sizes = getattr(node, "fmu_port_size", {})
+    ports = []
+    for name, causality in node.fmu_port_causality.items():
+        if causality not in ("input", "parameter", "output"):
+            continue
+        details = node.fmu_port_details.get(name, {})
+        ports.append(PortInfo(name, causality, node.fmu_port_type.get(name, ""), fmi_version,
+                              details.get("unit", "") or "", details.get("description", "") or "",
+                              sizes.get(name, 1)))
+    return ports
+
+
+def _fed_inputs(node: NodeItem) -> set[str]:
+    """Inputs of *node* that already have a feeder: a link of one of its wires, or an input exposed by the
+    container. An FMI-2 aggregate and its elements feed each other."""
+    fed = {name for name, exposed in node.user_exposed_inputs.items() if exposed}
+    for wire in node.wires:
+        fed.update(m[3] for m in wire.mappings if len(m) >= 4 and m[2] == node.name)
+    return with_overlaps(fed, node.fmu_array_aggregate_elements)
+
+
+def wire_sides(wire: WireItem) -> tuple[WireSide, WireSide]:
+    """Both ends of *wire* for the link assistant."""
+    return tuple(WireSide(node.name, _ports(node), _fed_inputs(node), dict(node.fmu_array_aggregate_elements))
+                 for node in (wire.node_a, wire.node_b))

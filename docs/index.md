@@ -79,6 +79,23 @@ developers working with FMI-compliant models, it provides three powerful interfa
     
     Full programmatic control for complex workflows and custom integrations.
 
+=== "AI Assistant"
+
+    ```json
+    {
+      "mcpServers": {
+        "fmutool": {
+          "command": "fmutool-mcp",
+          "args": ["--root", "/path/to/my/fmus"]
+        }
+      }
+    }
+    ```
+
+    Let an AI agent assemble FMU containers through an
+    [MCP server](user-guide/fmucontainer/ai-assistant.md), standalone
+    (`fmutool-mcp`) or driving the live Container Builder window.
+
 
 ## Key Features
 
@@ -132,6 +149,8 @@ developers working with FMI-compliant models, it provides three powerful interfa
 
 - [x] FMI 2.0 Co-Simulation
 - [x] FMI 3.0 Co-Simulation
+- [x] FMI 2.0 Model-Exchange
+- [ ] FMI 3.0 Model-Exchange
 
 </div>
 
@@ -155,6 +174,14 @@ Install with a single command:
 pip install fmu-manipulation-toolbox
 ```
 
+This installs the **CLI** and **Python API**. To also get the **Graphical User Interfaces**
+(`fmutoolbox`, `fmutool-gui`, `fmueditor`, `fmucontainer-gui`), install the `gui` extra
+(pulls in [PySide6](https://pypi.org/project/PySide6/)):
+
+```bash
+pip install "fmu-manipulation-toolbox[gui]"
+```
+
 !!! tip "Virtual Environment Recommended"
     
     For production use, we recommend installing in a virtual environment to avoid dependency conflicts:
@@ -162,7 +189,7 @@ pip install fmu-manipulation-toolbox
     ```bash
     python -m venv fmu_env
     source fmu_env/bin/activate  # On Windows: fmu_env\Scripts\activate
-    pip install fmu-manipulation-toolbox
+    pip install "fmu-manipulation-toolbox[gui]"
     ```
 
 For detailed installation instructions, platform-specific notes, and troubleshooting, see the 

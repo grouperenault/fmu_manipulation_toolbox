@@ -2,13 +2,12 @@
 
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QPainter, QPainterPath, QPen, QBrush, QColor, QFontMetrics, QPixmap, QImage
 from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem, QStyleOptionGraphicsItem
 
-from fmu_manipulation_toolbox.operations import FMU, FMUPort, OperationAbstract
+from fmu_manipulation_toolbox.operations import FMU, ModelVariable, OperationAbstract
 from fmu_manipulation_toolbox.terminals import Terminals
 from fmu_manipulation_toolbox.container import ArrayAggregate
 from fmu_manipulation_toolbox.gui.helper import load_scaled_pixmap, crop_transparent_border, get_fmu_icon_path
@@ -17,19 +16,28 @@ from .constants import (
     NODE_MIN_WIDTH, NODE_TITLE_HEIGHT, NODE_PORT_SPACING, NODE_CORNER_RADIUS,
     NODE_ICON_SIZE, NODE_ICON_MARGIN,
     COLOR_NODE_BG, COLOR_NODE_TITLE_BG, COLOR_NODE_BORDER, COLOR_NODE_SELECTED,
-    COLOR_TEXT, FONT_TITLE, COLOR_NODE_SIGNAL_TITLE_BG
+    COLOR_TEXT, FONT_TITLE, COLOR_NODE_SIGNAL_TITLE_BG, COLOR_NODE_ME_TITLE_BG
 )
 
 
 class NodeItem(QGraphicsRectItem, OperationAbstract):
     """Rectangular node representing an FMU. No visual ports — wires
-    connect directly to the node edges."""
+    connect directly to the node edges.
 
-    def __init__(self, fmu_path: Path, x: float = 0, y: float = 0):
+    A node is designated by its `name`, unique in the scene, and distinct from
+    its FMU file (`fmu_path`): the same file can be added several times, each
+    node being an instance named `<stem>-<n>.fmu` (see
+    `fmu_manipulation_toolbox.assembly.instance_name`). Wire mappings, start
+    values and exposed ports refer to the node by its name.
+    """
+
+    read_only = True  # reads the FMU interface, never changes the descriptor
+
+    def __init__(self, fmu_path: Path, x: float = 0, y: float = 0, name: str | None = None):
         super().__init__()
 
         self.uid = str(uuid.uuid4())
-        self._title = fmu_path.name
+        self.name = name or fmu_path.name
         self.fmu_path = fmu_path
 
         # Title bar highlight (for selected container)
@@ -43,37 +51,52 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.is_container_signal = False
 
         # -- Read FMU ports ---------------------------------------------------
-        self.fmu_input_names: List[str] = []
-        self.fmu_output_names: List[str] = []
-        self.fmu_terminal_names: List[str] = []
-        self.fmu_port_causality: Dict[str, str] = {}
-        self.fmu_port_type: Dict[str, str] = {}
-        self.fmu_start_values: Dict[str, str] = {}
-        self.user_start_values: Dict[str, str] = {}
-        self.user_exposed_outputs: Dict[str, bool] = {}
-        self.user_exposed_inputs: Dict[str, bool] = {}
-        self.fmu_step_size: Optional[str] = None
+        self.fmu_input_names: list[str] = []
+        self.fmu_output_names: list[str] = []
+        self.fmu_terminal_names: list[str] = []
+        self.fmu_port_causality: dict[str, str] = {}
+        self.fmu_port_type: dict[str, str] = {}
+        # Number of elements of each port: 1 for a scalar, the product of the `<Dimension start>` of an FMI-3 array,
+        # the number of elements of an FMI-2 array aggregate, 0 when a dimension is a structural parameter.
+        self.fmu_port_size: dict[str, int] = {}
+        # Secondary descriptor attributes (variability, unit, description) kept
+        # per port. They are not needed to draw the node, but they are what
+        # makes a port listing readable for a human or a language model.
+        self.fmu_port_details: dict[str, dict[str, str]] = {}
+        self.fmu_start_values: dict[str, str] = {}
+        self.user_start_values: dict[str, str] = {}
+        self.user_exposed_outputs: dict[str, bool] = {}
+        self.user_exposed_inputs: dict[str, bool] = {}
+        self.fmu_step_size: str | None = None
+        # Whether the FMU can handle a variable communication step size (Co-Simulation takes precedence).
+        self.fmu_variable_step_size: bool = False
         self.fmu_generator: str = ""
-        self.fmu_fmi_version: Optional[int] = None
+        self.fmu_fmi_version: int | None = None
+        # FMI kind advertised by the FMU descriptor.
+        self.fmu_is_model_exchange: bool = False
+        self.fmu_is_cosimulation: bool = False
         # Names of the underlying scalar element ports for each FMI-2 array
         # aggregate detected on this node (e.g. `myVector` -> `[myVector[1],
         # myVector[2], myVector[3]]`). Used to hide/mark the elements when
         # the aggregate is used in a wire.
-        self.fmu_array_aggregate_elements: Dict[str, List[str]] = {}
+        self.fmu_array_aggregate_elements: dict[str, list[str]] = {}
 
         # FMU icon (model.png), forced to NODE_ICON_SIZE x NODE_ICON_SIZE.
-        self._icon_pixmap: Optional[QPixmap] = None
+        self._icon_pixmap: QPixmap | None = None
         # Native size (px) of the source model.png, used to cap the display size.
         self._icon_native_width: int = 0
         self._icon_native_height: int = 0
 
-        fmu = FMU(fmu_path)
-        fmu.apply_operation(self)
-        self._load_icon(fmu)
-        del fmu
+        with FMU(fmu_path) as fmu:
+            fmu.apply_operation(self)
+            self._load_icon(fmu)
+
+        # Pick the title bar color according to the FMI kind (ModelExchange
+        # FMUs are shown in green).
+        self._update_title_bg_color()
 
         # -- Wires attached to this node --------------------------------------
-        self.wires: List = []  # List["WireItem"] — avoids circular import
+        self.wires: list = []  # List["WireItem"] — avoids circular import
 
         # Flags
         self.setFlags(
@@ -183,6 +206,19 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
             self._title_highlighted = highlighted
             self.update()
 
+    def _update_title_bg_color(self):
+        """Choose the title bar background color from the FMU's FMI kind.
+
+        ModelExchange FMUs are shown with a green title bar so they stand out
+        from CoSimulation FMUs (blue). If both kinds are advertised, the FMU is
+        usable as a co-simulation slave, so the default (blue) color is kept.
+        """
+        if self.fmu_is_model_exchange and not self.fmu_is_cosimulation:
+            self._title_bg_color = COLOR_NODE_ME_TITLE_BG
+        else:
+            self._title_bg_color = COLOR_NODE_TITLE_BG
+        self.update()
+
     def fmi_attrs(self, attrs):
         self.fmu_generator = attrs.get("generationTool", "-")
         version = attrs.get("fmiVersion", "")
@@ -194,7 +230,16 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
     def experiment_attrs(self, attrs):
         self.fmu_step_size = attrs.get("stepSize", "")
 
-    def port_attrs(self, fmu_port: FMUPort) -> int:
+    def cosimulation_attrs(self, attrs):
+        self.fmu_is_cosimulation = True
+        self.fmu_variable_step_size = attrs.get("canHandleVariableCommunicationStepSize", "false") == "true"
+
+    def modelexchange_attrs(self, attrs):
+        self.fmu_is_model_exchange = True
+        if not self.fmu_is_cosimulation:
+            self.fmu_variable_step_size = attrs.get("canHandleVariableCommunicationStepSize", "false") == "true"
+
+    def port_attrs(self, fmu_port: ModelVariable) -> int:
         causality = fmu_port.get("causality", "local")
         name = fmu_port.get("name", "")
         if causality in ("input", "parameter"):
@@ -203,10 +248,24 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
             self.fmu_output_names.append(name)
         self.fmu_port_causality[name] = causality
         self.fmu_port_type[name] = fmu_port.fmi_type or ""
+        self.fmu_port_size[name] = self._port_size(fmu_port)
+        details = {key: fmu_port.get(key, None)
+                   for key in ("variability", "unit", "description")}
+        self.fmu_port_details[name] = {key: value for key, value in details.items()
+                                       if value is not None}
         start = fmu_port.get("start", None)
         if start is not None:
             self.fmu_start_values[name] = start
         return 0
+
+    @staticmethod
+    def _port_size(fmu_port: ModelVariable) -> int:
+        size = 1
+        for kind, value in fmu_port.dimensions:
+            if kind != "start":
+                return 0
+            size *= value
+        return size
 
     def closure(self):
         for terminal in Terminals(self.fmu.tmp_directory):
@@ -238,6 +297,11 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
             self.fmu_port_causality[agg.basename] = causality
             self.fmu_port_type[agg.basename] = type_name
+            self.fmu_port_size[agg.basename] = len(agg.ordered_element_names)
+            self.fmu_port_details[agg.basename] = {
+                "description": f"Array aggregate of {len(agg.ordered_element_names)} "
+                               f"scalar ports ({agg.ordered_element_names[0]}, ...)",
+            }
             self.fmu_array_aggregate_elements[agg.basename] = list(agg.ordered_element_names)
             if causality in ("input", "parameter"):
                 self.fmu_input_names.append(agg.basename)
@@ -248,7 +312,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     @property
     def title(self) -> str:
-        return self._title
+        return self.name
 
     # -- Edge anchor -----------------------------------------------------------
 
@@ -336,13 +400,19 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     # -- Helpers ---------------------------------------------------------------
 
-    def replace_fmu(self, new_fmu_path: Path):
-        """Replace the underlying FMU file while keeping wires, start values and exposed ports."""
-        old_name = self.fmu_path.name
-        new_name = new_fmu_path.name
+    def replace_fmu(self, new_fmu_path: Path, new_name: str | None = None):
+        """Replace the underlying FMU file while keeping wires, start values and exposed ports.
+
+        Args:
+            new_fmu_path: The new FMU file.
+            new_name: The new name of the node, unique in the scene (see `GraphScene.replace_node_fmu`). Defaults to
+                the file name.
+        """
+        old_name = self.name
+        new_name = new_name or new_fmu_path.name
 
         self.fmu_path = new_fmu_path
-        self._title = new_name
+        self.name = new_name
 
         # Re-read ports from the new FMU
         self.fmu_input_names.clear()
@@ -350,17 +420,23 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_terminal_names.clear()
         self.fmu_port_causality.clear()
         self.fmu_port_type.clear()
+        self.fmu_port_size.clear()
+        self.fmu_port_details.clear()
         self.fmu_start_values.clear()
         self.fmu_array_aggregate_elements.clear()
         self.fmu_step_size = None
+        self.fmu_variable_step_size = False
         self.fmu_generator = ""
         self.fmu_fmi_version = None
+        self.fmu_is_model_exchange = False
+        self.fmu_is_cosimulation = False
 
-        fmu = FMU(new_fmu_path)
-        fmu.apply_operation(self)
-        self._load_icon(fmu)
-        del fmu
+        with FMU(new_fmu_path) as fmu:
+            fmu.apply_operation(self)
+            self._load_icon(fmu)
 
+        # Refresh the title bar color (the new FMU may have a different FMI kind).
+        self._update_title_bg_color()
 
         # Update FMU name in wire mappings
         if old_name != new_name:
@@ -375,9 +451,14 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
                      new_name if t[2] == old_name else t[2], t[3])
                     for t in wire.terminal_mappings
                 ]
+            # The reset port of this FMU on the ConfigurationNode, if any, follows its name.
+            scene = self.scene()
+            configuration_node = scene.configuration_node() if hasattr(scene, "configuration_node") else None
+            if configuration_node is not None:
+                configuration_node.rename_reset_port(old_name, new_name)
 
         # Update visual: title text and node width
-        self._title_item.setPlainText(self._title)
+        self._title_item.setPlainText(self.title)
         fm_title = QFontMetrics(FONT_TITLE)
         width, height = self._compute_size(fm_title)
         self.setRect(0, 0, width, height)
@@ -397,7 +478,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
 
 class ConfigurationNode(NodeItem):
-    """Singleton virtual node representing the `ts_multiplier` configuration.
+    """Singleton virtual node representing the `ts_multiplier` and `reset_ports` configuration.
 
     This node is *not* backed by a real FMU file: it is a purely graphical
     (GUI-only) representation, never exported to the `Assembly`/`AssemblyNode`
@@ -414,6 +495,13 @@ class ConfigurationNode(NodeItem):
     only removed from the scene once ALL its ports are inactive AND no wire
     (valid or invalid) references it anymore (see `is_empty`/`cleanup_if_empty`).
 
+    It also exposes one virtual Boolean input port per FMU (or sub-container)
+    of each container with `reset_ports` checked (root included), named
+    `<fmu_without_.fmu_suffix>.reset`: the wire is exported as a link to the
+    reserved `container.reset` input of that FMU. Such a port can also be
+    exposed as a container input (`reset_exposed`, edited in the detail panel
+    of the node). The ports follow the same rules as the `ts_multiplier` ones.
+
     It behaves like a regular node (movable, selectable) but cannot be
     deleted by the user while it is still relevant (see `deletable`).
     """
@@ -425,7 +513,7 @@ class ConfigurationNode(NodeItem):
         QGraphicsRectItem.__init__(self)
 
         self.uid = str(uuid.uuid4())
-        self._title = self.TITLE
+        self.name = self.TITLE
         self.fmu_path = Path(self.TITLE)
 
         self._title_highlighted = False
@@ -434,23 +522,30 @@ class ConfigurationNode(NodeItem):
 
         # port_name -> active (bool). `active` mirrors the owning container's
         # current `ts_multiplier` checkbox state.
-        self.ts_multiplier_ports: Dict[str, bool] = {}
+        self.ts_multiplier_ports: dict[str, bool] = {}
+        # port_name -> active (bool). `active` mirrors the `reset_ports`
+        # checkbox of the container of the FMU.
+        self.reset_ports: dict[str, bool] = {}
+        # port_name -> exposed as a container input `container.<id>.reset`.
+        self.reset_exposed: dict[str, bool] = {}
 
-        self.fmu_input_names: List[str] = []
-        self.fmu_output_names: List[str] = []
-        self.fmu_terminal_names: List[str] = []
-        self.fmu_port_causality: Dict[str, str] = {}
-        self.fmu_port_type: Dict[str, str] = {}
-        self.fmu_start_values: Dict[str, str] = {}
-        self.user_start_values: Dict[str, str] = {}
-        self.user_exposed_outputs: Dict[str, bool] = {}
-        self.user_exposed_inputs: Dict[str, bool] = {}
-        self.fmu_step_size: Optional[str] = None
+        self.fmu_input_names: list[str] = []
+        self.fmu_output_names: list[str] = []
+        self.fmu_terminal_names: list[str] = []
+        self.fmu_port_causality: dict[str, str] = {}
+        self.fmu_port_type: dict[str, str] = {}
+        self.fmu_port_size: dict[str, int] = {}
+        self.fmu_port_details: dict[str, dict[str, str]] = {}
+        self.fmu_start_values: dict[str, str] = {}
+        self.user_start_values: dict[str, str] = {}
+        self.user_exposed_outputs: dict[str, bool] = {}
+        self.user_exposed_inputs: dict[str, bool] = {}
+        self.fmu_step_size: str | None = None
         self.fmu_generator: str = ""
-        self.fmu_fmi_version: Optional[int] = None
-        self.fmu_array_aggregate_elements: Dict[str, List[str]] = {}
+        self.fmu_fmi_version: int | None = None
+        self.fmu_array_aggregate_elements: dict[str, list[str]] = {}
 
-        self.wires: List = []
+        self.wires: list = []
         self.deletable = False
         self.is_container_signal = True
 
@@ -491,7 +586,7 @@ class ConfigurationNode(NodeItem):
         return f"{base}.ts_multiplier"
 
     # Reserved runtime port name statically exposed by a container FMU when
-    # its `ts_multiplier` parameter is enabled (see container.py `make_fmu_xml`).
+    # its `ts_multiplier` parameter is enabled (see container/builder.py `make_fmu_xml`).
     RUNTIME_PORT_NAME = "container.ts_multiplier"
 
     @staticmethod
@@ -502,8 +597,46 @@ class ConfigurationNode(NodeItem):
         base = port_name[:-len(suffix)] if port_name.endswith(suffix) else port_name
         return f"{base}.fmu"
 
+    # Reserved runtime input of an embedded FMU when the `reset_ports` parameter
+    # of its container is enabled (see container/builder.py `add_reset_port`).
+    RESET_RUNTIME_PORT_NAME = "container.reset"
+
+    @staticmethod
+    def reset_port_name(fmu_name: str) -> str:
+        """Return the reset port name for the FMU (or sub-container) *fmu_name*.
+
+        `<fmu_without_.fmu_suffix>.reset`
+        """
+        base = fmu_name[:-4] if fmu_name.lower().endswith(".fmu") else fmu_name
+        return f"{base}.reset"
+
+    @staticmethod
+    def fmu_name_from_reset_port(port_name: str) -> str:
+        """Reverse of `reset_port_name` (`.fmu` suffix restored)."""
+        suffix = ".reset"
+        base = port_name[:-len(suffix)] if port_name.endswith(suffix) else port_name
+        return f"{base}.fmu"
+
+    @staticmethod
+    def reset_input_name(fmu_name: str) -> str:
+        """Name of the container input exposing the reset of *fmu_name* (see
+        `FMUContainer.reset_input_name`)."""
+        return f"container.{Path(fmu_name).stem.lower()}.reset"
+
+    def is_reset_port(self, port: str) -> bool:
+        return port in self.reset_ports
+
+    def port_active(self, port: str) -> bool:
+        """Whether *port* (`ts_multiplier` or reset) exists and is active."""
+        return self.ts_multiplier_ports.get(port, False) or self.reset_ports.get(port, False)
+
+    def inactive_ports(self) -> set[str]:
+        """Ports kept only for the wires that still reference them (drawn in red)."""
+        return ({port for port, active in self.ts_multiplier_ports.items() if not active} |
+                {port for port, active in self.reset_ports.items() if not active})
+
     def _port_in_use(self, port: str) -> bool:
-        my_name = self.fmu_path.name
+        my_name = self.name
         for wire in self.wires:
             for m in wire.mappings:
                 if len(m) < 4:
@@ -514,9 +647,10 @@ class ConfigurationNode(NodeItem):
         return False
 
     def _rebuild_ports(self):
-        self.fmu_input_names = list(self.ts_multiplier_ports.keys())
-        self.fmu_port_causality = {p: "input" for p in self.ts_multiplier_ports}
+        self.fmu_input_names = list(self.ts_multiplier_ports.keys()) + list(self.reset_ports.keys())
+        self.fmu_port_causality = {p: "input" for p in self.fmu_input_names}
         self.fmu_port_type = {p: "Integer" for p in self.ts_multiplier_ports}
+        self.fmu_port_type.update({p: "Boolean" for p in self.reset_ports})
         for wire in self.wires:
             wire.update()
         self.update()
@@ -530,27 +664,49 @@ class ConfigurationNode(NodeItem):
         (so that wire can be shown in red and possibly re-validated later);
         an unused inactive port is dropped immediately.
         """
-        port = self.port_name(container_name)
-        if active:
-            self.ts_multiplier_ports[port] = True
-        else:
-            if self._port_in_use(port):
-                self.ts_multiplier_ports[port] = False
-            else:
-                self.ts_multiplier_ports.pop(port, None)
+        self._set_port_active(self.ts_multiplier_ports, self.port_name(container_name), active)
         self._rebuild_ports()
+
+    def set_reset_port_active(self, fmu_name: str, active: bool):
+        """Activate/deactivate the reset port of the FMU (or sub-container)
+        *fmu_name*, as `set_port_active` does for `ts_multiplier`."""
+        port = self.reset_port_name(fmu_name)
+        self._set_port_active(self.reset_ports, port, active)
+        if port not in self.reset_ports:
+            self.reset_exposed.pop(port, None)
+        self._rebuild_ports()
+
+    def _set_port_active(self, ports: dict[str, bool], port: str, active: bool):
+        if active:
+            ports[port] = True
+        elif self._port_in_use(port):
+            ports[port] = False
+        else:
+            ports.pop(port, None)
 
     def rename_port(self, old_container_name: str, new_container_name: str):
         """Update the port name (and any wire mapping referencing it) when
         the owning container is renamed."""
-        old_port = self.port_name(old_container_name)
-        new_port = self.port_name(new_container_name)
-        if old_port == new_port or old_port not in self.ts_multiplier_ports:
-            return
-        active = self.ts_multiplier_ports.pop(old_port)
-        self.ts_multiplier_ports[new_port] = active
+        self._rename(self.ts_multiplier_ports, self.port_name(old_container_name),
+                     self.port_name(new_container_name))
+        # A sub-container may also be reset by its parent.
+        self.rename_reset_port(old_container_name, new_container_name)
 
-        my_name = self.fmu_path.name
+    def rename_reset_port(self, old_fmu_name: str, new_fmu_name: str):
+        """Update the reset port name (and any wire mapping referencing it)
+        when the FMU, or sub-container, is renamed."""
+        old_port = self.reset_port_name(old_fmu_name)
+        new_port = self.reset_port_name(new_fmu_name)
+        if old_port in self.reset_exposed and old_port != new_port:
+            self.reset_exposed[new_port] = self.reset_exposed.pop(old_port)
+        self._rename(self.reset_ports, old_port, new_port)
+
+    def _rename(self, ports: dict[str, bool], old_port: str, new_port: str):
+        if old_port == new_port or old_port not in ports:
+            return
+        ports[new_port] = ports.pop(old_port)
+
+        my_name = self.name
         for wire in self.wires:
             new_mappings = []
             for m in wire.mappings:
@@ -567,7 +723,7 @@ class ConfigurationNode(NodeItem):
         self._rebuild_ports()
 
     def has_active_ports(self) -> bool:
-        return any(self.ts_multiplier_ports.values())
+        return any(self.ts_multiplier_ports.values()) or any(self.reset_ports.values())
 
     def is_empty(self) -> bool:
         """True when this node has no active port and no residual wire
@@ -576,9 +732,11 @@ class ConfigurationNode(NodeItem):
 
     def prune_inactive_unused_ports(self):
         """Drop inactive ports that are no longer referenced by any wire."""
-        for port in list(self.ts_multiplier_ports.keys()):
-            if not self.ts_multiplier_ports[port] and not self._port_in_use(port):
-                del self.ts_multiplier_ports[port]
+        for ports in (self.ts_multiplier_ports, self.reset_ports):
+            for port in list(ports.keys()):
+                if not ports[port] and not self._port_in_use(port):
+                    del ports[port]
+                    self.reset_exposed.pop(port, None)
         self._rebuild_ports()
 
     def cleanup_if_empty(self):
@@ -593,7 +751,7 @@ class ConfigurationNode(NodeItem):
                     scene.node_removed.emit(self)
                 scene.removeItem(self)
 
-    def replace_fmu(self, new_fmu_path: Path):
+    def replace_fmu(self, new_fmu_path: Path, new_name: str | None = None):
         raise NotImplementedError("ConfigurationNode is virtual and cannot be replaced.")
 
 

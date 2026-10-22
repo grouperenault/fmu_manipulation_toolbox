@@ -1,0 +1,18 @@
+{
+  "name": "S4d.fmu",
+  "auto_link": false,
+  "auto_input": false,
+  "auto_output": false,
+  "container": [
+    {"name": "subA.fmu", "step_size": 0.01, "auto_link": false, "auto_input": false, "auto_output": false, "fmu": ["A.fmu"], "path": {"A.fmu": "Probe10ms-host.fmu"}, "input": [["A_u_disc", "A.fmu", "u_disc"], ["A_u_int", "A.fmu", "u_int"]], "output": [["A.fmu", "y_time", "A_y_time"], ["A.fmu", "y_int", "A_y_int"]], "start": [["A.fmu", "trace_file", "A.csv"]]},
+    {"name": "subB.fmu", "step_size": 0.02, "auto_link": false, "auto_input": false, "auto_output": false, "fmu": ["B.fmu"], "path": {"B.fmu": "Probe20ms-host.fmu"}, "input": [["B_u_cont", "B.fmu", "u_cont"], ["B_u_int", "B.fmu", "u_int"]], "output": [["B.fmu", "y_time", "B_y_time"], ["B.fmu", "y_int", "B_y_int"]], "start": [["B.fmu", "trace_file", "B.csv"]]},
+    {"name": "subC.fmu", "step_size": 0.05, "auto_link": false, "auto_input": false, "auto_output": false, "fmu": ["C.fmu"], "path": {"C.fmu": "Probe50ms-host.fmu"}, "input": [["C_u_cont", "C.fmu", "u_cont"]], "output": [["C.fmu", "y_time", "C_y_time"], ["C.fmu", "y_int", "C_y_int"]], "start": [["C.fmu", "trace_file", "C.csv"]]}
+  ],
+  "link": [
+    ["subA.fmu", "A_y_time", "subB.fmu", "B_u_cont"],
+    ["subA.fmu", "A_y_int", "subB.fmu", "B_u_int"],
+    ["subB.fmu", "B_y_time", "subC.fmu", "C_u_cont"],
+    ["subC.fmu", "C_y_time", "subA.fmu", "A_u_disc"],
+    ["subC.fmu", "C_y_int", "subA.fmu", "A_u_int"]
+  ]
+}

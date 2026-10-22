@@ -15,13 +15,14 @@
 ----------------------------------------------------------------------------*/
 
 /* unimplemented fmi3 functions */
-#define __NOT_IMPLEMENTED__                                                         \
-    logger(LOGGER_ERROR, "Function '%s' is not implemented", __func__);             \
+#define __NOT_IMPLEMENTED__                                                                                 \
+    logger_message(&((container_t *)instance)->logger, LOGGER_LEVEL_ERROR, "Function '%s' is not implemented",      \
+                   __func__);                                                                                       \
     return fmi3Error;
 
 #define ASSERT_CONTAINER_STATE(_container, _state)                                  \
     if (_container->state != _state) {                                              \
-    	logger(LOGGER_ERROR, "Must be in state %s to call %s", #_state, __func__);  \
+    	logger_message(&(_container)->logger, LOGGER_LEVEL_ERROR, "Must be in state %s to call %s", #_state, __func__); \
         return fmi3Error;                                                           \
     }
 
@@ -39,12 +40,12 @@ fmi3Status fmi3SetDebugLogging(fmi3Instance instance,
                               fmi3Boolean loggingOn,
                               size_t nCategories,
                               const fmi3String categories[]) {
-    
-    (void)instance; /* unused parameter */
+    container_t* container = (container_t*)instance;
+
     (void)nCategories; /* unused parameter */
     (void)categories; /* unused parameter */
 
-    logger_set_debug(loggingOn);
+    container->logger.debug = loggingOn;
 
     return fmi3OK;
 }
@@ -72,24 +73,26 @@ fmi3Instance fmi3InstantiateCoSimulation(
     (void)instanceEnvironment; /* unused parameter */
     (void)intermediateUpdate; /* unused parameter */    
 
-    container_t* container;
-    container = container_new(instanceName, instantiationToken);
+    /* NULL on an allocation failure: no logger yet to report it */
+    container_t* container = container_new(instanceName, instantiationToken, 3);
+    if (!container)
+        return NULL;
 
-    if (container) {
-        logger_function_t container_logger;
-        container_logger.logger_fmi3 = logMessage;
-        logger_init(FMU_3, container_logger, instanceEnvironment, container->instance_name, loggingOn); 
-        /* logger() is available starting this point ! */
+    const logger_t *logger = &container->logger;
+    logger_function_t container_logger;
+    container_logger.logger_fmi3 = logMessage;     /* may be NULL: no message is sent */
+    logger_init(&container->logger, FMU_3, container_logger, instanceEnvironment, container->instance_name,
+                loggingOn);
+    /* logging is available starting this point ! */
 
-        logger(LOGGER_DEBUG, "Container model loading...");
+    LOGGER_DEBUG("Container model loading...");
 
-        if (container_configure(container, resourcePath)) {
-            logger(LOGGER_ERROR, "Cannot read container configuration.");
-            container_free(container);
-            return NULL;
-        }
-        logger(LOGGER_DEBUG, "Container configuration read.");
+    if (container_configure(container, resourcePath)) {
+        LOGGER_ERROR("Cannot read container configuration.");
+        container_free(container);
+        return NULL;
     }
+    LOGGER_DEBUG("Container configuration read.");
 
     container->state = CONTAINER_STATE_INSTANTIATED;
 
@@ -99,8 +102,11 @@ fmi3Instance fmi3InstantiateCoSimulation(
 
 void fmi3FreeInstance(fmi3Instance instance) {
     container_t* container = (container_t*)instance;
+    if (!container)
+        return;     /* FMI-3.0: the call is ignored */
+    const logger_t *logger = &container->logger;
 
-    logger(LOGGER_DEBUG, "Container instance '%s' to be freed...", container->instance_name);
+    LOGGER_DEBUG("Container instance '%s' to be freed...", container->instance_name);
     container_free(container);
 
     return;
@@ -168,8 +174,14 @@ fmi3Status fmi3Terminate(fmi3Instance instance) {
 
 
 fmi3Status fmi3Reset(fmi3Instance instance) {
-    (void)instance;
-    __NOT_IMPLEMENTED__
+    container_t* container = (container_t*)instance;
+
+    if (container_reset(container) != FMU_STATUS_OK)
+        return fmi3Error;
+
+    container->state = CONTAINER_STATE_INSTANTIATED;
+
+    return fmi3OK;
 }
 
 
@@ -179,6 +191,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     size_t nValueReferences, fmi3 ## fmi_type value[], size_t nValues) {                                            \
                                                                                                                     \
     container_t* container = (container_t*)instance;                                                                \
+    const logger_t *logger = &container->logger;                                                                    \
     size_t value_index = 0;                                                                                         \
                                                                                                                     \
     for (size_t i = 0; i < nValueReferences; i += 1) {                                                              \
@@ -189,7 +202,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                                                                                                                     \
         if (fmu_id < 0) {                                                                                           \
             if (fmu_vr + port->dimension > container->nb_local_ ## type) {                                          \
-                logger(LOGGER_ERROR, "Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);\
+                LOGGER_ERROR("Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);        \
                 return fmi3Error;                                                                                   \
             }                                                                                                       \
             for(size_t j = 0; j < port->dimension; j += 1)                                                          \
@@ -199,7 +212,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                                                                                                                     \
             fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[value_index], port->dimension);            \
             if (status != FMU_STATUS_OK) {                                                                          \
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed to get " #fmi_type " vr=%d.", fmu->name, fmu_vr);  \
+                LOGGER_ERROR("Container: FMU '%s' failed to get " #fmi_type " vr=%d.", fmu->name, fmu_vr);          \
                 return fmi3Error;                                                                                   \
             }                                                                                                       \
         }                                                                                                           \
@@ -208,7 +221,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     }                                                                                                               \
                                                                                                                     \
     if (value_index != nValues) {                                                                                   \
-        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu",                                       \
+        LOGGER_ERROR("%s expected %zu and called with nValues = %zu",                                               \
             __func__, value_index, nValues);                                                                        \
         return fmi3Error;                                                                                           \
     }                                                                                                               \
@@ -237,6 +250,7 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
                          fmi3Binary values[],
                          size_t nValues) {
     container_t* container = (container_t*)instance;
+    const logger_t *logger = &container->logger;
     size_t value_index = 0;
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
@@ -256,7 +270,7 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
             fmu_status_t status = fmuGetBinary(fmu, &fmu_vr, 1, &valueSizes[i], &values[value_index], port->dimension);
 
             if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed to get binary vr=%d.", fmu->name, fmu_vr); 
+                LOGGER_ERROR("Container: FMU '%s' failed to get binary vr=%d.", fmu->name, fmu_vr); 
                 return fmi3Error;
             }
         }
@@ -264,7 +278,7 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
     }
 
     if (value_index != nValues) {
-        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu",
+        LOGGER_ERROR("%s expected %zu and called with nValues = %zu",
             __func__, value_index, nValues);
         return fmi3Error;
     }
@@ -278,6 +292,7 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
                         size_t nValueReferences,
                         fmi3Clock values[]) {
     container_t* container = (container_t*)instance;
+    const logger_t *logger = &container->logger;
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
@@ -292,7 +307,7 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
 
             fmu_status_t status = fmuGetClock(fmu, &fmu_vr, 1, &values[i]);
             if (status != FMU_STATUS_OK) {
-                logger(LOGGER_ERROR, "Container: FMU '%s' failed to get clock vr=%d.", fmu->name, fmu_vr);
+                LOGGER_ERROR("Container: FMU '%s' failed to get clock vr=%d.", fmu->name, fmu_vr);
                 return fmi3Error;
             }
         }
@@ -309,18 +324,23 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     size_t nValueReferences, const fmi3 ## fmi_type value[], size_t nValues) {                                          \
                                                                                                                         \
     container_t* container = (container_t*)instance;                                                                    \
+    const logger_t *logger = &container->logger;                                                                        \
     size_t value_index = 0;                                                                                             \
                                                                                                                         \
     for (size_t i = 0; i < nValueReferences; i += 1) {                                                                  \
         const uint32_t local_vr = valueReferences[i] & 0xFFFFFF;                                                        \
-        const container_port_t *port = &container->port_ ##type [local_vr];                                             \
+        container_port_t *port = &container->port_ ##type [local_vr];                                                   \
         for(unsigned int j = 0; j < port->nb; j += 1) {                                                                 \
+            if (container->step_pending) {      /* a step of the container is pending: applied after it */              \
+                port->deferred = true;                                                                                  \
+                break;                                                                                                  \
+            }                                                                                                           \
             const int fmu_id = port->links[j].fmu_id;                                                                   \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                              \
                                                                                                                         \
             if (fmu_id < 0) {                                                                                           \
                 if (fmu_vr + port->dimension > container->nb_local_ ## type) {                                          \
-                logger(LOGGER_ERROR, "Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);    \
+                LOGGER_ERROR("Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);            \
                 return fmi3Error;                                                                                       \
             }                                                                                                           \
                 for(size_t k = 0; k < port->dimension; k += 1)                                                          \
@@ -330,16 +350,18 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                                                                                                                         \
                 fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[value_index], port->dimension);            \
                 if (status != FMU_STATUS_OK) {                                                                          \
-                    logger(LOGGER_ERROR, "Container: FMU '%s' failed to set " #fmi_type " vr=%d.", fmu->name, fmu_vr);  \
+                    LOGGER_ERROR("Container: FMU '%s' failed to set " #fmi_type " vr=%d.", fmu->name, fmu_vr);          \
                     return fmi3Error;                                                                                   \
                 }                                                                                                       \
             }                                                                                                           \
         }                                                                                                               \
+        if (container_cache_ ## type(container, port, &value[value_index], port->dimension) < 0)                        \
+            return fmi3Error;                                                                                           \
         value_index += port->dimension;                                                                                 \
     }                                                                                                                   \
                                                                                                                         \
     if (value_index != nValues) {                                                                                       \
-        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu",                                           \
+        LOGGER_ERROR("%s expected %zu and called with nValues = %zu",                                                   \
             __func__, value_index, nValues);                                                                            \
         return fmi3Error;                                                                                               \
     }                                                                                                                   \
@@ -361,12 +383,17 @@ FMI_SETTER(booleans1,   Boolean,    fmuSetBoolean1)
 fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueReferences[],
     size_t nvr, const fmi3String value[], size_t nValues) {
     container_t* container = (container_t*)instance;
+    const logger_t *logger = &container->logger;
     size_t value_index = 0;
 
     for (size_t i = 0; i < nvr; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
-        const container_port_t* port = &container->port_strings[vr];
+        container_port_t* port = &container->port_strings[vr];
         for (unsigned int j = 0; j < port->nb; j += 1) {
+            if (container->step_pending) {      /* a step of the container is pending: applied after it */
+                port->deferred = true;
+                break;
+            }
             const int fmu_id = port->links[j].fmu_id;
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
 
@@ -381,16 +408,18 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
 
                 fmu_status_t status = fmuSetString(fmu, &fmu_vr, 1, &value[value_index], port->dimension);
                 if (status != FMU_STATUS_OK) {
-                    logger(LOGGER_ERROR, "Container: FMU '%s' failed to set string vr=%d.", fmu->name, fmu_vr);
+                    LOGGER_ERROR("Container: FMU '%s' failed to set string vr=%d.", fmu->name, fmu_vr);
                     return fmi3Error;
                 }
             }
         }
+        if (container_cache_strings(container, port, &value[value_index], port->dimension) < 0)
+            return fmi3Error;
         value_index += port->dimension;
     }
 
     if (value_index != nValues) {   
-        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu",
+        LOGGER_ERROR("%s expected %zu and called with nValues = %zu",
             __func__, value_index, nValues);
         return fmi3Error;
     }  
@@ -405,12 +434,17 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
                          const fmi3Binary values[],
                          size_t nValues) {
     container_t* container = (container_t*)instance;
+    const logger_t *logger = &container->logger;
     size_t value_index = 0;
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
-        const container_port_t *port = &container->port_binaries[vr];
+        container_port_t *port = &container->port_binaries[vr];
         for (unsigned int j = 0; j < port->nb; j += 1) {
+            if (container->step_pending) {      /* a step of the container is pending: applied after it */
+                port->deferred = true;
+                break;
+            }
             const int fmu_id = port->links[j].fmu_id;
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
 
@@ -420,7 +454,7 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
                         container->binaries[fmu_vr + k].data = realloc(container->binaries[fmu_vr + k].data, valueSizes[value_index + k]);
                         if (! container->binaries[fmu_vr + k].data) {
                             container->binaries[fmu_vr + k].max_size = 0;
-                            logger(LOGGER_ERROR, "Cannot allocate memory for SetBinary");
+                            LOGGER_ERROR("Cannot allocate memory for SetBinary");
                             return fmi3Error;
                         }
                         container->binaries[fmu_vr + k].max_size = valueSizes[value_index + k];
@@ -435,16 +469,19 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
                 fmu_status_t status = fmuSetBinary(fmu, &fmu_vr, 1, &valueSizes[value_index], &values[value_index], port->dimension);
 
                 if (status != FMU_STATUS_OK) {
-                    logger(LOGGER_ERROR, "Container: FMU '%s' failed to set binary vr=%d.", fmu->name, fmu_vr);
+                    LOGGER_ERROR("Container: FMU '%s' failed to set binary vr=%d.", fmu->name, fmu_vr);
                     return fmi3Error;
                 }
             }
         }
+        if (container_cache_binaries(container, port, &valueSizes[value_index], &values[value_index],
+                                     port->dimension) < 0)
+            return fmi3Error;
         value_index += port->dimension;
     }
 
     if (value_index != nValues) {   
-        logger(LOGGER_ERROR, "%s expected %zu and called with nValues = %zu",
+        LOGGER_ERROR("%s expected %zu and called with nValues = %zu",
             __func__, value_index, nValues);
         return fmi3Error;
     }  
@@ -457,6 +494,7 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
                         size_t nValueReferences,
                         const fmi3Clock values[]) {
     container_t* container = (container_t*)instance;
+    const logger_t *logger = &container->logger;
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
@@ -473,7 +511,7 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
 
                 fmu_status_t status = fmuSetClock(fmu, &fmu_vr, 1, &values[i]);
                 if (status != FMU_STATUS_OK) {
-                    logger(LOGGER_ERROR, "Container: FMU '%s' failed to set clock vr=%d.", fmu->name, fmu_vr);
+                    LOGGER_ERROR("Container: FMU '%s' failed to set clock vr=%d.", fmu->name, fmu_vr);
                     return fmi3Error;
                 }
             }
@@ -650,6 +688,7 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance,
                                   fmi3Float64 intervals[],
                                   fmi3IntervalQualifier qualifiers[]) {
     container_t* container = (container_t*)instance;
+    const logger_t *logger = &container->logger;
     fmu_status_t status;
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
@@ -658,7 +697,7 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance,
         const int fmu_id = port->links[0].fmu_id;
 
         if (fmu_id < 0) {
-            logger(LOGGER_ERROR, "GetIntervalDecimal not available for vr=%d", valueReferences[i]);
+            LOGGER_ERROR("GetIntervalDecimal not available for vr=%d", valueReferences[i]);
             return fmi3Error;
         }
         else {

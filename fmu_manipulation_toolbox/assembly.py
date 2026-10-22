@@ -2,40 +2,44 @@ import csv
 import json
 import logging
 import os
-from typing import *
+from collections.abc import Iterable
+from typing import Any
 from pathlib import Path
 import uuid
-import xml.parsers.expat
+import xml.etree.ElementTree as ET
 import zipfile
 
 from .container import FMUContainer
+from .textfiles import ENCODING, open_text
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
-def _collect_fmu_names(data: Dict[str, Any], acc: Set[str]) -> None:
-    """Recursively collect every FMU filename referenced by `data["fmu"]`
-    (including nested containers)."""
+def _collect_fmu_names(data: dict[str, Any], acc: set[str]) -> None:
+    """Recursively collect every FMU filename referenced by `data["fmu"]` and by the
+    files of `data["path"]` (including nested containers)."""
     for name in data.get("fmu", []):
         acc.add(name)
+    for path in data.get("path", {}).values():
+        acc.add(path)
     for child in data.get("container", []):
         _collect_fmu_names(child, acc)
 
 
-def _relativize_json(data: Dict[str, Any], base_dir: Path) -> Dict[str, Any]:
+def _relativize_json(data: dict[str, Any], base_dir: Path) -> dict[str, Any]:
     """Rewrite every absolute FMU path referenced in a JSON-encoded assembly
     `data` so that it becomes relative to `base_dir`.
 
-    Only entries in `data["fmu"]` that are absolute paths are considered
-    (container/sub-container names are plain identifiers, not filesystem
-    paths, and are left untouched). All other blocks (`input`, `output`,
-    `link`, `start`, `drop`) reference the very same FMU names and are
-    rewritten using the same mapping.
+    Only entries in `data["fmu"]` and files of `data["path"]` that are
+    absolute paths are considered (container/sub-container names are plain
+    identifiers, not filesystem paths, and are left untouched). All other
+    blocks (`input`, `output`, `link`, `start`, `drop`) reference the very
+    same FMU names and are rewritten using the same mapping.
     """
-    names: Set[str] = set()
+    names: set[str] = set()
     _collect_fmu_names(data, names)
 
-    path_map: Dict[str, str] = {}
+    path_map: dict[str, str] = {}
     for name in names:
         if not Path(name).is_absolute():
             continue
@@ -52,7 +56,7 @@ def _relativize_json(data: Dict[str, Any], base_dir: Path) -> Dict[str, Any]:
     return data
 
 
-def _basename_json(data: Dict[str, Any]) -> Dict[str, Any]:
+def _basename_json(data: dict[str, Any]) -> dict[str, Any]:
     """Rewrite every FMU path referenced in a JSON-encoded assembly `data` so
     that only its filename (basename) is kept, discarding any directory
     information.
@@ -62,7 +66,7 @@ def _basename_json(data: Dict[str, Any]) -> Dict[str, Any]:
     in a built FMU): a relative-to-JSON path would be confusing once the
     temporary directory is gone, whereas a bare filename always stays valid.
     """
-    names: Set[str] = set()
+    names: set[str] = set()
     _collect_fmu_names(data, names)
 
     path_map = {name: Path(name).name for name in names}
@@ -71,11 +75,14 @@ def _basename_json(data: Dict[str, Any]) -> Dict[str, Any]:
     return data
 
 
-def _remap_fmu_refs(data: Dict[str, Any], path_map: Dict[str, str]) -> None:
+def _remap_fmu_refs(data: dict[str, Any], path_map: dict[str, str]) -> None:
     """Recursively rewrite FMU name references in a JSON-encoded assembly
     dict, using `path_map` (old name -> new name)."""
     if "fmu" in data:
         data["fmu"] = [path_map.get(name, name) for name in data["fmu"]]
+
+    if "path" in data:
+        data["path"] = {path_map.get(name, name): path_map.get(path, path) for name, path in data["path"].items()}
 
     if "input" in data:
         data["input"] = [[source, path_map.get(fmu_name, fmu_name), port_name]
@@ -100,6 +107,39 @@ def _remap_fmu_refs(data: Dict[str, Any], path_map: Dict[str, str]) -> None:
 
     for child in data.get("container", []):
         _remap_fmu_refs(child, path_map)
+
+
+def _split_basename(path: str) -> tuple[str, str]:
+    """Split `path` into its directory part (with its trailing separator) and its base name, whatever the separator
+    (`/` or `\\`), so that the form of the path is kept."""
+    index = max(path.rfind("/"), path.rfind("\\"))
+    return path[:index + 1], path[index + 1:]
+
+
+def instance_name(path: str, used_names: Iterable[str]) -> str:
+    """Name under which the FMU `path` is embedded, given the names already used at the same level.
+
+    The first instance of a file is named after the file itself. When its base name is already used (the same file,
+    or another file with the same base name), the name is the sibling `<stem>-<n><suffix>` of `path`, with the
+    smallest free `n`: `/models/model.fmu` gives `/models/model-1.fmu`. Names are compared by base name, since an
+    embedded FMU is designated by its base name in the built container.
+
+    Args:
+        path (str): Path of the FMU file, as it is given to `AssemblyNode.add_fmu`.
+        used_names (Iterable[str]): Names already used.
+
+    Returns:
+        str: `path` itself, or a sibling of it with a free base name.
+    """
+    used = {_split_basename(name)[1] for name in used_names}
+    directory, basename = _split_basename(path)
+    if basename not in used:
+        return path
+    stem, suffix = os.path.splitext(basename)
+    n = 1
+    while f"{stem}-{n}{suffix}" in used:
+        n += 1
+    return f"{directory}{stem}-{n}{suffix}"
 
 
 class Port:
@@ -162,9 +202,13 @@ class AssemblyNode:
         auto_parameter (bool): Automatically expose parameters of embedded FMUs.
         auto_local (bool): Automatically expose local variables of embedded FMUs.
         ts_multiplier (bool): Add a `TS_MULTIPLIER` input port to control step size dynamically.
+        reset_ports (bool): Add a `container.reset` input to each embedded FMU, to reset it during the simulation.
         parent (AssemblyNode | None): Parent node in a hierarchical assembly, or `None` for root.
         children (dict[str, AssemblyNode]): Sub-container nodes, keyed by name.
-        fmu_names_list (list[str]): Ordered list of embedded FMU filenames.
+        fmu_names_list (list[str]): Ordered list of the names of the embedded FMUs. A name is also the path of
+            the FMU file, unless `fmu_paths` gives another one.
+        fmu_paths (dict[str, str]): Path of the FMU file of the names that are not their own path: the instances
+            of an FMU embedded several times (see `instance_name`).
         input_ports (dict[Port, str]): Mapping from destination port to exposed input name.
         output_ports (dict[Port, str]): Mapping from source port to exposed output name.
         start_values (dict[Port, str]): Mapping from port to its start value.
@@ -174,7 +218,7 @@ class AssemblyNode:
 
     def __init__(self, name: str, step_size: float = None, mt=False, profiling=False, sequential=False,
                  auto_link=True, auto_input=True, auto_output=True, auto_parameter=False, auto_local=False,
-                 ts_multiplier=False):
+                 ts_multiplier=False, reset_ports=False):
         self.name = name
         if step_size:
             try:
@@ -193,15 +237,17 @@ class AssemblyNode:
         self.auto_parameter = auto_parameter
         self.auto_local = auto_local
         self.ts_multiplier = ts_multiplier
+        self.reset_ports = reset_ports
 
-        self.parent: Optional[AssemblyNode] = None
-        self.children: Dict[str, AssemblyNode] = {}     # sub-containers
-        self.fmu_names_list: List[str] = []             # FMUs contained at this level (ordered list)
-        self.input_ports: Dict[Port, str] = {}          # value is input port name, key is the source
-        self.output_ports: Dict[Port, str] = {}         # value is output port name, key is the origin
-        self.start_values: Dict[Port, str] = {}
-        self.drop_ports: List[Port] = []
-        self.links: List[Connection] = []
+        self.parent: AssemblyNode | None = None
+        self.children: dict[str, AssemblyNode] = {}     # sub-containers
+        self.fmu_names_list: list[str] = []             # FMUs contained at this level (ordered list)
+        self.fmu_paths: dict[str, str] = {}             # name -> FMU file, when they differ
+        self.input_ports: dict[Port, str] = {}          # value is input port name, key is the source
+        self.output_ports: dict[Port, str] = {}         # value is output port name, key is the origin
+        self.start_values: dict[Port, str] = {}
+        self.drop_ports: list[Port] = []
+        self.links: list[Connection] = []
 
     def add_sub_node(self, sub_node):
         """Add a child `AssemblyNode` to create a hierarchical (nested) container.
@@ -226,14 +272,32 @@ class AssemblyNode:
         sub_node.parent = self
         self.children[sub_node.name] = sub_node
 
-    def add_fmu(self, fmu_name: str):
-        """Declare an embedded FMU by filename.
+    def add_fmu(self, fmu_name: str, fmu_path: str | None = None):
+        """Declare an embedded FMU.
 
         Args:
-            fmu_name (str): Filename of the FMU to embed (e.g. `"model.fmu"`).
+            fmu_name (str): Name of the FMU, used by the links, inputs, outputs, start values and dropped ports
+                (e.g. `"model.fmu"`). It is also the path of the FMU file, unless `fmu_path` is given.
+            fmu_path (str | None): Path of the FMU file, when it differs from `fmu_name`: an instance of an FMU
+                embedded several times (see `instance_name`).
+
+        Raises:
+            AssemblyError: If `fmu_name` is already declared with another file.
         """
-        if fmu_name not in self.fmu_names_list:
-            self.fmu_names_list.append(fmu_name)
+        if fmu_path == fmu_name:
+            fmu_path = None
+        if fmu_name in self.fmu_names_list:
+            if self.fmu_paths.get(fmu_name) != fmu_path:
+                raise AssemblyError(f"FMU '{fmu_name}' is already declared with another file "
+                                    f"('{self.fmu_path(fmu_name)}').")
+            return
+        self.fmu_names_list.append(fmu_name)
+        if fmu_path is not None:
+            self.fmu_paths[fmu_name] = fmu_path
+
+    def fmu_path(self, fmu_name: str) -> str:
+        """Path of the FMU file of the embedded FMU `fmu_name`."""
+        return self.fmu_paths.get(fmu_name, fmu_name)
 
     def add_input(self, from_port_name: str, to_fmu_filename: str, to_port_name: str):
         """Expose a port of an embedded FMU as a container input.
@@ -311,13 +375,13 @@ class AssemblyNode:
 
         identifier = str(Path(self.name).stem)
         container = FMUContainer(identifier, fmu_directory, description_pathname=description_pathname,
-                                 fmi_version=fmi_version)
+                                 fmi_version=fmi_version, reset_ports=self.reset_ports)
 
         for node in self.children.values():
             container.get_fmu(node.name)
 
         for fmu_name in self.fmu_names_list:
-            container.get_fmu(fmu_name)
+            container.get_fmu(self.fmu_path(fmu_name), fmu_name)
 
         for port, source in self.input_ports.items():
             container.add_input(source, port.fmu_name, port.port_name)
@@ -415,7 +479,7 @@ class AssemblyNode:
 
         raise AssemblyError(f"Node {self.name}: Port {port} is not connected downstream.")
 
-    def get_fmu_connections(self, fmu_name: str) -> List[Connection]:
+    def get_fmu_connections(self, fmu_name: str) -> list[Connection]:
         """Get all resolved connections involving a specific embedded FMU.
 
         Returns connections where the given FMU is either source or destination,
@@ -497,10 +561,11 @@ class Assembly:
         root (AssemblyNode | None): Root node of the assembly tree.
     """
 
-    def __init__(self, filename: Union[str, Path] = None, default_step_size=None, default_auto_link=True,
+    def __init__(self, filename: str | Path = None, default_step_size=None, default_auto_link=True,
                  default_auto_input=True, debug=False, default_sequential=False, default_auto_output=True,
                  default_mt=False, default_profiling=False, fmu_directory: Path = Path("."),
-                 default_auto_parameter=False, default_auto_local=False, default_ts_multiplier=False):
+                 default_auto_parameter=False, default_auto_local=False, default_ts_multiplier=False,
+                 default_reset_ports=False):
         self.filename = Path(filename) if filename else None
         self.default_auto_input = default_auto_input
         self.debug = debug
@@ -513,12 +578,13 @@ class Assembly:
         self.default_sequential = default_sequential
         self.default_profiling = default_profiling
         self.default_ts_multiplier = default_ts_multiplier
+        self.default_reset_ports = default_reset_ports
         self.fmu_directory = fmu_directory
 
         if not fmu_directory.is_dir():
             raise AssemblyError(f"FMU directory is not valid: '{fmu_directory}'")
 
-        self.root: Optional[AssemblyNode] = None
+        self.root: AssemblyNode | None = None
 
         if self.filename:
             self.input_pathname = fmu_directory / self.filename
@@ -572,9 +638,10 @@ class Assembly:
                                  mt=self.default_mt, profiling=self.default_profiling,
                                  sequential=self.default_sequential, auto_input=self.default_auto_input,
                                  auto_output=self.default_auto_output, auto_parameter=self.default_auto_parameter,
-                                 auto_local=self.default_auto_local, ts_multiplier=self.default_ts_multiplier)
+                                 auto_local=self.default_auto_local, ts_multiplier=self.default_ts_multiplier,
+                                 reset_ports=self.default_reset_ports)
 
-        with open(self.input_pathname) as file:
+        with open_text(self.input_pathname) as file:
             reader = csv.reader(file, delimiter=';')
             self._check_csv_headers(reader)
             for i, row in enumerate(reader):
@@ -639,7 +706,7 @@ class Assembly:
         else:
             raise AssemblyError(f"unexpected rule '{rule}'. Line skipped.")
 
-    def write_csv(self, filename: Union[str, Path]):
+    def write_csv(self, filename: str | Path):
         """Export the assembly as a CSV file.
 
         Args:
@@ -651,8 +718,11 @@ class Assembly:
         """
         if self.root.children:
             raise AssemblyError("This assembly is not flat. Cannot export to CSV file.")
+        if self.root.fmu_paths:
+            raise AssemblyError("This assembly embeds an FMU several times. Cannot export to CSV file: "
+                                "use the JSON format.")
 
-        with open(self.fmu_directory / filename, "wt") as outfile:
+        with open(self.fmu_directory / filename, "wt", encoding=ENCODING) as outfile:
             outfile.write("rule;from_fmu;from_port;to_fmu;to_port\n")
             for fmu in self.root.fmu_names_list:
                 outfile.write(f"FMU;{fmu};;;\n")
@@ -674,7 +744,7 @@ class Assembly:
         Raises:
             AssemblyError: If the JSON is malformed or contains invalid keywords.
         """
-        with open(self.input_pathname) as file:
+        with open_text(self.input_pathname) as file:
             try:
                 data = json.load(file)
             except json.decoder.JSONDecodeError as e:
@@ -683,7 +753,7 @@ class Assembly:
         if not self.root.name:
             self.root.name = str(self.filename.with_suffix(".fmu").name)
 
-    def _json_decode_node(self, data: Dict) -> AssemblyNode:
+    def _json_decode_node(self, data: dict) -> AssemblyNode:
         name = data.get("name", None)                                                       # 1
         mt = data.get("mt", self.default_mt)                                                # 2
         profiling = data.get("profiling", self.default_profiling)                           # 3
@@ -695,15 +765,17 @@ class Assembly:
         auto_local = data.get("auto_local", self.default_auto_local)                        # 6c
         step_size = data.get("step_size", self.default_step_size)                           # 7
         ts_multiplier = data.get("ts_multiplier", self.default_ts_multiplier)               # 7b
+        reset_ports = data.get("reset_ports", self.default_reset_ports)                     # 7c
 
         node = AssemblyNode(name, step_size=step_size, auto_link=auto_link, mt=mt, profiling=profiling,
                             sequential=sequential,
                             auto_input=auto_input, auto_output=auto_output, auto_parameter=auto_parameter,
-                            auto_local=auto_local, ts_multiplier=ts_multiplier)
+                            auto_local=auto_local, ts_multiplier=ts_multiplier, reset_ports=reset_ports)
 
+        paths = {}
         for key, value in data.items():
             if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling', 'sequential',
-                       'auto_parameter', 'auto_local', 'ts_multiplier'):
+                       'auto_parameter', 'auto_local', 'ts_multiplier', 'reset_ports'):
                 continue  # Already read
 
             elif key == "container":  # 8
@@ -717,6 +789,11 @@ class Assembly:
                     raise AssemblyError("JSON: 'fmu' keyword should define a list.")
                 for fmu in value:
                     node.add_fmu(fmu)
+
+            elif key == "path":  # 9b
+                if not isinstance(value, dict) or not all(isinstance(path, str) for path in value.values()):
+                    raise AssemblyError("JSON: 'path' keyword should define a dictionary of FMU files.")
+                paths = value
 
             elif key == "input":  # 10
                 self._json_decode_keyword('input', value, node.add_input)
@@ -736,6 +813,12 @@ class Assembly:
             else:
                 logger.error(f"JSON: unexpected keyword {key}. Skipped.")
 
+        for fmu_name, fmu_path in paths.items():  # once every FMU of the "fmu" block is known
+            if fmu_name not in node.fmu_names_list:
+                raise AssemblyError(f"JSON: 'path' gives the file of '{fmu_name}', which is not in the 'fmu' list.")
+            if fmu_path != fmu_name:
+                node.fmu_paths[fmu_name] = fmu_path
+
         return node
 
     @staticmethod
@@ -750,7 +833,7 @@ class Assembly:
             except TypeError:
                 raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: {line}.")
 
-    def write_json(self, filename: Union[str, Path], basenames_only: bool = False):
+    def write_json(self, filename: str | Path, basenames_only: bool = False):
         """Export the assembly as a JSON file.
 
         FMU paths referenced in the `fmu`, `link`, `input`, `output`, `start`
@@ -768,7 +851,7 @@ class Assembly:
                 a built FMU).
         """
         output_pathname = self.fmu_directory / filename
-        with open(output_pathname, "wt") as file:
+        with open(output_pathname, "wt", encoding=ENCODING) as file:
             data = self.json_encode()
             if basenames_only:
                 data = _basename_json(data)
@@ -776,14 +859,14 @@ class Assembly:
                 data = _relativize_json(data, output_pathname.resolve().parent)
             json.dump(data, file, indent=2)
 
-    def json_encode(self) -> Dict[str, Any]:
+    def json_encode(self) -> dict[str, Any]:
         """Export the assembly as a JSON file."""
         if self.root:
             return self._json_encode_node(self.root)
         else:
             return {}
 
-    def _json_encode_node(self, node: AssemblyNode) -> Dict[str, Any]:
+    def _json_encode_node(self, node: AssemblyNode) -> dict[str, Any]:
         json_node = dict()
         json_node["name"] = node.name                      # 1
         json_node["mt"] = node.mt                          # 2
@@ -801,11 +884,17 @@ class Assembly:
         if node.ts_multiplier:
             json_node["ts_multiplier"] = node.ts_multiplier # 7b
 
+        if node.reset_ports:
+            json_node["reset_ports"] = node.reset_ports     # 7c
+
         if node.children:
             json_node["container"] = [self._json_encode_node(child) for child in node.children.values()]  # 8
 
         if node.fmu_names_list:
             json_node["fmu"] = [f"{fmu_name}" for fmu_name in sorted(node.fmu_names_list)]          # 9
+
+        if node.fmu_paths:
+            json_node["path"] = {fmu_name: node.fmu_paths[fmu_name] for fmu_name in sorted(node.fmu_paths)}  # 9b
 
         if node.input_ports:
             json_node["input"] = [[f"{source}", f"{port.fmu_name}", f"{port.port_name}"]            # 10
@@ -878,7 +967,7 @@ class Assembly:
             logger.info(f"Dump Json '{dump_file}'")
             self.write_json(dump_file)
 
-    def get_flat_links(self) -> List[List[str]]:
+    def get_flat_links(self) -> list[list[str]]:
         links_list = []
 
         if self.root:
@@ -919,27 +1008,33 @@ class Assembly:
 
 
 class SSDParser:
-    """SAX-based parser for SSD (System Structure Description) files.
+    """Parser for SSD (System Structure Description) files of SSP 1.0 archives.
 
     Parses the XML structure of an `.ssd` file and builds the corresponding
     [AssemblyNode][fmu_manipulation_toolbox.assembly.AssemblyNode] tree, including
     embedded FMUs, connections, and hierarchical sub-systems.
+
+    Elements are recognized by their namespace (`SSD_NAMESPACE`), whatever the
+    prefix used in the file (`ssd:`, another one, or a default namespace).
 
     Attributes:
         node_stack (list[AssemblyNode]): Stack of nodes used during XML parsing
             for tracking hierarchy.
         root (AssemblyNode | None): Root node after parsing is complete.
         fmu_filenames (dict[str, str]): Mapping from SSD component names to
-            FMU filenames.
+            the names of the embedded FMUs: the FMU filename, or an instance
+            name when several components share one source (see `instance_name`).
     """
+
+    SSD_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureDescription"
 
     def __init__(self, zin: zipfile.ZipFile, extract_folder_name: str, **kwargs):
         self.zin = zin
         self.extract_folder_name = extract_folder_name
 
-        self.node_stack: List[AssemblyNode] = []
+        self.node_stack: list[AssemblyNode] = []
         self.root = None
-        self.fmu_filenames: Dict[str, str] = {}  # Component name => FMU filename
+        self.fmu_filenames: dict[str, str] = {}  # Component name => FMU filename
         self.node_attrs = kwargs
 
     def parse(self, ssd_filename: str) -> AssemblyNode:
@@ -950,18 +1045,43 @@ class SSDParser:
 
         Returns:
             AssemblyNode: The root node representing the parsed system structure.
+
+        Raises:
+            AssemblyError: If the file is not well-formed, is not an SSP 1.0
+                system structure description, or refers to unknown elements.
         """
         logger.debug(f"Analysing {ssd_filename}")
-        with self.zin.open(ssd_filename) as file:
-            parser = xml.parsers.expat.ParserCreate()
-            parser.StartElementHandler = self.start_element
-            parser.EndElementHandler = self.end_element
-            parser.ParseFile(file)
+        prefix = f"{{{self.SSD_NAMESPACE}}}"
+        try:
+            with self.zin.open(ssd_filename) as file:
+                root_checked = False
+                for event, element in ET.iterparse(file, events=("start", "end")):
+                    if not root_checked:
+                        if element.tag != f"{prefix}SystemStructureDescription":
+                            raise AssemblyError(f"'{ssd_filename}' is not an SSP 1.0 system structure description: "
+                                                f"root element is <{element.tag}>, expected "
+                                                f"<SystemStructureDescription> in namespace '{self.SSD_NAMESPACE}'")
+                        root_checked = True
+                    if not element.tag.startswith(prefix):
+                        continue  # other SSP namespaces (ssc:, ssv:...) and vendor annotations
+                    tag = element.tag[len(prefix):]
+                    if event == "start":
+                        self.start_element(tag, element.attrib)
+                    else:
+                        self.end_element(tag)
+        except ET.ParseError as error:
+            raise AssemblyError(f"'{ssd_filename}' is not well-formed XML: {error}") from error
+        except KeyError as error:
+            raise AssemblyError(f"'{ssd_filename}': reference to an unknown element or missing attribute "
+                                f"{error}") from error
 
+        if self.root is None:
+            raise AssemblyError(f"'{ssd_filename}': no <System> found in namespace '{self.SSD_NAMESPACE}'")
         return self.root
 
     def start_element(self, tag_name, attrs):
-        if tag_name == 'ssd:Connection':
+        """Handle the start of an SSD element (`tag_name` without namespace, e.g. `"Connection"`)."""
+        if tag_name == 'Connection':
             if 'startElement' in attrs:
                 if 'endElement' in attrs:
                     fmu_start = self.fmu_filenames[attrs['startElement']]
@@ -977,7 +1097,7 @@ class SSDParser:
                 self.node_stack[-1].add_input(attrs['startConnector'],
                                               fmu_end, attrs['endConnector'])
 
-        elif tag_name == 'ssd:System':
+        elif tag_name == 'System':
             logger.info(f"SSP System: {attrs['name']}")
             filename = attrs['name'] + ".fmu"
             self.fmu_filenames[attrs['name']] = filename
@@ -989,13 +1109,15 @@ class SSDParser:
 
             self.node_stack.append(node)
 
-        elif tag_name == 'ssd:Component':
+        elif tag_name == 'Component':
             filename = f"{self.extract_folder_name}/{str(Path(attrs['source']).name)}"
-            name = attrs['name']
-            self.fmu_filenames[name] = filename
-            self.node_stack[-1].add_fmu(filename)
-            logger.debug(f"Component {name} => {filename}")
+            node = self.node_stack[-1]
+            fmu_name = instance_name(filename, node.fmu_names_list)  # components sharing a source: instances
+            self.fmu_filenames[attrs['name']] = fmu_name
+            node.add_fmu(fmu_name, filename)
+            logger.debug(f"Component {attrs['name']} => {fmu_name}")
 
     def end_element(self, tag_name):
-        if tag_name == 'ssd:System':
+        """Handle the end of an SSD element (`tag_name` without namespace)."""
+        if tag_name == 'System':
             self.node_stack.pop()

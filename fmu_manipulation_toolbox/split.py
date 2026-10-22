@@ -1,14 +1,17 @@
 import json
 import logging
 import re
-import xml.parsers.expat
 import zipfile
 
-from typing import *
+from typing import Any
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 
-from .container import EmbeddedFMUPort, Link
+from .container.types import (ALL_TYPES, CONTAINER_TO_FMI, CONVERSION_FUNCTION, FMI_TO_CONTAINER,
+                              START_VALUE_TYPES, enumeration_as_integer)
+from .model_description import ModelDescription, ModelDescriptionError
 from .terminals import Terminals, Terminal
+from .textfiles import ENCODING
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -44,11 +47,11 @@ class FMUSplitterLink:
         # Ordered lists (with insertion-order deduplication) rather than sets:
         # this keeps the emitted JSON deterministic and reproducible, matching
         # the order in which ports are declared in container.txt.
-        self.writers: List[FMUSplitterPort] = []
-        self.readers: List[FMUSplitterPort] = []
+        self.writers: list[FMUSplitterPort] = []
+        self.readers: list[FMUSplitterPort] = []
 
     @staticmethod
-    def _append_unique(dst: List["FMUSplitterPort"], port: "FMUSplitterPort") -> None:
+    def _append_unique(dst: list["FMUSplitterPort"], port: "FMUSplitterPort") -> None:
         if port not in dst:
             dst.append(port)
 
@@ -82,7 +85,7 @@ class FMUSplitter:
         self.directory.mkdir(exist_ok=True)
         logger.info(f"Preparing to split '{self.fmu_filename}' into '{self.directory}'")
 
-    def get_dir_set(self) -> Set[str]:
+    def get_dir_set(self) -> set[str]:
         dir_set = set()
         for filename in self.filenames_list:
             parent = "/".join(filename.split("/")[:-1])
@@ -99,8 +102,10 @@ class FMUSplitter:
         self.close()
 
     def close(self) -> None:
-        """Close the underlying zip file. Safe to call multiple times."""
-        if self.zip is not None:
+        """Close the underlying zip file. Safe to call multiple times, and
+        even when ``__init__`` failed before ``self.zip`` was assigned (e.g.
+        the FMU file does not exist): ``__del__`` must never raise."""
+        if getattr(self, "zip", None) is not None:
             logger.debug("Closing zip file")
             self.zip.close()
             self.zip = None
@@ -109,11 +114,11 @@ class FMUSplitter:
         logger.info(f"Splitting...")
         config = self._split_fmu(fmu_filename=str(self.fmu_filename), relative_path="")
         config_filename = self.directory / self.fmu_filename.with_suffix(".json").name
-        with open(config_filename, "w") as file:
+        with open(config_filename, "w", encoding=ENCODING) as file:
             json.dump(config, file, indent=2)
         logger.info(f"Container definition saved to '{config_filename}'")
 
-    def _split_fmu(self, fmu_filename: str, relative_path: str) -> Union[Dict[str, Any], str]:
+    def _split_fmu(self, fmu_filename: str, relative_path: str) -> dict[str, Any] | str:
         txt_filename = f"{relative_path}resources/container.txt"
 
         if txt_filename in self.filenames_list:
@@ -154,14 +159,17 @@ class FMUSplitter:
 
 class FMUSplitterDescription:
     # Reverse mapping from conversion function name to (source_type, target_type).
-    # Built dynamically from Link.CONVERSION_FUNCTION so that any conversion
+    # Built dynamically from CONVERSION_FUNCTION so that any conversion
     # supported by the container side is automatically recognized here. Lossy
-    # conversions (prefixed with '_' in Link.CONVERSION_FUNCTION) are kept as-is
+    # conversions (prefixed with '_' in CONVERSION_FUNCTION) are kept as-is
     # since the C side writes the identifier including the leading underscore.
     REVERSE_CONVERSION = {
         conversion_name: tuple(type_pair.split("/"))
-        for type_pair, conversion_name in Link.CONVERSION_FUNCTION.items()
+        for type_pair, conversion_name in CONVERSION_FUNCTION.items()
     }
+
+    # Types of the format 2 of container.txt: binary and clock came with format 3.
+    FORMAT_2_TYPES = tuple(type_name for type_name in ALL_TYPES if type_name not in ("binary", "clock"))
 
     # Matches variable names of the form "SomeName[k]" or "SomeName[i,j,...]"
     # (FMI-2 array elements, Modelica-style comma notation).
@@ -169,13 +177,13 @@ class FMUSplitterDescription:
 
     def __init__(self, handle):
         self.zip = handle
-        self.links: Dict[str, Dict[int, FMUSplitterLink]] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
-        self.vr_to_name: Dict[str, Dict[str, Dict[int, Dict[str, str]]]] = {} # name, fmi_type, vr <-> {name, causality}
+        self.links: dict[str, dict[int, FMUSplitterLink]] = dict((el, {}) for el in ALL_TYPES)
+        self.vr_to_name: dict[str, dict[str, dict[int, dict[str, str]]]] = {} # name, fmi_type, vr <-> {name, causality}
         # Terminals declared by each candidate FMU (loaded from its
         # embedded terminalsAndIcons.xml inside the outer container zip).
         # `None` means no such file was present.
-        self.terminals_by_fmu: Dict[str, Optional[Terminals]] = {}
-        self.config: Dict[str, Any] = {
+        self.terminals_by_fmu: dict[str, Terminals | None] = {}
+        self.config: dict[str, Any] = {
             "auto_input": False,
             "auto_output": False,
             "auto_parameter": False,
@@ -183,17 +191,13 @@ class FMUSplitterDescription:
             "auto_link": False,
         }
         self.file_format = 1
-        self.pending_conversions: List[tuple] = []  # (vr_from, vr_to, conversion_name)
-        self.local_to_vr: Dict[str, Dict[int, int]] = {}  # fmi_type → (local_slot → container_vr)
+        self.fmi_version = 2  # of the container, read from its modelDescription.xml
+        self.reset_triggers: list[tuple[str, int]] = []  # (fmu_filename, local offset of `container.reset`)
+        self.pending_conversions: list[tuple] = []  # (vr_from, vr_to, conversion_name)
+        self.local_to_vr: dict[str, dict[int, int]] = {}  # fmi_type → (local_slot → container_vr)
         # fmu_filename → fmi_type → basename → frozenset of element names
-        self.basename_map: Dict[str, Dict[str, Dict[str, FrozenSet[str]]]] = {}
+        self.basename_map: dict[str, dict[str, dict[str, frozenset[str]]]] = {}
 
-        # used for modelDescription.xml parsing
-        self.current_fmu_filename: Optional[str] = None
-        self.current_fmi_version: Optional[str] = None
-        self.current_vr: Optional[int] = None
-        self.current_name: Optional[str] = None
-        self.current_causality: Optional[str] = None
 
     @staticmethod
     def get_line(file):
@@ -204,41 +208,6 @@ class FMUSplitterDescription:
                 return line
         raise FMUSplitterError("This file seems to be truncated")
 
-    def start_element(self, tag, attrs):
-        assert self.current_fmu_filename is not None, "current_fmu_filename must be set before parsing"
-        if tag == "Enumeration":
-            if self.current_fmi_version == "2.0":
-                tag = "Integer"
-            else:
-                tag = "Int32"
-
-        if tag == "fmiModelDescription":
-            self.current_fmi_version = attrs["fmiVersion"]
-        elif tag == "ScalarVariable":
-            self.current_name = attrs["name"]
-            self.current_vr = int(attrs["valueReference"])
-            self.current_causality = attrs.get("causality", "local")
-        elif self.current_fmi_version == "2.0" and tag in EmbeddedFMUPort.FMI_TO_CONTAINER[2]:
-            fmi_type = EmbeddedFMUPort.FMI_TO_CONTAINER[2][tag]
-            if self.current_name: # in case of enumeration definition
-                assert self.current_vr is not None
-                assert self.current_causality is not None
-                self.vr_to_name[self.current_fmu_filename][fmi_type][self.current_vr] = {
-                    "name": self.current_name,
-                    "causality": self.current_causality}
-        elif (self.current_fmi_version is not None and self.current_fmi_version.startswith("3")
-              and tag in EmbeddedFMUPort.FMI_TO_CONTAINER[3]):
-            fmi_type = EmbeddedFMUPort.FMI_TO_CONTAINER[3][tag]
-            self.vr_to_name[self.current_fmu_filename][fmi_type][int(attrs["valueReference"])] = {
-                "name": attrs["name"],
-                "causality": attrs["causality"]}
-
-    def end_element(self, tag):
-        if tag == "ScalarVariable":
-            self.current_vr = None
-            self.current_name = None
-            self.current_causality = None
-
     def parse_model_description(self, directory: str, fmu_filename: str):
 
         if directory == ".":
@@ -246,18 +215,24 @@ class FMUSplitterDescription:
         else:
             filename = f"{directory}/modelDescription.xml"
 
-        self.vr_to_name[fmu_filename] = dict((el, {}) for el in EmbeddedFMUPort.ALL_TYPES)
-        parser = xml.parsers.expat.ParserCreate()
-        self.current_fmu_filename = fmu_filename
-        self.current_fmi_version = None
-        self.current_vr = None
-        self.current_name = None
-        self.current_causality = None
-        parser.StartElementHandler = self.start_element
-        parser.EndElementHandler = self.end_element
-        with (self.zip.open(filename) as file):
+        self.vr_to_name[fmu_filename] = dict((el, {}) for el in ALL_TYPES)
+        with self.zip.open(filename) as file:
             logger.debug(f"Parsing '{filename}' ({fmu_filename})")
-            parser.ParseFile(file)
+            try:
+                model_description = ModelDescription.load(file.read())
+            except ModelDescriptionError as error:
+                raise FMUSplitterError(f"'{filename}': {error}") from error
+
+        fmi_version = model_description.fmi_version
+        if fmu_filename == ".":
+            self.fmi_version = fmi_version
+        for port in model_description.iter_ports():
+            fmi_type = enumeration_as_integer(port.fmi_type, fmi_version)  # as handled by the container
+            container_type = FMI_TO_CONTAINER[fmi_version].get(fmi_type)
+            if container_type is not None:
+                self.vr_to_name[fmu_filename][container_type][int(port["valueReference"])] = {
+                    "name": port["name"],
+                    "causality": port.get("causality", "local")}  # "local" is the default of both standards
 
         # Also load terminalsAndIcons.xml, if any, so that later we can
         # aggregate multiple port-to-port links into a single terminal link.
@@ -276,25 +251,22 @@ class FMUSplitterDescription:
         self._build_basename_map(fmu_filename)
 
     @property
-    def supported_fmi_types(self) -> Tuple[str]:
+    def supported_fmi_types(self) -> tuple[str]:
         if self.file_format == 0 or self.file_format == 1:
-            return tuple(EmbeddedFMUPort.CONTAINER_TO_FMI[2].keys())
+            return tuple(CONTAINER_TO_FMI[2].keys())
         elif self.file_format == 2:
-            # no binary, no clock
-            return EmbeddedFMUPort.ALL_TYPES[:-2]
+            return self.FORMAT_2_TYPES
         else: #self.file_format >= 3:
-            return EmbeddedFMUPort.ALL_TYPES
+            return ALL_TYPES
 
     @property
-    def supported_fmi_types_start(self) -> Tuple[str]:
+    def supported_fmi_types_start(self) -> tuple[str]:
         if self.file_format == 0 or self.file_format == 1:
-            return tuple(EmbeddedFMUPort.CONTAINER_TO_FMI[2].keys())
+            return tuple(CONTAINER_TO_FMI[2].keys())
         elif self.file_format == 2:
-            # no binary, no clock
-            return EmbeddedFMUPort.ALL_TYPES[:-2]
+            return self.FORMAT_2_TYPES
         else: #self.file_format >= 3:
-            # no binary, no clock
-            return EmbeddedFMUPort.ALL_TYPES[:-2]
+            return START_VALUE_TYPES
 
     def parse_txt_file_header(self, file, txt_filename):
         logger.debug(f"*** HEADER ***")
@@ -305,14 +277,14 @@ class FMUSplitterDescription:
 
         flags = self.get_line(file).split(" ")
         if len(flags) == 1:
-            #self.supported_fmi_types = tuple(EmbeddedFMUPort.CONTAINER_TO_FMI[2].keys())
+            #self.supported_fmi_types = tuple(CONTAINER_TO_FMI[2].keys())
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = self.get_line(file) == "1"
             self.config["sequential"] = False
             self.file_format = 1
             logger.debug(f"File format: {self.file_format}")
         elif len(flags) >= 3:
-            #self.supported_fmi_types = EmbeddedFMUPort.ALL_TYPES
+            #self.supported_fmi_types = ALL_TYPES
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = flags[1] == "1"
             self.config["sequential"] = flags[2] == "1"
@@ -323,12 +295,18 @@ class FMUSplitterDescription:
             raise FMUSplitterError(f"Cannot interpret flags '{flags}'")
 
         self.config["step_size"] = float(self.get_line(file))
-        nb_fmu = int(self.get_line(file))
+
+        # Format ≥ 6: "<nb_fmu_cs> <nb_fmu_me>", Co-Simulation FMUs first.
+        # Older formats: a single "<nb_fmu>" count (Co-Simulation only).
+        nb_fmu_tokens = self.get_line(file).split(" ")
+        nb_fmu_cs = int(nb_fmu_tokens[0])
+        nb_fmu_me = int(nb_fmu_tokens[1]) if len(nb_fmu_tokens) > 1 else 0
+        nb_fmu = nb_fmu_cs + nb_fmu_me
 
         logger.debug(f'mt             : {self.config["mt"]}')
         logger.debug(f'profiling      : {self.config["profiling"]}')
         logger.debug(f'sequential     : {self.config["sequential"]}')
-        logger.debug(f"Number of FMUs : {nb_fmu}")
+        logger.debug(f"Number of FMUs : {nb_fmu} ({nb_fmu_cs} CS, {nb_fmu_me} ME)")
 
         self.config["candidate_fmu"] = []
 
@@ -336,7 +314,7 @@ class FMUSplitterDescription:
             # format is
             #    filename.fmu
             # or
-            #    filename.fmu fmi_version
+            #    filename.fmu fmi_version [has_event_mode]
             fmu_filename = self.get_line(file)
             if ' ' in fmu_filename:
                 fmu_filename = fmu_filename.split(' ')[0]
@@ -352,6 +330,9 @@ class FMUSplitterDescription:
             _library = self.get_line(file)
             _uuid = self.get_line(file)
             logger.debug(f"FMU {i}/{nb_fmu} analysed.")
+
+        if self.file_format >= 7:
+            _initialization_order = self.get_line(file)
 
         _nb_local_variables = self.get_line(file)
         logger.debug(f"*** END OF HEADER ***")
@@ -427,7 +408,7 @@ class FMUSplitterDescription:
         return nb
 
     def get_pivot(self, fmi_type, local: str):
-        if self.file_format == 5:
+        if self.file_format >= 5:  # format 5: per-FMU lines give the local storage offset, not the local VR
             try:
                 return self.local_to_vr[fmi_type][int(local) & 0xFFFFFF]
             except KeyError:
@@ -541,7 +522,15 @@ class FMUSplitterDescription:
                         conversion_name = tokens[2]
                         self.pending_conversions.append((vr_from, vr_to, conversion_name))
 
+                # reset trigger (`container.<fmu>.reset`)
+                if self.file_format >= 7:
+                    offset = int(self.get_line(file))
+                    if offset >= 0:
+                        self.reset_triggers.append((fmu_filename, offset))
+
             logger.debug("End of parsing.")
+
+        self._add_reset_triggers()
 
         # Apply pending conversions now that all FMU inputs/outputs have been parsed
         for vr_from, vr_to, conversion_name in self.pending_conversions:
@@ -600,13 +589,38 @@ class FMUSplitterDescription:
 
         return self.config
 
+    def _add_reset_triggers(self):
+        """Rules of the `container.reset` ports (format ≥ 7), and the option `reset_ports`.
+
+        The trigger of an FMU is a local variable: an input of the container when it is exposed, or the variable of a
+        link (or its converted copy) otherwise. Without any wired trigger, nothing tells that the option was set: it
+        is not restored.
+        """
+        type_name = "boolean" if self.fmi_version == 2 else "boolean1"
+        for fmu_filename, offset in self.reset_triggers:
+            try:
+                container_vr = self.local_to_vr[type_name][offset]
+            except KeyError:
+                logger.warning(f"Reset trigger of '{fmu_filename}' not found (local {type_name} {offset}): skipped")
+                continue
+
+            # `local_to_vr` keeps the value references without their type byte.
+            variable = next((variable for vr, variable in self.vr_to_name["."][type_name].items()
+                             if vr & 0xFFFFFF == container_vr), None)
+            if variable is not None and variable["causality"] == "input":
+                self.config.setdefault("input", []).append([variable["name"], fmu_filename, "container.reset"])
+            else:
+                link = self.links[type_name].setdefault(container_vr, FMUSplitterLink())
+                link.add_reader(FMUSplitterPort(fmu_filename, "container.reset"))
+            self.config["reset_ports"] = True
+
     def _build_basename_map(self, fmu_filename: str):
         """For each fmi_type, scan variable names and build
         ``basename → frozenset(element_names)`` for variables that follow the
         FMI-2 array-element notation ``SomeName[k]``."""
-        bmap: Dict[str, Dict[str, FrozenSet[str]]] = {}
+        bmap: dict[str, dict[str, frozenset[str]]] = {}
         for fmi_type, vr_dict in self.vr_to_name[fmu_filename].items():
-            type_map: Dict[str, Set[str]] = {}
+            type_map: dict[str, set[str]] = {}
             for vr, info in vr_dict.items():
                 m = self._ARRAY_ELEM_RE.match(info["name"])
                 if m:
@@ -614,7 +628,7 @@ class FMUSplitterDescription:
             bmap[fmi_type] = {base: frozenset(elems) for base, elems in type_map.items()}
         self.basename_map[fmu_filename] = bmap
 
-    def _try_aggregate(self, ports: List['FMUSplitterPort']) -> List['FMUSplitterPort']:
+    def _try_aggregate(self, ports: list['FMUSplitterPort']) -> list['FMUSplitterPort']:
         """If all ports in *ports* belong to the same FMU and their names
         exactly match the element-name set of a known array basename for that
         FMU, return a singleton list containing the basename port. Otherwise,
@@ -662,7 +676,7 @@ class FMUSplitterDescription:
             return
 
         # Map (fmu_filename, variable_name) → owning terminal object.
-        var_to_terminal: Dict[Tuple[str, str], Terminal] = {}
+        var_to_terminal: dict[tuple[str, str], Terminal] = {}
         for fmu_filename, terms in self.terminals_by_fmu.items():
             if not terms:
                 continue
@@ -673,10 +687,10 @@ class FMUSplitterDescription:
         if not var_to_terminal:
             return
 
-        links: List[List[str]] = self.config["link"]
+        links: list[list[str]] = self.config["link"]
         # Group link indices by unordered (fmu, terminal_name) pair.
         # Keep the canonical order stable for deterministic output.
-        grouped: Dict[Tuple[str, str, str, str], List[int]] = {}
+        grouped: dict[tuple[str, str, str, str], list[int]] = {}
         for idx, link in enumerate(links):
             fmu_from, port_from, fmu_to, port_to = link
             if fmu_from == fmu_to:
@@ -697,8 +711,8 @@ class FMUSplitterDescription:
         if not grouped:
             return
 
-        removed: Set[int] = set()
-        added: List[List[str]] = []
+        removed: set[int] = set()
+        added: list[list[str]] = []
         for key, idx_list in grouped.items():
             for idx in idx_list:
                 removed.add(idx)
@@ -710,11 +724,11 @@ class FMUSplitterDescription:
         self.config["link"] = [l for i, l in enumerate(links) if i not in removed]
         self.config["link"].extend(added)
 
-    def _terminal_variables(self) -> Set[Tuple[str, str]]:
+    def _terminal_variables(self) -> set[tuple[str, str]]:
         """Return the set of ``(fmu_filename, variable_name)`` pairs that
         are declared as members (direct or through sub-terminals) of some
         terminal in any candidate FMU."""
-        result: Set[Tuple[str, str]] = set()
+        result: set[tuple[str, str]] = set()
         for fmu_filename, terms in self.terminals_by_fmu.items():
             if not terms:
                 continue
