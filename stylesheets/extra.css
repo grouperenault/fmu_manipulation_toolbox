@@ -1,0 +1,104 @@
+:root {
+  --md-primary-fg-color: #3f51b5;
+  --md-primary-fg-color--light: #5c6bc0;
+  --md-primary-fg-color--dark: #303f9f;
+  --md-accent-fg-color: #ff4081;
+}
+
+.md-typeset .grid.cards > ul > li {
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+}
+
+.md-typeset pre > code {
+  border-radius: 0.5rem;
+}
+
+.md-typeset table:not([class]) {
+  border-radius: 0.2rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Announcement banner (overrides/main.html): the link must stay readable on the dark background */
+.md-banner a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* Carousel of the page "What's new in 2.0" (docs/javascripts/carousel.js) */
+.md-typeset .carousel {
+  /* Slides are 4:5: one slide fits the height of the screen under the header */
+  max-width: min(100%, 27rem, calc((100vh - 9rem) * 0.8));
+  margin: 1.5em auto;
+}
+
+.md-typeset .carousel-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  border-radius: 0.4rem;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.md-typeset .carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.md-typeset .carousel-track:focus-visible {
+  outline: 0.1rem solid var(--md-accent-fg-color);
+  outline-offset: 0.2rem;
+}
+
+/* Each Markdown image is wrapped in a paragraph: let the images be the items of the flex box */
+.md-typeset .carousel-track > p {
+  display: contents;
+}
+
+.md-typeset .carousel-track img {
+  flex: 0 0 100%;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  scroll-snap-align: center;
+}
+
+.md-typeset .carousel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.6rem;
+}
+
+.md-typeset .carousel-button {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--md-primary-bg-color);
+  background-color: var(--md-primary-fg-color);
+  cursor: pointer;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.md-typeset .carousel-button:hover:not(:disabled) {
+  background-color: var(--md-accent-fg-color);
+}
+
+.md-typeset .carousel-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.md-typeset .carousel-counter {
+  min-width: 4em;
+  text-align: center;
+  color: var(--md-default-fg-color--light);
+  font-variant-numeric: tabular-nums;
+}
