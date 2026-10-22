@@ -1,6 +1,7 @@
 import contextvars
 import logging
 import os
+import sys
 import threading
 
 import contextlib
@@ -454,6 +455,37 @@ _pinned_owner: contextvars.ContextVar = contextvars.ContextVar("fmu_manipulation
                                                                default=_NOT_PINNED)
 
 
+def _current_owner() -> int | None:
+    """The pinned owner, otherwise (main thread only) the window of the last user event; registered or not."""
+    owner = _pinned_owner.get()
+    if owner is _NOT_PINNED:
+        owner = GuiLogHandler.current_owner if threading.current_thread() is threading.main_thread() else None
+    return owner
+
+
+class _OwnerFilter(logging.Filter):
+    """Logger filter: stores the current owner of the record in ``record.gui_owner``, for every handler."""
+
+    def filter(self, record):
+        record.gui_owner = _current_owner()
+        return True
+
+
+_owner_filter = _OwnerFilter()
+
+
+class _StdoutHandler(logging.StreamHandler):
+    """Writes on the current ``sys.stdout``, even when it is replaced after the creation of the handler."""
+
+    @property
+    def stream(self):
+        return sys.stdout
+
+    @stream.setter
+    def stream(self, _):
+        pass
+
+
 class GuiLogHandler(logging.Handler):
     """The single GUI sink of the toolbox logger.
 
@@ -468,7 +500,10 @@ class GuiLogHandler(logging.Handler):
     connection, on the Qt main thread. Create it on the Qt main thread.
 
     Each registered window has its own level: records of a window below its level are dropped, and the logger level is
-    the lowest level of the registered windows.
+    the lowest level of the registered windows. A window in verbose mode (``set_window_verbose``) gets the DEBUG level
+    and a copy of its records, and of the records without owner, on stdout.
+
+    Once installed, a logger filter stores the owner of each record in its ``gui_owner`` attribute (``_OwnerFilter``).
     """
 
     HISTORY_SIZE = 5000
@@ -479,19 +514,30 @@ class GuiLogHandler(logging.Handler):
     class _Emitter(QObject):
         record_emitted = Signal(object, int, str)
 
-    class _EventTracker(QObject):
-        """Application event filter: the window of each user event becomes the current owner of the records."""
+    class _VerboseFilter(logging.Filter):
+        """Filter of the stdout copy: the records of the windows in verbose mode and the records without owner."""
 
         def __init__(self, handler: "GuiLogHandler"):
             super().__init__()
             self._handler = handler
 
+        def filter(self, record):
+            owner = self._handler._record_owner(record)
+            return owner is None or owner in self._handler._verbose
+
+    class _EventTracker(QObject):
+        """Application event filter: the window of each user event becomes the current owner of the records."""
+
         def eventFilter(self, watched, event):
             if event.type() in GuiLogHandler.USER_EVENTS and isinstance(watched, QWidget):
-                self._handler.current_owner = self._handler.owner_of(watched)
+                handler = GuiLogHandler._installed
+                GuiLogHandler.current_owner = handler.owner_of(watched) if handler is not None else None
             return False
 
+    _event_tracker: "_EventTracker | None" = None
     _installed: "GuiLogHandler | None" = None
+    #: Owner of the records of the main thread when no window is pinned: the window of the last user event.
+    current_owner: int | None = None
 
     def __init__(self, history_size: int = HISTORY_SIZE):
         super().__init__()
@@ -500,11 +546,12 @@ class GuiLogHandler(logging.Handler):
         self.history: deque[tuple[int, str]] = deque(maxlen=history_size)
         self._histories: dict[int, deque[tuple[int, str]]] = {}
         self._levels: dict[int, int] = {}
-        #: Owner of the records of the main thread when no window is pinned: the window of the last user event.
-        self.current_owner: int | None = None
         self._emitter = GuiLogHandler._Emitter()
         self.record_emitted = self._emitter.record_emitted
-        self._event_tracker = GuiLogHandler._EventTracker(self)
+        self._verbose: set[int] = set()
+        self._stdout_handler = _StdoutHandler()
+        self._stdout_handler.setFormatter(logging.Formatter("%(levelname)-8s | %(message)s"))
+        self._stdout_handler.addFilter(GuiLogHandler._VerboseFilter(self))
 
     # ── Windows ────────────────────────────────────────────────────────────
     @staticmethod
@@ -527,10 +574,12 @@ class GuiLogHandler(logging.Handler):
         with self.lock:
             registered = self._levels.pop(key, None) is not None
             self._histories.pop(key, None)
-            if self.current_owner == key:
-                self.current_owner = None
+            if GuiLogHandler.current_owner == key:
+                GuiLogHandler.current_owner = None
+            self._verbose.discard(key)
         if registered:
             self._update_logger_level()
+            self._update_stdout_handler()
 
     def is_registered(self, window: QWidget) -> bool:
         return self.window_key(window) in self._levels
@@ -543,6 +592,27 @@ class GuiLogHandler(logging.Handler):
         if key in self._levels:
             self._levels[key] = level
             self._update_logger_level()
+
+    def set_window_verbose(self, window: QWidget, verbose: bool):
+        """Verbose mode of ``window``: DEBUG level, and a copy of its records on stdout."""
+        key = self.window_key(window)
+        if key not in self._levels:
+            return
+        if verbose:
+            self._verbose.add(key)
+        else:
+            self._verbose.discard(key)
+        self._update_stdout_handler()
+        self.set_window_level(window, logging.DEBUG if verbose else self.DEFAULT_LEVEL)
+
+    def is_window_verbose(self, window: QWidget) -> bool:
+        return self.window_key(window) in self._verbose
+
+    def _update_stdout_handler(self):
+        if self._verbose:
+            logger.addHandler(self._stdout_handler)       # no-op when already there
+        else:
+            logger.removeHandler(self._stdout_handler)
 
     def _update_logger_level(self):
         levels = list(self._levels.values())
@@ -571,10 +641,11 @@ class GuiLogHandler(logging.Handler):
         return owner in (key, None) and levelno >= self._levels.get(key, logging.NOTSET)
 
     # ── Records ────────────────────────────────────────────────────────────
-    def _owner(self) -> int | None:
-        owner = _pinned_owner.get()
+    def _record_owner(self, record: logging.LogRecord) -> int | None:
+        """The owner stored by the logger filter (the current one when the filter is not installed), if registered."""
+        owner = getattr(record, "gui_owner", _NOT_PINNED)
         if owner is _NOT_PINNED:
-            owner = self.current_owner if threading.current_thread() is threading.main_thread() else None
+            owner = _current_owner()
         return owner if owner in self._levels else None
 
     def emit(self, record: logging.LogRecord):
@@ -584,7 +655,7 @@ class GuiLogHandler(logging.Handler):
             self.handleError(record)
             return
         # Handler.handle() holds self.lock: histories and signal stay in the same order.
-        owner = self._owner()
+        owner = self._record_owner(record)
         if owner is not None and record.levelno < self._levels[owner]:
             return
         self.history.append((record.levelno, text))
@@ -623,24 +694,35 @@ class GuiLogHandler(logging.Handler):
 
     @classmethod
     def install(cls) -> "GuiLogHandler":
-        """Attach the application-wide handler to the toolbox logger, and its event filter to the application (once)."""
+        """Attach the application-wide handler to the toolbox logger, and the event filter to the application (once)."""
         if cls._installed is None:
             cls._installed = cls()
+            logger.addFilter(_owner_filter)
             logger.addHandler(cls._installed)
-            application = QApplication.instance()
-            if application is not None:
-                application.installEventFilter(cls._installed._event_tracker)
+            cls.track_user_events()
         return cls._installed
+
+    @classmethod
+    def track_user_events(cls):
+        """Install the application event filter that follows the window of the user events (once)."""
+        application = QApplication.instance()
+        if application is not None and cls._event_tracker is None:
+            cls._event_tracker = GuiLogHandler._EventTracker(application)       # owned by the application
+            application.installEventFilter(cls._event_tracker)
 
     @classmethod
     def uninstall(cls):
         if cls._installed is not None:
             application = QApplication.instance()
-            if application is not None:
-                application.removeEventFilter(cls._installed._event_tracker)
+            if application is not None and cls._event_tracker is not None:
+                application.removeEventFilter(cls._event_tracker)
+            logger.removeFilter(_owner_filter)
+            logger.removeHandler(cls._installed._stdout_handler)
             logger.removeHandler(cls._installed)
             cls._installed.close()
             cls._installed = None
+            cls._event_tracker = None
+            GuiLogHandler.current_owner = None
 
 
 @contextlib.contextmanager

@@ -101,6 +101,12 @@ is not enough).
 
 Commit message: `Make the Verbose Mode of the Container Builder specific to its window`
 
+**Done.** `GuiLogHandler.set_window_verbose` holds the verbose mode: one shared stdout handler, filtered on the windows
+in verbose mode and the records without owner. A logger filter (`_OwnerFilter`) stores the owner in
+`record.gui_owner`, so that the stdout filter and the GUI handler agree. The window of the last user event is an
+application state (`GuiLogHandler.current_owner`, one application event filter). Step 2 tests fixed: a child dialog
+was also given to `qtbot` ("shared QObject was deleted directly" at exit).
+
 ### Step 4 — FMU Tool
 
 - Register the window, remove `WidgetLogHandler` and `logger.setLevel(INFO)`; feed `log_widget` from the

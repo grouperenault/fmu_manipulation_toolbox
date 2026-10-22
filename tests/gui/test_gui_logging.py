@@ -102,9 +102,9 @@ def windows(qtbot, handler, monkeypatch):
     for window in (first, second):
         qtbot.addWidget(window)
         handler.register_window(window)
-    QApplication.instance().installEventFilter(handler._event_tracker)
-    yield first, second
-    QApplication.instance().removeEventFilter(handler._event_tracker)
+    monkeypatch.setattr(GuiLogHandler, "current_owner", None)
+    GuiLogHandler.track_user_events()
+    return first, second
 
 
 def test_record_belongs_to_the_pinned_window(windows, handler):
@@ -127,7 +127,7 @@ def test_nested_pins_are_restored(windows, handler):
 
 def test_record_without_owner_belongs_to_every_window(windows, handler):
     first, second = windows
-    handler.current_owner = None
+    GuiLogHandler.current_owner = None
     logger.info("shared")
     with window_log_context(None):
         logger.info("explicitly shared")
@@ -162,7 +162,7 @@ def test_unregistered_window_owns_no_record(qtbot, windows, handler):
 
 def test_worker_thread_uses_its_pinned_window_only(windows, handler):
     first, second = windows
-    handler.current_owner = handler.window_key(first)       # not seen by a worker thread
+    GuiLogHandler.current_owner = handler.window_key(first)       # not seen by a worker thread
     key = handler.window_key(second)
 
     def work():
@@ -217,6 +217,42 @@ def test_clear_forgets_the_history_of_one_window(windows, handler):
     assert _histories(handler, first, second) == [[], ["shared"]]
 
 
+def test_verbose_window_copies_its_records_and_the_shared_ones_on_stdout(windows, handler, capsys):
+    first, second = windows
+    handler.set_window_verbose(first, True)
+    assert handler.is_window_verbose(first) and handler.window_level(first) == logging.DEBUG
+    assert handler.window_level(second) == logging.INFO
+    try:
+        with window_log_context(first):
+            logger.debug("debug of first")
+        with window_log_context(second):
+            logger.info("info of second")
+        with window_log_context(None):
+            logger.info("shared")
+        assert capsys.readouterr().out.splitlines() == ["DEBUG    | debug of first", "INFO     | shared"]
+
+        handler.set_window_verbose(second, True)
+        with window_log_context(None):
+            logger.info("printed once")
+        assert capsys.readouterr().out.splitlines() == ["INFO     | printed once"]
+    finally:
+        handler.set_window_verbose(first, False)
+        handler.set_window_verbose(second, False)
+    assert logger.level == logging.INFO
+    with window_log_context(None):
+        logger.info("quiet")
+    assert capsys.readouterr().out == ""
+
+
+def test_unregistered_window_leaves_the_verbose_mode(windows, handler, capsys):
+    first, _ = windows
+    handler.set_window_verbose(first, True)
+    handler.unregister_window(first)
+    assert logger.level == logging.INFO
+    logger.info("quiet")
+    assert capsys.readouterr().out == ""
+
+
 # ── Views bound to a window ───────────────────────────────────────────────
 def test_status_bar_of_a_window_ignores_the_records_of_the_others(qtbot, windows, handler):
     first, second = windows
@@ -251,7 +287,9 @@ def test_log_window_clear_keeps_the_log_of_the_other_windows(qtbot, windows, han
     first, second = windows
     with window_log_context(None):
         logger.info("shared")
-    LogWindow(handler, window=first).clear()
+    log_window = LogWindow(handler, window=first)
+    qtbot.addWidget(log_window)
+    log_window.clear()
     assert _histories(handler, first, second) == [[], ["shared"]]
 
 
@@ -259,11 +297,10 @@ def test_run_task_pins_its_parent_window(qtbot, windows, handler):
     first, second = windows
 
     def task():
-        handler.current_owner = handler.window_key(second)   # the user clicks in another window
+        GuiLogHandler.current_owner = handler.window_key(second)   # the user clicks in another window
         logger.info("task record")
 
-    dialog = RunTask(task, parent=first, title="Pinned")
-    qtbot.addWidget(dialog)
+    dialog = RunTask(task, parent=first, title="Pinned")      # deleted with its parent
     with window_log_context(second):
         logger.info("other window")
     assert dialog.text.toPlainText().splitlines() == ["task record", "✅ Pinned finished."]

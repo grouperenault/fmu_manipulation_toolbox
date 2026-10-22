@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from fmu_manipulation_toolbox.gui.helper import (Application, RunTask, UnsavedChangesWindowMixin, LastDirectory,
-                                                 GuiLogHandler, LogStatusBar)
+                                                 GuiLogHandler, LogStatusBar, window_log_context)
 
 from .graph import NodeGraphWidget, NodeItem
 from .tree import NodeTreePanel
@@ -33,9 +33,6 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._dirty = False
         self._check_unsaved_changes = lambda: self._dirty  # Use the mixin
 
-        # Verbose Mode sets the level and copies the logs on stdout.
-        self._stdout_handler = logging.StreamHandler(sys.stdout)
-        self._stdout_handler.setFormatter(logging.Formatter("%(levelname)-8s | %(message)s"))
         GuiLogHandler.install().register_window(self)
 
         splitter = QSplitter()
@@ -249,7 +246,6 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         if event.isAccepted():
             if self._mcp_controller is not None:
                 self._mcp_controller.stop()
-            logger.removeHandler(self._stdout_handler)
             GuiLogHandler.install().unregister_window(self)
 
     def _on_node_replaced(self, node):
@@ -260,14 +256,11 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._mark_dirty()
 
     def _on_debug_mode_changed(self, state):
-        """Verbose Mode: DEBUG level and a copy of the logs on stdout."""
+        """Verbose Mode of this window: DEBUG level and a copy of its logs on stdout."""
+        GuiLogHandler.install().set_window_verbose(self, bool(state))
         if state:
-            logger.setLevel(logging.DEBUG)
-            logger.addHandler(self._stdout_handler)
-            logger.debug("Verbose mode enabled")
-        else:
-            logger.removeHandler(self._stdout_handler)
-            logger.setLevel(logging.INFO)
+            with window_log_context(self):
+                logger.debug("Verbose mode enabled")
 
     def _on_node_added_update_dir(self, node: NodeItem):
         """Track the directory of the last FMU added to the scene."""
