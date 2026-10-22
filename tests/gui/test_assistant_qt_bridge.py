@@ -386,3 +386,56 @@ def test_a_server_that_cannot_start_is_reported(qapp):
 
     assert [name for name, _ in events] == ["failed"]
     assert "could not start" in events[0][1][0]
+
+
+# --------------------------------------------------------------------------- #
+#                      logs of the server owned by its window                  #
+# --------------------------------------------------------------------------- #
+def _close_container_window(window):
+    """Same teardown as the `mcp_server` fixture."""
+    window._dirty = False
+    try:
+        window._graph.scene.blockSignals(True)
+    except RuntimeError:
+        pass
+    window.close()
+    window.deleteLater()
+    QApplication.processEvents()
+
+
+def test_the_server_logs_only_in_its_window(qapp, data_dir):
+    """The records of the MCP tools, logged on the main thread (bridge) or in a
+    worker thread (synchronous tools), belong to the window of the server."""
+    from fmu_manipulation_toolbox.gui.fmucontainer.__main__ import MainWindow
+    from fmu_manipulation_toolbox.gui.fmucontainer.mcp_bridge import MainThreadInvoker, QtAssemblyBridge
+    from fmu_manipulation_toolbox.gui.helper import GuiLogHandler, window_log_context
+
+    handler = GuiLogHandler.install()
+    first, second = MainWindow(), MainWindow()
+    try:
+        server = build_server(QtAssemblyBridge(first, MainThreadInvoker(window=first)))
+        fmu = data_dir / "containers" / "bouncing_ball" / "bb_position.fmu"
+        key = handler.window_key(first)
+
+        def history(window):
+            return [text for _, text in handler.connect_with_history(lambda *_: None, window)]
+
+        second_before = history(second)
+
+        async def scenario():
+            # As `_UvicornThread.run`: the server thread is pinned to its window.
+            with window_log_context(key):
+                async with fastmcp.Client(server) as client:
+                    await client.call_tool("add_fmu", {"path": str(fmu)})
+                    await client.call_tool("summarize_fmu", {"path": str(fmu)})
+
+        _drive(scenario)
+        QApplication.processEvents()
+
+        first_history = history(first)
+        assert any(text.startswith("[AI] Added FMU 'bb_position") for text in first_history)
+        assert any("bb_position.fmu" in text and not text.startswith("[AI]") for text in first_history)
+        assert history(second) == second_before
+    finally:
+        _close_container_window(first)
+        _close_container_window(second)

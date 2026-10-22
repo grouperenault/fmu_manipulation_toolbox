@@ -128,6 +128,14 @@ unregistered window) would show them in every window.
 
 Commit message: `Route the AI Assistant logs to the Container Builder window that runs the server`
 
+**Done.** `_UvicornThread.run` pins the window key computed on the main thread; FastMCP runs the synchronous tools
+through `anyio.to_thread.run_sync`, which copies the context, so the tools inherit it. `MainThreadInvoker` takes the
+window and pins it around each task. The controller pins its window in `start`, `stop` and its thread slots.
+
+Known limitation: `assistant/fmutools._captured_logs` lowers the logger level during a tool call and restores the
+previous value; if the Verbose Mode of a window is toggled during that call, the logger level is only recomputed at
+the next registry change.
+
 ### Step 6 — GUI tests with several windows
 
 - Two FMU Tool windows: an operation in one is only logged in it.

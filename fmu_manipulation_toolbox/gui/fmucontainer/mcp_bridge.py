@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any
 from collections.abc import Callable
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
+from PySide6.QtWidgets import QWidget
 
 from fmu_manipulation_toolbox.assistant import (
     BUILD_TIMEOUT_FACTOR, DEFAULT_HOST, PORT_ENV_VAR, TIMEOUT_ENV_VAR, build_server,
@@ -35,6 +36,8 @@ from fmu_manipulation_toolbox.assistant.auth import (
     TOKEN_ENV_VAR, build_auth_middleware, resolve_token,
 )
 from fmu_manipulation_toolbox.assistant.bridge import SUPPORTED_FMI_VERSIONS
+
+from fmu_manipulation_toolbox.gui.helper import GuiLogHandler, window_log_context
 
 from .details import ContainerParameters
 from .graph import NodeItem
@@ -65,21 +68,26 @@ class MainThreadInvoker(QObject):
 
     Must be instantiated on the Qt main thread. Worker threads call
     :meth:`call`, which posts the callable through a queued signal and blocks
-    until the main thread has executed it.
+    until the main thread has executed it. The records logged by the
+    callables belong to *window*, when given.
     """
 
     _invoke = Signal(object)
 
-    def __init__(self, timeout: float | None = None):
+    def __init__(self, timeout: float | None = None, window: QWidget | None = None):
         super().__init__()
         # QueuedConnection guarantees `_run` executes in this object's thread
         # (the main thread), regardless of the emitting thread.
         self._invoke.connect(self._run, Qt.ConnectionType.QueuedConnection)
         self.timeout = resolve_timeout() if timeout is None else timeout
+        self._window = window
 
-    @staticmethod
-    def _run(task: Callable[[], None]):
-        task()
+    def _run(self, task: Callable[[], None]):
+        if self._window is None:
+            task()
+        else:
+            with window_log_context(self._window):
+                task()
 
     def call(self, fn: Callable[[], Any], timeout: float | None = None) -> Any:
         """Execute ``fn`` on the Qt main thread and return its result.
@@ -514,14 +522,20 @@ class _UvicornThread(QThread):
     ready = Signal()
     failed = Signal(str)
 
-    def __init__(self, app, host: str, port: int, parent=None):
+    def __init__(self, app, host: str, port: int, parent=None, log_owner: int | None = None):
         super().__init__(parent)
         self._app = app
         self._host = host
         self._port = port
         self._server = None
+        #: Key of the window owning the records of the server (its tasks and worker threads inherit it).
+        self._log_owner = log_owner
 
     def run(self):  # noqa: D401 - QThread entry point
+        with window_log_context(self._log_owner):
+            self._run()
+
+    def _run(self):
         try:
             import uvicorn
 
@@ -589,7 +603,7 @@ class McpServerController(QObject):
         # FMUCONTAINER_MCP_PORT cannot break an unrelated import.
         self._port = port
         # The invoker must live on the Qt main thread.
-        self._invoker = MainThreadInvoker()
+        self._invoker = MainThreadInvoker(window=window)
         self._bridge = QtAssemblyBridge(window, self._invoker)
         self._thread: _UvicornThread | None = None
         #: Bearer token required from clients, resolved when the server starts.
@@ -660,6 +674,10 @@ class McpServerController(QObject):
         """
         if self.running:
             return
+        with window_log_context(self._window):
+            self._start()
+
+    def _start(self):
         self._check_port_available()
         mcp = build_server(self._bridge)
         # FastMCP Streamable HTTP ASGI app (endpoint path: /mcp).
@@ -680,7 +698,8 @@ class McpServerController(QObject):
                 f"{TOKEN_ENV_VAR}=generate to require a token."
             )
 
-        self._thread = _UvicornThread(app, self._host, self.port)
+        self._thread = _UvicornThread(app, self._host, self.port,
+                                      log_owner=GuiLogHandler.install().owner_of(self._window))
         # Queued delivery on the main thread (self lives on the main thread).
         self._thread.failed.connect(self._on_thread_failed)
         self._thread.ready.connect(self._on_thread_ready)
@@ -689,6 +708,10 @@ class McpServerController(QObject):
     def stop(self):
         if self._thread is None:
             return
+        with window_log_context(self._window):
+            self._stop()
+
+    def _stop(self):
         logger.info("Stopping MCP server (AI assistant)...")
         self._thread.stop()
         if not self._thread.wait(2000):
@@ -710,12 +733,14 @@ class McpServerController(QObject):
 
     def _on_thread_ready(self):
         """Announce the server on the main thread, once it really listens."""
-        logger.info(f"MCP server (AI assistant) listening on {self.url}")
-        self.ready.emit(self.url)
+        with window_log_context(self._window):
+            logger.info(f"MCP server (AI assistant) listening on {self.url}")
+            self.ready.emit(self.url)
 
     def _on_thread_failed(self, message: str):
         """Handle a server-thread failure on the main thread."""
-        logger.error(f"MCP server error: {message}")
-        self.stop()
-        self.error.emit(message)
+        with window_log_context(self._window):
+            logger.error(f"MCP server error: {message}")
+            self.stop()
+            self.error.emit(message)
 
