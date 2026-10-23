@@ -1,6 +1,6 @@
 # Plan: architecture wires in SSP files
 
-**Created**: 23 October 2026 — **Status**: in progress, steps 1 to 4 done — **Roadmap**: not listed —
+**Created**: 23 October 2026 — **Status**: done (23 October 2026) — **Roadmap**: not listed —
 **Origin**: SSP files produced at the architecture stage, before the exchanged variables are known
 
 An SSP file can describe a system at the architecture stage: components (FMUs, or SSP 2.0 components without
@@ -126,4 +126,4 @@ Example:
 4. **Node placement from the SSP geometry** (D7). Unit test of the parser, GUI test of the positions.
    Commit message: `Place the nodes of an SSP file after its geometry`
 5. **User documentation** and CHANGELOG.
-   Commit message: `Document architecture wires in SSP files`
+   Commit message: `Document architecture wires and the fmucontainer-gui file argument`
