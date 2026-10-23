@@ -9,20 +9,20 @@
   "auto_parameter": false,
   "auto_local": false,
   "fmu": [
-    "bouncing.dir/bb_position.fmu",
-    "bouncing.dir/bb_velocity.fmu"
+    "bouncing.dir/resources/bb_position.fmu",
+    "bouncing.dir/resources/bb_velocity.fmu"
   ],
   "link": [
     [
-      "bouncing.dir/bb_velocity.fmu",
+      "bouncing.dir/resources/bb_velocity.fmu",
       "velocity",
-      "bouncing.dir/bb_position.fmu",
+      "bouncing.dir/resources/bb_position.fmu",
       "velocity"
     ],
     [
-      "bouncing.dir/bb_position.fmu",
+      "bouncing.dir/resources/bb_position.fmu",
       "is_ground",
-      "bouncing.dir/bb_velocity.fmu",
+      "bouncing.dir/resources/bb_velocity.fmu",
       "reset"
     ]
   ]
