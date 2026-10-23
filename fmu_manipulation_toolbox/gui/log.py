@@ -15,7 +15,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal, QObject, QEvent
 from PySide6.QtGui import QColor, QPixmap, QTextCursor
 from PySide6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
-                               QStatusBar, QTextBrowser, QVBoxLayout, QWidget)
+                               QSizePolicy, QStatusBar, QTextBrowser, QVBoxLayout, QWidget)
 
 from fmu_manipulation_toolbox.gui.helper import LastDirectory, MenuSelector
 from fmu_manipulation_toolbox.gui.style import log_color
@@ -376,6 +376,8 @@ class LogStatusBar(QStatusBar):
     Bound to a registered *window*, it only shows the records of that window and the records without owner.
     Until the first record, it shows *initial_text* ("Ready"), which is not a record: it is neither in the
     history of the handler nor in the ``LogWindow``.
+
+    A record too long for the bar is elided ("…"), the whole line in the tooltip: the bar never widens its window.
     """
 
     clicked = Signal()
@@ -389,10 +391,14 @@ class LogStatusBar(QStatusBar):
         self._window = window
         self._log_window: LogWindow | None = None
 
+        self._text = initial_text
         self._label = QLabel(initial_text)
         self._label.setStyleSheet(f"color: {_level_color(logging.INFO)};")
         self._label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         self._label.setContentsMargins(6, 0, 6, 2)
+        # The label takes the width it is given, whatever the length of the record (see `_show_text`).
+        self._label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self._label.setMinimumWidth(1)
         self.addWidget(self._label, 1)
         self.setSizeGripEnabled(False)
         self.setToolTip("Click to show the log")
@@ -402,14 +408,28 @@ class LogStatusBar(QStatusBar):
         self.clicked.connect(self.show_log_window)
 
     def text(self) -> str:
-        return self._label.text()
+        """The record shown (its first line), whole even when the bar elides it."""
+        return self._text
 
     def _on_record(self, owner: int | None, levelno: int, text: str):
         if levelno < self._level or not self._handler.accepts(self._window, owner, levelno):
             return
         lines = text.strip().splitlines() or [""]
-        self._label.setText(lines[0] + (" …" if len(lines) > 1 else ""))
+        self._text = lines[0] + (" …" if len(lines) > 1 else "")
         self._label.setStyleSheet(f"color: {_level_color(levelno)};")
+        self._show_text()
+
+    def _show_text(self):
+        """Elide the record to the width of the label."""
+        margins = self._label.contentsMargins()
+        width = self._label.width() - margins.left() - margins.right()
+        shown = self._label.fontMetrics().elidedText(self._text, Qt.TextElideMode.ElideRight, max(width, 0))
+        self._label.setText(shown)
+        self._label.setToolTip(self._text if shown != self._text else "")
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._show_text()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

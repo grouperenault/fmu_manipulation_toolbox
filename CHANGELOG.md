@@ -310,6 +310,8 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 - 🟢 **ADDED** Container Builder: the nodes imported from an SSP file are placed after the geometry of their
   components, and the [architecture wires](docs/user-guide/fmucontainer/gui-usage.md#architecture-wires) of the file
   are shown as dashed wires until their links are defined, with their direction and description in the wire details.
+- 🟠 **FIXED** status bar of the GUIs: a long log record is elided (the whole line in the tooltip) instead
+  of widening the window.
 - 🔵 **CHANGED** `fmutool-gui`: the operation buttons are laid out in a 4 × 4 grid, one line per theme: analysis
   and export, binary interfaces (green), name changes (orange), removals (red). **Save port names**, **Save
   description.xml** and the new **Compile sources** are green; purple is kept for **Save log as** and **Save
