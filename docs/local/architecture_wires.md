@@ -1,6 +1,6 @@
 # Plan: architecture wires in SSP files
 
-**Created**: 23 October 2026 — **Status**: in progress, steps 1 and 2 done — **Roadmap**: not listed —
+**Created**: 23 October 2026 — **Status**: in progress, steps 1 to 3 done — **Roadmap**: not listed —
 **Origin**: SSP files produced at the architecture stage, before the exchanged variables are known
 
 An SSP file can describe a system at the architecture stage: components (FMUs, or SSP 2.0 components without
@@ -74,6 +74,7 @@ Example:
 | D4 | Name of the FMU nodes read from an SSP | `<Component/@name>.fmu` (e.g. `Engine-1.fmu`), the file path being kept apart (`AssemblyNode.add_fmu(fmu_name, fmu_path)`). |
 | D5 | Components without `source` (SSP 2.0) | Skipped with a warning naming the component; the connections attached to them are skipped too; the rest of the file is loaded. |
 | D6 | File types accepted on the `fmucontainer-gui` command line | Every type the GUI can open (`.ssp`, `.json`, `.csv`, container `.fmu`), through the same code path as the *Load* / *Import* buttons. |
+| D7 | Placement of the nodes read from an SSP | Nodes are placed after the `ElementGeometry` of their component, scaled so that the SSP element width matches the node width; the current staggered placement stays the default for files without geometry. The description of an architecture wire is rendered as Markdown, headings at the size of the panel text. |
 
 ---
 
@@ -100,6 +101,8 @@ Example:
 - `graph/wire.py`, `WireItem`: architecture orientation and description; dashed pen and arrowheads from the
   orientation while `mappings` is empty (D1). Colors and pen styles go to `graph/constants.py`.
 - `details/wire_detail.py`: show the description of the wire (D1).
+- Placement of the nodes after the SSP geometry (D7): `SSDParser` keeps the `ElementGeometry` of each
+  component on the `AssemblyNode` (GUI hint, like the architecture wires); `assembly_io.py` uses it when present.
 
 ### 4.3 Documentation
 
@@ -120,5 +123,7 @@ Example:
    Commit message: `Open a description file given to fmucontainer-gui`
 3. **Display of architecture wires** in the container builder (D1, D2). GUI tests.
    Commit message: `Show architecture wires as hints in the container builder`
-4. **User documentation** and CHANGELOG.
+4. **Node placement from the SSP geometry** (D7). Unit test of the parser, GUI test of the positions.
+   Commit message: `Place the nodes of an SSP file after its geometry`
+5. **User documentation** and CHANGELOG.
    Commit message: `Document architecture wires in SSP files`

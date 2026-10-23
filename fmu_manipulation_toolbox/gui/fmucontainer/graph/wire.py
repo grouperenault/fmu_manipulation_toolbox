@@ -13,6 +13,7 @@ from .constants import (
     COLOR_WIRE, COLOR_WIRE_SELECTED, COLOR_WIRE_DRAGGING,
     COLOR_BACKGROUND, ARROW_SIZE, WAYPOINT_RADIUS,
     COLOR_WIRE_HIGHLIGHT, HIGHLIGHT_ARROW_SIZE, COLOR_WIRE_INVALID,
+    WIRE_ARCHITECTURE_PEN_STYLE,
 )
 from .node import NodeItem
 
@@ -75,6 +76,9 @@ class WireItem(QGraphicsPathItem):
     * Arrow on node_a side → data flows from node_b to node_a
     * Arrows on both sides → bidirectional
 
+    A wire may also carry an architecture hint read from an SSP file (see `set_architecture`): the expected
+    direction and a description. While the wire has no link, it is drawn dashed with the arrowheads of the hint.
+
     Waypoints:
 
     * **Double-click** on the wire to add a waypoint.
@@ -97,6 +101,9 @@ class WireItem(QGraphicsPathItem):
         self.terminal_mappings: list[tuple] = []
         # Direction highlight from WireDetails tab: None, 'a_to_b', 'b_to_a', 'terminals'
         self._highlight_mode: str | None = None
+        # Architecture hint: None (no hint), 'a_to_b', 'b_to_a', 'both' or 'none' (no direction)
+        self.architecture_direction: str | None = None
+        self.architecture_description: str | None = None
 
         self.setPen(QPen(COLOR_WIRE, 2.0))
         self.setFlags(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
@@ -104,6 +111,29 @@ class WireItem(QGraphicsPathItem):
         self.setZValue(0)
 
         self.update_path()
+
+    # -- Architecture hint ----------------------------------------------------
+
+    def set_architecture(self, start_node: NodeItem, orientation: str, description: str | None):
+        """Attach the architecture hint of a wire read from an SSP file.
+
+        Args:
+            start_node (NodeItem): Node at the start of the architecture wire (`node_a` or `node_b`).
+            orientation (str): `"directed"` (from *start_node*), `"bidirectional"` or `"undirected"`.
+            description (str | None): Description of the architecture wire (Markdown).
+        """
+        if orientation == "bidirectional":
+            self.architecture_direction = "both"
+        elif orientation == "directed":
+            self.architecture_direction = "a_to_b" if start_node is self.node_a else "b_to_a"
+        else:
+            self.architecture_direction = "none"
+        self.architecture_description = description
+        self.update()
+
+    def is_architecture_only(self) -> bool:
+        """True for an architecture hint that has no link (nor terminal link) yet."""
+        return self.architecture_direction is not None and not self.mappings and not self.terminal_mappings
 
     # -- Direction helpers ----------------------------------------------------
 
@@ -353,11 +383,17 @@ class WireItem(QGraphicsPathItem):
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
 
         # -- Determine arrow presence to shorten the path ----------------------
-        a_to_b, b_to_a = self._directions()
         points = self._all_points()
-        has_dir = a_to_b or b_to_a or bool(self.mappings)
-        arrow_at_b = has_dir and (a_to_b or (not a_to_b and not b_to_a))
-        arrow_at_a = has_dir and b_to_a
+        if self.is_architecture_only():
+            pen.setStyle(WIRE_ARCHITECTURE_PEN_STYLE)
+            arrow_at_b = self.architecture_direction in ("a_to_b", "both")
+            arrow_at_a = self.architecture_direction in ("b_to_a", "both")
+            has_dir = arrow_at_a or arrow_at_b
+        else:
+            a_to_b, b_to_a = self._directions()
+            has_dir = a_to_b or b_to_a or bool(self.mappings)
+            arrow_at_b = has_dir and (a_to_b or (not a_to_b and not b_to_a))
+            arrow_at_a = has_dir and b_to_a
 
         # Compute shorten amount: use the largest arrow drawn at each end
         shorten_b = 0.0

@@ -8,7 +8,7 @@ import csv
 from collections.abc import Iterable
 
 from PySide6.QtCore import Qt, Signal, QModelIndex, QSortFilterProxyModel
-from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor
+from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor, QTextDocument, QTextCursor, QTextCharFormat, QTextFormat, QFont
 from PySide6.QtWidgets import (
     QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout, QHBoxLayout,
     QStyledItemDelegate, QAbstractItemView, QPushButton, QDialog, QLineEdit,
@@ -684,6 +684,15 @@ class WireDetailWidget(QWidget):
         self._name_label.setWordWrap(True)
         self._name_label.setMinimumWidth(0)
 
+        # -- Architecture hint (wire read from an SSP architecture wire), hidden otherwise --
+        self._architecture_label = QLabel()
+        self._architecture_label.setTextFormat(Qt.TextFormat.RichText)
+        self._architecture_label.setWordWrap(True)
+        self._architecture_label.setMinimumWidth(0)
+        self._architecture_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self._architecture_label.setOpenExternalLinks(True)
+        self._architecture_label.hide()
+
         # -- Tabs (one per direction + terminals) --
         self._tab_ab = _WireDirectionTab()
         self._tab_ba = _WireDirectionTab()
@@ -738,6 +747,7 @@ class WireDetailWidget(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(4, 4, 4, 4)
         lay.addWidget(self._name_label)
+        lay.addWidget(self._architecture_label)
         lay.addWidget(self._tabs, 1)
         lay.addLayout(btn_lay)
 
@@ -754,6 +764,7 @@ class WireDetailWidget(QWidget):
         self._wire = wire
         na, nb = wire.node_a, wire.node_b
         self._name_label.setText(f"{na.title} (A) ↔ {nb.title} (B)")
+        self._show_architecture(wire)
 
         self._tab_ab.set_nodes(na, nb)
         self._tab_ba.set_nodes(nb, na)
@@ -761,6 +772,38 @@ class WireDetailWidget(QWidget):
 
         self._load_from_wire()
         self._apply_highlight_to_wire()
+
+    _ARCHITECTURE_DIRECTIONS = {"a_to_b": "A → B", "b_to_a": "B → A", "both": "A ↔ B", "none": "A — B"}
+
+    def _show_architecture(self, wire):
+        """Show the architecture hint of *wire* (direction and description), if any."""
+        if wire.architecture_direction is None:
+            self._architecture_label.hide()
+            return
+        text = f"**Architecture wire:** {self._ARCHITECTURE_DIRECTIONS[wire.architecture_direction]}"
+        if wire.architecture_description:
+            text += "\n\n" + wire.architecture_description
+        self._architecture_label.setText(self._markdown_to_html(text, self._architecture_label.font()))
+        self._architecture_label.show()
+
+    @staticmethod
+    def _markdown_to_html(text: str, font: QFont) -> str:
+        """HTML rendering of the Markdown *text*, headings in bold at the size of *font* to fit the panel."""
+        document = QTextDocument()
+        document.setDefaultFont(font)
+        document.setMarkdown(text)
+        heading = QTextCharFormat()
+        heading.setProperty(QTextFormat.Property.FontSizeAdjustment, 0)
+        heading.setFontPointSize(font.pointSizeF())
+        heading.setFontWeight(QFont.Weight.Bold)
+        block = document.begin()
+        while block.isValid():
+            if block.blockFormat().headingLevel() > 0:
+                cursor = QTextCursor(block)
+                cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
+                cursor.mergeCharFormat(heading)
+            block = block.next()
+        return document.toHtml()
 
     # ── Internal sync helpers ─────────────────────────────────────
 
@@ -770,6 +813,7 @@ class WireDetailWidget(QWidget):
         try:
             self._wire.mappings = self._tab_ab.mappings() + self._tab_ba.mappings()
             self._wire.terminal_mappings = self._tab_terminals.terminal_mappings()
+            self._wire.update()     # arrowheads, and dashed pen of an architecture wire without link
         except RuntimeError:
             # Qt objects may be deleted during application shutdown
             pass
