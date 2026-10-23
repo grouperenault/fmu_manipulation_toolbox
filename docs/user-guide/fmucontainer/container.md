@@ -247,8 +247,48 @@ will generate an FMU container :
 
 Note: the optional `:0.1` suffix means the timestep should be `0.1` second.
 
-Several components of the SSP may share one FMU source: each of them is embedded as an
-[instance](#embedding-the-same-fmu-several-times) of that FMU (`model.fmu`, then `model-1.fmu`...).
+SSP 1.0 and SSP 2.0 files are read (both versions share the same XML namespace).
+
+- **FMU names**: each component is embedded under its own name, `<component name>.fmu`. Several components may share
+  one FMU source: each of them is an [instance](#embedding-the-same-fmu-several-times) of that FMU.
+- **FMU files**: the FMUs are extracted keeping their path inside the archive (`resources/...`), so two FMUs with
+  the same file name in different directories are both kept. A `source` outside the archive (absolute path, or
+  `..`) is refused.
+- **Components without `source`**: SSP 2.0 allows a component without implementation. Such a component is
+  ignored, with a warning, together with the connections attached to it.
+- **Geometry**: the [Container Builder](gui-usage.md#importing-an-assembly-file) places the nodes after the
+  `ElementGeometry` of their components. The geometry takes no part in the container.
+
+### Architecture wires
+
+An SSP file may describe a system at the architecture stage, before the exchanged variables are known: an
+*architecture wire* says that a component feeds another one (or both ways, or without direction), with a free text
+comment. It is written as a regular `ssd:Connection` between two synthetic connectors, carrying an annotation of
+type `fmu_manipulation_toolbox.architecture-wire`:
+
+```xml
+<ssd:Connection startElement="Engine" startConnector="aw.Gearbox"
+                endElement="Gearbox" endConnector="aw.Engine"
+                description="Torque and speed sent to the gearbox.">
+  <ssd:Annotations>
+    <ssc:Annotation type="fmu_manipulation_toolbox.architecture-wire">
+      <aw:Wire xmlns:aw="urn:fmu_manipulation_toolbox:architecture-wire:1"
+               formatVersion="1" orientation="directed"/>
+    </ssc:Annotation>
+  </ssd:Annotations>
+</ssd:Connection>
+```
+
+| Item | Convention |
+|---|---|
+| Connectors | One synthetic connector on each component, recommended name `aw.<peer component name>`. Kind `output` (start side) and `input` (end side) for a directed wire, `unspecified` otherwise. |
+| `orientation` | `directed` (from `startElement` to `endElement`), `bidirectional` or `undirected`. An unknown value is read as `undirected`, with a warning. |
+| `description` | Optional comment of the wire, in Markdown (new lines written `&#10;`). |
+| `formatVersion` | Version of the convention, currently `1`. |
+
+An architecture wire is **not a link**: it takes no part in the container, it is not written in the JSON
+description (nor in the one written by `fmucontainer -dump-json`). The Container Builder shows it as a hint
+while you define the links (see [Wire Details](gui-usage.md#architecture-wires)).
 
 # Python API
 

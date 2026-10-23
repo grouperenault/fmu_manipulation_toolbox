@@ -11,6 +11,14 @@ fmucontainer-gui
 
 Or from the [FMU Toolbox Launcher](../launcher.md), click **FMU Container Build**.
 
+A file can be given on the command line: an FMU container (`.fmu`) is loaded as with
+[Load FMU Container](#loading-an-existing-container), an assembly file (`.json`, `.csv`, `.ssp`) is imported as with
+[Import](#importing-an-assembly-file):
+
+```bash
+fmucontainer-gui assembly.ssp
+```
+
 ![FMU Container Builder](fmucontainer-gui.png)
 
 ## Interface Overview
@@ -338,6 +346,19 @@ Each tab has its own **Add link** / **Remove link** buttons to manage mappings f
 
     Switching tabs updates the indicator immediately, making it easy to see which side of the
     connection you are currently editing.
+
+#### Architecture wires
+
+A wire imported from an [architecture wire](container.md#architecture-wires) of an SSP file carries a hint: the
+direction expected between the two FMUs and a description. While the wire has no link, it is drawn **dashed**, with
+the arrowheads of the expected direction. The wire details show the direction (`A → B`, `B → A`, `A ↔ B`, or
+`A — B` without direction) and the description, rendered as Markdown, above the tabs.
+
+Define the links as for any wire (tabs or [Link Assistant](#link-assistant)): once the wire has links, it is drawn
+as a regular wire, and the hint stays in the wire details. The hint is not saved: *Export as JSON* and
+*Save as FMU Container* only keep the links.
+
+![Architecture wire without link](fmucontainer-architecture-wire.png)
 
 #### Terminals tab
 
@@ -813,20 +834,24 @@ You can then modify the assembly and re-save it.
 
 ## Importing an Assembly File
 
-Click **Import** to load an assembly from an existing description file. Two formats are supported:
+Click **Import** to load an assembly from an existing description file. Three formats are supported:
 
 - [**JSON**](container.md#json-input-file) — full assembly description including container parameters, FMU list, links, start values, and sub-containers.
 - [**CSV**](container.md#csv-input-file) — routing table only (FMU list, links, inputs/outputs). Container parameters use defaults.
+- [**SSP**](container.md#ssp-input-file) — the FMUs are extracted from the archive. The nodes are placed after the
+  geometry of the SSP components, scaled so that nodes side by side do not overlap (a file without geometry gets
+  the default staggered placement). [Architecture wires](container.md#architecture-wires) are shown as
+  [hints](#architecture-wires).
 
 The tool will:
 
 1. Parse the description file using the same engine as the `fmucontainer` CLI
 2. Reconstruct the node graph with all FMUs, wires, port mappings, and start values
-3. Restore container parameters (from JSON) or apply defaults (from CSV)
+3. Restore container parameters (from JSON) or apply defaults (from CSV or SSP)
 
 !!! important "FMU location"
-    The `.fmu` files referenced in the description must be located in the **same directory**
-    as the JSON or CSV file.
+    The `.fmu` files referenced in a JSON or CSV description must be located in the **same directory**
+    as the description file. An SSP archive contains its FMUs.
 
 !!! warning "Unsaved Changes"
     If you have unsaved changes when closing the window or loading a new container, you will be
