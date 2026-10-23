@@ -57,15 +57,18 @@ class AssemblyIOMixin:
         """
         # Add FMU nodes
         scene_names: dict[str, str] = {}  # name in the assembly node -> name of the node in the scene
+        nodes: dict[str, NodeItem] = {}    # name in the assembly node -> node
         self._tree.pending_parent = parent
         for fmu in assembly_node.fmu_names_list:
             fmu_path = folder / assembly_node.fmu_path(fmu)
             logger.debug(f"ADD FMU: {fmu} ({fmu_path})")
             node = self._graph.add_node(fmu_path=fmu_path, x=x, y=y, name=Path(fmu).name)
             scene_names[fmu] = node.name
+            nodes[fmu] = node
             x = x + 100
             y = y + 100
         self._tree.pending_parent = None
+        self._place_after_geometry(assembly_node, nodes)
 
         def scene_name(name: str) -> str:
             """Name of the node of the FMU `name` of this level; sub-container names are kept."""
@@ -229,6 +232,25 @@ class AssemblyIOMixin:
                     if child_params is not None:
                         child_params.parameters["ts_multiplier"] = True
 
+
+    @staticmethod
+    def _place_after_geometry(assembly_node: AssemblyNode, nodes: dict[str, NodeItem]):
+        """Place the nodes of an SSP file after the geometry of their components.
+
+        The SSP coordinates (y upwards) are scaled so that no SSP element is smaller than a node: nodes laid out
+        side by side in the SSP file do not overlap. Nodes without geometry keep their position.
+        """
+        geometry = {fmu: corners for fmu, corners in assembly_node.fmu_geometry.items() if fmu in nodes}
+        if not geometry:
+            return
+        element_width = min(abs(x2 - x1) for x1, _, x2, _ in geometry.values())
+        element_height = min(abs(y2 - y1) for _, y1, _, y2 in geometry.values())
+        if element_width <= 0 or element_height <= 0:
+            return
+        scale = max(max(node.rect().width() for node in nodes.values()) / element_width,
+                    max(node.rect().height() for node in nodes.values()) / element_height)
+        for fmu, (x1, y1, x2, y2) in geometry.items():
+            nodes[fmu].setPos(min(x1, x2) * scale, -max(y1, y2) * scale)
 
     def _import_data(self, assembly: Assembly, fmu_directory: Path):
         """Populate the scene and tree from an Assembly object.

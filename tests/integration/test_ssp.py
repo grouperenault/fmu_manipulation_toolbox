@@ -192,3 +192,11 @@ def test_source_outside_the_archive_raises_assembly_error(area_dir, source):
              lambda ssd: ssd.replace('source="resources/bb_velocity.fmu"', f'source="{source}"'))
     with pytest.raises(AssemblyError, match="must be a relative path inside the SSP archive"):
         Assembly("invalid.ssp")
+
+
+def test_component_geometry_is_kept(area_dir):
+    root = Assembly("bouncing.ssp").root
+
+    assert root.fmu_geometry == {
+        "bouncing.dir/resources/bb_velocity.fmu": (-277.931818, -97.613636, -77.931818, 22.386364),
+        "bouncing.dir/resources/bb_position.fmu": (64.113636, -98.522727, 264.113636, 21.477273)}

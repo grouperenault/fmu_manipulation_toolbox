@@ -1,6 +1,6 @@
 # Plan: architecture wires in SSP files
 
-**Created**: 23 October 2026 — **Status**: in progress, steps 1 to 3 done — **Roadmap**: not listed —
+**Created**: 23 October 2026 — **Status**: in progress, steps 1 to 4 done — **Roadmap**: not listed —
 **Origin**: SSP files produced at the architecture stage, before the exchanged variables are known
 
 An SSP file can describe a system at the architecture stage: components (FMUs, or SSP 2.0 components without

@@ -243,6 +243,9 @@ class AssemblyNode:
         links (list[Connection]): List of connections between embedded FMUs.
         architecture_wires (list[ArchitectureWire]): Dependencies between embedded FMUs read from an SSP file,
             kept as hints for the GUI; they are neither links nor part of the JSON description.
+        fmu_geometry (dict[str, tuple[float, float, float, float]]): Position of embedded FMUs read from an SSP
+            file: `(x1, y1, x2, y2)` of the `ElementGeometry` of their component (SSP coordinates, y upwards). A hint
+            for the GUI, not part of the JSON description.
     """
 
     def __init__(self, name: str, step_size: float = None, mt=False, profiling=False, sequential=False,
@@ -278,6 +281,7 @@ class AssemblyNode:
         self.drop_ports: list[Port] = []
         self.links: list[Connection] = []
         self.architecture_wires: list[ArchitectureWire] = []
+        self.fmu_geometry: dict[str, tuple[float, float, float, float]] = {}
 
     def add_sub_node(self, sub_node):
         """Add a child `AssemblyNode` to create a hierarchical (nested) container.
@@ -1088,6 +1092,8 @@ class SSDParser:
         self.ignored_components: set[str] = set()
         self.node_attrs = kwargs
 
+        # Name of the embedded FMU of the component being read, for its ElementGeometry.
+        self._component_fmu: str | None = None
         # Connection being read: its attributes, and its orientation once an architecture wire annotation is found.
         self._connection_attrs: dict[str, str] | None = None
         self._in_architecture_annotation = False
@@ -1170,12 +1176,22 @@ class SSDParser:
             fmu_name = instance_name(name, node.fmu_names_list)
             self.fmu_filenames[attrs['name']] = fmu_name
             node.add_fmu(fmu_name, filename)
+            self._component_fmu = fmu_name
             logger.debug(f"Component {attrs['name']} => {fmu_name}")
+
+        elif tag_name == 'ElementGeometry' and self._component_fmu is not None:
+            try:
+                self.node_stack[-1].fmu_geometry[self._component_fmu] = \
+                    tuple(float(attrs[corner]) for corner in ('x1', 'y1', 'x2', 'y2'))
+            except ValueError:
+                logger.debug(f"Geometry of '{self._component_fmu}' ignored: invalid coordinates.")
 
     def end_element(self, tag_name):
         """Handle the end of an SSD element (`tag_name` without namespace)."""
         if tag_name == 'System':
             self.node_stack.pop()
+        elif tag_name == 'Component':
+            self._component_fmu = None
         elif tag_name == 'Connection':
             attrs = self._connection_attrs
             self._connection_attrs = None
