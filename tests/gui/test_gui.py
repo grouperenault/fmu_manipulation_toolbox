@@ -202,6 +202,22 @@ def test_fmutool_logs_into_its_log_widget(qtbot):
     assert "WARNING: tool warning" in window.log_widget.toPlainText()
 
 
+@pytest.mark.parametrize("arguments, debug", [([], False), (["-debug"], True)])
+def test_fmutool_parse_arguments(arguments, debug):
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import parse_arguments
+    assert parse_arguments(arguments).debug is debug
+
+
+@pytest.mark.parametrize("debug", [False, True])
+def test_fmutool_debug_mode_shows_debug_records(qtbot, debug):
+    """In debug mode, the debug records are shown in the log area."""
+    import logging
+    window = FMUToolWindow(debug=debug)
+    qtbot.addWidget(window)
+    logging.getLogger("fmu_manipulation_toolbox").debug("tool debug")
+    assert ("tool debug" in window.log_widget.toPlainText()) is debug
+
+
 def test_fmutool_windows_keep_their_own_log(qtbot, bouncing_ball):
     """With two FMU Tool windows, an operation is only logged in the window that runs it."""
     import logging

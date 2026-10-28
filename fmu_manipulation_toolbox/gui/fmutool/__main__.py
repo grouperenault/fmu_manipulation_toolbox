@@ -1,3 +1,5 @@
+import argparse
+import logging
 import os.path
 import shlex
 import sys
@@ -147,7 +149,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 
     """
 
-    def __init__(self):
+    def __init__(self, debug: bool = False):
         super().__init__()
         self.setWindowTitle('FMU Manipulation Toolbox')
         self.layout = QGridLayout()
@@ -224,7 +226,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         line += 1
         self.log_widget = LogWidget()
         self.log_handler = GuiLogHandler.install()
-        self.log_handler.register_window(self)
+        self.log_handler.register_window(self, logging.DEBUG if debug else GuiLogHandler.DEFAULT_LEVEL)
         self.log_handler.record_emitted.connect(self._on_record)
         self.log_widget.insertHtml('<center><img src="fmu_manipulation_toolbox.png"/></center><br/>')
         self.layout.addWidget(self.log_widget, line, 0, 1, WIDTH + 1)
@@ -446,9 +448,19 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             scroll_bar.setValue(scroll_bar.maximum())
 
 
+def parse_arguments(arguments: list[str]) -> argparse.Namespace:
+    """Command line of `fmutool-gui` (without the program name)."""
+    parser = argparse.ArgumentParser(prog="fmutool-gui", description="Analyze and modify your FMUs.")
+    parser.add_argument("-debug", action="store_true", dest="debug",
+                        help="show the debug messages in the log area, e.g. the command lines of 'Compile sources'")
+    return parser.parse_args(arguments)
+
+
 def main():
     application = Application(sys.argv)
-    application.window = MainWindow()
+    # Qt has removed its own options from arguments().
+    arguments = parse_arguments(application.arguments()[1:])
+    application.window = MainWindow(debug=arguments.debug)
     sys.exit(application.exec())
 
 

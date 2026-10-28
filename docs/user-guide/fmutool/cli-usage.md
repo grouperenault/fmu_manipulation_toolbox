@@ -37,6 +37,15 @@ The FMU to analyze or modify.
 
 ⚠️ **Important:** Without this option, no modifications are saved!
 
+### Debug Option
+
+```bash
+-debug
+```
+
+Logs the details of the operations (`DEBUG` lines), e.g. the command lines of the compiler and of the linker with
+`-compile-sources`.
+
 ## Analysis Operations
 
 ### Display FMU Summary
@@ -321,6 +330,14 @@ exit code `2`). The options are written for the compiler in use (shown by the fi
 found, or compilation failure. The compiler messages are shown as errors (as warnings when the compilation
 succeeds).
 
+**Command lines:** with `-debug`, the command line of each compilation and of the link is logged, with every
+option: those of the build description, the additional ones, the include directories and the definitions added by
+`fmutool`.
+
+```bash
+fmutool -input module.fmu -compile-sources -debug -output module-compiled.fmu
+```
+
 **Limits:**
 
 - The presence of the binary is checked, not its architecture: an FMU with an Intel-only `darwin64` binary is not
@@ -535,6 +552,7 @@ fmutool -input X.fmu -only-locals -dump-csv locals.csv
 fmutool -input X.fmu -extract-descriptor modelDescription.xml
 fmutool -input X.fmu -add-remoting-win64 -output Y.fmu
 fmutool -input X.fmu -remove-sources -output Y.fmu
+fmutool -input X.fmu -compile-sources -debug -output Y.fmu   # Compile, show the command lines
 
 # Containers
 fmucontainer -container config.json -fmu-directory ./fmus

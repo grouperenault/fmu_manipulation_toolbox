@@ -98,6 +98,9 @@ class Help:
         '-check': "performs some check of FMU and display Errors or Warnings. This is useful to avoid later "
                   "issues when using the FMU.",
 
+        '-debug': "log the details of the operations, e.g. the command lines of -compile-sources. This option is "
+                  "available from version 2.0.",
+
         # GUI message
         "gui-apply-only": "Apply operation only on ports with specified causality. If selected, at least one causality "
         "should be selected.",

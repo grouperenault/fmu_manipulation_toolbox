@@ -13,6 +13,13 @@ The graphical interface of **FMU Manipulation Toolbox** offers an intuitive and 
 fmutool-gui
 ```
 
+With `-debug`, the log area also shows the details of the operations (`DEBUG` lines), e.g. the command lines of
+**Compile sources**:
+
+```bash
+fmutool-gui -debug
+```
+
 ![Graphical Interface](fmutool-gui.png)
 
 ## Interface Overview
@@ -171,6 +178,8 @@ compilations, and pre-filled in the dialog. The dialog does not open when the FM
 is found: other options would not help.
 
 ![Additional options after a compilation failure](fmutool-compile-options.png)
+
+To see the command lines of the compiler and of the linker, with every option, launch `fmutool-gui -debug`.
 
 #### 🟢 Add Binary Interface (Windows FMUs)
 
