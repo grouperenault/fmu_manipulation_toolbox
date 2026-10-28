@@ -47,24 +47,28 @@ class AssemblyIOMixin:
     def _assembly_node_to_items(self, parent, assembly_node: AssemblyNode, folder: Path,
                                 links_list: list[list[str]], start_values_list: list[list[str]],
                                 output_ports_list: list[list[str]], input_ports_list: list[list[str]],
-                                x=0, y=0):
+                                x=0, y=0, architecture_wires_list: list[list[str | None]] | None = None):
         """Recursively convert an AssemblyNode into tree items and graph nodes.
 
         The names of the FMUs are unique in a container only, but the nodes of the scene are designated by a name
         unique in the scene: each FMU of this level gets a scene name (`NodeGraphScene.free_name`), and the links,
-        start values and exposed ports collected here refer to the nodes by these names.
+        start values, exposed ports and architecture wires (`[start, end, orientation, description]`) collected
+        here refer to the nodes by these names.
         """
         # Add FMU nodes
         scene_names: dict[str, str] = {}  # name in the assembly node -> name of the node in the scene
+        nodes: dict[str, NodeItem] = {}    # name in the assembly node -> node
         self._tree.pending_parent = parent
         for fmu in assembly_node.fmu_names_list:
             fmu_path = folder / assembly_node.fmu_path(fmu)
             logger.debug(f"ADD FMU: {fmu} ({fmu_path})")
             node = self._graph.add_node(fmu_path=fmu_path, x=x, y=y, name=Path(fmu).name)
             scene_names[fmu] = node.name
+            nodes[fmu] = node
             x = x + 100
             y = y + 100
         self._tree.pending_parent = None
+        self._place_after_geometry(assembly_node, nodes)
 
         def scene_name(name: str) -> str:
             """Name of the node of the FMU `name` of this level; sub-container names are kept."""
@@ -103,6 +107,13 @@ class AssemblyIOMixin:
             logger.debug(f"ADD LINK: {link}")
             links_list.append(link)
 
+        if architecture_wires_list is not None:
+            for wire in assembly_node.architecture_wires:
+                architecture_wire = [scene_name(wire.start_fmu), scene_name(wire.end_fmu), wire.orientation,
+                                     wire.description]
+                logger.debug(f"ADD ARCHITECTURE WIRE: {architecture_wire}")
+                architecture_wires_list.append(architecture_wire)
+
         for port, value in assembly_node.start_values.items():
             start = [scene_name(port.fmu_name), port.port_name, value]
             logger.debug(f"ADD START VALUE: {start}")
@@ -128,7 +139,8 @@ class AssemblyIOMixin:
             sub_output_ports_list = []
             sub_input_ports_list = []
             self._assembly_node_to_items(child, child_node, folder, links_list,
-                                         start_values_list, sub_output_ports_list, sub_input_ports_list, x=x, y=y)
+                                         start_values_list, sub_output_ports_list, sub_input_ports_list, x=x, y=y,
+                                         architecture_wires_list=architecture_wires_list)
 
             for input in input_ports_list:
                 if input[1] == child_node.name:
@@ -221,6 +233,25 @@ class AssemblyIOMixin:
                         child_params.parameters["ts_multiplier"] = True
 
 
+    @staticmethod
+    def _place_after_geometry(assembly_node: AssemblyNode, nodes: dict[str, NodeItem]):
+        """Place the nodes of an SSP file after the geometry of their components.
+
+        The SSP coordinates (y upwards) are scaled so that no SSP element is smaller than a node: nodes laid out
+        side by side in the SSP file do not overlap. Nodes without geometry keep their position.
+        """
+        geometry = {fmu: corners for fmu, corners in assembly_node.fmu_geometry.items() if fmu in nodes}
+        if not geometry:
+            return
+        element_width = min(abs(x2 - x1) for x1, _, x2, _ in geometry.values())
+        element_height = min(abs(y2 - y1) for _, y1, _, y2 in geometry.values())
+        if element_width <= 0 or element_height <= 0:
+            return
+        scale = max(max(node.rect().width() for node in nodes.values()) / element_width,
+                    max(node.rect().height() for node in nodes.values()) / element_height)
+        for fmu, (x1, y1, x2, y2) in geometry.items():
+            nodes[fmu].setPos(min(x1, x2) * scale, -max(y1, y2) * scale)
+
     def _import_data(self, assembly: Assembly, fmu_directory: Path):
         """Populate the scene and tree from an Assembly object.
 
@@ -239,8 +270,10 @@ class AssemblyIOMixin:
         start_values_list: list[list[str]] = []
         output_ports_list: list[list[str]] = []
         input_ports_list: list[list[str]] = []
+        architecture_wires_list: list[list[str | None]] = []
         self._assembly_node_to_items(self._tree.root, assembly.root, fmu_directory,
-                                     links_list, start_values_list, output_ports_list, input_ports_list)
+                                     links_list, start_values_list, output_ports_list, input_ports_list,
+                                     architecture_wires_list=architecture_wires_list)
 
         # Map from node name (unique in the scene) to its NodeItem (real FMUs only, excludes
         # the virtual ConfigurationNode which is never part of the Assembly model)
@@ -315,6 +348,21 @@ class AssemblyIOMixin:
                             w.mappings.extend(port_mappings)
                             w.terminal_mappings.extend(terminal_mappings)
                             break
+
+            # Architecture wires (hints read from an SSP file): on the wire of the pair, created when there is no
+            # link between the two nodes.
+            for start_name, end_name, orientation, description in architecture_wires_list:
+                start_node, end_node = nodes_by_name.get(start_name), nodes_by_name.get(end_name)
+                wire = None
+                if start_node is not None and end_node is not None:
+                    wire = self._graph.scene.add_wire(start_node, end_node) or next(
+                        (w for w in start_node.wires if end_node in (w.node_a, w.node_b)), None)
+                if wire is None:
+                    logger.warning(f"Cannot show the architecture wire '{start_name}' - '{end_name}': "
+                                   f"no wire is possible between these nodes.")
+                    continue
+                wire.set_architecture(start_node, orientation, description)
+                logger.debug(f"Architecture wire: {start_name} - {end_name} ({orientation})")
         finally:
             self._graph.scene.blockSignals(False)
             self._graph.scene.clearSelection()

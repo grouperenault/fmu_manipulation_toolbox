@@ -4,11 +4,13 @@ FMU Container Builder – Main window.
 Main application interface for building FMU containers composing multiple FMUs.
 """
 
+import argparse
 import logging
 import sys
 from importlib.util import find_spec
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
     QPushButton, QCheckBox, QRadioButton, QButtonGroup, QFrame,
@@ -276,12 +278,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         if not input_path:
             logger.info("Load cancelled")
             return
-
-        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container")
-        # Re-assert the container's own directory: loading may have updated
-        # LastDirectory to the (extracted) FMUs' sub-directory instead.
-        LastDirectory.update(input_path)
-        self._dirty = False
+        self.load_file(input_path)
 
     def _on_import_clicked(self):
         input_path = LastDirectory.get_open_file_name(
@@ -291,13 +288,37 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         if not input_path:
             logger.info("Import cancelled")
             return
+        self.import_file(input_path)
 
+    def load_file(self, input_path: str):
+        """Load an FMU container, as the *Load FMU Container* button does."""
+        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container")
+        # Re-assert the container's own directory: loading may have updated
+        # LastDirectory to the (extracted) FMUs' sub-directory instead.
+        LastDirectory.update(input_path)
+        self._dirty = False
+
+    def import_file(self, input_path: str):
+        """Import a JSON, CSV or SSP assembly file, as the *Import* button does."""
         RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly")
         # Re-assert the imported file's own directory: importing adds FMU nodes
         # that may live in a different (sub)directory, which would otherwise
         # overwrite LastDirectory via _on_node_added_update_dir.
         LastDirectory.update(input_path)
         self._dirty = True
+
+    def open_file(self, input_path: str):
+        """Open a file given on the command line: an FMU container is loaded, an assembly file is imported."""
+        path = Path(input_path)
+        if not path.is_file():
+            logger.error(f"Cannot open '{input_path}': file not found.")
+        elif path.suffix.lower() == ".fmu":
+            self.load_file(input_path)
+        elif path.suffix.lower() in (".json", ".csv", ".ssp"):
+            self.import_file(input_path)
+        else:
+            logger.error(f"Cannot open '{input_path}': expected an FMU container (.fmu) or an assembly file "
+                         f"(.json, .csv, .ssp).")
 
     def _on_export_clicked(self):
         root_name = Path(self._tree.root.text()).with_suffix(".json").name
@@ -323,9 +344,22 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
                 parent=self, title="Saving as FMU")
 
 
+def parse_arguments(arguments: list[str]) -> argparse.Namespace:
+    """Command line of `fmucontainer-gui` (without the program name)."""
+    parser = argparse.ArgumentParser(prog="fmucontainer-gui", description="FMU Container Builder.")
+    parser.add_argument("file", nargs="?",
+                        help="file to open: an FMU container (.fmu) or an assembly file (.json, .csv, .ssp)")
+    return parser.parse_args(arguments)
+
+
 def main():
     application = Application(sys.argv)
+    # Qt has removed its own options from arguments().
+    arguments = parse_arguments(application.arguments()[1:])
     application.window = MainWindow()
+    if arguments.file:
+        # Once the event loop runs, so that the main window is drawn under the progress dialog.
+        QTimer.singleShot(0, lambda: application.window.open_file(arguments.file))
     sys.exit(application.exec())
 
 

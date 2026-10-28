@@ -1,5 +1,6 @@
 """Visual constants for the FMU container graph."""
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont
 
 # Colors
@@ -20,6 +21,9 @@ COLOR_WIRE_SELECTED = QColor("#f0a030")
 COLOR_WIRE_DRAGGING = QColor("#88bbff")
 COLOR_WIRE_HIGHLIGHT = QColor("#ffd54f")
 COLOR_WIRE_INVALID  = QColor("#F54927")
+
+# Pen style of an architecture wire that has no link yet (a hint read from an SSP file)
+WIRE_ARCHITECTURE_PEN_STYLE = Qt.PenStyle.DashLine
 
 # Dimensions
 NODE_MIN_WIDTH      = 140

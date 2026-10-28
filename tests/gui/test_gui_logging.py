@@ -335,6 +335,26 @@ def test_status_bar_shows_the_first_line_of_a_multiline_record(status_bar):
     assert status_bar.text() == "headline …"
 
 
+def test_status_bar_elides_a_long_record_without_widening_its_window(qtbot, handler):
+    from PySide6.QtWidgets import QMainWindow
+    window = QMainWindow()
+    qtbot.addWidget(window)
+    bar = LogStatusBar(handler)
+    window.setStatusBar(bar)
+    window.resize(400, 200)
+    window.show()
+    qtbot.waitExposed(window)
+    long_line = "a very long record " * 100
+    logger.info(long_line)
+    qtbot.wait(10)
+    assert window.width() == 400 and window.minimumSizeHint().width() < 400
+    assert bar.text() == long_line.strip()
+    assert bar._label.text().endswith("…") and len(bar._label.text()) < len(long_line)
+    assert bar._label.toolTip() == long_line.strip()
+    logger.info("short")
+    assert bar._label.text() == "short" and bar._label.toolTip() == ""
+
+
 def test_status_bar_click_opens_a_single_log_window(qtbot, status_bar):
     logger.info("before opening")
     qtbot.mouseClick(status_bar, Qt.MouseButton.LeftButton)
