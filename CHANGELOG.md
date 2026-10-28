@@ -5,10 +5,33 @@ This package was formerly known as `fmutool`.
 
 Not released yet. Changes since 2.0, with the same legend as 2.0.
 
+## FMU Container
+
+- 🟢 **ADDED** **architecture wires** in SSP files: a connection annotated
+  `fmu_manipulation_toolbox.architecture-wire` describes a dependency between two components (directed,
+  bidirectional or undirected, with a Markdown description) before the exchanged variables are known. It is not a
+  link: it takes no part in the container and is not written in the JSON description; the Container Builder shows it
+  as a hint. See [Architecture wires](docs/user-guide/fmucontainer/container.md#architecture-wires).
+- 🔵 **CHANGED** SSP import: each component is embedded as `<component name>.fmu` (it was named after its FMU file,
+  `<file>-<n>.fmu` for the components sharing a source), and the FMUs are extracted keeping their path inside the
+  archive: two FMUs with the same file name in different directories no longer overwrite each other. A component
+  `source` outside the archive is refused. SSP 2.0 files are read; a component without `source` (SSP 2.0) is
+  ignored with a warning, together with its connections.
+
 ## fmutool and the Python API
 
 - 🟢 **ADDED** `-debug` option of `fmutool` and `fmutool-gui` (at launch): the `DEBUG` lines are logged, in the log
   area for `fmutool-gui`, e.g. the command lines of the compiler and of the linker of `-compile-sources`.
+
+## Graphical User Interfaces
+
+- 🟢 **ADDED** `fmucontainer-gui <file>` opens an FMU container (`.fmu`) or imports an assembly file (`.json`,
+  `.csv`, `.ssp`) given on the command line.
+- 🟢 **ADDED** Container Builder: the nodes imported from an SSP file are placed after the geometry of their
+  components, and the [architecture wires](docs/user-guide/fmucontainer/gui-usage.md#architecture-wires) of the file
+  are shown as dashed wires until their links are defined, with their direction and description in the wire details.
+- 🟠 **FIXED** status bar of the GUIs: a long log record is elided (the whole line in the tooltip) instead
+  of widening the window.
 
 # Version 2.0
 
@@ -93,16 +116,6 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## FMU Container
 
-- 🟢 **ADDED** **architecture wires** in SSP files: a connection annotated
-  `fmu_manipulation_toolbox.architecture-wire` describes a dependency between two components (directed,
-  bidirectional or undirected, with a Markdown description) before the exchanged variables are known. It is not a
-  link: it takes no part in the container and is not written in the JSON description; the Container Builder shows it
-  as a hint. See [Architecture wires](docs/user-guide/fmucontainer/container.md#architecture-wires).
-- 🔵 **CHANGED** SSP import: each component is embedded as `<component name>.fmu` (it was named after its FMU file,
-  `<file>-<n>.fmu` for the components sharing a source), and the FMUs are extracted keeping their path inside the
-  archive: two FMUs with the same file name in different directories no longer overwrite each other. A component
-  `source` outside the archive is refused. SSP 2.0 files are read; a component without `source` (SSP 2.0) is
-  ignored with a warning, together with its connections.
 - 🟢 **ADDED** **several instances of the same FMU** in a container: each instance has its own name
   (`bb_position-1.fmu`, ...) and its file in the new optional `path` block of the JSON; the Container Builder,
   the MCP tools, SSP import and `fmusplit` handle them. See
@@ -314,13 +327,6 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
 
 ## Graphical User Interfaces
 
-- 🟢 **ADDED** `fmucontainer-gui <file>` opens an FMU container (`.fmu`) or imports an assembly file (`.json`,
-  `.csv`, `.ssp`) given on the command line.
-- 🟢 **ADDED** Container Builder: the nodes imported from an SSP file are placed after the geometry of their
-  components, and the [architecture wires](docs/user-guide/fmucontainer/gui-usage.md#architecture-wires) of the file
-  are shown as dashed wires until their links are defined, with their direction and description in the wire details.
-- 🟠 **FIXED** status bar of the GUIs: a long log record is elided (the whole line in the tooltip) instead
-  of widening the window.
 - 🔵 **CHANGED** `fmutool-gui`: the operation buttons are laid out in a 4 × 4 grid, one line per theme: analysis
   and export, binary interfaces (green), name changes (orange), removals (red). **Save port names**, **Save
   description.xml** and the new **Compile sources** are green; purple is kept for **Save log as** and **Save
