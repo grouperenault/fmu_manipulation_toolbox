@@ -3,7 +3,16 @@ This package was formerly known as `fmutool`.
 
 # Upstream
 
-Not released yet. Changes since 1.9.4.2, by theme: 🟢 **ADDED** new feature, 🔵 **CHANGED** change of behaviour or
+Not released yet. Changes since 2.0, with the same legend as 2.0.
+
+## fmutool and the Python API
+
+- 🟢 **ADDED** `-debug` option of `fmutool` and `fmutool-gui` (at launch): the `DEBUG` lines are logged, in the log
+  area for `fmutool-gui`, e.g. the command lines of the compiler and of the linker of `-compile-sources`.
+
+# Version 2.0
+
+Changes since 1.9.4.2, by theme: 🟢 **ADDED** new feature, 🔵 **CHANGED** change of behaviour or
 API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in scripts, custom operations or checkers.
 
 ## Installation and platforms
@@ -233,8 +242,6 @@ API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in
   linker options and libraries can be given (`-compile-options`, `-link-options`, `-link-libraries`; in
   `fmutool-gui`, a dialog asks for them after a compilation failure). See
   [Compile Sources](docs/user-guide/fmutool/cli-usage.md#compile-sources).
-- 🟢 **ADDED** `-debug` option of `fmutool` and `fmutool-gui` (at launch): the `DEBUG` lines are logged, in the log
-  area for `fmutool-gui`, e.g. the command lines of the compiler and of the linker of `-compile-sources`.
 - 🔵 **CHANGED** operations modify `modelDescription.xml` in place with ElementTree instead of
   re-generating it, so that everything an operation does not touch is kept as is. Fixes text and
   attribute values written unescaped or unescaped twice (which produced invalid XML, and made the
