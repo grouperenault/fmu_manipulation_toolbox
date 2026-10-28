@@ -204,3 +204,22 @@ def test_cli_compile_options_need_compile_sources(area_dir, option):
     with pytest.raises(SystemExit) as exc:
         fmutool()
     assert exc.value.code == 2
+
+
+@pytest.mark.needs_compiler
+@pytest.mark.fmi3
+@pytest.mark.parametrize("debug", [False, True])
+def test_cli_debug_logs_command_lines(area_dir, caplog, debug):
+    """With -debug, the command lines of the compilation and of the link are logged."""
+    rewrite_fmu(_reference(3), "no-binaries.fmu", drop=("binaries/",))
+    sys.argv = ["fmutool", "-input", "no-binaries.fmu", "-compile-sources", "-output", "cli-compiled.fmu"]
+    if debug:
+        sys.argv.append("-debug")
+    fmutool()
+    commands = [record.getMessage() for record in caplog.records if record.levelno == logging.DEBUG]
+    if debug:
+        # One compilation per source, then the link.
+        assert any("sources/model.c" in command for command in commands), commands
+        assert any("BouncingBall" + compiler.SourceCompiler.library_suffix() in command for command in commands)
+    else:
+        assert not commands

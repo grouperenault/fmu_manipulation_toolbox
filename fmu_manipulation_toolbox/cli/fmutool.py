@@ -1,4 +1,5 @@
 import argparse
+import logging
 import os
 import shlex
 import sys
@@ -78,8 +79,12 @@ def fmutool():
     add_option('-summary', action='append_const', dest='operations_list', const=OperationSummary())
     checkers = [checker() for checker in get_checkers()]
     add_option('-check', action='append_const', dest='operations_list', const=checkers)
+    # Logging
+    add_option('-debug', action='store_true', dest='debug')
 
     cli_options = parser.parse_args(sys.argv[1:])
+    if cli_options.debug:
+        logger.setLevel(logging.DEBUG)
     # handle the "no operation" use case
     if not cli_options.operations_list:
         cli_options.operations_list = []

@@ -3,7 +3,16 @@ This package was formerly known as `fmutool`.
 
 # Upstream
 
-Not released yet. Changes since 1.9.4.2, by theme: 🟢 **ADDED** new feature, 🔵 **CHANGED** change of behaviour or
+Not released yet. Changes since 2.0, with the same legend as 2.0.
+
+## fmutool and the Python API
+
+- 🟢 **ADDED** `-debug` option of `fmutool` and `fmutool-gui` (at launch): the `DEBUG` lines are logged, in the log
+  area for `fmutool-gui`, e.g. the command lines of the compiler and of the linker of `-compile-sources`.
+
+# Version 2.0
+
+Changes since 1.9.4.2, by theme: 🟢 **ADDED** new feature, 🔵 **CHANGED** change of behaviour or
 API, 🟠 **FIXED** bug fix; 🔴 **BREAKING** marks what may require changes in scripts, custom operations or checkers.
 
 ## Installation and platforms
