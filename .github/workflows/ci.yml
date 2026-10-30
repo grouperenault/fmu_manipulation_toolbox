@@ -124,7 +124,7 @@ jobs:
         name: container-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
         # Reuse the downloaded wheels (PySide6, fmpy...) between runs; the key follows the declared dependencies.
@@ -208,7 +208,7 @@ jobs:
         name: container-darwin64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
         # Reuse the downloaded wheels (PySide6, fmpy...) between runs; the key follows the declared dependencies.
@@ -289,7 +289,7 @@ jobs:
         UBSAN_OPTIONS: "print_stacktrace=1"
       run: ctest --test-dir ${{ github.workspace }}/build-sanitize --output-on-failure
     - name: Set up Python ${{ env.NEWEST_PYTHON }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ env.NEWEST_PYTHON }}
         cache: pip
@@ -325,7 +325,7 @@ jobs:
         name: container-darwin64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
         # Reuse the downloaded wheels (PySide6, fmpy...) between runs; the key follows the declared dependencies.
@@ -365,7 +365,7 @@ jobs:
       with:
         name: package
         path: dist
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install the built wheel
