@@ -1,0 +1,17 @@
+{
+  "name": "fmutool",
+  "owner": {
+    "name": "Nicolas LAURENT",
+    "email": "Nicolas.LAURENT@Renault.com"
+  },
+  "metadata": {
+    "description": "Skills and MCP server of the FMU Manipulation Toolbox."
+  },
+  "plugins": [
+    {
+      "name": "fmutool",
+      "source": "./plugins/fmutool",
+      "description": "Inspect FMUs, edit their interface (rename, remove, filter ports by causality, type or variability) and assemble them into FMU containers, with the FMU Manipulation Toolbox."
+    }
+  ]
+}

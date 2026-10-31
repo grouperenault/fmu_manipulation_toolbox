@@ -75,13 +75,9 @@ Decided on 31 October 2026.
 | Q1 | Shape of the port filters; type names | **Flat parameters** `causality`, `type`, `variability`, `name_pattern` side by side (shared `Annotated` types); Python API `FMU.apply_operation(operation, apply_on=None, *, types=None, variabilities=None)`. **Native names plus FMI 2 families**: the exact name of the FMU (`Real`, `Float64`, `Int32`...) selects that type; on an FMI 3 FMU an FMI 2 name selects its family (`Real` = `Float32`/`Float64`, `Integer` = `Int8`...`UInt64`) (31 October 2026) |
 | Q3 | `fmutool-agent` state file | **Explicit `--state FILE`**, required by the assembly tools (refused otherwise), created by the first call; the single-FMU tools need none (31 October 2026) |
 | Q3b | How `fmutool-agent` reuses the tools | **Direct calls, without `fastmcp`**; and since Pydantic only comes with the `mcp` extra: **plain Python, shared logic**: the work of each tool moves to `assistant/tools.py` (`Toolbox`), called by the MCP server and by the command line; the command line checks its arguments against the signatures of `Toolbox`; a contract test checks tools, parameters and results against the server (31 October 2026) |
+| Q4 | Source of the skills | **The plugin is the single source**: `tools/build_skill_zips.py` builds the claude.ai `.zip` from it (into `dist/skills/`, not tracked), copying the shared reference into each (31 October 2026) |
+| Q5 | Evaluation of the skills | **Deterministic tests** in the pytest suite: manifests, frontmatter, links, tools named, `fmutool-agent` examples run on `tests/data`; no model, no API key (31 October 2026) |
 | Q2 | Content of `describe_port` | Every declared attribute and the FMI 3 dimensions, plus the **resolved declared type** (inherited attributes and their origin, enumeration items), the **aliases** (FMI 3 `<Alias>`; FMI 2 variables sharing the value reference and the type) and the **terminals** the port belongs to, with its member name. Not the `ModelStructure` role (31 October 2026) |
-
-### Still to be decided (asked at the start of the phase concerned)
-
-| # | Question | Phase |
-|---|---|---|
-| Q4 | Whether the skills are copied into the plugin or the plugin is the single source and the `.zip` are built from it | 4 |
 
 ---
 
@@ -226,6 +222,25 @@ tools/build_skill_zips.py        # claude.ai uploads
 6. `tools/build_skill_zips.py` and a test checking that the plugin manifests are valid and the zips build.
 
 *Commit*: `Claude Code plugin with the fmu-inspect, fmu-edit and fmu-container skills, through the MCP server or fmutool-agent`
+
+**Status on 31 October 2026: done.**
+
+| Item | File |
+|---|---|
+| Marketplace `fmutool` with the plugin `fmutool` (version **2.1.0**, the version of the toolbox the skills need); `.mcp.json` starts `fmutool-mcp --transport stdio` | `.claude-plugin/marketplace.json`, `plugins/fmutool/.claude-plugin/plugin.json`, `plugins/fmutool/.mcp.json` |
+| Skills `fmu-inspect`, `fmu-edit`, `fmu-container`: backend (MCP tools, else `fmutool-agent`, else installation), procedure with `fmutool-agent` examples, how to report the results, what the toolbox refuses, limits | `plugins/fmutool/skills/*/SKILL.md` |
+| Shared reference: `FMI_CONVENTIONS` of the server verbatim, plus the port filters, the default variabilities, how to read a listing and `describe_port`, what the toolbox refuses | `plugins/fmutool/references/fmi-reference.md` |
+| claude.ai `.zip` (one skill each, shared reference copied, links rewritten) | `tools/build_skill_zips.py` |
+| Tests (Q5): manifests, `.mcp.json` command and `fmutool-agent` are console scripts, frontmatter (name, description length, no `<>`), links resolve, tools and operations named exist, example arguments valid, the reference contains `FMI_CONVENTIONS`, **every example runs** (container skill: `needs_container`), zips self-contained | `tests/unit/test_agent_skills.py` |
+| Packaging: `fmutool-agent` added to the entry points reference (missed in phase 3); the plugin left out of the sdist, as the documentation | `tests/data/packaging/entry-points.txt`, `MANIFEST.in` |
+
+Checks performed: unit suite **1173 passed**; `claude plugin validate .` and `claude plugin validate plugins/fmutool`:
+passed (no warning once the version was set). Not run locally: `tools/dist_inventory.py` (the `build` package is
+not installed), checked by the CI.
+
+Finding: the port pages report the `unit` declared on the variable only, not the one inherited from its declared
+type (`h` of `BouncingBall` 3.0 has none in the page, `m` with `describe_port`). The skills say so; resolving it in
+`describe_fmu` and the GUI bridge is left for later.
 
 ### Phase 5 — User documentation
 
