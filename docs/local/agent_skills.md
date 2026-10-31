@@ -1,0 +1,199 @@
+# Plan: agent skills for the FMU Manipulation Toolbox
+
+**Created**: 31 October 2026 — **Status**: decisions taken, not started
+
+Give AI agents a reliable way to (1) introspect FMUs, (2) operate on them (checks, renaming, removal of ports by
+type, name, variability...) and (3) build FMU containers. The capability already largely exists as the MCP server
+(`fmu_manipulation_toolbox/assistant/`, `fmutool-mcp`); what is missing is the *know-how* (which tool, in which
+order, how to read the results, FMI rules) and a path for agents that have no MCP server (claude.ai, Claude API /
+Agent SDK sandboxes). This plan adds:
+
+- a few API additions (filters by type and variability, direct renaming, extended introspection);
+- `fmutool-agent`, a JSON command line strictly aligned on the MCP tools;
+- a Claude Code plugin, shipped in this repository, with three skills that use the MCP tools when available and
+  `fmutool-agent` otherwise.
+
+---
+
+## 1. Current state
+
+### Coverage of the three needs (31 October 2026)
+
+| Need | Covered by | Gap |
+|---|---|---|
+| Introspection | `inspect_fmu_file`, `list_fmu_ports` (name, type, causality, variability, unit, start, truncated description; filters `causality`, `name_pattern`; pagination), `summarize_fmu` | min/max, nominal, FMI 3 attributes (dimensions, clocks...), `ModelStructure` dependencies |
+| Operations | `check_fmu`, `dump_ports_csv`, `rename_ports_from_csv`, `apply_operation` (`strip_toplevel`, `merge_toplevel`, `trim_until`, `remove_regexp`, `keep_only_regexp`, `remove_sources`) | Scope restricted by **causality only** (`apply_on`); no filter by type or variability; renaming requires a CSV file |
+| Containers | `add_fmu`, `add_link(s)`, `expose_input/output`, `set_start_value`, `set_container_options`, `analyze_assembly`, `save_as_json`, `save_as_fmu` (headless bridge) | None for the MCP; nothing without an MCP server |
+| Know-how | Server instructions and resources (`guide://usage`, `fmi://conventions`, `container://options`) | Not usable without the MCP server; no workflow guidance (e.g. "prepare an FMU before putting it in a container") |
+
+### Findings
+
+| # | Finding | Location |
+|---|---|---|
+| F1 | The tool definitions measure **16 848 characters for a budget of 17 000** (`python tests/_helpers/mcp_budget.py`): any new parameter or tool breaks `test_assistant_budget.py` | `tests/_helpers/mcp_budget.py`, `assistant/server.py` |
+| F2 | `FMU.apply_operation(operation, apply_on)` and `Manipulation.manipulate` filter by causality only; the CLI exposes it as `-only-parameters/-inputs/-outputs/-locals` | `operations.py`, `cli/fmutool.py` |
+| F3 | `OperationRenameFromCSV` is the only renaming operation; the MCP tool `rename_ports_from_csv` needs a CSV file on disk | `operations.py`, `assistant/fmutools.py` |
+| F4 | `Port` (MCP model) holds 7 fields; the default port page costs ~7.9k characters on the 5000-variable FMU | `assistant/models.py` |
+| F5 | `HeadlessAssemblyBridge` keeps the assembly in memory only: it can export JSON (`save_as_json`) but not reload it, although `Assembly.read_json` exists | `assistant/headless.py`, `assembly.py` |
+| F6 | `uv` is not assumed to be installed on users' machines | — |
+
+---
+
+## 2. Goals
+
+1. An agent can introspect, edit and containerize FMUs with or without an MCP server, with the **same** operations
+   and the **same** JSON results either way.
+2. Ports can be selected by causality, type, variability and name, in the Python API, the MCP tools and the CLI.
+3. The MCP budgets of `mcp_optimize` stay enforced (definitions budget raised at most to ~18 000 characters).
+4. Skills installable in Claude Code with `/plugin marketplace add grouperenault/fmutool`, and as `.zip` uploads for
+   claude.ai.
+
+---
+
+## 3. Decisions
+
+Decided on 31 October 2026.
+
+| # | Question | Decision |
+|---|---|---|
+| D1 | Environments | **Both**: skills use the MCP tools when the `fmutool` server is connected, `fmutool-agent` otherwise |
+| D2 | Location | **Claude Code plugin in this repository** |
+| D3 | API additions in scope | **Filters by type/variability, direct renaming, extended introspection** |
+| D4 | Definitions budget (F1) | **Compact first, then raise slightly**: shorten existing descriptions, share one filter object between tools; raise `DEFINITIONS_BUDGET` to ~18 000 only if still needed |
+| D5 | Extended introspection | **New tool `describe_port(fmu, port)`**: every attribute of one port, bounded cost; port pages unchanged |
+| D6 | Type/variability filters | **API + MCP + CLI**: `FMU.apply_operation` gains type and variability filters (`apply_on` kept compatible), so does the MCP tool, and `fmutool` gains `-only-type` / `-only-variability` |
+| D7 | Direct renaming | **Extend into a single `rename_ports`** tool accepting either a mapping or a CSV; replaces `rename_ports_from_csv` (breaking for the MCP tool name, documented in `CHANGELOG.md`) |
+| D8 | Fallback without MCP | **JSON CLI aligned on the MCP**: `fmutool-agent <tool> --args '<json>'`, same functions and same JSON results; assembly state kept in a JSON file |
+| D9 | MCP launch from the plugin | **`fmutool-mcp` on the `PATH`** (`pip install fmu-manipulation-toolbox[mcp]`); the skills detect its absence and tell how to install it |
+| D10 | Skills split | **Three skills + shared reference**: `fmu-inspect`, `fmu-edit`, `fmu-container`, and a shared FMI reference |
+| D11 | Plugin layout and distribution | **Marketplace in the repository**: `.claude-plugin/marketplace.json` at the root, plugin in `plugins/fmutool/`, a `tools/` script building the claude.ai `.zip` files |
+
+### Still to be decided (asked at the start of the phase concerned)
+
+| # | Question | Phase |
+|---|---|---|
+| Q1 | Name and shape of the shared filter (e.g. `ports: {causality, type, variability, name_pattern}`), and whether `type` takes FMI 2 names, FMI 3 names or both (`Real` vs `Float64`) | 1 |
+| Q2 | Exact field list of `describe_port` for FMI 2 and FMI 3 | 1 |
+| Q3 | `fmutool-agent` state file: explicit `--state` argument only, or a default file in the current directory | 3 |
+| Q4 | Whether the skills are copied into the plugin or the plugin is the single source and the `.zip` are built from it | 4 |
+
+---
+
+## 4. Plan
+
+### Phase 0 — Safety net
+
+1. Record the current budget report in this plan (F1).
+2. Tests pinning the current behaviour of `apply_on` (causality only), `rename_ports_from_csv` and the port page,
+   so that phases 1 and 2 can prove compatibility.
+
+*Exit criterion*: suite green; baseline recorded.
+
+*Commit*: `Tests pinning the scope of the operations (causality), the renaming from CSV and the port page, before the agent skills`
+
+**Status on 31 October 2026: done.**
+
+| Item | File |
+|---|---|
+| Scope of the operations on hand-built FMI 2 and FMI 3 FMUs (every type and variability): no scope, empty scope, by causality, missing causality is `local`; a read-only probe operation records the ports seen | `tests/unit/test_operations_scope.py` |
+| Renaming from CSV and the port page: already pinned | `tests/unit/test_assistant_fmutools.py`, `tests/unit/test_assistant_budget.py` |
+
+Baseline (`python tests/_helpers/mcp_budget.py`, characters): definitions **16 848** / 17 000; `list_fmu_ports` and
+`inspect_fmu_file` default page 7 867; `summarize_fmu` 731; `check_fmu` 204 (2501 errors: 628); every result within
+`RESULT_BUDGET` (12 000).
+
+Checks performed: unit suite **1073 passed**.
+
+### Phase 1 — Python API (D3, D5, D6, D7)
+
+1. Port filter in `operations.py`: `FMU.apply_operation(operation, apply_on=None, *, types=None, variabilities=None)`
+   (final signature per Q1); `Manipulation.manipulate` applies the conjunction of the filters. `apply_on` unchanged.
+2. `OperationRenameFromMapping` (or `OperationRenameFromCSV` accepting a mapping), with the same checks as the CSV
+   version (duplicates, unknown names reported).
+3. Extended port description: a function returning every attribute of one variable (FMI 2 and FMI 3), including
+   its `ModelStructure` dependencies.
+4. CLI `fmutool`: `-only-type <type>` and `-only-variability <variability>` (repeatable), combined with `-only-*`.
+5. Unit tests for each, FMI 2 and FMI 3.
+
+*Commit*: `Operations restricted by type and variability (API and fmutool CLI), renaming from a mapping, full description of one port`
+
+### Phase 2 — MCP tools (D4, D5, D7)
+
+1. Compact the existing descriptions of `assistant/server.py`; one shared filter type for `inspect_fmu_file`,
+   `list_fmu_ports` and `apply_operation`.
+2. `apply_operation`: type and variability filters.
+3. `rename_ports` (mapping or CSV) replaces `rename_ports_from_csv`.
+4. `describe_port(fmu, port)` (assembly FMU or file path, as the port tools).
+5. Budget tests: definitions within budget (raise to ~18 000 only if compaction is not enough; the measure is
+   recorded here); `describe_port` result within `RESULT_BUDGET`.
+6. GUI bridge checked (`mcp_bridge.py`) as well as the headless one.
+
+*Commit*: `MCP: filters by type and variability, rename_ports (mapping or CSV) instead of rename_ports_from_csv, describe_port; tool descriptions compacted within the budget`
+
+### Phase 3 — `fmutool-agent` (D8)
+
+1. `HeadlessAssemblyBridge.load_json(path)` (F5), round-trip tested against `save_as_json`.
+2. `cli/fmutool_agent.py`, console script `fmutool-agent`: `fmutool-agent list-tools`, `fmutool-agent <tool>
+   --args '<json>' [--state assembly.json]` (per Q3). The tool table is taken from the MCP server definitions, so
+   that a tool added to the server is available here with no extra code; arguments validated with the same schemas;
+   results printed as the same JSON; errors as `{"error": ...}` with a non-zero exit code.
+3. Does **not** require the `mcp` extra if possible (validation through the pydantic models); otherwise documented.
+4. Contract test: for every tool, the MCP result and the `fmutool-agent` result are identical on the test FMUs.
+
+*Commit*: `fmutool-agent: the MCP tools as a JSON command line, the assembly kept in a JSON file between calls`
+
+### Phase 4 — Plugin and skills (D2, D9, D10, D11)
+
+```
+.claude-plugin/marketplace.json
+plugins/fmutool/
+  .claude-plugin/plugin.json
+  .mcp.json                      # fmutool-mcp over stdio
+  skills/
+    fmu-inspect/SKILL.md
+    fmu-edit/SKILL.md
+    fmu-container/SKILL.md
+    _shared/fmi-reference.md     # types, causality × variability, FMI 2 / FMI 3 (per Q4)
+tools/build_skill_zips.py        # claude.ai uploads
+```
+
+1. Each `SKILL.md`: a triggering description, then the workflow. First step is always to detect the backend (MCP
+   tools of the `fmutool` server, else `fmutool-agent` on the `PATH`, else installation instructions).
+2. `fmu-inspect`: summary first, filtered pages rather than paging, `describe_port` for one port; how to read
+   `check_fmu`.
+3. `fmu-edit`: never overwrite the source (output path), check before and after, preview with `dump_ports_csv`,
+   filters, renaming, removal.
+4. `fmu-container`: add FMUs, inspect, link (never guess a port name), expose, start values, `analyze_assembly`
+   before `save_as_fmu`.
+5. Evaluation: a few scripted scenarios per skill on `tests/data` FMUs, run with and without the MCP server.
+6. `tools/build_skill_zips.py` and a test checking that the plugin manifests are valid and the zips build.
+
+*Commit*: `Claude Code plugin with the fmu-inspect, fmu-edit and fmu-container skills, through the MCP server or fmutool-agent`
+
+### Phase 5 — User documentation
+
+1. New page `docs/user-guide/agent-skills.md` (installation in Claude Code, upload to claude.ai, use with the Agent
+   SDK, backends) and its entry in `mkdocs.yml`.
+2. `docs/user-guide/fmucontainer/ai-assistant.md`: `rename_ports`, `describe_port`, filters; `fmutool-agent`.
+3. `docs/user-guide/fmutool/` (CLI and Python API): `-only-type`, `-only-variability`, renaming from a mapping.
+4. `CHANGELOG.md` (breaking: `rename_ports_from_csv` renamed) and `docs/whats-new.md`; `ROADMAP.md`.
+5. Move this plan to `docs/local/done`.
+
+*Commit*: `Documentation of the agent skills, fmutool-agent, the filters by type and variability and rename_ports`
+
+---
+
+## 5. Risks
+
+| Risk | Mitigation |
+|---|---|
+| The definitions budget is exceeded again by the next tool | D4 compaction plus the budget test; the shared filter type avoids repeating descriptions |
+| `fmutool-agent` and the MCP server diverge | Tool table taken from the server; contract test of phase 3 |
+| Clients using `rename_ports_from_csv` | Breaking change documented in `CHANGELOG.md`; the Python API keeps `OperationRenameFromCSV` |
+| Skills drift from the tools (renamed tool, new argument) | Skill evaluation scenarios run in CI; skills reference tool names checked by a test |
+| `fmutool-mcp` not on the `PATH` (venv, conda) | Skills detect it and explain; `fmutool-agent` as fallback |
+| claude.ai sandbox cannot install the package or lacks the container binaries for its platform | Checked in phase 4; documented as a limitation if so |
+
+## 6. Delivery
+
+One PR per phase. Phases 1–2 are useful on their own (MCP users); phases 3–4 bring the skills.
