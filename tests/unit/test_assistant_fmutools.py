@@ -12,7 +12,7 @@ pytestmark = [pytest.mark.unit]
 
 from fmu_manipulation_toolbox.assistant.fmutools import (  # noqa: E402
     CAUSALITIES, MAX_EXAMPLES, MAX_MESSAGE_GROUPS, OPERATIONS, _grouped, apply_operation, check_fmu, describe_port,
-    dump_ports_csv, rename_ports_from_csv, summarize_fmu,
+    dump_ports_csv, rename_ports, select_ports, summarize_fmu,
 )
 
 from _helpers.mcp_budget import make_large_fmu  # noqa: E402
@@ -144,7 +144,7 @@ def test_renaming_from_csv_produces_a_new_fmu(fmu, tmp_path):
                                                      "velocity;speed;"),
         encoding="utf-8")
 
-    report = rename_ports_from_csv(fmu, csv_path, output)
+    report = rename_ports(fmu, output, csv_path=csv_path)
 
     assert report["renamed"] == 1
     assert report["removed"] == 0
@@ -163,7 +163,7 @@ def test_an_empty_new_name_removes_the_port(fmu, tmp_path):
         csv_path.read_text(encoding="utf-8").replace("reset;reset;", "reset;;"),
         encoding="utf-8")
 
-    report = rename_ports_from_csv(fmu, csv_path, output)
+    report = rename_ports(fmu, output, csv_path=csv_path)
 
     assert report["removed"] == 1
     assert "reset" not in _port_names(output)
@@ -174,9 +174,35 @@ def test_renaming_leaves_the_source_untouched(fmu, tmp_path):
     dump_ports_csv(fmu, csv_path)
     before = fmu.read_bytes()
 
-    rename_ports_from_csv(fmu, csv_path, tmp_path / "copy.fmu")
+    rename_ports(fmu, tmp_path / "copy.fmu", csv_path=csv_path)
 
     assert fmu.read_bytes() == before
+
+
+def test_renaming_from_a_mapping(fmu, tmp_path):
+    output = tmp_path / "renamed.fmu"
+
+    report = rename_ports(fmu, output, {"velocity": "speed", "reset": ""})
+
+    assert (report["renamed"], report["removed"]) == (1, 1)
+    assert "unknown" not in report
+    assert {"speed"} <= _port_names(output)
+    assert not {"velocity", "reset"} & _port_names(output)
+
+
+def test_the_names_absent_from_the_fmu_are_reported(fmu, tmp_path):
+    """A typo in a mapping silently renames nothing: the report must say which names were not found."""
+    report = rename_ports(fmu, tmp_path / "out.fmu", {"velocity": "speed", "velocty": "x"})
+
+    assert report["renamed"] == 1
+    assert report["unknown"] == ["velocty"]
+    assert report["unknown_total"] == 1
+
+
+@pytest.mark.parametrize("mapping, csv", [(None, None), ({"a": "b"}, "ports.csv")])
+def test_renaming_needs_a_mapping_or_a_csv(fmu, tmp_path, mapping, csv):
+    with pytest.raises(ValueError, match="either `mapping` or `csv`"):
+        rename_ports(fmu, tmp_path / "out.fmu", mapping, tmp_path / csv if csv else None)
 
 
 def _port_names(fmu_path):
@@ -226,6 +252,40 @@ def test_an_unexpected_argument_is_reported(fmu, tmp_path):
 def test_an_invalid_regular_expression_is_reported(fmu, tmp_path):
     with pytest.raises(ValueError, match="Cannot apply"):
         apply_operation(fmu, tmp_path / "out.fmu", "remove_regexp", "[unclosed")
+
+
+def test_an_operation_can_be_restricted_to_a_type_and_a_variability(data_dir, tmp_path):
+    """On FMI 3, `Real` selects the Float64 parameters; `tunable` keeps the fixed one."""
+    fmu = data_dir / "compile" / "3.0" / "BouncingBall.fmu"
+    output = tmp_path / "filtered.fmu"
+
+    apply_operation(fmu, output, "remove_regexp", ".*", causality=["parameter"], types=["Real"],
+                    variabilities=["tunable"])
+
+    assert "e" not in _port_names(output)
+    assert {"g", "h", "v"} <= _port_names(output)
+
+
+@pytest.mark.parametrize("filters, message", [
+    ({"types": ["Double"]}, "Unknown type"),
+    ({"variabilities": ["constantly"]}, "Unknown variability"),
+])
+def test_an_unknown_filter_value_is_reported(fmu, tmp_path, filters, message):
+    with pytest.raises(ValueError, match=message):
+        apply_operation(fmu, tmp_path / "out.fmu", "strip_toplevel", **filters)
+
+
+def test_the_port_pages_select_like_the_operations():
+    ports = [{"name": "p", "type": "Float64", "causality": "parameter"},
+             {"name": "u", "type": "Int32", "causality": "input"},
+             {"name": "t", "type": "Float64", "causality": "independent"}]
+
+    assert [port["name"] for port in select_ports(ports, 3, types=["Real"])] == ["p", "t"]
+    # Undeclared variabilities: the defaults of FMI 3 (parameter: fixed, integer: discrete).
+    assert [port["name"] for port in select_ports(ports, 3, variabilities=["fixed"])] == ["p"]
+    assert [port["name"] for port in select_ports(ports, 3, variabilities=["discrete"])] == ["u"]
+    # Any causality can be listed, not only those an operation can be restricted to.
+    assert [port["name"] for port in select_ports(ports, 3, causality=["independent"])] == ["t"]
 
 
 def test_an_unknown_causality_is_reported(fmu, tmp_path):
@@ -337,3 +397,17 @@ def test_an_array_card_has_its_dimensions(tmp_path):
 def test_an_unknown_port_suggests_close_names(data_dir):
     with pytest.raises(ValueError, match=r"no port 'hh'.*\['h'"):
         describe_port(data_dir / "compile" / "2.0" / "BouncingBall.fmu", "hh")
+
+
+def test_the_aliases_of_a_port_are_bounded(tmp_path):
+    from fmu_manipulation_toolbox.assistant.fmutools import MAX_ALIASES
+    variables = "".join(f'<ScalarVariable name="v{i}" valueReference="1" causality="local"><Real/></ScalarVariable>'
+                        for i in range(MAX_ALIASES + 5))
+    descriptor = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+                  '<fmiModelDescription fmiVersion="2.0" modelName="m" guid="{g}"><CoSimulation modelIdentifier="m"/>'
+                  f'<ModelVariables>{variables}</ModelVariables><ModelStructure/></fmiModelDescription>')
+
+    card = describe_port(_hand_built(tmp_path, descriptor), "v0")
+
+    assert len(card["aliases"]) == MAX_ALIASES
+    assert card["aliases_total"] == MAX_ALIASES + 4

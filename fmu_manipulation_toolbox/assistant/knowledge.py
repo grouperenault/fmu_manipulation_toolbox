@@ -84,10 +84,14 @@ Beyond assembling, single-FMU tools are also available. They read or rewrite
 **one** `.fmu` file and never touch the assembly:
 - `summarize_fmu(path)` — identity, capabilities, platforms, port counts.
 - `check_fmu(path)` — FMI schema conformity and registered checkers.
-- `dump_ports_csv(fmu, path)` / `rename_ports_from_csv(fmu, csv, output)` —
-  bulk renaming. An **empty** new name **removes** the port.
+- `describe_port(fmu, port)` — everything declared about one port: min, max,
+  nominal, declared type, aliases, terminals.
+- `rename_ports(fmu, output, mapping=...)` — renaming from a mapping, or from
+  a CSV written by `dump_ports_csv(fmu, path)` (bulk renaming). An **empty**
+  new name **removes** the port.
 - `apply_operation(fmu, output, operation, ...)` — prefix stripping, trimming
-  and regexp filtering of port names.
+  and regexp filtering of port names, restricted with `causality`, `type` and
+  `variability` if needed.
 
 These rewrite the FMU interface, so they produce a **new** file and leave the
 source untouched. Warn the user that anything already connected to the old

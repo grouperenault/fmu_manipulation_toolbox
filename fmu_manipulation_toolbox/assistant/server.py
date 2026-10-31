@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import re
+from pathlib import Path
 from typing import Any, Literal
 
 from . import analysis
@@ -331,15 +332,21 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
     # Repeated in the schema of many tools, sent with every request: keep these descriptions short.
     FmuName = Annotated[str, Field(
-        description="Name of an FMU of the assembly, e.g. 'controller.fmu' (see `list_fmus`).")]
+        description="FMU of the assembly, e.g. 'pid.fmu' (see `list_fmus`).")]
     PortName = Annotated[str, Field(
         description="Port name, as given by `list_fmu_ports`.")]
+    # Port filters: omitted, every port.
     CausalityFilter = Annotated[list[str] | None, Field(
-        description="Keep only these causalities, e.g. ['input', 'output']. "
-                    "Omit to get them all.")]
+        description="Only these causalities, e.g. ['input'].")]
     PatternFilter = Annotated[str | None, Field(
-        description="Keep only the ports whose name matches this regular "
-                    "expression, e.g. '^engine_'.")]
+        description="Only the names matching this regex, e.g. '^engine_'.")]
+    TypeFilter = Annotated[list[str] | None, Field(
+        description="Only these types, e.g. ['Real'] (on FMI 3: Float32, Float64).")]
+    VariabilityFilter = Annotated[list[str] | None, Field(
+        description="Only these variabilities, e.g. ['tunable'].")]
+    # The single-FMU tools that write never modify their source.
+    OutputFmu = Annotated[str, Field(description="Destination .fmu file (the source is kept).")]
+    Overwrite = Annotated[bool, Field(description="Replace the output if it exists.")]
     ContainerName = Annotated[str | None, Field(
         description="Container name; the root if omitted.")]
     # Shared by the port listings and the sections of `get_assembly_json`.
@@ -349,7 +356,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         ge=1, le=MAX_PORT_LIMIT, description="Most items to return.")]
 
     def _as_ports_page(description: dict[str, Any], causality, pattern,
-                       offset: int, limit: int) -> FmuPorts:
+                       offset: int, limit: int, types=None, variabilities=None) -> FmuPorts:
         """Filter, count and paginate a raw bridge description."""
         ports = description.get("ports", [])
         counts: dict[str, int] = {}
@@ -357,10 +364,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
             key = port.get("causality") or "unknown"
             counts[key] = counts.get(key, 0) + 1
 
-        selected = ports
-        if causality:
-            wanted = set(causality)
-            selected = [port for port in selected if port.get("causality") in wanted]
+        selected = fmutools.select_ports(ports, description.get("fmi_version"), causality, types,
+                                         variabilities)
         if pattern:
             try:
                 matcher = re.compile(pattern)
@@ -398,6 +403,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     def list_fmu_ports(
         fmu: FmuName,
         causality: CausalityFilter = None,
+        type: TypeFilter = None,
+        variability: VariabilityFilter = None,
         name_pattern: PatternFilter = None,
         offset: Offset = 0,
         limit: Limit = DEFAULT_PORT_LIMIT,
@@ -405,12 +412,11 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         """List the ports of an FMU **already in the assembly**.
 
         Call it before `add_link`, `expose_input`, `expose_output` or
-        `set_start_value`: never guess a port name. The result is paginated:
-        filter with `causality` or `name_pattern` rather than paging, and check
-        `truncated`. For a file not added yet, use `inspect_fmu_file`.
+        `set_start_value`: never guess a port name. Paginated: filter rather
+        than page, and check `truncated`. For a file, use `inspect_fmu_file`.
         """
         return _as_ports_page(bridge.list_fmu_ports(fmu), causality, name_pattern,
-                              offset, limit)
+                              offset, limit, type, variability)
 
     @mcp.tool(annotations=READ_ONLY)
     @_guard
@@ -418,6 +424,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         path: Annotated[str, Field(
             description="Path to an existing .fmu file.")],
         causality: CausalityFilter = None,
+        type: TypeFilter = None,
+        variability: VariabilityFilter = None,
         name_pattern: PatternFilter = None,
         offset: Offset = 0,
         limit: Limit = DEFAULT_PORT_LIMIT,
@@ -427,7 +435,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         Same result and filters as `list_fmu_ports`.
         """
         description = bridge.inspect_fmu_file(str(policy.resolve_input(path)))
-        return _as_ports_page(description, causality, name_pattern, offset, limit)
+        return _as_ports_page(description, causality, name_pattern, offset, limit, type, variability)
 
     @mcp.tool(annotations=WRITE)
     @_guard
@@ -538,9 +546,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         fmu: FmuName,
         port: PortName,
         value: Annotated[StartValue, Field(
-            description="Initial value, typed: 0.01, 3, true or 'text'. "
-                        "Booleans are converted to the FMI spelling "
-                        "('true'/'false').")],
+            description="Typed value: 0.01, 3, true or 'text'.")],
     ) -> str:
         """Set the initial value of a port, or the value of a parameter.
 
@@ -637,14 +643,11 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
             description="Replace the file if it already exists. Ask the user "
                         "first.")] = False,
     ) -> str:
-        """Build the container and write it as an .fmu archive.
+        """Build the container into an .fmu file: the final step.
 
-        Review the assembly with `get_assembly_json` and confirm the output
-        path with the user before calling this: it is the final step and it
-        writes to disk.
-
-        This is the slowest tool (it reports progress): do not start a second
-        build while one is running.
+        Review the assembly (`get_assembly_json`) and confirm the path with the
+        user first. Slow (reports progress): never start a second build while
+        one runs.
         """
         destination = policy.resolve_output(path, (".fmu",), overwrite)
         # Progress notifications carry the status message rather than
@@ -689,6 +692,24 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         """
         return fmutools.check_fmu(policy.resolve_input(path))
 
+    @mcp.tool(annotations=READ_ONLY)
+    @_guard
+    def describe_port(
+        fmu: Annotated[str, Field(
+            description="Name of an FMU of the assembly, or path to a .fmu file.")],
+        port: PortName,
+    ) -> dict[str, Any]:
+        """Everything the FMU declares about one port.
+
+        Attributes (min, max, nominal, start...), dimensions, declared type,
+        aliases, terminals. The port pages only keep a summary of each port.
+        """
+        if fmu in bridge.list_fmus():
+            path = Path(bridge.list_fmu_ports(fmu)["path"])
+        else:
+            path = policy.resolve_input(fmu)
+        return fmutools.describe_port(path, port)
+
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
     def dump_ports_csv(
@@ -701,54 +722,50 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         """Export every port of an FMU to a CSV file, for bulk renaming.
 
         The `newName` column is the one to edit before feeding the file back
-        to `rename_ports_from_csv`.
+        to `rename_ports`.
         """
         return fmutools.dump_ports_csv(policy.resolve_input(fmu),
                                        policy.resolve_output(path, (".csv",), overwrite))
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
-    def rename_ports_from_csv(
+    def rename_ports(
         fmu: Annotated[str, Field(description="Path to the .fmu file to read.")],
-        csv: Annotated[str, Field(
-            description="CSV mapping, as produced by `dump_ports_csv`.")],
-        output: Annotated[str, Field(
-            description="Destination .fmu file. The source is left untouched.")],
-        overwrite: Annotated[bool, Field(
-            description="Replace the output if it already exists.")] = False,
+        output: OutputFmu,
+        mapping: Annotated[dict[str, str] | None, Field(
+            description="Current name -> new name, e.g. {'u': 'speed'}.")] = None,
+        csv: Annotated[str | None, Field(
+            description="Or a CSV mapping, as produced by `dump_ports_csv`.")] = None,
+        overwrite: Overwrite = False,
     ) -> dict[str, Any]:
-        """Rename — or drop — the ports of an FMU from a CSV mapping.
+        """Rename — or drop — ports of an FMU, from `mapping` or `csv`.
 
-        An **empty** `newName` **removes** the port: say so when reporting
-        `removed`. Renaming changes the FMU interface: what is connected to the
-        old names breaks.
+        An **empty** new name **removes** the port: report `removed`, and
+        `unknown` names. Renaming breaks what is connected to the old names.
         """
-        return fmutools.rename_ports_from_csv(
+        return fmutools.rename_ports(
             policy.resolve_input(fmu),
-            policy.resolve_input(csv, (".csv",)),
-            policy.resolve_output(output, (".fmu",), overwrite))
+            policy.resolve_output(output, (".fmu",), overwrite),
+            mapping, policy.resolve_input(csv, (".csv",)) if csv is not None else None)
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
     def apply_operation(
         fmu: Annotated[str, Field(description="Path to the .fmu file to read.")],
-        output: Annotated[str, Field(
-            description="Destination .fmu file. The source is left untouched.")],
+        output: OutputFmu,
         operation: Annotated[Literal["strip_toplevel", "merge_toplevel", "trim_until",
                                      "remove_regexp", "keep_only_regexp",
                                      "remove_sources"], Field(
-            description="strip_toplevel: drop the 'Bus.' prefix; merge_toplevel: "
-                        "turn 'Bus.sig' into 'Bus_sig'; trim_until: cut up to a "
-                        "separator; remove_regexp/keep_only_regexp: filter ports "
-                        "by name; remove_sources: drop the embedded sources.")],
+            description="strip_toplevel: 'Bus.sig' -> 'sig'; merge_toplevel: -> "
+                        "'Bus_sig'; trim_until: cut up to `argument`; remove_regexp, "
+                        "keep_only_regexp: by name; remove_sources: drop the sources.")],
         argument: Annotated[str | None, Field(
             description="The separator or regular expression, for the "
                         "operations that need one.")] = None,
-        causality: Annotated[list[str] | None, Field(
-            description="Restrict the operation to these causalities, e.g. "
-                        "['input', 'output'].")] = None,
-        overwrite: Annotated[bool, Field(
-            description="Replace the output if it already exists.")] = False,
+        causality: CausalityFilter = None,
+        type: TypeFilter = None,
+        variability: VariabilityFilter = None,
+        overwrite: Overwrite = False,
     ) -> dict[str, Any]:
         """Rewrite the port names of an FMU with one descriptor operation.
 
@@ -758,7 +775,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         return fmutools.apply_operation(
             policy.resolve_input(fmu),
             policy.resolve_output(output, (".fmu",), overwrite),
-            operation, argument, causality)
+            operation, argument, causality, type, variability)
 
     @mcp.resource("guide://usage")
     def usage_guide() -> str:

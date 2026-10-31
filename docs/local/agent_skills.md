@@ -149,6 +149,29 @@ environment (ruff, pyflakes): unused names checked by hand (`Checker.PARAMETERS`
 
 *Commit*: `MCP: filters by type and variability, rename_ports (mapping or CSV) instead of rename_ports_from_csv, describe_port; tool descriptions compacted within the budget`
 
+**Status on 31 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `default_variability` and `matches_type`, module functions shared by `ModelVariable` and the port pages | `model_description.py` |
+| `fmutools.select_ports` (filters of the port pages, same rules as the operations; any causality can be listed), `check_port_filters` (unknown type or variability refused with the accepted values), `TYPES`, `VARIABILITIES`; `apply_operation` with `types` and `variabilities` | `assistant/fmutools.py` |
+| `fmutools.rename_ports(fmu, output, mapping=None, csv_path=None)` replaces `rename_ports_from_csv`: counts the ports actually renamed or removed, reports the names of the mapping absent from the FMU (`unknown`, first 20, `unknown_total`) | `assistant/fmutools.py` |
+| `describe_port`: aliases bounded to 20 (`aliases_total`) | `assistant/fmutools.py` |
+| MCP: `type` and `variability` on `list_fmu_ports`, `inspect_fmu_file`, `apply_operation`; `rename_ports` (`mapping` or `csv`) replaces `rename_ports_from_csv`; `describe_port(fmu, port)`, `fmu` an FMU of the assembly or a file | `assistant/server.py` |
+| Usage guide: `describe_port`, `rename_ports`, the filters | `assistant/knowledge.py` |
+| Compaction (D4): shared `CausalityFilter`, `TypeFilter`, `VariabilityFilter`, `PatternFilter`, `OutputFmu`, `Overwrite`; shorter `FmuName`, `apply_operation` operations, `set_start_value` value, `save_as_fmu`, container options `auto_link`, `auto_input`, `auto_output`, `reset_ports` | `assistant/server.py`, `assistant/models.py` |
+| Budget: `DEFINITIONS_BUDGET` raised to **18 000**; `describe_port` and `rename_ports` (1000 unknown names) measured | `tests/_helpers/mcp_budget.py` |
+| Tests: filters and refusal of unknown values, `select_ports`, renaming from a mapping (unknown names, mapping xor CSV), bounded aliases; server: filtered pages, `describe_port` from a file and from the assembly, `rename_ports`; contract inventory | `tests/unit/test_assistant_fmutools.py`, `tests/unit/test_assistant_server_tools.py`, `tests/unit/test_assistant_server_contract.py` |
+
+Budget measured (characters): definitions **18 347** before compaction, **17 444** after (budget 18 000); the
+remaining cuts would have removed instructions that prevent mistakes. `describe_port` 302; `rename_ports` with 1000
+unknown names 418.
+
+Checks performed: unit and integration suites **2030 passed, 2 skipped**; GUI tests of the MCP bridge **33 passed**.
+Pre-existing, unrelated: when the GUI tests are collected in the same session, `test_container_reset.py` (2) and
+`test_lsbus.py` (2) fail; they pass alone and without the GUI tests, and fail the same way without the changes of
+this phase.
+
 ### Phase 3 — `fmutool-agent` (D8)
 
 1. `HeadlessAssemblyBridge.load_json(path)` (F5), round-trip tested against `save_as_json`.

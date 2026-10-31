@@ -55,18 +55,16 @@ class ContainerOptions(BaseModel):
     )
     auto_link: bool | None = Field(
         default=None,
-        description="Connect the ports with the same name and type. Enabled by "
-                    "default: explicit links are for the other ports.",
+        description="Connect the ports with the same name and type (default: on); "
+                    "links are for the others.",
     )
     auto_input: bool | None = Field(
         default=None,
-        description="Automatically expose unconnected inputs as container "
-                    "inputs. Enabled by default.",
+        description="Expose the unconnected inputs (default: on).",
     )
     auto_output: bool | None = Field(
         default=None,
-        description="Automatically expose unconnected outputs as container "
-                    "outputs. Enabled by default.",
+        description="Expose the unconnected outputs (default: on).",
     )
     auto_parameter: bool | None = Field(
         default=None,
@@ -83,10 +81,8 @@ class ContainerOptions(BaseModel):
     )
     reset_ports: bool | None = Field(
         default=None,
-        description="Add a `container.reset` input to each embedded FMU: when "
-                    "true, the container resets the FMU and initializes it again "
-                    "at the current time. Wire it with a link, or expose it as "
-                    "`container.<fmu>.reset`.",
+        description="Add a `container.reset` input to each FMU: true resets and "
+                    "initializes it again. Link it, or expose it as `container.<fmu>.reset`.",
     )
 
     def changes(self) -> dict[str, Any]:

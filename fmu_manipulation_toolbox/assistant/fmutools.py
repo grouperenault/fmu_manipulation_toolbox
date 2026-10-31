@@ -24,11 +24,11 @@ from pathlib import Path
 from typing import Any
 
 from ..checker import get_checkers
-from ..model_description import ModelDescription, ModelVariable
+from ..model_description import ModelDescription, ModelVariable, default_variability, matches_type
 from ..terminals import Terminals
 from ..operations import (
     FMU, OperationKeepOnlyRegexp, OperationMergeTopLevel, OperationRemoveRegexp,
-    OperationRemoveSources, OperationRenameFromCSV, OperationSaveNamesToCSV,
+    OperationRemoveSources, OperationRename, OperationRenameFromCSV, OperationSaveNamesToCSV,
     OperationStripTopLevel, OperationSummary, OperationTrimUntil,
 )
 
@@ -49,6 +49,51 @@ OPERATIONS = {
 
 #: Causalities an operation can be restricted to.
 CAUSALITIES = ("input", "output", "parameter", "local")
+
+#: Types a port filter accepts: the FMI 2.0 names (which also select their FMI 3.0 family) and the FMI 3.0 ones.
+TYPES = tuple(dict.fromkeys(ModelDescription.FMI2_VARIABLE_TYPES + ModelDescription.FMI3_VARIABLE_TYPES))
+
+#: Variabilities a port filter accepts.
+VARIABILITIES = ModelDescription.VARIABILITIES
+
+
+def check_port_filters(causality: list[str] | None = None, types: list[str] | None = None,
+                       variabilities: list[str] | None = None) -> None:
+    """Refuse the unknown values of the port filters, listing the accepted ones.
+
+    Raises:
+        ValueError: If a value is not one of :data:`CAUSALITIES`, :data:`TYPES`
+            or :data:`VARIABILITIES`.
+    """
+    for label, values, accepted in (("causality", causality, CAUSALITIES), ("type", types, TYPES),
+                                    ("variability", variabilities, VARIABILITIES)):
+        unknown = set(values or ()) - set(accepted)
+        if unknown:
+            raise ValueError(f"Unknown {label} {sorted(unknown)}. Available: {list(accepted)}.")
+
+
+def select_ports(ports: list[dict[str, Any]], fmi_version: int | None, causality: list[str] | None = None,
+                 types: list[str] | None = None, variabilities: list[str] | None = None) -> list[dict[str, Any]]:
+    """The ports of a description (`describe_fmu`, the bridges) that every filter set accepts.
+
+    Same rules as `FMU.apply_operation`: FMI 2.0 type names select their FMI
+    3.0 family, an undeclared variability is the default of the standard.
+    """
+    # Any causality can be listed (`independent`, `calculatedParameter`...): only the other filters are checked.
+    check_port_filters(None, types, variabilities)
+    version = fmi_version or 2
+    selected = []
+    for port in ports:
+        port_causality = port.get("causality") or "local"
+        if causality and port_causality not in causality:
+            continue
+        if types and not matches_type(version, port.get("type"), types):
+            continue
+        if variabilities and (port.get("variability")
+                              or default_variability(version, port_causality, port.get("type"))) not in variabilities:
+            continue
+        selected.append(port)
+    return selected
 
 
 @contextmanager
@@ -127,6 +172,10 @@ def summarize_fmu(path: Path) -> dict[str, Any]:
     return summary
 
 
+#: Aliases listed by `describe_port`: an FMI 2.0 FMU may share one value reference between many variables.
+MAX_ALIASES = 20
+
+
 def describe_port(path: Path, port: str) -> dict[str, Any]:
     """Describe one port of an FMU with everything its descriptor declares.
 
@@ -145,8 +194,9 @@ def describe_port(path: Path, port: str) -> dict[str, Any]:
         of FMI 3.0 ``String`` and ``Binary`` variables under ``start``), and
         when they apply: ``dimensions`` (FMI 3.0 arrays), ``declared_type``
         (name, attributes and enumeration items of the type definition, and
-        ``inherited``: the attributes the port takes from it), ``aliases`` and
-        ``terminals`` (terminal name, kind and member name).
+        ``inherited``: the attributes the port takes from it), ``aliases`` (the
+        first :data:`MAX_ALIASES`, with ``aliases_total`` beyond) and ``terminals``
+        (terminal name, kind and member name).
 
     Raises:
         ValueError: If the FMU has no such port; the message suggests close names.
@@ -187,7 +237,9 @@ def describe_port(path: Path, port: str) -> dict[str, Any]:
 
     aliases = _aliases(md, variable, variables)
     if aliases:
-        card["aliases"] = aliases
+        card["aliases"] = aliases[:MAX_ALIASES]
+        if len(aliases) > MAX_ALIASES:
+            card["aliases_total"] = len(aliases)
 
     # `Terminals` lists the sub-terminals at the top level too: one pass covers them all.
     memberships = [{"terminal": terminal.name, "kind": terminal.kind, "member": member}
@@ -314,7 +366,7 @@ def dump_ports_csv(fmu_path: Path, csv_path: Path) -> dict[str, Any]:
     The file has one row per port, with columns ``name``, ``newName``,
     ``valueReference``, ``causality``, ``variability``, ``scalarType`` and
     ``startValue``, separated by semicolons. Editing the ``newName`` column
-    and feeding it back to :func:`rename_ports_from_csv` is the intended
+    and feeding it back to :func:`rename_ports` is the intended
     round-trip.
 
     Args:
@@ -332,8 +384,13 @@ def dump_ports_csv(fmu_path: Path, csv_path: Path) -> dict[str, Any]:
     return {"fmu": fmu_path.name, "csv": str(csv_path), "ports": max(len(rows) - 1, 0)}
 
 
-def rename_ports_from_csv(fmu_path: Path, csv_path: Path, output_path: Path) -> dict[str, Any]:
-    """Rename (or drop) the ports of an FMU according to a CSV mapping.
+#: Names of a renaming mapping absent from the FMU listed in the report of `rename_ports`; the total is always given.
+MAX_UNKNOWN_NAMES = 20
+
+
+def rename_ports(fmu_path: Path, output_path: Path, mapping: dict[str, str] | None = None,
+                 csv_path: Path | None = None) -> dict[str, Any]:
+    """Rename (or drop) the ports of an FMU, from a mapping or from a CSV file.
 
     The CSV is the one produced by :func:`dump_ports_csv`: column 0 is the
     current name, column 1 the new one. **An empty new name removes the
@@ -342,32 +399,52 @@ def rename_ports_from_csv(fmu_path: Path, csv_path: Path, output_path: Path) -> 
 
     Args:
         fmu_path: FMU to read.
-        csv_path: CSV mapping file.
         output_path: Destination FMU. The source is never modified.
+        mapping: Current name -> new name.
+        csv_path: CSV mapping file. Exactly one of `mapping` and `csv_path` is given.
 
     Returns:
-        A mapping with ``fmu``, ``output``, ``renamed`` and ``removed``.
+        A mapping with ``fmu``, ``output``, ``renamed`` and ``removed`` (ports
+        actually renamed or removed), and when some names of the mapping are not
+        ports of the FMU: ``unknown`` (the first of them) and ``unknown_total``.
+
+    Raises:
+        ValueError: If neither or both of `mapping` and `csv_path` are given.
     """
-    operation = OperationRenameFromCSV(str(csv_path))
-    # `OperationRenameFromCSV` reads every row, header included: the CSV
-    # produced by `dump_ports_csv` starts with `name;newName`, which would
-    # otherwise be counted as a rename.
-    translations = {old: new for old, new in operation.translations.items()
-                    if (old, new) != ("name", "newName")}
-    renamed = sum(1 for old, new in translations.items() if new and new != old)
-    removed = sum(1 for new in translations.values() if not new)
+    if (mapping is None) == (csv_path is None):
+        raise ValueError("Give either `mapping` or `csv`, not both.")
+    if csv_path is not None:
+        operation: OperationRename = OperationRenameFromCSV(str(csv_path))
+        # `OperationRenameFromCSV` reads every row, header included: the CSV
+        # produced by `dump_ports_csv` starts with `name;newName`, which must not
+        # be taken for a port.
+        if operation.translations.get("name") == "newName":
+            del operation.translations["name"]
+    else:
+        operation = OperationRename(mapping)
 
     with FMU(str(fmu_path)) as fmu:
         fmu.apply_operation(operation)
         fmu.repack(str(output_path))
 
-    return {"fmu": fmu_path.name, "output": str(output_path),
-            "renamed": renamed, "removed": removed}
+    translations = operation.translations
+    report: dict[str, Any] = {
+        "fmu": fmu_path.name, "output": str(output_path),
+        "renamed": sum(1 for old in operation.found if translations[old] and translations[old] != old),
+        "removed": sum(1 for old in operation.found if not translations[old]),
+    }
+    unknown = [old for old in translations if old not in operation.found]
+    if unknown:
+        report["unknown"] = unknown[:MAX_UNKNOWN_NAMES]
+        report["unknown_total"] = len(unknown)
+    return report
 
 
 def apply_operation(fmu_path: Path, output_path: Path, operation: str,
                     argument: str | None = None,
-                    causality: list[str] | None = None) -> dict[str, Any]:
+                    causality: list[str] | None = None,
+                    types: list[str] | None = None,
+                    variabilities: list[str] | None = None) -> dict[str, Any]:
     """Apply one descriptor operation to an FMU and write the result.
 
     Args:
@@ -377,6 +454,8 @@ def apply_operation(fmu_path: Path, output_path: Path, operation: str,
         argument: Required by the parameterised operations (``trim_until``,
             ``remove_regexp``, ``keep_only_regexp``), rejected by the others.
         causality: Restrict the operation to these causalities.
+        types: Restrict the operation to these types (see :func:`check_port_filters`).
+        variabilities: Restrict the operation to these variabilities.
 
     Returns:
         A mapping with ``fmu``, ``output`` and ``operation`` (what was done,
@@ -397,11 +476,7 @@ def apply_operation(fmu_path: Path, output_path: Path, operation: str,
     if argument and not needs_argument:
         raise ValueError(f"Operation '{operation}' does not take an `argument`.")
 
-    if causality:
-        unknown = set(causality) - set(CAUSALITIES)
-        if unknown:
-            raise ValueError(f"Unknown causality {sorted(unknown)}. "
-                             f"Available: {list(CAUSALITIES)}.")
+    check_port_filters(causality, types, variabilities)
 
     # A malformed regular expression surfaces here, as a plain `re.error`:
     # turn it into something the caller can act upon.
@@ -411,11 +486,9 @@ def apply_operation(fmu_path: Path, output_path: Path, operation: str,
         raise ValueError(f"Cannot apply '{operation}': {exc}") from None
 
     with FMU(str(fmu_path)) as fmu:
-        fmu.apply_operation(instance, causality or None)
+        fmu.apply_operation(instance, causality or None, types=types or None,
+                            variabilities=variabilities or None)
         fmu.repack(str(output_path))
 
     return {"fmu": fmu_path.name, "output": str(output_path),
             "operation": repr(instance)}
-
-
-

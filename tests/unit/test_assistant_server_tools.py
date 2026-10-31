@@ -594,3 +594,79 @@ def test_scenario_errors_are_actionable(tmp_path, tool, arguments, expected):
 
     with pytest.raises(Exception, match=expected):
         run(scenario())
+
+
+# --------------------------------------------------------------------------- #
+#                  filters by type and variability, one port                  #
+# --------------------------------------------------------------------------- #
+def test_port_listing_can_be_filtered_by_type_and_variability():
+    bridge = FakeBridge()
+    bridge.add_fmu("a.fmu")
+    ports = {port["name"]: port for port in bridge.fmus["a.fmu"]["ports"]}
+    ports["u"]["type"] = "Integer"
+    ports["gain"]["variability"] = "tunable"
+
+    by_type = _ports_call(bridge, fmu="a.fmu", type=["Integer"])
+    by_variability = _ports_call(bridge, fmu="a.fmu", variability=["tunable"])
+    # FMI 2 default variability: continuous, for the ports that declare none.
+    both = _ports_call(bridge, fmu="a.fmu", type=["Real"], variability=["continuous"])
+
+    assert [port["name"] for port in by_type["ports"]] == ["u"]
+    assert [port["name"] for port in by_variability["ports"]] == ["gain"]
+    assert [port["name"] for port in both["ports"]] == ["y", "state"]
+
+
+def test_an_unknown_type_is_reported_with_the_accepted_ones():
+    bridge = FakeBridge()
+    bridge.add_fmu("a.fmu")
+
+    with pytest.raises(ToolError, match=r"Unknown type \['Double'\].*'Float64'"):
+        _ports_call(bridge, fmu="a.fmu", type=["Double"])
+
+
+def _headless_call(directory, tool, arguments, setup=()):
+    from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
+
+    async def scenario():
+        server = build_server(HeadlessAssemblyBridge(), policy=PathPolicy(directory))
+        async with fastmcp.Client(server) as client:
+            for name, args in setup:
+                await client.call_tool(name, args)
+            return await client.call_tool(tool, arguments)
+
+    return run(scenario()).structured_content
+
+
+def test_a_port_is_described_from_a_file_or_from_the_assembly(data_dir):
+    directory = data_dir / "compile" / "3.0"
+    fmu = str(directory / "BouncingBall.fmu")
+
+    from_file = _headless_call(directory, "describe_port", {"fmu": fmu, "port": "h"})
+    from_assembly = _headless_call(directory, "describe_port", {"fmu": "BouncingBall.fmu", "port": "h"},
+                                   setup=[("add_fmu", {"path": fmu})])
+
+    assert from_file == from_assembly
+    assert from_file["aliases"][0]["name"] == "h_ft"
+
+
+def test_ports_are_renamed_from_a_mapping(data_dir, tmp_path):
+    import shutil
+    fmu = tmp_path / "bb.fmu"
+    shutil.copy(data_dir / "compile" / "2.0" / "BouncingBall.fmu", fmu)
+
+    report = _headless_call(tmp_path, "rename_ports", {"fmu": str(fmu), "output": str(tmp_path / "out.fmu"),
+                                                       "mapping": {"h": "height", "nope": "x"}})
+
+    assert report["renamed"] == 1
+    assert report["unknown"] == ["nope"]
+
+
+def test_renaming_refuses_both_a_mapping_and_a_csv(data_dir, tmp_path):
+    import shutil
+    fmu = tmp_path / "bb.fmu"
+    shutil.copy(data_dir / "compile" / "2.0" / "BouncingBall.fmu", fmu)
+    (tmp_path / "map.csv").write_text("h;height\n")
+
+    with pytest.raises(ToolError, match="either `mapping` or `csv`"):
+        _headless_call(tmp_path, "rename_ports", {"fmu": str(fmu), "output": str(tmp_path / "out.fmu"),
+                                                  "mapping": {"h": "x"}, "csv": str(tmp_path / "map.csv")})
