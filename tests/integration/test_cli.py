@@ -64,3 +64,14 @@ def test_fmusplit_ssp(area_dir):
     assert Path("bouncing.dir/bb_velocity.fmu").exists()
     assert_identical_files("REF-split-bouncing.json", "bouncing.dir/bouncing.json")
 
+
+
+@pytest.mark.area("operations")
+def test_fmutool_only_type_and_variability(area_dir):
+    """The operations see only the ports matching every `-only-*` option: here, what `-dump-csv` lists."""
+    sys.argv = ["fmutool", "-input", "bouncing_ball.fmu", "-only-type", "Real", "-only-variability", "fixed",
+                "-dump-csv", "cli-fixed-reals.csv"]
+    fmutool()
+    rows = [row.split(";") for row in Path("cli-fixed-reals.csv").read_text().splitlines()[1:]]
+    assert rows
+    assert all(row[4] == "fixed" and row[5] == "Real" for row in rows)

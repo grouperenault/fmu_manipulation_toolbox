@@ -130,7 +130,6 @@ class OperationSemanticCheck(OperationAbstract):
         ("input", "discrete"): ("exact",), ("input", "continuous"): ("exact",),
     }
     CONTINUOUS_TYPES = {2: ("Real",), 3: ("Float32", "Float64")}
-    PARAMETERS = ("parameter", "structuralParameter", "calculatedParameter")
 
     def __init__(self):
         self.errors: list[str] = []
@@ -166,16 +165,8 @@ class OperationSemanticCheck(OperationAbstract):
 
     # --------------------------------------------------------------- Variables
     def causality_variability(self, fmi_version: int, port: ModelVariable) -> tuple[str, str]:
-        causality = port.get("causality", "local")
-        variability = port.get("variability", None)
-        if variability is None:  # defaults: FMI-2 §2.2.7, FMI-3 §2.4.7.4
-            if fmi_version == 2:
-                variability = "continuous"
-            elif causality in self.PARAMETERS:
-                variability = "fixed"
-            else:
-                variability = "continuous" if port.fmi_type in self.CONTINUOUS_TYPES[3] else "discrete"
-        return causality, variability
+        # Defaults (FMI-2 §2.2.7, FMI-3 §2.4.7.4) are those of `ModelVariable`, shared with the port filters.
+        return port.causality, port.variability
 
     def check_unique_names(self, md: ModelDescription, ports: list[ModelVariable]):
         names = [port.get("name") for port in ports]

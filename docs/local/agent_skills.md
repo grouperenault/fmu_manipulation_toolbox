@@ -68,12 +68,17 @@ Decided on 31 October 2026.
 | D10 | Skills split | **Three skills + shared reference**: `fmu-inspect`, `fmu-edit`, `fmu-container`, and a shared FMI reference |
 | D11 | Plugin layout and distribution | **Marketplace in the repository**: `.claude-plugin/marketplace.json` at the root, plugin in `plugins/fmutool/`, a `tools/` script building the claude.ai `.zip` files |
 
+### Decided during the work
+
+| # | Question | Decision |
+|---|---|---|
+| Q1 | Shape of the port filters; type names | **Flat parameters** `causality`, `type`, `variability`, `name_pattern` side by side (shared `Annotated` types); Python API `FMU.apply_operation(operation, apply_on=None, *, types=None, variabilities=None)`. **Native names plus FMI 2 families**: the exact name of the FMU (`Real`, `Float64`, `Int32`...) selects that type; on an FMI 3 FMU an FMI 2 name selects its family (`Real` = `Float32`/`Float64`, `Integer` = `Int8`...`UInt64`) (31 October 2026) |
+| Q2 | Content of `describe_port` | Every declared attribute and the FMI 3 dimensions, plus the **resolved declared type** (inherited attributes and their origin, enumeration items), the **aliases** (FMI 3 `<Alias>`; FMI 2 variables sharing the value reference and the type) and the **terminals** the port belongs to, with its member name. Not the `ModelStructure` role (31 October 2026) |
+
 ### Still to be decided (asked at the start of the phase concerned)
 
 | # | Question | Phase |
 |---|---|---|
-| Q1 | Name and shape of the shared filter (e.g. `ports: {causality, type, variability, name_pattern}`), and whether `type` takes FMI 2 names, FMI 3 names or both (`Real` vs `Float64`) | 1 |
-| Q2 | Exact field list of `describe_port` for FMI 2 and FMI 3 | 1 |
 | Q3 | `fmutool-agent` state file: explicit `--state` argument only, or a default file in the current directory | 3 |
 | Q4 | Whether the skills are copied into the plugin or the plugin is the single source and the `.zip` are built from it | 4 |
 
@@ -107,15 +112,29 @@ Checks performed: unit suite **1073 passed**.
 ### Phase 1 — Python API (D3, D5, D6, D7)
 
 1. Port filter in `operations.py`: `FMU.apply_operation(operation, apply_on=None, *, types=None, variabilities=None)`
-   (final signature per Q1); `Manipulation.manipulate` applies the conjunction of the filters. `apply_on` unchanged.
+   (Q1); `Manipulation.manipulate` applies the conjunction of the filters. `apply_on` unchanged.
 2. `OperationRenameFromMapping` (or `OperationRenameFromCSV` accepting a mapping), with the same checks as the CSV
    version (duplicates, unknown names reported).
-3. Extended port description: a function returning every attribute of one variable (FMI 2 and FMI 3), including
-   its `ModelStructure` dependencies.
+3. Extended port description (Q2): a function returning every attribute of one variable (FMI 2 and FMI 3), its
+   resolved declared type, its aliases and its terminals.
 4. CLI `fmutool`: `-only-type <type>` and `-only-variability <variability>` (repeatable), combined with `-only-*`.
 5. Unit tests for each, FMI 2 and FMI 3.
 
 *Commit*: `Operations restricted by type and variability (API and fmutool CLI), renaming from a mapping, full description of one port`
+
+**Status on 31 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `ModelVariable.causality`, `ModelVariable.variability` (defaults of the standard, now also used by the checker) and `ModelVariable.has_type` (exact type, or FMI 2 family on an FMI 3 FMU); `ModelDescription.FMI2_TYPE_FAMILIES`, `ModelDescription.VARIABILITIES` | `model_description.py`, `checker.py` |
+| `FMU.apply_operation(operation, apply_on=None, *, types=None, variabilities=None)`, `Manipulation.in_scope`: the filters combine | `operations.py` |
+| `OperationRename(translations)` with `found` (names of the mapping met in the FMU); `OperationRenameFromCSV` derives from it | `operations.py` |
+| `describe_port(path, port)`: declared attributes, effective causality and variability, dimensions, resolved declared type (`inherited`, enumeration `items`), aliases, terminals; an unknown port suggests close names | `assistant/fmutools.py` |
+| `fmutool -only-type <type>` and `-only-variability <variability>` (repeatable, choices checked by argparse) | `cli/fmutool.py`, `help.py` |
+| Tests: filters by type, family, variability (FMI 3 defaults), combinations, ports out of scope untouched, renaming from a mapping; port cards on the reference FMUs and on hand-built FMI 2 aliases, enumeration and FMI 3 array; CLI filters through `-dump-csv` | `tests/unit/test_operations_scope.py`, `tests/unit/test_assistant_fmutools.py`, `tests/integration/test_cli.py` |
+
+Checks performed: unit and integration suites **2015 passed, 2 skipped**. No linter installed in the virtual
+environment (ruff, pyflakes): unused names checked by hand (`Checker.PARAMETERS`, now unused, removed).
 
 ### Phase 2 — MCP tools (D4, D5, D7)
 

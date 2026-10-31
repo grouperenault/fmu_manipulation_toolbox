@@ -146,22 +146,38 @@ class FMU:
                                os.path.relpath(os.path.join(root, file), self.tmp_directory))
         # TODO: Add check on output file
 
-    def apply_operation(self, operation, apply_on=None):
+    def apply_operation(self, operation, apply_on=None, *, types=None, variabilities=None):
         """Apply an operation to the FMU's `modelDescription.xml`.
 
         Invokes the operation's callbacks on the descriptor tree (parsed once
         per FMU), and writes back the descriptor unless the operation is
-        `read_only`.
+        `read_only`. The filters combine: a port is processed only if every
+        filter set accepts it.
 
         Args:
             operation (OperationAbstract): The operation to apply.
             apply_on (list[str] | None): If set, only apply the operation
                 to ports with a causality in this list.
+            types (list[str] | None): If set, only apply the operation to ports
+                of these types: the exact type (`Real`, `Float64`, `Int32`...) or,
+                on an FMI 3.0 FMU, an FMI 2.0 type for its family (`Real` selects
+                `Float32` and `Float64`, `Integer` every integer type).
+            variabilities (list[str] | None): If set, only apply the operation to
+                ports with a variability in this list. A port without `variability`
+                has the default of the standard.
+
+        Example:
+            ```python
+            with FMU("model.fmu") as fmu:
+                fmu.apply_operation(OperationRemoveRegexp(".*"), ["parameter"], variabilities=["fixed"])
+                fmu.repack("model-tunable.fmu")
+            ```
         """
         self._check_open()
         manipulation = Manipulation(operation, self)
         try:
-            manipulation.manipulate(self.descriptor_filename, apply_on)
+            manipulation.manipulate(self.descriptor_filename, apply_on, types=types,
+                                    variabilities=variabilities)
         except BaseException:
             self._model_description = None  # the tree may be half-modified: parse the file again next time
             raise
@@ -218,6 +234,8 @@ class Manipulation:
         self.fmu = fmu
         self.model_description: ModelDescription | None = None
         self.apply_on = None
+        self.types = None
+        self.variabilities = None
 
         self.current_port_number: int = 0
         self.port_translation: list[int | None] = []
@@ -226,7 +244,7 @@ class Manipulation:
 
         self.operation.set_fmu(fmu)
 
-    def manipulate(self, descriptor_filename, apply_on=None):
+    def manipulate(self, descriptor_filename, apply_on=None, *, types=None, variabilities=None):
         """Apply the operation and rewrite the descriptor file (unless the operation is `read_only`).
 
         Args:
@@ -234,6 +252,10 @@ class Manipulation:
                 The file is modified in place.
             apply_on (list[str] | None): If set, only process ports with a
                 causality in this list.
+            types (list[str] | None): If set, only process ports of these types
+                (see [ModelVariable.has_type][fmu_manipulation_toolbox.model_description.ModelVariable.has_type]).
+            variabilities (list[str] | None): If set, only process ports with a
+                variability in this list (the default of the standard when not declared).
 
         Raises:
             FMUError: If the descriptor cannot be loaded.
@@ -241,6 +263,8 @@ class Manipulation:
                 descriptor file is then left unchanged.
         """
         self.apply_on = apply_on
+        self.types = types
+        self.variabilities = variabilities
         shared = descriptor_filename == self.fmu.descriptor_filename
         if shared:
             md = self.fmu.model_description
@@ -294,7 +318,7 @@ class Manipulation:
             name = element.get("name")
             vr = element.get("valueReference")
             remove = False
-            if not self.apply_on or element.get("causality", "local") in self.apply_on:
+            if self.in_scope(port):
                 try:
                     remove = bool(self.operation.port_attrs(port))
                 except ManipulationSkipTag:
@@ -310,6 +334,13 @@ class Manipulation:
                 self.current_port_number += 1
                 self.port_translation.append(self.current_port_number)
         return removed
+
+    def in_scope(self, port: ModelVariable) -> bool:
+        """Whether the operation applies to this port: every filter set must accept it."""
+        # Read before the operation runs: it may rename the port or change its attributes.
+        return ((not self.apply_on or port.causality in self.apply_on)
+                and (not self.types or port.has_type(self.types))
+                and (not self.variabilities or port.variability in self.variabilities))
 
     # ------------------------------------------------------- Conformity checks
     @staticmethod
@@ -674,7 +705,52 @@ class OperationMergeTopLevel(OperationAbstract):
         return 0
 
 
-class OperationRenameFromCSV(OperationAbstract):
+class OperationRename(OperationAbstract):
+    """Rename or remove ports according to a mapping of names.
+
+    If the new name is empty, the port is removed. Ports not in the mapping
+    are kept unchanged.
+
+    Args:
+        translations (dict[str, str]): Mapping from original to new names.
+
+    Attributes:
+        translations (dict[str, str]): Mapping from original to new names.
+        found (set[str]): Original names of the mapping met in the FMU (among
+            the ports in scope), once the operation is applied.
+
+    Example:
+        ```python
+        with FMU("model.fmu") as fmu:
+            fmu.apply_operation(OperationRename({"u": "speed", "debug": ""}))
+            fmu.repack("model-renamed.fmu")
+        ```
+    """
+
+    def __repr__(self):
+        return f"Rename {len(self.translations)} port(s)"
+
+    def __init__(self, translations: dict[str, str]):
+        self.translations = dict(translations)
+        self.found: set[str] = set()
+
+    def port_attrs(self, fmu_port):
+        name = fmu_port['name']
+        try:
+            new_name = self.translations[name]
+            self.found.add(name)
+        except KeyError:
+            new_name = name  # if port is not in the mapping, keep old name
+
+        if new_name:
+            fmu_port['name'] = new_name
+            return 0
+        else:
+            # we want to delete this name!
+            return 1
+
+
+class OperationRenameFromCSV(OperationRename):
     """Rename or remove ports according to a CSV mapping file.
 
     Reads a semicolon-delimited CSV where column 0 is the original name
@@ -694,31 +770,18 @@ class OperationRenameFromCSV(OperationAbstract):
 
     def __init__(self, csv_filename):
         self.csv_filename = csv_filename
-        self.translations = {}
+        translations = {}
 
         try:
             with open_text(csv_filename) as csvfile:
                 reader = csv.reader(csvfile, delimiter=';', quotechar="'")
                 for row in reader:
-                    self.translations[row[0]] = row[1]
+                    translations[row[0]] = row[1]
         except FileNotFoundError:
             raise OperationError(f"file '{csv_filename}' is not found")
         except IndexError:
             raise OperationError(f"file '{csv_filename}' should contain two columns")
-
-    def port_attrs(self, fmu_port):
-        name = fmu_port['name']
-        try:
-            new_name = self.translations[fmu_port['name']]
-        except KeyError:
-            new_name = name  # if port is not in CSV file, keep old name
-
-        if new_name:
-            fmu_port['name'] = new_name
-            return 0
-        else:
-            # we want to delete this name!
-            return 1
+        super().__init__(translations)
 
 
 class OperationRemoveRegexp(OperationAbstract):

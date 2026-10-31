@@ -210,6 +210,42 @@ class ModelVariable:
         typed.tag = fmi_type
 
     @property
+    def causality(self) -> str:
+        """Causality, `local` when not declared (FMI-2 §2.2.7, FMI-3 §2.4.7.4)."""
+        return self.element.get("causality", "local")
+
+    @property
+    def variability(self) -> str:
+        """Variability, with the default of the standard when not declared (FMI-2 §2.2.7, FMI-3 §2.4.7.4).
+
+        FMI-2: `continuous`. FMI-3: `fixed` for parameters, otherwise `continuous` for
+        `Float32`/`Float64` and `discrete` for the other types.
+        """
+        variability = self.element.get("variability")
+        if variability is not None:
+            return variability
+        if self.fmi_version == 2:
+            return "continuous"
+        if self.causality in ("parameter", "structuralParameter", "calculatedParameter"):
+            return "fixed"
+        return "continuous" if self.fmi_type in ("Float32", "Float64") else "discrete"
+
+    def has_type(self, names) -> bool:
+        """Whether the type of the variable is one of `names`.
+
+        A name is the exact type of the variable (`Real`, `Float64`, `Int32`...) or, for an
+        FMI-3 variable, an FMI-2 type standing for its family (see
+        `ModelDescription.FMI2_TYPE_FAMILIES`): `Real` selects `Float32` and `Float64`.
+        """
+        fmi_type = self.fmi_type
+        for name in names:
+            if name == fmi_type:
+                return True
+            if self.fmi_version == 3 and fmi_type in ModelDescription.FMI2_TYPE_FAMILIES.get(name, ()):
+                return True
+        return False
+
+    @property
     def attrs_list(self) -> list[MutableMapping[str, str]]:
         """Attribute dictionaries, outermost element first.
 
@@ -280,6 +316,15 @@ class ModelDescription:
     FMI3_VARIABLE_TYPES = ("Float32", "Float64",
                            "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64",
                            "Boolean", "String", "Binary", "Enumeration", "Clock")
+    #: FMI-3 types an FMI-2 type name stands for, when selecting the variables of an FMI-3 FMU.
+    FMI2_TYPE_FAMILIES = {
+        "Real": ("Float32", "Float64"),
+        "Integer": ("Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64"),
+        "Boolean": ("Boolean",),
+        "String": ("String",),
+        "Enumeration": ("Enumeration",),
+    }
+    VARIABILITIES = ("constant", "fixed", "tunable", "discrete", "continuous")
     INTERFACE_TYPES = ("ModelExchange", "CoSimulation", "ScheduledExecution")  # ScheduledExecution: FMI-3 only
     FMI2_STRUCTURE_SECTIONS = ("Outputs", "Derivatives", "InitialUnknowns")
     FMI3_STRUCTURE_ELEMENTS = ("Output", "ContinuousStateDerivative", "ClockedState", "InitialUnknown",

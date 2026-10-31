@@ -11,7 +11,7 @@ import pytest
 pytestmark = [pytest.mark.unit]
 
 from fmu_manipulation_toolbox.assistant.fmutools import (  # noqa: E402
-    CAUSALITIES, MAX_EXAMPLES, MAX_MESSAGE_GROUPS, OPERATIONS, _grouped, apply_operation, check_fmu,
+    CAUSALITIES, MAX_EXAMPLES, MAX_MESSAGE_GROUPS, OPERATIONS, _grouped, apply_operation, check_fmu, describe_port,
     dump_ports_csv, rename_ports_from_csv, summarize_fmu,
 )
 
@@ -241,3 +241,99 @@ def test_the_exposed_operations_are_all_implemented():
     assert set(CAUSALITIES) == {"input", "output", "parameter", "local"}
 
 
+
+
+# --------------------------------------------------------------------------- #
+#                               one port in full                               #
+# --------------------------------------------------------------------------- #
+def test_a_port_card_has_every_declared_attribute(data_dir):
+    card = describe_port(data_dir / "compile" / "2.0" / "BouncingBall.fmu", "h")
+
+    assert card["type"] == "Real"
+    assert card["causality"] == "output"
+    assert card["attributes"]["description"] == "Position of the ball"
+    assert card["attributes"]["start"] == "1"  # FMI-2: attribute of <Real>, merged with <ScalarVariable>
+
+
+def test_a_port_card_resolves_its_declared_type(data_dir):
+    card = describe_port(data_dir / "compile" / "3.0" / "BouncingBall.fmu", "h")
+
+    assert card["declared_type"] == {"name": "Position", "attributes": {"quantity": "Position", "unit": "m"},
+                                     "inherited": {"quantity": "Position", "unit": "m"}}
+
+
+def test_a_port_card_lists_the_fmi3_aliases(data_dir):
+    card = describe_port(data_dir / "compile" / "3.0" / "BouncingBall.fmu", "h")
+
+    assert card["aliases"] == [{"name": "h_ft", "description": "Position in feet", "displayUnit": "ft"}]
+
+
+def test_a_port_card_lists_its_terminals(data_dir):
+    card = describe_port(data_dir / "ls-bus" / "node1.fmu", "CanChannel.Rx_Data")
+
+    assert card["type"] == "Binary"
+    assert card["terminals"] == [{"terminal": "CanChannel", "kind": "org.fmi-ls-bus.network-terminal",
+                                  "member": "Rx_Data"}]
+
+
+def test_optional_sections_are_omitted(data_dir):
+    card = describe_port(data_dir / "compile" / "2.0" / "BouncingBall.fmu", "time")
+
+    assert not {"declared_type", "aliases", "terminals", "dimensions"} & set(card)
+
+
+FMI2_ALIASES = """<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="2.0" modelName="m" guid="{8c4e810f-3df3-4a00-8276-176fa3c9f000}">
+  <CoSimulation modelIdentifier="m"/>
+  <TypeDefinitions>
+    <SimpleType name="Gear"><Enumeration><Item name="park" value="1"/><Item name="drive" value="2"/></Enumeration></SimpleType>
+  </TypeDefinitions>
+  <ModelVariables>
+    <ScalarVariable name="gear" valueReference="1" causality="input"><Enumeration declaredType="Gear" start="1"/></ScalarVariable>
+    <ScalarVariable name="gear_copy" valueReference="1" causality="output" variability="discrete"><Enumeration declaredType="Gear"/></ScalarVariable>
+    <ScalarVariable name="other" valueReference="1" causality="output" variability="discrete"><Integer/></ScalarVariable>
+  </ModelVariables>
+  <ModelStructure><Outputs><Unknown index="2"/><Unknown index="3"/></Outputs></ModelStructure>
+</fmiModelDescription>
+"""
+
+FMI3_ARRAY = """<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="3.0" modelName="m" instantiationToken="{8c4e810f-3df3-4a00-8276-176fa3c9f000}">
+  <CoSimulation modelIdentifier="m"/>
+  <ModelVariables>
+    <Float64 name="u" valueReference="1" causality="input" start="0 0 0"><Dimension start="3"/></Float64>
+  </ModelVariables>
+  <ModelStructure/>
+</fmiModelDescription>
+"""
+
+
+def _hand_built(tmp_path, descriptor):
+    import zipfile
+    path = tmp_path / "model.fmu"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("modelDescription.xml", descriptor)
+    return path
+
+
+def test_fmi2_aliases_share_the_value_reference_and_the_type(tmp_path):
+    card = describe_port(_hand_built(tmp_path, FMI2_ALIASES), "gear")
+
+    assert card["aliases"] == [{"name": "gear_copy", "causality": "output"}]  # not `other`, an Integer
+
+
+def test_an_enumeration_card_lists_its_items(tmp_path):
+    card = describe_port(_hand_built(tmp_path, FMI2_ALIASES), "gear")
+
+    assert card["declared_type"]["items"] == [{"name": "park", "value": "1"}, {"name": "drive", "value": "2"}]
+
+
+def test_an_array_card_has_its_dimensions(tmp_path):
+    card = describe_port(_hand_built(tmp_path, FMI3_ARRAY), "u")
+
+    assert card["dimensions"] == [{"start": 3}]
+
+
+def test_an_unknown_port_suggests_close_names(data_dir):
+    with pytest.raises(ValueError, match=r"no port 'hh'.*\['h'"):
+        describe_port(data_dir / "compile" / "2.0" / "BouncingBall.fmu", "hh")

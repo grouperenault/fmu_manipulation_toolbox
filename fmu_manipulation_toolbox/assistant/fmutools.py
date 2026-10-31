@@ -16,6 +16,7 @@ Two design points are worth stating, because they shape the whole module:
   the read-only tools here never call it.
 """
 
+import difflib
 import logging
 import re
 from contextlib import contextmanager
@@ -23,6 +24,8 @@ from pathlib import Path
 from typing import Any
 
 from ..checker import get_checkers
+from ..model_description import ModelDescription, ModelVariable
+from ..terminals import Terminals
 from ..operations import (
     FMU, OperationKeepOnlyRegexp, OperationMergeTopLevel, OperationRemoveRegexp,
     OperationRemoveSources, OperationRenameFromCSV, OperationSaveNamesToCSV,
@@ -122,6 +125,115 @@ def summarize_fmu(path: Path) -> dict[str, Any]:
             "event_indicators": operation.number_of_event_indicators,
         }
     return summary
+
+
+def describe_port(path: Path, port: str) -> dict[str, Any]:
+    """Describe one port of an FMU with everything its descriptor declares.
+
+    The port pages (`describe_fmu`) keep a few fields per port to stay small;
+    this is the full card of a single port.
+
+    Args:
+        path: Path to an existing ``.fmu`` file.
+        port: Name of the port.
+
+    Returns:
+        A mapping with ``fmu``, ``fmi_version``, ``name``, ``type``,
+        ``causality`` and ``variability`` (the defaults of the standard when not
+        declared), ``attributes`` (every attribute as declared, FMI 2.0
+        ``<ScalarVariable>`` and type element merged, and the ``<Start>`` values
+        of FMI 3.0 ``String`` and ``Binary`` variables under ``start``), and
+        when they apply: ``dimensions`` (FMI 3.0 arrays), ``declared_type``
+        (name, attributes and enumeration items of the type definition, and
+        ``inherited``: the attributes the port takes from it), ``aliases`` and
+        ``terminals`` (terminal name, kind and member name).
+
+    Raises:
+        ValueError: If the FMU has no such port; the message suggests close names.
+    """
+    with FMU(str(path)) as fmu:
+        md = fmu.model_description
+        variables = {element.get("name"): element for element in md.variables()}
+        element = variables.get(port)
+        if element is None:
+            close = difflib.get_close_matches(port, list(variables), n=5)
+            hint = f" Close names: {close}." if close else ""
+            raise ValueError(f"'{path.name}' has no port '{port}'.{hint}")
+        variable = ModelVariable(element, md.fmi_version)
+        terminals = Terminals(fmu.tmp_directory)
+
+    attributes: dict[str, str] = {}
+    for attrs in variable.attrs_list:
+        for key, value in attrs.items():
+            attributes.setdefault(key, value)
+
+    card: dict[str, Any] = {
+        "fmu": path.name,
+        "fmi_version": md.fmi_version,
+        "name": port,
+        "type": variable.fmi_type,
+        "causality": variable.causality,
+        "variability": variable.variability,
+        "attributes": attributes,
+    }
+    if variable.dimensions:
+        card["dimensions"] = [{key: value} for key, value in variable.dimensions]
+
+    declared = _declared_type(md, variable)
+    if declared:
+        declared["inherited"] = {key: value for key, value in declared["attributes"].items()
+                                 if key not in attributes}
+        card["declared_type"] = declared
+
+    aliases = _aliases(md, variable, variables)
+    if aliases:
+        card["aliases"] = aliases
+
+    # `Terminals` lists the sub-terminals at the top level too: one pass covers them all.
+    memberships = [{"terminal": terminal.name, "kind": terminal.kind, "member": member}
+                   for terminal in terminals
+                   for member, name in terminal.members.items() if name == port]
+    if memberships:
+        card["terminals"] = memberships
+    return card
+
+
+def _declared_type(md: ModelDescription, variable: ModelVariable) -> dict[str, Any] | None:
+    """The type definition named by `declaredType`, with its enumeration items."""
+    name = variable.get("declaredType")
+    definitions = md.root.find("TypeDefinitions")
+    if not name or definitions is None:
+        return None
+    for definition in definitions:
+        if definition.get("name") != name:
+            continue
+        # FMI-2: <SimpleType name="..."><Real unit="..."/></SimpleType>; FMI-3: <Float64Type name="..." unit="..."/>.
+        typed = definition[0] if md.fmi_version == 2 and len(definition) else definition
+        attributes = {key: value for key, value in definition.attrib.items() if key != "name"}
+        if typed is not definition:
+            attributes.update(typed.attrib)
+        declared: dict[str, Any] = {"name": name, "attributes": attributes}
+        items = [dict(item.attrib) for item in typed.findall("Item")]
+        if items:
+            declared["items"] = items
+        return declared
+    return {"name": name, "attributes": {}, "error": "no such type definition"}
+
+
+def _aliases(md: ModelDescription, variable: ModelVariable,
+             variables: dict[str, Any]) -> list[dict[str, str]]:
+    """FMI-3: the `<Alias>` elements. FMI-2: the variables sharing the value reference and the type."""
+    if md.fmi_version == 3:
+        return [dict(alias.attrib) for alias in variable.element.findall("Alias")]
+    vr = variable.element.get("valueReference")
+    aliases = []
+    for name, element in variables.items():
+        if element is variable.element or element.get("valueReference") != vr:
+            continue
+        other = ModelVariable(element, md.fmi_version)
+        if other.fmi_type == variable.fmi_type:
+            aliases.append({"name": name, "causality": other.causality})
+    return aliases
 
 
 #: Most groups of messages returned by `check_fmu` per list: an industrial FMU can produce thousands of errors,
