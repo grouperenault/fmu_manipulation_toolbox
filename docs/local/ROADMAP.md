@@ -13,4 +13,5 @@
 - [X] Reset of embedded FMUs during the simulation (`reset_ports`)
 
 # Version 2.1
+- [X] Agent skills: Claude Code plugin, `fmutool-agent`, filters by type and variability, `describe_port`
 - [ ] Export to Simulink

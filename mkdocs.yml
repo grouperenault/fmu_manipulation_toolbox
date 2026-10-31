@@ -147,6 +147,7 @@ nav:
   - User Guide:
     - Index: user-guide/index.md
     - Launcher: user-guide/launcher.md
+    - Agent Skills: user-guide/agent-skills.md
     - FMU Manipulation:
       - Command Line: user-guide/fmutool/cli-usage.md
       - Operations GUI: user-guide/fmutool/gui-usage.md

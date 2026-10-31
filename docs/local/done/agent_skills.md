@@ -1,6 +1,6 @@
 # Plan: agent skills for the FMU Manipulation Toolbox
 
-**Created**: 31 October 2026 — **Status**: decisions taken, not started
+**Created**: 31 October 2026 — **Updated**: 31 October 2026 (phases 0 to 5 done) — **Status**: done
 
 Give AI agents a reliable way to (1) introspect FMUs, (2) operate on them (checks, renaming, removal of ports by
 type, name, variability...) and (3) build FMU containers. The capability already largely exists as the MCP server
@@ -252,6 +252,23 @@ type (`h` of `BouncingBall` 3.0 has none in the page, `m` with `describe_port`).
 5. Move this plan to `docs/local/done`.
 
 *Commit*: `Documentation of the agent skills, fmutool-agent, the filters by type and variability and rename_ports`
+
+**Status on 31 October 2026: done.**
+
+| Item | File |
+|---|---|
+| New page: the skills, the backends, requirements, installation in Claude Code, claude.ai and the Claude API, `fmutool-agent` (options, output, exit codes, examples), limits; entry in the navigation | `docs/user-guide/agent-skills.md`, `mkdocs.yml` |
+| AI assistant: `describe_port`, `rename_ports` (mapping or CSV, `unknown`), filters `type` and `variability`, pointer to the skills | `docs/user-guide/fmucontainer/ai-assistant.md` |
+| `fmutool -only-type` / `-only-variability`; `fmutool-mcp` and `fmutool-agent` next to the commands | `docs/user-guide/fmutool/cli-usage.md` |
+| Python API: `types` and `variabilities` of `apply_operation`, `OperationRename` | `docs/user-guide/fmutool/python-api.md` |
+| Changelog (section *AI agents* of Upstream, `rename_ports_from_csv` marked **BREAKING**), README (install line of the plugin), roadmap | `CHANGELOG.md`, `README.md`, `docs/local/ROADMAP.md` |
+
+**Deviation from the plan**: `docs/whats-new.md` is the release page of 2.0 and holds none of the other unreleased
+changes; it is left for the release of 2.1, the changes being in the *Upstream* section of `CHANGELOG.md`.
+
+Checks performed: unit and integration suites **2070 passed, 2 skipped**; GUI suite **133 passed**; `claude plugin
+validate .`: passed, without warning nor advice. `mkdocs` is not installed: the relative links and anchors of the
+edited pages were checked by a script (all resolve).
 
 ---
 

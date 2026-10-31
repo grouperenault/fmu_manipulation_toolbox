@@ -16,6 +16,7 @@ from fmu_manipulation_toolbox.operations import (
     OperationStripTopLevel,
     OperationMergeTopLevel,
     OperationTrimUntil,
+    OperationRename,
     OperationRenameFromCSV,
     OperationSaveNamesToCSV,
     OperationRemoveRegexp,
@@ -91,7 +92,7 @@ fmu.repack("path/to/module-modified.fmu")
 fmu.save_descriptor("path/to/modelDescription.xml")
 ```
 
-### Filter Operations by Causality
+### Filter Operations by Causality, Type or Variability
 
 You can restrict an operation to specific port types using the `apply_on` parameter:
 
@@ -110,6 +111,25 @@ fmu.repack("module-clean.fmu")
 Valid values for `apply_on` match the FMI `causality` attribute, e.g. `"parameter"`, `"input"`,
 `"output"`, `"local"`, `"independent"`, `"calculatedParameter"` (`"structuralParameter"` for FMI 3.0).
 Any causality not listed defaults to `"local"` when a port omits the attribute.
+
+The keyword arguments `types` and `variabilities` select the ports by their type and their variability. The
+filters combine: a port is processed only if it matches each filter given.
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationRemoveRegexp
+
+with FMU("module.fmu") as fmu:
+    # Remove the fixed parameters
+    fmu.apply_operation(OperationRemoveRegexp(".*"), ["parameter"], variabilities=["fixed"])
+    # Remove the real ports whose name starts with "debug_"
+    fmu.apply_operation(OperationRemoveRegexp(r"^debug_"), types=["Real"])
+    fmu.repack("module-clean.fmu")
+```
+
+- `types`: the exact type of the ports (`"Real"`, `"Float64"`, `"Int32"`…) or, on an FMI 3.0 FMU, an FMI 2.0
+  type standing for its family: `"Real"` selects `Float32` and `Float64`, `"Integer"` every integer type.
+- `variabilities`: `"constant"`, `"fixed"`, `"tunable"`, `"discrete"`, `"continuous"`. A port that declares no
+  variability has the default of the standard (`ModelVariable.variability`).
 
 ## Available Operations
 
@@ -160,6 +180,21 @@ fmu.repack("module-renamed.fmu")
 
 The CSV must be semicolon-delimited with at least two columns: original name and new name.
 If the new name is empty, the port is removed.
+
+### Rename from a Mapping
+
+```python
+from fmu_manipulation_toolbox.operations import FMU, OperationRename
+
+with FMU("module.fmu") as fmu:
+    operation = OperationRename({"u": "speed", "debug": ""})  # an empty name removes the port
+    fmu.apply_operation(operation)
+    fmu.repack("module-renamed.fmu")
+
+print(operation.found)  # the names of the mapping met in the FMU: here, a typo would be missing
+```
+
+`OperationRenameFromCSV` is an `OperationRename` whose mapping is read from the CSV file.
 
 ### Remove Top-Level Hierarchy
 
@@ -343,6 +378,7 @@ from fmu_manipulation_toolbox.operations import (
     FMU,
     OperationRemoveRegexp,
     OperationStripTopLevel,
+    OperationRename,
     OperationRenameFromCSV,
 )
 

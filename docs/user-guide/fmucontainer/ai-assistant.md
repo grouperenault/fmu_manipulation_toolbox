@@ -21,6 +21,12 @@ The standalone flavour needs neither a display nor a running GUI, and speaks
 the **stdio** transport that most MCP clients expect from a server they launch
 themselves. Nothing is visible until the agent exports or builds the assembly.
 
+!!! tip "No MCP client? Skills and `fmutool-agent`"
+
+    The same tools are available as a JSON command line, `fmutool-agent`, for
+    agents that can only run commands, and as ready-made skills for Claude
+    Code and claude.ai: see [Agent skills](../agent-skills.md).
+
 ## Requirements
 
 - The optional `fastmcp` package. It is **not**
@@ -210,9 +216,10 @@ These come from `fmutool` and the `Checker`. They read or rewrite **one**
 |------|-------------|
 | `summarize_fmu` | Identity, capabilities, platforms, embedded resources, port counts |
 | `check_fmu` | Conformity to the FMI standard: schema and semantic rules, plus any registered checker |
+| `describe_port` | Everything declared about one port (of a file, or of an FMU of the assembly): every attribute (`min`, `max`, `nominal`…), FMI 3 dimensions, declared type with the attributes the port inherits from it, aliases, terminals |
 | `dump_ports_csv` | Export every port to a CSV file, for bulk renaming |
-| `rename_ports_from_csv` | Rename — or drop — ports from that CSV |
-| `apply_operation` | Strip/merge a `Bus.` prefix, trim, or filter ports by regexp |
+| `rename_ports` | Rename — or drop — ports, from a `mapping` (`{"old": "new"}`) or from that CSV |
+| `apply_operation` | Strip/merge a `Bus.` prefix, trim, or filter ports by regexp, restricted with `causality`, `type` and `variability` if needed |
 
 The three that rewrite an FMU always produce a **new** file and leave the
 source untouched. They change the FMU interface, so anything already
@@ -225,11 +232,12 @@ value make one entry — and at most 50 groups are returned per list; `error_cou
 totals and `truncated` tells whether groups were left out. The full report is printed by
 `fmutool -input model.fmu -check`.
 
-!!! warning "An empty `newName` removes the port"
+!!! warning "An empty new name removes the port"
 
-    In the CSV consumed by `rename_ports_from_csv`, a row whose second column
-    is empty **deletes** that port. The tool reports `renamed` and `removed`
-    separately so the assistant can tell you what actually happened.
+    In the `mapping` or the CSV given to `rename_ports`, an empty new name
+    **deletes** that port. The tool reports the ports actually `renamed` and
+    `removed`, and the names of the mapping the FMU does not have (`unknown`), so
+    the assistant can tell you what actually happened.
 
 ### Reading port listings
 
@@ -244,8 +252,15 @@ ports are returned per call by default, at most 200 with `limit`. Rather than
 paging blindly, narrow the request:
 
 - `causality=["output"]` before looking for something to wire,
+- `type=["Real"]` or `variability=["tunable"]`: on an FMI 3 FMU, an FMI 2 type
+  selects its family (`Real` is `Float32` and `Float64`, `Integer` every integer
+  type), and a port that declares no variability has the default of the
+  standard,
 - `name_pattern="^engine_"` to search by name (a regular expression),
 - `offset` to fetch the next page when `truncated` is `true`.
+
+`apply_operation` takes the same `causality`, `type` and `variability`
+filters, so the listing previews exactly the ports an operation will touch.
 
 The `counts` field always describes the whole FMU, whatever the filter, and
 `total` counts the ports matching the filter. Comparing `returned` with
