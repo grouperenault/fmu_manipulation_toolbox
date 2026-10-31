@@ -14,8 +14,6 @@ import inspect
 import json
 import logging
 import os
-import re
-from pathlib import Path
 from typing import Any, Literal
 
 from . import analysis
@@ -25,6 +23,7 @@ from .knowledge import (
     container_options_reference, diagnose_assembly_prompt, inspect_fmu_prompt,
 )
 from .paths import PathPolicy
+from .tools import Toolbox, is_actionable, ports_page
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -104,18 +103,6 @@ def resolve_timeout() -> float:
 # ---------------------------------------------------------------------------
 # Error reporting
 # ---------------------------------------------------------------------------
-
-#: Exceptions carrying a message the client (and the model) can act upon.
-#: Anything raised by the toolbox itself is considered actionable too, which
-#: avoids importing (and therefore loading) the heavy core modules here.
-_ACTIONABLE_ERRORS = (ValueError, FileNotFoundError, OSError, LookupError)
-_TOOLBOX_PACKAGE = "fmu_manipulation_toolbox"
-
-
-def _is_actionable(exc: BaseException) -> bool:
-    return (isinstance(exc, _ACTIONABLE_ERRORS)
-            or type(exc).__module__.startswith(_TOOLBOX_PACKAGE))
-
 
 def _schema_node(schema: dict[str, Any], node: dict[str, Any]) -> dict[str, Any]:
     """Follow `$ref` and pick the object branch of `anyOf` (optional fields) in a JSON schema."""
@@ -207,7 +194,7 @@ def _guard(fn):
     from fastmcp.exceptions import ToolError
 
     def translate(exc: BaseException) -> ToolError:
-        if _is_actionable(exc):
+        if is_actionable(exc):
             return ToolError(str(exc))
         logger.exception(f"Unexpected error in MCP tool '{fn.__name__}'")
         return ToolError(
@@ -293,15 +280,14 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     # which ships with fastmcp: importing this package must stay possible
     # without the optional `mcp` extra.
     from .models import (
-        DEFAULT_PORT_LIMIT, MAX_PORT_LIMIT, ContainerOptions, FmuPorts, FmuSummary, Link, Port,
-        RemovalReport, StartValue, format_start_value, option_reference,
+        DEFAULT_PORT_LIMIT, MAX_PORT_LIMIT, ContainerOptions, FmuPorts, FmuSummary, Link,
+        RemovalReport, StartValue, option_reference,
     )
-    # Same reasoning, different cost: `fmutools` pulls in the XSD validator and
-    # the whole operations module, which importing this package must not do.
-    from . import fmutools
 
     if policy is None:
         policy = PathPolicy.from_environment()
+    # What each tool does; the functions below only add what MCP clients need (signatures, schemas).
+    toolbox = Toolbox(bridge, policy)
 
     mcp = FastMCP(name)
 
@@ -355,39 +341,6 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     Limit = Annotated[int, Field(
         ge=1, le=MAX_PORT_LIMIT, description="Most items to return.")]
 
-    def _as_ports_page(description: dict[str, Any], causality, pattern,
-                       offset: int, limit: int, types=None, variabilities=None) -> FmuPorts:
-        """Filter, count and paginate a raw bridge description."""
-        ports = description.get("ports", [])
-        counts: dict[str, int] = {}
-        for port in ports:
-            key = port.get("causality") or "unknown"
-            counts[key] = counts.get(key, 0) + 1
-
-        selected = fmutools.select_ports(ports, description.get("fmi_version"), causality, types,
-                                         variabilities)
-        if pattern:
-            try:
-                matcher = re.compile(pattern)
-            except re.error as exc:
-                raise ValueError(f"Invalid regular expression '{pattern}': {exc}") from None
-            selected = [port for port in selected if matcher.search(port["name"])]
-
-        page = selected[offset:offset + limit]
-        return FmuPorts(
-            fmu=description["fmu"],
-            fmi_version=description.get("fmi_version"),
-            generator=description.get("generator", ""),
-            kinds=description.get("kinds", []),
-            terminals=description.get("terminals", []),
-            counts=counts,
-            total=len(selected),
-            returned=len(page),
-            offset=offset,
-            truncated=offset + len(page) < len(selected),
-            ports=[Port.from_description(port) for port in page],
-        )
-
     @mcp.tool(annotations=READ_ONLY)
     @_guard
     def list_fmus() -> list[str]:
@@ -396,7 +349,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         Call this first: the canvas may already contain FMUs the user added
         through the GUI. The returned names are what every other tool expects.
         """
-        return bridge.list_fmus()
+        return toolbox.list_fmus()
 
     @mcp.tool(annotations=READ_ONLY)
     @_guard
@@ -415,8 +368,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         `set_start_value`: never guess a port name. Paginated: filter rather
         than page, and check `truncated`. For a file, use `inspect_fmu_file`.
         """
-        return _as_ports_page(bridge.list_fmu_ports(fmu), causality, name_pattern,
-                              offset, limit, type, variability)
+        return FmuPorts(**toolbox.list_fmu_ports(fmu, causality, type, variability, name_pattern,
+                                                 offset, limit))
 
     @mcp.tool(annotations=READ_ONLY)
     @_guard
@@ -434,8 +387,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
         Same result and filters as `list_fmu_ports`.
         """
-        description = bridge.inspect_fmu_file(str(policy.resolve_input(path)))
-        return _as_ports_page(description, causality, name_pattern, offset, limit, type, variability)
+        return FmuPorts(**toolbox.inspect_fmu_file(path, causality, type, variability, name_pattern,
+                                                   offset, limit))
 
     @mcp.tool(annotations=WRITE)
     @_guard
@@ -449,7 +402,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         the number of ports per causality. Adding a file again adds another
         instance of it, named `<stem>-<n>.fmu`: call it once per instance.
         """
-        return FmuSummary(**bridge.add_fmu(str(policy.resolve_input(path))))
+        return FmuSummary(**toolbox.add_fmu(path))
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
@@ -459,7 +412,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         Reports how many links were discarded, so you can tell the user what
         was lost. This cannot be undone from here: confirm before calling it.
         """
-        return RemovalReport(**bridge.remove_fmu(name))
+        return RemovalReport(**toolbox.remove_fmu(name))
 
     @mcp.tool(annotations=IDEMPOTENT_WRITE)
     @_guard
@@ -477,7 +430,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         real-to-boolean link with the user. `auto_link` (on by default) already
         connects ports with the same name and type: this is for the others.
         """
-        return bridge.add_link(from_fmu, from_port, to_fmu, to_port)
+        return toolbox.add_link(from_fmu, from_port, to_fmu, to_port)
 
     @mcp.tool(annotations=IDEMPOTENT_WRITE)
     @_guard
@@ -490,16 +443,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         Links are applied in order and independently: a rejected link does not
         undo the others, so read `failed` before reporting the wiring as done.
         """
-        created, failed = [], []
-        for link in links:
-            try:
-                created.append(bridge.add_link(link.from_fmu, link.from_port,
-                                               link.to_fmu, link.to_port))
-            except Exception as exc:  # noqa: BLE001 - reported per link
-                if not _is_actionable(exc):
-                    raise
-                failed.append({"link": str(link), "reason": str(exc)})
-        return {"created": created, "failed": failed}
+        return toolbox.add_links([link.model_dump() for link in links])
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
@@ -517,7 +461,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         derived at build time, so disable the option instead of trying to undo
         them one by one.
         """
-        return bridge.remove_link(from_fmu, from_port, to_fmu, to_port)
+        return toolbox.remove_link(from_fmu, from_port, to_fmu, to_port)
 
     @mcp.tool(annotations=IDEMPOTENT_WRITE)
     @_guard
@@ -528,7 +472,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         specific container interface: unconnected inputs are exposed
         automatically otherwise.
         """
-        return bridge.expose_input(fmu, port)
+        return toolbox.expose_input(fmu, port)
 
     @mcp.tool(annotations=IDEMPOTENT_WRITE)
     @_guard
@@ -538,7 +482,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         Only needed when `auto_output` is disabled, or when the user asks for a
         specific container interface.
         """
-        return bridge.expose_output(fmu, port)
+        return toolbox.expose_output(fmu, port)
 
     @mcp.tool(annotations=IDEMPOTENT_WRITE)
     @_guard
@@ -552,7 +496,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
         Use the natural type of the port as reported by `list_fmu_ports`.
         """
-        return bridge.set_start_value(fmu, port, format_start_value(value))
+        return toolbox.set_start_value(fmu, port, value)
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
@@ -562,7 +506,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         The port falls back to the value declared by the FMU, if any; what the
         FMU declares cannot be dropped.
         """
-        return bridge.unset_start_value(fmu, port)
+        return toolbox.unset_start_value(fmu, port)
 
     @mcp.tool(annotations=IDEMPOTENT_WRITE)
     @_guard
@@ -573,7 +517,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         unset so the toolbox derives it from the embedded FMUs, rather than
         inventing a value. Returns every option after the update.
         """
-        return bridge.set_container_options(options.changes())
+        return toolbox.set_container_options(options.changes())
 
     @mcp.tool(annotations=READ_ONLY)
     @_guard
@@ -590,7 +534,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         container (`node`) at a time; if `truncated`, page its sections with
         `section`. For an overview: `analyze_assembly`.
         """
-        return analysis.assembly_page(bridge.get_assembly_json(), node, section, offset, limit)
+        return toolbox.get_assembly_json(node, section, offset, limit)
 
     @mcp.tool(annotations=READ_ONLY)
     @_guard
@@ -605,11 +549,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         Start here to describe or diagnose an assembly. The lint checks the
         ports with the container builder; quote its findings.
         """
-        assembly = bridge.get_assembly_json()
-        if mode == "summary":
-            return analysis.summarize_assembly(
-                assembly if node is None or not assembly else analysis.find_container(assembly, node))
-        return analysis.lint_assembly(assembly, node, bridge.list_fmu_ports)
+        return toolbox.analyze_assembly(mode, node)
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
@@ -625,7 +565,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         This writes the *description*, not a usable FMU; use `save_as_fmu` to
         build the container itself.
         """
-        return bridge.save_as_json(str(policy.resolve_output(path, (".json",), overwrite)))
+        return toolbox.save_as_json(path, overwrite)
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
@@ -649,7 +589,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         user first. Slow (reports progress): never start a second build while
         one runs.
         """
-        destination = policy.resolve_output(path, (".fmu",), overwrite)
+        destination = toolbox.fmu_destination(path, overwrite)
         # Progress notifications carry the status message rather than
         # `ctx.info()`: the MCP logging capability is deprecated since
         # SEP-2577, while progress is the mechanism meant for exactly this.
@@ -676,7 +616,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         the port list itself, prefer `inspect_fmu_file`, which is filterable
         and paginated.
         """
-        return fmutools.summarize_fmu(policy.resolve_input(path))
+        return toolbox.summarize_fmu(path)
 
     @mcp.tool(annotations=READ_ONLY)
     @_guard
@@ -690,7 +630,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         them; if `truncated`, say the list is incomplete (full report:
         `fmutool -input <fmu> -check`).
         """
-        return fmutools.check_fmu(policy.resolve_input(path))
+        return toolbox.check_fmu(path)
 
     @mcp.tool(annotations=READ_ONLY)
     @_guard
@@ -704,11 +644,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         Attributes (min, max, nominal, start...), dimensions, declared type,
         aliases, terminals. The port pages only keep a summary of each port.
         """
-        if fmu in bridge.list_fmus():
-            path = Path(bridge.list_fmu_ports(fmu)["path"])
-        else:
-            path = policy.resolve_input(fmu)
-        return fmutools.describe_port(path, port)
+        return toolbox.describe_port(fmu, port)
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
@@ -724,8 +660,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         The `newName` column is the one to edit before feeding the file back
         to `rename_ports`.
         """
-        return fmutools.dump_ports_csv(policy.resolve_input(fmu),
-                                       policy.resolve_output(path, (".csv",), overwrite))
+        return toolbox.dump_ports_csv(fmu, path, overwrite)
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
@@ -743,10 +678,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         An **empty** new name **removes** the port: report `removed`, and
         `unknown` names. Renaming breaks what is connected to the old names.
         """
-        return fmutools.rename_ports(
-            policy.resolve_input(fmu),
-            policy.resolve_output(output, (".fmu",), overwrite),
-            mapping, policy.resolve_input(csv, (".csv",)) if csv is not None else None)
+        return toolbox.rename_ports(fmu, output, mapping, csv, overwrite)
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
@@ -772,10 +704,8 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         This changes the FMU **interface**: confirm with the user. The output is
         a separate FMU, never the source.
         """
-        return fmutools.apply_operation(
-            policy.resolve_input(fmu),
-            policy.resolve_output(output, (".fmu",), overwrite),
-            operation, argument, causality, type, variability)
+        return toolbox.apply_operation(fmu, output, operation, argument, causality, type, variability,
+                                       overwrite)
 
     @mcp.resource("guide://usage")
     def usage_guide() -> str:
@@ -802,9 +732,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     @_guard
     def fmu_ports_resource(name: str) -> str:
         """The ports of one FMU of the assembly, as JSON."""
-        page = _as_ports_page(bridge.list_fmu_ports(name), None, None,
-                              0, DEFAULT_PORT_LIMIT)
-        return page.model_dump_json()
+        return FmuPorts(**ports_page(bridge.list_fmu_ports(name))).model_dump_json()
 
     # -- prompts -----------------------------------------------------------
     # The procedures live here rather than in a repository file: they must

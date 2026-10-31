@@ -73,13 +73,14 @@ Decided on 31 October 2026.
 | # | Question | Decision |
 |---|---|---|
 | Q1 | Shape of the port filters; type names | **Flat parameters** `causality`, `type`, `variability`, `name_pattern` side by side (shared `Annotated` types); Python API `FMU.apply_operation(operation, apply_on=None, *, types=None, variabilities=None)`. **Native names plus FMI 2 families**: the exact name of the FMU (`Real`, `Float64`, `Int32`...) selects that type; on an FMI 3 FMU an FMI 2 name selects its family (`Real` = `Float32`/`Float64`, `Integer` = `Int8`...`UInt64`) (31 October 2026) |
+| Q3 | `fmutool-agent` state file | **Explicit `--state FILE`**, required by the assembly tools (refused otherwise), created by the first call; the single-FMU tools need none (31 October 2026) |
+| Q3b | How `fmutool-agent` reuses the tools | **Direct calls, without `fastmcp`**; and since Pydantic only comes with the `mcp` extra: **plain Python, shared logic**: the work of each tool moves to `assistant/tools.py` (`Toolbox`), called by the MCP server and by the command line; the command line checks its arguments against the signatures of `Toolbox`; a contract test checks tools, parameters and results against the server (31 October 2026) |
 | Q2 | Content of `describe_port` | Every declared attribute and the FMI 3 dimensions, plus the **resolved declared type** (inherited attributes and their origin, enumeration items), the **aliases** (FMI 3 `<Alias>`; FMI 2 variables sharing the value reference and the type) and the **terminals** the port belongs to, with its member name. Not the `ModelStructure` role (31 October 2026) |
 
 ### Still to be decided (asked at the start of the phase concerned)
 
 | # | Question | Phase |
 |---|---|---|
-| Q3 | `fmutool-agent` state file: explicit `--state` argument only, or a default file in the current directory | 3 |
 | Q4 | Whether the skills are copied into the plugin or the plugin is the single source and the `.zip` are built from it | 4 |
 
 ---
@@ -183,6 +184,20 @@ this phase.
 4. Contract test: for every tool, the MCP result and the `fmutool-agent` result are identical on the test FMUs.
 
 *Commit*: `fmutool-agent: the MCP tools as a JSON command line, the assembly kept in a JSON file between calls`
+
+**Status on 31 October 2026: done.**
+
+| Item | File |
+|---|---|
+| `Toolbox(bridge, policy)`: one method per tool (same names, parameters and results as the MCP tools), plain JSON values; `ports_page`, `compact_port`, `format_start_value`, `is_actionable`, `DEFAULT_PORT_LIMIT`, `MAX_PORT_LIMIT`, `MAX_DESCRIPTION_LENGTH` moved here (re-exported by `models.py`); container options checked without Pydantic (`CONTAINER_OPTION_TYPES`); `TOOLS` | `assistant/tools.py` (new) |
+| MCP tools delegate to `Toolbox`; they keep their typed signatures, descriptions and result models; `_as_ports_page`, `Port.from_description` removed | `assistant/server.py`, `assistant/models.py` |
+| `HeadlessAssemblyBridge.state()` / `from_state()` (`"format": "fmutool-agent-state/1"`): FMU names and paths, links, exposed ports, start values, options. **Deviation from the plan**: not a `load_json` of the assembly description, which renames the instances and resolves the paths, but an exact state of what the client asked for | `assistant/headless.py` |
+| `fmutool-agent TOOL [--args JSON\|-] [--state FILE] [--root DIR] [--name NAME] [--debug]`, `fmutool-agent list-tools`; result on stdout (an object as is, otherwise `{"result": ...}`, as the MCP structured content), logs on stderr; `{"error": ...}` with exit code 2 (usage) or 1 (tool); state written after a successful change only, through a temporary file | `cli/fmutool_agent.py` (new), `pyproject.toml` |
+| Tests: tools and parameters (order, required, defaults) identical to the server; a whole session (23 calls, assembly and single-FMU tools) gives the same results through the server and the command line; state round trip (instances included), kept between calls, untouched by a failed change or a reading tool; errors; stdin; runs in an interpreter where `fastmcp` and `pydantic` cannot be imported | `tests/unit/test_fmutool_agent.py` (new) |
+
+Checks performed: unit suite **1153 passed**, integration suite **897 passed, 2 skipped**, GUI tests of the MCP
+bridge **33 passed**; definitions unchanged (17 444 / 18 000). The console script needs a reinstall of the package
+(`pip install -e .`) to be on the `PATH`; the tests call the module.
 
 ### Phase 4 — Plugin and skills (D2, D9, D10, D11)
 

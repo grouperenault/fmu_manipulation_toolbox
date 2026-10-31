@@ -45,6 +45,9 @@ DEFAULT_OPTIONS: dict[str, Any] = {
 #: Default name of the container being described.
 DEFAULT_CONTAINER_NAME = "container.fmu"
 
+#: Marker of the files written by `HeadlessAssemblyBridge.state` (the assembly state of `fmutool-agent`).
+STATE_FORMAT = "fmutool-agent-state/1"
+
 
 class _FmuDescriptor(OperationAbstract):
     """Reads an FMU descriptor and collects what the assistant needs.
@@ -164,6 +167,49 @@ class HeadlessAssemblyBridge:
         self._exposed_outputs: list[tuple[str, str]] = []
         self._start_values: dict[tuple[str, str], str] = {}
         self._options: dict[str, Any] = dict(DEFAULT_OPTIONS)
+
+    # -- state -------------------------------------------------------------
+
+    def state(self) -> dict[str, Any]:
+        """What the client asked for, as JSON values: `from_state` rebuilds the same bridge.
+
+        This is not the assembly description (`save_as_json`): it keeps the
+        names given to the FMUs and nothing derived from them, so that a tool
+        called in another process (`fmutool-agent`) finds the assembly as left.
+        """
+        return {
+            "format": STATE_FORMAT,
+            "name": self._name,
+            "fmus": {name: str(path) for name, path in self._paths.items()},
+            "links": [list(link) for link in self._links],
+            "exposed_inputs": [list(item) for item in self._exposed_inputs],
+            "exposed_outputs": [list(item) for item in self._exposed_outputs],
+            "start_values": [[fmu, port, value] for (fmu, port), value in self._start_values.items()],
+            "options": dict(self._options),
+        }
+
+    @classmethod
+    def from_state(cls, state: dict[str, Any]) -> "HeadlessAssemblyBridge":
+        """The bridge saved by `state`. The FMUs are read again from their files.
+
+        Raises:
+            ValueError: If `state` was not produced by `state`.
+            FileNotFoundError: If an FMU of the assembly no longer exists.
+        """
+        if not isinstance(state, dict) or state.get("format") != STATE_FORMAT:
+            raise ValueError(f"Not an assembly state (expected \"format\": \"{STATE_FORMAT}\").")
+        bridge = cls(state.get("name", DEFAULT_CONTAINER_NAME))
+        for name, path in state.get("fmus", {}).items():
+            description = describe_fmu(Path(path))
+            description["fmu"] = name
+            bridge._paths[name] = Path(path)
+            bridge._descriptions[name] = description
+        bridge._links = [tuple(link) for link in state.get("links", [])]
+        bridge._exposed_inputs = [tuple(item) for item in state.get("exposed_inputs", [])]
+        bridge._exposed_outputs = [tuple(item) for item in state.get("exposed_outputs", [])]
+        bridge._start_values = {(fmu, port): value for fmu, port, value in state.get("start_values", [])}
+        bridge._options.update(state.get("options", {}))
+        return bridge
 
     # -- helpers -----------------------------------------------------------
 

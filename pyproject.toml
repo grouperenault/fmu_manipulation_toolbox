@@ -80,6 +80,7 @@ Changelog = "https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main
 fmutool = "fmu_manipulation_toolbox.cli.fmutool:fmutool"
 fmucontainer = "fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer"
 fmutool-mcp = "fmu_manipulation_toolbox.cli.fmutool_mcp:main"
+fmutool-agent = "fmu_manipulation_toolbox.cli.fmutool_agent:main"
 fmusplit = "fmu_manipulation_toolbox.cli.fmusplit:fmusplit"
 datalog2pcap = "fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap"
 
