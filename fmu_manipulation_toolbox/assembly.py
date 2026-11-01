@@ -885,6 +885,27 @@ class Assembly:
             except TypeError:
                 raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: {line}.")
 
+    def write_ssp(self, filename: str | Path, ssp_version: str = "2.0") -> Path:
+        """Write the assembly as an SSP archive: `SystemStructure.ssd` and the embedded FMUs.
+
+        The routing is written resolved (the links and ports of the `auto_*` rules become connections) and the
+        options of each container go in an annotation, so that the file read back gives the same container (see
+        [SSPWriter][fmu_manipulation_toolbox.ssp.SSPWriter]).
+
+        Args:
+            filename (str | Path): The `.ssp` file to write.
+            ssp_version (str): `"2.0"` (default) or `"1.0"`.
+
+        Returns:
+            Path: The file written.
+
+        Raises:
+            AssemblyError: If the assembly is empty or the version unknown.
+        """
+        from .ssp import SSPWriter
+
+        return SSPWriter(self, ssp_version).write(filename)
+
     def write_json(self, filename: str | Path, basenames_only: bool = False):
         """Export the assembly as a JSON file.
 

@@ -125,6 +125,7 @@ class SSDParser:
     OUTPUT_ROLES = ("output",)
     INPUT_ROLES = ("input",)
     EXPOSED_INPUT_ROLES = ("input", "parameter")
+    EXPOSED_OUTPUT_ROLES = ("output", "local")  # as the builder (`auto_local`)
     #: Attributes of `ssc:BaseUnit`, with their default value.
     BASE_UNIT_DEFAULTS = {"kg": "0", "m": "0", "s": "0", "A": "0", "K": "0", "mol": "0", "cd": "0", "rad": "0",
                           "factor": "1", "offset": "0"}
@@ -203,6 +204,10 @@ class SSDParser:
                     if element.tag.startswith(common):
                         if event == "start":
                             self._common_element(element.tag[len(common):], element.attrib)
+                        continue
+                    if element.tag.startswith(f"{{{CONTAINER_NAMESPACE}}}"):
+                        if event == "start":
+                            self._container_annotation(element.tag[len(CONTAINER_NAMESPACE) + 2:], element.attrib)
                         continue
                     if not element.tag.startswith(prefix):
                         continue  # other SSP namespaces (ssv:...) and vendor annotations
@@ -436,7 +441,8 @@ class SSDParser:
         if end is None:
             self._used_connectors.add((system, attrs['endConnector']))
         if start is not None:
-            self._check_fmu_connector(attrs, start, attrs['startConnector'], self.OUTPUT_ROLES)
+            self._check_fmu_connector(attrs, start, attrs['startConnector'],
+                                      self.OUTPUT_ROLES if end is not None else self.EXPOSED_OUTPUT_ROLES)
         if end is not None:
             self._check_fmu_connector(attrs, end, attrs['endConnector'],
                                       self.INPUT_ROLES if start is not None else self.EXPOSED_INPUT_ROLES)
@@ -484,6 +490,37 @@ class SSDParser:
                     variables[alias.get("name")] = variable
             self._fmus[source] = (md, variables)
         return self._fmus[source]
+
+    def _container_annotation(self, tag_name: str, attrs):
+        """The options annotation of a system written by `SSPWriter`: it prevails over the command line (E3)."""
+        if not self.node_stack or not self._owners or self._owners[-1][0] != "system":
+            return
+        node = self.node_stack[-1]
+        if tag_name == "Container":
+            if attrs.get("formatVersion", CONTAINER_FORMAT_VERSION) != CONTAINER_FORMAT_VERSION:
+                logger.warning(f"'{self.ssd_filename}': options annotation of '{node.name}' in format "
+                               f"{attrs.get('formatVersion')}: read as format {CONTAINER_FORMAT_VERSION}.")
+            for option, attribute in CONTAINER_OPTIONS.items():
+                if attribute not in attrs:
+                    continue
+                value = attrs[attribute]
+                if option == "step_size":
+                    try:
+                        node.step_size = float(value)
+                    except ValueError:
+                        logger.warning(f"'{self.ssd_filename}': step size '{value}' of '{node.name}' is not a number.")
+                else:
+                    setattr(node, option, value == "true")
+            logger.info(f"'{self.ssd_filename}': options of '{node.name}' read from the SSP file (they prevail over "
+                        f"the command line).")
+        elif tag_name == "Drop":
+            element, connector = attrs.get("element"), attrs.get("connector")
+            if element in self.ignored_components:
+                return
+            if element not in self.fmu_filenames or not connector:
+                raise AssemblyError(f"'{self.ssd_filename}': dropped port '{element}.{connector}' of '{node.name}' "
+                                    f"refers to an unknown element.")
+            node.add_drop_port(self.fmu_filenames[element], connector)
 
     def _apply_default_experiment(self):
         """`startTime` and `stopTime` of the `DefaultExperiment` become those of the container. SSP gives no step
@@ -738,3 +775,413 @@ class SSDConnector:
 
     def __repr__(self):
         return f"SSDConnector({self.element}.{self.name}, {self.kind}, {self.type}, {self.unit})"
+
+
+# --------------------------------------------------------------------------------------------------------------- #
+#                                                    SSP writer                                                   #
+# --------------------------------------------------------------------------------------------------------------- #
+#: Annotation of a system holding the options of its container (plan `ssp_export`, E2, E8).
+CONTAINER_ANNOTATION_TYPE = "fmu_manipulation_toolbox.container"
+CONTAINER_NAMESPACE = "urn:fmu_manipulation_toolbox:container:1"
+CONTAINER_FORMAT_VERSION = "1"
+
+#: Options of an `AssemblyNode`, and their attribute in the annotation.
+CONTAINER_OPTIONS = {"step_size": "stepSize", "mt": "mt", "profiling": "profiling", "sequential": "sequential",
+                     "auto_link": "autoLink", "auto_input": "autoInput", "auto_output": "autoOutput",
+                     "auto_parameter": "autoParameter", "auto_local": "autoLocal", "ts_multiplier": "tsMultiplier",
+                     "reset_ports": "resetPorts"}
+
+#: SSP 1.0 knows the FMI 2.0 types only.
+SSP1_TYPES = {"Float32": "Real", "Float64": "Real", "Int8": "Integer", "UInt8": "Integer", "Int16": "Integer",
+              "UInt16": "Integer", "Int32": "Integer", "UInt32": "Integer", "Int64": "Integer", "UInt64": "Integer"}
+
+
+class SSPWriter:
+    """Write an [Assembly][fmu_manipulation_toolbox.assembly.Assembly] as an SSP archive.
+
+    The archive holds `SystemStructure.ssd` and the embedded FMUs, under `resources/`. Each node of the assembly is a
+    system, each FMU a component, named after its file without extension. The routing is **resolved**: the links
+    and exposed ports added by the `auto_*` rules of a node are computed by the container builder (without building)
+    and written as connections, so that another tool sees the whole routing; the options annotation of the system
+    then says `auto_*="false"`, and the file read back gives the same container.
+
+    Also written: the start values (`ParameterBindings` with an inline parameter set), the architecture wires, the
+    geometry, the units of the connectors (`suppressUnitConversion="true"` on a connection between different units:
+    the container does not convert), the options and the dropped ports of each node (annotation of type
+    `CONTAINER_ANNOTATION_TYPE`), and the start and stop times (`DefaultExperiment`).
+
+    Args:
+        assembly (Assembly): The assembly to write; its FMUs must be readable from its `fmu_directory`.
+        ssp_version (str): `"2.0"` (default) or `"1.0"`, which writes the FMI 3.0 types as FMI 2.0 ones.
+    """
+
+    def __init__(self, assembly, ssp_version: str = "2.0"):
+        if ssp_version not in ("1.0", "2.0"):
+            raise AssemblyError(f"SSP version '{ssp_version}' is not supported: '1.0' or '2.0'.")
+        if assembly.root is None:
+            raise AssemblyError("The assembly is empty: nothing to write as SSP.")
+        self.assembly = assembly
+        self.ssp_version = ssp_version
+        self.fmu_directory = Path(assembly.fmu_directory)
+        self._sources: dict[Path, str] = {}  # FMU file => member of the archive
+        self._descriptions: dict[Path, tuple[ModelDescription, dict[str, ModelVariable]]] = {}
+
+    # ----------------------------------------------------------------------------------------------------- write
+    def write(self, filename: str | Path) -> Path:
+        """Write the SSP archive `filename` and return its path."""
+        import tempfile
+
+        filename = Path(filename)
+        with tempfile.TemporaryDirectory() as tmp:
+            system = self._system(self.assembly.root, Path(tmp))
+            root = ET.Element(f"{{{SSDParser.SSD_NAMESPACE}}}SystemStructureDescription",
+                              {"version": self.ssp_version, "name": Path(self.assembly.root.name).stem,
+                               "generationTool": f"fmu_manipulation_toolbox {_version()}"})
+            root.append(system)
+            experiment = {key: repr(float(value)) for key, value in (("startTime", self.assembly.root.start_time),
+                                                                     ("stopTime", self.assembly.root.stop_time))
+                          if value is not None}
+            if experiment:
+                ET.SubElement(root, f"{{{SSDParser.SSD_NAMESPACE}}}DefaultExperiment", experiment)
+            ET.register_namespace("ssd", SSDParser.SSD_NAMESPACE)
+            ET.register_namespace("ssc", SSDParser.SSC_NAMESPACE)
+            ET.register_namespace("ssv", SSDParser.SSV_NAMESPACE)
+            ET.register_namespace("aw", SSDParser.ARCHITECTURE_WIRE_NAMESPACE)
+            ET.register_namespace("fc", CONTAINER_NAMESPACE)
+            ET.indent(root)
+            ssd = ET.tostring(root, encoding="UTF-8", xml_declaration=True)
+
+        with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("SystemStructure.ssd", ssd)
+            for path, member in self._sources.items():
+                archive.write(path, member)
+        logger.info(f"SSP file '{filename}' written (SSP {self.ssp_version}, {len(self._sources)} FMU(s)).")
+        return filename
+
+    # ---------------------------------------------------------------------------------------------------- system
+    def _system(self, node, tmp: Path) -> ET.Element:
+        """The `ssd:System` of `node`; its sub-systems first, their interface written in `tmp`."""
+        ssd = f"{{{SSDParser.SSD_NAMESPACE}}}"
+        children = {name: (self._system(child, tmp), self._interface(child, tmp))
+                    for name, child in node.children.items()}
+        container = self._resolved(node, {name: interface for name, (_, interface) in children.items()})
+
+        # Element of each FMU of the builder (named after the file name of the FMU, see `FMUContainer.get_fmu`).
+        elements: dict[str, str] = {}  # name in the builder => element
+        files: dict[str, Path] = {}  # element => file of its FMU
+        for name in node.children:
+            elements[Path(name).name] = Path(name).stem
+            files[Path(name).stem] = children[name][1]
+        for fmu_name in node.fmu_names_list:
+            element = _unique(Path(fmu_name).stem, set(elements.values()))
+            elements[Path(fmu_name).name] = element
+            files[element] = self.fmu_directory / node.fmu_path(fmu_name)
+
+        system = ET.Element(f"{ssd}System", {"name": Path(node.name).stem})
+        connectors: dict[str, dict[str, ET.Element]] = {element: {} for element in files}
+        system_connectors: dict[str, ET.Element] = {}
+        connections: list[ET.Element] = []
+
+        def connector(element: str, port: str, kind: str | None = None) -> ET.Element:
+            if port not in connectors[element]:
+                connectors[element][port] = self._connector(files[element], port, kind)
+            return connectors[element][port]
+
+        def connection(start_element, start, end_element, end, start_connector, end_connector):
+            attrs = {}
+            if start_element is not None:
+                attrs["startElement"] = start_element
+            attrs["startConnector"] = start
+            if end_element is not None:
+                attrs["endElement"] = end_element
+            attrs["endConnector"] = end
+            if _unit(start_connector) and _unit(end_connector) and _unit(start_connector) != _unit(end_connector):
+                attrs["suppressUnitConversion"] = "true"  # the container does not convert (E10)
+            connections.append(ET.Element(f"{ssd}Connection", attrs))
+
+        for name, container_input in container.inputs.items():
+            for cport in container_input.cport_list:
+                if cport.port.is_reset:
+                    continue  # `container.reset`: added again by `reset_ports` when read back
+                element = elements[cport.fmu.name]
+                end = connector(element, cport.port.name)
+                if name not in system_connectors:
+                    system_connectors[name] = self._system_connector(name, end, "input")
+                connection(None, name, element, cport.port.name, system_connectors[name], end)
+        for name, cport in container.outputs.items():
+            element = elements[cport.fmu.name]
+            start = connector(element, cport.port.name)
+            system_connectors[name] = self._system_connector(name, start, "output")
+            connection(element, cport.port.name, None, name, start, system_connectors[name])
+        for link in container.links.values():
+            if link.cport_from is None:
+                logger.debug(f"Link '{link.name}' without source (clock of the importer) is not written.")
+                continue
+            start_element = elements[link.cport_from.fmu.name]
+            start = connector(start_element, link.cport_from.port.name)
+            for cport in link.cport_to_list:
+                end_element = elements[cport.fmu.name]
+                connection(start_element, link.cport_from.port.name, end_element, cport.port.name, start,
+                           connector(end_element, cport.port.name))
+
+        # Architecture wires: synthetic connectors `aw.<peer>` (container.md#architecture-wires).
+        by_fmu = {fmu_name: elements[Path(fmu_name).name] for fmu_name in list(node.fmu_names_list) + list(node.children)}
+        for wire in node.architecture_wires:
+            start, end = by_fmu.get(wire.start_fmu), by_fmu.get(wire.end_fmu)
+            if start is None or end is None:
+                continue
+            directed = wire.orientation == "directed"
+            connectors[start][f"aw.{end}"] = ET.Element(f"{ssd}Connector", {"name": f"aw.{end}", "kind":
+                                                       "output" if directed else "unspecified"})
+            connectors[end][f"aw.{start}"] = ET.Element(f"{ssd}Connector", {"name": f"aw.{start}", "kind":
+                                                       "input" if directed else "unspecified"})
+            attrs = {"startElement": start, "startConnector": f"aw.{end}", "endElement": end,
+                     "endConnector": f"aw.{start}"}
+            if wire.description:
+                attrs["description"] = wire.description
+            wire_connection = ET.Element(f"{ssd}Connection", attrs)
+            annotation = ET.SubElement(ET.SubElement(wire_connection, f"{ssd}Annotations"),
+                                       f"{{{SSDParser.SSC_NAMESPACE}}}Annotation",
+                                       {"type": SSDParser.ARCHITECTURE_WIRE_TYPE})
+            ET.SubElement(annotation, f"{{{SSDParser.ARCHITECTURE_WIRE_NAMESPACE}}}Wire",
+                          {"formatVersion": "1", "orientation": wire.orientation})
+            connections.append(wire_connection)
+
+        # Start values: one binding per element, on the components (and on the sub-systems: their connectors).
+        values: dict[str, list[tuple[str, str]]] = {}
+        for port, value in node.start_values.items():
+            values.setdefault(elements[Path(port.fmu_name).name], []).append((port.port_name, value))
+            connector(elements[Path(port.fmu_name).name], port.port_name)
+
+        if system_connectors:
+            system.append(self._connectors(system_connectors.values()))
+        element_list = ET.SubElement(system, f"{ssd}Elements")
+        for element, path in files.items():
+            if element in {Path(name).stem for name in node.children}:
+                child = next(child_system for name, (child_system, _) in children.items()
+                             if Path(name).stem == element)
+                if values.get(element):
+                    self._insert_bindings(child, self._bindings(path, values[element]))
+                element_list.append(child)
+                continue
+            component = ET.SubElement(element_list, f"{ssd}Component",
+                                      {"name": element, "type": SSDParser.FMU_COMPONENT_TYPE,
+                                       "source": self._source(path)})
+            if connectors[element]:
+                component.append(self._connectors(connectors[element].values()))
+            fmu_name = next(name for name in node.fmu_names_list if elements[Path(name).name] == element)
+            if fmu_name in node.fmu_geometry:
+                x1, y1, x2, y2 = node.fmu_geometry[fmu_name]
+                ET.SubElement(component, f"{ssd}ElementGeometry",
+                              {"x1": repr(x1), "y1": repr(y1), "x2": repr(x2), "y2": repr(y2)})
+            if values.get(element):
+                component.append(self._bindings(path, values[element]))
+        connections_element = ET.SubElement(system, f"{ssd}Connections")
+        connections_element.extend(connections)
+        system.append(self._options_annotation(node, elements))
+        return system
+
+    def _resolved(self, node, interfaces: dict[str, Path]):
+        """The container builder of `node`, its rules applied (explicit, then `auto_*`), without building."""
+        from .container import FMUContainer
+
+        container = FMUContainer(Path(node.name).stem, self.fmu_directory, fmi_version=self._fmi_version(node),
+                                 reset_ports=node.reset_ports)
+        for name, interface in interfaces.items():
+            container.get_fmu(str(interface), name)
+        for fmu_name in node.fmu_names_list:
+            container.get_fmu(node.fmu_path(fmu_name), fmu_name)
+        for port, source in node.input_ports.items():
+            container.add_input(source, port.fmu_name, port.port_name)
+        for port, target in node.output_ports.items():
+            container.add_output(port.fmu_name, port.port_name, target)
+        for link in node.links:
+            container.add_link(link.from_port.fmu_name, link.from_port.port_name,
+                               link.to_port.fmu_name, link.to_port.port_name)
+        for drop in node.drop_ports:
+            container.drop_port(drop.fmu_name, drop.port_name)
+        container.add_implicit_rule(auto_input=node.auto_input, auto_output=node.auto_output,
+                                    auto_link=node.auto_link, auto_parameter=node.auto_parameter,
+                                    auto_local=node.auto_local)
+        return container
+
+    def _interface(self, node, tmp: Path) -> Path:
+        """An FMU holding only the `modelDescription.xml` of the container of `node`: its interface, for its parent."""
+        from .container.layout import ContainerLayout
+
+        container = self._resolved(node, {name: self._interface(child, tmp) for name, child in node.children.items()})
+        layout = ContainerLayout.allocate(container.links.values(), container.inputs, container.outputs,
+                                          nb_profiling=0)
+        directory = tmp / Path(node.name).stem
+        directory.mkdir(parents=True, exist_ok=True)
+        try:
+            step_size = node.step_size or container.default_step_size()
+        except Exception:  # noqa: BLE001 - the step size does not change the interface
+            step_size = 1.0
+        container.make_fmu_xml(directory / "modelDescription.xml", step_size, False, False, layout)
+        interface = tmp / f"{Path(node.name).stem}.fmu"
+        with zipfile.ZipFile(interface, "w") as fmu:
+            fmu.write(directory / "modelDescription.xml", "modelDescription.xml")
+        return interface
+
+    def _fmi_version(self, node) -> int:
+        """FMI version of the interface of a sub-container: 3 when one of its FMUs is FMI 3.0 (its types)."""
+        versions = {self._description(self.fmu_directory / node.fmu_path(name))[0].fmi_version
+                    for name in node.fmu_names_list}
+        versions |= {self._fmi_version(child) for child in node.children.values()}
+        return 3 if 3 in versions else 2
+
+    # ------------------------------------------------------------------------------------------------ connectors
+    def _description(self, path: Path) -> tuple[ModelDescription, dict[str, ModelVariable]]:
+        if path not in self._descriptions:
+            with zipfile.ZipFile(path) as fmu:
+                md = ModelDescription.load(fmu.read("modelDescription.xml"))
+            variables = {}
+            for element in md.variables():
+                variable = ModelVariable(element, md.fmi_version)
+                variables[element.get("name")] = variable
+                for alias in element.iter("Alias"):
+                    variables[alias.get("name")] = variable
+            self._descriptions[path] = (md, variables)
+        return self._descriptions[path]
+
+    def _type(self, fmi_type: str | None) -> str | None:
+        if fmi_type is None or fmi_type == "Clock":
+            return None
+        return SSP1_TYPES.get(fmi_type, fmi_type) if self.ssp_version == "1.0" else fmi_type
+
+    def _connector(self, path: Path, port: str, kind: str | None = None) -> ET.Element:
+        """The `ssd:Connector` of the variable `port` of the FMU `path`: its causality, type and unit."""
+        md, variables = self._description(path)
+        variable = variables[port]
+        causality = variable.causality
+        kind = kind or (causality if causality in ("input", "output", "parameter", "calculatedParameter",
+                                                   "structuralParameter") else "output")
+        element = ET.Element(f"{{{SSDParser.SSD_NAMESPACE}}}Connector", {"name": port, "kind": kind})
+        if variable.get("description"):
+            element.set("description", variable.get("description"))
+        ssp_type = self._type(variable.fmi_type)
+        if ssp_type is not None:
+            attrs = {}
+            unit = variable.get("unit") or _declared_attribute(md, variable, "unit")
+            if unit and ssp_type in ("Real", "Float32", "Float64"):
+                attrs["unit"] = unit
+            if ssp_type == "Enumeration":
+                attrs["name"] = variable.get("declaredType") or ""
+            element.append(ET.Element(f"{{{SSDParser.SSC_NAMESPACE}}}{ssp_type}", attrs))
+        return element
+
+    def _system_connector(self, name: str, inner: ET.Element, kind: str) -> ET.Element:
+        """A connector of the system, of the type of the connector it is connected to."""
+        if inner.get("kind") == "parameter" and kind == "input":
+            kind = "parameter"
+        element = ET.Element(f"{{{SSDParser.SSD_NAMESPACE}}}Connector", {"name": name, "kind": kind})
+        for child in inner:
+            element.append(ET.Element(child.tag, dict(child.attrib)))
+        return element
+
+    @staticmethod
+    def _connectors(items) -> ET.Element:
+        element = ET.Element(f"{{{SSDParser.SSD_NAMESPACE}}}Connectors")
+        element.extend(items)
+        return element
+
+    # ------------------------------------------------------------------------------------------- values, options
+    def _bindings(self, path: Path, values: list[tuple[str, str]]) -> ET.Element:
+        """`ParameterBindings` with an inline parameter set: the start values of the element `path`."""
+        ssd, ssv = f"{{{SSDParser.SSD_NAMESPACE}}}", f"{{{SSDParser.SSV_NAMESPACE}}}"
+        md, variables = self._description(path)
+        bindings = ET.Element(f"{ssd}ParameterBindings")
+        parameter_values = ET.SubElement(ET.SubElement(bindings, f"{ssd}ParameterBinding"), f"{ssd}ParameterValues")
+        parameter_set = ET.SubElement(parameter_values, f"{ssv}ParameterSet",
+                                      {"version": self.ssp_version, "name": "start values"})
+        parameters = ET.SubElement(parameter_set, f"{ssv}Parameters")
+        for name, value in values:
+            variable = variables.get(name)
+            value_type = self._type(variable.fmi_type if variable is not None else None) or "String"
+            value = "true" if value is True else "false" if value is False else str(value)
+            if value_type == "Enumeration":
+                items = {item_value: item for item, item_value in
+                         SSDParser._enumeration_items(SSDParser, md, variable).items()}
+                if value in items:
+                    value = items[value]
+                else:
+                    value_type = "Integer"
+            parameter = ET.SubElement(parameters, f"{ssv}Parameter", {"name": name})
+            ET.SubElement(parameter, f"{ssv}{value_type}", {"value": value})
+        return bindings
+
+    @staticmethod
+    def _insert_bindings(system: ET.Element, bindings: ET.Element):
+        """`ParameterBindings` of a system go after its connectors (order of the SSD schema)."""
+        position = 1 if len(system) and system[0].tag.endswith("}Connectors") else 0
+        system.insert(position, bindings)
+
+    @staticmethod
+    def _options_annotation(node, elements: dict[str, str]) -> ET.Element:
+        """The options of the container of `node` (resolved routing: `auto_*` false) and its dropped ports."""
+        ssd = f"{{{SSDParser.SSD_NAMESPACE}}}"
+        annotations = ET.Element(f"{ssd}Annotations")
+        annotation = ET.SubElement(annotations, f"{{{SSDParser.SSC_NAMESPACE}}}Annotation",
+                                   {"type": CONTAINER_ANNOTATION_TYPE})
+        attrs = {"formatVersion": CONTAINER_FORMAT_VERSION}
+        for option, attribute in CONTAINER_OPTIONS.items():
+            value = getattr(node, option)
+            if option.startswith("auto_"):
+                value = False  # the routing is written resolved (E9)
+            if option == "step_size":
+                if value is not None:
+                    attrs[attribute] = repr(float(value))
+            else:
+                attrs[attribute] = "true" if value else "false"
+        container = ET.SubElement(annotation, f"{{{CONTAINER_NAMESPACE}}}Container", attrs)
+        for drop in node.drop_ports:
+            ET.SubElement(container, f"{{{CONTAINER_NAMESPACE}}}Drop",
+                          {"element": elements[Path(drop.fmu_name).name], "connector": drop.port_name})
+        return annotations
+
+    def _source(self, path: Path) -> str:
+        """Member of the archive for the FMU file `path`: `resources/...`, one member per file (E6)."""
+        path = Path(path)
+        if path not in self._sources:
+            try:
+                relative = path.resolve().relative_to(self.fmu_directory.resolve())
+            except ValueError:
+                relative = Path(path.name)
+            parts = relative.parts
+            # An FMU extracted from an SSP file (`<file>.dir/resources/...`) keeps its path inside the archive.
+            if len(parts) > 2 and parts[0].endswith(".dir") and parts[1] == "resources":
+                parts = parts[2:]
+            member = PurePosixPath("resources", *parts).as_posix()
+            used = set(self._sources.values())
+            stem, index = member[:-len(".fmu")] if member.endswith(".fmu") else member, 1
+            while member in used:
+                member = f"{stem}-{index}.fmu"
+                index += 1
+            self._sources[path] = member
+        return self._sources[path]
+
+
+def _unique(name: str, used: set[str]) -> str:
+    candidate, index = name, 1
+    while candidate in used:
+        candidate = f"{name}-{index}"
+        index += 1
+    return candidate
+
+
+def _unit(connector: ET.Element) -> str | None:
+    for child in connector:
+        if child.get("unit"):
+            return child.get("unit")
+    return None
+
+
+def _declared_attribute(md: ModelDescription, variable: ModelVariable, attribute: str) -> str | None:
+    definition = SSDParser._declared_type(md, variable)
+    return definition.get(attribute) if definition is not None else None
+
+
+def _version() -> str:
+    from .version import __version__
+    return __version__

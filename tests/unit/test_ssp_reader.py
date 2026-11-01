@@ -580,3 +580,60 @@ def test_an_empty_element_of_a_connection_is_the_system(tmp_path):
     root = read(tmp_path, ssd(component("a"), connection, system=system), fmus=("a",)).root
 
     assert [(port.port_name, name) for port, name in root.output_ports.items()] == [("y", "out")]
+
+
+# --------------------------------------------------------------------------- #
+#             export plan: what the reader takes back from the writer         #
+# --------------------------------------------------------------------------- #
+def test_a_local_variable_can_be_exposed_as_an_output(tmp_path):
+    """As the builder (`auto_local`): the writer exposes locals that way."""
+    descriptor = DESCRIPTOR.replace('causality="local" variability="constant"', 'causality="local"')
+    path = tmp_path / "l.fmu"
+    with zipfile.ZipFile(path, "w") as fmu:
+        fmu.writestr("modelDescription.xml", descriptor.format(name="l"))
+    system = '<ssd:Connectors><ssd:Connector name="c" kind="output"><ssc:Real/></ssd:Connector></ssd:Connectors>'
+    connection = '<ssd:Connection startElement="l" startConnector="c" endConnector="c"/>'
+
+    root = read(tmp_path, ssd(component("l"), connection, system=system), fmus=(),
+                files={"resources/l.fmu": path.read_bytes()}).root
+
+    assert [(port.port_name, name) for port, name in root.output_ports.items()] == [("c", "c")]
+
+
+def _options(content):
+    return ('<ssd:Annotations><ssc:Annotation type="fmu_manipulation_toolbox.container">'
+            f'<fc:Container xmlns:fc="urn:fmu_manipulation_toolbox:container:1" {content}</ssc:Annotation>'
+            '</ssd:Annotations>')
+
+
+def test_the_options_annotation_is_read(tmp_path):
+    annotation = _options('formatVersion="1" stepSize="0.02" mt="true" autoLink="false">'
+                          '<fc:Drop element="a" connector="y"/></fc:Container>')
+    description = ssd(component("a") + component("b"), link()).replace("</ssd:Connections>",
+                                                                       "</ssd:Connections>" + annotation)
+
+    root = read(tmp_path, description).root
+
+    assert (root.step_size, root.mt, root.auto_link) == (0.02, True, False)
+    assert [(port.fmu_name, port.port_name) for port in root.drop_ports] == [("model.dir/resources/a.fmu", "y")]
+
+
+def test_a_dropped_port_of_an_unknown_element_is_refused(tmp_path):
+    annotation = _options('formatVersion="1"><fc:Drop element="zz" connector="y"/></fc:Container>')
+    description = ssd(component("a") + component("b"), link()).replace("</ssd:Connections>",
+                                                                       "</ssd:Connections>" + annotation)
+
+    with pytest.raises(AssemblyError, match="dropped port 'zz.y' of 'root.fmu' refers to an unknown element"):
+        read(tmp_path, description)
+
+
+def test_another_format_of_the_options_annotation_is_a_warning(tmp_path, caplog):
+    annotation = _options('formatVersion="2" mt="true"/>')
+    description = ssd(component("a") + component("b"), link()).replace("</ssd:Connections>",
+                                                                       "</ssd:Connections>" + annotation)
+
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        root = read(tmp_path, description).root
+
+    assert root.mt is True
+    assert "options annotation of 'root.fmu' in format 2" in caplog.text
