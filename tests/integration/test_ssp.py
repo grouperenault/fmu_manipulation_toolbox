@@ -136,13 +136,13 @@ def test_architecture_wire_with_unknown_orientation_is_undirected(area_dir, monk
 
 
 def test_other_annotation_keeps_a_link(area_dir, monkeypatch):
-    # Only the annotation type makes an architecture wire: the same content under another type is a link.
+    # Only the annotation type makes an architecture wire: the same content under another type is a link, checked
+    # against the FMUs like any link (and refused: `aw.bb_position` is not a variable of the FMU).
     _bouncing_variant(area_dir, monkeypatch, _architecture_wire("directed", annotation_type="com.example.other"))
-    root = Assembly("bouncing.ssp").root
 
-    assert root.architecture_wires == []
-    assert str(root.links[-1]) == ("bouncing.dir/resources/bb_velocity.fmu/aw.bb_position -> "
-                                   "bouncing.dir/resources/bb_position.fmu/aw.bb_velocity")
+    with pytest.raises(AssemblyError, match=r"component 'bb_velocity' \('resources/bb_velocity.fmu'\) has no "
+                                            r"variable 'aw.bb_position'"):
+        Assembly("bouncing.ssp")
 
 
 def test_sources_with_the_same_file_name(area_dir, monkeypatch):

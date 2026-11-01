@@ -120,6 +120,10 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
    with `suppressUnitConversion="true"` is not checked. Tests: `tests/unit/test_ssp_reader.py`.
 2. **Connectors**: declarations read, connections checked against the FMUs. Unit tests.
    Commit message: `Check the SSP connections against the variables of the FMUs`
+   **Done** (1 November 2026): the FMUs are read from the archive (variables and FMI 3.0 aliases); an exposed
+   input may be an input or a parameter; unknown connectors are reported with close names. Changed test of
+   modeler-bridge: a connection `aw.*` under another annotation type is still a link, now refused at read time
+   (`aw.bb_position` is not a variable) instead of at build time.
 3. **Parameters** (D3, D4): start values from `.ssv`, inline and external. Unit tests, and a simulation test that
    the start value is used.
    Commit message: `Read the parameter values of SSP files`

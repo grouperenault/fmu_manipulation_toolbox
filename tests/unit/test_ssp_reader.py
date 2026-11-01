@@ -18,7 +18,8 @@ NAMESPACES = ('xmlns:ssd="http://ssp-standard.org/SSP1/SystemStructureDescriptio
               'xmlns:ssv="http://ssp-standard.org/SSP1/SystemStructureParameterValues" '
               'xmlns:ssm="http://ssp-standard.org/SSP1/SystemStructureParameterMapping"')
 
-#: FMI 2.0 descriptor of the FMUs of the tests: one input `u`, one output `y` (Real, unit m), one parameter `k`.
+#: FMI 2.0 descriptor of the FMUs of the tests: inputs `u` (unit m) and `v`, output `y` (unit m), parameters
+#: `k`, `n`, `b`.
 DESCRIPTOR = """<?xml version="1.0" encoding="UTF-8"?>
 <fmiModelDescription fmiVersion="2.0" modelName="{name}" guid="{{{name}}}">
   <CoSimulation modelIdentifier="{name}"/>
@@ -26,6 +27,7 @@ DESCRIPTOR = """<?xml version="1.0" encoding="UTF-8"?>
   <ModelVariables>
     <ScalarVariable name="u" valueReference="0" causality="input"><Real start="0" unit="m"/></ScalarVariable>
     <ScalarVariable name="y" valueReference="1" causality="output"><Real unit="m"/></ScalarVariable>
+    <ScalarVariable name="v" valueReference="5" causality="input"><Real start="0"/></ScalarVariable>
     <ScalarVariable name="k" valueReference="2" causality="parameter" variability="fixed"><Real start="1"/></ScalarVariable>
     <ScalarVariable name="n" valueReference="3" causality="parameter" variability="fixed"><Integer start="0"/></ScalarVariable>
     <ScalarVariable name="b" valueReference="4" causality="parameter" variability="fixed"><Boolean start="false"/></ScalarVariable>
@@ -226,3 +228,85 @@ def test_an_architecture_wire_is_not_checked(tmp_path):
     root = read(tmp_path, ssd(component("a", connectors=connectors) + component("b"), wire)).root
 
     assert len(root.architecture_wires) == 1
+
+
+# --------------------------------------------------------------------------- #
+#                 step 2: connections checked against the FMUs                #
+# --------------------------------------------------------------------------- #
+def test_an_unknown_connector_is_reported_with_close_names(tmp_path):
+    description = ssd(component("a") + component("b"), link(start_connector="yy"))
+
+    with pytest.raises(AssemblyError, match=r"connection a\.yy -> b\.u: component 'a' \('resources/a\.fmu'\) has no "
+                                            r"variable 'yy'\. Close names: 'y'"):
+        read(tmp_path, description)
+
+
+@pytest.mark.parametrize("start_connector, end_connector, message", [
+    ("u", "u", "'u' of component 'a' is an input, not an output"),
+    ("y", "y", "'y' of component 'b' is an output, not an input"),
+    ("y", "k", "'k' of component 'b' is a parameter, not an input"),
+])
+def test_a_link_goes_from_an_output_to_an_input(tmp_path, start_connector, end_connector, message):
+    description = ssd(component("a") + component("b"), link(start_connector=start_connector,
+                                                             end_connector=end_connector))
+
+    with pytest.raises(AssemblyError, match=message):
+        read(tmp_path, description)
+
+
+def test_a_parameter_can_be_exposed_as_an_input_of_the_container(tmp_path):
+    system = '<ssd:Connectors><ssd:Connector name="gain" kind="parameter"><ssc:Real/></ssd:Connector></ssd:Connectors>'
+    connection = '<ssd:Connection startConnector="gain" endElement="a" endConnector="k"/>'
+
+    root = read(tmp_path, ssd(component("a"), connection, system=system), fmus=("a",)).root
+
+    assert len(root.input_ports) == 1
+
+
+def test_an_exposed_output_must_be_an_output(tmp_path):
+    system = '<ssd:Connectors><ssd:Connector name="out" kind="output"><ssc:Real/></ssd:Connector></ssd:Connectors>'
+    connection = '<ssd:Connection startElement="a" startConnector="u" endConnector="out"/>'
+
+    with pytest.raises(AssemblyError, match="'u' of component 'a' is an input, not an output"):
+        read(tmp_path, ssd(component("a"), connection, system=system), fmus=("a",))
+
+
+def test_an_fmi3_alias_is_a_variable(tmp_path):
+    descriptor = """<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="3.0" modelName="c" instantiationToken="{c}">
+  <CoSimulation modelIdentifier="c"/>
+  <ModelVariables>
+    <Float64 name="y" valueReference="1" causality="output"><Alias name="y_alias"/></Float64>
+  </ModelVariables>
+  <ModelStructure><Output valueReference="1"/></ModelStructure>
+</fmiModelDescription>
+"""
+    description = ssd(component("c") + component("b"), link("c", "y_alias", "b", "u"))
+
+    root = read(tmp_path, description, fmus=("b",), files={"resources/c.fmu": _fmu_bytes(tmp_path, descriptor)}).root
+
+    assert [str(item) for item in root.links] == ["model.dir/resources/c.fmu/y_alias -> model.dir/resources/b.fmu/u"]
+
+
+def test_an_fmu_missing_from_the_archive_is_reported(tmp_path):
+    description = ssd(component("a") + component("b"), link())
+
+    with pytest.raises(AssemblyError, match="the FMU 'resources/b.fmu' of component 'b' is not in the SSP archive"):
+        read(tmp_path, description, fmus=("a",))
+
+
+def test_an_unused_connector_of_the_system_is_not_exposed(tmp_path, caplog):
+    system = '<ssd:Connectors><ssd:Connector name="spare" kind="input"><ssc:Real/></ssd:Connector></ssd:Connectors>'
+
+    with caplog.at_level(logging.DEBUG, logger="fmu_manipulation_toolbox"):
+        root = read(tmp_path, ssd(component("a") + component("b"), link(), system=system)).root
+
+    assert root.input_ports == {}
+    assert "Connector 'spare' of system 'root.fmu' is not exposed" in caplog.text
+
+
+def _fmu_bytes(tmp_path, descriptor: str) -> bytes:
+    path = tmp_path / "extra.fmu"
+    with zipfile.ZipFile(path, "w") as fmu:
+        fmu.writestr("modelDescription.xml", descriptor)
+    return path.read_bytes()

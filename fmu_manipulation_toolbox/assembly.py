@@ -8,8 +8,11 @@ from pathlib import Path, PurePosixPath
 import uuid
 import xml.etree.ElementTree as ET
 import zipfile
+from difflib import get_close_matches
+from io import BytesIO
 
 from .container import FMUContainer
+from .model_description import ModelDescription, ModelDescriptionError, ModelVariable
 from .textfiles import ENCODING, open_text
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -1084,6 +1087,11 @@ class SSDParser:
         connectors (dict[tuple[int, str | None], dict[str, SSDConnector]]): Connectors declared by each element,
             by (id of its system node, element name, `None` for the system itself), then by connector name.
         units (dict[str, dict[str, str]]): `ssc:Unit` definitions: the attributes of their `ssc:BaseUnit`.
+
+    Each connection is checked against the FMUs it joins: the connector is a variable of the FMU (or an FMI 3.0
+    alias), of a causality that fits its end (an output starts a link or an exposed output, an input ends a link,
+    an input or a parameter is exposed as an input of the container). Not checked: architecture wires, whose
+    connectors are not variables, the components without `source` (ignored) and the sub-systems (no FMU).
     """
 
     SSD_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureDescription"
@@ -1098,6 +1106,10 @@ class SSDParser:
     #: Type elements of a connector: SSP 1.0, and the FMI 3.0 types of SSP 2.0.
     CONNECTOR_TYPES = ("Real", "Integer", "Boolean", "String", "Enumeration", "Binary", "Clock", "Float32",
                        "Float64", "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64")
+    #: Causalities a connector may have, by its role in a connection.
+    OUTPUT_ROLES = ("output",)
+    INPUT_ROLES = ("input",)
+    EXPOSED_INPUT_ROLES = ("input", "parameter")
     #: Attributes of `ssc:BaseUnit`, with their default value.
     BASE_UNIT_DEFAULTS = {"kg": "0", "m": "0", "s": "0", "A": "0", "K": "0", "mol": "0", "cd": "0", "rad": "0",
                           "factor": "1", "offset": "0"}
@@ -1114,6 +1126,9 @@ class SSDParser:
         self.connectors: dict[tuple[int, str | None], dict[str, SSDConnector]] = {}
         self.units: dict[str, dict[str, str]] = {}
         self.ssd_filename = ""
+        self._sources: dict[tuple[int, str], str] = {}  # (system, component) => source in the archive
+        self._variables: dict[str, dict[str, str]] = {}  # source => variable name => causality
+        self._used_connectors: set[tuple[int, str]] = set()  # (system, connector) of the system used
 
         # Name of the embedded FMU of the component being read, for its ElementGeometry.
         self._component_fmu: str | None = None
@@ -1226,6 +1241,7 @@ class SSDParser:
             name = f"{self.extract_folder_name}/{source.parent / attrs['name']}.fmu"
             fmu_name = instance_name(name, node.fmu_names_list)
             self.fmu_filenames[attrs['name']] = fmu_name
+            self._sources[(id(node), attrs['name'])] = str(source)
             node.add_fmu(fmu_name, filename)
             self._component_fmu = fmu_name
             logger.debug(f"Component {attrs['name']} => {fmu_name}")
@@ -1254,8 +1270,11 @@ class SSDParser:
     def end_element(self, tag_name):
         """Handle the end of an SSD element (`tag_name` without namespace)."""
         if tag_name == 'System':
-            self.node_stack.pop()
+            node = self.node_stack.pop()
             self._owners.pop()
+            for name in self.connectors.get((id(node), None), {}):
+                if (id(node), name) not in self._used_connectors:
+                    logger.debug(f"Connector '{name}' of system '{node.name}' is not exposed: no connection uses it.")
         elif tag_name in ('Component', 'SignalDictionaryReference'):
             self._component_fmu = None
             self._owners.pop()
@@ -1340,6 +1359,7 @@ class SSDParser:
             if (system, attrs.get(side)) in self._dictionary_references:
                 raise AssemblyError(f"'{self.ssd_filename}': {self._connection_label(attrs)} goes through the signal "
                                     f"dictionary reference '{attrs[side]}': signal dictionaries are not supported.")
+        self._check_fmu_connectors(attrs)
         start = self.connectors.get((system, attrs.get('startElement')), {}).get(attrs['startConnector'])
         end = self.connectors.get((system, attrs.get('endElement')), {}).get(attrs['endConnector'])
         if start is not None and end is not None and attrs.get('suppressUnitConversion') != "true":
@@ -1359,6 +1379,57 @@ class SSDParser:
             fmu_end = self.fmu_filenames[attrs['endElement']]
             self.node_stack[-1].add_input(attrs['startConnector'],
                                           fmu_end, attrs['endConnector'])
+
+    def _check_fmu_connectors(self, attrs: dict[str, str]):
+        """Check both ends of a connection against the variables of their FMUs."""
+        system = id(self.node_stack[-1])
+        start, end = attrs.get('startElement'), attrs.get('endElement')
+        if start is None:
+            self._used_connectors.add((system, attrs['startConnector']))
+        if end is None:
+            self._used_connectors.add((system, attrs['endConnector']))
+        if start is not None:
+            self._check_fmu_connector(attrs, start, attrs['startConnector'], self.OUTPUT_ROLES)
+        if end is not None:
+            self._check_fmu_connector(attrs, end, attrs['endConnector'],
+                                      self.INPUT_ROLES if start is not None else self.EXPOSED_INPUT_ROLES)
+
+    def _check_fmu_connector(self, attrs: dict[str, str], element: str, connector: str, causalities: tuple[str, ...]):
+        source = self._sources.get((id(self.node_stack[-1]), element))
+        if source is None:
+            return  # a sub-system: no FMU
+        variables = self._fmu_variables(element, source)
+        label = self._connection_label(attrs)
+        if connector not in variables:
+            close = get_close_matches(connector, list(variables), n=3)
+            hint = f" Close names: {', '.join(repr(name) for name in close)}." if close else ""
+            raise AssemblyError(f"'{self.ssd_filename}': {label}: component '{element}' ('{source}') has no variable "
+                                f"'{connector}'.{hint}")
+        if variables[connector] not in causalities:
+            raise AssemblyError(f"'{self.ssd_filename}': {label}: '{connector}' of component '{element}' is "
+                                f"{'an' if variables[connector][0] in 'aeiou' else 'a'} {variables[connector]}, "
+                                f"not {' or '.join(f'an {c}' if c[0] in 'aeiou' else f'a {c}' for c in causalities)}.")
+
+    def _fmu_variables(self, element: str, source: str) -> dict[str, str]:
+        """Causality of each variable (and FMI 3.0 alias) of the FMU `source` of the archive."""
+        if source not in self._variables:
+            try:
+                with zipfile.ZipFile(BytesIO(self.zin.read(source))) as fmu:
+                    md = ModelDescription.load(fmu.read("modelDescription.xml"))
+            except KeyError:
+                raise AssemblyError(f"'{self.ssd_filename}': the FMU '{source}' of component '{element}' is not in "
+                                    f"the SSP archive, or has no modelDescription.xml.") from None
+            except (zipfile.BadZipFile, ModelDescriptionError) as error:
+                raise AssemblyError(f"'{self.ssd_filename}': the FMU '{source}' of component '{element}' cannot be "
+                                    f"read: {error}") from error
+            variables = {}
+            for variable in md.variables():
+                causality = ModelVariable(variable, md.fmi_version).causality
+                variables[variable.get("name")] = causality
+                for alias in variable.iter("Alias"):
+                    variables[alias.get("name")] = causality
+            self._variables[source] = variables
+        return self._variables[source]
 
     def _same_unit(self, first: str, second: str) -> bool:
         """Whether two units need no conversion: same name, or the same definition in `ssc:Units`."""
