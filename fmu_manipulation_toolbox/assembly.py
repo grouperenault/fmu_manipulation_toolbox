@@ -249,6 +249,10 @@ class AssemblyNode:
         fmu_geometry (dict[str, tuple[float, float, float, float]]): Position of embedded FMUs read from an SSP
             file: `(x1, y1, x2, y2)` of the `ElementGeometry` of their component (SSP coordinates, y upwards). A hint
             for the GUI, not part of the JSON description.
+        start_time (float | None): Start time of the default experiment of the container, from the
+            `DefaultExperiment` of an SSP file; `None` to take the one of its first FMU. Not part of the JSON
+            description.
+        stop_time (float | None): Stop time of the default experiment of the container, likewise.
     """
 
     def __init__(self, name: str, step_size: float = None, mt=False, profiling=False, sequential=False,
@@ -285,6 +289,8 @@ class AssemblyNode:
         self.links: list[Connection] = []
         self.architecture_wires: list[ArchitectureWire] = []
         self.fmu_geometry: dict[str, tuple[float, float, float, float]] = {}
+        self.start_time: float | None = None
+        self.stop_time: float | None = None
 
     def add_sub_node(self, sub_node):
         """Add a child `AssemblyNode` to create a hierarchical (nested) container.
@@ -424,6 +430,8 @@ class AssemblyNode:
         identifier = str(Path(self.name).stem)
         container = FMUContainer(identifier, fmu_directory, description_pathname=description_pathname,
                                  fmi_version=fmi_version, reset_ports=self.reset_ports)
+        container.start_time = self.start_time
+        container.stop_time = self.stop_time
 
         for node in self.children.values():
             container.get_fmu(node.name)
@@ -1150,6 +1158,7 @@ class SSDParser:
         self._system_connections: dict[int, list[dict[str, str]]] = {}  # system => its connections
         self._bindings: list[dict[str, Any]] = []
         self._binding: dict[str, Any] | None = None  # binding being read
+        self._default_experiment: dict[str, str] = {}  # attributes of the DefaultExperiment of the SSD
 
         # Name of the embedded FMU of the component being read, for its ElementGeometry.
         self._component_fmu: str | None = None
@@ -1222,6 +1231,7 @@ class SSDParser:
         self._check_units()
         self._warn_unused_dictionaries()
         self._apply_parameters()
+        self._apply_default_experiment()
         return self.root
 
     def start_element(self, tag_name, attrs):
@@ -1288,6 +1298,9 @@ class SSDParser:
 
         elif tag_name == 'ParameterBinding':
             self._start_binding(attrs)
+
+        elif tag_name == 'DefaultExperiment' and not self.node_stack:
+            self._default_experiment = dict(attrs)
 
         elif tag_name == 'ParameterMapping':
             raise AssemblyError(f"'{self.ssd_filename}': {self._owner_label()} has a parameter mapping: parameter "
@@ -1475,6 +1488,21 @@ class SSDParser:
                     variables[alias.get("name")] = variable
             self._fmus[source] = (md, variables)
         return self._fmus[source]
+
+    def _apply_default_experiment(self):
+        """`startTime` and `stopTime` of the `DefaultExperiment` become those of the container. SSP gives no step
+        size: it comes from the command line or from the FMUs, as for any container."""
+        for attribute, field in (('startTime', 'start_time'), ('stopTime', 'stop_time')):
+            if attribute not in self._default_experiment:
+                continue
+            try:
+                value = float(self._default_experiment[attribute])
+            except ValueError:
+                logger.warning(f"'{self.ssd_filename}': {attribute} '{self._default_experiment[attribute]}' of the "
+                               f"default experiment is not a number: it is ignored.")
+                continue
+            setattr(self.root, field, value)
+            logger.info(f"'{self.ssd_filename}': {attribute} of the container = {value} (SSP default experiment)")
 
     # ----------------------------------------------------------------------------------------- parameter values
     def _start_binding(self, attrs):

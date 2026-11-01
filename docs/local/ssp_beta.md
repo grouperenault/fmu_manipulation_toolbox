@@ -46,7 +46,7 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 | D6 | Component `type` other than an FMU (`application/x-fmu-sharedlibrary`) | Refused (`AssemblyError`, D1), e.g. `application/x-ssp-definition`. |
 | D7 | `SignalDictionary` / `SignalDictionaryReference` | A connection through a signal dictionary is refused (`AssemblyError`, D1). A dictionary that no connection uses: warning. |
 | D8 | Units | Connected connectors with different units: `AssemblyError` (SSP implies a conversion, not supported). Otherwise units are ignored, without message. |
-| D9 | Step size | `DefaultExperiment` (and the step size annotations of the tools, if a test file has one) **prevails** over the command line: `:step_size` and `-step-size` are only the default. The value used is logged. |
+| D9 | Step size | **Revised (1 November 2026)**: SSP has no step size — its `DefaultExperiment` only has `startTime` and `stopTime` (SSP 1.0 and 2.0.1 XSD). They become the start and stop times of the container (`AssemblyNode.start_time`/`stop_time`, not part of the JSON description: lost by a JSON export, see [ssp_export.md](ssp_export.md)). The step size still comes from the command line or the FMUs; a step size annotation of a tool is read only if a file of step 6 has one. |
 | D10 | Validation against the SSP XSD | Warning: the validation errors are listed as warnings, and the file is read if the parser understands it. |
 | D11 | Extraction folder `<file>.dir` | Unchanged: kept next to the SSP. |
 | D12 | SSP files of other tools for the tests | Public examples (SSP standard examples, OMSimulator...), added only after their license is checked and recorded next to them. |
@@ -88,10 +88,10 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 - Value types: `Real`, `Integer`, `Boolean`, `String`, `Enumeration` (by name, converted with the FMU
   description); a parameter unknown in the FMU: warning (D14).
 
-### 3.4 Step size (D9)
+### 3.4 Default experiment (D9, revised)
 
-- Read `DefaultExperiment` of the SSD. `Assembly`: the SSP value replaces `default_step_size`; log which one is
-  used.
+- Read `DefaultExperiment` of the SSD: `startTime` and `stopTime` become those of the container, and are logged.
+  A value that is not a number: warning, ignored.
 
 ### 3.5 XSD validation (D10)
 
@@ -136,8 +136,10 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
    elements; `prefix` is prepended to the names of the source. Enumeration values are converted by item name;
    binary values are refused (the builder has no binary start value). Simulation test: BouncingBall with g = -1
    (`tests/integration/test_ssp.py`).
-4. **Step size** (D9) from `DefaultExperiment`. Unit tests of the precedence.
-   Commit message: `Take the step size of an SSP file from its default experiment`
+4. **Default experiment** (D9, revised): start and stop times from `DefaultExperiment`. Unit tests.
+   Commit message: `Take the start and stop times of an SSP file from its default experiment`
+   **Done** (1 November 2026): `AssemblyNode.start_time`/`stop_time` given to `FMUContainer`; tested on the built
+   container (`tests/integration/test_ssp.py`).
 5. **XSD validation** (D10). Unit test with an invalid SSD that is still read.
    Commit message: `Validate SSP files against the SSP schema`
 6. **SSP files of other tools** (D12), and an SSP written by MIC modeler (non-regression of modeler-bridge, D13):

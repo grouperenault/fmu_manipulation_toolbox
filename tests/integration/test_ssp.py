@@ -236,3 +236,15 @@ def test_a_parameter_value_is_used_by_the_simulation(data_dir, tmp_path, monkeyp
     result = simulate("ball.fmu", stop_time=0.5, output=["h"])
 
     assert result["h"][-1] == pytest.approx(0.875, abs=0.02)
+
+
+@pytest.mark.needs_container
+def test_the_container_takes_the_default_experiment_of_the_ssp(area_dir, monkeypatch):
+    experiment = '<ssd:DefaultExperiment startTime="0.5" stopTime="7"/>'
+    _bouncing_variant(area_dir, monkeypatch, lambda ssd: ssd.replace("</ssd:System>", "</ssd:System>" + experiment))
+
+    Assembly("bouncing.ssp", default_step_size=0.01).make_fmu()
+
+    with zipfile.ZipFile("bouncing.fmu") as container:
+        descriptor = container.read("modelDescription.xml").decode()
+    assert '<DefaultExperiment stepSize="0.01" startTime="0.5" stopTime="7.0"' in descriptor

@@ -505,3 +505,31 @@ def test_the_values_of_an_ignored_component_are_ignored(tmp_path):
     root = read(tmp_path, ssd(component("a") + component("b") + sourceless, link())).root
 
     assert root.start_values == {}
+
+
+# --------------------------------------------------------------------------- #
+#                 step 4: the default experiment of the container             #
+# --------------------------------------------------------------------------- #
+def test_the_default_experiment_gives_the_start_and_stop_times(tmp_path):
+    """D9 (revised): SSP has no step size; its start and stop times become those of the container."""
+    experiment = '<ssd:DefaultExperiment startTime="1" stopTime="12.5"/>'
+
+    root = read(tmp_path, ssd(component("a") + component("b"), link(), after=experiment)).root
+
+    assert (root.start_time, root.stop_time) == (1.0, 12.5)
+
+
+def test_without_default_experiment_the_fmus_decide(tmp_path):
+    root = read(tmp_path, ssd(component("a") + component("b"), link())).root
+
+    assert (root.start_time, root.stop_time) == (None, None)
+
+
+def test_an_invalid_time_is_a_warning(tmp_path, caplog):
+    experiment = '<ssd:DefaultExperiment startTime="soon" stopTime="3"/>'
+
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        root = read(tmp_path, ssd(component("a") + component("b"), link(), after=experiment)).root
+
+    assert (root.start_time, root.stop_time) == (None, 3.0)
+    assert "startTime 'soon' of the default experiment is not a number" in caplog.text
