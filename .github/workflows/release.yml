@@ -23,6 +23,26 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Guard: the tag must be publishable (tools/check_release_tag.py): a PEP 440 version in its normalized form, no
+  # `.devN` tag but `.dev0` (setuptools-scm cannot version the commits after it: every later build fails), and
+  # setuptools-scm gives that version to the tagged commit and can version a commit after it.
+  check-tag:
+    if: startsWith(github.ref, 'refs/tags/V') || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        # setuptools-scm needs the whole history and the tags.
+        fetch-depth: 0
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.14"
+    - name: Check the release tag
+      run: |
+        python -m pip install --upgrade pip
+        pip install setuptools-scm packaging
+        python tools/check_release_tag.py "${GITHUB_REF_NAME}"
+
   # Run the exact same build + test + package pipeline as CI. The `package`
   # artifact it uploads is consumed by the publish job below. Because this runs
   # on the tag ref, setuptools-scm derives the version from the tag (V1.9.4.2 -> 1.9.4.2).
@@ -38,7 +58,8 @@ jobs:
     # Extra guard: only publish for real version tags, never for a manual
     # dispatch from a branch. Case-insensitive to match the tag trigger above.
     if: startsWith(github.ref, 'refs/tags/V') || startsWith(github.ref, 'refs/tags/v')
-    needs: ci
+    # Nothing is published unless the tag is publishable and the whole CI passes.
+    needs: [check-tag, ci]
     runs-on: ubuntu-24.04
     permissions:
       # Create the GitHub Release and upload the built artifacts.
