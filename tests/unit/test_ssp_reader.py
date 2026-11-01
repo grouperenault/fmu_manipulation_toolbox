@@ -558,7 +558,7 @@ def test_a_valid_ssd_gives_no_validation_warning(tmp_path, caplog):
 
 
 def test_the_validation_warnings_are_bounded(caplog):
-    from fmu_manipulation_toolbox.assembly import MAX_SSD_VALIDATION_WARNINGS, validate_ssd
+    from fmu_manipulation_toolbox.ssp import MAX_SSD_VALIDATION_WARNINGS, validate_ssd
     components = "".join(f'<ssd:Component name="c{i}" source="c.fmu" colour="blue"/>' for i in range(30))
 
     with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):

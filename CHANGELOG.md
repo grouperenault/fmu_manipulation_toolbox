@@ -21,6 +21,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   against the variables of the FMUs at read time.
 - 🟠 **FIXED** an empty `startElement`/`endElement` of an SSP connection (as written by OMSimulator) is a connector
   of the system.
+- 🔴 **BREAKING** `SSDParser` moved from `fmu_manipulation_toolbox.assembly` to the new module
+  `fmu_manipulation_toolbox.ssp`, with `SSDConnector` and `validate_ssd`; `Assembly.read_ssp` is unchanged.
 - 🟢 **ADDED** **architecture wires** in SSP files: a connection annotated
   `fmu_manipulation_toolbox.architecture-wire` describes a dependency between two components (directed,
   bidirectional or undirected, with a Markdown description) before the exchanged variables are known. It is not a
