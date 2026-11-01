@@ -50,6 +50,7 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 | D10 | Validation against the SSP XSD | Warning: the validation errors are listed as warnings, and the file is read if the parser understands it. |
 | D11 | Extraction folder `<file>.dir` | Unchanged: kept next to the SSP. |
 | D12 | SSP files of other tools for the tests | Public examples (SSP standard examples, OMSimulator...), added only after their license is checked and recorded next to them. |
+| D13 | Component without `source` | **Exception to D1**: still ignored with a warning, together with its connections (unchanged, modeler-bridge, `abbc488`). MIC modeler writes such components when the FMU of an instance is not embedded; refusing them would forbid opening a partial MIC assembly in the Container Builder. |
 
 ---
 
@@ -68,6 +69,9 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 - Check each connection against the FMUs: the connector exists as a variable of the FMU, with a compatible kind.
   The builder already refuses a wrong causality or type; the check at read time gives a message naming the SSD
   component and connector.
+- Not checked: the connections of architecture wires (their connectors, `aw.<peer instance>` in the files of MIC
+  modeler, are not variables of the FMUs) and the connectors of the components without `source` (D13: no FMU to
+  check them against, and they are ignored).
 - A connector of the system that no connection uses is not exposed (unchanged), with a debug message.
 
 ### 3.3 Parameters (D3, D4, D5)
@@ -95,6 +99,9 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 
 - Find public SSP files (SSP standard examples, OMSimulator, ...), check and record their license, add them to
   `tests/data/containers/ssp/`. At least one nested system.
+- Non-regression of modeler-bridge: an SSP written by MIC modeler (architecture wires, connector declarations with
+  units, a component without `source`), once checked that it can be published in fmutool. It must still be read:
+  wires kept, component without `source` ignored with a warning (D13), and no error from D8 when its units agree.
 - Integration tests: build the container; simulate it when the FMUs exist for the host.
 
 ### 3.7 Status
@@ -105,7 +112,8 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 
 ## 4. Steps
 
-1. **Unsupported constructions** (D1, D2, D5, D6, D7, D8): errors and warnings, unit tests with modified SSDs.
+1. **Unsupported constructions** (D1, D2, D5, D6, D7, D8; D13 kept): errors and warnings, unit tests with modified
+   SSDs, including one checking that a component without `source` is still only a warning.
    Commit message: `Refuse the SSP constructions that would change the container`
 2. **Connectors**: declarations read, connections checked against the FMUs. Unit tests.
    Commit message: `Check the SSP connections against the variables of the FMUs`
@@ -116,8 +124,8 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
    Commit message: `Take the step size of an SSP file from its default experiment`
 5. **XSD validation** (D10). Unit test with an invalid SSD that is still read.
    Commit message: `Validate SSP files against the SSP schema`
-6. **SSP files of other tools** (D12): files, licenses, integration tests. The issues found are fixed in this step
-   or listed here before going on.
+6. **SSP files of other tools** (D12), and an SSP written by MIC modeler (non-regression of modeler-bridge, D13):
+   files, licenses, integration tests. The issues found are fixed in this step or listed here before going on.
    Commit message: `Test the SSP reader with SSP files of other tools`
 7. **Beta status**: `ALPHA` warning removed.
    Commit message: `Mark the SSP reader as beta`
