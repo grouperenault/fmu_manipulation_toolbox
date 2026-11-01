@@ -12,7 +12,6 @@ import re
 import shlex
 import shutil
 import sys
-import tomllib
 import zipfile
 from pathlib import Path
 
@@ -48,6 +47,18 @@ def _frontmatter(text: str) -> dict[str, str]:
     return fields
 
 
+def _console_scripts() -> set[str]:
+    """Names of `[project.scripts]` in `pyproject.toml`.
+
+    Read from the file rather than from the installed metadata, which an editable install only updates when
+    reinstalled; and without `tomllib`, which needs Python 3.11 (the toolbox supports 3.10).
+    """
+    text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    section = re.search(r"^\[project\.scripts\]\n(.*?)(?=^\[|\Z)", text, re.MULTILINE | re.DOTALL)
+    assert section, "pyproject.toml has no [project.scripts]"
+    return set(re.findall(r"^([A-Za-z0-9_.-]+)\s*=", section.group(1), re.MULTILINE))
+
+
 def _examples(text: str) -> list[list[str]]:
     """The `fmutool-agent` command lines of the `bash` blocks, in order."""
     commands = []
@@ -71,7 +82,7 @@ def test_the_marketplace_lists_the_plugin():
 
 def test_the_plugin_starts_the_mcp_server_of_the_package():
     servers = json.loads((PLUGIN / ".mcp.json").read_text())["mcpServers"]
-    scripts = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["scripts"]
+    scripts = _console_scripts()
 
     assert servers["fmutool"]["command"] in scripts
     assert "fmutool-agent" in scripts  # the fallback the skills rely on
@@ -224,4 +235,8 @@ def test_the_installed_toolbox_is_recent_enough():
     packaging_version = pytest.importorskip("packaging.version")
     from fmu_manipulation_toolbox.version import __version__
 
-    assert packaging_version.Version(__version__) >= packaging_version.Version(MIN_TOOLBOX_VERSION)
+    installed = packaging_version.Version(__version__)
+    if installed.release[0] == 0:
+        # setuptools-scm gives `0.1.devN` without the git tags (a shallow clone, as in some CI jobs).
+        pytest.skip(f"version {__version__} not computed from the git tags")
+    assert installed >= packaging_version.Version(MIN_TOOLBOX_VERSION)
