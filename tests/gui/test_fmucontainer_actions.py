@@ -144,3 +144,106 @@ def test_exit_still_asks(window, monkeypatch):
 
     assert shown == ["You have unsaved changes. Are you sure you want to quit?"]
     assert not event.isAccepted()
+
+
+# --------------------------------------------------------------------------- #
+#                                  Save as…                                   #
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("path, chosen, expected", [
+    ("model.ssp", "FMU Container (*.fmu)", ("model.ssp", ".ssp")),  # the extension typed wins
+    ("model.JSON", "SSP (*.ssp)", ("model.JSON", ".json")),
+    ("model", "SSP (*.ssp)", ("model.ssp", ".ssp")),               # none: the filter, its extension appended
+    ("model.v2", "JSON (*.json)", ("model.v2.json", ".json")),
+    ("model.csv", "FMU Container (*.fmu)", ("model.csv.fmu", ".fmu")),  # CSV is not a format of Save as… (B5)
+])
+def test_the_format_follows_the_extension_or_the_filter(path, chosen, expected):
+    assert MainWindow.save_target(path, chosen) == expected
+
+
+def _save_dialog(monkeypatch, path, chosen):
+    """The save dialog returns (*path*, *chosen*); its arguments are recorded."""
+    calls = []
+
+    def dialog(parent=None, caption="", filter="", selected_filter="", default_name=""):
+        calls.append({"filter": filter, "selected": selected_filter, "default_name": default_name})
+        return (str(path) if path else ""), chosen
+
+    monkeypatch.setattr(LastDirectory, "get_save_file_name_and_filter", dialog)
+    return calls
+
+
+def _record_saves(monkeypatch, window):
+    saves = []
+    monkeypatch.setattr(window, "save_as_fmu", lambda path, fmi, datalog: saves.append(("fmu", path, fmi, datalog)))
+    monkeypatch.setattr(window, "save_as_ssp", lambda path: saves.append(("ssp", path)))
+    monkeypatch.setattr(window, "save_as_json", lambda path: saves.append(("json", path)))
+    return saves
+
+
+def test_save_as_is_a_button_with_its_shortcut(window):
+    assert window._save_as_button.text() == "Save as…"
+    assert window._save_as_button.shortcut().toString() in ("Ctrl+S", "Meta+S")
+
+
+def test_save_as_offers_fmu_container_first_then_the_last_format(window, monkeypatch, tmp_path):
+    """B2: FMU Container at first, then the format chosen last in the session."""
+    saves = _record_saves(monkeypatch, window)
+    first = _save_dialog(monkeypatch, tmp_path / "model.ssp", "SSP (*.ssp)")
+    window._on_save_as_clicked()
+    second = _save_dialog(monkeypatch, None, "")
+    window._on_save_as_clicked()
+
+    assert first[0]["filter"].split(";;") == ["FMU Container (*.fmu)", "SSP (*.ssp)", "JSON (*.json)"]
+    assert first[0]["selected"] == "FMU Container (*.fmu)"
+    assert first[0]["default_name"].endswith(".fmu")
+    assert second[0]["selected"] == "SSP (*.ssp)"
+    assert second[0]["default_name"].endswith(".ssp")
+    assert saves == [("ssp", str(tmp_path / "model.ssp"))]
+
+
+@pytest.mark.parametrize("name, chosen, kind", [
+    ("model.fmu", "FMU Container (*.fmu)", "fmu"),
+    ("model.ssp", "SSP (*.ssp)", "ssp"),
+    ("model", "JSON (*.json)", "json"),
+])
+def test_save_as_writes_the_format_chosen(window, monkeypatch, tmp_path, name, chosen, kind):
+    saves = _record_saves(monkeypatch, window)
+    _save_dialog(monkeypatch, tmp_path / name, chosen)
+
+    window._on_save_as_clicked()
+
+    assert [save[0] for save in saves] == [kind]
+    assert saves[0][1].endswith("." + kind)
+
+
+def test_save_as_an_fmu_container_takes_the_configuration(window, monkeypatch, tmp_path):
+    """The FMI version and the datalog stay in the Configuration menu."""
+    saves = _record_saves(monkeypatch, window)
+    window._fmi_group.button(3).setChecked(True)
+    window._datalog_checkbox.setChecked(True)
+    _save_dialog(monkeypatch, tmp_path / "model.fmu", "FMU Container (*.fmu)")
+
+    window._on_save_as_clicked()
+
+    assert saves == [("fmu", str(tmp_path / "model.fmu"), 3, True)]
+
+
+def test_save_as_cancelled_writes_nothing(window, monkeypatch):
+    saves = _record_saves(monkeypatch, window)
+    _save_dialog(monkeypatch, None, "")
+
+    window._on_save_as_clicked()
+
+    assert saves == []
+    assert window._save_format == ".fmu"
+
+
+def test_save_as_ssp_clears_the_unsaved_changes(window, monkeypatch, bouncing, tmp_path):
+    _choose(monkeypatch, bouncing)
+    window._on_open_clicked()
+    window._dirty = True
+    (tmp_path / "out").mkdir()
+
+    window.save_as_ssp(str(tmp_path / "out" / "bouncing.ssp"))
+
+    assert window._dirty is False

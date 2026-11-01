@@ -54,6 +54,10 @@ assembly in some format; the choice of the button is the choice of the format. T
    (asked before the file dialog). The old buttons stay until step 3. Tests: `tests/gui/test_fmucontainer_actions.py`.
 2. **Save as…** (B2, B4, B5): format after the filter or the extension, FMU options. GUI tests.
    Commit message: `Container builder: one Save as action for every format`
+   **Done** (1 November 2026): **Save as…** (Ctrl+S): filters FMU Container, SSP, JSON; the extension typed decides,
+   otherwise the filter chosen, its extension appended (`MainWindow.save_target`); the last format of the session
+   preselected (`LastDirectory.get_save_file_name_and_filter`). The SSP save now clears the unsaved changes, as the
+   JSON and FMU saves.
 3. **Old buttons removed**, tests updated.
    Commit message: `Container builder: remove the per-format buttons`
 4. **User documentation** (`gui-usage.md`: actions, workflow; screenshots regenerated with `tools/screenshots.py`)

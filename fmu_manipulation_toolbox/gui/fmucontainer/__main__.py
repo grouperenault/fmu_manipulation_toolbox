@@ -52,8 +52,15 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._import_button = QPushButton("Import")
         self._export_button = QPushButton("Export as JSON")
         self._export_ssp_button = QPushButton("Export as SSP")
+        self._save_as_button = QPushButton("Save as…")
+        self._save_as_button.setToolTip("Save as an FMU container (.fmu), an SSP file (.ssp) or a JSON description "
+                                        "(.json)")
+        self._save_as_button.setShortcut(QKeySequence(QKeySequence.StandardKey.Save))
+        # Format of the last Save as… of the session (B2): FMU Container at first.
+        self._save_format = ".fmu"
         self._save_button = QPushButton("Save as FMU Container")
         self._exit_button = QPushButton("Exit")
+        self._save_as_button.setProperty("class", "save")
         self._save_button.setProperty("class", "save")
         self._export_button.setProperty("class", "save")
         self._export_ssp_button.setProperty("class", "save")
@@ -68,6 +75,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             self._import_button.sizeHint().width(),
             self._export_button.sizeHint().width(),
             self._export_ssp_button.sizeHint().width(),
+            self._save_as_button.sizeHint().width(),
             self._save_button.sizeHint().width(),
             self._exit_button.sizeHint().width(),
             150,
@@ -78,6 +86,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             self._import_button,
             self._export_button,
             self._export_ssp_button,
+            self._save_as_button,
             self._save_button,
             self._exit_button,
         ):
@@ -88,6 +97,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._import_button.clicked.connect(self._on_import_clicked)
         self._export_button.clicked.connect(self._on_export_clicked)
         self._export_ssp_button.clicked.connect(self._on_export_ssp_clicked)
+        self._save_as_button.clicked.connect(self._on_save_as_clicked)
         self._save_button.clicked.connect(self._on_save_clicked)
         self._exit_button.clicked.connect(self.close)
 
@@ -165,6 +175,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         button_bar.addWidget(self._exit_button)
         button_bar.addWidget(self._export_button)
         button_bar.addWidget(self._export_ssp_button)
+        button_bar.addWidget(self._save_as_button)
         button_bar.addWidget(self._save_button)
 
         main_layout = QVBoxLayout()
@@ -302,6 +313,37 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             logger.info("Open cancelled")
             return
         self.open_file(input_path)
+
+    #: Formats of Save as…: filter of the dialog => extension. CSV is not offered (B5).
+    SAVE_FORMATS = {"FMU Container (*.fmu)": ".fmu", "SSP (*.ssp)": ".ssp", "JSON (*.json)": ".json"}
+
+    @classmethod
+    def save_target(cls, path: str, chosen_filter: str) -> tuple[str, str]:
+        """The file and the format (its extension) of a Save as…: the extension typed when it is a format of
+        `SAVE_FORMATS`, otherwise the format of the filter chosen, its extension appended."""
+        suffix = Path(path).suffix.lower()
+        if suffix in cls.SAVE_FORMATS.values():
+            return path, suffix
+        suffix = cls.SAVE_FORMATS.get(chosen_filter, ".fmu")
+        return path + suffix, suffix
+
+    def _on_save_as_clicked(self):
+        """Save as… : FMU container, SSP or JSON, after the extension or the filter chosen."""
+        selected = next(name for name, suffix in self.SAVE_FORMATS.items() if suffix == self._save_format)
+        root_name = Path(self._tree.root.text()).with_suffix(self._save_format).name
+        output_path, chosen = LastDirectory.get_save_file_name_and_filter(
+            self, "Save as", ";;".join(self.SAVE_FORMATS), selected, default_name=root_name)
+        if not output_path:
+            logger.info("Save cancelled")
+            return
+        output_path, self._save_format = self.save_target(output_path, chosen)
+        if self._save_format == ".ssp":
+            RunTask(self.save_as_ssp, output_path, parent=self, title="Saving as SSP")
+        elif self._save_format == ".json":
+            RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON")
+        else:
+            RunTask(self.save_as_fmu, output_path, self._fmi_group.checkedId(), self._datalog_checkbox.isChecked(),
+                    parent=self, title="Saving as FMU")
 
     def _on_load_clicked(self):
         input_path = LastDirectory.get_open_file_name(self, "Load FMU Container", "FMU (*.fmu)")

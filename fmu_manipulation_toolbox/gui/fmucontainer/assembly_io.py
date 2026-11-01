@@ -751,6 +751,7 @@ class AssemblyIOMixin:
         if assembly is None:
             raise AssemblyError("Cannot build the assembly from the current content.")
         assembly.write_ssp(Path(output_path).resolve())
+        self._dirty = False
 
     def save_as_fmu(self, output_path, fmi_version=2, datalog=False):
         """Build and save the assembly as an FMU container.

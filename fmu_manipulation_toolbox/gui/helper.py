@@ -99,6 +99,18 @@ class LastDirectory:
         if filename:
             cls.update(filename)
         return filename
+
+    @classmethod
+    def get_save_file_name_and_filter(cls, parent=None, caption: str = "", filter: str = "",
+                                      selected_filter: str = "", default_name: str = "") -> tuple[str, str]:
+        """`get_save_file_name`, the filter *selected_filter* preselected; returns the file name and the filter chosen."""
+        directory = cls.get()
+        if default_name:
+            directory = str(Path(directory) / default_name)
+        filename, chosen = QFileDialog.getSaveFileName(parent, caption, directory, filter, selected_filter)
+        if filename:
+            cls.update(filename)
+        return filename, chosen
 def device_pixel_ratio() -> float:
     """Return the device pixel ratio of the current screen (default 1.0)."""
     screen = QGuiApplication.primaryScreen()
