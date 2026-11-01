@@ -49,7 +49,7 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 | D9 | Step size | **Revised (1 November 2026)**: SSP has no step size — its `DefaultExperiment` only has `startTime` and `stopTime` (SSP 1.0 and 2.0.1 XSD). They become the start and stop times of the container (`AssemblyNode.start_time`/`stop_time`, not part of the JSON description: lost by a JSON export, see [ssp_export.md](ssp_export.md)). The step size still comes from the command line or the FMUs; a step size annotation of a tool is read only if a file of step 6 has one. |
 | D10 | Validation against the SSP XSD | Warning: the validation errors are listed as warnings, and the file is read if the parser understands it. |
 | D11 | Extraction folder `<file>.dir` | Unchanged: kept next to the SSP. |
-| D12 | SSP files of other tools for the tests | Public examples (SSP standard examples, OMSimulator...), added only after their license is checked and recorded next to them. |
+| D12 | SSP files of other tools for the tests | **Revised (1 November 2026)**: no third-party file. The public candidates are copyleft (OMSimulator test suite: OSMC Public License; openPASS: EPL-2.0, no nested system) or have no stated license, and `modelica/ssp-standard` ships no example. The tests build SSP files laid out as the tools write them, around the Reference FMUs of `tests/data` (BSD); `bouncing.ssp` (easySSP) stays the real file of another tool. The SSP of MIC modeler is synthetic too: its real files are "All rights reserved" (Renault). |
 | D13 | Component without `source` | **Exception to D1**: still ignored with a warning, together with its connections (unchanged, modeler-bridge, `abbc488`). MIC modeler writes such components when the FMU of an instance is not embedded; refusing them would forbid opening a partial MIC assembly in the Container Builder. |
 | D14 | A name of a parameter source matching no variable | Warning, the value is ignored: the standard ignores it (a parameter set shared by several components is legitimate), the warning catches typos (1 November 2026; replaces the `AssemblyError` of §3.3). |
 | D15 | A value for a variable that cannot be parameterized | `AssemblyError` naming the variable and why (D1). Parameterizable, as in the standard: variability other than `constant`, and an input or an `initial` (declared or by default) `exact` or `approx` (1 November 2026). |
@@ -148,6 +148,13 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
    the 1.0 XSD is not added. At most 20 warnings, then a count. Package data and wheel inventory updated.
 6. **SSP files of other tools** (D12), and an SSP written by MIC modeler (non-regression of modeler-bridge, D13):
    files, licenses, integration tests. The issues found are fixed in this step or listed here before going on.
+   **Done** (1 November 2026), D12 revised: `tests/integration/test_ssp_tools.py` builds an OMSimulator layout
+   (root system holding a sub-system, external `.ssv` of the archive addressing `ball.bb.g`, `DefaultExperiment`,
+   `org.openmodelica` annotations; read, then built as a nested container and simulated) and a MIC modeler layout
+   (SSP 2.0, `aw.*` wires, units, component without `source`, `com.renault.micmodeler` annotations; read and built).
+   Issue found and fixed: an empty `startElement`/`endElement` (OMSimulator) is a connector of the system.
+   Left as is: the step size annotation of OMSimulator (`oms:FixedStepMaster stepSize`) is not read — its layout is
+   reproduced from memory, not from a real file; to be read once a real file shows it (D9).
    Commit message: `Test the SSP reader with SSP files of other tools`
 7. **Beta status**: `ALPHA` warning removed.
    Commit message: `Mark the SSP reader as beta`

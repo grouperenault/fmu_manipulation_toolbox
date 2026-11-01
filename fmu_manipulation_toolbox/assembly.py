@@ -1370,7 +1370,10 @@ class SSDParser:
                 self._bindings.append(self._binding)
             self._binding = None
         elif tag_name == 'Connection':
-            attrs = self._connection_attrs
+            # An empty `startElement`/`endElement` (as OMSimulator writes them) is a connector of the system, as a
+            # missing one.
+            attrs = {key: value for key, value in self._connection_attrs.items()
+                     if not (key in ('startElement', 'endElement') and value == "")}
             self._connection_attrs = None
             if self._wire_orientation is None:
                 self._add_connection(attrs)

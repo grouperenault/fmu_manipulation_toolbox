@@ -567,3 +567,16 @@ def test_the_validation_warnings_are_bounded(caplog):
     assert count >= 30  # one per unknown attribute, at least
     assert caplog.text.count("is not valid against the SSP schema") == MAX_SSD_VALIDATION_WARNINGS
     assert f"{count - MAX_SSD_VALIDATION_WARNINGS} more validation error(s)" in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+#                  step 6: what the layouts of other tools need               #
+# --------------------------------------------------------------------------- #
+def test_an_empty_element_of_a_connection_is_the_system(tmp_path):
+    """OMSimulator writes `endElement=""` for a connector of the system."""
+    system = '<ssd:Connectors><ssd:Connector name="out" kind="output"><ssc:Real/></ssd:Connector></ssd:Connectors>'
+    connection = '<ssd:Connection startElement="a" startConnector="y" endElement="" endConnector="out"/>'
+
+    root = read(tmp_path, ssd(component("a"), connection, system=system), fmus=("a",)).root
+
+    assert [(port.port_name, name) for port, name in root.output_ports.items()] == [("y", "out")]
