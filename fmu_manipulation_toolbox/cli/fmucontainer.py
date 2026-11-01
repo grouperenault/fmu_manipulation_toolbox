@@ -32,8 +32,12 @@ def fmucontainer():
     parser.add_argument("-debug", action="store_true", dest="debug",
                         help="Add lot of useful log during the process.")
 
-    parser.add_argument("-dump-json",  action="store_true", dest="dump", default=False,
+    # `-dump`, an abbreviation of `-dump-json` used so far, is kept explicitly: it would be ambiguous otherwise.
+    parser.add_argument("-dump-json", "-dump", action="store_true", dest="dump", default=False,
                         help="Dump a JSON file for each container.")
+
+    parser.add_argument("-dump-ssp", action="store_true", dest="dump_ssp", default=False,
+                        help="Dump an SSP file for each container (routing resolved, options in an annotation).")
 
     parser.add_argument("-fmi", action="store", dest="fmi_version", required=False, default="2",
                         help="Define version of FMI to be used for container interface."
@@ -108,7 +112,11 @@ def fmucontainer():
 
         try:
             assembly.make_fmu(dump_json=config.dump, fmi_version=int(config.fmi_version), datalog=config.datalog)
-        except FMUContainerError as e:
+            if config.dump_ssp:
+                dump_file = Path(Path(filename).stem + "-dump").with_suffix(".ssp")
+                logger.info(f"Dump SSP '{dump_file}'")
+                assembly.write_ssp(dump_file)
+        except (FMUContainerError, AssemblyError) as e:
             logger.fatal(f"{filename}: {e}")
             close_logger(logger)
             sys.exit(ExitCode.OPERATION_FAILED)

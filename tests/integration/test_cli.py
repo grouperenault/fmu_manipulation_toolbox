@@ -75,3 +75,28 @@ def test_fmutool_only_type_and_variability(area_dir):
     rows = [row.split(";") for row in Path("cli-fixed-reals.csv").read_text().splitlines()[1:]]
     assert rows
     assert all(row[4] == "fixed" and row[5] == "Real" for row in rows)
+
+
+@pytest.mark.area("containers/arch")
+def test_fmucontainer_dump_ssp(area_dir):
+    """The SSP dump has the whole routing and is read back into the same container."""
+    from fmu_manipulation_toolbox.ssp import validate_ssd
+    import zipfile
+
+    sys.argv = ["fmucontainer", "-fmu-directory", ".", "-container", "hierarchical.json", "-dump-ssp"]
+    fmucontainer()
+
+    with zipfile.ZipFile("hierarchical-dump.ssp") as ssp:
+        ssd = ssp.read("SystemStructure.ssd")
+    assert validate_ssd(ssd, "hierarchical-dump.ssp") == 0
+    assert b'startElement="level1" startConnector="integrate" endElement="gain"' in ssd
+    assert Assembly("hierarchical-dump.ssp").root.children
+
+
+@pytest.mark.area("containers/arch")
+def test_fmucontainer_dump_abbreviation_is_kept(area_dir):
+    """`-dump` was an abbreviation of `-dump-json`: still accepted, now that `-dump-ssp` exists."""
+    sys.argv = ["fmucontainer", "-fmu-directory", ".", "-container", "hierarchical.json", "-dump"]
+    fmucontainer()
+    assert Path("hierarchical-dump.json").is_file()
+    assert not Path("hierarchical-dump.ssp").exists()

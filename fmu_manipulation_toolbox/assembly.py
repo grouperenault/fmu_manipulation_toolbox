@@ -893,7 +893,7 @@ class Assembly:
         [SSPWriter][fmu_manipulation_toolbox.ssp.SSPWriter]).
 
         Args:
-            filename (str | Path): The `.ssp` file to write.
+            filename (str | Path): The `.ssp` file to write, relative to `fmu_directory` (as `write_json`).
             ssp_version (str): `"2.0"` (default) or `"1.0"`.
 
         Returns:
@@ -904,7 +904,7 @@ class Assembly:
         """
         from .ssp import SSPWriter
 
-        return SSPWriter(self, ssp_version).write(filename)
+        return SSPWriter(self, ssp_version).write(self.fmu_directory / filename)
 
     def write_json(self, filename: str | Path, basenames_only: bool = False):
         """Export the assembly as a JSON file.

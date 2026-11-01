@@ -90,6 +90,10 @@ that the reader of fmutool reads back without loss, and that other tools can ope
    variables its connector is connected to (D16 of the reader); an SSP file is read from its own directory.
 2. **Command line option** (E5). CLI test.
    Commit message: `Add an SSP dump to fmucontainer`
+   **Done** (1 November 2026): `fmucontainer -dump-ssp` writes `<input>-dump.ssp` after the build, in the FMU
+   directory, as `-dump-json`. `-dump`, an abbreviation of `-dump-json` used by the tests and possibly by users, is
+   declared as an alias (argparse would find it ambiguous otherwise). `Assembly.write_ssp` takes a path relative to
+   `fmu_directory`, as `write_json`.
 3. **Export as SSP** in the Container Builder (E5): geometry and architecture wires. GUI tests.
    Commit message: `Export assemblies as SSP in the container builder`
 4. **Stable status**: "beta" removed from the code and the documentation.

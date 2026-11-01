@@ -139,7 +139,7 @@ def test_an_ssp_file_is_read_back_without_loss(area_dir):
     first.write_ssp("one/model.ssp")
     second = Assembly("model.ssp", fmu_directory=Path("one"))
     Path("two").mkdir()
-    second.write_ssp("two/model.ssp")
+    second.write_ssp(Path("two/model.ssp").resolve())  # relative paths are relative to `fmu_directory`
 
     assert _shape(second.root) == _shape(first.root)
     # Written again from what was read back: the same file.
