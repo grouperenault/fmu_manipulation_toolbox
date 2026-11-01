@@ -842,6 +842,8 @@ Click **Import** to load an assembly from an existing description file. Three fo
   geometry of the SSP components, scaled so that nodes side by side do not overlap (a file without geometry gets
   the default staggered placement). [Architecture wires](container.md#architecture-wires) are shown as
   [hints](#architecture-wires).
+  The [parameter values](container.md#parameter-values) of the SSP become start values of the nodes; the start and
+  stop times of its default experiment are not kept.
 
 The tool will:
 

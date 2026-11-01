@@ -2,7 +2,7 @@
 
 **Created**: 28 October 2026 — **Status**: to do — **Roadmap**: not listed —
 **Origin**: what is missing for the SSP support of `fmucontainer` to be more than "alpha" —
-**Depends on**: [ssp_beta.md](ssp_beta.md) (the reader must read back what is exported)
+**Depends on**: [ssp_beta.md](done/ssp_beta.md) (the reader must read back what is exported)
 
 An assembly can be read from an SSP file but only written as JSON (or CSV): the Container Builder imports an SSP
 and exports JSON, and the architecture wires and the geometry are lost. The goal of this plan is an SSP export
@@ -21,7 +21,7 @@ that the reader of fmutool reads back without loss, and that other tools can ope
   only, not written in the JSON.
 - `cli/fmucontainer.py`: `-dump-json` writes `<input>-dump.json` after the build.
 - `gui/fmucontainer`: **Export as JSON** (`assembly_io.save_as_json`) and **Save as FMU Container**.
-- After [ssp_beta.md](ssp_beta.md): the reader takes parameter values as start values, without exposing them (D3
+- After [ssp_beta.md](done/ssp_beta.md): the reader takes parameter values as start values, without exposing them (D3
   of that plan), reads `DefaultExperiment`, and validates against the SSP XSD.
 
 ---
@@ -32,11 +32,11 @@ that the reader of fmutool reads back without loss, and that other tools can ope
 |---|---|---|
 | E1 | What is written | Components, connectors, connections, exposed inputs and outputs of each system, nested systems; start values as `ParameterBindings`; architecture wires and geometry (`ElementGeometry`, positions of the Container Builder nodes); the container options in an annotation. |
 | E2 | Container options (`step_size`, `mt`, `profiling`, `sequential`, `auto_*`, `ts_multiplier`, `reset_ports`) | Written in an `ssc:Annotation` of type `fmu_manipulation_toolbox...` on each system, so that the file is read back without loss. The step size is also written in `DefaultExperiment`. |
-| E3 | Precedence of the options of the annotation when reading | The annotation **prevails** over the command line, as the step size (D9 of [ssp_beta.md](ssp_beta.md)). |
+| E3 | Precedence of the options of the annotation when reading | The annotation **prevails** over the command line, as the step size (D9 of [ssp_beta.md](done/ssp_beta.md)). |
 | E4 | SSP version written | A parameter, SSP 1.0 by default (SSP 2.0 on request). |
 | E5 | Entry points | `Assembly.write_ssp()` (API), a `fmucontainer` option on the model of `-dump-json` (e.g. `-dump-ssp`), and the Container Builder. |
 | E6 | FMUs | Copied into the archive under `resources/`, keeping the `path` of the instances: components sharing one FMU share one file. |
-| E7 | Start values on read back | Written as `ParameterBindings`, read back as start values without exposure (D3 of [ssp_beta.md](ssp_beta.md)): the round trip keeps the container. |
+| E7 | Start values on read back | Written as `ParameterBindings`, read back as start values without exposure (D3 of [ssp_beta.md](done/ssp_beta.md)): the round trip keeps the container. |
 
 ---
 
@@ -52,7 +52,7 @@ that the reader of fmutool reads back without loss, and that other tools can ope
 - Architecture wires: the convention of `docs/user-guide/fmucontainer/container.md#architecture-wires`.
 - Geometry: `ElementGeometry` from `fmu_geometry`.
 - Options: annotation (E2), with a format version, and its namespace documented as the architecture wires one.
-- The written file is valid against the XSD (D10 of [ssp_beta.md](ssp_beta.md)).
+- The written file is valid against the XSD (D10 of [ssp_beta.md](done/ssp_beta.md)).
 
 ### 3.2 Reader
 

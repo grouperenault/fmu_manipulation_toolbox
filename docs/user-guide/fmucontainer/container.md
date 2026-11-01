@@ -232,8 +232,9 @@ own name, and its file in the optional `path` block:
   needs no `path` block.
 
 ## SSP Input file
- 
-This feature is still alpha. User interface may change in the future.
+
+The SSP support is in **beta** stage: what the container cannot honour is refused or reported, never ignored
+silently (see below).
 
 The following command 
 ```
@@ -245,7 +246,8 @@ will generate an FMU container :
 1. extract FMU's from the SSP file
 2. build a container accordingly to the SSP
 
-Note: the optional `:0.1` suffix means the timestep should be `0.1` second.
+Note: the optional `:0.1` suffix means the timestep should be `0.1` second. SSP has no step size of its own: without
+the suffix, it is derived from the embedded FMUs, as for any container.
 
 SSP 1.0 and SSP 2.0 files are read (both versions share the same XML namespace).
 
@@ -254,10 +256,62 @@ SSP 1.0 and SSP 2.0 files are read (both versions share the same XML namespace).
 - **FMU files**: the FMUs are extracted keeping their path inside the archive (`resources/...`), so two FMUs with
   the same file name in different directories are both kept. A `source` outside the archive (absolute path, or
   `..`) is refused.
+- **Systems**: a system inside a system becomes a nested container.
+- **Connections**: a connection between two components is a link; a connection between a connector of the system
+  and a component exposes an input (an input or a parameter of the FMU) or an output of the container. Each
+  connection is checked against the FMUs: the connector must be a variable of the FMU (or an FMI 3.0 alias), of a
+  causality that fits its end. A connector of the system that no connection uses is not exposed.
 - **Components without `source`**: SSP 2.0 allows a component without implementation. Such a component is
-  ignored, with a warning, together with the connections attached to it.
+  ignored, with a warning, together with the connections, wires and parameter values attached to it: an assembly
+  whose FMUs are not all available can still be opened.
 - **Geometry**: the [Container Builder](gui-usage.md#importing-an-assembly-file) places the nodes after the
   `ElementGeometry` of their components. The geometry takes no part in the container.
+
+### Parameter values
+
+The values of the `ParameterBindings` of components and systems become **start values** of the variables of the
+embedded FMUs, as the `start` block of a [JSON description](#json-input-file); the parameters are not exposed for
+all that (use `auto_parameter` for that).
+
+- **Sources**: values inline (`ssv:ParameterSet` in `ParameterValues`), an `.ssv` file of the archive, or an `.ssv`
+  file inside the FMU of the component (`sourceBase="component"`). A source outside the archive, or of another type
+  than `application/x-ssp-parameter-set`, is refused.
+- **Names**: on a component, the name of a variable of its FMU. On a system, the name of one of its connectors —
+  the value goes, through the connections, to the FMU variables connected to it — or a hierarchical name,
+  `element.variable` (`sub.engine.k` through a sub-system). The `prefix` of a binding is prepended to the names of
+  its source.
+- **Priority**, as in the SSP standard: a later binding overrides an earlier one of the same element, and the
+  bindings of a system override those of its elements.
+- **Values**: `Real`/`Float32`/`Float64`, integers, `Boolean`, `String`, and `Enumeration`, given by the name of
+  its item and converted with the type definition of the FMU.
+- A name that matches no variable is ignored, with a warning. A value for a variable that cannot be parameterized
+  (a constant, or a variable computed by the FMU: neither an input nor an `initial` `exact` or `approx`) is
+  refused, as a binary value or a value in another unit than its variable.
+
+### Default experiment
+
+The `startTime` and `stopTime` of the `DefaultExperiment` of the SSP become those of the default experiment of the
+container. They are not part of the JSON description, nor kept by the Container Builder.
+
+### Refused constructions
+
+The container cannot apply these SSP constructions, which change the values exchanged: reading the file fails with
+a message naming the element.
+
+| Construction | Why |
+|---|---|
+| Component of another `type` than an FMU (`application/x-ssp-definition`, `application/x-ssp-package`) | Only FMUs are embedded |
+| Connection transformation (`LinearTransformation`, `BooleanMappingTransformation`, `IntegerMappingTransformation`, `EnumerationMappingTransformation`) | The container does not transform the values it routes |
+| `ParameterMapping` | It renames and may transform the parameter values |
+| Connection through a `SignalDictionaryReference` | Signal dictionaries are not supported |
+| Connected connectors of different units (unless `suppressUnitConversion="true"`) | SSP implies a unit conversion; units with the same definition in `ssc:Units` are the same unit |
+
+A signal dictionary that no connection uses changes nothing: it is only reported with a warning.
+
+### Validation
+
+`SystemStructure.ssd` is validated against the SSP 2.0.1 schema (which also accepts SSP 1.0 files). Each validation
+error is a warning, and the file is read if the reader understands it.
 
 ### Architecture wires
 

@@ -7,6 +7,20 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🔵 **CHANGED** the SSP reader is **beta** (it was alpha): what the container cannot honour is refused or reported,
+  never ignored silently. See [SSP Input file](docs/user-guide/fmucontainer/container.md#ssp-input-file).
+- 🟢 **ADDED** SSP **parameter values**: the `ParameterBindings` of components and systems (inline, `.ssv` file of
+  the archive or of the FMU) become start values of the embedded FMUs, with the priorities of the standard,
+  hierarchical names and connectors of systems followed through their connections.
+- 🟢 **ADDED** the `startTime` and `stopTime` of the `DefaultExperiment` of an SSP become those of the container.
+- 🟢 **ADDED** SSP files validated against the SSP 2.0.1 schema (warnings only); the schema is shipped in
+  `resources/ssp-2.0/`.
+- 🔴 **BREAKING** SSP files the container would build wrong are refused (`AssemblyError`): component that is not
+  an FMU, connection transformation, `ParameterMapping`, connection through a signal dictionary, connected
+  connectors of different units, value for a variable that cannot be parameterized. The connections are checked
+  against the variables of the FMUs at read time.
+- 🟠 **FIXED** an empty `startElement`/`endElement` of an SSP connection (as written by OMSimulator) is a connector
+  of the system.
 - 🟢 **ADDED** **architecture wires** in SSP files: a connection annotated
   `fmu_manipulation_toolbox.architecture-wire` describes a dependency between two components (directed,
   bidirectional or undirected, with a Markdown description) before the exchanged variables are known. It is not a
