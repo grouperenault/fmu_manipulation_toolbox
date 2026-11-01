@@ -2,7 +2,7 @@
 
 **Created**: 28 October 2026 — **Status**: done (1 November 2026) — **Roadmap**: not listed —
 **Origin**: what is missing for the SSP support of `fmucontainer` to be more than "alpha" —
-**Follow-up**: [ssp_export.md](../ssp_export.md) (SSP export, stable status)
+**Follow-up**: [ssp_export.md](ssp_export.md) (SSP export, stable status)
 
 The SSP reader (`Assembly.read_ssp`, `SSDParser`) builds the routing table of a container from
 `SystemStructure.ssd`. It ignores, without a word, everything that changes values: parameter values, connection
@@ -40,13 +40,13 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 |---|---|---|
 | D1 | Policy for an SSP construction that is not supported | `AssemblyError` when it would change the result of the container; warning when it has no effect on it. |
 | D2 | Connection transformations (`LinearTransformation`, `BooleanMappingTransformation`, `IntegerMappingTransformation`, `EnumerationMappingTransformation`) | Refused: `AssemblyError` naming the connection. The container runtime is not changed. |
-| D3 | Values of `ParameterBindings` (`.ssv`, inline or external file) | Each value becomes the start value of the parameter of the embedded FMU, as the `start` block of the JSON. The parameter is **not** exposed, so that an SSP written by fmutool is read back without change ([ssp_export.md](../ssp_export.md)). |
+| D3 | Values of `ParameterBindings` (`.ssv`, inline or external file) | Each value becomes the start value of the parameter of the embedded FMU, as the `start` block of the JSON. The parameter is **not** exposed, so that an SSP written by fmutool is read back without change ([ssp_export.md](ssp_export.md)). |
 | D4 | Exposure of the SSP parameters | Not by the bindings (D3). `auto_parameter` still exposes the parameters, as `<component>.<parameter>`. |
 | D5 | `ParameterMapping` (`.ssm`) | Refused (`AssemblyError`, D1): it renames and may transform the values. |
 | D6 | Component `type` other than an FMU (`application/x-fmu-sharedlibrary`) | Refused (`AssemblyError`, D1), e.g. `application/x-ssp-definition`. |
 | D7 | `SignalDictionary` / `SignalDictionaryReference` | A connection through a signal dictionary is refused (`AssemblyError`, D1). A dictionary that no connection uses: warning. |
 | D8 | Units | Connected connectors with different units: `AssemblyError` (SSP implies a conversion, not supported). Otherwise units are ignored, without message. |
-| D9 | Step size | **Revised (1 November 2026)**: SSP has no step size — its `DefaultExperiment` only has `startTime` and `stopTime` (SSP 1.0 and 2.0.1 XSD). They become the start and stop times of the container (`AssemblyNode.start_time`/`stop_time`, not part of the JSON description: lost by a JSON export, see [ssp_export.md](../ssp_export.md)). The step size still comes from the command line or the FMUs; a step size annotation of a tool is read only if a file of step 6 has one. |
+| D9 | Step size | **Revised (1 November 2026)**: SSP has no step size — its `DefaultExperiment` only has `startTime` and `stopTime` (SSP 1.0 and 2.0.1 XSD). They become the start and stop times of the container (`AssemblyNode.start_time`/`stop_time`, not part of the JSON description: lost by a JSON export, see [ssp_export.md](ssp_export.md)). The step size still comes from the command line or the FMUs; a step size annotation of a tool is read only if a file of step 6 has one. |
 | D10 | Validation against the SSP XSD | Warning: the validation errors are listed as warnings, and the file is read if the parser understands it. |
 | D11 | Extraction folder `<file>.dir` | Unchanged: kept next to the SSP. |
 | D12 | SSP files of other tools for the tests | **Revised (1 November 2026)**: no third-party file. The public candidates are copyleft (OMSimulator test suite: OSMC Public License; openPASS: EPL-2.0, no nested system) or have no stated license, and `modelica/ssp-standard` ships no example. The tests build SSP files laid out as the tools write them, around the Reference FMUs of `tests/data` (BSD); `bouncing.ssp` (easySSP) stays the real file of another tool. The SSP of MIC modeler is synthetic too: its real files are "All rights reserved" (Renault). |

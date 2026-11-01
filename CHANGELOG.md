@@ -7,8 +7,16 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
-- 🔵 **CHANGED** the SSP reader is **beta** (it was alpha): what the container cannot honour is refused or reported,
-  never ignored silently. See [SSP Input file](docs/user-guide/fmucontainer/container.md#ssp-input-file).
+- 🟢 **ADDED** **SSP export**: `Assembly.write_ssp()`, `fmucontainer -dump-ssp` and **Export as SSP** in the
+  Container Builder. The routing is written resolved (the `auto_*` rules become connections), the options and the
+  dropped ports of each container go in an annotation `fmu_manipulation_toolbox.container`, the start values,
+  architecture wires, geometry, units and start/stop times are kept: the file is read back into the same container.
+  SSP 2.0 by default, SSP 1.0 on request. See [SSP export](docs/user-guide/fmucontainer/container.md#ssp-export).
+- 🔵 **CHANGED** the SSP support is **stable** (it was alpha): what the container cannot honour is refused or
+  reported, never ignored silently. See [SSP Input file](docs/user-guide/fmucontainer/container.md#ssp-input-file).
+- 🔵 **CHANGED** reading an SSP file: the options annotation of a system prevails over the command line; an exposed
+  output may be a local variable (as `auto_local` does).
+- 🔵 **CHANGED** `fmucontainer -dump`, the abbreviation of `-dump-json`, is now an explicit alias.
 - 🟢 **ADDED** SSP **parameter values**: the `ParameterBindings` of components and systems (inline, `.ssv` file of
   the archive or of the FMU) become start values of the embedded FMUs, with the priorities of the standard,
   hierarchical names and connectors of systems followed through their connections.

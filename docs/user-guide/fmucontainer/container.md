@@ -141,7 +141,8 @@ The `fmucontainer` command supports the following options:
 | `-vr`                               | off            | Add a `TS_MULTIPLIER` input port to the container, allowing dynamic control of the step size.                                                                                                                                        |
 | `-reset-ports`                      | off            | Add a `container.reset` input to each embedded FMU, to reset it during the simulation. See [Reset of Embedded FMUs](container-reset.md).                                                                                            |
 | `-datalog`                          | off            | Log input, output, and local variables of the container into a CSV file.                                                                                                                                                             |
-| `-dump-json`                        | off            | Dump a JSON description file for each container.                                                                                                                                                                                     |
+| `-dump-json` (or `-dump`)           | off            | Dump a JSON description file for each container (`<input>-dump.json`).                                                                                                                                                               |
+| `-dump-ssp`                         | off            | Dump an SSP file for each container (`<input>-dump.ssp`): see [SSP export](#ssp-export).                                                                                                                                             |
 | `-no-auto-input`                    | auto           | Disable automatic exposure of unconnected input ports from embedded FMUs.                                                                                                                                                            |
 | `-no-auto-output`                   | auto           | Disable automatic exposure of unconnected output ports from embedded FMUs.                                                                                                                                                           |
 | `-no-auto-link`                     | auto           | Disable automatic linking of ports with matching names and types.                                                                                                                                                                    |
@@ -233,7 +234,7 @@ own name, and its file in the optional `path` block:
 
 ## SSP Input file
 
-SSP files are read, and written. What the container cannot honour is refused or
+SSP files are read, and written (see [SSP export](#ssp-export)). What the container cannot honour is refused or
 reported, never ignored silently (see below).
 
 The following command 
@@ -313,6 +314,54 @@ A signal dictionary that no connection uses changes nothing: it is only reported
 `SystemStructure.ssd` is validated against the SSP 2.0.1 schema (which also accepts SSP 1.0 files). Each validation
 error is a warning, and the file is read if the reader understands it.
 
+### SSP export
+
+An assembly is written as an SSP file by `fmucontainer -dump-ssp`, by **Export as SSP** in the
+[Container Builder](gui-usage.md#actions), or by `Assembly.write_ssp()`. The file is read back into the same
+container, and other tools see the whole system.
+
+- **Systems and components**: each container is a system, each embedded FMU a component named after its file
+  (without `.fmu`). The FMUs are copied into the archive under `resources/`; components sharing one FMU (instances)
+  share one file.
+- **Routing resolved**: the links and exposed ports added by `auto_link`, `auto_input`, `auto_output`,
+  `auto_parameter` and `auto_local` are computed (without building) and written as connections, like the explicit
+  ones. A sub-container is resolved first. The FMUs must therefore be readable when exporting.
+- **Connectors**: the variables used by the routing and the start values, with their kind, their type and their
+  unit. A connection between different units carries `suppressUnitConversion="true"`: the container does not
+  convert.
+- **Start values**: a `ParameterBindings` with an inline parameter set on each component.
+- **Architecture wires** and **geometry** (the positions of the nodes in the Container Builder).
+- **Start and stop times**: in `DefaultExperiment`.
+- **Options of each container**, and its dropped ports, in an annotation of its system — SSP has no step size:
+
+```xml
+<ssd:Annotations>
+  <ssc:Annotation type="fmu_manipulation_toolbox.container">
+    <fc:Container xmlns:fc="urn:fmu_manipulation_toolbox:container:1" formatVersion="1"
+                  stepSize="0.01" mt="false" profiling="false" sequential="false"
+                  autoLink="false" autoInput="false" autoOutput="false" autoParameter="false" autoLocal="false"
+                  tsMultiplier="false" resetPorts="false">
+      <fc:Drop element="bb_position" connector="position1"/>
+    </fc:Container>
+  </ssc:Annotation>
+</ssd:Annotations>
+```
+
+The `auto*` options are written `false`, the routing being explicit. When the file is read, the options of the
+annotation **prevail** over those of the command line (a message says so); a file without annotation takes the
+command line.
+
+SSP 2.0 is written by default; `Assembly.write_ssp(filename, ssp_version="1.0")` writes SSP 1.0, the FMI 3.0 types
+being written as FMI 2.0 ones (`Real`, `Integer`).
+
+```python
+from pathlib import Path
+from fmu_manipulation_toolbox.assembly import Assembly
+
+assembly = Assembly("bouncing.json", fmu_directory=Path("my_fmus"))
+assembly.write_ssp("bouncing.ssp")   # relative to fmu_directory, as write_json
+```
+
 ### Architecture wires
 
 An SSP file may describe a system at the architecture stage, before the exchanged variables are known: an
@@ -341,7 +390,7 @@ type `fmu_manipulation_toolbox.architecture-wire`:
 | `formatVersion` | Version of the convention, currently `1`. |
 
 An architecture wire is **not a link**: it takes no part in the container, it is not written in the JSON
-description (nor in the one written by `fmucontainer -dump-json`). The Container Builder shows it as a hint
+description (nor in the one written by `fmucontainer -dump-json`), but it is kept by the [SSP export](#ssp-export). The Container Builder shows it as a hint
 while you define the links (see [Wire Details](gui-usage.md#architecture-wires)).
 
 # Python API

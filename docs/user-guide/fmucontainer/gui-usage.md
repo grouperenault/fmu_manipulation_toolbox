@@ -355,8 +355,8 @@ the arrowheads of the expected direction. The wire details show the direction (`
 `A — B` without direction) and the description, rendered as Markdown, above the tabs.
 
 Define the links as for any wire (tabs or [Link Assistant](#link-assistant)): once the wire has links, it is drawn
-as a regular wire, and the hint stays in the wire details. The hint is not saved: *Export as JSON* and
-*Save as FMU Container* only keep the links.
+as a regular wire, and the hint stays in the wire details. The hint is kept by *Export as SSP*; *Export as JSON*
+and *Save as FMU Container* only keep the links.
 
 ![Architecture wire without link](fmucontainer-architecture-wire.png)
 
@@ -712,8 +712,9 @@ Click **Configuration** to open a popup menu with:
 | Button | Description |
 |---|---|
 | **Load FMU Container** | Load an existing FMU container (splits it and reconstructs the graph) |
-| **Import** | Import an assembly from a [JSON](container.md#json-input-file) or [CSV](container.md#csv-input-file) description file |
+| **Import** | Import an assembly from a [JSON](container.md#json-input-file), [CSV](container.md#csv-input-file) or [SSP](container.md#ssp-input-file) file |
 | **Export as JSON** | Export the assembly as a JSON description file |
+| **Export as SSP** | Export the assembly as an [SSP file](container.md#ssp-export): the FMUs, the whole routing, the positions of the nodes and the architecture wires |
 | **Save as FMU Container** | Build and save the container as a `.fmu` file |
 | **Exit** | Close the window (prompts if there are unsaved changes) |
 
@@ -786,8 +787,8 @@ tab to explicitly expose specific output ports, at the container level.
 
 ### Step 6: Save
 
-Click **Save as FMU Container** to build the final `.fmu` file, or **Export as JSON** to save
-the assembly description for later use with the `fmucontainer` CLI.
+Click **Save as FMU Container** to build the final `.fmu` file, or **Export as JSON** (or **Export as SSP**) to save
+the assembly description for later use with the `fmucontainer` CLI — or, as SSP, with other tools.
 
 ## Auto-Wiring Workflow
 
