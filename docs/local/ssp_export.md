@@ -96,6 +96,11 @@ that the reader of fmutool reads back without loss, and that other tools can ope
    `fmu_directory`, as `write_json`.
 3. **Export as SSP** in the Container Builder (E5): geometry and architecture wires. GUI tests.
    Commit message: `Export assemblies as SSP in the container builder`
+   **Done** (1 November 2026): **Export as SSP** button and `save_as_ssp`. `create_assembly` now also gives the
+   position and size of each node (`fmu_geometry`, SSP coordinates: y upwards, scale 1 — the import scales them
+   again) and the architecture wires of the scene (`architecture_direction`), in the node holding the FMU; a wire
+   between nodes of different containers is not exported (debug message). Neither is part of the JSON or used by
+   the build. Not done: an MCP tool for the SSP export (not in E5). Tests: `tests/gui/test_fmucontainer_ssp_export.py`.
 4. **Stable status**: "beta" removed from the code and the documentation.
    Commit message: `Mark the SSP support as stable`
 5. **User documentation** (`container.md`: SSP export, options annotation; `gui-usage.md`: Export as SSP; CLI

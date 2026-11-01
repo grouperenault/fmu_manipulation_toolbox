@@ -688,8 +688,43 @@ class AssemblyIOMixin:
             self._propagate_exposed_inputs(assembly.root)
             # Then distribute links into the correct assembly nodes
             self._apply_links_on_assembly_node(assembly.root, links_list)
+            # Hints for an SSP export (not written in JSON, not used by the build): positions and architecture wires
+            self._add_geometry_and_wires(assembly.root, path_by_name)
 
         return assembly
+
+    def _add_geometry_and_wires(self, root: AssemblyNode, path_by_name: dict[str, str]):
+        """The position of each node (`fmu_geometry`, SSP coordinates: y upwards) and the architecture wires, in
+        the assembly node that holds the FMU."""
+        holder: dict[str, AssemblyNode] = {}
+
+        def collect(node: AssemblyNode):
+            for fmu_name in node.fmu_names_list:
+                holder[fmu_name] = node
+            for child in node.children.values():
+                collect(child)
+
+        collect(root)
+        for node in self._graph.scene.fmu_nodes():
+            reference = path_by_name.get(node.name)
+            if reference not in holder:
+                continue
+            rect, position = node.rect(), node.pos()
+            x1, y1 = position.x() + rect.left(), position.y() + rect.top()
+            holder[reference].fmu_geometry[reference] = (x1, -(y1 + rect.height()), x1 + rect.width(), -y1)
+        for wire in self._graph.scene.wires():
+            if wire.architecture_direction is None:
+                continue
+            start, end = path_by_name.get(wire.node_a.name), path_by_name.get(wire.node_b.name)
+            if start not in holder or end not in holder or holder[start] is not holder[end]:
+                logger.debug(f"Architecture wire {wire.node_a.name} - {wire.node_b.name} not exported: its nodes "
+                             f"are not in the same container.")
+                continue
+            orientation = {"both": "bidirectional", "a_to_b": "directed", "b_to_a": "directed"}.get(
+                wire.architecture_direction, "undirected")
+            if wire.architecture_direction == "b_to_a":
+                start, end = end, start
+            holder[start].add_architecture_wire(start, end, orientation, wire.architecture_description)
 
     def save_as_json(self, output_path):
         """Export the current assembly as a JSON file.
@@ -703,6 +738,19 @@ class AssemblyIOMixin:
             raise AssemblyError("Cannot build the assembly from the current content.")
         assembly.write_json(output_path)
         self._dirty = False
+
+    def save_as_ssp(self, output_path):
+        """Export the current assembly as an SSP file: the routing resolved, the positions of the nodes as
+        geometry, the architecture wires kept.
+
+        Raises:
+            AssemblyError: If the assembly cannot be built from the current scene/tree state.
+            FMUContainerError: If an FMU cannot be read to resolve the routing.
+        """
+        assembly = self.create_assembly()
+        if assembly is None:
+            raise AssemblyError("Cannot build the assembly from the current content.")
+        assembly.write_ssp(Path(output_path).resolve())
 
     def save_as_fmu(self, output_path, fmi_version=2, datalog=False):
         """Build and save the assembly as an FMU container.

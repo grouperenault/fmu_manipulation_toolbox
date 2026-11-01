@@ -47,10 +47,12 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._load_button = QPushButton("Load FMU Container")
         self._import_button = QPushButton("Import")
         self._export_button = QPushButton("Export as JSON")
+        self._export_ssp_button = QPushButton("Export as SSP")
         self._save_button = QPushButton("Save as FMU Container")
         self._exit_button = QPushButton("Exit")
         self._save_button.setProperty("class", "save")
         self._export_button.setProperty("class", "save")
+        self._export_ssp_button.setProperty("class", "save")
         self._load_button.setProperty("class", "quit")
         self._import_button.setProperty("class", "quit")
         self._exit_button.setProperty("class", "quit")
@@ -59,6 +61,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             self._load_button.sizeHint().width(),
             self._import_button.sizeHint().width(),
             self._export_button.sizeHint().width(),
+            self._export_ssp_button.sizeHint().width(),
             self._save_button.sizeHint().width(),
             self._exit_button.sizeHint().width(),
             150,
@@ -67,6 +70,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             self._load_button,
             self._import_button,
             self._export_button,
+            self._export_ssp_button,
             self._save_button,
             self._exit_button,
         ):
@@ -75,6 +79,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._load_button.clicked.connect(self._on_load_clicked)
         self._import_button.clicked.connect(self._on_import_clicked)
         self._export_button.clicked.connect(self._on_export_clicked)
+        self._export_ssp_button.clicked.connect(self._on_export_ssp_clicked)
         self._save_button.clicked.connect(self._on_save_clicked)
         self._exit_button.clicked.connect(self.close)
 
@@ -150,6 +155,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         button_bar.addWidget(self._import_button)
         button_bar.addWidget(self._exit_button)
         button_bar.addWidget(self._export_button)
+        button_bar.addWidget(self._export_ssp_button)
         button_bar.addWidget(self._save_button)
 
         main_layout = QVBoxLayout()
@@ -329,6 +335,16 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             return
 
         RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON")
+
+    def _on_export_ssp_clicked(self):
+        root_name = Path(self._tree.root.text()).with_suffix(".ssp").name
+        output_path = LastDirectory.get_save_file_name(self, "Export as SSP", "SSP (*.ssp)",
+                                                        default_name=root_name)
+        if not output_path:
+            logger.info("Save cancelled")
+            return
+
+        RunTask(self.save_as_ssp, output_path, parent=self, title="Saving as SSP")
 
     def _on_save_clicked(self):
         root_name = Path(self._tree.root.text()).with_suffix(".fmu").name
