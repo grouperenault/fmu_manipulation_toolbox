@@ -1063,10 +1063,16 @@ class SSDParser:
     prefix used in the file (`ssd:`, another one, or a default namespace).
 
     Each component is embedded as `<component name>.fmu`, in the directory of its `source` file. A component
-    without `source` (SSP 2.0 component without implementation) is ignored, with the connections attached to it.
+    without `source` (SSP 2.0 component without implementation) is ignored, with the connections attached to it:
+    an assembly whose FMUs are not all available (MIC modeler) can still be opened.
 
     A connection carrying an annotation of type `ARCHITECTURE_WIRE_TYPE` is an architecture wire (see
     `ArchitectureWire`), not a link.
+
+    An SSP construction the container cannot honour raises an `AssemblyError` when it would change the result of
+    the container — a component that is not an FMU, a connection transformation, a parameter mapping, a connection
+    through a signal dictionary, connected connectors of different units — and is reported with a warning when it
+    has no effect on it (a signal dictionary that no connection uses).
 
     Attributes:
         node_stack (list[AssemblyNode]): Stack of nodes used during XML parsing
@@ -1075,12 +1081,26 @@ class SSDParser:
         fmu_filenames (dict[str, str]): Mapping from SSD component names to
             the names of the embedded FMUs.
         ignored_components (set[str]): Names of the components ignored because they have no `source`.
+        connectors (dict[tuple[int, str | None], dict[str, SSDConnector]]): Connectors declared by each element,
+            by (id of its system node, element name, `None` for the system itself), then by connector name.
+        units (dict[str, dict[str, str]]): `ssc:Unit` definitions: the attributes of their `ssc:BaseUnit`.
     """
 
     SSD_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureDescription"
     SSC_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureCommon"
     ARCHITECTURE_WIRE_TYPE = "fmu_manipulation_toolbox.architecture-wire"
     ARCHITECTURE_WIRE_NAMESPACE = "urn:fmu_manipulation_toolbox:architecture-wire:1"
+    #: Component type of an FMU, the default of the `type` attribute (SSP 1.0 §5.3.2).
+    FMU_COMPONENT_TYPE = "application/x-fmu-sharedlibrary"
+    #: Connection transformations (SSP 1.0 §5.3.6): the container cannot apply them.
+    TRANSFORMATIONS = ("LinearTransformation", "BooleanMappingTransformation", "IntegerMappingTransformation",
+                       "EnumerationMappingTransformation")
+    #: Type elements of a connector: SSP 1.0, and the FMI 3.0 types of SSP 2.0.
+    CONNECTOR_TYPES = ("Real", "Integer", "Boolean", "String", "Enumeration", "Binary", "Clock", "Float32",
+                       "Float64", "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64")
+    #: Attributes of `ssc:BaseUnit`, with their default value.
+    BASE_UNIT_DEFAULTS = {"kg": "0", "m": "0", "s": "0", "A": "0", "K": "0", "mol": "0", "cd": "0", "rad": "0",
+                          "factor": "1", "offset": "0"}
 
     def __init__(self, zin: zipfile.ZipFile, extract_folder_name: str, **kwargs):
         self.zin = zin
@@ -1091,6 +1111,9 @@ class SSDParser:
         self.fmu_filenames: dict[str, str] = {}  # Component name => FMU name
         self.ignored_components: set[str] = set()
         self.node_attrs = kwargs
+        self.connectors: dict[tuple[int, str | None], dict[str, SSDConnector]] = {}
+        self.units: dict[str, dict[str, str]] = {}
+        self.ssd_filename = ""
 
         # Name of the embedded FMU of the component being read, for its ElementGeometry.
         self._component_fmu: str | None = None
@@ -1098,6 +1121,16 @@ class SSDParser:
         self._connection_attrs: dict[str, str] | None = None
         self._in_architecture_annotation = False
         self._wire_orientation: str | None = None
+        self._transformation: str | None = None  # transformation element of the connection being read
+        # Owners of the connectors being read: ("system", node), ("component", name) or ("dictionary", name).
+        self._owners: list[tuple[str, Any]] = []
+        self._connector: SSDConnector | None = None
+        self._unit: str | None = None  # name of the ssc:Unit being read
+        # Signal dictionaries: references (elements of a system) and definitions, and those used by a connection.
+        self._dictionary_references: dict[tuple[int, str], str] = {}  # (system, reference name) => dictionary
+        self._dictionaries: set[str] = set()
+        # Connections between two declared connectors, checked once the units are known (they follow the systems).
+        self._unit_checks: list[tuple[str, SSDConnector, SSDConnector]] = []
 
     def parse(self, ssd_filename: str) -> AssemblyNode:
         """Parse an SSD file and return the root assembly node.
@@ -1110,10 +1143,13 @@ class SSDParser:
 
         Raises:
             AssemblyError: If the file is not well-formed, is not an SSP 1.0
-                system structure description, or refers to unknown elements.
+                system structure description, refers to unknown elements, or uses
+                an SSP construction that would change the container (see the class).
         """
         logger.debug(f"Analysing {ssd_filename}")
+        self.ssd_filename = ssd_filename
         prefix = f"{{{self.SSD_NAMESPACE}}}"
+        common = f"{{{self.SSC_NAMESPACE}}}"
         try:
             with self.zin.open(ssd_filename) as file:
                 root_checked = False
@@ -1126,8 +1162,12 @@ class SSDParser:
                         root_checked = True
                     if self._connection_attrs is not None:
                         self._connection_child(event, element)
+                    if element.tag.startswith(common):
+                        if event == "start":
+                            self._common_element(element.tag[len(common):], element.attrib)
+                        continue
                     if not element.tag.startswith(prefix):
-                        continue  # other SSP namespaces (ssc:, ssv:...) and vendor annotations
+                        continue  # other SSP namespaces (ssv:...) and vendor annotations
                     tag = element.tag[len(prefix):]
                     if event == "start":
                         self.start_element(tag, element.attrib)
@@ -1141,6 +1181,8 @@ class SSDParser:
 
         if self.root is None:
             raise AssemblyError(f"'{ssd_filename}': no <System> found in namespace '{self.SSD_NAMESPACE}'")
+        self._check_units()
+        self._warn_unused_dictionaries()
         return self.root
 
     def start_element(self, tag_name, attrs):
@@ -1150,6 +1192,7 @@ class SSDParser:
             self._connection_attrs = dict(attrs)
             self._in_architecture_annotation = False
             self._wire_orientation = None
+            self._transformation = None
 
         elif tag_name == 'System':
             logger.info(f"SSP System: {attrs['name']}")
@@ -1162,13 +1205,21 @@ class SSDParser:
                 self.root = node
 
             self.node_stack.append(node)
+            self._owners.append(("system", attrs['name']))
 
         elif tag_name == 'Component':
+            self._owners.append(("component", attrs['name']))
             if 'source' not in attrs:
+                # Kept although it changes the container (D13 of the SSP beta plan): MIC modeler writes components
+                # without source when the FMU of an instance is not available.
                 logger.warning(f"Component '{attrs['name']}' has no source FMU. It is ignored, "
                                f"with its connections.")
                 self.ignored_components.add(attrs['name'])
                 return
+            component_type = attrs.get('type', self.FMU_COMPONENT_TYPE)
+            if component_type != self.FMU_COMPONENT_TYPE:
+                raise AssemblyError(f"'{self.ssd_filename}': component '{attrs['name']}' is of type "
+                                    f"'{component_type}': only FMUs ('{self.FMU_COMPONENT_TYPE}') can be embedded.")
             source = self._source_path(attrs['source'])
             filename = f"{self.extract_folder_name}/{source}"
             node = self.node_stack[-1]
@@ -1178,6 +1229,20 @@ class SSDParser:
             node.add_fmu(fmu_name, filename)
             self._component_fmu = fmu_name
             logger.debug(f"Component {attrs['name']} => {fmu_name}")
+
+        elif tag_name == 'SignalDictionaryReference':
+            self._owners.append(("dictionary", attrs['name']))
+            self._dictionary_references[(id(self.node_stack[-1]), attrs['name'])] = attrs.get('dictionary', '')
+
+        elif tag_name == 'SignalDictionary':
+            self._dictionaries.add(attrs.get('name', ''))
+
+        elif tag_name == 'Connector' and self._owners:
+            self._connector = SSDConnector(self._owners[-1][1], attrs['name'], attrs.get('kind'))
+
+        elif tag_name == 'ParameterMapping':
+            raise AssemblyError(f"'{self.ssd_filename}': {self._owner_label()} has a parameter mapping: parameter "
+                                f"mappings are not supported (they rename and may transform the values).")
 
         elif tag_name == 'ElementGeometry' and self._component_fmu is not None:
             try:
@@ -1190,8 +1255,13 @@ class SSDParser:
         """Handle the end of an SSD element (`tag_name` without namespace)."""
         if tag_name == 'System':
             self.node_stack.pop()
-        elif tag_name == 'Component':
+            self._owners.pop()
+        elif tag_name in ('Component', 'SignalDictionaryReference'):
             self._component_fmu = None
+            self._owners.pop()
+        elif tag_name == 'Connector' and self._connector is not None:
+            self._register_connector(self._connector)
+            self._connector = None
         elif tag_name == 'Connection':
             attrs = self._connection_attrs
             self._connection_attrs = None
@@ -1200,8 +1270,40 @@ class SSDParser:
             else:
                 self._add_architecture_wire(attrs, self._wire_orientation)
 
+    def _common_element(self, tag_name: str, attrs):
+        """Handle the start of an element of the SSC namespace: type of a connector, unit definitions."""
+        if self._connector is not None and self._connector.type is None and tag_name in self.CONNECTOR_TYPES:
+            self._connector.type = tag_name
+            self._connector.unit = attrs.get('unit')
+        elif tag_name == 'Unit':
+            self._unit = attrs.get('name')
+            self.units.setdefault(self._unit, {})
+        elif tag_name == 'BaseUnit' and self._unit is not None:
+            self.units[self._unit] = dict(attrs)
+
+    def _register_connector(self, connector: "SSDConnector"):
+        """Record a connector under its element; the connectors of a system are also those of its element in the
+        parent system."""
+        kind, _ = self._owners[-1]
+        node = self.node_stack[-1]
+        if kind == "system":
+            self.connectors.setdefault((id(node), None), {})[connector.name] = connector
+            if len(self.node_stack) > 1:
+                self.connectors.setdefault((id(self.node_stack[-2]), connector.element), {})[connector.name] = \
+                    connector
+        else:
+            self.connectors.setdefault((id(node), connector.element), {})[connector.name] = connector
+
+    def _owner_label(self) -> str:
+        if not self._owners:
+            return "the system structure"
+        kind, name = self._owners[-1]
+        return f"{'system' if kind == 'system' else 'component'} '{name}'"
+
     def _connection_child(self, event: str, element: ET.Element):
-        """Look for the architecture wire annotation among the descendants of the connection being read."""
+        """Look for the architecture wire annotation and the transformations among the descendants of the
+        connection being read."""
+        local_name = element.tag.rsplit("}", 1)[-1]
         if element.tag == f"{{{self.SSC_NAMESPACE}}}Annotation":
             self._in_architecture_annotation = (event == "start" and
                                                 element.get("type") == self.ARCHITECTURE_WIRE_TYPE)
@@ -1213,6 +1315,15 @@ class SSDParser:
                                f"It is read as 'undirected'.")
                 orientation = "undirected"
             self._wire_orientation = orientation
+        elif (event == "start" and local_name in self.TRANSFORMATIONS and
+              element.tag.startswith((f"{{{self.SSC_NAMESPACE}}}", f"{{{self.SSD_NAMESPACE}}}"))):
+            self._transformation = local_name
+
+    @staticmethod
+    def _connection_label(attrs: dict[str, str]) -> str:
+        start = f"{attrs['startElement']}." if 'startElement' in attrs else ""
+        end = f"{attrs['endElement']}." if 'endElement' in attrs else ""
+        return f"connection {start}{attrs['startConnector']} -> {end}{attrs['endConnector']}"
 
     def _add_connection(self, attrs: dict[str, str]):
         """Turn a connection into a link, an exposed input or an exposed output."""
@@ -1221,6 +1332,19 @@ class SSDParser:
                          f"{attrs.get('endElement')}/{attrs['endConnector']} ignored: it involves an ignored "
                          f"component.")
             return
+        if self._transformation is not None:
+            raise AssemblyError(f"'{self.ssd_filename}': {self._connection_label(attrs)} has a "
+                                f"{self._transformation}: connection transformations are not supported.")
+        system = id(self.node_stack[-1])
+        for side in ('startElement', 'endElement'):
+            if (system, attrs.get(side)) in self._dictionary_references:
+                raise AssemblyError(f"'{self.ssd_filename}': {self._connection_label(attrs)} goes through the signal "
+                                    f"dictionary reference '{attrs[side]}': signal dictionaries are not supported.")
+        start = self.connectors.get((system, attrs.get('startElement')), {}).get(attrs['startConnector'])
+        end = self.connectors.get((system, attrs.get('endElement')), {}).get(attrs['endConnector'])
+        if start is not None and end is not None and attrs.get('suppressUnitConversion') != "true":
+            self._unit_checks.append((self._connection_label(attrs), start, end))
+
         if 'startElement' in attrs:
             if 'endElement' in attrs:
                 fmu_start = self.fmu_filenames[attrs['startElement']]
@@ -1235,6 +1359,30 @@ class SSDParser:
             fmu_end = self.fmu_filenames[attrs['endElement']]
             self.node_stack[-1].add_input(attrs['startConnector'],
                                           fmu_end, attrs['endConnector'])
+
+    def _same_unit(self, first: str, second: str) -> bool:
+        """Whether two units need no conversion: same name, or the same definition in `ssc:Units`."""
+        if first == second:
+            return True
+        if first in self.units and second in self.units:
+            return ({**self.BASE_UNIT_DEFAULTS, **self.units[first]} ==
+                    {**self.BASE_UNIT_DEFAULTS, **self.units[second]})
+        return False
+
+    def _check_units(self):
+        """Refuse a connection between connectors of different units: SSP implies a conversion (D8)."""
+        for label, start, end in self._unit_checks:
+            if start.unit and end.unit and not self._same_unit(start.unit, end.unit):
+                raise AssemblyError(f"'{self.ssd_filename}': {label} joins connectors of different units "
+                                    f"('{start.unit}' and '{end.unit}'): unit conversions are not supported.")
+
+    def _warn_unused_dictionaries(self):
+        """A signal dictionary no connection goes through changes nothing: warn only (D7)."""
+        names = sorted(self._dictionaries | {name for name in self._dictionary_references.values() if name})
+        references = sorted(reference for _, reference in self._dictionary_references)
+        if names or references:
+            logger.warning(f"'{self.ssd_filename}': signal dictionaries are not supported; "
+                           f"{', '.join(repr(name) for name in names + references)} ignored (no connection uses them).")
 
     def _add_architecture_wire(self, attrs: dict[str, str], orientation: str):
         """Record an architecture wire between two components of the current system."""
@@ -1256,3 +1404,25 @@ class SSDParser:
         if path.is_absolute() or ".." in path.parts:
             raise AssemblyError(f"Component source '{source}' must be a relative path inside the SSP archive.")
         return path
+
+
+class SSDConnector:
+    """A connector declared in an SSD file: its element, name, kind, type and unit.
+
+    Attributes:
+        element (str): Name of the component, signal dictionary reference or system that declares it.
+        name (str): Name of the connector.
+        kind (str | None): `input`, `output`, `parameter`, `calculatedParameter`... as declared.
+        type (str | None): Its SSC type element (`Real`, `Float64`...), `None` when it declares none.
+        unit (str | None): The `unit` of its type element.
+    """
+
+    def __init__(self, element: str, name: str, kind: str | None):
+        self.element = element
+        self.name = name
+        self.kind = kind
+        self.type: str | None = None
+        self.unit: str | None = None
+
+    def __repr__(self):
+        return f"SSDConnector({self.element}.{self.name}, {self.kind}, {self.type}, {self.unit})"

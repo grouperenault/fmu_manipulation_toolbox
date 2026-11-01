@@ -1,6 +1,6 @@
 # Plan: SSP reader to beta
 
-**Created**: 28 October 2026 — **Status**: to do — **Roadmap**: not listed —
+**Created**: 28 October 2026 — **Status**: in progress — **Roadmap**: not listed —
 **Origin**: what is missing for the SSP support of `fmucontainer` to be more than "alpha" —
 **Follow-up**: [ssp_export.md](ssp_export.md) (SSP export, stable status)
 
@@ -115,6 +115,9 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 1. **Unsupported constructions** (D1, D2, D5, D6, D7, D8; D13 kept): errors and warnings, unit tests with modified
    SSDs, including one checking that a component without `source` is still only a warning.
    Commit message: `Refuse the SSP constructions that would change the container`
+   **Done** (1 November 2026): `SSDParser` reads the connector declarations (`SSDConnector`: kind, type, unit)
+   and the `ssc:Units`; the unit check waits for the end of the file (`Units` follows the systems). A connection
+   with `suppressUnitConversion="true"` is not checked. Tests: `tests/unit/test_ssp_reader.py`.
 2. **Connectors**: declarations read, connections checked against the FMUs. Unit tests.
    Commit message: `Check the SSP connections against the variables of the FMUs`
 3. **Parameters** (D3, D4): start values from `.ssv`, inline and external. Unit tests, and a simulation test that
