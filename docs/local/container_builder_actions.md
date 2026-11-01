@@ -1,6 +1,6 @@
 # Plan: actions of the Container Builder (Open, Save as)
 
-**Created**: 1 November 2026 — **Status**: to do
+**Created**: 1 November 2026 — **Status**: in progress
 
 The button bar of the Container Builder has grown with the formats: **Load FMU Container**, **Import**, **Export as
 JSON**, **Export as SSP**, **Save as FMU Container**, **Exit**, next to **Configuration**. Five of them open or write an
@@ -29,15 +29,10 @@ assembly in some format; the choice of the button is the choice of the format. T
 | # | Question | Decision |
 |---|---|---|
 | B1 | Grouping | **Open…** (a `.fmu` container is loaded, a `.json`, `.csv` or `.ssp` file imported, after the extension) and **Save as…** (FMU Container, SSP or JSON, after the filter or the extension chosen in the dialog), plus **Exit** and **Configuration** (1 November 2026). |
-
-### To be decided at the start of the step concerned
-
-| # | Question | Step |
-|---|---|---|
-| B2 | Save as…: default format (FMU Container?), remembered between saves; the options of the FMU build (FMI version, datalog) asked after the choice, as today | 2 |
-| B3 | Open… on unsaved changes: asked as **Exit** does | 1 |
-| B4 | Shortcuts (Ctrl+O, Ctrl+S / Ctrl+Shift+S) and a "Save" that writes again to the last file and format | 2 |
-| B5 | CSV export (the format can be read; is it offered by Save as… — it cannot describe instances)? | 2 |
+| B2 | Default format of Save as… | **FMU Container**, then the format chosen last in the session; the FMI version and the datalog stay in the Configuration menu (1 November 2026). |
+| B3 | Open… on unsaved changes | **Asked**, with the dialog of Exit (go on and lose the changes, or cancel); Load and Import did not ask (1 November 2026). |
+| B4 | Shortcuts | **Ctrl+O** opens Open…, **Ctrl+S** opens Save as… (the dialog always shown); no quick save overwriting the last file (1 November 2026). |
+| B5 | CSV in Save as… | **No**: FMU Container, SSP and JSON; CSV stays readable by Open… (1 November 2026). |
 
 ---
 
@@ -54,6 +49,9 @@ assembly in some format; the choice of the button is the choice of the format. T
 
 1. **Open…** (B3): one dialog with every format, dispatch through `open_file`. GUI tests.
    Commit message: `Container builder: one Open action for containers and assembly files`
+   **Done** (1 November 2026): **Open…** (Ctrl+O), every format in the first filter, dispatch through `open_file`.
+   The dialog of Exit is now `UnsavedChangesWindowMixin._confirm_discard_changes(text)`, shared by Exit and Open…
+   (asked before the file dialog). The old buttons stay until step 3. Tests: `tests/gui/test_fmucontainer_actions.py`.
 2. **Save as…** (B2, B4, B5): format after the filter or the extension, FMU options. GUI tests.
    Commit message: `Container builder: one Save as action for every format`
 3. **Old buttons removed**, tests updated.

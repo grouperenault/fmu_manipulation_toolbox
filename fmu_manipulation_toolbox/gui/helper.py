@@ -465,43 +465,38 @@ class UnsavedChangesWindowMixin:
 
     def closeEvent(self, event):
         """Check for unsaved changes and display a confirmation dialog if necessary."""
-        # Check if there is a verification callable and call it
-        check_unsaved = getattr(self, '_check_unsaved_changes', None)
-        if check_unsaved and callable(check_unsaved):
-            if check_unsaved():
-                # Display the confirmation dialog
-                msg = QMessageBox(self)
-                msg.setIcon(QMessageBox.Icon.Warning)
-                msg.setWindowTitle("Unsaved changes")
-
-                # Use a custom message if available, otherwise use the default message
-                custom_message = getattr(self, '_unsaved_changes_message', None)
-                if custom_message:
-                    msg.setText(custom_message)
-                else:
-                    msg.setText("You have unsaved changes. Are you sure you want to quit?")
-
-                msg.setStandardButtons(
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-                )
-                msg.setDefaultButton(QMessageBox.StandardButton.No)
-
-                # Style the buttons
-                btn_yes = msg.button(QMessageBox.StandardButton.Yes)
-                btn_no = msg.button(QMessageBox.StandardButton.No)
-
-                btn_yes.setProperty("class", "removal")
-                btn_no.setProperty("class", "info")
-
-                btn_width = max(btn_yes.sizeHint().width(), btn_no.sizeHint().width(), 150)
-                btn_yes.setMinimumWidth(btn_width)
-                btn_no.setMinimumWidth(btn_width)
-
-                # If the user clicks "No", cancel the close event
-                if msg.exec() == QMessageBox.StandardButton.No:
-                    event.ignore()
-                    return
+        if not self._confirm_discard_changes():
+            event.ignore()
+            return
 
         # Accept the close event (default or if the user clicked "Yes")
         super().closeEvent(event)
+
+    def _confirm_discard_changes(self, text: str | None = None) -> bool:
+        """Whether to go on although there are unsaved changes: True when there are none, or the user says Yes.
+
+        Args:
+            text: Question of the dialog; `_unsaved_changes_message`, or the question of closing, by default.
+        """
+        check_unsaved = getattr(self, '_check_unsaved_changes', None)
+        if not (check_unsaved and callable(check_unsaved) and check_unsaved()):
+            return True
+        msg = QMessageBox(self)
+        msg.setIcon(QMessageBox.Icon.Warning)
+        msg.setWindowTitle("Unsaved changes")
+        msg.setText(text or getattr(self, '_unsaved_changes_message', None)
+                    or "You have unsaved changes. Are you sure you want to quit?")
+        msg.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        msg.setDefaultButton(QMessageBox.StandardButton.No)
+
+        # Style the buttons
+        btn_yes = msg.button(QMessageBox.StandardButton.Yes)
+        btn_no = msg.button(QMessageBox.StandardButton.No)
+        btn_yes.setProperty("class", "removal")
+        btn_no.setProperty("class", "info")
+        btn_width = max(btn_yes.sizeHint().width(), btn_no.sizeHint().width(), 150)
+        btn_yes.setMinimumWidth(btn_width)
+        btn_no.setMinimumWidth(btn_width)
+
+        return msg.exec() != QMessageBox.StandardButton.No
 

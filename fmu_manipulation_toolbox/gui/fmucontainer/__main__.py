@@ -11,6 +11,7 @@ from importlib.util import find_spec
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
     QPushButton, QCheckBox, QRadioButton, QButtonGroup, QFrame,
@@ -44,6 +45,9 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         splitter.addWidget(self._tree)
         splitter.setSizes([600, 400])
 
+        self._open_button = QPushButton("Open…")
+        self._open_button.setToolTip("Open an FMU container (.fmu) or an assembly file (.json, .csv, .ssp)")
+        self._open_button.setShortcut(QKeySequence(QKeySequence.StandardKey.Open))
         self._load_button = QPushButton("Load FMU Container")
         self._import_button = QPushButton("Import")
         self._export_button = QPushButton("Export as JSON")
@@ -53,11 +57,13 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._save_button.setProperty("class", "save")
         self._export_button.setProperty("class", "save")
         self._export_ssp_button.setProperty("class", "save")
+        self._open_button.setProperty("class", "quit")
         self._load_button.setProperty("class", "quit")
         self._import_button.setProperty("class", "quit")
         self._exit_button.setProperty("class", "quit")
 
         btn_width = max(
+            self._open_button.sizeHint().width(),
             self._load_button.sizeHint().width(),
             self._import_button.sizeHint().width(),
             self._export_button.sizeHint().width(),
@@ -67,6 +73,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             150,
         )
         for button in (
+            self._open_button,
             self._load_button,
             self._import_button,
             self._export_button,
@@ -76,6 +83,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         ):
             button.setMinimumWidth(btn_width)
 
+        self._open_button.clicked.connect(self._on_open_clicked)
         self._load_button.clicked.connect(self._on_load_clicked)
         self._import_button.clicked.connect(self._on_import_clicked)
         self._export_button.clicked.connect(self._on_export_clicked)
@@ -151,6 +159,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         button_bar = QHBoxLayout()
         button_bar.addWidget(self._config_button)
         button_bar.addStretch(1)
+        button_bar.addWidget(self._open_button)
         button_bar.addWidget(self._load_button)
         button_bar.addWidget(self._import_button)
         button_bar.addWidget(self._exit_button)
@@ -278,6 +287,21 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
     # ──────────────────────────────────────────────────────────────────
     # UI event handlers
     # ──────────────────────────────────────────────────────────────────
+
+    #: Filters of the Open… dialog: every format first.
+    OPEN_FILTERS = ("FMU containers and assembly files (*.fmu *.json *.csv *.ssp);;FMU container (*.fmu);;"
+                    "JSON (*.json);;CSV (*.csv);;SSP (*.ssp)")
+
+    def _on_open_clicked(self):
+        """Open… : an FMU container is loaded, an assembly file imported, after the extension (`open_file`)."""
+        if not self._confirm_discard_changes("You have unsaved changes. Are you sure you want to open another file?"):
+            logger.info("Open cancelled")
+            return
+        input_path = LastDirectory.get_open_file_name(self, "Open", self.OPEN_FILTERS)
+        if not input_path:
+            logger.info("Open cancelled")
+            return
+        self.open_file(input_path)
 
     def _on_load_clicked(self):
         input_path = LastDirectory.get_open_file_name(self, "Load FMU Container", "FMU (*.fmu)")
