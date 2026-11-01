@@ -143,7 +143,7 @@ def check_arguments(tool: str, arguments: Any) -> dict[str, Any]:
 
 
 def describe_tools() -> dict[str, Any]:
-    """What `list-tools` prints."""
+    """What `list-tools` prints: the version of the toolbox (for the skills to check it) and the tools."""
     described = []
     for tool in TOOLS:
         hints = _hints(tool)
@@ -156,7 +156,7 @@ def describe_tools() -> dict[str, Any]:
                            for parameter in parameters(tool)],
             "needs_state": tool in ASSEMBLY_TOOLS,
         })
-    return {"tools": described}
+    return {"version": version, "tools": described}
 
 
 # --------------------------------------------------------------------------- #

@@ -23,10 +23,17 @@ available:
 
 ## Requirements
 
+The skills need **fmu-manipulation-toolbox 2.1.dev1 or later**:
+
 ```bash
-pip install "fmu-manipulation-toolbox[mcp]"   # MCP server and fmutool-agent
-pip install fmu-manipulation-toolbox          # fmutool-agent only
+pip install "fmu-manipulation-toolbox[mcp]>=2.1.dev1"   # MCP server and fmutool-agent
+pip install "fmu-manipulation-toolbox>=2.1.dev1"        # fmutool-agent only
 ```
+
+The constraint names a pre-release, so `pip` accepts the development releases; any later release satisfies it.
+Each skill declares the version in the `compatibility` field of its frontmatter, and checks the installed toolbox
+by its tools rather than by its number: without the `describe_port` tool, or without `fmutool-agent`, it asks for
+an upgrade. `fmutool-agent list-tools` prints the installed `version`.
 
 `fmutool-agent` needs neither `fastmcp` nor Pydantic: the base installation is enough. Building a container
 needs the container runtime of the platform, shipped in the wheels.
@@ -50,7 +57,7 @@ or explain how to install the toolbox.
 
 A skill uploaded to claude.ai (*Settings > Capabilities > Skills*) or to the Claude API runs in a sandbox
 without MCP server: it uses `fmutool-agent`, after installing the toolbox with `pip` (the sandbox needs network
-access for that). Build one `.zip` per skill from a clone of the repository:
+access for that; the skills ask for `>=2.1.dev1`). Build one `.zip` per skill from a clone of the repository:
 
 ```bash
 python tools/build_skill_zips.py          # writes dist/skills/fmu-inspect.zip, fmu-edit.zip, fmu-container.zip
@@ -66,7 +73,7 @@ fmutool-agent list-tools
 ```
 
 - `TOOL` is one of the tools of the [AI assistant](fmucontainer/ai-assistant.md#available-tools);
-  `list-tools` prints them all, with their parameters, types and defaults.
+  `list-tools` prints them all, with their parameters, types and defaults, and the `version` of the toolbox.
 - `--args` gives the arguments as a JSON object (`-` reads it from stdin), exactly as an MCP client would.
 - `--state FILE` keeps the assembly between calls, each call being a separate process. The assembly tools
   (`add_fmu`, `add_links`, `save_as_fmu`...) require it; the first call creates the file. Use one file per

@@ -1,5 +1,6 @@
 ---
 name: fmu-inspect
+compatibility: Requires fmu-manipulation-toolbox 2.1.dev1 or later (pip install "fmu-manipulation-toolbox>=2.1.dev1").
 description: Inspect FMUs (Functional Mock-up Units, .fmu files) with the FMU Manipulation Toolbox - FMI version, generator, capabilities, ports (inputs, outputs, parameters, locals) with their type, causality, variability, unit, start value and description, one port in full (min, max, nominal, declared type, aliases, terminals), and FMI compliance checks. Use when asked what an FMU contains, which ports or parameters it has, how a port is declared, or whether an FMU is valid.
 ---
 
@@ -18,8 +19,16 @@ Use the first one available:
 2. **`fmutool-agent`** on the command line: `fmutool-agent <tool> --args '<JSON>'`
    takes the same arguments and prints the same JSON. `fmutool-agent list-tools`
    lists the tools and their parameters.
-3. Neither: install the toolbox with `pip install fmu-manipulation-toolbox`
-   (add `[mcp]` for the MCP server), then use `fmutool-agent`.
+3. Neither: install the toolbox with
+   `pip install "fmu-manipulation-toolbox>=2.1.dev1"`
+   (`"fmu-manipulation-toolbox[mcp]>=2.1.dev1"` for the MCP server), then use
+   `fmutool-agent`.
+
+**Too old?** This skill needs fmu-manipulation-toolbox **2.1.dev1 or later**.
+When the MCP server has no `describe_port` tool, or `fmutool-agent` is missing
+or does not list `describe_port`, the installed toolbox is older: say so (with
+the `version` printed by `fmutool-agent list-tools`, if any) and upgrade it with
+`pip install --upgrade "fmu-manipulation-toolbox>=2.1.dev1"`.
 
 ## Procedure
 

@@ -1,5 +1,6 @@
 ---
 name: fmu-edit
+compatibility: Requires fmu-manipulation-toolbox 2.1.dev1 or later (pip install "fmu-manipulation-toolbox>=2.1.dev1").
 description: Modify the interface of FMUs (.fmu files) with the FMU Manipulation Toolbox - rename ports from a mapping or a CSV file, remove ports, keep only some ports, strip or merge hierarchical prefixes (Bus.signal), restricted to a causality, a type or a variability (e.g. remove every fixed parameter, rename only the real inputs), drop the embedded sources, and check the result. Use when asked to rename, delete, filter or clean up the ports or variables of an FMU.
 ---
 
@@ -19,8 +20,16 @@ Use the first one available:
 2. **`fmutool-agent`** on the command line: `fmutool-agent <tool> --args '<JSON>'`
    takes the same arguments and prints the same JSON. `fmutool-agent list-tools`
    lists the tools and their parameters.
-3. Neither: install the toolbox with `pip install fmu-manipulation-toolbox`
-   (add `[mcp]` for the MCP server), then use `fmutool-agent`.
+3. Neither: install the toolbox with
+   `pip install "fmu-manipulation-toolbox>=2.1.dev1"`
+   (`"fmu-manipulation-toolbox[mcp]>=2.1.dev1"` for the MCP server), then use
+   `fmutool-agent`.
+
+**Too old?** This skill needs fmu-manipulation-toolbox **2.1.dev1 or later**.
+When the MCP server has no `describe_port` tool, or `fmutool-agent` is missing
+or does not list `describe_port`, the installed toolbox is older: say so (with
+the `version` printed by `fmutool-agent list-tools`, if any) and upgrade it with
+`pip install --upgrade "fmu-manipulation-toolbox>=2.1.dev1"`.
 
 ## Procedure
 

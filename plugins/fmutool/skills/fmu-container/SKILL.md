@@ -1,5 +1,6 @@
 ---
 name: fmu-container
+compatibility: Requires fmu-manipulation-toolbox 2.1.dev1 or later (pip install "fmu-manipulation-toolbox>=2.1.dev1").
 description: Assemble several FMUs (.fmu files) into one FMU container with the FMU Manipulation Toolbox - add FMUs, connect outputs to inputs, expose ports on the container interface, set start values and parameters, choose the container options (step size, multithreading, auto-linking), review and lint the assembly, then build the container FMU (FMI 2.0 or 3.0) or export its JSON description. Use when asked to combine, couple, wire or co-simulate FMUs together, or to build an FMU container.
 ---
 
@@ -20,8 +21,16 @@ Use the first one available:
    takes the same arguments and prints the same JSON. The assembly lives in the
    file given by `--state`, created by the first call: pass the same file to
    every call of one assembly, and a new file for a new assembly.
-3. Neither: install the toolbox with `pip install fmu-manipulation-toolbox`
-   (add `[mcp]` for the MCP server), then use `fmutool-agent`.
+3. Neither: install the toolbox with
+   `pip install "fmu-manipulation-toolbox>=2.1.dev1"`
+   (`"fmu-manipulation-toolbox[mcp]>=2.1.dev1"` for the MCP server), then use
+   `fmutool-agent`.
+
+**Too old?** This skill needs fmu-manipulation-toolbox **2.1.dev1 or later**.
+When the MCP server has no `describe_port` tool, or `fmutool-agent` is missing
+or does not list `describe_port`, the installed toolbox is older: say so (with
+the `version` printed by `fmutool-agent list-tools`, if any) and upgrade it with
+`pip install --upgrade "fmu-manipulation-toolbox>=2.1.dev1"`.
 
 ## Procedure
 

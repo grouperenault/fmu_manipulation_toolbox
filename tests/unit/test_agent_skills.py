@@ -180,3 +180,48 @@ def test_the_skills_build_as_self_contained_zips(tmp_path):
         assert "../../" not in text
         for target in re.findall(r"\]\(([^)#]+)\)", text):
             assert f"{archive.stem}/{target}" in names, target
+
+
+# --------------------------------------------------------------------------- #
+#                      the version of the toolbox they need                    #
+# --------------------------------------------------------------------------- #
+#: The oldest release of the toolbox with what the skills use (`fmutool-agent`, `describe_port`, the filters).
+MIN_TOOLBOX_VERSION = "2.1.dev1"
+
+#: Pages telling how to install the toolbox for the skills.
+INSTALL_PAGES = ("docs/user-guide/agent-skills.md", "docs/examples/agent-skills-walkthrough.md")
+
+
+@pytest.mark.parametrize("name", SKILLS)
+def test_a_skill_declares_the_version_it_needs(name):
+    text = _skill(name)
+    compatibility = _frontmatter(text)["compatibility"]
+
+    assert f"{MIN_TOOLBOX_VERSION} or later" in compatibility
+    assert f'"fmu-manipulation-toolbox>={MIN_TOOLBOX_VERSION}"' in compatibility
+    # The installed version is checked by a tool it brought, not by its number (a source install is `2.1.devN`).
+    assert "`describe_port`" in text and "describe_port" in TOOLS
+
+
+@pytest.mark.parametrize("path", [f"plugins/fmutool/skills/{name}/SKILL.md" for name in SKILLS] + list(INSTALL_PAGES))
+def test_every_installation_asks_for_that_version(path):
+    text = (ROOT / path).read_text(encoding="utf-8")
+    commands = re.findall(r"pip install[^`\n]*fmu-manipulation-toolbox[^`\n]*", text)
+
+    assert commands, path
+    for command in commands:
+        assert f">={MIN_TOOLBOX_VERSION}" in command, command
+
+
+def test_the_plugin_version_follows_the_toolbox_it_needs():
+    version = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())["version"]
+    release, _, dev = MIN_TOOLBOX_VERSION.partition(".dev")
+
+    assert version == f"{release}.0-dev.{dev}"  # semver of the PEP 440 version
+
+
+def test_the_installed_toolbox_is_recent_enough():
+    packaging_version = pytest.importorskip("packaging.version")
+    from fmu_manipulation_toolbox.version import __version__
+
+    assert packaging_version.Version(__version__) >= packaging_version.Version(MIN_TOOLBOX_VERSION)

@@ -14,6 +14,7 @@ import pytest
 
 from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
 from fmu_manipulation_toolbox.assistant.tools import TOOLS
+from fmu_manipulation_toolbox.version import __version__ as version
 from fmu_manipulation_toolbox.cli.fmutool_agent import (
     ASSEMBLY_TOOLS, CHANGING_TOOLS, EXIT_TOOL_ERROR, EXIT_USAGE_ERROR, parameters, run,
 )
@@ -70,6 +71,7 @@ def test_the_tools_are_listed_with_their_parameters(capsys):
     code, listing = agent(capsys, "list-tools")
 
     assert code == 0
+    assert listing["version"] == version
     by_name = {tool["name"]: tool for tool in listing["tools"]}
     assert list(by_name) == list(TOOLS)
     assert by_name["add_fmu"]["needs_state"] is True

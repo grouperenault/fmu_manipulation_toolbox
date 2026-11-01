@@ -27,7 +27,7 @@ In a virtual environment:
 ```bash
 python -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install "fmu-manipulation-toolbox[mcp]"
+pip install "fmu-manipulation-toolbox[mcp]>=2.1.dev1"   # the version the skills need
 fmutool-mcp --help                   # the MCP server the plugin starts
 fmutool-agent list-tools             # the same tools, as a command line
 ```
@@ -231,7 +231,7 @@ One file per assembly; delete it to start over.
 3. In a conversation, attach the FMUs and write the same requests as above.
 
 The agent runs in a sandbox without MCP server: following the skills, it installs the toolbox
-(`pip install fmu-manipulation-toolbox`, which needs network access from the sandbox) and uses `fmutool-agent`.
+(`pip install "fmu-manipulation-toolbox>=2.1.dev1"`, which needs network access from the sandbox) and uses `fmutool-agent`.
 It gives back the FMUs it wrote as files to download.
 
 ## With other agents
