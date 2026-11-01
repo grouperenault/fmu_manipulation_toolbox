@@ -316,7 +316,7 @@ error is a warning, and the file is read if the reader understands it.
 
 ### SSP export
 
-An assembly is written as an SSP file by `fmucontainer -dump-ssp`, by **Export as SSP** in the
+An assembly is written as an SSP file by `fmucontainer -dump-ssp`, by **Save as…** (SSP) in the
 [Container Builder](gui-usage.md#actions), or by `Assembly.write_ssp()`. The file is read back into the same
 container, and other tools see the whole system.
 

@@ -1,6 +1,6 @@
 # Plan: actions of the Container Builder (Open, Save as)
 
-**Created**: 1 November 2026 — **Status**: in progress
+**Created**: 1 November 2026 — **Status**: done (1 November 2026)
 
 The button bar of the Container Builder has grown with the formats: **Load FMU Container**, **Import**, **Export as
 JSON**, **Export as SSP**, **Save as FMU Container**, **Exit**, next to **Configuration**. Five of them open or write an
@@ -66,3 +66,6 @@ assembly in some format; the choice of the button is the choice of the format. T
 4. **User documentation** (`gui-usage.md`: actions, workflow; screenshots regenerated with `tools/screenshots.py`)
    and CHANGELOG.
    Commit message: `Document the Open and Save as actions of the container builder`
+   **Done** (1 November 2026): `gui-usage.md` (actions and shortcuts, workflows, loading and importing),
+   `container.md` (SSP export); the 5 screenshots showing the button bar regenerated (`container`, `container-vr`,
+   `container-reset`, `invalid-wire`, `instances`); CHANGELOG.
