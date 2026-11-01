@@ -999,8 +999,7 @@ class Assembly:
         times. What the container cannot honour is refused, or reported when it changes nothing (see
         [SSDParser][fmu_manipulation_toolbox.ssp.SSDParser]).
 
-        Note:
-            The SSP support is in beta stage.
+        An assembly is written back as SSP by `write_ssp`.
         """
 
         # Imported here: `ssp` builds on this module, and loads the SSP schema only when an SSP file is read.

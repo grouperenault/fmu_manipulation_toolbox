@@ -103,6 +103,8 @@ that the reader of fmutool reads back without loss, and that other tools can ope
    the build. Not done: an MCP tool for the SSP export (not in E5). Tests: `tests/gui/test_fmucontainer_ssp_export.py`.
 4. **Stable status**: "beta" removed from the code and the documentation.
    Commit message: `Mark the SSP support as stable`
+   **Done** (1 November 2026): "beta" removed from the docstring of `read_ssp` and from `container.md`. The
+   mentions of the `ssp_beta` plan by its name are kept.
 5. **User documentation** (`container.md`: SSP export, options annotation; `gui-usage.md`: Export as SSP; CLI
    option) and CHANGELOG.
    Commit message: `Document the SSP export`

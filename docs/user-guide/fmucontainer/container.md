@@ -233,8 +233,8 @@ own name, and its file in the optional `path` block:
 
 ## SSP Input file
 
-The SSP support is in **beta** stage: what the container cannot honour is refused or reported, never ignored
-silently (see below).
+SSP files are read, and written. What the container cannot honour is refused or
+reported, never ignored silently (see below).
 
 The following command 
 ```
