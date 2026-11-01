@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fmutool": {
+      "command": "fmutool-mcp",
+      "args": ["--transport", "stdio"]
+    }
+  }
+}

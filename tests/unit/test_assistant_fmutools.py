@@ -11,8 +11,8 @@ import pytest
 pytestmark = [pytest.mark.unit]
 
 from fmu_manipulation_toolbox.assistant.fmutools import (  # noqa: E402
-    CAUSALITIES, MAX_EXAMPLES, MAX_MESSAGE_GROUPS, OPERATIONS, _grouped, apply_operation, check_fmu,
-    dump_ports_csv, rename_ports_from_csv, summarize_fmu,
+    CAUSALITIES, MAX_EXAMPLES, MAX_MESSAGE_GROUPS, OPERATIONS, _grouped, apply_operation, check_fmu, describe_port,
+    dump_ports_csv, rename_ports, select_ports, summarize_fmu,
 )
 
 from _helpers.mcp_budget import make_large_fmu  # noqa: E402
@@ -144,7 +144,7 @@ def test_renaming_from_csv_produces_a_new_fmu(fmu, tmp_path):
                                                      "velocity;speed;"),
         encoding="utf-8")
 
-    report = rename_ports_from_csv(fmu, csv_path, output)
+    report = rename_ports(fmu, output, csv_path=csv_path)
 
     assert report["renamed"] == 1
     assert report["removed"] == 0
@@ -163,7 +163,7 @@ def test_an_empty_new_name_removes_the_port(fmu, tmp_path):
         csv_path.read_text(encoding="utf-8").replace("reset;reset;", "reset;;"),
         encoding="utf-8")
 
-    report = rename_ports_from_csv(fmu, csv_path, output)
+    report = rename_ports(fmu, output, csv_path=csv_path)
 
     assert report["removed"] == 1
     assert "reset" not in _port_names(output)
@@ -174,9 +174,35 @@ def test_renaming_leaves_the_source_untouched(fmu, tmp_path):
     dump_ports_csv(fmu, csv_path)
     before = fmu.read_bytes()
 
-    rename_ports_from_csv(fmu, csv_path, tmp_path / "copy.fmu")
+    rename_ports(fmu, tmp_path / "copy.fmu", csv_path=csv_path)
 
     assert fmu.read_bytes() == before
+
+
+def test_renaming_from_a_mapping(fmu, tmp_path):
+    output = tmp_path / "renamed.fmu"
+
+    report = rename_ports(fmu, output, {"velocity": "speed", "reset": ""})
+
+    assert (report["renamed"], report["removed"]) == (1, 1)
+    assert "unknown" not in report
+    assert {"speed"} <= _port_names(output)
+    assert not {"velocity", "reset"} & _port_names(output)
+
+
+def test_the_names_absent_from_the_fmu_are_reported(fmu, tmp_path):
+    """A typo in a mapping silently renames nothing: the report must say which names were not found."""
+    report = rename_ports(fmu, tmp_path / "out.fmu", {"velocity": "speed", "velocty": "x"})
+
+    assert report["renamed"] == 1
+    assert report["unknown"] == ["velocty"]
+    assert report["unknown_total"] == 1
+
+
+@pytest.mark.parametrize("mapping, csv", [(None, None), ({"a": "b"}, "ports.csv")])
+def test_renaming_needs_a_mapping_or_a_csv(fmu, tmp_path, mapping, csv):
+    with pytest.raises(ValueError, match="either `mapping` or `csv`"):
+        rename_ports(fmu, tmp_path / "out.fmu", mapping, tmp_path / csv if csv else None)
 
 
 def _port_names(fmu_path):
@@ -228,6 +254,40 @@ def test_an_invalid_regular_expression_is_reported(fmu, tmp_path):
         apply_operation(fmu, tmp_path / "out.fmu", "remove_regexp", "[unclosed")
 
 
+def test_an_operation_can_be_restricted_to_a_type_and_a_variability(data_dir, tmp_path):
+    """On FMI 3, `Real` selects the Float64 parameters; `tunable` keeps the fixed one."""
+    fmu = data_dir / "compile" / "3.0" / "BouncingBall.fmu"
+    output = tmp_path / "filtered.fmu"
+
+    apply_operation(fmu, output, "remove_regexp", ".*", causality=["parameter"], types=["Real"],
+                    variabilities=["tunable"])
+
+    assert "e" not in _port_names(output)
+    assert {"g", "h", "v"} <= _port_names(output)
+
+
+@pytest.mark.parametrize("filters, message", [
+    ({"types": ["Double"]}, "Unknown type"),
+    ({"variabilities": ["constantly"]}, "Unknown variability"),
+])
+def test_an_unknown_filter_value_is_reported(fmu, tmp_path, filters, message):
+    with pytest.raises(ValueError, match=message):
+        apply_operation(fmu, tmp_path / "out.fmu", "strip_toplevel", **filters)
+
+
+def test_the_port_pages_select_like_the_operations():
+    ports = [{"name": "p", "type": "Float64", "causality": "parameter"},
+             {"name": "u", "type": "Int32", "causality": "input"},
+             {"name": "t", "type": "Float64", "causality": "independent"}]
+
+    assert [port["name"] for port in select_ports(ports, 3, types=["Real"])] == ["p", "t"]
+    # Undeclared variabilities: the defaults of FMI 3 (parameter: fixed, integer: discrete).
+    assert [port["name"] for port in select_ports(ports, 3, variabilities=["fixed"])] == ["p"]
+    assert [port["name"] for port in select_ports(ports, 3, variabilities=["discrete"])] == ["u"]
+    # Any causality can be listed, not only those an operation can be restricted to.
+    assert [port["name"] for port in select_ports(ports, 3, causality=["independent"])] == ["t"]
+
+
 def test_an_unknown_causality_is_reported(fmu, tmp_path):
     with pytest.raises(ValueError, match="Unknown causality"):
         apply_operation(fmu, tmp_path / "out.fmu", "strip_toplevel",
@@ -241,3 +301,113 @@ def test_the_exposed_operations_are_all_implemented():
     assert set(CAUSALITIES) == {"input", "output", "parameter", "local"}
 
 
+
+
+# --------------------------------------------------------------------------- #
+#                               one port in full                               #
+# --------------------------------------------------------------------------- #
+def test_a_port_card_has_every_declared_attribute(data_dir):
+    card = describe_port(data_dir / "compile" / "2.0" / "BouncingBall.fmu", "h")
+
+    assert card["type"] == "Real"
+    assert card["causality"] == "output"
+    assert card["attributes"]["description"] == "Position of the ball"
+    assert card["attributes"]["start"] == "1"  # FMI-2: attribute of <Real>, merged with <ScalarVariable>
+
+
+def test_a_port_card_resolves_its_declared_type(data_dir):
+    card = describe_port(data_dir / "compile" / "3.0" / "BouncingBall.fmu", "h")
+
+    assert card["declared_type"] == {"name": "Position", "attributes": {"quantity": "Position", "unit": "m"},
+                                     "inherited": {"quantity": "Position", "unit": "m"}}
+
+
+def test_a_port_card_lists_the_fmi3_aliases(data_dir):
+    card = describe_port(data_dir / "compile" / "3.0" / "BouncingBall.fmu", "h")
+
+    assert card["aliases"] == [{"name": "h_ft", "description": "Position in feet", "displayUnit": "ft"}]
+
+
+def test_a_port_card_lists_its_terminals(data_dir):
+    card = describe_port(data_dir / "ls-bus" / "node1.fmu", "CanChannel.Rx_Data")
+
+    assert card["type"] == "Binary"
+    assert card["terminals"] == [{"terminal": "CanChannel", "kind": "org.fmi-ls-bus.network-terminal",
+                                  "member": "Rx_Data"}]
+
+
+def test_optional_sections_are_omitted(data_dir):
+    card = describe_port(data_dir / "compile" / "2.0" / "BouncingBall.fmu", "time")
+
+    assert not {"declared_type", "aliases", "terminals", "dimensions"} & set(card)
+
+
+FMI2_ALIASES = """<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="2.0" modelName="m" guid="{8c4e810f-3df3-4a00-8276-176fa3c9f000}">
+  <CoSimulation modelIdentifier="m"/>
+  <TypeDefinitions>
+    <SimpleType name="Gear"><Enumeration><Item name="park" value="1"/><Item name="drive" value="2"/></Enumeration></SimpleType>
+  </TypeDefinitions>
+  <ModelVariables>
+    <ScalarVariable name="gear" valueReference="1" causality="input"><Enumeration declaredType="Gear" start="1"/></ScalarVariable>
+    <ScalarVariable name="gear_copy" valueReference="1" causality="output" variability="discrete"><Enumeration declaredType="Gear"/></ScalarVariable>
+    <ScalarVariable name="other" valueReference="1" causality="output" variability="discrete"><Integer/></ScalarVariable>
+  </ModelVariables>
+  <ModelStructure><Outputs><Unknown index="2"/><Unknown index="3"/></Outputs></ModelStructure>
+</fmiModelDescription>
+"""
+
+FMI3_ARRAY = """<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="3.0" modelName="m" instantiationToken="{8c4e810f-3df3-4a00-8276-176fa3c9f000}">
+  <CoSimulation modelIdentifier="m"/>
+  <ModelVariables>
+    <Float64 name="u" valueReference="1" causality="input" start="0 0 0"><Dimension start="3"/></Float64>
+  </ModelVariables>
+  <ModelStructure/>
+</fmiModelDescription>
+"""
+
+
+def _hand_built(tmp_path, descriptor):
+    import zipfile
+    path = tmp_path / "model.fmu"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("modelDescription.xml", descriptor)
+    return path
+
+
+def test_fmi2_aliases_share_the_value_reference_and_the_type(tmp_path):
+    card = describe_port(_hand_built(tmp_path, FMI2_ALIASES), "gear")
+
+    assert card["aliases"] == [{"name": "gear_copy", "causality": "output"}]  # not `other`, an Integer
+
+
+def test_an_enumeration_card_lists_its_items(tmp_path):
+    card = describe_port(_hand_built(tmp_path, FMI2_ALIASES), "gear")
+
+    assert card["declared_type"]["items"] == [{"name": "park", "value": "1"}, {"name": "drive", "value": "2"}]
+
+
+def test_an_array_card_has_its_dimensions(tmp_path):
+    card = describe_port(_hand_built(tmp_path, FMI3_ARRAY), "u")
+
+    assert card["dimensions"] == [{"start": 3}]
+
+
+def test_an_unknown_port_suggests_close_names(data_dir):
+    with pytest.raises(ValueError, match=r"no port 'hh'.*\['h'"):
+        describe_port(data_dir / "compile" / "2.0" / "BouncingBall.fmu", "hh")
+
+
+def test_the_aliases_of_a_port_are_bounded(tmp_path):
+    from fmu_manipulation_toolbox.assistant.fmutools import MAX_ALIASES
+    variables = "".join(f'<ScalarVariable name="v{i}" valueReference="1" causality="local"><Real/></ScalarVariable>'
+                        for i in range(MAX_ALIASES + 5))
+    descriptor = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+                  '<fmiModelDescription fmiVersion="2.0" modelName="m" guid="{g}"><CoSimulation modelIdentifier="m"/>'
+                  f'<ModelVariables>{variables}</ModelVariables><ModelStructure/></fmiModelDescription>')
+
+    card = describe_port(_hand_built(tmp_path, descriptor), "v0")
+
+    assert len(card["aliases"]) == MAX_ALIASES
+    assert card["aliases_total"] == MAX_ALIASES + 4

@@ -2,13 +2,15 @@
 # With setuptools-scm, every file tracked by git goes into the sdist by default. Keep the Python package and the C
 # sources of the native binaries (container/, remoting/, and the FMI headers in
 # fmu_manipulation_toolbox/resources/fmi/); leave out the test data, the documentation, the CI
-# configuration and the prebuilt binaries.
+# configuration, the Claude Code plugin and the prebuilt binaries.
 #
 # The wheel needs the prebuilt binaries: build it from the source tree, not from the sdist
 # (`python -m build --sdist --wheel`).
 prune tests/data
 prune docs
 prune .github
+prune plugins
+prune .claude-plugin
 recursive-exclude fmu_manipulation_toolbox/resources/win32 *
 recursive-exclude fmu_manipulation_toolbox/resources/win64 *
 recursive-exclude fmu_manipulation_toolbox/resources/linux32 *

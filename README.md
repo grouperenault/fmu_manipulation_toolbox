@@ -72,6 +72,13 @@ extra:
 pip install "fmu-manipulation-toolbox[mcp]"
 ```
 
+With Claude Code, the `fmutool` plugin adds skills to inspect FMUs, edit their interface and build containers
+([Agent skills](docs/user-guide/agent-skills.md)); they need version 2.1.dev1 or later of the toolbox:
+
+```
+/plugin install fmutool --marketplace grouperenault/fmutool
+```
+
 
 ### Supported platforms
 

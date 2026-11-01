@@ -13,6 +13,9 @@ FMU Manipulation Toolbox provides four main commands:
 | `fmusplit`     | Extract FMUs from a container                |
 | `datalog2pcap` | Convert CAN datalog CSV to PCAP (experimental) |
 
+For AI agents, `fmutool-mcp` serves the tools of the [AI assistant](../fmucontainer/ai-assistant.md) to an MCP
+client, and `fmutool-agent` offers the same tools as a JSON command line (see [Agent skills](../agent-skills.md)).
+
 ## fmutool: Main Command
 
 ### Basic Syntax
@@ -259,6 +262,33 @@ fmutool -input module.fmu -only-locals -dump-csv locals.csv
 # Remove all local variables
 fmutool -input module.fmu -only-locals -remove-all -output module-no-locals.fmu
 ```
+
+### Operations by Type or Variability
+
+`-only-type` and `-only-variability` select the ports by their FMI type and
+their variability. Both can be repeated, and combine with the `-only-*`
+causality options: a port is processed only if it matches each of them.
+
+```bash
+# List the real ports (Real in FMI 2.0; Float32 and Float64 in FMI 3.0)
+fmutool -input module.fmu -only-type Real -dump-csv reals.csv
+
+# Remove the parameters that cannot change during the simulation
+fmutool -input module.fmu -only-parameters -only-variability fixed -remove-all -output module-tunable.fmu
+
+# Rename the integer inputs only
+fmutool -input module.fmu -only-inputs -only-type Integer -rename-from-csv new_names.csv -output module-renamed.fmu
+```
+
+- `-only-type` takes an FMI 2.0 type (`Real`, `Integer`, `Boolean`, `String`,
+  `Enumeration`) or an FMI 3.0 one (`Float32`, `Float64`, `Int8`…`UInt64`,
+  `Boolean`, `String`, `Binary`, `Enumeration`, `Clock`). On an FMI 3.0 FMU, an
+  FMI 2.0 type selects its family: `Real` is `Float32` and `Float64`, `Integer`
+  every integer type.
+- `-only-variability` takes `constant`, `fixed`, `tunable`, `discrete` or
+  `continuous`. A port that declares no variability has the default of the
+  standard: `continuous` in FMI 2.0; in FMI 3.0, `fixed` for parameters,
+  `continuous` for `Float32`/`Float64` and `discrete` for the other types.
 
 ## Binary Operations
 

@@ -11,6 +11,7 @@ from ..operations import (OperationSummary, OperationError, OperationRemoveRegex
 from ..remoting import  (OperationAddFrontendWin32, OperationAddFrontendWin64, OperationAddRemotingWin32,
                          OperationAddRemotingWin64)
 from ..checker import get_checkers
+from ..model_description import ModelDescription
 from ..compiler import OperationCompileSources
 from ..version import __version__ as version
 from ..help import Help
@@ -75,6 +76,10 @@ def fmutool():
     add_option('-only-inputs', action='append_const', dest='apply_on', const='input')
     add_option('-only-outputs', action='append_const', dest='apply_on', const='output')
     add_option('-only-locals', action='append_const', dest='apply_on', const='local')
+    fmi_types = list(dict.fromkeys(ModelDescription.FMI2_VARIABLE_TYPES + ModelDescription.FMI3_VARIABLE_TYPES))
+    add_option('-only-type', action='append', dest='types', choices=fmi_types, metavar='type')
+    add_option('-only-variability', action='append', dest='variabilities',
+               choices=ModelDescription.VARIABILITIES, metavar='variability')
     # Checker
     add_option('-summary', action='append_const', dest='operations_list', const=OperationSummary())
     checkers = [checker() for checker in get_checkers()]
@@ -121,6 +126,10 @@ def fmutool():
         logger.info("Applying operation for :")
         for causality in cli_options.apply_on:
             logger.info(f"     - causality = {causality}")
+    if cli_options.types:
+        logger.info(f"Applying operation for type: {', '.join(cli_options.types)}")
+    if cli_options.variabilities:
+        logger.info(f"Applying operation for variability: {', '.join(cli_options.variabilities)}")
 
     # Checker operations are added as a list into operations_list
     def operation_iterator():
@@ -140,7 +149,8 @@ def fmutool():
             if is_check:
                 logger.addHandler(check_errors)
             try:
-                fmu.apply_operation(operation, cli_options.apply_on)
+                fmu.apply_operation(operation, cli_options.apply_on, types=cli_options.types,
+                                    variabilities=cli_options.variabilities)
             except OperationError as reason:
                 logger.fatal(f"{reason}")
                 close_logger(logger)

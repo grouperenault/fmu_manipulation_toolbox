@@ -13,20 +13,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, model_serializer
 
+# Shared with the command line, which runs without Pydantic: defined in `tools`, re-exported here.
+from .tools import DEFAULT_PORT_LIMIT, MAX_DESCRIPTION_LENGTH, MAX_PORT_LIMIT, format_start_value  # noqa: F401
+
 #: Value kinds accepted for a start value, before conversion to the FMI
 #: textual representation.
 StartValue = bool | int | float | str
-
-#: Maximum number of ports returned by a single call, to keep the answer
-#: readable and the context small on industrial FMUs.
-DEFAULT_PORT_LIMIT = 50
-
-#: Largest page of ports a client may ask for: about 31k characters (~9k tokens) of compact ports.
-MAX_PORT_LIMIT = 200
-
-#: Descriptions of the ports longer than this are cut (with `…`): they help to match ports by meaning, but some
-#: generators write whole paragraphs, which would fill the context window of the model.
-MAX_DESCRIPTION_LENGTH = 80
 
 
 class ContainerOptions(BaseModel):
@@ -55,18 +47,16 @@ class ContainerOptions(BaseModel):
     )
     auto_link: bool | None = Field(
         default=None,
-        description="Connect the ports with the same name and type. Enabled by "
-                    "default: explicit links are for the other ports.",
+        description="Connect the ports with the same name and type (default: on); "
+                    "links are for the others.",
     )
     auto_input: bool | None = Field(
         default=None,
-        description="Automatically expose unconnected inputs as container "
-                    "inputs. Enabled by default.",
+        description="Expose the unconnected inputs (default: on).",
     )
     auto_output: bool | None = Field(
         default=None,
-        description="Automatically expose unconnected outputs as container "
-                    "outputs. Enabled by default.",
+        description="Expose the unconnected outputs (default: on).",
     )
     auto_parameter: bool | None = Field(
         default=None,
@@ -83,10 +73,8 @@ class ContainerOptions(BaseModel):
     )
     reset_ports: bool | None = Field(
         default=None,
-        description="Add a `container.reset` input to each embedded FMU: when "
-                    "true, the container resets the FMU and initializes it again "
-                    "at the current time. Wire it with a link, or expose it as "
-                    "`container.<fmu>.reset`.",
+        description="Add a `container.reset` input to each FMU: true resets and "
+                    "initializes it again. Link it, or expose it as `container.<fmu>.reset`.",
     )
 
     def changes(self) -> dict[str, Any]:
@@ -115,23 +103,6 @@ def option_reference() -> list[dict[str, Any]]:
             "description": field.get("description", ""),
         })
     return reference
-
-
-def format_start_value(value: StartValue) -> str:
-    """Render ``value`` the way ``modelDescription.xml`` expects it.
-
-    Booleans are the trap here: ``str(True)`` yields ``"True"``, which FMI
-    does not accept.
-
-    Examples:
-        >>> format_start_value(True)
-        'true'
-        >>> format_start_value(0.01)
-        '0.01'
-    """
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    return str(value)
 
 
 # ---------------------------------------------------------------------------
@@ -164,14 +135,6 @@ class Port(BaseModel):
         would lose the description of its fields.
         """
         return {key: value for key, value in handler(self).items() if value is not None}
-
-    @classmethod
-    def from_description(cls, port: dict[str, Any]) -> "Port":
-        """A port of a bridge description, its description cut to `MAX_DESCRIPTION_LENGTH` characters."""
-        description = port.get("description")
-        if description and len(description) > MAX_DESCRIPTION_LENGTH:
-            port = {**port, "description": description[:MAX_DESCRIPTION_LENGTH - 1].rstrip() + "…"}
-        return cls(**port)
 
 
 class FmuPorts(BaseModel):

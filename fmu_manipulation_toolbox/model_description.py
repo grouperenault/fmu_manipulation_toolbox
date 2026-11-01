@@ -29,7 +29,8 @@ from collections.abc import Iterator, MutableMapping
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
-__all__ = ["ModelDescription", "ModelDescriptionError", "ModelVariable", "PrefixedAttributes"]
+__all__ = ["ModelDescription", "ModelDescriptionError", "ModelVariable", "PrefixedAttributes", "default_variability",
+           "matches_type"]
 
 PathOrBytes = str | Path | bytes
 
@@ -164,6 +165,34 @@ class PrefixedAttributes(MutableMapping):
         return repr(dict(self.items()))
 
 
+def default_variability(fmi_version: int, causality: str, fmi_type: str | None) -> str:
+    """Variability of a variable that does not declare one (FMI-2 §2.2.7, FMI-3 §2.4.7.4).
+
+    FMI-2: `continuous`. FMI-3: `fixed` for parameters, otherwise `continuous` for
+    `Float32`/`Float64` and `discrete` for the other types.
+    """
+    if fmi_version == 2:
+        return "continuous"
+    if causality in ("parameter", "structuralParameter", "calculatedParameter"):
+        return "fixed"
+    return "continuous" if fmi_type in ("Float32", "Float64") else "discrete"
+
+
+def matches_type(fmi_version: int, fmi_type: str | None, names) -> bool:
+    """Whether `fmi_type` is one of `names`.
+
+    A name is the exact type (`Real`, `Float64`, `Int32`...) or, for an FMI-3 variable, an
+    FMI-2 type standing for its family (see `ModelDescription.FMI2_TYPE_FAMILIES`): `Real`
+    selects `Float32` and `Float64`, `Integer` every integer type.
+    """
+    for name in names:
+        if name == fmi_type:
+            return True
+        if fmi_version == 3 and fmi_type in ModelDescription.FMI2_TYPE_FAMILIES.get(name, ()):
+            return True
+    return False
+
+
 class ModelVariable:
     """View on one variable of `<ModelVariables>`.
 
@@ -208,6 +237,25 @@ class ModelVariable:
         if typed is None:
             raise ModelDescriptionError(f"Variable '{self.element.get('name')}' has no type element")
         typed.tag = fmi_type
+
+    @property
+    def causality(self) -> str:
+        """Causality, `local` when not declared (FMI-2 §2.2.7, FMI-3 §2.4.7.4)."""
+        return self.element.get("causality", "local")
+
+    @property
+    def variability(self) -> str:
+        """Variability, with the default of the standard when not declared (FMI-2 §2.2.7, FMI-3 §2.4.7.4).
+
+        FMI-2: `continuous`. FMI-3: `fixed` for parameters, otherwise `continuous` for
+        `Float32`/`Float64` and `discrete` for the other types.
+        """
+        return self.element.get("variability") or default_variability(self.fmi_version, self.causality,
+                                                                      self.fmi_type)
+
+    def has_type(self, names) -> bool:
+        """Whether the type of the variable is one of `names` (see `matches_type`)."""
+        return matches_type(self.fmi_version, self.fmi_type, names)
 
     @property
     def attrs_list(self) -> list[MutableMapping[str, str]]:
@@ -280,6 +328,15 @@ class ModelDescription:
     FMI3_VARIABLE_TYPES = ("Float32", "Float64",
                            "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64",
                            "Boolean", "String", "Binary", "Enumeration", "Clock")
+    #: FMI-3 types an FMI-2 type name stands for, when selecting the variables of an FMI-3 FMU.
+    FMI2_TYPE_FAMILIES = {
+        "Real": ("Float32", "Float64"),
+        "Integer": ("Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64"),
+        "Boolean": ("Boolean",),
+        "String": ("String",),
+        "Enumeration": ("Enumeration",),
+    }
+    VARIABILITIES = ("constant", "fixed", "tunable", "discrete", "continuous")
     INTERFACE_TYPES = ("ModelExchange", "CoSimulation", "ScheduledExecution")  # ScheduledExecution: FMI-3 only
     FMI2_STRUCTURE_SECTIONS = ("Outputs", "Derivatives", "InitialUnknowns")
     FMI3_STRUCTURE_ELEMENTS = ("Output", "ContinuousStateDerivative", "ClockedState", "InitialUnknown",

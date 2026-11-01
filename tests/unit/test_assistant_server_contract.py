@@ -27,8 +27,8 @@ from _helpers.assistant_bridge import FakeBridge, call_tool, input_schema, inven
 #: Tool name -> ordered parameter names.
 EXPECTED_TOOLS = {
     "list_fmus": [],
-    "list_fmu_ports": ["fmu", "causality", "name_pattern", "offset", "limit"],
-    "inspect_fmu_file": ["path", "causality", "name_pattern", "offset", "limit"],
+    "list_fmu_ports": ["fmu", "causality", "type", "variability", "name_pattern", "offset", "limit"],
+    "inspect_fmu_file": ["path", "causality", "type", "variability", "name_pattern", "offset", "limit"],
     "add_fmu": ["path"],
     "remove_fmu": ["name"],
     "add_link": ["from_fmu", "from_port", "to_fmu", "to_port"],
@@ -46,9 +46,11 @@ EXPECTED_TOOLS = {
     # Single-FMU tools: they never touch the assembly.
     "summarize_fmu": ["path"],
     "check_fmu": ["path"],
+    "describe_port": ["fmu", "port"],
     "dump_ports_csv": ["fmu", "path", "overwrite"],
-    "rename_ports_from_csv": ["fmu", "csv", "output", "overwrite"],
-    "apply_operation": ["fmu", "output", "operation", "argument", "causality", "overwrite"],
+    "rename_ports": ["fmu", "output", "mapping", "csv", "overwrite"],
+    "apply_operation": ["fmu", "output", "operation", "argument", "causality", "type", "variability",
+                        "overwrite"],
 }
 
 EXPECTED_RESOURCES = {"guide://usage", "assembly://current",

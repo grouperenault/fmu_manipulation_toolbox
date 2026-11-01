@@ -3,6 +3,7 @@ datalog2pcap = fmu_manipulation_toolbox.cli.datalog2pcap:datalog2pcap
 fmucontainer = fmu_manipulation_toolbox.cli.fmucontainer:fmucontainer
 fmusplit = fmu_manipulation_toolbox.cli.fmusplit:fmusplit
 fmutool = fmu_manipulation_toolbox.cli.fmutool:fmutool
+fmutool-agent = fmu_manipulation_toolbox.cli.fmutool_agent:main
 fmutool-mcp = fmu_manipulation_toolbox.cli.fmutool_mcp:main
 
 [gui_scripts]

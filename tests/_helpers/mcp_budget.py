@@ -18,8 +18,9 @@ from pathlib import Path
 #: Size of the synthetic FMU: the order of magnitude of industrial FMUs.
 LARGE_FMU_VARIABLES = 5000
 
-#: Budgets checked by the tests.
-DEFINITIONS_BUDGET = 17_000
+#: Budgets checked by the tests. The definitions were raised from 17 000 when `describe_port`, `rename_ports` and the
+#: filters by type and variability were added, after the descriptions were compacted (docs/local/agent_skills.md).
+DEFINITIONS_BUDGET = 18_000
 RESULT_BUDGET = 12_000
 
 
@@ -187,6 +188,10 @@ def default_calls(directory: Path) -> dict[str, tuple[str, dict]]:
         "check_fmu": ("check_fmu", {"path": large}),
         "check_fmu-broken": ("check_fmu", {"path": broken}),
         "get_assembly_json": ("get_assembly_json", {}),
+        "describe_port": ("describe_port", {"fmu": large, "port": "Subsystem0.Block0.signal_0"}),
+        # A mapping of names absent from the FMU: the report lists only the first ones.
+        "rename_ports-unknown": ("rename_ports", {"fmu": large, "output": str(directory / "renamed.fmu"),
+                                                  "mapping": {f"missing_{i}": "x" for i in range(1000)}}),
     }
 
 

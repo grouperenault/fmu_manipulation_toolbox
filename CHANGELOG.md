@@ -18,8 +18,35 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   `source` outside the archive is refused. SSP 2.0 files are read; a component without `source` (SSP 2.0) is
   ignored with a warning, together with its connections.
 
+## AI agents
+
+- 🟢 **ADDED** **agent skills**: a Claude Code plugin (the repository is a marketplace:
+  `/plugin marketplace add grouperenault/fmutool`) with the skills `fmu-inspect`, `fmu-edit` and
+  `fmu-container`, which drive the MCP server, or `fmutool-agent` without it; `tools/build_skill_zips.py` builds
+  them for claude.ai. They need the toolbox 2.1.dev1 or later (`compatibility` field), and check it by the tools
+  available. See [Agent skills](docs/user-guide/agent-skills.md).
+- 🟢 **ADDED** `fmutool-agent`: the tools of the MCP server as a JSON command line (same arguments, same
+  results), for agents that only run commands. It needs neither `fastmcp` nor Pydantic; the assembly is kept
+  between calls in the file given by `--state`. `fmutool-agent list-tools` prints the version of the toolbox.
+- 🟢 **ADDED** MCP tool `describe_port`: everything declared about one port (every attribute, FMI 3 dimensions,
+  declared type and the attributes inherited from it, aliases, terminals).
+- 🟢 **ADDED** MCP filters `type` and `variability` on `list_fmu_ports`, `inspect_fmu_file` and
+  `apply_operation`; on an FMI 3 FMU, an FMI 2 type selects its family (`Real`: `Float32`, `Float64`).
+- 🔴 **BREAKING** MCP tool `rename_ports_from_csv` replaced by `rename_ports`, which takes a `mapping`
+  (`{"old": "new"}`) or the `csv`, and reports the names of the mapping absent from the FMU (`unknown`).
+- 🔵 **CHANGED** shorter descriptions of some MCP tools and container options, to make room for the new tools
+  in the context of small models.
+
 ## fmutool and the Python API
 
+- 🟢 **ADDED** `-only-type` and `-only-variability` options of `fmutool`, and the `types` and `variabilities`
+  arguments of `FMU.apply_operation`: an operation restricted to some types (an FMI 2 type selects its FMI 3
+  family) or variabilities (the default of the standard when a port declares none), combined with the
+  causality filters.
+- 🟢 **ADDED** `OperationRename`: renaming, or removal, from a mapping of names; `OperationRenameFromCSV` derives
+  from it.
+- 🟢 **ADDED** `ModelVariable.causality` and `ModelVariable.variability`, with the defaults of the standard, and
+  `ModelVariable.has_type`.
 - 🟢 **ADDED** `-debug` option of `fmutool` and `fmutool-gui` (at launch): the `DEBUG` lines are logged, in the log
   area for `fmutool-gui`, e.g. the command lines of the compiler and of the linker of `-compile-sources`.
 
