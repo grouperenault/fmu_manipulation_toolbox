@@ -142,6 +142,10 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
    container (`tests/integration/test_ssp.py`).
 5. **XSD validation** (D10). Unit test with an invalid SSD that is still read.
    Commit message: `Validate SSP files against the SSP schema`
+   **Done** (1 November 2026): the SSP **2.0.1** XSD only, in `resources/ssp-2.0/` with its `LICENSE.txt`
+   (Modelica Association Project "SSP", BSD 2-Clause, as the toolbox): it accepts SSP 1.0 files (same namespace,
+   `version` 1.0 or 2.0) — the SSP 1.0 file of easySSP and the files of MIC modeler validate without error —, so
+   the 1.0 XSD is not added. At most 20 warnings, then a count. Package data and wheel inventory updated.
 6. **SSP files of other tools** (D12), and an SSP written by MIC modeler (non-regression of modeler-bridge, D13):
    files, licenses, integration tests. The issues found are fixed in this step or listed here before going on.
    Commit message: `Test the SSP reader with SSP files of other tools`

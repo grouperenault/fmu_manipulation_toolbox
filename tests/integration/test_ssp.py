@@ -248,3 +248,13 @@ def test_the_container_takes_the_default_experiment_of_the_ssp(area_dir, monkeyp
     with zipfile.ZipFile("bouncing.fmu") as container:
         descriptor = container.read("modelDescription.xml").decode()
     assert '<DefaultExperiment stepSize="0.01" startTime="0.5" stopTime="7.0"' in descriptor
+
+
+@pytest.mark.parametrize("name", ["bouncing.ssp"])
+def test_real_ssp_files_are_valid(area_dir, caplog, name):
+    """The SSP 2.0.1 schema accepts the SSP 1.0 file of easySSP (same namespace, version 1.0)."""
+    import logging
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        Assembly(name)
+
+    assert "SSP schema" not in caplog.text

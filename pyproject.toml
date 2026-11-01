@@ -118,6 +118,9 @@ fmu_manipulation_toolbox = [
     "resources/*.png",
     "resources/fmi-2.0/*.xsd",
     "resources/fmi-3.0/*.xsd",
+    # SSP 2.0.1 schema (Modelica Association Project "SSP", BSD 2-Clause): validation of the SSP files read.
+    "resources/ssp-2.0/*.xsd",
+    "resources/ssp-2.0/LICENSE.txt",
     # FMI headers: used by the native builds (cmake/fmutool.cmake) and to compile the sources of an FMU.
     "resources/fmi/*.h",
 ]

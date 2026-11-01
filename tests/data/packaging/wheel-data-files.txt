@@ -61,6 +61,12 @@ fmu_manipulation_toolbox/resources/radio-checked.png
 fmu_manipulation_toolbox/resources/radio-unchecked-disabled.png
 fmu_manipulation_toolbox/resources/radio-unchecked-hover.png
 fmu_manipulation_toolbox/resources/radio-unchecked.png
+fmu_manipulation_toolbox/resources/ssp-2.0/LICENSE.txt
+fmu_manipulation_toolbox/resources/ssp-2.0/SystemStructureCommon.xsd
+fmu_manipulation_toolbox/resources/ssp-2.0/SystemStructureDescription.xsd
+fmu_manipulation_toolbox/resources/ssp-2.0/SystemStructureParameterMapping.xsd
+fmu_manipulation_toolbox/resources/ssp-2.0/SystemStructureParameterValues.xsd
+fmu_manipulation_toolbox/resources/ssp-2.0/SystemStructureSignalDictionary.xsd
 fmu_manipulation_toolbox/resources/win32/client_sm.dll
 fmu_manipulation_toolbox/resources/win32/server_sm.exe
 fmu_manipulation_toolbox/resources/win64/client_sm.dll

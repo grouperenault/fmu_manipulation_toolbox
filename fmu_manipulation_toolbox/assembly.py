@@ -1,4 +1,5 @@
 import csv
+import functools
 import json
 import logging
 import os
@@ -999,6 +1000,7 @@ class Assembly:
 
             self.description_pathname = None
             if "SystemStructure.ssd" in zin.namelist():
+                validate_ssd(zin.read("SystemStructure.ssd"), "SystemStructure.ssd")
                 sdd = SSDParser(zin, extract_folder.name, step_size=self.default_step_size, auto_link=False,
                                 mt=self.default_mt, profiling=self.default_profiling,
                                 auto_input=False, auto_output=False, auto_parameter=False)
@@ -1061,6 +1063,42 @@ class Assembly:
             if candidate[0] == node.name:
                 links_list.append([candidate[0], candidate[1], node.name, candidate[3]])
 
+
+
+#: Validation errors of an SSD reported one by one; the others are counted.
+MAX_SSD_VALIDATION_WARNINGS = 20
+
+
+@functools.cache
+def _ssd_schema():
+    """The SSP 2.0.1 schema of SSD files, loaded once: it takes about a second."""
+    import xmlschema
+
+    return xmlschema.XMLSchema(Path(__file__).parent / "resources" / "ssp-2.0" / "SystemStructureDescription.xsd")
+
+
+def validate_ssd(content: bytes, label: str) -> int:
+    """Validate an SSD against the SSP 2.0.1 schema (which accepts SSP 1.0 files: same namespace, version 1.0 or
+    2.0), reporting each error as a warning: a file the parser understands is read anyway (D10 of the SSP beta
+    plan).
+
+    Returns:
+        int: The number of validation errors.
+    """
+    import xmlschema
+
+    schema = _ssd_schema()
+    try:
+        errors = list(schema.iter_errors(content.decode("utf-8")))
+    except (UnicodeDecodeError, xmlschema.XMLSchemaException, ET.ParseError) as error:
+        logger.warning(f"'{label}' cannot be validated against the SSP schema: {error}")
+        return 1
+    for error in errors[:MAX_SSD_VALIDATION_WARNINGS]:
+        where = f" (at {error.path})" if error.path else ""
+        logger.warning(f"'{label}' is not valid against the SSP schema{where}: {error.reason}")
+    if len(errors) > MAX_SSD_VALIDATION_WARNINGS:
+        logger.warning(f"'{label}': {len(errors) - MAX_SSD_VALIDATION_WARNINGS} more validation error(s).")
+    return len(errors)
 
 
 class SSDParser:

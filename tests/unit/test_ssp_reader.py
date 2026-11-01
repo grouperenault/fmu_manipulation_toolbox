@@ -533,3 +533,37 @@ def test_an_invalid_time_is_a_warning(tmp_path, caplog):
 
     assert (root.start_time, root.stop_time) == (None, 3.0)
     assert "startTime 'soon' of the default experiment is not a number" in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+#                         step 5: validation against the XSD                   #
+# --------------------------------------------------------------------------- #
+def test_an_invalid_ssd_is_read_with_warnings(tmp_path, caplog):
+    """D10: the validation errors are warnings; the parser reads what it understands."""
+    description = ssd(component("a", attributes='colour="blue"') + component("b"), link())
+
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        root = read(tmp_path, description).root
+
+    assert len(root.links) == 1
+    assert "'SystemStructure.ssd' is not valid against the SSP schema" in caplog.text
+    assert "colour" in caplog.text
+
+
+def test_a_valid_ssd_gives_no_validation_warning(tmp_path, caplog):
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        read(tmp_path, ssd(component("a") + component("b"), link()))
+
+    assert "SSP schema" not in caplog.text
+
+
+def test_the_validation_warnings_are_bounded(caplog):
+    from fmu_manipulation_toolbox.assembly import MAX_SSD_VALIDATION_WARNINGS, validate_ssd
+    components = "".join(f'<ssd:Component name="c{i}" source="c.fmu" colour="blue"/>' for i in range(30))
+
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        count = validate_ssd(ssd(components).encode(), "many.ssd")
+
+    assert count >= 30  # one per unknown attribute, at least
+    assert caplog.text.count("is not valid against the SSP schema") == MAX_SSD_VALIDATION_WARNINGS
+    assert f"{count - MAX_SSD_VALIDATION_WARNINGS} more validation error(s)" in caplog.text
