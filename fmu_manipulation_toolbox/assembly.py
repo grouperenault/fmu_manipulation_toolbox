@@ -976,16 +976,16 @@ class Assembly:
         return json_node
 
     def read_ssp(self):
-        """Parse an SSP (System Structure and Parameterization) archive.
+        """Parse an SSP (System Structure and Parameterization) archive, SSP 1.0 or 2.0.
 
-        Extracts embedded FMUs and the `SystemStructure.ssd` file, then builds
-        the assembly tree from the SSD connections.
+        Extracts the embedded FMUs, validates `SystemStructure.ssd` against the SSP schema (warnings only), then
+        builds the assembly tree from it: systems, FMU components, connections, parameter values, start and stop
+        times. What the container cannot honour is refused, or reported when it changes nothing (see
+        [SSDParser][fmu_manipulation_toolbox.assembly.SSDParser]).
 
-        Warning:
-            This feature is in alpha stage.
+        Note:
+            The SSP support is in beta stage.
         """
-        logger.warning("This feature is ALPHA stage.")
-
 
         with zipfile.ZipFile(self.fmu_directory / self.filename) as zin:
             extract_folder = self.fmu_directory / self.filename.with_suffix(".dir")

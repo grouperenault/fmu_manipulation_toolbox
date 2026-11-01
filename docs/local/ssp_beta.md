@@ -158,6 +158,8 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
    Commit message: `Test the SSP reader with SSP files of other tools`
 7. **Beta status**: `ALPHA` warning removed.
    Commit message: `Mark the SSP reader as beta`
+   **Done** (1 November 2026): the `ALPHA` warning of `read_ssp` removed; its docstring says beta and what is
+   read. No other mention in the GUI or the CLI; the documentation is step 8.
 8. **User documentation** (`docs/user-guide/fmucontainer/container.md`, SSP section: supported and refused
    constructions, parameters, step size, validation; `gui-usage.md` if the import changes) and CHANGELOG.
    Commit message: `Document the SSP reader`
