@@ -1092,10 +1092,24 @@ class SSDParser:
     alias), of a causality that fits its end (an output starts a link or an exposed output, an input ends a link,
     an input or a parameter is exposed as an input of the container). Not checked: architecture wires, whose
     connectors are not variables, the components without `source` (ignored) and the sub-systems (no FMU).
+
+    The values of the parameter bindings (inline `ssv:ParameterSet`, an `.ssv` file of the archive or of the FMU of
+    the component) become start values of the variables of the embedded FMUs, which are not exposed. As in the
+    standard, a later binding takes priority over an earlier one of the same element, and a binding of a system
+    over the bindings of its elements; a name is a variable of the component, or for a system a connector of the
+    system (followed through its connections) or the hierarchical name of a variable (`element.variable`). A name
+    that matches nothing is ignored with a warning; a value for a variable that cannot be parameterized raises an
+    `AssemblyError`.
     """
 
     SSD_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureDescription"
     SSC_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureCommon"
+    SSV_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureParameterValues"
+    #: The only parameter source understood (default `type` of `ParameterBinding`).
+    PARAMETER_SET_TYPE = "application/x-ssp-parameter-set"
+    #: Value elements of `ssv:Parameter`, giving their value as is.
+    PARAMETER_TYPES = ("Real", "Float64", "Float32", "Integer", "Int8", "UInt8", "Int16", "UInt16", "Int32",
+                       "UInt32", "Int64", "UInt64", "Boolean", "String", "Enumeration")
     ARCHITECTURE_WIRE_TYPE = "fmu_manipulation_toolbox.architecture-wire"
     ARCHITECTURE_WIRE_NAMESPACE = "urn:fmu_manipulation_toolbox:architecture-wire:1"
     #: Component type of an FMU, the default of the `type` attribute (SSP 1.0 §5.3.2).
@@ -1129,6 +1143,13 @@ class SSDParser:
         self._sources: dict[tuple[int, str], str] = {}  # (system, component) => source in the archive
         self._variables: dict[str, dict[str, str]] = {}  # source => variable name => causality
         self._used_connectors: set[tuple[int, str]] = set()  # (system, connector) of the system used
+        self._fmus: dict[str, tuple[ModelDescription, dict[str, ModelVariable]]] = {}  # source => description
+        # Structure kept for the parameter bindings, resolved once the whole file is read.
+        self._depth: dict[int, int] = {}  # system => depth (root: 0)
+        self._elements: dict[int, dict[str, tuple[str, Any]]] = {}  # system => element => (kind, details)
+        self._system_connections: dict[int, list[dict[str, str]]] = {}  # system => its connections
+        self._bindings: list[dict[str, Any]] = []
+        self._binding: dict[str, Any] | None = None  # binding being read
 
         # Name of the embedded FMU of the component being read, for its ElementGeometry.
         self._component_fmu: str | None = None
@@ -1187,6 +1208,8 @@ class SSDParser:
                     if event == "start":
                         self.start_element(tag, element.attrib)
                     else:
+                        if tag == "ParameterValues" and self._binding is not None:
+                            self._binding["values"] += self._parameter_values(element, "inline values")
                         self.end_element(tag)
         except ET.ParseError as error:
             raise AssemblyError(f"'{ssd_filename}' is not well-formed XML: {error}") from error
@@ -1198,6 +1221,7 @@ class SSDParser:
             raise AssemblyError(f"'{ssd_filename}': no <System> found in namespace '{self.SSD_NAMESPACE}'")
         self._check_units()
         self._warn_unused_dictionaries()
+        self._apply_parameters()
         return self.root
 
     def start_element(self, tag_name, attrs):
@@ -1216,11 +1240,15 @@ class SSDParser:
             node = AssemblyNode(filename, **self.node_attrs)
             if self.node_stack:
                 self.node_stack[-1].add_sub_node(node)
+                self._elements[id(self.node_stack[-1])][attrs['name']] = ("system", node)
             else:
                 self.root = node
 
             self.node_stack.append(node)
             self._owners.append(("system", attrs['name']))
+            self._depth[id(node)] = len(self.node_stack) - 1
+            self._elements[id(node)] = {}
+            self._system_connections[id(node)] = []
 
         elif tag_name == 'Component':
             self._owners.append(("component", attrs['name']))
@@ -1230,6 +1258,7 @@ class SSDParser:
                 logger.warning(f"Component '{attrs['name']}' has no source FMU. It is ignored, "
                                f"with its connections.")
                 self.ignored_components.add(attrs['name'])
+                self._elements[id(self.node_stack[-1])][attrs['name']] = ("ignored", None)
                 return
             component_type = attrs.get('type', self.FMU_COMPONENT_TYPE)
             if component_type != self.FMU_COMPONENT_TYPE:
@@ -1242,6 +1271,7 @@ class SSDParser:
             fmu_name = instance_name(name, node.fmu_names_list)
             self.fmu_filenames[attrs['name']] = fmu_name
             self._sources[(id(node), attrs['name'])] = str(source)
+            self._elements[id(node)][attrs['name']] = ("component", (node, fmu_name, str(source)))
             node.add_fmu(fmu_name, filename)
             self._component_fmu = fmu_name
             logger.debug(f"Component {attrs['name']} => {fmu_name}")
@@ -1255,6 +1285,9 @@ class SSDParser:
 
         elif tag_name == 'Connector' and self._owners:
             self._connector = SSDConnector(self._owners[-1][1], attrs['name'], attrs.get('kind'))
+
+        elif tag_name == 'ParameterBinding':
+            self._start_binding(attrs)
 
         elif tag_name == 'ParameterMapping':
             raise AssemblyError(f"'{self.ssd_filename}': {self._owner_label()} has a parameter mapping: parameter "
@@ -1281,6 +1314,10 @@ class SSDParser:
         elif tag_name == 'Connector' and self._connector is not None:
             self._register_connector(self._connector)
             self._connector = None
+        elif tag_name == 'ParameterBinding':
+            if self._binding is not None:
+                self._bindings.append(self._binding)
+            self._binding = None
         elif tag_name == 'Connection':
             attrs = self._connection_attrs
             self._connection_attrs = None
@@ -1360,6 +1397,7 @@ class SSDParser:
                 raise AssemblyError(f"'{self.ssd_filename}': {self._connection_label(attrs)} goes through the signal "
                                     f"dictionary reference '{attrs[side]}': signal dictionaries are not supported.")
         self._check_fmu_connectors(attrs)
+        self._system_connections[system].append(attrs)
         start = self.connectors.get((system, attrs.get('startElement')), {}).get(attrs['startConnector'])
         end = self.connectors.get((system, attrs.get('endElement')), {}).get(attrs['endConnector'])
         if start is not None and end is not None and attrs.get('suppressUnitConversion') != "true":
@@ -1413,6 +1451,13 @@ class SSDParser:
     def _fmu_variables(self, element: str, source: str) -> dict[str, str]:
         """Causality of each variable (and FMI 3.0 alias) of the FMU `source` of the archive."""
         if source not in self._variables:
+            _, variables = self._fmu_description(element, source)
+            self._variables[source] = {name: variable.causality for name, variable in variables.items()}
+        return self._variables[source]
+
+    def _fmu_description(self, element: str, source: str) -> tuple[ModelDescription, dict[str, ModelVariable]]:
+        """Description of the FMU `source` of the archive, and its variables by name (FMI 3.0 aliases included)."""
+        if source not in self._fmus:
             try:
                 with zipfile.ZipFile(BytesIO(self.zin.read(source))) as fmu:
                     md = ModelDescription.load(fmu.read("modelDescription.xml"))
@@ -1423,13 +1468,185 @@ class SSDParser:
                 raise AssemblyError(f"'{self.ssd_filename}': the FMU '{source}' of component '{element}' cannot be "
                                     f"read: {error}") from error
             variables = {}
-            for variable in md.variables():
-                causality = ModelVariable(variable, md.fmi_version).causality
-                variables[variable.get("name")] = causality
-                for alias in variable.iter("Alias"):
-                    variables[alias.get("name")] = causality
-            self._variables[source] = variables
-        return self._variables[source]
+            for element_ in md.variables():
+                variable = ModelVariable(element_, md.fmi_version)
+                variables[element_.get("name")] = variable
+                for alias in element_.iter("Alias"):
+                    variables[alias.get("name")] = variable
+            self._fmus[source] = (md, variables)
+        return self._fmus[source]
+
+    # ----------------------------------------------------------------------------------------- parameter values
+    def _start_binding(self, attrs):
+        """A `ParameterBinding` of the current component or system: its values, from its source if it has one."""
+        kind, name = self._owners[-1] if self._owners else ("system", "")
+        if kind == "component" and name in self.ignored_components:
+            self._binding = None  # the component is ignored, so are its values
+            return
+        owner = f"{kind} '{name}'"
+        binding_type = attrs.get('type', self.PARAMETER_SET_TYPE)
+        if binding_type != self.PARAMETER_SET_TYPE:
+            raise AssemblyError(f"'{self.ssd_filename}': a parameter binding of {owner} is of type '{binding_type}': "
+                                f"only parameter sets ('{self.PARAMETER_SET_TYPE}') are supported.")
+        node = self.node_stack[-1]
+        self._binding = {"kind": kind, "name": name, "node": node, "prefix": attrs.get('prefix', ''),
+                         "depth": self._depth[id(node)] + (1 if kind == "component" else 0),
+                         "order": len(self._bindings), "values": []}
+        if attrs.get('source'):
+            self._binding["values"] += self._parameter_source(attrs['source'], attrs.get('sourceBase', 'SSD'),
+                                                              kind, name, owner)
+
+    def _parameter_source(self, source: str, base: str, kind: str, name: str, owner: str) -> list[tuple]:
+        """The values of the `.ssv` file `source`, in the archive (`sourceBase="SSD"`) or in the FMU of the
+        component (`sourceBase="component"`)."""
+        path = PurePosixPath(source)
+        if ":" in source or path.is_absolute() or ".." in path.parts:
+            raise AssemblyError(f"'{self.ssd_filename}': the parameter source '{source}' of {owner} must be a relative "
+                                f"path inside the SSP archive.")
+        try:
+            if base == "component":
+                component_source = self._sources.get((id(self.node_stack[-1]), name)) if kind == "component" else None
+                if component_source is None:
+                    raise AssemblyError(f"'{self.ssd_filename}': the parameter source '{source}' of {owner} is relative "
+                                        f"to a component, but {owner} is not an FMU component.")
+                with zipfile.ZipFile(BytesIO(self.zin.read(component_source))) as fmu:
+                    content = fmu.read(str(path))
+            else:
+                content = self.zin.read(str(path))
+        except KeyError:
+            raise AssemblyError(f"'{self.ssd_filename}': the parameter source '{source}' of {owner} is not in the "
+                                f"{'FMU of the component' if base == 'component' else 'SSP archive'}.") from None
+        try:
+            root = ET.fromstring(content)
+        except ET.ParseError as error:
+            raise AssemblyError(f"'{self.ssd_filename}': the parameter source '{source}' of {owner} is not "
+                                f"well-formed XML: {error}") from error
+        return self._parameter_values(root, f"'{source}'")
+
+    def _parameter_values(self, element: ET.Element, label: str) -> list[tuple[str, str, str, str | None]]:
+        """(name, value type, value, unit) of each parameter of the `ssv:ParameterSet` found in `element` (itself
+        or a descendant). The units it defines are added to `units`."""
+        ssv, ssc = f"{{{self.SSV_NAMESPACE}}}", f"{{{self.SSC_NAMESPACE}}}"
+        parameter_set = element if element.tag == f"{ssv}ParameterSet" else element.find(f".//{ssv}ParameterSet")
+        if parameter_set is None:
+            return []
+        for unit in parameter_set.iter(f"{ssc}Unit"):
+            base = unit.find(f"{ssc}BaseUnit")
+            self.units.setdefault(unit.get("name"), dict(base.attrib) if base is not None else {})
+        values = []
+        for parameter in parameter_set.iter(f"{ssv}Parameter"):
+            for child in parameter:
+                local_name = child.tag.rsplit("}", 1)[-1]
+                if not child.tag.startswith(ssv):
+                    continue
+                if local_name == "Binary":
+                    raise AssemblyError(f"'{self.ssd_filename}': parameter '{parameter.get('name')}' of {label} is a "
+                                        f"binary value: binary start values are not supported.")
+                if local_name in self.PARAMETER_TYPES:
+                    values.append((parameter.get("name"), local_name, child.get("value", ""), child.get("unit")))
+                    break
+        return values
+
+    def _apply_parameters(self):
+        """Resolve the values of the bindings, in the order of priority of the standard, and set them as start
+        values of the variables of the embedded FMUs."""
+        targets: dict[tuple[int, str, str], tuple[Any, str, str, tuple]] = {}
+        # Deeper first, then in file order: what comes later takes priority, so a system overrides its elements.
+        for binding in sorted(self._bindings, key=lambda b: (-b["depth"], b["order"])):
+            for value in binding["values"]:
+                name = binding["prefix"] + value[0]
+                if binding["kind"] == "component":
+                    found = self._component_targets(binding["node"], binding["name"], name)
+                else:
+                    found = self._system_targets(binding["node"], name)
+                if found is None:
+                    logger.warning(f"'{self.ssd_filename}': parameter '{name}' of {binding['kind']} "
+                                   f"'{binding['name']}' matches no variable: it is ignored.")
+                    continue
+                for node, fmu_name, source, variable in found:
+                    targets[(id(node), fmu_name, variable)] = (node, fmu_name, source, (variable,) + value[1:])
+        for node, fmu_name, source, (variable, value_type, value, unit) in targets.values():
+            node.add_start_value(fmu_name, variable, self._start_value(fmu_name, source, variable, value_type, value,
+                                                                       unit))
+            logger.debug(f"Start value of {fmu_name}/{variable} = {value} (SSP parameter binding)")
+
+    def _component_targets(self, node, component: str, name: str):
+        kind, details = self._elements.get(id(node), {}).get(component, (None, None))
+        if kind != "component":
+            return [] if kind == "ignored" else None
+        node, fmu_name, source = details
+        _, variables = self._fmu_description(component, source)
+        return [(node, fmu_name, source, name)] if name in variables else None
+
+    def _system_targets(self, node, name: str):
+        """Variables of the FMUs that `name` designates in the system `node`: one of its connectors, followed
+        through its connections, or `element.name` (D16)."""
+        if name in self.connectors.get((id(node), None), {}):
+            found = []
+            for attrs in self._system_connections.get(id(node), []):
+                if 'startElement' in attrs or attrs['startConnector'] != name:
+                    continue
+                kind, details = self._elements[id(node)].get(attrs['endElement'], (None, None))
+                if kind == "component":
+                    found += self._component_targets(node, attrs['endElement'], attrs['endConnector']) or []
+                elif kind == "system":
+                    found += self._system_targets(details, attrs['endConnector']) or []
+            return found
+        for element in sorted(self._elements.get(id(node), {}), key=len, reverse=True):
+            if name.startswith(element + "."):
+                kind, details = self._elements[id(node)][element]
+                rest = name[len(element) + 1:]
+                found = (self._component_targets(node, element, rest) if kind != "system"
+                         else self._system_targets(details, rest))
+                if found is not None:
+                    return found
+        return None
+
+    def _start_value(self, fmu_name: str, source: str, variable: str, value_type: str, value: str,
+                     unit: str | None) -> str:
+        """The start value of `variable` for a parameter value, once checked that it can be set (D15)."""
+        md, variables = self._fmus[source]
+        port = variables[variable]
+        label = f"'{self.ssd_filename}': parameter value for '{variable}' of '{fmu_name}'"
+        causality, variability = port.causality, port.variability
+        initial = port.get("initial") or ("exact" if causality in ("parameter", "structuralParameter")
+                                          or variability == "constant" else "calculated")
+        if variability == "constant":
+            raise AssemblyError(f"{label}: the variable is a constant, it cannot be parameterized.")
+        if causality != "input" and initial not in ("exact", "approx"):
+            raise AssemblyError(f"{label}: the variable ({causality}, initial '{initial}') is computed by the FMU, "
+                                f"it cannot be parameterized.")
+        variable_unit = port.get("unit") or self._declared_attribute(md, port, "unit")
+        if unit and variable_unit and not self._same_unit(unit, variable_unit):
+            raise AssemblyError(f"{label}: the value is in '{unit}', the variable in '{variable_unit}': unit "
+                                f"conversions are not supported.")
+        if value_type == "Enumeration":
+            items = self._enumeration_items(md, port)
+            if value not in items:
+                raise AssemblyError(f"{label}: '{value}' is not an item of its enumeration "
+                                    f"({', '.join(items) or 'none found'}).")
+            return items[value]
+        return value
+
+    @staticmethod
+    def _declared_type(md: ModelDescription, port: ModelVariable) -> ET.Element | None:
+        """The type definition of `port` (`<SimpleType>` child for FMI 2.0, `<…Type>` for FMI 3.0)."""
+        name, definitions = port.get("declaredType"), md.root.find("TypeDefinitions")
+        if not name or definitions is None:
+            return None
+        for definition in definitions:
+            if definition.get("name") == name:
+                return definition[0] if md.fmi_version == 2 and len(definition) else definition
+        return None
+
+    def _declared_attribute(self, md: ModelDescription, port: ModelVariable, attribute: str) -> str | None:
+        definition = self._declared_type(md, port)
+        return definition.get(attribute) if definition is not None else None
+
+    def _enumeration_items(self, md: ModelDescription, port: ModelVariable) -> dict[str, str]:
+        definition = self._declared_type(md, port)
+        return {item.get("name"): item.get("value") for item in definition.iter("Item")} if definition is not None \
+            else {}
 
     def _same_unit(self, first: str, second: str) -> bool:
         """Whether two units need no conversion: same name, or the same definition in `ssc:Units`."""

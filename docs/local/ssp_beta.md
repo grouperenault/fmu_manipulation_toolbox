@@ -51,6 +51,10 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 | D11 | Extraction folder `<file>.dir` | Unchanged: kept next to the SSP. |
 | D12 | SSP files of other tools for the tests | Public examples (SSP standard examples, OMSimulator...), added only after their license is checked and recorded next to them. |
 | D13 | Component without `source` | **Exception to D1**: still ignored with a warning, together with its connections (unchanged, modeler-bridge, `abbc488`). MIC modeler writes such components when the FMU of an instance is not embedded; refusing them would forbid opening a partial MIC assembly in the Container Builder. |
+| D14 | A name of a parameter source matching no variable | Warning, the value is ignored: the standard ignores it (a parameter set shared by several components is legitimate), the warning catches typos (1 November 2026; replaces the `AssemblyError` of §3.3). |
+| D15 | A value for a variable that cannot be parameterized | `AssemblyError` naming the variable and why (D1). Parameterizable, as in the standard: variability other than `constant`, and an input or an `initial` (declared or by default) `exact` or `approx` (1 November 2026). |
+| D16 | A value for a connector of a system | Follows the connections from that connector down to the variables of the FMUs, which get the start value (not exposed, D4); hierarchical names (`C.k`, `B.C.k`) are resolved too (1 November 2026). |
+| D17 | Parameter sources accepted | Inline (`ssv:ParameterSet`), an `.ssv` file of the archive, and an `.ssv` inside the FMU (`sourceBase="component"`). Another `type` than `application/x-ssp-parameter-set`, or a source outside the archive: `AssemblyError` (1 November 2026). |
 
 ---
 
@@ -82,7 +86,7 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
   and written in the code comments.
 - Each value: `add_start_value` on the embedded FMU (D3), the parameter is not exposed (D4).
 - Value types: `Real`, `Integer`, `Boolean`, `String`, `Enumeration` (by name, converted with the FMU
-  description); a parameter unknown in the FMU: `AssemblyError`.
+  description); a parameter unknown in the FMU: warning (D14).
 
 ### 3.4 Step size (D9)
 
@@ -127,6 +131,11 @@ tested with SSP files of several tools. The "alpha" status becomes "beta".
 3. **Parameters** (D3, D4): start values from `.ssv`, inline and external. Unit tests, and a simulation test that
    the start value is used.
    Commit message: `Read the parameter values of SSP files`
+   **Done** (1 November 2026), with D14 to D17. Order of priority checked in the documentation of the SSP 2.0.1
+   XSD (`ParameterBinding`): a later binding overrides an earlier one at the same level, a system overrides its
+   elements; `prefix` is prepended to the names of the source. Enumeration values are converted by item name;
+   binary values are refused (the builder has no binary start value). Simulation test: BouncingBall with g = -1
+   (`tests/integration/test_ssp.py`).
 4. **Step size** (D9) from `DefaultExperiment`. Unit tests of the precedence.
    Commit message: `Take the step size of an SSP file from its default experiment`
 5. **XSD validation** (D10). Unit test with an invalid SSD that is still read.

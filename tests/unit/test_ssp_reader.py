@@ -19,7 +19,7 @@ NAMESPACES = ('xmlns:ssd="http://ssp-standard.org/SSP1/SystemStructureDescriptio
               'xmlns:ssm="http://ssp-standard.org/SSP1/SystemStructureParameterMapping"')
 
 #: FMI 2.0 descriptor of the FMUs of the tests: inputs `u` (unit m) and `v`, output `y` (unit m), parameters
-#: `k`, `n`, `b`.
+#: `k`, `n`, `b`; constant `c`.
 DESCRIPTOR = """<?xml version="1.0" encoding="UTF-8"?>
 <fmiModelDescription fmiVersion="2.0" modelName="{name}" guid="{{{name}}}">
   <CoSimulation modelIdentifier="{name}"/>
@@ -31,6 +31,7 @@ DESCRIPTOR = """<?xml version="1.0" encoding="UTF-8"?>
     <ScalarVariable name="k" valueReference="2" causality="parameter" variability="fixed"><Real start="1"/></ScalarVariable>
     <ScalarVariable name="n" valueReference="3" causality="parameter" variability="fixed"><Integer start="0"/></ScalarVariable>
     <ScalarVariable name="b" valueReference="4" causality="parameter" variability="fixed"><Boolean start="false"/></ScalarVariable>
+    <ScalarVariable name="c" valueReference="6" causality="local" variability="constant"><Real start="3"/></ScalarVariable>
   </ModelVariables>
   <ModelStructure><Outputs><Unknown index="2"/></Outputs></ModelStructure>
 </fmiModelDescription>
@@ -130,7 +131,8 @@ def test_a_connection_transformation_is_refused(tmp_path, transformation):
 
 def test_a_parameter_mapping_is_refused(tmp_path):
     """D5."""
-    bindings = ('<ssd:ParameterBindings><ssd:ParameterBinding source="resources/values.ssv">'
+    bindings = ('<ssd:ParameterBindings><ssd:ParameterBinding><ssd:ParameterValues>'
+                '<ssv:ParameterSet version="1.0" name="set"><ssv:Parameters/></ssv:ParameterSet></ssd:ParameterValues>'
                 '<ssd:ParameterMapping source="resources/mapping.ssm"/></ssd:ParameterBinding></ssd:ParameterBindings>')
     description = ssd(component("a", extra=bindings) + component("b"), link())
 
@@ -310,3 +312,196 @@ def _fmu_bytes(tmp_path, descriptor: str) -> bytes:
     with zipfile.ZipFile(path, "w") as fmu:
         fmu.writestr("modelDescription.xml", descriptor)
     return path.read_bytes()
+
+
+# --------------------------------------------------------------------------- #
+#                         step 3: parameter values                            #
+# --------------------------------------------------------------------------- #
+def values(*parameters, **attributes):
+    """A parameter binding with inline values: `(name, type, value[, unit])` each."""
+    attrs = " ".join(f'{key}="{value}"' for key, value in attributes.items())
+    content = "".join(f'<ssv:Parameter name="{p[0]}"><ssv:{p[1]} value="{p[2]}"'
+                      f'{f" unit={chr(34)}{p[3]}{chr(34)}" if len(p) > 3 else ""}/></ssv:Parameter>'
+                      for p in parameters)
+    return (f'<ssd:ParameterBinding {attrs}><ssd:ParameterValues><ssv:ParameterSet version="1.0" name="set">'
+            f'<ssv:Parameters>{content}</ssv:Parameters></ssv:ParameterSet></ssd:ParameterValues></ssd:ParameterBinding>')
+
+
+def bindings(*items):
+    return "<ssd:ParameterBindings>" + "".join(items) + "</ssd:ParameterBindings>"
+
+
+def parameter_set(*parameters):
+    return ('<?xml version="1.0" encoding="UTF-8"?><ssv:ParameterSet version="1.0" name="set" '
+            'xmlns:ssv="http://ssp-standard.org/SSP1/SystemStructureParameterValues"><ssv:Parameters>'
+            + "".join(f'<ssv:Parameter name="{n}"><ssv:{t} value="{v}"/></ssv:Parameter>' for n, t, v in parameters)
+            + '</ssv:Parameters></ssv:ParameterSet>')
+
+
+def starts(root):
+    return {(port.fmu_name.rsplit("/", 1)[-1], port.port_name): value for port, value in root.start_values.items()}
+
+
+def test_inline_values_become_start_values_without_exposing_the_parameters(tmp_path):
+    """D3, D4."""
+    extra = bindings(values(("k", "Real", "2.5"), ("n", "Integer", "3"), ("b", "Boolean", "true"), ("u", "Real", "1")))
+    root = read(tmp_path, ssd(component("a", extra=extra) + component("b"), link())).root
+
+    assert starts(root) == {("a.fmu", "k"): "2.5", ("a.fmu", "n"): "3", ("a.fmu", "b"): "true", ("a.fmu", "u"): "1"}
+    assert root.input_ports == {}
+
+
+def test_an_empty_parameter_set_is_fine(tmp_path):
+    """easySSP writes one on every element."""
+    root = read(tmp_path, ssd(component("a", extra=bindings(values())) + component("b"), link(),
+                              system=bindings(values()))).root
+
+    assert root.start_values == {}
+
+
+def test_values_from_an_ssv_file_of_the_archive(tmp_path):
+    extra = bindings('<ssd:ParameterBinding source="resources/a.ssv"/>')
+    files = {"resources/a.ssv": parameter_set(("k", "Real", "4"))}
+
+    root = read(tmp_path, ssd(component("a", extra=extra) + component("b"), link()), files=files).root
+
+    assert starts(root) == {("a.fmu", "k"): "4"}
+
+
+def test_values_from_an_ssv_file_of_the_fmu(tmp_path):
+    """D17: `sourceBase="component"` resolves the source inside the FMU of the component."""
+    path = tmp_path / "c.fmu"
+    with zipfile.ZipFile(path, "w") as fmu:
+        fmu.writestr("modelDescription.xml", DESCRIPTOR.format(name="c"))
+        fmu.writestr("resources/defaults.ssv", parameter_set(("k", "Real", "7")))
+    extra = bindings('<ssd:ParameterBinding source="resources/defaults.ssv" sourceBase="component"/>')
+
+    root = read(tmp_path, ssd(component("c", extra=extra) + component("b"), link("c")), fmus=("b",),
+                files={"resources/c.fmu": path.read_bytes()}).root
+
+    assert starts(root) == {("c.fmu", "k"): "7"}
+
+
+@pytest.mark.parametrize("binding, message", [
+    ('<ssd:ParameterBinding type="application/x-other"/>', "is of type 'application/x-other'"),
+    ('<ssd:ParameterBinding source="http://example.com/values.ssv"/>', "must be a relative path inside the SSP"),
+    ('<ssd:ParameterBinding source="../values.ssv"/>', "must be a relative path inside the SSP"),
+    ('<ssd:ParameterBinding source="resources/missing.ssv"/>', "'resources/missing.ssv' of component 'a' is not in "
+                                                               "the SSP archive"),
+], ids=["type", "url", "outside", "missing"])
+def test_unsupported_parameter_sources_are_refused(tmp_path, binding, message):
+    """D17."""
+    with pytest.raises(AssemblyError, match=message):
+        read(tmp_path, ssd(component("a", extra=bindings(binding)) + component("b"), link()))
+
+
+def test_a_system_binding_uses_hierarchical_names_and_its_prefix(tmp_path):
+    system = bindings(values(("a.k", "Real", "1")), values(("n", "Integer", "5"), prefix="b."))
+
+    root = read(tmp_path, ssd(component("a") + component("b"), link(), system=system)).root
+
+    assert starts(root) == {("a.fmu", "k"): "1", ("b.fmu", "n"): "5"}
+
+
+def test_a_value_for_a_connector_of_the_system_follows_its_connections(tmp_path):
+    """D16: the parameters it is connected to get the value, and stay exposed as the connections say."""
+    system = ('<ssd:Connectors><ssd:Connector name="gain" kind="parameter"><ssc:Real/></ssd:Connector>'
+              '</ssd:Connectors>' + bindings(values(("gain", "Real", "9"))))
+    connections = (link() + '<ssd:Connection startConnector="gain" endElement="a" endConnector="k"/>'
+                   '<ssd:Connection startConnector="gain" endElement="b" endConnector="k"/>')
+
+    root = read(tmp_path, ssd(component("a") + component("b"), connections, system=system)).root
+
+    assert starts(root) == {("a.fmu", "k"): "9", ("b.fmu", "k"): "9"}
+
+
+def test_a_nested_system_is_reached_by_its_hierarchical_name(tmp_path):
+    inner = ('<ssd:System name="sub"><ssd:Elements>' + component("c") + '</ssd:Elements></ssd:System>')
+    description = ssd(component("a") + component("b") + inner, link(),
+                      system=bindings(values(("sub.c.k", "Real", "6"))))
+
+    root = read(tmp_path, description, fmus=("a", "b", "c")).root
+
+    assert starts(root.children["sub.fmu"]) == {("c.fmu", "k"): "6"}
+
+
+def test_the_priorities_of_the_standard(tmp_path):
+    """A later binding overrides an earlier one at the same level; the system overrides its elements."""
+    extra = bindings(values(("k", "Real", "1"), ("n", "Integer", "1")), values(("k", "Real", "2")))
+    system = bindings(values(("a.n", "Integer", "3")))
+
+    root = read(tmp_path, ssd(component("a", extra=extra) + component("b"), link(), system=system)).root
+
+    assert starts(root) == {("a.fmu", "k"): "2", ("a.fmu", "n"): "3"}
+
+
+def test_a_name_matching_no_variable_is_a_warning(tmp_path, caplog):
+    """D14: the standard ignores it; the warning catches typos."""
+    extra = bindings(values(("kk", "Real", "1"), ("k", "Real", "2")))
+
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        root = read(tmp_path, ssd(component("a", extra=extra) + component("b"), link())).root
+
+    assert starts(root) == {("a.fmu", "k"): "2"}
+    assert "parameter 'kk' of component 'a' matches no variable: it is ignored" in caplog.text
+
+
+@pytest.mark.parametrize("name, message", [
+    ("y", r"the variable \(output, initial 'calculated'\) is computed by the FMU"),
+    ("c", "the variable is a constant"),
+])
+def test_a_variable_that_cannot_be_parameterized_is_refused(tmp_path, name, message):
+    """D15."""
+    extra = bindings(values((name, "Real", "1")))
+
+    with pytest.raises(AssemblyError, match=message):
+        read(tmp_path, ssd(component("a", extra=extra) + component("b"), link()))
+
+
+def test_a_value_in_another_unit_is_refused(tmp_path):
+    """D8, for a parameter value: `u` is in m."""
+    extra = bindings(values(("u", "Real", "1", "km")))
+
+    with pytest.raises(AssemblyError, match="the value is in 'km', the variable in 'm'"):
+        read(tmp_path, ssd(component("a", extra=extra) + component("b"), link()))
+
+
+def test_a_binary_value_is_refused(tmp_path):
+    extra = bindings(values(("k", "Binary", "00ff")))
+
+    with pytest.raises(AssemblyError, match="binary start values are not supported"):
+        read(tmp_path, ssd(component("a", extra=extra) + component("b"), link()))
+
+
+def test_an_enumeration_value_is_given_by_its_item(tmp_path):
+    descriptor = """<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="2.0" modelName="e" guid="{e}">
+  <CoSimulation modelIdentifier="e"/>
+  <TypeDefinitions><SimpleType name="Gear"><Enumeration><Item name="park" value="1"/><Item name="drive" value="4"/>
+  </Enumeration></SimpleType></TypeDefinitions>
+  <ModelVariables>
+    <ScalarVariable name="gear" valueReference="0" causality="parameter" variability="fixed"><Enumeration declaredType="Gear" start="1"/></ScalarVariable>
+    <ScalarVariable name="y" valueReference="1" causality="output"><Real/></ScalarVariable>
+  </ModelVariables>
+  <ModelStructure><Outputs><Unknown index="2"/></Outputs></ModelStructure>
+</fmiModelDescription>
+"""
+    files = {"resources/e.fmu": _fmu_bytes(tmp_path, descriptor)}
+
+    root = read(tmp_path, ssd(component("e", extra=bindings(values(("gear", "Enumeration", "drive")))) +
+                              component("b"), link("e")), fmus=("b",), files=files).root
+    assert starts(root) == {("e.fmu", "gear"): "4"}
+
+    with pytest.raises(AssemblyError, match="'reverse' is not an item of its enumeration \\(park, drive\\)"):
+        read(tmp_path, ssd(component("e", extra=bindings(values(("gear", "Enumeration", "reverse")))) +
+                           component("b"), link("e")), fmus=("b",), files=files)
+
+
+def test_the_values_of_an_ignored_component_are_ignored(tmp_path):
+    """D13: without source, the component and everything about it are left out."""
+    sourceless = ('<ssd:Component name="z"><ssd:ParameterBindings><ssd:ParameterBinding source="missing.ssv"/>'
+                  '</ssd:ParameterBindings></ssd:Component>')
+
+    root = read(tmp_path, ssd(component("a") + component("b") + sourceless, link())).root
+
+    assert root.start_values == {}

@@ -200,3 +200,39 @@ def test_component_geometry_is_kept(area_dir):
     assert root.fmu_geometry == {
         "bouncing.dir/resources/bb_velocity.fmu": (-277.931818, -97.613636, -77.931818, 22.386364),
         "bouncing.dir/resources/bb_position.fmu": (64.113636, -98.522727, 264.113636, 21.477273)}
+
+
+# --------------------------------------------------------------------------- #
+#                          parameter values, simulated                        #
+# --------------------------------------------------------------------------- #
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.slow
+def test_a_parameter_value_is_used_by_the_simulation(data_dir, tmp_path, monkeypatch):
+    """With g = -1 instead of -9.81, the ball has not bounced yet at t = 0.5 s: h = 1 - t²/2."""
+    from _helpers.simulation import simulate
+
+    ssd = ('<?xml version="1.0" encoding="UTF-8"?>'
+           '<ssd:SystemStructureDescription version="1.0" name="ball" '
+           'xmlns:ssd="http://ssp-standard.org/SSP1/SystemStructureDescription" '
+           'xmlns:ssc="http://ssp-standard.org/SSP1/SystemStructureCommon" '
+           'xmlns:ssv="http://ssp-standard.org/SSP1/SystemStructureParameterValues">'
+           '<ssd:System name="ball"><ssd:Connectors>'
+           '<ssd:Connector name="h" kind="output"><ssc:Real/></ssd:Connector></ssd:Connectors>'
+           '<ssd:Elements><ssd:Component name="bb" source="resources/BouncingBall.fmu">'
+           '<ssd:ParameterBindings><ssd:ParameterBinding><ssd:ParameterValues>'
+           '<ssv:ParameterSet version="1.0" name="moon"><ssv:Parameters>'
+           '<ssv:Parameter name="g"><ssv:Real value="-1"/></ssv:Parameter>'
+           '</ssv:Parameters></ssv:ParameterSet></ssd:ParameterValues></ssd:ParameterBinding></ssd:ParameterBindings>'
+           '</ssd:Component></ssd:Elements><ssd:Connections>'
+           '<ssd:Connection startElement="bb" startConnector="h" endConnector="h"/>'
+           '</ssd:Connections></ssd:System></ssd:SystemStructureDescription>')
+    with zipfile.ZipFile(tmp_path / "ball.ssp", "w") as ssp:
+        ssp.writestr("SystemStructure.ssd", ssd)
+        ssp.write(data_dir / "compile" / "3.0" / "BouncingBall.fmu", "resources/BouncingBall.fmu")
+    monkeypatch.chdir(tmp_path)
+
+    Assembly("ball.ssp", default_step_size=0.01).make_fmu()
+    result = simulate("ball.fmu", stop_time=0.5, output=["h"])
+
+    assert result["h"][-1] == pytest.approx(0.875, abs=0.02)
