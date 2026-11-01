@@ -60,6 +60,9 @@ assembly in some format; the choice of the button is the choice of the format. T
    JSON and FMU saves.
 3. **Old buttons removed**, tests updated.
    Commit message: `Container builder: remove the per-format buttons`
+   **Done** (1 November 2026): Load FMU Container, Import, Export as JSON, Export as SSP, Save as FMU Container and
+   their handlers removed; `load_file`, `import_file`, `open_file` kept (Open…, command line). Button bar:
+   Configuration | Open… · Exit · Save as…. Tests updated (`test_gui.py`, `test_fmucontainer_ssp_export.py`).
 4. **User documentation** (`gui-usage.md`: actions, workflow; screenshots regenerated with `tools/screenshots.py`)
    and CHANGELOG.
    Commit message: `Document the Open and Save as actions of the container builder`

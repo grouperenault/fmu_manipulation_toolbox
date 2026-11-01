@@ -73,10 +73,6 @@ def _short(link: str) -> str:
     return " -> ".join("/".join(side.split("/")[-2:]) for side in (start, end))
 
 
-def test_the_export_button_is_next_to_the_json_one(window):
-    assert window._export_ssp_button.text() == "Export as SSP"
-
-
 def test_an_imported_ssp_is_exported_with_its_wire_and_geometry(window, data_dir, tmp_path):
     window.import_assembly_file(str(_ssp_with_wire(data_dir, tmp_path)))
     (tmp_path / "out").mkdir()
