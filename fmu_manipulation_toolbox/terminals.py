@@ -114,12 +114,10 @@ class Terminals:
     def _parse_source(self, source, label: str):
         try:
             xml = ET.parse(source)
-            for element in xml.getroot()[0]:
-                if element.tag == "Terminal":
-                    terminal = self.add_terminal(element)
-                    logger.debug(f"Terminal '{terminal.name}' defined with {len(terminal.members)} signals")
-        except IndexError:
-            logger.error(f"{label} is wrongly formated.")
+            # The schema allows GraphicalRepresentation before Terminals, and no Terminals at all.
+            for element in xml.getroot().findall("Terminals/Terminal"):
+                terminal = self.add_terminal(element)
+                logger.debug(f"Terminal '{terminal.name}' defined with {len(terminal.members)} signals")
         except ET.ParseError as e:
             logger.error(f"Cannot parse {label}: {e}")
 

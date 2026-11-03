@@ -123,6 +123,20 @@ def test_terminals_parse_from_xml_source():
                             "Tx_Data": "CanChannel.Tx_Data"}
 
 
+def test_terminals_parse_after_graphical_representation():
+    xml = _VALID_XML.replace("<Terminals>", "<GraphicalRepresentation><Icon/></GraphicalRepresentation><Terminals>")
+    terminals = Terminals.from_xml_source(io.StringIO(xml), label="<test>")
+    assert list(terminals.terminals) == ["CanChannel"]
+
+
+def test_terminals_parse_without_terminals_is_not_an_error(caplog):
+    xml = '<fmiTerminalsAndIcons fmiVersion="3.0"><GraphicalRepresentation/></fmiTerminalsAndIcons>'
+    with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
+        terminals = Terminals.from_xml_source(io.StringIO(xml), label="<test>")
+    assert len(terminals) == 0
+    assert caplog.text == ""
+
+
 def test_terminals_parse_malformed_xml_logs_error_without_raising(caplog):
     with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
         terminals = Terminals.from_xml_source(io.StringIO("<not-closed>"), label="<bad>")
