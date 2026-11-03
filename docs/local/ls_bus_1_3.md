@@ -70,6 +70,8 @@ Taken on 3 November 2026:
   - `none` (grouping terminals): error, so that a port of a group cannot stay unconnected without notice.
 - **D7 — `datalog2pcap`**: pcapng with DLT 252 replaces the pcap output for all the buses, and `-can` is removed. Reading
   the captures requires the Wireshark plugin of LS-BUS, including for CAN.
+- **D10 — Type of bus in `datalog2pcap`**: the operation codes do not tell it (`0x10` exists on the four buses) and the CSV
+  does not change: `datalog2pcap datalog.csv -fmu container.fmu` reads it from the MIME types of the container.
 - **D8 — Test FMUs for LIN and Ethernet**: they are contributed to `modelica/fmi-ls-bus-examples`, and only their binaries
   are copied to `tests/data`.
 - **D9 — Container boundary, out of scope**: a container holds the whole network and exposes no clock. Using a container
@@ -138,8 +140,7 @@ comparison only applies to `application/org.fmi-standard.fmi-ls-bus.*`, so that 
 
 ### 4.5 Datalog and checks
 
-- `datalog2pcap`: the bus type comes from the MIME type or from the terminal, the operation names come from the
-  headers of the RC, and `PROTO_NAME` is one of `fmi_ls_bus_can`, `fmi_ls_bus_lin`, `fmi_ls_bus_eth`,
+- `datalog2pcap`: the bus type comes from the MIME type of the container (D10), and `PROTO_NAME` is one of `fmi_ls_bus_can`, `fmi_ls_bus_lin`, `fmi_ls_bus_eth`,
   `fmi_ls_bus_flexray`. The output is pcapng with DLT 252 and `-can` is removed (D7).
 - `ls.py` reads `fmi-ls-version`.
 - New check of LS-BUS in `checker.py`, active when the manifest exists:
