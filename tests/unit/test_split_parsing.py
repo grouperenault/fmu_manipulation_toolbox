@@ -7,10 +7,12 @@ failed before the zip handle was assigned (regression test for the
 unraisable-exception-in-``__del__`` defect).
 """
 import io
+import json
 import zipfile
 
 import pytest
 
+from fmu_manipulation_toolbox.container.types import ALL_TYPES, START_VALUE_TYPES
 from fmu_manipulation_toolbox.split import (
     FMUSplitter,
     FMUSplitterError,
@@ -106,3 +108,56 @@ def test_fmi2_type_definitions_are_not_variables():
 def test_unreadable_embedded_descriptor_raises():
     with pytest.raises(FMUSplitterError, match="not well-formed"):
         _description_with("<fmiModelDescription fmiVersion='2.0'><x>a < b</x></fmiModelDescription>")
+
+
+# --------------------------------------------------------------------------- #
+#                       clocked variables, format 3                            #
+# --------------------------------------------------------------------------- #
+def _fmu_sections(clocked_inputs=(), clocked_outputs=(), clocks=()):
+    """The lines of one embedded FMU in a `container.txt` of format 3: only clocked binaries and clocks."""
+    def direction(clocked):
+        lines = []
+        for fmi_type in ALL_TYPES:
+            if fmi_type == "clock":
+                lines += [str(len(clocks)), *clocks]
+            else:
+                lines.append("0")
+                entries = clocked if fmi_type == "binary" else ()
+                lines += [f"{len(entries)} {len(entries)}", *entries]
+        return lines
+    return [*direction(clocked_inputs), *("0" for _ in START_VALUE_TYPES), *direction(clocked_outputs), "0"]
+
+
+def test_clocked_variables_of_format_3_are_linked(tmp_path):
+    """Format 3 writes `<FMU_VR_CLOCK> <n> [<VR> <FMU_VR>] × n`, as 1.9.2 did for its LS-BUS containers."""
+    def descriptor(data, causality):
+        return ('<fmiModelDescription fmiVersion="3.0" modelName="m" instantiationToken="t"><ModelVariables>'
+                f'<Binary name="{data}" valueReference="10" causality="{causality}" clocks="11"/>'
+                '<Clock name="clock" valueReference="11" causality="input"/>'
+                '</ModelVariables></fmiModelDescription>')
+
+    local_binary, local_clock = 218103808, 234881024
+    ports = []
+    for fmi_type in ALL_TYPES:
+        local = {"binary": local_binary, "clock": local_clock}.get(fmi_type)
+        ports += ["0 0"] if local is None else ["1 1", f"{local} 1 -1 0"]
+    txt = ["# Version 3", "0 0 0", "0.01", "2",
+           "a.fmu 3 1", "a", "token-a", "b.fmu 3 1", "b", "token-b",
+           " ".join("0" for _ in ALL_TYPES), *ports,
+           *_fmu_sections(clocked_outputs=[f"11 1 {local_binary} 10"], clocks=[f"{local_clock} 11"]),
+           *_fmu_sections(clocked_inputs=[f"11 1 {local_binary} 10"], clocks=[f"{local_clock} 11"])]
+    container = tmp_path / "container.fmu"
+    with zipfile.ZipFile(container, "w") as zf:
+        zf.writestr("modelDescription.xml",
+                    '<fmiModelDescription fmiVersion="3.0" modelName="c" instantiationToken="t"><ModelVariables/>'
+                    '</fmiModelDescription>')
+        zf.writestr("resources/container.txt", "\n".join(txt) + "\n")
+        zf.writestr("resources/00/modelDescription.xml", descriptor("tx", "output"))
+        zf.writestr("resources/01/modelDescription.xml", descriptor("rx", "input"))
+
+    with FMUSplitter(str(container)) as splitter:
+        splitter.split_fmu()
+
+    links = json.loads((tmp_path / "container.dir" / "container.json").read_text())["link"]
+    assert ["a.fmu", "tx", "b.fmu", "rx"] in links
+    assert ["a.fmu", "clock", "b.fmu", "clock"] in links
