@@ -103,9 +103,19 @@ class AssemblyBridge(Protocol):
     def set_container_options(self, options: dict[str, Any]) -> dict[str, Any]:
         """Update the root container options and return them all."""
 
+    def import_assembly(self, assembly: Any, fmu_directory: str) -> None:
+        """Replace the assembly by ``assembly``, an ``Assembly`` read from a file.
+
+        Its FMUs are found from ``fmu_directory``. A backend that cannot hold
+        it raises and leaves the current assembly as it was.
+        """
+
     # -- build / export ----------------------------------------------------
     def save_as_json(self, path: str) -> str:
         """Export the assembly description to ``path`` and return it."""
+
+    def save_as_ssp(self, path: str, ssp_version: Literal["1.0", "2.0"] = "2.0") -> str:
+        """Export the assembly as an SSP file at ``path`` and return it."""
 
     def save_as_fmu(self, path: str, fmi_version: Literal[2, 3] = 2, datalog: bool = False) -> str:
         """Build the container FMU into ``path`` and return it.

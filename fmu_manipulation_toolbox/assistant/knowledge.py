@@ -27,17 +27,20 @@ the Container Builder GUI, every action is applied to the **live canvas** and
 the user watches it happen; when it runs standalone (`fmutool-mcp`), the
 assembly only exists in the server until you export or build it. Either way
 the workflow is identical — but in the standalone case, nothing is visible to
-the user before `save_as_json` or `save_as_fmu`, so describe what you do.
+the user before `save_assembly` or `save_as_fmu`, so describe what you do.
 
 Recommended workflow:
 1. `list_fmus` to see what is already on the canvas.
-2. `inspect_fmu_file(path)` to look at a candidate file *without* adding it.
+2. `inspect_fmu_file(path)` to look at a candidate file *without* adding it;
+   `inspect_ssp(path)` likewise for an SSP file. To edit an existing assembly,
+   `import_assembly(path)` loads a JSON, CSV or SSP file: read its `warnings`,
+   and confirm with the user before `replace=True`, which drops the assembly.
 3. `add_fmu(path)` for each FMU file the user wants to combine. The answer
    already summarises the FMU (counts per causality, FMI version).
 4. `list_fmu_ports(fmu)` to discover the ports of an FMU on the canvas.
-5. `add_link(from_fmu, from_port, to_fmu, to_port)` to connect an OUTPUT of one
-   FMU to an INPUT of another. Types should be compatible. Use `add_links`
-   to create several at once.
+5. `add_links(links)` to connect OUTPUTs of one FMU to INPUTs of another, each
+   link being `{from_fmu, from_port, to_fmu, to_port}`. Types should be
+   compatible.
 6. `expose_input` / `expose_output` to surface ports on the container boundary
    (only needed when auto_input/auto_output are disabled or for clarity).
 7. `set_start_value(fmu, port, value)` for initial values / parameters.
@@ -47,7 +50,8 @@ Recommended workflow:
    for its structure, `mode='lint'` for its known traps. `get_assembly_json`
    gives the details, one container (`node`) and one section at a time when
    the assembly is large.
-10. `save_as_json(path)` to save the description, or
+10. `save_assembly(path)` to save the description (`.json`, or `.ssp` with the
+    FMUs embedded and the routing resolved), or
     `save_as_fmu(path, fmi_version=2|3, datalog=False)` to build the container.
 
 To undo: `remove_link` drops a link, `unset_start_value` drops a start value
@@ -60,7 +64,7 @@ Tips:
   `name_pattern='^engine_'` rather than paging through an industrial FMU, and
   check the `truncated` flag before concluding that a port does not exist.
 - `auto_link` connects same-named/typed ports automatically at build time, so
-  you often only need explicit `add_link` for ports whose names differ. Links
+  you often only need explicit `add_links` for ports whose names differ. Links
   it creates are derived at build time: `remove_link` cannot undo them, you
   have to disable the option.
 - `add_links` applies its links in order and independently: a rejected one
@@ -109,8 +113,8 @@ FMI_CONVENTIONS = """\
 ## Causality — what a port may be used for
 | Causality | Meaning | Usable as |
 |---|---|---|
-| `input` | Value provided from outside at each step | **destination** of `add_link`, `expose_input`, `set_start_value` |
-| `output` | Value produced by the FMU | **source** of `add_link`, `expose_output` |
+| `input` | Value provided from outside at each step | **destination** of `add_links`, `expose_input`, `set_start_value` |
+| `output` | Value produced by the FMU | **source** of `add_links`, `expose_output` |
 | `parameter` | Constant over the simulation, set before it starts | `set_start_value` only |
 | `calculatedParameter` | Derived by the FMU from other parameters | read-only |
 | `local` | Internal variable, observable but not connectable | read-only |
@@ -214,7 +218,7 @@ Follow this procedure:
    `causality=['output']` or `name_pattern` on large FMUs, and never guess a
    port name.
 4. **Route** — `auto_link` is on by default and already connects ports sharing
-   a name and a type. Only call `add_link` for ports whose names differ.
+   a name and a type. Only call `add_links` for ports whose names differ.
    Connect an OUTPUT to an INPUT. Flag lossy conversions and mismatched units
    (see `fmi://conventions`) instead of wiring them silently.
 5. **Boundary** — rely on `auto_input`/`auto_output` unless the user asked for

@@ -19,10 +19,15 @@ Two design points are worth stating, because they shape the whole module:
 import difflib
 import logging
 import re
+import shutil
+import tempfile
+import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from . import analysis
+from ..assembly import Assembly, AssemblyError
 from ..checker import get_checkers
 from ..model_description import ModelDescription, ModelVariable, default_variability, matches_type
 from ..terminals import Terminals
@@ -492,3 +497,62 @@ def apply_operation(fmu_path: Path, output_path: Path, operation: str,
 
     return {"fmu": fmu_path.name, "output": str(output_path),
             "operation": repr(instance)}
+
+
+# ---------------------------------------------------------------------------
+# Assembly files
+# ---------------------------------------------------------------------------
+
+#: Most warnings of the reader returned with an assembly file: the others are counted, not listed.
+MAX_READER_WARNINGS = 20
+
+
+@contextmanager
+def reader_warnings(result: dict[str, Any]):
+    """Report in `result` what is logged as a warning, or worse, while the block reads an assembly file.
+
+    What the reader ignores (e.g. a component without source) is only logged: the client has to see it.
+    """
+    with _captured_logs(logging.WARNING) as records:
+        try:
+            yield
+        finally:
+            messages = [record.getMessage() for record in records]
+            result["warnings"] = messages[:MAX_READER_WARNINGS]
+            result["warnings_total"] = len(messages)
+
+
+def _nb_wires(node) -> int:
+    return len(node.architecture_wires) + sum(_nb_wires(child) for child in node.children.values())
+
+
+def inspect_ssp(path: Path, node: str | None = None, section: str | None = None, offset: int = 0,
+                limit: int = 50) -> dict[str, Any]:
+    """Describe an SSP file without importing it, and without writing next to it.
+
+    Returns:
+        ``file``, ``readable``, ``warnings`` and ``warnings_total``. When it is refused, the ``reason``: this is an
+        answer, not an error. Otherwise the number of ``architecture_wires``, and the summary of the assembly
+        (`analysis.summarize_assembly`), or with `node` or `section` its page (`analysis.assembly_page`).
+    """
+    result: dict[str, Any] = {"file": path.name, "readable": False}
+    with tempfile.TemporaryDirectory() as directory, reader_warnings(result):
+        # The reader extracts the FMUs next to the file: on a copy, in a directory that goes away.
+        copy = Path(directory) / f"{path.stem}.ssp"
+        shutil.copyfile(path, copy)
+        try:
+            assembly = Assembly(copy.name, fmu_directory=Path(directory))
+        except (AssemblyError, zipfile.BadZipFile) as error:
+            result["reason"] = str(error)
+            return result
+        if assembly.root is None:
+            result["reason"] = f"'{path.name}' describes no container."
+            return result
+        description = assembly.json_encode()
+        result["readable"] = True
+        result["architecture_wires"] = _nb_wires(assembly.root)
+        if node is None and section is None:
+            result.update(analysis.summarize_assembly(description))
+        else:
+            result.update(analysis.assembly_page(description, node, section, offset, limit))
+    return result

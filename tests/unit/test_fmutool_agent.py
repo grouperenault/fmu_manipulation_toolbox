@@ -93,9 +93,9 @@ def _scenario(directory):
         ("add_fmu", {"path": velocity}),
         ("list_fmus", {}),
         ("list_fmu_ports", {"fmu": "bb_velocity.fmu", "type": ["Real"], "variability": ["continuous"]}),
-        ("add_link", {"from_fmu": "bb_velocity.fmu", "from_port": "velocity",
-                      "to_fmu": "bb_position.fmu", "to_port": "velocity"}),
-        ("add_links", {"links": [{"from_fmu": "bb_position.fmu", "from_port": "nothing",
+        ("add_links", {"links": [{"from_fmu": "bb_velocity.fmu", "from_port": "velocity",
+                                  "to_fmu": "bb_position.fmu", "to_port": "velocity"},
+                                 {"from_fmu": "bb_position.fmu", "from_port": "nothing",
                                   "to_fmu": "bb_velocity.fmu", "to_port": "reset"}]}),
         ("set_start_value", {"fmu": "bb_velocity.fmu", "port": "reset", "value": False}),
         ("set_container_options", {"options": {"mt": True}}),
@@ -106,7 +106,7 @@ def _scenario(directory):
         ("unset_start_value", {"fmu": "bb_velocity.fmu", "port": "reset"}),
         ("remove_link", {"from_fmu": "bb_velocity.fmu", "from_port": "velocity",
                          "to_fmu": "bb_position.fmu", "to_port": "velocity"}),
-        ("save_as_json", {"path": str(directory / "assembly.json"), "overwrite": True}),
+        ("save_assembly", {"path": str(directory / "assembly.json"), "overwrite": True}),
         ("remove_fmu", {"name": "bb_velocity.fmu"}),
         ("summarize_fmu", {"path": position}),
         ("check_fmu", {"path": position}),
@@ -199,11 +199,10 @@ def test_a_failed_change_leaves_the_state_as_it_was(fmus, capsys):
     agent(capsys, "add_fmu", {"path": str(fmus / "bb_position.fmu")}, state)
     before = state.read_text()
 
-    code, result = agent(capsys, "add_link", {"from_fmu": "bb_position.fmu", "from_port": "nope",
-                                              "to_fmu": "bb_position.fmu", "to_port": "velocity"}, state)
+    code, result = agent(capsys, "remove_fmu", {"name": "nope.fmu"}, state)
 
     assert code == EXIT_TOOL_ERROR
-    assert "not a port" in result["error"]
+    assert "not in the assembly" in result["error"]
     assert state.read_text() == before
 
 

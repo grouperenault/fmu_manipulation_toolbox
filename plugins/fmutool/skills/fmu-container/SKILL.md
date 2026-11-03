@@ -83,11 +83,11 @@ the `version` printed by `fmutool-agent list-tools`, if any) and upgrade it with
    `fmi_version` 2 or 3 for the interface of the container (an FMI 2 container
    cannot expose the FMI 3 ports that have no FMI 2 type: prefer 3 when it
    embeds FMI 3 FMUs, and report the ports the build log says it could not
-   expose), `datalog` to record the exchanged values. `save_as_json` writes the
+   expose), `datalog` to record the exchanged values. `save_assembly` writes the
    description only.
 
    ```bash
-   fmutool-agent save_as_json --state assembly.json --args '{"path": "container.json"}'
+   fmutool-agent save_assembly --state assembly.json --args '{"path": "container.json"}'
    fmutool-agent save_as_fmu --state assembly.json --args '{"path": "container.fmu", "fmi_version": 3}'
    ```
 

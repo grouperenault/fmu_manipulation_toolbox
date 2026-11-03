@@ -181,9 +181,38 @@ class Toolbox:
         removed = self.bridge.remove_fmu(name)
         return {"fmu": removed["fmu"], "removed_links": removed["removed_links"]}
 
-    def add_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
-        """Connect an output port of one FMU to an input port of another."""
-        return self.bridge.add_link(from_fmu, from_port, to_fmu, to_port)
+    def import_assembly(self, path: str, replace: bool = False) -> dict[str, Any]:
+        """Replace the assembly by the one of a JSON, CSV or SSP file, and summarise it."""
+        from ..assembly import Assembly, AssemblyError
+        from . import fmutools
+
+        source = self.policy.resolve_input(path, (".json", ".csv", ".ssp"))
+        current = self.bridge.list_fmus()
+        if current and not replace:
+            raise ValueError(f"The assembly already holds {len(current)} FMU(s). Confirm with the user, then call the "
+                             f"tool again with replace=True to replace it.")
+        result: dict[str, Any] = {"file": source.name}
+        with fmutools.reader_warnings(result):
+            assembly = Assembly(source.name, fmu_directory=source.parent)
+        if assembly.root is None:
+            raise AssemblyError(f"'{source.name}' describes no container.")
+        self._check_embedded_fmus(assembly.root, source.parent)
+        self.bridge.import_assembly(assembly, str(source.parent))
+        result.update(analysis.summarize_assembly(self.bridge.get_assembly_json()))
+        return result
+
+    def _check_embedded_fmus(self, node, directory: Path) -> None:
+        """A description cannot bring in FMUs that the path policy would not let a client add."""
+        for fmu_name in node.fmu_names_list:
+            self.policy.resolve_input(str(directory / node.fmu_path(fmu_name)))
+        for child in node.children.values():
+            self._check_embedded_fmus(child, directory)
+
+    def inspect_ssp(self, path: str, node: str | None = None, section: AssemblySection | None = None,
+                    offset: int = 0, limit: int = DEFAULT_PORT_LIMIT) -> dict[str, Any]:
+        """Describe an SSP file without importing it: what it holds, or why it is refused."""
+        from . import fmutools
+        return fmutools.inspect_ssp(self.policy.resolve_input(path, (".ssp",)), node, section, offset, limit)
 
     def add_links(self, links: list[dict[str, str]]) -> dict[str, Any]:
         """Create several links, independently: read `failed`."""
@@ -249,9 +278,12 @@ class Toolbox:
                 assembly if node is None or not assembly else analysis.find_container(assembly, node))
         return analysis.lint_assembly(assembly, node, self.bridge.list_fmu_ports)
 
-    def save_as_json(self, path: str, overwrite: bool = False) -> str:
-        """Export the assembly description to a JSON file."""
-        return self.bridge.save_as_json(str(self.policy.resolve_output(path, (".json",), overwrite)))
+    def save_assembly(self, path: str, overwrite: bool = False, ssp_version: Literal["1.0", "2.0"] = "2.0") -> str:
+        """Write the assembly description to a file: JSON or SSP, by its extension."""
+        destination = self.policy.resolve_output(path, (".json", ".ssp"), overwrite)
+        if destination.suffix.lower() == ".ssp":
+            return self.bridge.save_as_ssp(str(destination), ssp_version)
+        return self.bridge.save_as_json(str(destination))
 
     def save_as_fmu(self, path: str, fmi_version: Literal[2, 3] = 2, datalog: bool = False,
                     overwrite: bool = False) -> str:
@@ -313,7 +345,7 @@ class Toolbox:
 
 
 #: Tools of `Toolbox`, in the order the MCP server declares them.
-TOOLS = ("list_fmus", "list_fmu_ports", "inspect_fmu_file", "add_fmu", "remove_fmu", "add_link", "add_links",
-         "remove_link", "expose_input", "expose_output", "set_start_value", "unset_start_value",
-         "set_container_options", "get_assembly_json", "analyze_assembly", "save_as_json", "save_as_fmu",
+TOOLS = ("list_fmus", "list_fmu_ports", "inspect_fmu_file", "import_assembly", "inspect_ssp", "add_fmu", "remove_fmu",
+         "add_links", "remove_link", "expose_input", "expose_output", "set_start_value", "unset_start_value",
+         "set_container_options", "get_assembly_json", "analyze_assembly", "save_assembly", "save_as_fmu",
          "summarize_fmu", "check_fmu", "describe_port", "dump_ports_csv", "rename_ports", "apply_operation")
