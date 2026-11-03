@@ -4,6 +4,7 @@ Fixtures defined here are available to every test module. The key idea is that
 reference data lives under ``tests/data/<area>/`` (read-only) and every test runs
 in an isolated copy inside ``tmp_path`` so the source tree is never polluted.
 """
+import locale
 import os
 import platform
 import re
@@ -68,6 +69,13 @@ def area_dir(request, monkeypatch) -> Path:
     shutil.copytree(src, dst)
     monkeypatch.chdir(dst)
     return dst
+
+
+@pytest.fixture(autouse=True)
+def c_numeric_locale():
+    """Each test starts with a decimal dot: a QApplication created by a previous test sets the numeric locale of the
+    whole process to the one of the environment, and the embedded FMUs then write their logs with a decimal comma."""
+    locale.setlocale(locale.LC_NUMERIC, "C")
 
 
 @pytest.fixture(autouse=True)
