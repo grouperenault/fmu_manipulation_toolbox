@@ -143,6 +143,7 @@ class FMUContainer:
 
         self.rules: dict[ContainerPort, str] = {}
         self.start_values: dict[ContainerPort, str] = {}
+        self.terminal_parameters: list[tuple[ContainerPort, ContainerPort]] = []
         # What feeds each input of the embedded FMUs: a container input or a link, never both, never two (B6).
         self.input_feeders: dict[ContainerPort, str] = {}
 
@@ -406,6 +407,9 @@ class FMUContainer:
                     raise FMUContainerError(f"Cannot plug terminals of {fmu_from.name} and {fmu_to.name}: {e}") from e
                 for terminal1_port_name, terminal2_port_name in links:
                     self.add_link_regular(fmu_from, terminal1_port_name, fmu_to, terminal2_port_name)
+                for terminal1_port_name, terminal2_port_name in terminal1.connected_parameters(terminal2):
+                    self.terminal_parameters.append((ContainerPort(fmu_from, terminal1_port_name),
+                                                     ContainerPort(fmu_to, terminal2_port_name)))
             else:
                 logger.error(f"Cannot plug incompatible terminals: {terminal1} <-> {terminal2}")
         else:
@@ -514,6 +518,29 @@ class FMUContainer:
             value = "\n" + "\n".join(value_tokens)
 
         self.start_values[cport] = value
+
+    def apply_terminal_parameters(self):
+        """Give to the parameters of Configuration terminals the value of the connected Bus Simulation.
+
+        These variables are parameters: they cannot be linked. The value is propagated when it is known at build
+        time, unless the user has set a start value.
+        """
+        for cport1, cport2 in self.terminal_parameters:
+            if cport1.port.causality == "parameter" and cport2.port.causality != "parameter":
+                target, source = cport1, cport2
+            elif cport2.port.causality == "parameter" and cport1.port.causality != "parameter":
+                target, source = cport2, cport1
+            else:
+                logger.debug(f"No value to propagate between {cport1} and {cport2}")
+                continue
+
+            if target in self.start_values:
+                logger.debug(f"Start value of {target} is kept: {source} is not propagated")
+            elif source.port.start_value is None:
+                logger.warning(f"The value of {source} is known at runtime only: it is not propagated to {target}.")
+            else:
+                logger.info(f"Start value of {target} is taken from {source}: {source.port.start_value}")
+                self.add_start_value(target.fmu.name, target.port.name, source.port.start_value)
 
     def find_inputs(self, port_to_connect: EmbeddedFMUPort) -> list[ContainerPort]:
         candidates = []
@@ -689,6 +716,8 @@ class FMUContainer:
         """
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)
+
+        self.apply_terminal_parameters()
 
         if step_size is None:
             logger.info("step_size  will be deduced from the embedded FMU's")

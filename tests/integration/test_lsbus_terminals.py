@@ -66,3 +66,67 @@ def test_grouping_terminal_with_a_missing_sub_terminal_is_refused(area_dir):
     _group_terminals("node1.fmu", "Seg1")
     with pytest.raises(FMUContainerError, match="has no peer"):
         _assembly([["node1.fmu", "Seg1", "bus.fmu", "Seg1"]]).make_fmu(fmi_version=3)
+
+
+# --------------------------------------------------------------------------- #
+#                       parameters of Configuration terminals                   #
+# --------------------------------------------------------------------------- #
+def _add_bus_notifications(filename: str, terminal: str, attributes: str):
+    """Add a Boolean variable `BusNotifications` to the Configuration terminal of a Bus Terminal, in place."""
+    configuration = ('<Terminal terminalKind="org.fmi-ls-bus.network-terminal.configuration" name="Configuration" '
+                     'matchingRule="bus"><TerminalMemberVariable variableKind="signal" '
+                     'variableName="BusNotifications" memberName="BusNotifications"/></Terminal>')
+    source = Path(filename)
+    patched = source.with_suffix(".tmp")
+    with zipfile.ZipFile(source) as zip_in, zipfile.ZipFile(patched, "w", zipfile.ZIP_DEFLATED) as zip_out:
+        for item in zip_in.infolist():
+            data = zip_in.read(item.filename)
+            if item.filename == TERMINALS:
+                text = data.decode()
+                end = text.index("</Terminal>", text.index(f'name="{terminal}"'))
+                data = (text[:end] + configuration + text[end:]).encode()
+            elif item.filename == "modelDescription.xml":
+                variable = f'<Boolean name="BusNotifications" valueReference="9000" {attributes}/>'
+                data = data.decode().replace("</ModelVariables>", f"{variable}</ModelVariables>").encode()
+            zip_out.writestr(item, data)
+    patched.replace(source)
+
+
+NODE_PARAMETER = 'causality="parameter" variability="fixed" start="false"'
+
+
+def _start_value_of_node(assembly_data=None) -> str | None:
+    config = {"name": "parameters.fmu", "fmu": ["bus.fmu", "node1.fmu"],
+              "link": [["node1.fmu", "CanChannel", "bus.fmu", "Node1"]], "step_size": 0.1, **(assembly_data or {})}
+    Path("parameters.json").write_text(json.dumps(config))
+    Assembly("parameters.json").make_fmu(fmi_version=3)
+    with zipfile.ZipFile("parameters.fmu") as archive:
+        name = next(name for name in archive.namelist() if name.endswith("container.txt"))
+        lines = archive.read(name).decode().splitlines()
+    start = lines.index(next(line for line in lines if line.startswith("# Start values of node1.fmu - boolean1:")))
+    return None if lines[start + 1] == "0 0" else lines[start + 2].split()[-1]
+
+
+def test_value_of_the_bus_known_at_build_time_is_propagated(area_dir):
+    _add_bus_notifications("node1.fmu", "CanChannel", NODE_PARAMETER)
+    _add_bus_notifications("bus.fmu", "Node1", 'causality="output" variability="constant" start="true"')
+    assert _start_value_of_node() == "1"
+
+
+def test_value_of_the_bus_known_at_runtime_only_gives_a_warning(area_dir, caplog):
+    _add_bus_notifications("node1.fmu", "CanChannel", NODE_PARAMETER)
+    _add_bus_notifications("bus.fmu", "Node1", 'causality="calculatedParameter" variability="fixed"')
+    assert _start_value_of_node() is None
+    assert "known at runtime only" in caplog.text
+
+
+def test_start_value_of_the_user_is_kept(area_dir):
+    _add_bus_notifications("node1.fmu", "CanChannel", NODE_PARAMETER)
+    _add_bus_notifications("bus.fmu", "Node1", 'causality="output" variability="constant" start="true"')
+    assert _start_value_of_node({"start": [["node1.fmu", "BusNotifications", "false"]]}) == "0"
+
+
+def test_node_without_the_parameter_is_not_an_error(area_dir, caplog):
+    _add_bus_notifications("bus.fmu", "Node1", 'causality="output" variability="constant" start="true"')
+    assert _start_value_of_node() is None
+    assert "BusNotifications" not in caplog.text

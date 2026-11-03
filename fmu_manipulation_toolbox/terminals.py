@@ -80,6 +80,21 @@ class Terminal:
 
         return links
 
+    def connected_parameters(self, other) -> list[tuple[str, str]]:
+        """Pairs of parameters that the Configuration terminals of two connected terminals have in common."""
+        parameters = []
+        for name, sub_terminal in self.sub_terminals.items():
+            other_sub_terminal = other.sub_terminals.get(name)
+            if other_sub_terminal is None:
+                continue
+            if sub_terminal.kind == CONFIGURATION_KIND:
+                parameters += [(variable, other_sub_terminal.members[member])
+                               for member, variable in sub_terminal.members.items()
+                               if member in other_sub_terminal.members]
+            else:
+                parameters += sub_terminal.connected_parameters(other_sub_terminal)
+        return parameters
+
     def connect_plug(self, other) -> list[tuple[str, str]]:
         links = []
         if Counter(self.members.keys()) == Counter(other.members.keys()):
