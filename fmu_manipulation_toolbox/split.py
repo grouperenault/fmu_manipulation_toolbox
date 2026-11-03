@@ -693,7 +693,8 @@ class FMUSplitterDescription:
             if not terms:
                 continue
             for term in terms:
-                for var in self._terminal_variable_names(term):
+                # A nested terminal is in `terms` too: a link belongs to the terminal that declares its variable.
+                for var in term.members.values():
                     var_to_terminal[(fmu_filename, var)] = term
 
         if not var_to_terminal:
@@ -715,8 +716,8 @@ class FMUSplitterDescription:
             # `Terminal.__eq__` compares kind and matchingRule.
             if term_a != term_b:
                 continue
-            a = (fmu_from, term_a.name)
-            b = (fmu_to, term_b.name)
+            a = (fmu_from, term_a.path)
+            b = (fmu_to, term_b.path)
             key = (a[0], a[1], b[0], b[1]) if a <= b else (b[0], b[1], a[0], a[1])
             grouped.setdefault(key, []).append(idx)
 

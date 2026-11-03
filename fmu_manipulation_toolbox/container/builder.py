@@ -18,6 +18,7 @@ from typing import Any
 
 from ..model_description import ModelDescription
 from ..operations import FMUError
+from ..terminals import TerminalError
 from ..textfiles import ENCODING
 from ..version import __version__ as tool_version
 from .embedded import EmbeddedFMU, EmbeddedFMUPort
@@ -399,13 +400,24 @@ class FMUContainer:
             terminal2 = fmu_to.terminals[to_port_name]
             if terminal1 == terminal2:
                 logger.debug(f"Plugging terminals: {terminal1} <-> {terminal2}")
-                for terminal1_port_name, terminal2_port_name in terminal1.connect(terminal2):
+                try:
+                    links = terminal1.connect(terminal2)
+                except TerminalError as e:
+                    raise FMUContainerError(f"Cannot plug terminals of {fmu_from.name} and {fmu_to.name}: {e}") from e
+                for terminal1_port_name, terminal2_port_name in links:
                     self.add_link_regular(fmu_from, terminal1_port_name, fmu_to, terminal2_port_name)
             else:
                 logger.error(f"Cannot plug incompatible terminals: {terminal1} <-> {terminal2}")
         else:
             # REGULAR port connection
-            self.add_link_regular(fmu_from, from_port_name, fmu_to, to_port_name)
+            try:
+                self.add_link_regular(fmu_from, from_port_name, fmu_to, to_port_name)
+            except FMUContainerError as e:
+                paths = fmu_from.terminals.paths_of(from_port_name) + fmu_to.terminals.paths_of(to_port_name)
+                if paths:
+                    raise FMUContainerError(f"{e.reason} A nested terminal is designated by its full path: "
+                                            f"{', '.join(paths)}.") from e
+                raise
 
     def add_link_regular(self, fmu_from: EmbeddedFMU, from_port_name: str, fmu_to: EmbeddedFMU, to_port_name: str):
 

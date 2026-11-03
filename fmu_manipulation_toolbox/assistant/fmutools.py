@@ -246,9 +246,8 @@ def describe_port(path: Path, port: str) -> dict[str, Any]:
         if len(aliases) > MAX_ALIASES:
             card["aliases_total"] = len(aliases)
 
-    # `Terminals` lists the sub-terminals at the top level too: one pass covers them all.
-    memberships = [{"terminal": terminal.name, "kind": terminal.kind, "member": member}
-                   for terminal in terminals
+    memberships = [{"terminal": terminal.path, "kind": terminal.kind, "member": member}
+                   for terminal in terminals.walk()
                    for member, name in terminal.members.items() if name == port]
     if memberships:
         card["terminals"] = memberships

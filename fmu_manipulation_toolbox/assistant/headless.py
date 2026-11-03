@@ -94,7 +94,7 @@ class _FmuDescriptor(OperationAbstract):
         return 0
 
     def closure(self):
-        self.terminals = [terminal.name for terminal in Terminals(self.fmu.tmp_directory)]
+        self.terminals = [terminal.path for terminal in Terminals(self.fmu.tmp_directory)]
 
     @property
     def kinds(self) -> list[str]:

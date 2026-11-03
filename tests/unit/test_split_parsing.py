@@ -18,6 +18,7 @@ from fmu_manipulation_toolbox.split import (
     FMUSplitterError,
     FMUSplitterDescription,
 )
+from fmu_manipulation_toolbox.terminals import Terminals
 
 pytestmark = [pytest.mark.unit]
 
@@ -161,3 +162,35 @@ def test_clocked_variables_of_format_3_are_linked(tmp_path):
     links = json.loads((tmp_path / "container.dir" / "container.json").read_text())["link"]
     assert ["a.fmu", "tx", "b.fmu", "rx"] in links
     assert ["a.fmu", "clock", "b.fmu", "clock"] in links
+
+
+# --------------------------------------------------------------------------- #
+#                          aggregation of terminal links                        #
+# --------------------------------------------------------------------------- #
+def _terminals_of(xml_terminals):
+    xml = f'<fmiTerminalsAndIcons fmiVersion="3.0"><Terminals>{xml_terminals}</Terminals></fmiTerminalsAndIcons>'
+    return Terminals.from_xml_source(io.StringIO(xml))
+
+
+def _bus_terminal_xml(name, prefix):
+    members = "".join(f'<TerminalMemberVariable variableName="{prefix}.{member}" memberName="{member}"/>'
+                      for member in ("Tx_Data", "Tx_Clock", "Rx_Data", "Rx_Clock"))
+    return (f'<Terminal terminalKind="org.fmi-ls-bus.network-terminal" name="{name}" '
+            f'matchingRule="org.fmi-ls-bus.transceiver">{members}</Terminal>')
+
+
+def test_links_of_a_nested_terminal_are_aggregated_with_its_full_path():
+    desc = FMUSplitterDescription(handle=None)
+    desc.terminals_by_fmu = {
+        "bus.fmu": _terminals_of('<Terminal name="Seg1" matchingRule="none">'
+                                 f'{_bus_terminal_xml("P1", "S1P1")}{_bus_terminal_xml("P2", "S1P2")}</Terminal>'
+                                 f'<Terminal name="Seg2" matchingRule="none">{_bus_terminal_xml("P1", "S2P1")}'
+                                 '</Terminal>'),
+        "node.fmu": _terminals_of(_bus_terminal_xml("Eth", "Eth")),
+    }
+    desc.config = {"link": [["node.fmu", "Eth.Tx_Data", "bus.fmu", "S2P1.Rx_Data"],
+                            ["node.fmu", "Eth.Tx_Clock", "bus.fmu", "S2P1.Rx_Clock"],
+                            ["bus.fmu", "S2P1.Tx_Data", "node.fmu", "Eth.Rx_Data"],
+                            ["bus.fmu", "S2P1.Tx_Clock", "node.fmu", "Eth.Rx_Clock"]]}
+    desc._aggregate_terminal_links()
+    assert desc.config["link"] == [["bus.fmu", "Seg2.P1", "node.fmu", "Eth"]]

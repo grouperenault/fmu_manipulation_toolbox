@@ -1,6 +1,6 @@
 # Plan: support of FMI-LS-BUS 1.3 (CAN, LIN, FlexRay, Ethernet)
 
-**Created**: 3 November 2026 — **Status**: planned, one open decision — **Branch**: `ls-bus-1.3`, from `feature/ssp` (`1c130ad`) —
+**Created**: 3 November 2026 — **Status**: in progress — **Branch**: `ls-bus-1.3`, from `feature/ssp` (`1c130ad`) —
 **Reference**: [FMI-LS-BUS `v1.3.0-rc.1`](https://github.com/modelica/fmi-ls-bus/releases/tag/v1.3.0-rc.1)
 
 FMI-LS-BUS 1.3 adds LIN, FlexRay and Ethernet to CAN. The container already transports the bus operations: `Tx_Data`
@@ -67,19 +67,13 @@ Taken on 3 November 2026:
   - `bus`: ignored, like the members of this rule;
   - `plug` and `sequence`: error;
   - `org.fmi-ls-bus.transceiver`: `Configuration` may be missing, anything else is an error.
+  - `none` (grouping terminals): error, so that a port of a group cannot stay unconnected without notice.
 - **D7 — `datalog2pcap`**: pcapng with DLT 252 replaces the pcap output for all the buses, and `-can` is removed. Reading
   the captures requires the Wireshark plugin of LS-BUS, including for CAN.
 - **D8 — Test FMUs for LIN and Ethernet**: they are contributed to `modelica/fmi-ls-bus-examples`, and only their binaries
   are copied to `tests/data`.
 - **D9 — Container boundary, out of scope**: a container holds the whole network and exposes no clock. Using a container
   as a Network FMU connected to an outer bus is not part of this plan, and the user documentation states this limit.
-
-### Open decision
-
-To be confirmed by the user before step 2 starts:
-
-- **O1 — Rule `none` (grouping terminals)**: D6 does not cover a sub-terminal missing from one of two connected
-  grouping terminals. Proposal: an error, as a port of the group would otherwise stay unconnected without notice.
 
 ---
 
@@ -172,7 +166,6 @@ Commit message: `Terminals: find the Terminals element by name, whatever precede
 
 ### Step 2 — Terminals: tree and sub-terminals
 
-- Requires O1.
 - Keep the links of sub-terminals, handle a missing sub-terminal, accept the rule `none`, address nested terminals
   (G4, G5, G7).
 - Tests: the three XML examples of the RC, added to `tests/data`, Ethernet segments using the same port name, a bare name
