@@ -1412,7 +1412,7 @@ static int read_flags(container_t* container, config_file_t* file) {
 static int read_conf_time_step(container_t* container, config_file_t* file) {
     const logger_t *logger = &container->logger;
     CONFIG_GETLINE;
-    if (sscanf(file->line, "%le", &container->time_step) < 1) {
+    if (config_line_without_decimal_point(file) || sscanf(file->line, "%le", &container->time_step) < 1) {
         CONFIG_ERROR("Cannot read time_step.");
         return -1;
     }
@@ -2059,6 +2059,10 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
             unsigned int dimension;                                                                 \
                                                                                                     \
             CONFIG_GETLINE;                                                                         \
+            if (config_line_without_decimal_point(file)) {                                          \
+                CONFIG_ERROR("Cannot read %luth start value.", i);                                  \
+                return -5;                                                                          \
+            }                                                                                       \
             if (sscanf(file->line, "%u %u %d%n",                                                    \
                        &fmu_io->start_ ## type .start_values[i].vr,                                 \
                        &dimension,                                                                  \
@@ -2393,11 +2397,12 @@ static void resource_location_to_path(const char *location, char *dest, size_t s
 }
 
 
-static int container_configure_c_locale(container_t* container, const char* resource_location) {
+int container_configure(container_t* container, const char* resource_location) {
     const logger_t *logger = &container->logger;
     config_file_t file;
     char dirname[CONFIG_FILE_SZ];
 
+    LOGGER_WARNING("FMUContainer '" VERSION_TAG "'");
 
     /* The config parser registers ME FMUs into the solver as it reads them. */
     container->solver = solver_new(container);
@@ -2592,25 +2597,6 @@ static int container_configure_c_locale(container_t* container, const char* reso
     LOGGER_DEBUG("Container is configured.");
 
     return 0;
-}
-
-
-/* The configuration files are read with a decimal dot (C numeric locale), for this thread only. */
-int container_configure(container_t* container, const char* resource_location) {
-    const logger_t *logger = &container->logger;
-    config_c_locale_t c_locale;
-
-    LOGGER_WARNING("FMUContainer '" VERSION_TAG "'");
-    if (config_c_locale_init(&c_locale)) {
-        LOGGER_ERROR("Cannot create the C numeric locale.");
-        return -1;
-    }
-    config_c_locale_enter(&c_locale);
-    const int status = container_configure_c_locale(container, resource_location);
-    config_c_locale_leave(&c_locale);
-    config_c_locale_free(&c_locale);
-
-    return status;
 }
 
 

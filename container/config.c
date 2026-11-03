@@ -1,3 +1,4 @@
+#include <locale.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -131,65 +132,77 @@ void config_file_error(config_file_t *config_file, unsigned int code_line_number
 
 
 /*
- * C numeric locale of the current thread: the configuration files and the datalog use a decimal dot whatever the
- * locale of the host. enter / leave switch the current thread only; they may be called several times.
+ * The configuration files and the datalog use a decimal dot, whereas scanf() and printf() use the decimal point of the
+ * locale of the host, which an FMU must not change (FMI 3.0, 2.2.1): the text is converted on its way to or from them.
  */
-int config_c_locale_init(config_c_locale_t *c_locale) {
-#ifdef _WIN32
-    c_locale->per_thread = 0;
-    c_locale->previous = NULL;
-    c_locale->locale = _create_locale(LC_NUMERIC, "C");
-    return c_locale->locale ? 0 : -1;
-#else
-    c_locale->previous = (locale_t)0;
-    locale_t base = duplocale(LC_GLOBAL_LOCALE);
-    if (!base)
+
+/* Before scanf() on a line of numbers. Without a decimal point, a number reads the same in every locale, and has the
+   same value: "2.5" becomes "25e-1". scanf() may not read a decimal point of several bytes (macOS). */
+int config_line_without_decimal_point(config_file_t *config_file) {
+    enum { MAX_EXPONENT_SZ = 24 };  /* "e" and a long */
+    const char *from = config_file->line;
+    size_t nb_dots = 0;
+    size_t length = 0;
+
+    for (; from[length]; length += 1)
+        nb_dots += (from[length] == '.');
+    if (nb_dots == 0)
+        return 0;
+
+    const size_t size = length + nb_dots * MAX_EXPONENT_SZ + 1;
+    char *text = malloc(size);
+    if (!text)
         return -1;
-    c_locale->c_locale = newlocale(LC_NUMERIC_MASK, "C", base);
-    if (!c_locale->c_locale) {
-        freelocale(base);
-        return -1;
+
+    char *to = text;
+    while (*from) {
+        const size_t token = strcspn(from, " \t");
+        const char *dot = memchr(from, '.', token);
+
+        if (dot) {
+            const size_t before = (size_t)(dot - from);
+            const char *digits = dot + 1;
+            const size_t nb_digits = strspn(digits, "0123456789");
+            const char *exponent = digits + nb_digits;
+            const long value = (*exponent == 'e' || *exponent == 'E') ? strtol(exponent + 1, NULL, 10) : 0;
+
+            memcpy(to, from, before);
+            to += before;
+            memcpy(to, digits, nb_digits);
+            to += nb_digits;
+            to += snprintf(to, MAX_EXPONENT_SZ, "e%ld", value - (long)nb_digits);
+        } else {
+            memcpy(to, from, token);
+            to += token;
+        }
+        from += token;
+
+        const size_t separators = strspn(from, " \t");
+        memcpy(to, from, separators);
+        to += separators;
+        from += separators;
     }
+    *to = '\0';
+
+    free(config_file->line);
+    config_file->line = text;
+    config_file->line_size = size;
+
     return 0;
-#endif
 }
 
 
-void config_c_locale_enter(config_c_locale_t *c_locale) {
-#ifdef _WIN32
-    c_locale->per_thread = _configthreadlocale(_ENABLE_PER_THREAD_LOCALE);
-    const char *previous = setlocale(LC_NUMERIC, NULL);
-    c_locale->previous = previous ? _strdup(previous) : NULL;
-    setlocale(LC_NUMERIC, "C");
-#else
-    c_locale->previous = uselocale(c_locale->c_locale);
-#endif
-}
+/* Formats a real with a decimal dot. */
+void config_real_to_text(char *text, size_t size, const char *format, double value) {
+    const char *point = localeconv()->decimal_point;
 
-
-void config_c_locale_leave(config_c_locale_t *c_locale) {
-#ifdef _WIN32
-    if (c_locale->previous) {
-        setlocale(LC_NUMERIC, c_locale->previous);
-        free(c_locale->previous);
-        c_locale->previous = NULL;
+    snprintf(text, size, format, value);
+    if (strcmp(point, ".") != 0) {
+        char *found = strstr(text, point);
+        if (found) {
+            const size_t point_size = strlen(point);
+            *found = '.';
+            memmove(found + 1, found + point_size, strlen(found + point_size) + 1);
+        }
     }
-    if (c_locale->per_thread != -1)
-        _configthreadlocale(c_locale->per_thread);
-#else
-    if (c_locale->previous)
-        uselocale(c_locale->previous);
-    c_locale->previous = (locale_t)0;
-#endif
-}
-
-
-void config_c_locale_free(config_c_locale_t *c_locale) {
-#ifdef _WIN32
-    free(c_locale->previous);
-    c_locale->previous = NULL;
-    _free_locale(c_locale->locale);
-#else
-    freelocale(c_locale->c_locale);
-#endif
 }

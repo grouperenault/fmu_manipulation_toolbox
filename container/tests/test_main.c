@@ -26,6 +26,8 @@ static const struct {
     { "logger_fmi3_null_callback",      test_logger_fmi3_null_callback },
     { "instantiate_invalid_arguments",  test_instantiate_invalid_arguments },
     { "locale_decimal_comma",           test_locale_decimal_comma },
+    { "locale_line_without_point",      test_locale_line_without_decimal_point },
+    { "locale_long_decimal_point",      test_locale_long_decimal_point },
     { "malformed_container_txt",        test_malformed_container_txt },
     { "malformed_datalog_txt",          test_malformed_datalog_txt },
     { "start_value_refused",            test_start_value_refused },
