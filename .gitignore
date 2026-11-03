@@ -23,6 +23,8 @@ fmu_manipulation_toolbox/resources/darwin64/client_sm.dylib
 fmu_manipulation_toolbox/resources/darwin64/container.dylib
 fmu_manipulation_toolbox/resources/darwin64/server_sm
 tests/tmp/
+# Local working files (private samples, drafts): never part of the repository
+/tmp/
 tests/.coverage
 tests/.pytest_cache/
 tests/coverage.svg

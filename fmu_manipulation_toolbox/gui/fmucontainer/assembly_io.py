@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
 from fmu_manipulation_toolbox.container import FMUContainerError
-from fmu_manipulation_toolbox.split import FMUSplitter, FMUSplitterError
+from fmu_manipulation_toolbox.split import FMUSplitter
 
 from .graph import NodeItem, ConfigurationNode
 from .tree import _NodeTreeModel
@@ -406,45 +406,33 @@ class AssemblyIOMixin:
         self._graph.view.fit_all()
 
     def load_container_fmu(self, input_path: str):
-        """Split a container FMU and import its contents."""
-        try:
-            with FMUSplitter(input_path) as splitter:
-                splitter.split_fmu()
-        except FMUSplitterError as e:
-            logger.fatal(f"{e}")
-            return
-        except FileNotFoundError as e:
-            logger.fatal(f"Cannot read file: {e}")
-            return
+        """Split a container FMU and import its contents.
+
+        Raises:
+            FMUSplitterError, AssemblyError, OSError: If the container cannot be split or its description read: the
+                scene is left as it was, and the task reports the failure.
+        """
+        with FMUSplitter(input_path) as splitter:
+            splitter.split_fmu()
 
         folder = Path(input_path).with_suffix(".dir")
         json_filename = folder / Path(input_path).with_suffix(".json").name
-
-        try:
-            assembly = Assembly(filename=json_filename.name, fmu_directory=folder)
-        except AssemblyError as e:
-            logger.fatal(f"{e}")
-            return
-
+        assembly = Assembly(filename=json_filename.name, fmu_directory=folder)
         self._import_data(assembly, folder)
 
     def import_assembly_file(self, input_path: str):
-        """Read a JSON, CSV or SSP assembly file and populate the graph."""
+        """Read a JSON, CSV or SSP assembly file and populate the graph.
+
+        Raises:
+            AssemblyError, OSError: If the file cannot be read: the scene is left as it was, and the task reports the
+                failure.
+        """
         file_path = Path(input_path)
         fmu_directory = file_path.parent
 
-        try:
-            assembly = Assembly(filename=file_path.name, fmu_directory=fmu_directory)
-        except AssemblyError as e:
-            logger.fatal(f"{e}")
-            return
-        except Exception as e:
-            logger.fatal(f"Cannot read file: {e}")
-            return
-
+        assembly = Assembly(filename=file_path.name, fmu_directory=fmu_directory)
         if assembly.root is None:
-            logger.fatal("Failed to read assembly: no root node.")
-            return
+            raise AssemblyError(f"'{file_path.name}' describes no container.")
 
         self._import_data(assembly, fmu_directory)
 

@@ -80,6 +80,9 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   replace **Load FMU Container**, **Import**, **Export as JSON**, **Export as SSP** and **Save as FMU Container**: the
   extension of the file decides (`.fmu` container, `.json`, `.csv` or `.ssp` assembly file; saved as an FMU
   container, SSP or JSON). Load asks first when there are unsaved changes, as Exit does.
+- 🟠 **FIXED** Container Builder: a load or an import that fails (e.g. an SSP file the reader refuses) is reported as
+  "❌ … failed: <reason>" instead of "✅ … finished", and leaves the scene, the unsaved changes and the last
+  directory as they were.
 - 🟢 **ADDED** `fmucontainer-gui <file>` opens an FMU container (`.fmu`) or imports an assembly file (`.json`,
   `.csv`, `.ssp`) given on the command line.
 - 🟢 **ADDED** Container Builder: the nodes imported from an SSP file are placed after the geometry of their

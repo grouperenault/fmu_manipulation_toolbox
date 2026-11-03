@@ -466,5 +466,5 @@ def test_run_task_reports_an_exception_of_the_task(qtbot):
         qtbot.addWidget(dialog)
     finally:
         logger.setLevel(previous_level)
-    assert dialog.text.toPlainText().splitlines() == ["CRITICAL: Unexpected error: boom",
-                                                      "CRITICAL: Operation aborted."]
+    assert dialog.text.toPlainText().splitlines() == ["CRITICAL: ❌ Failing failed: boom"]
+    assert dialog.succeeded is False

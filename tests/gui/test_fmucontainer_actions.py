@@ -264,3 +264,66 @@ def test_the_buttons_are_exit_load_save_in_this_order(window):
     texts = [bar.itemAt(i).widget().text() for i in range(bar.count())
              if isinstance(bar.itemAt(i).widget(), type(window._exit_button))]
     assert texts[-3:] == ["Exit", "Load", "Save"]
+
+
+# --------------------------------------------------------------------------- #
+#                         a file that cannot be read                          #
+# --------------------------------------------------------------------------- #
+def _reversed_exposed_output(source, destination):
+    """`bouncing.ssp` with an exposed output written the wrong way round: from the system connector to the output of
+    the component (as in a real SSP file: the reader refuses it)."""
+    import zipfile
+    with zipfile.ZipFile(source) as original, zipfile.ZipFile(destination, "w") as target:
+        for name in original.namelist():
+            content = original.read(name)
+            if name == "SystemStructure.ssd":
+                ssd = content.decode()
+                ssd = ssd.replace("<ssd:Elements>", '<ssd:Connectors><ssd:Connector name="height" kind="output">'
+                                                    '<ssc:Real/></ssd:Connector></ssd:Connectors><ssd:Elements>', 1)
+                ssd = ssd.replace("</ssd:Connections>", '<ssd:Connection startConnector="height" '
+                                  'endElement="bb_position" endConnector="position1"/></ssd:Connections>')
+                content = ssd.encode()
+            target.writestr(name, content)
+    return destination
+
+
+def _messages(caplog):
+    return [record.getMessage() for record in caplog.records]
+
+
+def test_a_refused_file_is_reported_as_failed_and_changes_nothing(window, monkeypatch, bouncing, tmp_path, caplog):
+    """The import fails with the reason: "❌ … failed", never "finished"; the scene, the unsaved changes and the last
+    directory are left as they were."""
+    import logging
+    window.import_file(str(bouncing))
+    window._dirty = False
+    before = {node.name for node in window._graph.scene.fmu_nodes()}
+    (tmp_path / "other").mkdir()
+    broken = _reversed_exposed_output(bouncing, tmp_path / "other" / "broken.ssp")
+    last_directory = LastDirectory.get()
+    caplog.clear()  # the records of the first import
+
+    with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
+        window.import_file(str(broken))
+
+    messages = _messages(caplog)
+    assert any(message.startswith("❌ Importing Assembly failed: 'SystemStructure.ssd': connection height -> "
+                                  "bb_position.position1") for message in messages)
+    assert not any("Importing Assembly finished" in message for message in messages)
+    assert {node.name for node in window._graph.scene.fmu_nodes()} == before
+    assert window._dirty is False
+    assert LastDirectory.get() == last_directory
+
+
+def test_a_container_that_cannot_be_loaded_is_reported_as_failed(window, tmp_path, caplog):
+    import logging
+    container = tmp_path / "broken.fmu"
+    container.write_bytes(b"not a zip")
+
+    with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
+        window.load_file(str(container))
+
+    messages = _messages(caplog)
+    assert any(message.startswith("❌ Loading FMU Container failed:") for message in messages)
+    assert not any("Loading FMU Container finished" in message for message in messages)
+    assert window._graph.scene.fmu_nodes() == []

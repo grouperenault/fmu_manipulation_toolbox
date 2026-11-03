@@ -317,7 +317,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
     def load_file(self, input_path: str):
         """Load an FMU container (Load of a `.fmu` file)."""
-        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container")
+        if not RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container").succeeded:
+            return  # the scene is unchanged
         # Re-assert the container's own directory: loading may have updated
         # LastDirectory to the (extracted) FMUs' sub-directory instead.
         LastDirectory.update(input_path)
@@ -325,7 +326,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
 
     def import_file(self, input_path: str):
         """Import a JSON, CSV or SSP assembly file (Load of such a file)."""
-        RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly")
+        if not RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly").succeeded:
+            return  # the scene is unchanged
         # Re-assert the imported file's own directory: importing adds FMU nodes
         # that may live in a different (sub)directory, which would otherwise
         # overwrite LastDirectory via _on_node_added_update_dir.
