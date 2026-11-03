@@ -7,6 +7,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🟠 **FIXED** an FMU without `guid` or `instantiationToken` (e.g. a description only, without implementation) is
+  refused with a clear `FMUContainerError`; it raised a raw `KeyError`.
 - 🟢 **ADDED** **architecture wires** in SSP files: a connection annotated
   `fmu_manipulation_toolbox.architecture-wire` describes a dependency between two components (directed,
   bidirectional or undirected, with a Markdown description) before the exchanged variables are known. It is not a
