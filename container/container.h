@@ -75,6 +75,7 @@ typedef struct {
 
 	unsigned long				nb_next_clocks;
 	container_clock_t			*next_clocks;
+	bool						*active;            /* local clocks activated by the schedule */
 } container_clock_list_t;
 
 

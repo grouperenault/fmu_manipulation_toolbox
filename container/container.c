@@ -197,6 +197,7 @@ static fmu_status_t container_proceed_event(container_t *container) {
             container->time, container->fmu[container_clock->fmu_id].name, container_clock->fmu_vr);
 #endif
         container->clocks[container_clock->local_vr] = true;
+        container->clocks_list.active[container_clock->local_vr] = true;
         fmuSetClock(&container->fmu[container_clock->fmu_id], &container_clock->fmu_vr, 1, &value);
     }
 
@@ -211,8 +212,19 @@ static fmu_status_t container_proceed_event(container_t *container) {
             return FMU_STATUS_ERROR;
     }
 
+    /* The inputs clocked by the schedule need their clock active: deliver them before it is reset. The inputs of
+       the triggered clocks are delivered by the event iteration. */
+    if (container->clocks_list.nb_next_clocks) {
+        for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+            if (fmu_set_scheduled_clocked_inputs(container->cs_fmu[i]) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
+        }
+    }
+
     /* reset internal clocks */
     container_clocks_deactivate(container);
+    for (unsigned long i = 0; i < container->clocks_list.nb_next_clocks; i += 1)
+        container->clocks_list.active[container->clocks_list.next_clocks[i].local_vr] = false;
 
     return FMU_STATUS_OK;
 }
@@ -2224,6 +2236,7 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
         CONFIG_ALLOC(container->clocks_list.next_clocks,        container->clocks_list.nb_local_clocks);
         CONFIG_ALLOC(container->clocks_list.clock_index,        container->clocks_list.nb_local_clocks);
         CONFIG_ALLOC(container->clocks_list.buffer_previous,    container->clocks_list.nb_local_clocks);
+        CONFIG_ALLOC(container->clocks_list.active,             container->nb_local_clocks);
 
         unsigned long pos = 0;
         for(unsigned long i = 0; i < container->clocks_list.nb_fmu; i += 1) {
@@ -2689,6 +2702,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         container->clocks_list.buffer_qualifier = NULL;    /* nb_local_clocks */
         container->clocks_list.buffer_interval = NULL;     /* nb_local_clocks */
         container->clocks_list.buffer_previous = NULL;     /* nb_local_clocks */
+        container->clocks_list.active = NULL;              /* container->nb_local_clocks */
         container->clocks_list.next_clocks = NULL;         /* nb_local_clocks */
         container->clocks_list.clock_index = NULL;         /* nb_local_clocks */
 
@@ -2759,6 +2773,7 @@ void container_free(container_t *container) {
     free(container->clocks_list.buffer_qualifier);
     free(container->clocks_list.buffer_interval);
     free(container->clocks_list.buffer_previous);
+    free(container->clocks_list.active);
     free(container->clocks_list.fmu_vr);
     free(container->clocks_list.clock_index);
     free(container->clocks_list.fmu_id);

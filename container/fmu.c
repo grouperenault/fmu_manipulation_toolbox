@@ -94,7 +94,7 @@ fmu_status_t fmu_set_clocks(const fmu_t* fmu) {
 }
 
 
-fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
+static fmu_status_t fmu_set_inputs_of_clocks(const fmu_t* fmu, const bool *clocks) {
     fmu_status_t status = FMU_STATUS_OK;
     const container_t* container = fmu->container;
 #ifdef DEBUG
@@ -110,7 +110,7 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
 #define SET_CLOCKED_INPUT(variable, fmi_type, c_type)                                                       \
     for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) {                            \
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .in[i];                            \
-        if (container->clocks[clocked_port->clock_vr]) {                                                    \
+        if (clocks[clocked_port->clock_vr]) {                                                               \
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                        \
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;         \
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;           \
@@ -129,7 +129,7 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
     /* strings: Need to add a (cast) to avoid a warning */
     for (unsigned long i = 0; i < fmu_io->clocked_strings.nb_in; i += 1) {
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_strings.in[i];
-        if (container->clocks[clocked_port->clock_vr]) {
+        if (clocks[clocked_port->clock_vr]) {
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
@@ -144,7 +144,7 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
     /* binaries: Need to add size parameter */
     for (unsigned long i = 0; i < fmu_io->clocked_binaries.nb_in; i += 1) {
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_binaries.in[i];
-        if (container->clocks[clocked_port->clock_vr]) {
+        if (clocks[clocked_port->clock_vr]) {
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
@@ -160,6 +160,16 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
 #undef SET_CLOCKED_INPUT
 
     return status;
+}
+
+
+fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
+    return fmu_set_inputs_of_clocks(fmu, fmu->container->clocks);
+}
+
+
+fmu_status_t fmu_set_scheduled_clocked_inputs(const fmu_t* fmu) {
+    return fmu_set_inputs_of_clocks(fmu, fmu->container->clocks_list.active);
 }
 
 
