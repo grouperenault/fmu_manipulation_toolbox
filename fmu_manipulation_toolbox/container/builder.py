@@ -1090,6 +1090,8 @@ class FMUContainer:
 
         # Links
         for link in self.links.values():
+            scheduled_clock = None
+
             # FMU Outputs
             if link.cport_from:
                 local_per_type[link.cport_from.port.type_name].append(LocalVariable(layout.links[link], link.size))
@@ -1098,6 +1100,7 @@ class FMUContainer:
                 local_per_type["clock"].append(LocalVariable(layout.links[link], link.size))
                 for cport_to in link.cport_to_list:
                     if cport_to.port.interval_variability == "countdown":
+                        scheduled_clock = cport_to
                         logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, vr={layout.links[link]})")
                         clock_list.append(cport_to, layout.links[link])
                         break
@@ -1110,9 +1113,9 @@ class FMUContainer:
 
             # FMU Inputs
             for cport_to in link.cport_to_list:
-                if link.cport_from is not None or not cport_to.fmu.ls.is_bus:
+                if cport_to != scheduled_clock:
                     # LS-BUS allows, importer to feed clock signal. In this case, cport_from is None
-                    # FMU will be fed directly by importer, no need to add input link!
+                    # The scheduled clock is activated directly by the schedule, no need to add input link!
                     if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
                         local_vr = layout.links[link]
                     else:

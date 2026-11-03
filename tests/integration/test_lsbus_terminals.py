@@ -130,3 +130,53 @@ def test_node_without_the_parameter_is_not_an_error(area_dir, caplog):
     _add_bus_notifications("bus.fmu", "Node1", 'causality="output" variability="constant" start="true"')
     assert _start_value_of_node() is None
     assert "BusNotifications" not in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+#                         clocks of a Bus Simulation                            #
+# --------------------------------------------------------------------------- #
+def _patch_model_description(filename: str, old: str, new: str):
+    source = Path(filename)
+    patched = source.with_suffix(".tmp")
+    with zipfile.ZipFile(source) as zip_in, zipfile.ZipFile(patched, "w", zipfile.ZIP_DEFLATED) as zip_out:
+        for item in zip_in.infolist():
+            data = zip_in.read(item.filename)
+            if item.filename == "modelDescription.xml":
+                text = data.decode()
+                assert old in text
+                data = text.replace(old, new).encode()
+            zip_out.writestr(item, data)
+    patched.replace(source)
+
+
+def _clock_inputs(fmu_name: str) -> list[str]:
+    """`<LOCAL_OFFSET> <DIM> <FMU_VR>` of the clocks set by the container to an FMU."""
+    with zipfile.ZipFile("clocks.fmu") as archive:
+        name = next(name for name in archive.namelist() if name.endswith("container.txt"))
+        lines = archive.read(name).decode().splitlines()
+    start = lines.index(next(line for line in lines if line.startswith(f"# Inputs of {fmu_name} - clock:")))
+    return lines[start + 2:start + 2 + int(lines[start + 1])]
+
+
+def _build_clocks():
+    Path("clocks.json").write_text(json.dumps({"name": "clocks.fmu", "fmu": ["bus.fmu", "node1.fmu"],
+                                               "link": [["node1.fmu", "CanChannel", "bus.fmu", "Node1"]],
+                                               "step_size": 0.1}))
+    Assembly("clocks.json").make_fmu(fmi_version=3)
+
+
+TX_CLOCK = '<Clock name="CanChannel.Tx_Clock" valueReference="3" causality="{}" intervalVariability="{}" />'
+
+
+def test_rx_clock_of_a_bus_is_fed_by_a_countdown_tx_clock_of_a_node(area_dir):
+    _patch_model_description("node1.fmu", TX_CLOCK.format("output", "triggered"), TX_CLOCK.format("input", "countdown"))
+    _build_clocks()
+    assert [line.split()[-1] for line in _clock_inputs("bus.fmu")] == ["2"]  # Rx_Clock of Node1
+    assert _clock_inputs("node1.fmu") != []
+    assert not any(line.split()[-1] == "3" for line in _clock_inputs("node1.fmu"))  # Tx_Clock: by the schedule
+
+
+def test_countdown_tx_clock_of_a_bus_is_activated_by_the_schedule_only(area_dir):
+    _build_clocks()
+    assert [line.split()[-1] for line in _clock_inputs("bus.fmu")] == ["2"]  # Not its Tx_Clock (3)
+
