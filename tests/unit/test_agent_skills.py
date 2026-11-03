@@ -147,6 +147,7 @@ def workspace(data_dir, tmp_path, monkeypatch):
     shutil.copy(data_dir / "compile" / "3.0" / "BouncingBall.fmu", tmp_path / "model.fmu")
     for name in ("bb_position.fmu", "bb_velocity.fmu"):
         shutil.copy(data_dir / "fmi3" / "bouncing_ball" / name, tmp_path / name)
+    shutil.copy(data_dir / "containers" / "ssp" / "bouncing.ssp", tmp_path / "model.ssp")
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("FMUCONTAINER_MCP_ROOT", raising=False)
     return tmp_path
@@ -170,6 +171,7 @@ def test_the_examples_of_the_container_skill_run(workspace, capsys):
 
     assert (workspace / "container.fmu").is_file()
     assert (workspace / "container.json").is_file()
+    assert (workspace / "container.ssp").is_file()
 
 
 # --------------------------------------------------------------------------- #
@@ -196,8 +198,8 @@ def test_the_skills_build_as_self_contained_zips(tmp_path):
 # --------------------------------------------------------------------------- #
 #                      the version of the toolbox they need                    #
 # --------------------------------------------------------------------------- #
-#: The oldest release of the toolbox with what the skills use (`fmutool-agent`, `describe_port`, the filters).
-MIN_TOOLBOX_VERSION = "2.1.dev1"
+#: The oldest release of the toolbox with what the skills use (`fmutool-agent`, the filters, `save_assembly`).
+MIN_TOOLBOX_VERSION = "2.1a1"
 
 #: Pages telling how to install the toolbox for the skills.
 INSTALL_PAGES = ("docs/user-guide/agent-skills.md", "docs/examples/agent-skills-walkthrough.md")
@@ -211,7 +213,7 @@ def test_a_skill_declares_the_version_it_needs(name):
     assert f"{MIN_TOOLBOX_VERSION} or later" in compatibility
     assert f'"fmu-manipulation-toolbox>={MIN_TOOLBOX_VERSION}"' in compatibility
     # The installed version is checked by a tool it brought, not by its number (a source install is `2.1.devN`).
-    assert "`describe_port`" in text and "describe_port" in TOOLS
+    assert "`save_assembly`" in text and "save_assembly" in TOOLS
 
 
 @pytest.mark.parametrize("path", [f"plugins/fmutool/skills/{name}/SKILL.md" for name in SKILLS] + list(INSTALL_PAGES))
@@ -226,9 +228,9 @@ def test_every_installation_asks_for_that_version(path):
 
 def test_the_plugin_version_follows_the_toolbox_it_needs():
     version = json.loads((PLUGIN / ".claude-plugin" / "plugin.json").read_text())["version"]
-    release, _, dev = MIN_TOOLBOX_VERSION.partition(".dev")
+    release, pre = re.fullmatch(r"([\d.]+)(\w+)", MIN_TOOLBOX_VERSION).groups()
 
-    assert version == f"{release}.0-dev.{dev}"  # semver of the PEP 440 version
+    assert version == f"{release}.0-{pre}"  # semver of the PEP 440 version
 
 
 def test_the_installed_toolbox_is_recent_enough():
@@ -239,4 +241,5 @@ def test_the_installed_toolbox_is_recent_enough():
     if installed.release[0] == 0:
         # setuptools-scm gives `0.1.devN` without the git tags (a shallow clone, as in some CI jobs).
         pytest.skip(f"version {__version__} not computed from the git tags")
-    assert installed >= packaging_version.Version(MIN_TOOLBOX_VERSION)
+    # A source install is `2.1.devN`, which PEP 440 orders before `2.1a1`: only its release is compared.
+    assert installed.release >= packaging_version.Version(MIN_TOOLBOX_VERSION).release

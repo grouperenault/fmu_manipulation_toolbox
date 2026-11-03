@@ -23,11 +23,11 @@ available:
 
 ## Requirements
 
-The skills need **fmu-manipulation-toolbox 2.1.dev1 or later**:
+The skills need **fmu-manipulation-toolbox 2.1a1 or later**:
 
 ```bash
-pip install "fmu-manipulation-toolbox[mcp]>=2.1.dev1"   # MCP server and fmutool-agent
-pip install "fmu-manipulation-toolbox>=2.1.dev1"        # fmutool-agent only
+pip install "fmu-manipulation-toolbox[mcp]>=2.1a1"   # MCP server and fmutool-agent
+pip install "fmu-manipulation-toolbox>=2.1a1"        # fmutool-agent only
 ```
 
 The constraint names a pre-release, so `pip` accepts the development releases; any later release satisfies it.
@@ -57,7 +57,7 @@ or explain how to install the toolbox.
 
 A skill uploaded to claude.ai (*Settings > Capabilities > Skills*) or to the Claude API runs in a sandbox
 without MCP server: it uses `fmutool-agent`, after installing the toolbox with `pip` (the sandbox needs network
-access for that; the skills ask for `>=2.1.dev1`). Build one `.zip` per skill from a clone of the repository:
+access for that; the skills ask for `>=2.1a1`). Build one `.zip` per skill from a clone of the repository:
 
 ```bash
 python tools/build_skill_zips.py          # writes dist/skills/fmu-inspect.zip, fmu-edit.zip, fmu-container.zip

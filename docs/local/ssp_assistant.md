@@ -33,11 +33,7 @@ the assembly, edit it and save it as SSP, through the MCP server and `fmutool-ag
 | A5 | Content of `inspect_ssp` | **A summary per system, the details paged** like `get_assembly_json`; a refused file is an answer, `readable: false` with the `reason`, not an error (3 November 2026). |
 | A6 | Nested assemblies in the headless bridge | **Refused with a clear error** pointing to `inspect_ssp` and the GUI; flat files are imported without loss (3 November 2026). |
 
-### To be decided at the start of the step concerned
-
-| # | Question | Step |
-|---|---|---|
-| A7 | Skills: extend `fmu-container` (import, export as SSP) and `fmu-inspect` (`inspect_ssp`), or a new `ssp` skill | 3 |
+| A7 | Skills | **Extend `fmu-container`** (import, save as SSP) **and `fmu-inspect`** (`inspect_ssp`), no new skill; they need the toolbox **2.1a1**, the first release with `save_assembly` (3 November 2026). |
 
 ---
 
