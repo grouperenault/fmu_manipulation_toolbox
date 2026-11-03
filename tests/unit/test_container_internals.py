@@ -8,6 +8,7 @@ import io
 import logging
 import re
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -591,3 +592,25 @@ def test_sequential_order_match(links, me, caplog):
     with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
         _check_sequential(links, me)
     assert caplog.text == ""
+
+
+# --------------------------------------------------------------------------- #
+#                          FMUs that cannot be embedded                        #
+# --------------------------------------------------------------------------- #
+def _fmu_of(tmp_path, descriptor: str) -> Path:
+    fmu = tmp_path / "model.fmu"
+    with zipfile.ZipFile(fmu, "w") as archive:
+        archive.writestr("modelDescription.xml", descriptor)
+    return fmu
+
+
+@pytest.mark.parametrize("attributes, implementation, message", [
+    ('fmiVersion="2.0"', "", "does not implement Co-Simulation"),  # a description only
+    ('fmiVersion="2.0"', '<CoSimulation modelIdentifier="m"/>', "has no guid"),
+    ('fmiVersion="3.0"', '<CoSimulation modelIdentifier="m"/>', "has no instantiationToken"),
+], ids=["description-only", "fmi2-without-guid", "fmi3-without-token"])
+def test_an_fmu_that_cannot_be_embedded_is_refused_clearly(tmp_path, attributes, implementation, message):
+    fmu = _fmu_of(tmp_path, f'<fmiModelDescription {attributes} modelName="m">{implementation}<ModelVariables/>'
+                            '</fmiModelDescription>')
+    with pytest.raises(FMUContainerError, match=message):
+        FMUContainer("test", tmp_path).get_fmu(fmu.name)

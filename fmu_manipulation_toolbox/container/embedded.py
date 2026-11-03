@@ -256,6 +256,8 @@ class EmbeddedFMU(OperationAbstract):
             self.fmu.close()
         if self.model_identifier is None:
             raise FMUContainerError(f"FMU '{self.name}' does not implement Co-Simulation mode.")
+        if self.guid is None:
+            raise FMUContainerError(f"FMU '{self.name}' has no {'guid' if self.fmi_version == 2 else 'instantiationToken'}.")
 
         if self.fmi_version == 2:
             self._detect_array_aggregates()
@@ -310,10 +312,10 @@ class EmbeddedFMU(OperationAbstract):
     def fmi_attrs(self, attrs):
         fmi_version = attrs['fmiVersion']
         if fmi_version == "2.0":
-            self.guid = attrs['guid']
+            self.guid = attrs.get('guid')
             self.fmi_version = 2
         if fmi_version.startswith("3."):
-            self.guid = attrs['instantiationToken']
+            self.guid = attrs.get('instantiationToken')
             self.fmi_version = 3
 
 
