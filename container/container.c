@@ -104,6 +104,7 @@ static fmu_status_t container_clocks_init_schedule(container_t *container) {
         int qualifier = fmi3IntervalUnchanged;
 
         clock->ticked = false;
+        clock->has_ticked = false;
         clock->next_known = false;
 
         if (container_clock_is_periodic(clock)) {
@@ -181,8 +182,15 @@ static fmu_status_t container_clocks_read_schedule(container_t *container) {
 }
 
 
-static inline bool container_clock_is_due(const container_t *container, const container_clock_t *clock) {
-    return clock->next_known && (clock->next_tick <= container->time + container->tolerance);
+static inline bool container_clock_is_due(const container_clock_t *clock, double time) {
+    return clock->next_known && (clock->next_tick <= time);
+}
+
+
+/* A clock ticks at most once per time instant: an FMU that announces a new tick right after the current one may wait
+   for a step to go on, so that ticking it again in this Event Mode would never end. */
+static inline bool container_clock_has_ticked_now(const container_t *container, const container_clock_t *clock) {
+    return clock->has_ticked && is_close(container, clock->last_tick, container->time);
 }
 
 
@@ -193,7 +201,11 @@ static fmu_status_t container_set_next_event_time(container_t *container) {
     for (unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1) {
         const container_clock_t *clock = &container->clocks_list.clocks[i];
 
-        if (clock->next_known && !container_clock_is_due(container, clock)) {
+        if (container_clock_has_ticked_now(container, clock) && container_clock_is_due(clock, container->time)) {
+            /* The smallest step that is not within the tolerance of the current time. */
+            if (2.0 * container->tolerance < container->next_step)
+                container->next_step = 2.0 * container->tolerance;
+        } else if (clock->next_known && !container_clock_is_due(clock, container->time)) {
             const double interval = clock->next_tick - container->time;
 
             if (interval + container->tolerance < container->next_step)
@@ -232,7 +244,9 @@ void container_clocks_deactivate(container_t *container) {
 
 static bool container_clocks_are_due(const container_t *container) {
     for (unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1) {
-        if (container_clock_is_due(container, &container->clocks_list.clocks[i]))
+        const container_clock_t *clock = &container->clocks_list.clocks[i];
+
+        if (container_clock_is_due(clock, container->time) && !container_clock_has_ticked_now(container, clock))
             return true;
     }
 
@@ -240,7 +254,7 @@ static bool container_clocks_are_due(const container_t *container) {
 }
 
 
-static fmu_status_t container_proceed_event(container_t *container) {
+static fmu_status_t container_proceed_event(container_t *container, double time) {
     const logger_t *logger = &container->logger;
     bool activated = false;
 
@@ -249,7 +263,7 @@ static fmu_status_t container_proceed_event(container_t *container) {
         container_clock_t *clock = &container->clocks_list.clocks[i];
         const bool value = true;
 
-        if (!container_clock_is_due(container, clock))
+        if (!container_clock_is_due(clock, time) || container_clock_has_ticked_now(container, clock))
             continue;
 
 #ifdef DEBUG
@@ -260,6 +274,8 @@ static fmu_status_t container_proceed_event(container_t *container) {
         container->clocks_list.active[clock->local_vr] = true;
         activated = true;
         clock->ticked = true;
+        clock->has_ticked = true;
+        clock->last_tick = container->time;
         if (container_clock_is_periodic(clock))
             container_clock_set_period(clock, clock->origin, clock->period, clock->nb_ticks + 1);
         else
@@ -408,7 +424,7 @@ static fmu_status_t container_handle_due_clocks(container_t *container) {
                          CONTAINER_MAX_EVENT_ITER);
             return FMU_STATUS_ERROR;
         }
-        if (container_proceed_event(container) != FMU_STATUS_OK)
+        if (container_proceed_event(container, container->time) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
         if (container_update_discrete_state(container) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
@@ -434,7 +450,7 @@ static fmu_status_t container_handle_events(container_t *container) {
     if (status != FMU_STATUS_OK)
         return status;
 
-    status = container_proceed_event(container);
+    status = container_proceed_event(container, container->time + container->tolerance);
     if (status != FMU_STATUS_OK)
         return status;
     

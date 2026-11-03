@@ -65,6 +65,8 @@ typedef struct {
 	double						next_tick;			/* time of the next tick, if next_known */
 	bool						next_known;
 	bool						ticked;				/* since the last reading of its schedule */
+	double						last_tick;			/* time of its last tick, if has_ticked */
+	bool						has_ticked;
 } container_clock_t;
 
 

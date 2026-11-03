@@ -89,6 +89,16 @@ def test_ticks_of_one_clock(area_dir, clock):
         assert result[f"{fmu}_sum_{clock}"][-1] == pytest.approx(sum(expected), abs=1e-6)
 
 
+def test_tick_announced_again_at_the_same_time_waits_for_a_step(area_dir):
+    """A clock ticks at most once per time instant: the FMU may need a step to go on, so that ticking it again in the
+    same Event Mode would never end (the FlexRay nodes of `fmi-ls-bus-examples` do so)."""
+    _build_fmu()
+    result = _simulate(["repeated"])
+    for fmu in ("a", "b"):
+        assert result[f"{fmu}_count_repeated"][-1] == 2
+        assert result[f"{fmu}_sum_repeated"][-1] == pytest.approx(2 * 0.25, abs=1e-6)
+
+
 def test_ticks_of_all_the_clocks_together(area_dir):
     _build_fmu()
     result = _simulate()

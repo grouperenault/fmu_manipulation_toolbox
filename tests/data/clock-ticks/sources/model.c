@@ -8,15 +8,15 @@
 
 #include "fmi3Functions.h"
 
-#define NB_CLOCKS           5
-#define VR_CLOCK            1   /* constant, fixed, tunable, changing, countdown */
+#define NB_CLOCKS           6
+#define VR_CLOCK            1   /* constant, fixed, tunable, changing, countdown, repeated */
 #define VR_RX_CLOCK         11
 #define VR_COUNT            21
 #define VR_SUM              31
 #define VR_RX_COUNT         41
 #define VR_RX_SUM           51
 
-enum { CONSTANT, FIXED, TUNABLE, CHANGING, COUNTDOWN };
+enum { CONSTANT, FIXED, TUNABLE, CHANGING, COUNTDOWN, REPEATED };
 enum { MODE_INSTANTIATED, MODE_INITIALIZATION, MODE_EVENT, MODE_STEP };
 
 typedef struct {
@@ -30,6 +30,7 @@ typedef struct {
     fmi3Float64             sum[2 * NB_CLOCKS];
     fmi3Boolean             tuned;
     fmi3Boolean             countdown_started;
+    fmi3Float64             repeated_at;
 } model_t;
 
 #define MODEL ((model_t *)instance)
@@ -84,6 +85,8 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance, fmi3Boolean tolera
     MODEL->qualifier[TUNABLE] = fmi3IntervalChanged;
     MODEL->qualifier[CHANGING] = fmi3IntervalChanged;
     MODEL->qualifier[COUNTDOWN] = fmi3IntervalNotYetKnown;
+    MODEL->interval[REPEATED] = 0.25;
+    MODEL->qualifier[REPEATED] = fmi3IntervalChanged;
     return fmi3OK;
 }
 
@@ -159,6 +162,15 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance, fmi3Boolean *discrete
                 set_interval(instance, CHANGING, MODEL->interval[CHANGING] + 0.1);
             else if (i == COUNTDOWN)
                 set_interval(instance, COUNTDOWN, 0.35);
+            else if (i == REPEATED) {
+                /* Once more right now, until a step has gone by: ticking it again without a step would never end. */
+                if (MODEL->count[i] == 1.0)
+                    MODEL->repeated_at = MODEL->time;
+                if (MODEL->time == MODEL->repeated_at)
+                    set_interval(instance, REPEATED, 0.0);
+                else
+                    MODEL->qualifier[REPEATED] = fmi3IntervalNotYetKnown;
+            }
         }
     }
 
