@@ -7,6 +7,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🟠 **FIXED** SSP export of an LS-BUS terminal link: the connections between input clocks were silently lost, and the
+  container built from the SSP file had no clock routing. They are written, and the SSP reader accepts them.
 - 🟠 **FIXED** an FMU without `guid` or `instantiationToken` (e.g. a description only, without implementation) is
   refused with a clear `FMUContainerError`; it raised a raw `KeyError`.
 - 🟠 **FIXED** SSP export of a system without component or without connection: the empty `Elements` and `Connections`
