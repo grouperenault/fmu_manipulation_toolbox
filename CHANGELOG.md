@@ -52,10 +52,18 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## AI agents
 
+- 🟢 **ADDED** **assembly files in the MCP server, `fmutool-agent` and the skills**: `import_assembly` loads a JSON,
+  CSV or SSP file to edit it (a non-empty assembly is only replaced with `replace=True`; without the GUI, a file with
+  sub-containers is refused); `inspect_ssp` describes an SSP file without importing it, a refused file being an
+  answer (`readable: false` and its `reason`). See
+  [Assembly files](docs/user-guide/fmucontainer/ai-assistant.md#assembly-files).
+- 🔴 **BREAKING** MCP tools and `fmutool-agent`: `save_assembly` replaces `save_as_json` and also writes SSP files,
+  by the extension of the path; `add_link` is removed, `add_links` takes one link or several (a rejected link is
+  reported in `failed`, not as an error).
 - 🟢 **ADDED** **agent skills**: a Claude Code plugin (the repository is a marketplace:
   `/plugin marketplace add grouperenault/fmutool`) with the skills `fmu-inspect`, `fmu-edit` and
   `fmu-container`, which drive the MCP server, or `fmutool-agent` without it; `tools/build_skill_zips.py` builds
-  them for claude.ai. They need the toolbox 2.1.dev1 or later (`compatibility` field), and check it by the tools
+  them for claude.ai. They need the toolbox 2.1a1 or later (`compatibility` field), and check it by the tools
   available. See [Agent skills](docs/user-guide/agent-skills.md).
 - 🟢 **ADDED** `fmutool-agent`: the tools of the MCP server as a JSON command line (same arguments, same
   results), for agents that only run commands. It needs neither `fastmcp` nor Pydantic; the assembly is kept

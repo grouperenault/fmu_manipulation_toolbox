@@ -10,9 +10,9 @@ a request calls for them — together with the tools they rely on:
 
 | Skill | What the agent can do |
 |-------|-----------------------|
-| `fmu-inspect` | Tell what an FMU contains: FMI version, generator, capabilities, ports with their type, causality, variability, unit, start value and description; one port in full (bounds, nominal value, declared type, aliases, terminals); FMI compliance |
+| `fmu-inspect` | Tell what an FMU contains: FMI version, generator, capabilities, ports with their type, causality, variability, unit, start value and description; one port in full (bounds, nominal value, declared type, aliases, terminals); FMI compliance; what an SSP file holds, or why it is refused |
 | `fmu-edit` | Rename ports (from a mapping or a CSV file), remove them, keep only some, strip or merge `Bus.` prefixes — restricted to a causality, a type or a variability — and check the result |
-| `fmu-container` | Assemble FMUs into an FMU container: add them, link outputs to inputs, expose ports, set start values and options, review and lint the assembly, build the container |
+| `fmu-container` | Assemble FMUs into an FMU container: add them, link outputs to inputs, expose ports, set start values and options, review and lint the assembly, build the container or save its description as JSON or SSP; load an existing JSON, CSV or SSP file to edit it |
 
 The skills drive the same tools as the [AI assistant](fmucontainer/ai-assistant.md), through the first backend
 available:
@@ -30,9 +30,9 @@ pip install "fmu-manipulation-toolbox[mcp]>=2.1a1"   # MCP server and fmutool-ag
 pip install "fmu-manipulation-toolbox>=2.1a1"        # fmutool-agent only
 ```
 
-The constraint names a pre-release, so `pip` accepts the development releases; any later release satisfies it.
+The constraint names a pre-release, so `pip` accepts the pre-releases; any later release satisfies it.
 Each skill declares the version in the `compatibility` field of its frontmatter, and checks the installed toolbox
-by its tools rather than by its number: without the `describe_port` tool, or without `fmutool-agent`, it asks for
+by its tools rather than by its number: without the `save_assembly` tool, or without `fmutool-agent`, it asks for
 an upgrade. `fmutool-agent list-tools` prints the installed `version`.
 
 `fmutool-agent` needs neither `fastmcp` nor Pydantic: the base installation is enough. Building a container

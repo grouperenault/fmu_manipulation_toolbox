@@ -1,6 +1,6 @@
 # Plan: SSP in the MCP server, fmutool-agent and the agent skills
 
-**Created**: 1 November 2026 — **Status**: in progress — **Depends on**: [ssp_export.md](done/ssp_export.md)
+**Created**: 1 November 2026 — **Status**: done — **Depends on**: [ssp_export.md](done/ssp_export.md)
 
 The SSP reader is stable and assemblies can be written as SSP, but an AI agent cannot use either: the MCP server
 has no SSP tool, cannot load an existing assembly ("No `read_assembly`", a documented limit), and the skills do not
@@ -15,7 +15,7 @@ the assembly, edit it and save it as SSP, through the MCP server and `fmutool-ag
   `save_as_json(path, overwrite)` and `save_as_fmu(path, fmi_version, datalog, overwrite)` write the assembly.
 - Bridges: `assistant/headless.py` (`HeadlessAssemblyBridge`, state of `fmutool-agent` in `state()`/`from_state()`)
   and `gui/fmucontainer/mcp_bridge.py` (the live canvas). Neither can load an assembly file.
-- Budget of the tool definitions: **17 444 / 18 000** characters (`tests/_helpers/mcp_budget.py`).
+- Budget of the tool definitions: **17 444 / 18 000** characters before this plan, 17 995 after it (`tests/_helpers/mcp_budget.py`).
 - Skills: `plugins/fmutool/skills/fmu-container` (assembly), `fmu-inspect` (FMU files only).
 - Documentation: `docs/user-guide/fmucontainer/ai-assistant.md` (Known limits: no nested container created, no
   `read_assembly`), `docs/user-guide/agent-skills.md`.

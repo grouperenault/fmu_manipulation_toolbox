@@ -75,7 +75,8 @@ Tips:
 
 Known limit: **nested containers** cannot be created from here. The tools
 add FMUs to a single, flat container. If the user needs a hierarchy, say so and
-point them at the Container Builder GUI or a JSON description. An assembly
+point them at the Container Builder GUI or a JSON description. Standalone,
+`import_assembly` refuses a file with sub-containers. An assembly
 with sub-containers loaded in the GUI can still be read: `analyze_assembly`
 and `get_assembly_json` take the name of a container as `node`.
 
