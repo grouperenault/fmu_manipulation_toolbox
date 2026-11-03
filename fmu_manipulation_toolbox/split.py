@@ -464,8 +464,14 @@ class FMUSplitterDescription:
                                     vr = tokens[4 + 3 * j]
                                     self.add_input(fmi_type, fmu_filename, local, vr)
                             else:
-                                local, _clock, vr = self.get_line(file).split(" ")
-                                self.add_input(fmi_type, fmu_filename, local, vr)
+                                # Line format:
+                                #   <FMU_VR_CLOCK> <n> [<VR> <FMU_VR>] × n
+                                tokens = self.get_line(file).split(" ")
+                                _clock, n = tokens[0], int(tokens[1])
+                                for j in range(n):
+                                    local = tokens[2 + 2 * j]
+                                    vr = tokens[3 + 2 * j]
+                                    self.add_input(fmi_type, fmu_filename, local, vr)
 
                 for fmi_type in self.supported_fmi_types_start:
                     nb_start_as_string = self.get_line(file).split(" ")[0]
@@ -509,8 +515,14 @@ class FMUSplitterDescription:
                                     vr = tokens[4 + 3 * j]
                                     self.add_output(fmi_type, fmu_filename, local, vr)
                             else:
-                                local, _clock, vr = self.get_line(file).split(" ")
-                                self.add_output(fmi_type, fmu_filename, local, vr)
+                                # Line format:
+                                #   <FMU_VR_CLOCK> <n> [<VR> <FMU_VR>] × n
+                                tokens = self.get_line(file).split(" ")
+                                _clock, n = tokens[0], int(tokens[1])
+                                for j in range(n):
+                                    local = tokens[2 + 2 * j]
+                                    vr = tokens[3 + 2 * j]
+                                    self.add_output(fmi_type, fmu_filename, local, vr)
 
                 #conversion
                 if self.file_format > 1:

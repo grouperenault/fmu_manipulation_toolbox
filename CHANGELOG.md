@@ -33,6 +33,10 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   of the system.
 - 🔴 **BREAKING** `SSDParser` moved from `fmu_manipulation_toolbox.assembly` to the new module
   `fmu_manipulation_toolbox.ssp`, with `SSDConnector` and `validate_ssd`; `Assembly.read_ssp` is unchanged.
+- 🟠 **FIXED** `fmusplit` on the LS-BUS containers of `container.txt` format 3 (toolbox 1.9.2): the clocked variables
+  were read with a wrong line format, which raised a `ValueError`.
+- 🟠 **FIXED** an FMU without `guid` or `instantiationToken` (e.g. a description only, without implementation) is
+  refused with a clear `FMUContainerError`; it raised a raw `KeyError`.
 - 🟢 **ADDED** **architecture wires** in SSP files: a connection annotated
   `fmu_manipulation_toolbox.architecture-wire` describes a dependency between two components (directed,
   bidirectional or undirected, with a Markdown description) before the exchanged variables are known. It is not a
