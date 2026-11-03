@@ -294,9 +294,8 @@ def test_fmucontainer_initially_clean(qtbot):
 def test_fmucontainer_buttons_exist(qtbot):
     window = FMUContainerWindow()
     qtbot.addWidget(window)
+    assert window._exit_button is not None
     assert window._load_button is not None
-    assert window._import_button is not None
-    assert window._export_button is not None
     assert window._save_button is not None
     assert window._exit_button is not None
 

@@ -136,13 +136,13 @@ def test_architecture_wire_with_unknown_orientation_is_undirected(area_dir, monk
 
 
 def test_other_annotation_keeps_a_link(area_dir, monkeypatch):
-    # Only the annotation type makes an architecture wire: the same content under another type is a link.
+    # Only the annotation type makes an architecture wire: the same content under another type is a link, checked
+    # against the FMUs like any link (and refused: `aw.bb_position` is not a variable of the FMU).
     _bouncing_variant(area_dir, monkeypatch, _architecture_wire("directed", annotation_type="com.example.other"))
-    root = Assembly("bouncing.ssp").root
 
-    assert root.architecture_wires == []
-    assert str(root.links[-1]) == ("bouncing.dir/resources/bb_velocity.fmu/aw.bb_position -> "
-                                   "bouncing.dir/resources/bb_position.fmu/aw.bb_velocity")
+    with pytest.raises(AssemblyError, match=r"component 'bb_velocity' \('resources/bb_velocity.fmu'\) has no "
+                                            r"variable 'aw.bb_position'"):
+        Assembly("bouncing.ssp")
 
 
 def test_sources_with_the_same_file_name(area_dir, monkeypatch):
@@ -200,3 +200,61 @@ def test_component_geometry_is_kept(area_dir):
     assert root.fmu_geometry == {
         "bouncing.dir/resources/bb_velocity.fmu": (-277.931818, -97.613636, -77.931818, 22.386364),
         "bouncing.dir/resources/bb_position.fmu": (64.113636, -98.522727, 264.113636, 21.477273)}
+
+
+# --------------------------------------------------------------------------- #
+#                          parameter values, simulated                        #
+# --------------------------------------------------------------------------- #
+@pytest.mark.needs_fmpy
+@pytest.mark.needs_container
+@pytest.mark.slow
+def test_a_parameter_value_is_used_by_the_simulation(data_dir, tmp_path, monkeypatch):
+    """With g = -1 instead of -9.81, the ball has not bounced yet at t = 0.5 s: h = 1 - t²/2."""
+    from _helpers.simulation import simulate
+
+    ssd = ('<?xml version="1.0" encoding="UTF-8"?>'
+           '<ssd:SystemStructureDescription version="1.0" name="ball" '
+           'xmlns:ssd="http://ssp-standard.org/SSP1/SystemStructureDescription" '
+           'xmlns:ssc="http://ssp-standard.org/SSP1/SystemStructureCommon" '
+           'xmlns:ssv="http://ssp-standard.org/SSP1/SystemStructureParameterValues">'
+           '<ssd:System name="ball"><ssd:Connectors>'
+           '<ssd:Connector name="h" kind="output"><ssc:Real/></ssd:Connector></ssd:Connectors>'
+           '<ssd:Elements><ssd:Component name="bb" source="resources/BouncingBall.fmu">'
+           '<ssd:ParameterBindings><ssd:ParameterBinding><ssd:ParameterValues>'
+           '<ssv:ParameterSet version="1.0" name="moon"><ssv:Parameters>'
+           '<ssv:Parameter name="g"><ssv:Real value="-1"/></ssv:Parameter>'
+           '</ssv:Parameters></ssv:ParameterSet></ssd:ParameterValues></ssd:ParameterBinding></ssd:ParameterBindings>'
+           '</ssd:Component></ssd:Elements><ssd:Connections>'
+           '<ssd:Connection startElement="bb" startConnector="h" endConnector="h"/>'
+           '</ssd:Connections></ssd:System></ssd:SystemStructureDescription>')
+    with zipfile.ZipFile(tmp_path / "ball.ssp", "w") as ssp:
+        ssp.writestr("SystemStructure.ssd", ssd)
+        ssp.write(data_dir / "compile" / "3.0" / "BouncingBall.fmu", "resources/BouncingBall.fmu")
+    monkeypatch.chdir(tmp_path)
+
+    Assembly("ball.ssp", default_step_size=0.01).make_fmu()
+    result = simulate("ball.fmu", stop_time=0.5, output=["h"])
+
+    assert result["h"][-1] == pytest.approx(0.875, abs=0.02)
+
+
+@pytest.mark.needs_container
+def test_the_container_takes_the_default_experiment_of_the_ssp(area_dir, monkeypatch):
+    experiment = '<ssd:DefaultExperiment startTime="0.5" stopTime="7"/>'
+    _bouncing_variant(area_dir, monkeypatch, lambda ssd: ssd.replace("</ssd:System>", "</ssd:System>" + experiment))
+
+    Assembly("bouncing.ssp", default_step_size=0.01).make_fmu()
+
+    with zipfile.ZipFile("bouncing.fmu") as container:
+        descriptor = container.read("modelDescription.xml").decode()
+    assert '<DefaultExperiment stepSize="0.01" startTime="0.5" stopTime="7.0"' in descriptor
+
+
+@pytest.mark.parametrize("name", ["bouncing.ssp"])
+def test_real_ssp_files_are_valid(area_dir, caplog, name):
+    """The SSP 2.0.1 schema accepts the SSP 1.0 file of easySSP (same namespace, version 1.0)."""
+    import logging
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        Assembly(name)
+
+    assert "SSP schema" not in caplog.text

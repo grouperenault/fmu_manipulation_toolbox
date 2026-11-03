@@ -9,6 +9,32 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 - 🟠 **FIXED** an FMU without `guid` or `instantiationToken` (e.g. a description only, without implementation) is
   refused with a clear `FMUContainerError`; it raised a raw `KeyError`.
+- 🟠 **FIXED** SSP export of a system without component or without connection: the empty `Elements` and `Connections`
+  it wrote are refused by the SSP schema; they are now left out.
+- 🟢 **ADDED** **SSP export**: `Assembly.write_ssp()`, `fmucontainer -dump-ssp` and **Export as SSP** in the
+  Container Builder. The routing is written resolved (the `auto_*` rules become connections), the options and the
+  dropped ports of each container go in an annotation `fmu_manipulation_toolbox.container`, the start values,
+  architecture wires, geometry, units and start/stop times are kept: the file is read back into the same container.
+  SSP 2.0 by default, SSP 1.0 on request. See [SSP export](docs/user-guide/fmucontainer/container.md#ssp-export).
+- 🔵 **CHANGED** the SSP support is **stable** (it was alpha): what the container cannot honour is refused or
+  reported, never ignored silently. See [SSP Input file](docs/user-guide/fmucontainer/container.md#ssp-input-file).
+- 🔵 **CHANGED** reading an SSP file: the options annotation of a system prevails over the command line; an exposed
+  output may be a local variable (as `auto_local` does).
+- 🔵 **CHANGED** `fmucontainer -dump`, the abbreviation of `-dump-json`, is now an explicit alias.
+- 🟢 **ADDED** SSP **parameter values**: the `ParameterBindings` of components and systems (inline, `.ssv` file of
+  the archive or of the FMU) become start values of the embedded FMUs, with the priorities of the standard,
+  hierarchical names and connectors of systems followed through their connections.
+- 🟢 **ADDED** the `startTime` and `stopTime` of the `DefaultExperiment` of an SSP become those of the container.
+- 🟢 **ADDED** SSP files validated against the SSP 2.0.1 schema (warnings only); the schema is shipped in
+  `resources/ssp-2.0/`.
+- 🔴 **BREAKING** SSP files the container would build wrong are refused (`AssemblyError`): component that is not
+  an FMU, connection transformation, `ParameterMapping`, connection through a signal dictionary, connected
+  connectors of different units, value for a variable that cannot be parameterized. The connections are checked
+  against the variables of the FMUs at read time.
+- 🟠 **FIXED** an empty `startElement`/`endElement` of an SSP connection (as written by OMSimulator) is a connector
+  of the system.
+- 🔴 **BREAKING** `SSDParser` moved from `fmu_manipulation_toolbox.assembly` to the new module
+  `fmu_manipulation_toolbox.ssp`, with `SSDConnector` and `validate_ssd`; `Assembly.read_ssp` is unchanged.
 - 🟢 **ADDED** **architecture wires** in SSP files: a connection annotated
   `fmu_manipulation_toolbox.architecture-wire` describes a dependency between two components (directed,
   bidirectional or undirected, with a Markdown description) before the exchanged variables are known. It is not a
@@ -54,6 +80,13 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## Graphical User Interfaces
 
+- 🔵 **CHANGED** Container Builder: the buttons are **Exit**, **Load** (Ctrl+O) and **Save** (Ctrl+S); Load and Save
+  replace **Load FMU Container**, **Import**, **Export as JSON**, **Export as SSP** and **Save as FMU Container**: the
+  extension of the file decides (`.fmu` container, `.json`, `.csv` or `.ssp` assembly file; saved as an FMU
+  container, SSP or JSON). Load asks first when there are unsaved changes, as Exit does.
+- 🟠 **FIXED** Container Builder: a load or an import that fails (e.g. an SSP file the reader refuses) shows its reason
+  as a CRITICAL record and ends with "❌ … failed" instead of "✅ … finished"; the scene, the unsaved changes and the
+  last directory are left as they were.
 - 🟢 **ADDED** `fmucontainer-gui <file>` opens an FMU container (`.fmu`) or imports an assembly file (`.json`,
   `.csv`, `.ssp`) given on the command line.
 - 🟢 **ADDED** Container Builder: the nodes imported from an SSP file are placed after the geometry of their

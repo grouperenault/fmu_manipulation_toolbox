@@ -4,9 +4,8 @@ import logging
 import os
 from collections.abc import Iterable
 from typing import Any
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import uuid
-import xml.etree.ElementTree as ET
 import zipfile
 
 from .container import FMUContainer
@@ -246,6 +245,10 @@ class AssemblyNode:
         fmu_geometry (dict[str, tuple[float, float, float, float]]): Position of embedded FMUs read from an SSP
             file: `(x1, y1, x2, y2)` of the `ElementGeometry` of their component (SSP coordinates, y upwards). A hint
             for the GUI, not part of the JSON description.
+        start_time (float | None): Start time of the default experiment of the container, from the
+            `DefaultExperiment` of an SSP file; `None` to take the one of its first FMU. Not part of the JSON
+            description.
+        stop_time (float | None): Stop time of the default experiment of the container, likewise.
     """
 
     def __init__(self, name: str, step_size: float = None, mt=False, profiling=False, sequential=False,
@@ -282,6 +285,8 @@ class AssemblyNode:
         self.links: list[Connection] = []
         self.architecture_wires: list[ArchitectureWire] = []
         self.fmu_geometry: dict[str, tuple[float, float, float, float]] = {}
+        self.start_time: float | None = None
+        self.stop_time: float | None = None
 
     def add_sub_node(self, sub_node):
         """Add a child `AssemblyNode` to create a hierarchical (nested) container.
@@ -421,6 +426,8 @@ class AssemblyNode:
         identifier = str(Path(self.name).stem)
         container = FMUContainer(identifier, fmu_directory, description_pathname=description_pathname,
                                  fmi_version=fmi_version, reset_ports=self.reset_ports)
+        container.start_time = self.start_time
+        container.stop_time = self.stop_time
 
         for node in self.children.values():
             container.get_fmu(node.name)
@@ -878,6 +885,27 @@ class Assembly:
             except TypeError:
                 raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: {line}.")
 
+    def write_ssp(self, filename: str | Path, ssp_version: str = "2.0") -> Path:
+        """Write the assembly as an SSP archive: `SystemStructure.ssd` and the embedded FMUs.
+
+        The routing is written resolved (the links and ports of the `auto_*` rules become connections) and the
+        options of each container go in an annotation, so that the file read back gives the same container (see
+        [SSPWriter][fmu_manipulation_toolbox.ssp.SSPWriter]).
+
+        Args:
+            filename (str | Path): The `.ssp` file to write, relative to `fmu_directory` (as `write_json`).
+            ssp_version (str): `"2.0"` (default) or `"1.0"`.
+
+        Returns:
+            Path: The file written.
+
+        Raises:
+            AssemblyError: If the assembly is empty or the version unknown.
+        """
+        from .ssp import SSPWriter
+
+        return SSPWriter(self, ssp_version).write(self.fmu_directory / filename)
+
     def write_json(self, filename: str | Path, basenames_only: bool = False):
         """Export the assembly as a JSON file.
 
@@ -964,16 +992,18 @@ class Assembly:
         return json_node
 
     def read_ssp(self):
-        """Parse an SSP (System Structure and Parameterization) archive.
+        """Parse an SSP (System Structure and Parameterization) archive, SSP 1.0 or 2.0.
 
-        Extracts embedded FMUs and the `SystemStructure.ssd` file, then builds
-        the assembly tree from the SSD connections.
+        Extracts the embedded FMUs, validates `SystemStructure.ssd` against the SSP schema (warnings only), then
+        builds the assembly tree from it: systems, FMU components, connections, parameter values, start and stop
+        times. What the container cannot honour is refused, or reported when it changes nothing (see
+        [SSDParser][fmu_manipulation_toolbox.ssp.SSDParser]).
 
-        Warning:
-            This feature is in alpha stage.
+        An assembly is written back as SSP by `write_ssp`.
         """
-        logger.warning("This feature is ALPHA stage.")
 
+        # Imported here: `ssp` builds on this module, and loads the SSP schema only when an SSP file is read.
+        from .ssp import SSDParser, validate_ssd
 
         with zipfile.ZipFile(self.fmu_directory / self.filename) as zin:
             extract_folder = self.fmu_directory / self.filename.with_suffix(".dir")
@@ -988,6 +1018,7 @@ class Assembly:
 
             self.description_pathname = None
             if "SystemStructure.ssd" in zin.namelist():
+                validate_ssd(zin.read("SystemStructure.ssd"), "SystemStructure.ssd")
                 sdd = SSDParser(zin, extract_folder.name, step_size=self.default_step_size, auto_link=False,
                                 mt=self.default_mt, profiling=self.default_profiling,
                                 auto_input=False, auto_output=False, auto_parameter=False)
@@ -1049,210 +1080,3 @@ class Assembly:
             #TODO
             if candidate[0] == node.name:
                 links_list.append([candidate[0], candidate[1], node.name, candidate[3]])
-
-
-
-class SSDParser:
-    """Parser for SSD (System Structure Description) files of SSP archives (SSP 1.0 and 2.0 share one namespace).
-
-    Parses the XML structure of an `.ssd` file and builds the corresponding
-    [AssemblyNode][fmu_manipulation_toolbox.assembly.AssemblyNode] tree, including
-    embedded FMUs, connections, and hierarchical sub-systems.
-
-    Elements are recognized by their namespace (`SSD_NAMESPACE`), whatever the
-    prefix used in the file (`ssd:`, another one, or a default namespace).
-
-    Each component is embedded as `<component name>.fmu`, in the directory of its `source` file. A component
-    without `source` (SSP 2.0 component without implementation) is ignored, with the connections attached to it.
-
-    A connection carrying an annotation of type `ARCHITECTURE_WIRE_TYPE` is an architecture wire (see
-    `ArchitectureWire`), not a link.
-
-    Attributes:
-        node_stack (list[AssemblyNode]): Stack of nodes used during XML parsing
-            for tracking hierarchy.
-        root (AssemblyNode | None): Root node after parsing is complete.
-        fmu_filenames (dict[str, str]): Mapping from SSD component names to
-            the names of the embedded FMUs.
-        ignored_components (set[str]): Names of the components ignored because they have no `source`.
-    """
-
-    SSD_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureDescription"
-    SSC_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureCommon"
-    ARCHITECTURE_WIRE_TYPE = "fmu_manipulation_toolbox.architecture-wire"
-    ARCHITECTURE_WIRE_NAMESPACE = "urn:fmu_manipulation_toolbox:architecture-wire:1"
-
-    def __init__(self, zin: zipfile.ZipFile, extract_folder_name: str, **kwargs):
-        self.zin = zin
-        self.extract_folder_name = extract_folder_name
-
-        self.node_stack: list[AssemblyNode] = []
-        self.root = None
-        self.fmu_filenames: dict[str, str] = {}  # Component name => FMU name
-        self.ignored_components: set[str] = set()
-        self.node_attrs = kwargs
-
-        # Name of the embedded FMU of the component being read, for its ElementGeometry.
-        self._component_fmu: str | None = None
-        # Connection being read: its attributes, and its orientation once an architecture wire annotation is found.
-        self._connection_attrs: dict[str, str] | None = None
-        self._in_architecture_annotation = False
-        self._wire_orientation: str | None = None
-
-    def parse(self, ssd_filename: str) -> AssemblyNode:
-        """Parse an SSD file and return the root assembly node.
-
-        Args:
-            ssd_filename (str): filename to the `.ssd` file.
-
-        Returns:
-            AssemblyNode: The root node representing the parsed system structure.
-
-        Raises:
-            AssemblyError: If the file is not well-formed, is not an SSP 1.0
-                system structure description, or refers to unknown elements.
-        """
-        logger.debug(f"Analysing {ssd_filename}")
-        prefix = f"{{{self.SSD_NAMESPACE}}}"
-        try:
-            with self.zin.open(ssd_filename) as file:
-                root_checked = False
-                for event, element in ET.iterparse(file, events=("start", "end")):
-                    if not root_checked:
-                        if element.tag != f"{prefix}SystemStructureDescription":
-                            raise AssemblyError(f"'{ssd_filename}' is not an SSP 1.0 system structure description: "
-                                                f"root element is <{element.tag}>, expected "
-                                                f"<SystemStructureDescription> in namespace '{self.SSD_NAMESPACE}'")
-                        root_checked = True
-                    if self._connection_attrs is not None:
-                        self._connection_child(event, element)
-                    if not element.tag.startswith(prefix):
-                        continue  # other SSP namespaces (ssc:, ssv:...) and vendor annotations
-                    tag = element.tag[len(prefix):]
-                    if event == "start":
-                        self.start_element(tag, element.attrib)
-                    else:
-                        self.end_element(tag)
-        except ET.ParseError as error:
-            raise AssemblyError(f"'{ssd_filename}' is not well-formed XML: {error}") from error
-        except KeyError as error:
-            raise AssemblyError(f"'{ssd_filename}': reference to an unknown element or missing attribute "
-                                f"{error}") from error
-
-        if self.root is None:
-            raise AssemblyError(f"'{ssd_filename}': no <System> found in namespace '{self.SSD_NAMESPACE}'")
-        return self.root
-
-    def start_element(self, tag_name, attrs):
-        """Handle the start of an SSD element (`tag_name` without namespace, e.g. `"Connection"`)."""
-        if tag_name == 'Connection':
-            # Decided on the end tag: an annotation (child element) may make it an architecture wire.
-            self._connection_attrs = dict(attrs)
-            self._in_architecture_annotation = False
-            self._wire_orientation = None
-
-        elif tag_name == 'System':
-            logger.info(f"SSP System: {attrs['name']}")
-            filename = attrs['name'] + ".fmu"
-            self.fmu_filenames[attrs['name']] = filename
-            node = AssemblyNode(filename, **self.node_attrs)
-            if self.node_stack:
-                self.node_stack[-1].add_sub_node(node)
-            else:
-                self.root = node
-
-            self.node_stack.append(node)
-
-        elif tag_name == 'Component':
-            if 'source' not in attrs:
-                logger.warning(f"Component '{attrs['name']}' has no source FMU. It is ignored, "
-                               f"with its connections.")
-                self.ignored_components.add(attrs['name'])
-                return
-            source = self._source_path(attrs['source'])
-            filename = f"{self.extract_folder_name}/{source}"
-            node = self.node_stack[-1]
-            name = f"{self.extract_folder_name}/{source.parent / attrs['name']}.fmu"
-            fmu_name = instance_name(name, node.fmu_names_list)
-            self.fmu_filenames[attrs['name']] = fmu_name
-            node.add_fmu(fmu_name, filename)
-            self._component_fmu = fmu_name
-            logger.debug(f"Component {attrs['name']} => {fmu_name}")
-
-        elif tag_name == 'ElementGeometry' and self._component_fmu is not None:
-            try:
-                self.node_stack[-1].fmu_geometry[self._component_fmu] = \
-                    tuple(float(attrs[corner]) for corner in ('x1', 'y1', 'x2', 'y2'))
-            except ValueError:
-                logger.debug(f"Geometry of '{self._component_fmu}' ignored: invalid coordinates.")
-
-    def end_element(self, tag_name):
-        """Handle the end of an SSD element (`tag_name` without namespace)."""
-        if tag_name == 'System':
-            self.node_stack.pop()
-        elif tag_name == 'Component':
-            self._component_fmu = None
-        elif tag_name == 'Connection':
-            attrs = self._connection_attrs
-            self._connection_attrs = None
-            if self._wire_orientation is None:
-                self._add_connection(attrs)
-            else:
-                self._add_architecture_wire(attrs, self._wire_orientation)
-
-    def _connection_child(self, event: str, element: ET.Element):
-        """Look for the architecture wire annotation among the descendants of the connection being read."""
-        if element.tag == f"{{{self.SSC_NAMESPACE}}}Annotation":
-            self._in_architecture_annotation = (event == "start" and
-                                                element.get("type") == self.ARCHITECTURE_WIRE_TYPE)
-        elif (self._in_architecture_annotation and event == "start" and
-              element.tag == f"{{{self.ARCHITECTURE_WIRE_NAMESPACE}}}Wire"):
-            orientation = element.get("orientation", "undirected")
-            if orientation not in ArchitectureWire.ORIENTATIONS:
-                logger.warning(f"Architecture wire with unknown orientation '{orientation}'. "
-                               f"It is read as 'undirected'.")
-                orientation = "undirected"
-            self._wire_orientation = orientation
-
-    def _add_connection(self, attrs: dict[str, str]):
-        """Turn a connection into a link, an exposed input or an exposed output."""
-        if attrs.get('startElement') in self.ignored_components or attrs.get('endElement') in self.ignored_components:
-            logger.debug(f"Connection {attrs.get('startElement')}/{attrs['startConnector']} -> "
-                         f"{attrs.get('endElement')}/{attrs['endConnector']} ignored: it involves an ignored "
-                         f"component.")
-            return
-        if 'startElement' in attrs:
-            if 'endElement' in attrs:
-                fmu_start = self.fmu_filenames[attrs['startElement']]
-                fmu_end = self.fmu_filenames[attrs['endElement']]
-                self.node_stack[-1].add_link(fmu_start, attrs['startConnector'],
-                                             fmu_end, attrs['endConnector'])
-            else:
-                fmu_start = self.fmu_filenames[attrs['startElement']]
-                self.node_stack[-1].add_output(fmu_start, attrs['startConnector'],
-                                               attrs['endConnector'])
-        else:
-            fmu_end = self.fmu_filenames[attrs['endElement']]
-            self.node_stack[-1].add_input(attrs['startConnector'],
-                                          fmu_end, attrs['endConnector'])
-
-    def _add_architecture_wire(self, attrs: dict[str, str], orientation: str):
-        """Record an architecture wire between two components of the current system."""
-        start, end = attrs.get('startElement'), attrs.get('endElement')
-        if start is None or end is None:
-            logger.warning(f"Architecture wire on connector '{attrs['startConnector']}' -> "
-                           f"'{attrs['endConnector']}' is ignored: it must join two components.")
-            return
-        if start in self.ignored_components or end in self.ignored_components:
-            logger.debug(f"Architecture wire {start} -> {end} ignored: it involves an ignored component.")
-            return
-        self.node_stack[-1].add_architecture_wire(self.fmu_filenames[start], self.fmu_filenames[end],
-                                                  orientation, attrs.get('description'))
-
-    @staticmethod
-    def _source_path(source: str) -> PurePosixPath:
-        """Path of a component source inside the archive, refused if it leaves the archive."""
-        path = PurePosixPath(source)
-        if path.is_absolute() or ".." in path.parts:
-            raise AssemblyError(f"Component source '{source}' must be a relative path inside the SSP archive.")
-        return path

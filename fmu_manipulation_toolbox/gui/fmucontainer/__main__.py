@@ -11,6 +11,7 @@ from importlib.util import find_spec
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
     QPushButton, QCheckBox, QRadioButton, QButtonGroup, QFrame,
@@ -44,37 +45,34 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         splitter.addWidget(self._tree)
         splitter.setSizes([600, 400])
 
-        self._load_button = QPushButton("Load FMU Container")
-        self._import_button = QPushButton("Import")
-        self._export_button = QPushButton("Export as JSON")
-        self._save_button = QPushButton("Save as FMU Container")
+        self._load_button = QPushButton("Load")
+        self._load_button.setToolTip("Open an FMU container (.fmu) or an assembly file (.json, .csv, .ssp)")
+        self._load_button.setShortcut(QKeySequence(QKeySequence.StandardKey.Open))
+        self._save_button = QPushButton("Save")
+        self._save_button.setToolTip("Save as an FMU container (.fmu), an SSP file (.ssp) or a JSON description "
+                                        "(.json)")
+        self._save_button.setShortcut(QKeySequence(QKeySequence.StandardKey.Save))
+        # Format of the last Save of the session (B2): FMU Container at first.
+        self._save_format = ".fmu"
         self._exit_button = QPushButton("Exit")
         self._save_button.setProperty("class", "save")
-        self._export_button.setProperty("class", "save")
         self._load_button.setProperty("class", "quit")
-        self._import_button.setProperty("class", "quit")
         self._exit_button.setProperty("class", "quit")
 
         btn_width = max(
             self._load_button.sizeHint().width(),
-            self._import_button.sizeHint().width(),
-            self._export_button.sizeHint().width(),
             self._save_button.sizeHint().width(),
             self._exit_button.sizeHint().width(),
             150,
         )
         for button in (
             self._load_button,
-            self._import_button,
-            self._export_button,
             self._save_button,
             self._exit_button,
         ):
             button.setMinimumWidth(btn_width)
 
         self._load_button.clicked.connect(self._on_load_clicked)
-        self._import_button.clicked.connect(self._on_import_clicked)
-        self._export_button.clicked.connect(self._on_export_clicked)
         self._save_button.clicked.connect(self._on_save_clicked)
         self._exit_button.clicked.connect(self.close)
 
@@ -146,10 +144,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         button_bar = QHBoxLayout()
         button_bar.addWidget(self._config_button)
         button_bar.addStretch(1)
-        button_bar.addWidget(self._load_button)
-        button_bar.addWidget(self._import_button)
         button_bar.addWidget(self._exit_button)
-        button_bar.addWidget(self._export_button)
+        button_bar.addWidget(self._load_button)
         button_bar.addWidget(self._save_button)
 
         main_layout = QVBoxLayout()
@@ -273,34 +269,65 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
     # UI event handlers
     # ──────────────────────────────────────────────────────────────────
 
+    #: Filters of the Load dialog: every format first.
+    OPEN_FILTERS = ("FMU containers and assembly files (*.fmu *.json *.csv *.ssp);;FMU container (*.fmu);;"
+                    "JSON (*.json);;CSV (*.csv);;SSP (*.ssp)")
+
     def _on_load_clicked(self):
-        input_path = LastDirectory.get_open_file_name(self, "Load FMU Container", "FMU (*.fmu)")
+        """Load: an FMU container is loaded, an assembly file imported, after the extension (`open_file`)."""
+        if not self._confirm_discard_changes("You have unsaved changes. Are you sure you want to load another file?"):
+            logger.info("Load cancelled")
+            return
+        input_path = LastDirectory.get_open_file_name(self, "Load", self.OPEN_FILTERS)
         if not input_path:
             logger.info("Load cancelled")
             return
-        self.load_file(input_path)
+        self.open_file(input_path)
 
-    def _on_import_clicked(self):
-        input_path = LastDirectory.get_open_file_name(
-            self, "Import Assembly",
-            "Assembly files (*.json *.csv *.ssp);;JSON (*.json);;CSV (*.csv);;SSP (*.ssp)",
-        )
-        if not input_path:
-            logger.info("Import cancelled")
+    #: Formats of Save: filter of the dialog => extension. CSV is not offered (B5).
+    SAVE_FORMATS = {"FMU Container (*.fmu)": ".fmu", "SSP (*.ssp)": ".ssp", "JSON (*.json)": ".json"}
+
+    @classmethod
+    def save_target(cls, path: str, chosen_filter: str) -> tuple[str, str]:
+        """The file and the format (its extension) of a Save: the extension typed when it is a format of
+        `SAVE_FORMATS`, otherwise the format of the filter chosen, its extension appended."""
+        suffix = Path(path).suffix.lower()
+        if suffix in cls.SAVE_FORMATS.values():
+            return path, suffix
+        suffix = cls.SAVE_FORMATS.get(chosen_filter, ".fmu")
+        return path + suffix, suffix
+
+    def _on_save_clicked(self):
+        """Save: FMU container, SSP or JSON, after the extension or the filter chosen."""
+        selected = next(name for name, suffix in self.SAVE_FORMATS.items() if suffix == self._save_format)
+        root_name = Path(self._tree.root.text()).with_suffix(self._save_format).name
+        output_path, chosen = LastDirectory.get_save_file_name_and_filter(
+            self, "Save", ";;".join(self.SAVE_FORMATS), selected, default_name=root_name)
+        if not output_path:
+            logger.info("Save cancelled")
             return
-        self.import_file(input_path)
+        output_path, self._save_format = self.save_target(output_path, chosen)
+        if self._save_format == ".ssp":
+            RunTask(self.save_as_ssp, output_path, parent=self, title="Saving as SSP")
+        elif self._save_format == ".json":
+            RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON")
+        else:
+            RunTask(self.save_as_fmu, output_path, self._fmi_group.checkedId(), self._datalog_checkbox.isChecked(),
+                    parent=self, title="Saving as FMU")
 
     def load_file(self, input_path: str):
-        """Load an FMU container, as the *Load FMU Container* button does."""
-        RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container")
+        """Load an FMU container (Load of a `.fmu` file)."""
+        if not RunTask(self.load_container_fmu, input_path, parent=self, title="Loading FMU Container").succeeded:
+            return  # the scene is unchanged
         # Re-assert the container's own directory: loading may have updated
         # LastDirectory to the (extracted) FMUs' sub-directory instead.
         LastDirectory.update(input_path)
         self._dirty = False
 
     def import_file(self, input_path: str):
-        """Import a JSON, CSV or SSP assembly file, as the *Import* button does."""
-        RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly")
+        """Import a JSON, CSV or SSP assembly file (Load of such a file)."""
+        if not RunTask(self.import_assembly_file, input_path, parent=self, title="Importing Assembly").succeeded:
+            return  # the scene is unchanged
         # Re-assert the imported file's own directory: importing adds FMU nodes
         # that may live in a different (sub)directory, which would otherwise
         # overwrite LastDirectory via _on_node_added_update_dir.
@@ -308,7 +335,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._dirty = True
 
     def open_file(self, input_path: str):
-        """Open a file given on the command line: an FMU container is loaded, an assembly file is imported."""
+        """Open a file (Load, or the command line): an FMU container is loaded, an assembly file is imported."""
         path = Path(input_path)
         if not path.is_file():
             logger.error(f"Cannot open '{input_path}': file not found.")
@@ -319,29 +346,6 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         else:
             logger.error(f"Cannot open '{input_path}': expected an FMU container (.fmu) or an assembly file "
                          f"(.json, .csv, .ssp).")
-
-    def _on_export_clicked(self):
-        root_name = Path(self._tree.root.text()).with_suffix(".json").name
-        output_path = LastDirectory.get_save_file_name(self, "Save container configuration", "JSON (*.json)",
-                                                        default_name=root_name)
-        if not output_path:
-            logger.info("Save cancelled")
-            return
-
-        RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON")
-
-    def _on_save_clicked(self):
-        root_name = Path(self._tree.root.text()).with_suffix(".fmu").name
-        output_path = LastDirectory.get_save_file_name(self, "Save FMU container", "FMU (*.fmu)",
-                                                        default_name=root_name)
-        if not output_path:
-            logger.info("Save cancelled")
-            return
-
-        fmi_version = self._fmi_group.checkedId()
-        datalog = self._datalog_checkbox.isChecked()
-        RunTask(self.save_as_fmu, output_path, fmi_version, datalog,
-                parent=self, title="Saving as FMU")
 
 
 def parse_arguments(arguments: list[str]) -> argparse.Namespace:

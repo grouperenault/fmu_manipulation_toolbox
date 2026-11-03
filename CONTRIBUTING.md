@@ -141,8 +141,11 @@ release tagged `V1.9.4.2` is published as `1.9.4.2`, and any other commit gets a
 `1.9.4.3.dev79+g230faf6`. There is no version number to edit in the sources. A clone needs the tags
 (`git fetch --tags`) to compute it; a shallow clone gives `0.1.dev1+g<commit>`.
 
-Pre-releases use `rc` tags (`V2.0.0rc1`). Never use `dev` tags (`V0.0dev3`): setuptools-scm cannot compute the
-version of the later commits from them, and every build fails.
+Pre-releases use `a`, `b` or `rc` tags (`V2.1a1`, `V2.0b3`, `V2.0.0rc1`): they are published on PyPI as
+pre-releases, that `pip` installs only when asked (`--pre`, or a requirement naming a pre-release). Never use `dev`
+tags but `.dev0` (`V2.1.dev1`, `V0.0dev3`): setuptools-scm cannot compute the version of the later commits from them,
+and every build fails. The release workflow refuses such tags before publishing (`tools/check_release_tag.py`, which
+also checks the version setuptools-scm computes for the tag and for a commit after it).
 
 ### Building
 
