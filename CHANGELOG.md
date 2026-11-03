@@ -7,6 +7,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🟠 **FIXED** SSP export of an LS-BUS terminal link: the connections between input clocks were silently lost, and the
+  container built from the SSP file had no clock routing. They are written, and the SSP reader accepts them.
 - 🟢 **ADDED** **SSP export**: `Assembly.write_ssp()`, `fmucontainer -dump-ssp` and **Export as SSP** in the
   Container Builder. The routing is written resolved (the `auto_*` rules become connections), the options and the
   dropped ports of each container go in an annotation `fmu_manipulation_toolbox.container`, the start values,

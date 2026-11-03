@@ -59,6 +59,21 @@ def _shape(node: AssemblyNode) -> dict:
 # --------------------------------------------------------------------------- #
 #                       the routing resolved, the same container              #
 # --------------------------------------------------------------------------- #
+@pytest.mark.area("ls-bus")
+@pytest.mark.lsbus
+@pytest.mark.fmi3
+@pytest.mark.parametrize("name", ["nodes-only", "bus+nodes"])
+def test_the_clocks_of_an_ls_bus_terminal_link_go_through_ssp(area_dir, name):
+    """A terminal link connects input clocks together: their links have no source, and must not be lost."""
+    Assembly(f"{name}.json").write_ssp(f"{name}.ssp")
+    _assert_valid(Path(f"{name}.ssp"))
+
+    Assembly(f"{name}.json").make_fmu(fmi_version=3, filename="from_json.fmu")
+    Assembly(f"{name}.ssp").make_fmu(fmi_version=3, filename="from_ssp.fmu")
+
+    assert _container_txt(Path("from_ssp.fmu")) == _container_txt(Path("from_json.fmu"))
+
+
 @pytest.mark.area("containers/arch")
 @pytest.mark.needs_container
 def test_a_json_assembly_gives_the_same_container_through_ssp(area_dir):
