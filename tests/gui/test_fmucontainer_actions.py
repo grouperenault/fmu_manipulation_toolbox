@@ -287,13 +287,9 @@ def _reversed_exposed_output(source, destination):
     return destination
 
 
-def _messages(caplog):
-    return [record.getMessage() for record in caplog.records]
-
-
 def test_a_refused_file_is_reported_as_failed_and_changes_nothing(window, monkeypatch, bouncing, tmp_path, caplog):
-    """The import fails with the reason: "❌ … failed", never "finished"; the scene, the unsaved changes and the last
-    directory are left as they were."""
+    """The reason of the failure is a CRITICAL record, the last record is "❌ … failed" (INFO), never "finished"; the
+    scene, the unsaved changes and the last directory are left as they were."""
     import logging
     window.import_file(str(bouncing))
     window._dirty = False
@@ -306,10 +302,11 @@ def test_a_refused_file_is_reported_as_failed_and_changes_nothing(window, monkey
     with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
         window.import_file(str(broken))
 
-    messages = _messages(caplog)
-    assert any(message.startswith("❌ Importing Assembly failed: 'SystemStructure.ssd': connection height -> "
-                                  "bb_position.position1") for message in messages)
-    assert not any("Importing Assembly finished" in message for message in messages)
+    records = [(record.levelname, record.getMessage()) for record in caplog.records]
+    assert ("CRITICAL", "'SystemStructure.ssd': connection height -> bb_position.position1: 'position1' of component "
+                        "'bb_position' is an output, not an input or a parameter.") in records
+    assert records[-1] == ("INFO", "❌ Importing Assembly failed")
+    assert not any("Importing Assembly finished" in message for _, message in records)
     assert {node.name for node in window._graph.scene.fmu_nodes()} == before
     assert window._dirty is False
     assert LastDirectory.get() == last_directory
@@ -323,7 +320,8 @@ def test_a_container_that_cannot_be_loaded_is_reported_as_failed(window, tmp_pat
     with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
         window.load_file(str(container))
 
-    messages = _messages(caplog)
-    assert any(message.startswith("❌ Loading FMU Container failed:") for message in messages)
-    assert not any("Loading FMU Container finished" in message for message in messages)
+    records = [(record.levelname, record.getMessage()) for record in caplog.records]
+    assert any(level == "CRITICAL" for level, _ in records)
+    assert records[-1] == ("INFO", "❌ Loading FMU Container failed")
+    assert not any("Loading FMU Container finished" in message for _, message in records)
     assert window._graph.scene.fmu_nodes() == []

@@ -558,8 +558,9 @@ class RunTask(QDialog):
     """Runs a task on the main thread and shows the records it logs, through the shared ``GuiLogHandler``.
 
     The records of the task belong to the registered window of *parent*, even when the user acts in another window
-    while the task runs. A task fails by raising: the dialog then ends with "❌ <title> failed: <reason>" (never
-    "finished"), and `succeeded` is false.
+    while the task runs. A task fails by raising: the reason is logged as CRITICAL (after the records of the task,
+    which may hold other CRITICAL ones), then the last line is "❌ <title> failed" (INFO) — never "finished" — and
+    `succeeded` is false.
 
     Attributes:
         succeeded (bool): Whether the task returned without raising.
@@ -607,7 +608,8 @@ class RunTask(QDialog):
                 logger.info(f"✅ {title} finished.")
             except Exception as e:
                 logger.debug(f"{title} failed", exc_info=True)
-                logger.critical(f"❌ {title} failed: {e}")
+                logger.critical(f"{e}")
+                logger.info(f"❌ {title} failed")
         QApplication.restoreOverrideCursor()
         log_handler.record_emitted.disconnect(self._on_record)
 
