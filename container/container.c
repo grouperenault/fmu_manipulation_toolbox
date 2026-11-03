@@ -2383,6 +2383,10 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
             int offset;
 
             CONFIG_GETLINE;
+            if (config_line_without_decimal_point(file)) {
+                CONFIG_ERROR("Cannot interpret %luth clock table entries.", i);
+                return -5;
+            }
             if (sscanf(file->line, "%lu %lu %n", &fmu_id, &nb, &offset) < 2) {
                 CONFIG_ERROR("Cannot interpret %luth clock table entries.", i);
                 return -5;

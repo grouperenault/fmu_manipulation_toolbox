@@ -6,6 +6,7 @@ wrong call stops the simulation. It counts the ticks of its clocks and sums thei
 clocks, each of them drives the triggered clock of `b.fmu`.
 """
 import json
+import locale
 import zipfile
 from pathlib import Path
 
@@ -97,6 +98,28 @@ def test_tick_announced_again_at_the_same_time_waits_for_a_step(area_dir):
     for fmu in ("a", "b"):
         assert result[f"{fmu}_count_repeated"][-1] == 2
         assert result[f"{fmu}_sum_repeated"][-1] == pytest.approx(2 * 0.25, abs=1e-6)
+
+
+def test_declared_interval_and_shift_with_a_decimal_comma(area_dir):
+    """The interval and the shift declared by the modelDescription.xml are read from `container.txt` with a dot,
+    whatever the numeric locale of the importer."""
+    for name in ("fr_FR.UTF-8", "fr_FR.utf8", "de_DE.UTF-8", "de_DE.utf8", "French_France.1252"):
+        try:
+            locale.setlocale(locale.LC_NUMERIC, name)
+            break
+        except locale.Error:
+            pass
+    else:
+        pytest.skip("No locale with a decimal comma on this system")
+    assert locale.localeconv()["decimal_point"] == ","
+
+    _build_fmu()
+    result = _simulate(["constant"])
+    assert locale.localeconv()["decimal_point"] == ","  # The locale of the importer is unchanged.
+
+    expected = _expected_ticks()["constant"]
+    assert result["a_count_constant"][-1] == len(expected)
+    assert result["a_sum_constant"][-1] == pytest.approx(sum(expected), abs=1e-6)
 
 
 def test_ticks_of_all_the_clocks_together(area_dir):
