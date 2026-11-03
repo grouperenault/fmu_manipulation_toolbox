@@ -1526,3 +1526,22 @@ fmu_status_t fmuGetIntervalDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t
     
     return FMU_STATUS_OK;
 }
+
+
+fmu_status_t fmuGetShiftDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, double *shift) {
+    const logger_t *logger = &fmu->container->logger;
+
+    if (! fmu->fmi_functions.version_3.fmi3GetShiftDecimal) {
+        LOGGER_DEBUG("FMU '%s' has no fmi3GetShiftDecimal: no shift.", fmu->name);
+        for (size_t i = 0; i < nvr; i += 1)
+            shift[i] = 0.0;
+        return FMU_STATUS_OK;
+    }
+
+    if (fmu->fmi_functions.version_3.fmi3GetShiftDecimal(fmu->component, vr, nvr, shift) != fmi3OK) {
+        LOGGER_ERROR("Cannot GetShiftDecimal for FMU  '%s'", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+
+    return FMU_STATUS_OK;
+}

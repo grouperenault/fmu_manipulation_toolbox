@@ -209,3 +209,56 @@ def test_binary_outside_of_ls_bus_is_not_checked(area_dir, caplog):
     _build_clocks()
     assert "LS-BUS" not in caplog.text.replace("LS-BUS: importer", "")
 
+
+# --------------------------------------------------------------------------- #
+#                     input clocks that must tick together                      #
+# --------------------------------------------------------------------------- #
+RX_CLOCK = '<Clock name="CanChannel.Rx_Clock" valueReference="2" causality="input" intervalVariability="triggered" />'
+PERIODIC_RX_CLOCK = ('<Clock name="CanChannel.Rx_Clock" valueReference="2" causality="input" '
+                     'intervalVariability="constant" intervalDecimal="{}"/>')
+BUS_TX_CLOCK = '<Clock name="Node1.Tx_Clock" valueReference="3" causality="input" intervalVariability="countdown" />'
+PERIODIC_BUS_TX_CLOCK = ('<Clock name="Node1.Tx_Clock" valueReference="3" causality="input" '
+                         'intervalVariability="constant" intervalDecimal="{}"/>')
+
+
+def _importer_clocks() -> str:
+    with zipfile.ZipFile("clocks.fmu") as archive:
+        name = next(name for name in archive.namelist() if name.endswith("container.txt"))
+        lines = archive.read(name).decode().splitlines()
+    return lines[next(i for i, line in enumerate(lines) if line.startswith("# importer CLOCKS")) + 2]
+
+
+def test_scheduled_clock_is_written_with_its_declaration(area_dir):
+    _patch_model_description("bus.fmu", BUS_TX_CLOCK, PERIODIC_BUS_TX_CLOCK.format("0.2"))
+    _build_clocks()
+    assert "3 234881025 constant 0.2 -1" in _importer_clocks()
+
+
+def test_periodic_rx_clock_and_tx_clock_of_different_intervals_give_a_warning(area_dir, caplog):
+    _patch_model_description("node1.fmu", RX_CLOCK, PERIODIC_RX_CLOCK.format("0.1"))
+    _patch_model_description("bus.fmu", BUS_TX_CLOCK, PERIODIC_BUS_TX_CLOCK.format("0.2"))
+    _build_clocks()
+    assert "their intervals and shifts differ" in caplog.text
+
+
+def test_periodic_rx_clock_and_tx_clock_of_the_same_interval_give_no_warning(area_dir, caplog):
+    _patch_model_description("node1.fmu", RX_CLOCK, PERIODIC_RX_CLOCK.format("0.1"))
+    _patch_model_description("bus.fmu", BUS_TX_CLOCK, PERIODIC_BUS_TX_CLOCK.format("0.1"))
+    _build_clocks()
+    assert "their intervals and shifts differ" not in caplog.text
+
+
+def test_periodic_rx_clock_driven_by_a_triggered_clock_gives_a_warning(area_dir, caplog):
+    _patch_model_description("bus.fmu", '<Clock name="Node1.Rx_Clock" valueReference="2" causality="input" '
+                                        'intervalVariability="triggered" />',
+                             '<Clock name="Node1.Rx_Clock" valueReference="2" causality="input" '
+                             'intervalVariability="constant" intervalDecimal="0.1"/>')
+    _build_clocks()
+    assert "their ticks must match" in caplog.text
+
+
+def test_input_clocks_without_a_time_based_clock_give_a_warning(area_dir, caplog):
+    _patch_model_description("bus.fmu", BUS_TX_CLOCK, BUS_TX_CLOCK.replace("countdown", "triggered"))
+    _build_clocks()
+    assert "they will never tick" in caplog.text
+

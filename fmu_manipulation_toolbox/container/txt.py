@@ -230,9 +230,13 @@ class InvolvedFMU:
 @dataclass
 class Clock:
     """Clock of an embedded FMU scheduled by the importer: its value reference in the FMU, and the local variable of
-    the container that feeds it."""
+    the container that feeds it, how it ticks and, when the FMU declares them, its interval and its shift (-1 if not
+    declared)."""
     fmu_vr: int
     vr: int
+    variability: str
+    interval: str
+    shift: str
 
 
 class ClockList:
@@ -260,7 +264,9 @@ class ClockList:
             cport (ContainerPort): The clocked port on the embedded FMU.
             vr (int): The local value reference of the clock.
         """
-        self.clocks_per_fmu[self.fmu_index[cport.fmu.name]].append(Clock(cport.port.vr, vr))
+        port = cport.port
+        self.clocks_per_fmu[self.fmu_index[cport.fmu.name]].append(
+            Clock(port.vr, vr, port.interval_variability, port.interval_decimal or "-1", port.shift_decimal or "-1"))
 
     def write_txt(self, txt_file: IO) -> None:
         """Write the clock scheduling table to the `container.txt` file.
@@ -268,14 +274,15 @@ class ClockList:
         Args:
             txt_file (IO): Writable text file handle.
         """
-        print("# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]", file=txt_file)
+        print("# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> <VARIABILITY> <INTERVAL> <SHIFT> [...]", file=txt_file)
         nb_total_clocks = 0
         for clocks in self.clocks_per_fmu.values():
             nb_total_clocks += len(clocks)
 
         print(f"{len(self.clocks_per_fmu)} {nb_total_clocks}", file=txt_file)
         for index, clocks in self.clocks_per_fmu.items():
-            clocks_str = " ".join([f"{clock.fmu_vr} {clock.vr}" for clock in clocks])
+            clocks_str = " ".join([f"{clock.fmu_vr} {clock.vr} {clock.variability} {clock.interval} {clock.shift}"
+                                   for clock in clocks])
             print(f"{index} {len(clocks)} {clocks_str}", file=txt_file)
 
 

@@ -26,7 +26,7 @@ from .errors import FMUContainerError
 from .layout import ContainerLayout
 from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import ClockList, FMUIOList, InvolvedFMU, LocalVariable, Port
-from .types import ALL_TYPES, CONTAINER_TXT_VERSION
+from .types import ALL_TYPES, CONTAINER_TXT_VERSION, TIME_BASED_CLOCKS
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -1041,6 +1041,19 @@ class FMUContainer:
                            f"of the links. Topological order of the Co-Simulation FMUs: "
                            f"{', '.join(name_of[rank] for rank in order)}.")
 
+    @staticmethod
+    def check_clocks_of_link(link: Link, scheduled_clocks: list[ContainerPort]):
+        """Warn about the input clocks of a link that will not tick together: they share their local variable."""
+        if not scheduled_clocks:
+            logger.warning(f"No clock drives {', '.join(str(cport) for cport in link.cport_to_list)}: "
+                           f"they will never tick.")
+
+        declared = {(cport.port.interval_decimal, cport.port.shift_decimal or "0") for cport in scheduled_clocks
+                    if cport.port.interval_decimal is not None}
+        if len(declared) > 1:
+            logger.warning(f"The ticks of {', '.join(str(cport) for cport in scheduled_clocks)} must match, "
+                           f"but their intervals and shifts differ.")
+
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
                      layout: ContainerLayout):
         print(f"# Version {CONTAINER_TXT_VERSION}", file=txt_file)
@@ -1090,20 +1103,23 @@ class FMUContainer:
 
         # Links
         for link in self.links.values():
-            scheduled_clock = None
+            scheduled_clocks = []
 
             # FMU Outputs
             if link.cport_from:
                 local_per_type[link.cport_from.port.type_name].append(LocalVariable(layout.links[link], link.size))
                 fmu_io_list.add_output(link.cport_from, layout.links[link])
+                for cport_to in link.cport_to_list:
+                    if cport_to.port.interval_variability in TIME_BASED_CLOCKS:
+                        logger.warning(f"{cport_to} ticks with {link.cport_from} only: their ticks must match.")
             else:
                 local_per_type["clock"].append(LocalVariable(layout.links[link], link.size))
                 for cport_to in link.cport_to_list:
-                    if cport_to.port.interval_variability == "countdown":
-                        scheduled_clock = cport_to
+                    if cport_to.port.interval_variability in TIME_BASED_CLOCKS:
+                        scheduled_clocks.append(cport_to)
                         logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, vr={layout.links[link]})")
                         clock_list.append(cport_to, layout.links[link])
-                        break
+                self.check_clocks_of_link(link, scheduled_clocks)
 
             # Converted copies: one local variable per target type, whatever the number of targets of that type.
             for type_name in link.conversions:
@@ -1113,9 +1129,9 @@ class FMUContainer:
 
             # FMU Inputs
             for cport_to in link.cport_to_list:
-                if cport_to != scheduled_clock:
+                if cport_to not in scheduled_clocks:
                     # LS-BUS allows, importer to feed clock signal. In this case, cport_from is None
-                    # The scheduled clock is activated directly by the schedule, no need to add input link!
+                    # A scheduled clock is activated directly by the schedule, no need to add input link!
                     if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
                         local_vr = layout.links[link]
                     else:

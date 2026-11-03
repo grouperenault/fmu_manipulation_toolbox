@@ -72,6 +72,7 @@ refused when the container is instantiated, with one of the errors:
 | 5 | 1.9.4 | Local variables addressed by their **storage offset**: `<LOCAL_OFFSET>` instead of the local VR in the per-FMU I/O lines, and as `<FMU_VR>` of the local lines of the container I/O table (an array occupies several slots) |
 | 6 | 2.0b1 | Model-Exchange support: FMU count split into `<nb_fmu_cs> <nb_fmu_me>`, ME entries carry `<nx> <nz>`; reserved `integer32` slot for the ME solver |
 | 7 | 2.0b2 | Reset trigger of each embedded FMU (`container.<fmu>.reset`), after its conversion table; initialization order of the embedded FMUs, after their declarations |
+| 8 | 2.1 | Importer clocks: all the time-based clocks, with `<VARIABILITY> <INTERVAL> <SHIFT>` |
 
 ---
 
@@ -382,9 +383,9 @@ for `boolean`/`boolean1` (e.g. `D8_D16`, `B_F64`). **Lossy** conversions (narrow
 ## 8. Importer Clocks
 
 ```
-# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
+# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> <VARIABILITY> <INTERVAL> <SHIFT> [...]
 <nb_fmu_with_clocks> <nb_total_clocks>
-<FMU_INDEX> <NB> <FMU_VR> <LOCAL_VR> [<FMU_VR> <LOCAL_VR> ...]
+<FMU_INDEX> <NB> <FMU_VR> <LOCAL_VR> <VARIABILITY> <INTERVAL> <SHIFT> [<FMU_VR> <LOCAL_VR> <VARIABILITY> <INTERVAL> <SHIFT> ...]
 ...
 ```
 
@@ -393,16 +394,20 @@ for `boolean`/`boolean1` (e.g. `D8_D16`, `B_F64`). **Lossy** conversions (narrow
 - Each line:
   - `<FMU_INDEX>`: Index of the FMU.
   - `<NB>`: Number of clocks for this FMU.
-  - Pairs of `<FMU_VR> <LOCAL_VR>`: The FMU's clock value reference and the corresponding
-    container-local clock VR.
+  - For each clock:
+    - `<FMU_VR>`, `<LOCAL_VR>`: The FMU's clock value reference and the corresponding container-local clock VR.
+    - `<VARIABILITY>`: `intervalVariability` of the clock: `constant`, `fixed`, `tunable`, `changing` or `countdown`.
+    - `<INTERVAL>`, `<SHIFT>`: `intervalDecimal` and `shiftDecimal` of the `modelDescription.xml`, `-1` if not declared.
 
-This section is used for LS-BUS support where the container runtime acts as an FMI importer
-and schedules countdown clocks on embedded FMUs.
+This section lists the time-based input clocks linked to another clock: the container runtime acts as an FMI importer
+and schedules them. It reads from the FMU the interval and the shift that are not declared, and stores the time of the
+next tick of each clock.
 
 ### Version differences
 
 - **Version < 3**: This section does not exist.
 - **Version ≥ 3**: Always present (even if `0 0`).
+- **Version < 8**: Only `countdown` clocks, without `<VARIABILITY> <INTERVAL> <SHIFT>`.
 
 ---
 

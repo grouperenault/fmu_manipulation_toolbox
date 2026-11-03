@@ -53,8 +53,8 @@ Consumers of `Terminals`, to be kept working by any change of the terminal model
 
 Taken on 3 November 2026:
 
-- **D1 — Clocks**: all the time-based clocks are scheduled (`constant`, `fixed`, `calculated`, `tunable`, `changing`,
-  `countdown`), and the shift is read.
+- **D1 — Clocks**: all the time-based clocks are scheduled (`constant`, `fixed`, `tunable`, `changing`, `countdown`), and
+  the shift is read. FMI 3.0 has no `calculated` variability, contrary to the first version of this plan.
 - **D2 — `BusNotifications`**: the value is propagated to the parameter of the node when it is known at build time
   (`constant` variable or start value of the bus). A warning is issued when it is known at runtime only.
 - **D3 — MIME**: a different bus type is an error that stops the build. A different version of the same bus type is
@@ -117,7 +117,7 @@ Runtime:
 
 | `intervalVariability` | Interval read | Next tick |
 |---|---|---|
-| `constant`, `fixed`, `calculated` | Once, after initialization | Previous tick + interval; the first tick is at the shift |
+| `constant`, `fixed` | Once, in Initialization Mode, unless declared | Previous tick + interval; the first tick is at the shift |
 | `tunable` | Once, and again on `fmi3IntervalChanged` | Previous tick + current interval |
 | `changing` | After each tick | Previous tick + current interval, if known |
 | `countdown` | After each tick | Unchanged behaviour |
