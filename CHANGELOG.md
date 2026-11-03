@@ -92,6 +92,9 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟢 **ADDED** Container Builder: the nodes imported from an SSP file are placed after the geometry of their
   components, and the [architecture wires](docs/user-guide/fmucontainer/gui-usage.md#architecture-wires) of the file
   are shown as dashed wires until their links are defined, with their direction and description in the wire details.
+- 🟠 **FIXED** texts overflowing their widgets on Windows at a display scale of 125 % or 150 %: the scale is rounded
+  down to 1 for the widgets, the fonts now get the DPI of a scale of 100 % too (`QT_FONT_DPI=96` while the
+  application is created, unless `QT_FONT_DPI` is already set). From 175 %, fonts and widgets are scaled alike.
 - 🟠 **FIXED** status bar of the GUIs: a long log record is elided (the whole line in the tooltip) instead
   of widening the window.
 

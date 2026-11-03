@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import contextmanager
 
 from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QPushButton, QMessageBox, QTableView, QHeaderView,
                                QMenu)
@@ -13,6 +14,47 @@ from fmu_manipulation_toolbox.gui.style import gui_style
 from fmu_manipulation_toolbox.operations import FMU
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+
+# The application rounds the scale factor of the display down (RoundPreferFloor: 125 % and 150 % give 1): the widgets
+# keep their size in pixels, but on Windows Qt gives the fonts the DPI of the display (120, 144), so the texts
+# overflow their widgets. The fonts then get the DPI of a scale of 100 %: the interface is the one designed at 100 %.
+FONT_DPI_VARIABLE = "QT_FONT_DPI"
+BASE_DPI = 96
+
+
+def windows_display_dpi() -> int | None:
+    """DPI of the main display, as set by its scale on Windows (120 at 125 %); None when it cannot be read."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\Desktop\WindowMetrics") as key:
+            return int(winreg.QueryValueEx(key, "AppliedDPI")[0])
+    except (ImportError, OSError, ValueError):
+        return None
+
+
+def font_dpi(display_dpi: int | None) -> int | None:
+    """The DPI given to the fonts for a display of *display_dpi*: the DPI of a scale of 100 % when the scale is
+    rounded down to 1 (from 100 % to 174 %); None otherwise (a scale of 200 %, for instance, doubles the fonts and
+    the widgets alike) or when the DPI of the display is unknown."""
+    if display_dpi is None or display_dpi / BASE_DPI >= 1.75:
+        return None
+    return BASE_DPI
+
+
+@contextmanager
+def fonts_of_a_scale_of_100_percent():
+    """While the application is created: on Windows, the fonts get the DPI of a scale of 100 % (see `font_dpi`),
+    unless the environment sets their DPI. Qt reads it when the application is created: it is then removed from the
+    environment, so that the processes started by the application keep their own rendering."""
+    dpi = font_dpi(windows_display_dpi()) if os.name == "nt" and FONT_DPI_VARIABLE not in os.environ else None
+    if dpi is None:
+        yield
+        return
+    os.environ[FONT_DPI_VARIABLE] = str(dpi)
+    try:
+        yield
+    finally:
+        del os.environ[FONT_DPI_VARIABLE]
 
 
 def get_fmu_icon_path(fmu: FMU, fmi_version: int | None) -> Path | None:
@@ -231,7 +273,8 @@ def unlock_column_resize(table: QTableView):
 class Application(QApplication):
     def __init__(self, *args, **kwargs):
         self.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.RoundPreferFloor)
-        super().__init__(*args, **kwargs)
+        with fonts_of_a_scale_of_100_percent():
+            super().__init__(*args, **kwargs)
         if os.name == 'nt':
             import ctypes
             self.setWindowIcon(QIcon(str(Path(__file__).parent.parent / 'resources' / 'icon-round.png')))
