@@ -107,6 +107,11 @@ def _scenario(directory):
         ("remove_link", {"from_fmu": "bb_velocity.fmu", "from_port": "velocity",
                          "to_fmu": "bb_position.fmu", "to_port": "velocity"}),
         ("save_assembly", {"path": str(directory / "assembly.json"), "overwrite": True}),
+        ("save_assembly", {"path": str(directory / "assembly.ssp"), "overwrite": True}),
+        ("inspect_ssp", {"path": str(directory / "assembly.ssp")}),
+        ("inspect_ssp", {"path": str(directory / "assembly.ssp"), "section": "output"}),
+        ("import_assembly", {"path": str(directory / "assembly.json"), "replace": True}),
+        ("list_fmus", {}),
         ("remove_fmu", {"name": "bb_velocity.fmu"}),
         ("summarize_fmu", {"path": position}),
         ("check_fmu", {"path": position}),
@@ -192,6 +197,65 @@ def test_the_assembly_is_kept_between_calls(fmus, capsys):
     assert code == 0
     assert listed == {"result": ["bb_position.fmu"]}
     assert json.loads(state.read_text())["options"]["mt"] is True
+
+
+def _description(fmus, **content):
+    path = fmus / "description.json"
+    path.write_text(json.dumps({"name": "pair.fmu", "fmu": ["bb_position.fmu", "bb_velocity.fmu"], **content}))
+    return str(path)
+
+
+def test_an_imported_assembly_is_found_by_the_next_call(fmus, capsys):
+    state = fmus / "state.json"
+
+    code, imported = agent(capsys, "import_assembly", {"path": _description(fmus, output=[
+        ["bb_position.fmu", "position1", "height"]])}, state)
+    assert code == 0, imported
+    assert imported["file"] == "description.json"
+
+    assert agent(capsys, "list_fmus", {}, state) == (0, {"result": ["bb_position.fmu", "bb_velocity.fmu"]})
+    code, written = agent(capsys, "save_assembly", {"path": str(fmus / "written.ssp")}, state)
+    assert code == 0, written
+    code, inspected = agent(capsys, "inspect_ssp", {"path": str(fmus / "written.ssp"), "section": "output"})
+    assert code == 0, inspected
+    assert inspected["readable"] is True
+    assert ["bb_position.fmu", "position1", "height"] in inspected["entries"]
+
+
+def test_an_import_refused_leaves_the_state_as_it_was(fmus, capsys):
+    state = fmus / "state.json"
+    agent(capsys, "add_fmu", {"path": str(fmus / "bb_position.fmu")}, state)
+    before = state.read_text()
+
+    code, result = agent(capsys, "import_assembly", {"path": _description(fmus)}, state)
+    assert code == EXIT_TOOL_ERROR
+    assert "replace=True" in result["error"]
+    assert state.read_text() == before
+
+    nested = _description(fmus, container=[{"name": "sub.fmu", "fmu": ["bb_velocity.fmu"]}])
+    code, result = agent(capsys, "import_assembly", {"path": nested, "replace": True}, state)
+    assert code == EXIT_TOOL_ERROR
+    assert "sub-containers" in result["error"]
+    assert state.read_text() == before
+
+
+def test_inspecting_an_ssp_file_needs_no_state(fmus, capsys):
+    (fmus / "broken.ssp").write_text("not an archive")
+
+    code, result = agent(capsys, "inspect_ssp", {"path": str(fmus / "broken.ssp")})
+
+    assert code == 0
+    assert result["readable"] is False
+
+
+def test_the_ssp_version_is_checked(fmus, capsys):
+    state = fmus / "state.json"
+    agent(capsys, "add_fmu", {"path": str(fmus / "bb_position.fmu")}, state)
+
+    code, result = agent(capsys, "save_assembly", {"path": str(fmus / "x.ssp"), "ssp_version": "3.0"}, state)
+
+    assert code == EXIT_USAGE_ERROR
+    assert "ssp_version" in result["error"]
 
 
 def test_a_failed_change_leaves_the_state_as_it_was(fmus, capsys):
