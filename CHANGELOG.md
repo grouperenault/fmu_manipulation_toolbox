@@ -76,10 +76,10 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## Graphical User Interfaces
 
-- 🔵 **CHANGED** Container Builder: two actions, **Open…** (Ctrl+O) and **Save as…** (Ctrl+S), replace **Load FMU
-  Container**, **Import**, **Export as JSON**, **Export as SSP** and **Save as FMU Container**: the extension of the
-  file decides (`.fmu` container, `.json`, `.csv` or `.ssp` assembly file; saved as an FMU container, SSP or JSON).
-  Open… asks first when there are unsaved changes, as Exit does.
+- 🔵 **CHANGED** Container Builder: the buttons are **Exit**, **Load** (Ctrl+O) and **Save** (Ctrl+S); Load and Save
+  replace **Load FMU Container**, **Import**, **Export as JSON**, **Export as SSP** and **Save as FMU Container**: the
+  extension of the file decides (`.fmu` container, `.json`, `.csv` or `.ssp` assembly file; saved as an FMU
+  container, SSP or JSON). Load asks first when there are unsaved changes, as Exit does.
 - 🟢 **ADDED** `fmucontainer-gui <file>` opens an FMU container (`.fmu`) or imports an assembly file (`.json`,
   `.csv`, `.ssp`) given on the command line.
 - 🟢 **ADDED** Container Builder: the nodes imported from an SSP file are placed after the geometry of their

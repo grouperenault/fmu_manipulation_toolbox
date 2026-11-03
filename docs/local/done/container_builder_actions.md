@@ -69,3 +69,9 @@ assembly in some format; the choice of the button is the choice of the format. T
    **Done** (1 November 2026): `gui-usage.md` (actions and shortcuts, workflows, loading and importing),
    `container.md` (SSP export); the 5 screenshots showing the button bar regenerated (`container`, `container-vr`,
    `container-reset`, `invalid-wire`, `instances`); CHANGELOG.
+
+---
+
+**Follow-up (3 November 2026)**: the buttons are named **Load** and **Save** (no ellipsis), in the order **Exit**,
+**Load**, **Save**; attributes and handlers renamed alike (`_load_button`, `_save_button`, `_on_load_clicked`,
+`_on_save_clicked`).
