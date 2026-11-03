@@ -253,3 +253,34 @@ def test_an_unknown_ssp_version_is_refused(data_dir, tmp_path, version):
 def test_an_empty_assembly_cannot_be_written(tmp_path):
     with pytest.raises(AssemblyError, match="The assembly is empty"):
         Assembly(fmu_directory=tmp_path).write_ssp(tmp_path / "x.ssp")
+
+
+# --------------------------------------------------------------------------- #
+#                    nothing to write: no empty element                        #
+# --------------------------------------------------------------------------- #
+def test_a_system_without_connection_is_valid(data_dir, tmp_path):
+    shutil.copy(data_dir / "fmi3" / "bouncing_ball" / "bb_position.fmu", tmp_path / "bb_position.fmu")
+    assembly = Assembly(fmu_directory=tmp_path)
+    assembly.root = AssemblyNode("alone.fmu", auto_link=False, auto_input=False, auto_output=False)
+    assembly.root.add_fmu("bb_position.fmu")
+    assembly.write_ssp(tmp_path / "alone.ssp")
+
+    _assert_valid(tmp_path / "alone.ssp")
+    assert "Connections" not in _ssd(tmp_path / "alone.ssp")
+    assert len(Assembly("alone.ssp", fmu_directory=tmp_path).root.fmu_names_list) == 1
+
+
+def test_a_system_without_component_is_valid(tmp_path):
+    """A component without `source` is ignored (SSP 2.0): its system has no element left."""
+    ssd = ('<?xml version="1.0" encoding="UTF-8"?>'
+           '<ssd:SystemStructureDescription xmlns:ssd="http://ssp-standard.org/SSP1/SystemStructureDescription" '
+           'version="2.0" name="empty"><ssd:System name="empty"><ssd:Elements>'
+           '<ssd:Component name="planned"/></ssd:Elements></ssd:System></ssd:SystemStructureDescription>')
+    with zipfile.ZipFile(tmp_path / "planned.ssp", "w") as archive:
+        archive.writestr("SystemStructure.ssd", ssd)
+
+    Assembly("planned.ssp", fmu_directory=tmp_path).write_ssp(tmp_path / "again.ssp")
+
+    _assert_valid(tmp_path / "again.ssp")
+    assert "Elements" not in _ssd(tmp_path / "again.ssp")
+    assert Assembly("again.ssp", fmu_directory=tmp_path).root.fmu_names_list == []

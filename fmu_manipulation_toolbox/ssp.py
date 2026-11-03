@@ -955,7 +955,7 @@ class SSPWriter:
 
         if system_connectors:
             system.append(self._connectors(system_connectors.values()))
-        element_list = ET.SubElement(system, f"{ssd}Elements")
+        element_list = ET.Element(f"{ssd}Elements")
         for element, path in files.items():
             if element in {Path(name).stem for name in node.children}:
                 child = next(child_system for name, (child_system, _) in children.items()
@@ -976,8 +976,10 @@ class SSPWriter:
                               {"x1": repr(x1), "y1": repr(y1), "x2": repr(x2), "y2": repr(y2)})
             if values.get(element):
                 component.append(self._bindings(path, values[element]))
-        connections_element = ET.SubElement(system, f"{ssd}Connections")
-        connections_element.extend(connections)
+        if len(element_list):  # the schema refuses empty `Elements` and `Connections`
+            system.append(element_list)
+        if connections:
+            ET.SubElement(system, f"{ssd}Connections").extend(connections)
         system.append(self._options_annotation(node, elements))
         return system
 
