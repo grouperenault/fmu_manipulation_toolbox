@@ -7,6 +7,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🟠 **FIXED** `fmusplit` on the LS-BUS containers of `container.txt` format 3 (toolbox 1.9.2): the clocked variables
+  were read with a wrong line format, which raised a `ValueError`.
 - 🟠 **FIXED** an FMU without `guid` or `instantiationToken` (e.g. a description only, without implementation) is
   refused with a clear `FMUContainerError`; it raised a raw `KeyError`.
 - 🟢 **ADDED** **architecture wires** in SSP files: a connection annotated
