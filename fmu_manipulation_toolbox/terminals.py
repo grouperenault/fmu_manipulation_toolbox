@@ -24,10 +24,12 @@ class Terminal:
         self.kind = kind
         self.matching = matching
         self.members:dict[str, str] = {}
+        self.member_kinds: dict[str, str | None] = {}
         self.sub_terminals: dict[str, Terminal] = {}
 
-    def add_member(self, member_name, variable_name):
+    def add_member(self, member_name, variable_name, variable_kind=None):
         self.members[member_name] = variable_name
+        self.member_kinds[member_name] = variable_kind
 
     def __repr__(self):
         return f"{self.path} ({len(self.members)} signals, {self.kind})"
@@ -209,7 +211,7 @@ class Terminals:
     def add_member_from_terminal(self, terminal: Terminal, element):
             for child in element:
                 if child.tag == "TerminalMemberVariable":
-                    terminal.add_member(child.get("memberName"), child.get("variableName"))
+                    terminal.add_member(child.get("memberName"), child.get("variableName"), child.get("variableKind"))
                 elif child.tag == "Terminal":
                     sub_terminal = self.add_terminal(child, terminal)
                     terminal.sub_terminals[sub_terminal.name] = sub_terminal

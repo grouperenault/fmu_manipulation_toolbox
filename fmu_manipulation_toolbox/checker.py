@@ -3,10 +3,16 @@ from importlib.metadata import entry_points
 import inspect
 import logging
 import os
+import re
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
 import xmlschema
 
+from .ls import LayeredStandard
 from .model_description import ModelDescription, ModelVariable
 from .operations import OperationAbstract
+from .terminals import CONFIGURATION_KIND, TRANSCEIVER_MEMBERS, TRANSCEIVER_RULE, Terminal, Terminals
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -302,7 +308,180 @@ class OperationSemanticCheck(OperationAbstract):
             self.error(f"{what}: dependencies and dependenciesKind have different lengths ({section}).")
 
 
-_checkers_list: list[type[OperationAbstract]] = [OperationGenericCheck, OperationSemanticCheck]
+class OperationLsBusCheck(OperationAbstract):
+    """Check the rules of FMI-LS-BUS, for an FMU that declares this layered standard.
+
+    Each violation is logged as an error and kept in `errors`:
+
+    - the manifest `extra/org.fmi-standard.fmi-ls-bus/fmi-ls-manifest.xml` and its attributes;
+    - the `matchingRule` of each kind of terminal of LS-BUS;
+    - a Bus Terminal of the Network Abstraction has the members `Tx_Data`, `Tx_Clock`, `Rx_Data` and `Rx_Clock`, of kind
+      `signal`, that no other Bus Terminal uses;
+    - `Tx_Data` and `Rx_Data` are binaries clocked by `Tx_Clock` and `Rx_Clock`, of the same MIME type of LS-BUS;
+    - the causality and the `intervalVariability` of `Tx_Clock` and `Rx_Clock`;
+    - the name and the rule of a Configuration Terminal.
+
+    A time-based `Tx_Clock` without `canHandleVariableCommunicationStepSize` gives a warning: the specification only
+    recommends it.
+
+    Attributes:
+        errors (list[str]): Violations found.
+    """
+
+    read_only = True
+
+    MANIFEST = Path("extra") / "org.fmi-standard.fmi-ls-bus" / "fmi-ls-manifest.xml"
+    MANIFEST_NAME = "org.fmi-standard.fmi-ls-bus"
+    NETWORK_KIND = "org.fmi-ls-bus.network-terminal"
+    MATCHING_RULES = {
+        NETWORK_KIND: (TRANSCEIVER_RULE, "bus"),
+        CONFIGURATION_KIND: ("bus",),
+        "org.fmi-ls-bus.frame-terminal": ("bus",),
+        "org.fmi-ls-bus.pdu-terminal": ("bus",),
+        "org.fmi-ls-bus.ethernet-segment-terminal": ("none",),
+        "org.fmi-ls-bus.ethernet-switch-terminal": ("none",),
+    }
+    MIME_TYPE = re.compile(r'application/org\.fmi-standard\.fmi-ls-bus\.(can|lin|flexray|ethernet); *version="[^"]+"')
+    PERIODIC_CLOCKS = ("constant", "fixed", "tunable")
+    APERIODIC_CLOCKS = ("changing", "countdown")
+
+    def __init__(self):
+        self.errors: list[str] = []
+
+    def __repr__(self):
+        return "FMU LS-BUS Checks"
+
+    def error(self, message: str):
+        self.errors.append(message)
+        logger.error(message)
+
+    def closure(self):
+        md = self.model_description
+        directory = Path(self.fmu.tmp_directory)
+        terminals = Terminals(directory)
+        has_terminals = any(terminal.kind in self.MATCHING_RULES for terminal in terminals.walk())
+        has_manifest = (directory / self.MANIFEST).is_file()
+        if not has_terminals and not has_manifest:
+            return
+
+        if md.fmi_version != 3:
+            self.error(f"FMI-LS-BUS is a layered standard of FMI 3.0, not of FMI {md.fmi_version}.")
+        elif has_manifest:
+            self.check_manifest(directory / self.MANIFEST)
+        else:
+            self.error(f"FMI-LS-BUS terminals without the manifest '{self.MANIFEST.as_posix()}'.")
+
+        ports = {port.get("name"): port for port in md.iter_ports()}
+        users: dict[str, str] = {}
+        for terminal in terminals.walk():
+            self.check_terminal(terminal)
+            if terminal.kind == self.NETWORK_KIND and terminal.matching == TRANSCEIVER_RULE:
+                self.check_bus_terminal(terminal, ports, users)
+
+        if self.errors:
+            logger.error(f"{len(self.errors)} error(s) against FMI-LS-BUS.")
+        else:
+            logger.info("No error against FMI-LS-BUS.")
+
+    def check_manifest(self, filename: Path):
+        try:
+            root = ET.parse(filename).getroot()
+        except ET.ParseError as error:
+            self.error(f"Cannot parse the manifest of FMI-LS-BUS: {error}")
+            return
+
+        namespace = f"{{{LayeredStandard.MANIFEST_NAMESPACE}}}"
+        if root.get(f"{namespace}fmi-ls-name") != self.MANIFEST_NAME:
+            self.error(f"The manifest of FMI-LS-BUS needs fmi-ls-name='{self.MANIFEST_NAME}'.")
+        for attribute in ("fmi-ls-version", "fmi-ls-description"):
+            if not root.get(f"{namespace}{attribute}"):
+                self.error(f"The manifest of FMI-LS-BUS has no {attribute}.")
+        if root.get("isBusSimulationFMU", "false") not in ("true", "false", "1", "0"):
+            self.error(f"isBusSimulationFMU of the manifest of FMI-LS-BUS is not a boolean: "
+                       f"'{root.get('isBusSimulationFMU')}'.")
+
+    def check_terminal(self, terminal: Terminal):
+        rules = self.MATCHING_RULES.get(terminal.kind)
+        if rules and terminal.matching not in rules:
+            self.error(f"Terminal '{terminal.path}' of kind '{terminal.kind}': matchingRule must be "
+                       f"{' or '.join(rules)}, not '{terminal.matching}'.")
+        if terminal.kind == CONFIGURATION_KIND and terminal.name != "Configuration":
+            self.error(f"Terminal '{terminal.path}': the name of a Configuration Terminal must be 'Configuration'.")
+        for sub_terminal in terminal.sub_terminals.values():
+            if sub_terminal.name == "Configuration" and sub_terminal.kind != CONFIGURATION_KIND:
+                self.error(f"Terminal '{sub_terminal.path}': the kind of a Configuration Terminal must be "
+                           f"'{CONFIGURATION_KIND}'.")
+
+    def check_bus_terminal(self, terminal: Terminal, ports: dict[str, ModelVariable], users: dict[str, str]):
+        variables = {}
+        for member in TRANSCEIVER_MEMBERS:
+            name = terminal.members.get(member)
+            if name is None:
+                self.error(f"Bus Terminal '{terminal.path}' has no member {member}.")
+                continue
+            if terminal.member_kinds.get(member) != "signal":
+                self.error(f"Bus Terminal '{terminal.path}': the variableKind of {member} must be 'signal'.")
+            if name in users:
+                self.error(f"Variable '{name}' is used by the Bus Terminals '{users[name]}' and '{terminal.path}'.")
+            users[name] = terminal.path
+            if name in ports:
+                variables[member] = ports[name]
+            else:
+                self.error(f"Bus Terminal '{terminal.path}': {member} refers to '{name}', which does not exist.")
+
+        for data, clock in (("Tx_Data", "Tx_Clock"), ("Rx_Data", "Rx_Clock")):
+            if data in variables:
+                self.check_data(terminal, data, variables[data], variables.get(clock))
+        if "Rx_Clock" in variables:
+            self.check_rx_clock(terminal, variables["Rx_Clock"])
+        if "Tx_Clock" in variables:
+            self.check_tx_clock(terminal, variables["Tx_Clock"])
+        if "Tx_Data" in variables and "Rx_Data" in variables:
+            if variables["Tx_Data"].get("mimeType") != variables["Rx_Data"].get("mimeType"):
+                self.error(f"Bus Terminal '{terminal.path}': Tx_Data and Rx_Data have different MIME types.")
+
+    def check_data(self, terminal: Terminal, member: str, port: ModelVariable, clock: ModelVariable | None):
+        if port.fmi_type != "Binary":
+            self.error(f"Bus Terminal '{terminal.path}': {member} must be a Binary, not a {port.fmi_type}.")
+            return
+        causality = "output" if member == "Tx_Data" else "input"
+        if port.causality != causality:
+            self.error(f"Bus Terminal '{terminal.path}': the causality of {member} must be {causality}.")
+        if not self.MIME_TYPE.fullmatch(port.get("mimeType", "")):
+            self.error(f"Bus Terminal '{terminal.path}': {member} has no MIME type of FMI-LS-BUS: "
+                       f"'{port.get('mimeType', '')}'.")
+        if clock is not None and clock.get("valueReference") not in port.get("clocks", "").split():
+            self.error(f"Bus Terminal '{terminal.path}': {member} must be clocked by its clock.")
+
+    def check_rx_clock(self, terminal: Terminal, port: ModelVariable):
+        if port.fmi_type != "Clock":
+            self.error(f"Bus Terminal '{terminal.path}': Rx_Clock must be a Clock, not a {port.fmi_type}.")
+            return
+        if port.causality != "input":
+            self.error(f"Bus Terminal '{terminal.path}': the causality of Rx_Clock must be input.")
+        if port.get("intervalVariability") not in ("triggered", *self.PERIODIC_CLOCKS):
+            self.error(f"Bus Terminal '{terminal.path}': Rx_Clock must be triggered or periodic, not "
+                       f"'{port.get('intervalVariability')}'.")
+
+    def check_tx_clock(self, terminal: Terminal, port: ModelVariable):
+        if port.fmi_type != "Clock":
+            self.error(f"Bus Terminal '{terminal.path}': Tx_Clock must be a Clock, not a {port.fmi_type}.")
+            return
+        variability = port.get("intervalVariability")
+        if variability == "triggered":
+            if port.causality != "output":
+                self.error(f"Bus Terminal '{terminal.path}': a triggered Tx_Clock must be an output.")
+        elif port.causality != "input":
+            self.error(f"Bus Terminal '{terminal.path}': a time-based Tx_Clock must be an input.")
+        elif variability in (*self.PERIODIC_CLOCKS, *self.APERIODIC_CLOCKS):
+            interfaces = self.model_description.interfaces
+            if "CoSimulation" in interfaces and \
+                    interfaces["CoSimulation"].get("canHandleVariableCommunicationStepSize") != "true":
+                logger.warning(f"Bus Terminal '{terminal.path}': a time-based Tx_Clock should come with "
+                               f"canHandleVariableCommunicationStepSize.")
+
+
+_checkers_list: list[type[OperationAbstract]] = [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck]
 
 
 def get_checkers() -> list[type[OperationAbstract]]:

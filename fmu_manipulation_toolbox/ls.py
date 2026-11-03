@@ -6,8 +6,11 @@ from pathlib import Path
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 class LayeredStandard:
+    MANIFEST_NAMESPACE = "http://fmi-standard.org/fmi-ls-manifest"
+
     def __init__(self, directory: Path | str):
         self.is_bus = False
+        self.bus_version: str | None = None
         self.standards: list[str] = []
 
         if isinstance(directory, Path):
@@ -22,8 +25,8 @@ class LayeredStandard:
         if filename.exists():
             xml = ET.parse(filename)
             root = xml.getroot()
-            root.get("isBusSimulationFMU", "")
             self.is_bus = root.get("isBusSimulationFMU") == "true"
+            self.bus_version = root.get(f"{{{self.MANIFEST_NAMESPACE}}}fmi-ls-version")
 
             self.standards.append("LS-BUS")
 
