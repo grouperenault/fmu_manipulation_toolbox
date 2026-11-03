@@ -7,6 +7,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🟠 **FIXED** SSP export of an LS-BUS terminal link: the connections between input clocks were silently lost, and the
+  container built from the SSP file had no clock routing. They are written, and the SSP reader accepts them.
 - 🟢 **ADDED** **SSP export**: `Assembly.write_ssp()`, `fmucontainer -dump-ssp` and **Export as SSP** in the
   Container Builder. The routing is written resolved (the `auto_*` rules become connections), the options and the
   dropped ports of each container go in an annotation `fmu_manipulation_toolbox.container`, the start values,
@@ -76,10 +78,13 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## Graphical User Interfaces
 
-- 🔵 **CHANGED** Container Builder: two actions, **Open…** (Ctrl+O) and **Save as…** (Ctrl+S), replace **Load FMU
-  Container**, **Import**, **Export as JSON**, **Export as SSP** and **Save as FMU Container**: the extension of the
-  file decides (`.fmu` container, `.json`, `.csv` or `.ssp` assembly file; saved as an FMU container, SSP or JSON).
-  Open… asks first when there are unsaved changes, as Exit does.
+- 🔵 **CHANGED** Container Builder: the buttons are **Exit**, **Load** (Ctrl+O) and **Save** (Ctrl+S); Load and Save
+  replace **Load FMU Container**, **Import**, **Export as JSON**, **Export as SSP** and **Save as FMU Container**: the
+  extension of the file decides (`.fmu` container, `.json`, `.csv` or `.ssp` assembly file; saved as an FMU
+  container, SSP or JSON). Load asks first when there are unsaved changes, as Exit does.
+- 🟠 **FIXED** Container Builder: a load or an import that fails (e.g. an SSP file the reader refuses) shows its reason
+  as a CRITICAL record and ends with "❌ … failed" instead of "✅ … finished"; the scene, the unsaved changes and the
+  last directory are left as they were.
 - 🟢 **ADDED** `fmucontainer-gui <file>` opens an FMU container (`.fmu`) or imports an assembly file (`.json`,
   `.csv`, `.ssp`) given on the command line.
 - 🟢 **ADDED** Container Builder: the nodes imported from an SSP file are placed after the geometry of their

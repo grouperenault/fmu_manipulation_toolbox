@@ -440,12 +440,22 @@ class SSDParser:
             self._used_connectors.add((system, attrs['startConnector']))
         if end is None:
             self._used_connectors.add((system, attrs['endConnector']))
+        if (start is not None and end is not None and self._is_input_clock(start, attrs['startConnector'])
+                and self._is_input_clock(end, attrs['endConnector'])):
+            return  # LS-BUS connects input clocks together
         if start is not None:
             self._check_fmu_connector(attrs, start, attrs['startConnector'],
                                       self.OUTPUT_ROLES if end is not None else self.EXPOSED_OUTPUT_ROLES)
         if end is not None:
             self._check_fmu_connector(attrs, end, attrs['endConnector'],
                                       self.INPUT_ROLES if start is not None else self.EXPOSED_INPUT_ROLES)
+
+    def _is_input_clock(self, element: str, connector: str) -> bool:
+        source = self._sources.get((id(self.node_stack[-1]), element))
+        if source is None:
+            return False  # a sub-system: no FMU
+        variable = self._fmu_description(element, source)[1].get(connector)
+        return variable is not None and variable.fmi_type == "Clock" and variable.causality == "input"
 
     def _check_fmu_connector(self, attrs: dict[str, str], element: str, connector: str, causalities: tuple[str, ...]):
         source = self._sources.get((id(self.node_stack[-1]), element))
@@ -914,14 +924,15 @@ class SSPWriter:
             system_connectors[name] = self._system_connector(name, start, "output")
             connection(element, cport.port.name, None, name, start, system_connectors[name])
         for link in container.links.values():
-            if link.cport_from is None:
-                logger.debug(f"Link '{link.name}' without source (clock of the importer) is not written.")
-                continue
-            start_element = elements[link.cport_from.fmu.name]
-            start = connector(start_element, link.cport_from.port.name)
-            for cport in link.cport_to_list:
+            if link.cport_from is None:  # LS-BUS: input clocks connected together, fed by the importer
+                source, *targets = link.cport_to_list
+            else:
+                source, targets = link.cport_from, link.cport_to_list
+            start_element = elements[source.fmu.name]
+            start = connector(start_element, source.port.name)
+            for cport in targets:
                 end_element = elements[cport.fmu.name]
-                connection(start_element, link.cport_from.port.name, end_element, cport.port.name, start,
+                connection(start_element, source.port.name, end_element, cport.port.name, start,
                            connector(end_element, cport.port.name))
 
         # Architecture wires: synthetic connectors `aw.<peer>` (container.md#architecture-wires).
