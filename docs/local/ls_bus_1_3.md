@@ -1,12 +1,39 @@
 # Plan: support of FMI-LS-BUS 1.3 (CAN, LIN, FlexRay, Ethernet)
 
-**Created**: 3 November 2026 — **Status**: in progress — **Branch**: `ls-bus-1.3`, from `feature/ssp` (`1c130ad`) —
+**Created**: 3 November 2026 — **Status**: all steps done but step 10, which waits for the final 1.3.0 — **Branch**: `ls-bus-1.3`, from `feature/ssp` (`1c130ad`) —
 **Reference**: [FMI-LS-BUS `v1.3.0-rc.1`](https://github.com/modelica/fmi-ls-bus/releases/tag/v1.3.0-rc.1)
 
 FMI-LS-BUS 1.3 adds LIN, FlexRay and Ethernet to CAN. The container already transports the bus operations: `Tx_Data`
 and `Rx_Data` are opaque binaries of dynamic size. What is missing is the scheduling of the clocks, the handling of
 nested terminals, and the checks. Most of these gaps predate 1.3. In `v1.3.0-rc.1` itself, the only change that
 directly concerns an importer is the periodic `Rx_Clock` (#392).
+
+---
+
+## Outcome
+
+On `feature/ls-bus-1.3`, tested on macOS only: the CI has not run these commits on Linux and Windows.
+
+Found on the way, in addition to the gaps of section 1:
+
+- **The frames of a Bus Simulation never reached the nodes**, and the reference log recorded it: the clock was reset before
+  the delivery of the clocked inputs. Fixed by a commit of its own.
+- A clock ticks at most once per time instant: the FlexRay demo announces a new tick at the current time and waits for a step.
+- The demos of `fmi-ls-bus-examples` do not build outside of Windows (`_strdup`), and the FlexRay demos do not evaluate their
+  discrete states in `fmi3UpdateDiscreteStates`, as FMI 3.0 requires. Decision: the container does not call
+  `fmi3EvaluateDiscreteStates`, and the demos are fixed.
+
+Still open:
+
+- **Step 10** waits for the final 1.3.0.
+- **FlexRay**: the first exchanges work, in both directions. The startup of the demo stops after its first cycles, and without
+  a reference importer nothing tells yet whether the demo or the container is the cause. The demo still uses the headers
+  of 1.1.0-alpha.1: its API differs from the RC.
+- **D8**: the demos are on the local branch `lin-ethernet` of `fmi-ls-bus-examples`, not pushed: the pull request is to be
+  opened by the user. The LIN and Ethernet demos transmit whole frames and do not simulate the protocols in detail (no
+  schedule table, arbitration or errors).
+- Input clocks linked together share a local variable: if their ticks do not match, in spite of the warning, the output of the
+  sender is read at the tick of the receiver.
 
 ---
 

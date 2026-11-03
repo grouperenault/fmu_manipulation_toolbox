@@ -11,7 +11,7 @@ FMU Manipulation Toolbox provides four main commands:
 | `fmutool`      | FMU analysis and manipulation                |
 | `fmucontainer` | FMU container creation                       |
 | `fmusplit`     | Extract FMUs from a container                |
-| `datalog2pcap` | Convert CAN datalog CSV to PCAP (experimental) |
+| `datalog2pcap` | Convert LS-BUS datalog CSV to PCAPNG (experimental) |
 
 For AI agents, `fmutool-mcp` serves the tools of the [AI assistant](../fmucontainer/ai-assistant.md) to an MCP
 client, and `fmutool-agent` offers the same tools as a JSON command line (see [Agent skills](../agent-skills.md)).
@@ -482,27 +482,37 @@ fmusplit -fmu container1.fmu -fmu container2.fmu
     when the peer FMU does not emit clocks. The result can be re-imported
     into the GUI or fed back into `fmucontainer` unchanged.
 
-## datalog2pcap: Convert Datalog to PCAP
+## datalog2pcap: Convert Datalog to PCAPNG
 
 !!! warning "Experimental"
     This tool is still experimental. The interface may change in future versions.
 
-The `datalog2pcap` command converts CAN bus datalog CSV files (produced by FMU containers with
-the `-datalog` option and LS-BUS enabled FMUs) into PCAP files for analysis in tools like
-Wireshark.
+The `datalog2pcap` command converts the datalog CSV files of FMU containers holding LS-BUS enabled FMUs (produced with the
+`-datalog` option) into PCAPNG files, for all the buses: CAN, LIN, FlexRay and Ethernet. Each bus operation is one packet.
+
+Opening them in Wireshark requires the [FMI-LS-BUS plugin](https://github.com/modelica/fmi-ls-bus/tree/main/wireshark-plugin),
+including for CAN: copy `fmi_ls_bus.lua` to the **Personal Lua Plugins** directory shown in **Help > About Wireshark >
+Folders**.
 
 ### Basic Syntax
 
 ```bash
-datalog2pcap -can datalog.csv
+datalog2pcap datalog.csv -fmu container.fmu
 ```
+
+It writes `datalog.pcapng`. The container gives the type of bus of each column of the CSV file: an operation code does not
+tell it, as `0x10` exists on the four buses.
 
 ### Options
 
 | Option | Description |
 |---|---|
-| `-can filename.csv` | Datalog CSV file with CAN data and clocks. |
+| `datalog.csv` | Datalog CSV file with LS-BUS data and clocks. |
+| `-fmu container.fmu` | Container that produced the datalog. Required. |
 | `-debug` | Enable verbose logging. |
+
+!!! warning "Migration"
+    The option `-can` and the PCAP output are removed.
 
 ## Exit Codes
 
@@ -589,7 +599,7 @@ fmucontainer -container config.json -fmu-directory ./fmus
 fmusplit -fmu container.fmu
 
 # Datalog conversion (experimental)
-datalog2pcap -can datalog.csv
+datalog2pcap datalog.csv -fmu container.fmu
 ```
 
 ## Next Steps

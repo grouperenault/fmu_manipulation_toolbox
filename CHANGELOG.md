@@ -7,6 +7,22 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
+  was reset before the delivery of the clocked inputs.
+- 🟠 **FIXED** LS-BUS: the `Rx_Clock` of a Bus Simulation was not activated by the `countdown` `Tx_Clock` of a node.
+- 🟠 **FIXED** the links of the sub-terminals were lost, without any message: a connection of Physical Signal Abstraction
+  terminals made no link at all. A `Configuration` terminal on one side only raised a raw `KeyError`.
+- 🟠 **FIXED** an FMU with a `GraphicalRepresentation` before its `Terminals` had no terminal, without any message.
+- 🟢 **ADDED** LS-BUS up to 1.3.0-rc.1: LIN, FlexRay and Ethernet. See [LS-BUS](docs/user-guide/fmucontainer/ls-bus.md).
+- 🟢 **ADDED** all the time-based clocks of FMI 3.0 are scheduled, their shift included (`constant`, `fixed`, `tunable`,
+  `changing`), not only `countdown`. `container.txt` is now in version 8.
+- 🟢 **ADDED** the parameters of LS-BUS `Configuration` terminals (`BusNotifications`, `DeliveryOnBoundary`) take the value of
+  the Bus Simulation when it is known at build time.
+- 🟢 **ADDED** a link between different LS-BUS types is refused, and different versions of a type give a warning.
+- 🔴 **BREAKING** a nested terminal is designated by its full path in a link (`Seg1.P1`): its bare name is refused.
+- 🔴 **BREAKING** `datalog2pcap datalog.csv -fmu container.fmu` writes PCAPNG for CAN, LIN, FlexRay and Ethernet, for the
+  Wireshark plugin of FMI-LS-BUS. The option `-can` and the PCAP output are removed.
+- 🟢 **ADDED** `fmutool -check` applies the rules of FMI-LS-BUS (`OperationLsBusCheck`).
 - 🟠 **FIXED** SSP export of an LS-BUS terminal link: the connections between input clocks were silently lost, and the
   container built from the SSP file had no clock routing. They are written, and the SSP reader accepts them.
 - 🟠 **FIXED** an FMU without `guid` or `instantiationToken` (e.g. a description only, without implementation) is
