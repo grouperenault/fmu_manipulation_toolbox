@@ -180,3 +180,32 @@ def test_countdown_tx_clock_of_a_bus_is_activated_by_the_schedule_only(area_dir)
     _build_clocks()
     assert [line.split()[-1] for line in _clock_inputs("bus.fmu")] == ["2"]  # Not its Tx_Clock (3)
 
+
+# --------------------------------------------------------------------------- #
+#                                MIME types                                     #
+# --------------------------------------------------------------------------- #
+CAN_MIME = "application/org.fmi-standard.fmi-ls-bus.can; version=&quot;1.0.0-beta.1&quot;"
+
+
+def test_link_between_different_types_of_bus_is_refused(area_dir):
+    _patch_model_description("node1.fmu", CAN_MIME, CAN_MIME.replace(".can;", ".lin;"))
+    with pytest.raises(FMUContainerError, match="different LS-BUS types .*can.*lin|different LS-BUS types .*lin.*can"):
+        _build_clocks()
+
+
+def test_link_between_different_versions_of_a_bus_gives_a_warning(area_dir, caplog):
+    _patch_model_description("node1.fmu", CAN_MIME, CAN_MIME.replace("1.0.0-beta.1", "1.0.0"))
+    _build_clocks()
+    assert "different versions of LS-BUS can" in caplog.text
+
+
+def test_same_mime_type_gives_no_warning(area_dir, caplog):
+    _build_clocks()
+    assert "LS-BUS can" not in caplog.text
+
+
+def test_binary_outside_of_ls_bus_is_not_checked(area_dir, caplog):
+    _patch_model_description("node1.fmu", CAN_MIME, "application/octet-stream")
+    _build_clocks()
+    assert "LS-BUS" not in caplog.text.replace("LS-BUS: importer", "")
+

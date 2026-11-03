@@ -1,6 +1,7 @@
 """Wiring rules of a container: ports of the embedded FMUs, container inputs, links, auto-wiring."""
 
 import logging
+import re
 
 from .embedded import EmbeddedFMU
 from .errors import FMUContainerError
@@ -8,6 +9,9 @@ from .types import CONVERSION_FUNCTION, is_lossy
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
+
+LS_BUS_MIME_TYPE = re.compile(r'application/org\.fmi-standard\.fmi-ls-bus\.([\w-]+)(?:\s*;\s*version="([^"]*)")?',
+                              re.IGNORECASE)
 
 
 class ContainerPort:
@@ -42,6 +46,31 @@ class ContainerPort:
 
     def __eq__(self, other):
         return str(self) == str(other)
+
+
+def _ls_bus_mime_type(mime_type: str | None) -> tuple[str, str | None] | None:
+    """Bus type and version of an LS-BUS MIME type, `None` for any other MIME type."""
+    match = LS_BUS_MIME_TYPE.fullmatch(mime_type.strip()) if mime_type else None
+    return (match.group(1).lower(), match.group(2)) if match else None
+
+
+def check_ls_bus_mime_types(cport_from: ContainerPort, cport_to: ContainerPort):
+    """Refuse a link between two different types of bus, and warn about two versions of a type of bus.
+
+    Raises:
+        FMUContainerError: If the two ports are LS-BUS variables of different types of bus.
+    """
+    from_type = _ls_bus_mime_type(cport_from.port.mime_type)
+    to_type = _ls_bus_mime_type(cport_to.port.mime_type)
+    if from_type is None or to_type is None:
+        return
+
+    if from_type[0] != to_type[0]:
+        raise FMUContainerError(f"failed to connect {cport_from} to {cport_to}: "
+                                f"different LS-BUS types ({from_type[0]} and {to_type[0]}).")
+    if from_type[1] != to_type[1]:
+        logger.warning(f"{cport_from} and {cport_to} use different versions of LS-BUS {from_type[0]}: "
+                       f"{from_type[1]} and {to_type[1]}.")
 
 
 class ContainerInput:
@@ -151,6 +180,7 @@ class Link:
             self.cport_to_list.append(cport_to)
         elif cport_to.port.type_name == self.cport_from.port.type_name:
             if cport_to.port.dimensions == self.cport_from.port.dimensions:
+                check_ls_bus_mime_types(self.cport_from, cport_to)
                 self.cport_to_list.append(cport_to)
             else:
                 raise FMUContainerError(f"failed to connect {self.cport_from} to {cport_to} due dimensions mismatch.")
