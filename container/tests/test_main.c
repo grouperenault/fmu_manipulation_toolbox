@@ -33,6 +33,7 @@ static const struct {
     { "start_value_refused",            test_start_value_refused },
     { "start_value_array",              test_start_value_array },
     { "datalog_rows",                   test_datalog_rows },
+    { "datalog_decimal_comma",          test_datalog_decimal_comma },
 };
 
 

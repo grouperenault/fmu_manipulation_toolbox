@@ -132,8 +132,8 @@ void config_file_error(config_file_t *config_file, unsigned int code_line_number
 
 
 /*
- * The configuration files and the datalog use a decimal dot, whereas scanf() and printf() use the decimal point of the
- * locale of the host, which an FMU must not change (FMI 3.0, 2.2.1): the text is converted on its way to or from them.
+ * The configuration files use a decimal dot, whereas scanf() uses the decimal point of the locale of the host, which an
+ * FMU must not change (FMI 3.0, 2.2.1): the text is converted on its way to it.
  */
 
 /* Before scanf() on a line of numbers. scanf() may not read a decimal point of several bytes (macOS): such a locale is
@@ -153,20 +153,4 @@ int config_line_to_host_decimal_point(config_file_t *config_file) {
     }
 
     return 0;
-}
-
-
-/* Formats a real with a decimal dot. */
-void config_real_to_text(char *text, size_t size, const char *format, double value) {
-    const char *point = localeconv()->decimal_point;
-
-    snprintf(text, size, format, value);
-    if (strcmp(point, ".") != 0) {
-        char *found = strstr(text, point);
-        if (found) {
-            const size_t point_size = strlen(point);
-            *found = '.';
-            memmove(found + 1, found + point_size, strlen(found + point_size) + 1);
-        }
-    }
 }

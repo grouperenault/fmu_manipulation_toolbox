@@ -112,7 +112,10 @@ class DatalogConverter:
     def convert(self):
         bus_types = self.read_bus_types()
         with self.open_csv() as self.csvfile, self.open_pcap() as self.pcapfile:
-            csv_reader = csv.DictReader(self.csvfile)
+            # The datalog follows the locale of the importer: its first column is "time", then comes the separator.
+            delimiter = self.csvfile.readline()[len("time"):][:1] or ","
+            self.csvfile.seek(0)
+            csv_reader = csv.DictReader(self.csvfile, delimiter=delimiter)
 
             data_column_names = [name for name in csv_reader.fieldnames if name in bus_types]
             if not data_column_names:
@@ -132,7 +135,7 @@ class DatalogConverter:
                     clock_column_names[column_name] = clock_column_name
 
             for row in csv_reader:
-                timestamp = round(float(row["time"]) * 1e6)
+                timestamp = round(float(row["time"].replace(",", ".")) * 1e6)
 
                 for names in data_column_names:
                     hex_data = row[names]

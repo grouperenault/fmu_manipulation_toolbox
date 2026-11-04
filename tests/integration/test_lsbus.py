@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from fmu_manipulation_toolbox.assembly import Assembly
+from fmu_manipulation_toolbox.cli.datalog2pcap import DatalogConverter
 
 from _helpers.assertions import assert_equivalent_csv
 from _helpers.simulation import assert_simulation_log
@@ -45,3 +46,19 @@ def test_ls_bus_nodes_only(area_dir):
     assert_simulation_log("nodes-only.fmu", 0.1)
     assert_equivalent_csv("nodes-only-datalog.csv", "REF-nodes-only-datalog.csv")
 
+
+def test_ls_bus_datalog_with_a_decimal_comma(area_dir, decimal_comma_locale):
+    """The datalog follows the locale of the importer, with a semicolon between its columns: it holds the same values,
+    and `datalog2pcap` makes the same capture out of it."""
+    from fmpy import simulate_fmu
+
+    reference = Path("REF-nodes-only-datalog.pcapng").read_bytes()
+    Assembly("nodes-only.json").make_fmu(fmi_version=3, datalog=True)
+    simulate_fmu("nodes-only.fmu", step_size=0.1, stop_time=10, relative_tolerance=1e-9, output_interval=0.1,
+                 validate=True)
+
+    assert Path("nodes-only-datalog.csv").read_text().startswith("time;")
+    assert_equivalent_csv("nodes-only-datalog.csv", "REF-nodes-only-datalog.csv")
+
+    DatalogConverter("nodes-only-datalog.csv", "nodes-only.fmu").convert()
+    assert Path("nodes-only-datalog.pcapng").read_bytes() == reference

@@ -17,6 +17,7 @@ extern "C" {
 
 typedef struct datalog_s {
     FILE                            *file;
+    char                            separator;  /* of the columns, depends on the locale of the host */
     FOR_ALL_NUMERIC_TYPES(DECLARE)
     DECLARE(strings, String, const char *)
     DECLARE(binaries, Binary, const uint8_t *)

@@ -503,6 +503,8 @@ datalog2pcap datalog.csv -fmu container.fmu
 It writes `datalog.pcapng`. The container gives the type of bus of each column of the CSV file: an operation code does not
 tell it, as `0x10` exists on the four buses.
 
+The CSV file may have been written in any locale: with a semicolon between its columns and a decimal comma, or not.
+
 ### Options
 
 | Option | Description |

@@ -8,8 +8,8 @@
 #include "test.h"
 
 /*
- * The configuration is read, and the datalog written, with a decimal dot whatever the locale of the host, which is
- * left unchanged.
+ * The configuration is read with a decimal dot whatever the locale of the host, which is left unchanged. The datalog
+ * follows this locale: a decimal comma, and a semicolon between its columns.
  */
 
 /* Sets a locale with a decimal comma. Returns its name, or NULL if the system has none. */
@@ -42,7 +42,7 @@ static int check_c_locale(container_t *container, const char *host_locale) {
     TEST_ASSERT(container->fmu[0].fmu_io.start_reals64.nb == 1);
     TEST_ASSERT(*container->fmu[0].fmu_io.start_reals64.start_values[0].value == 2.5);
 
-    /* datalog row with a decimal dot: one comma, between the time and the value */
+    /* datalog row with the decimal point of the host: the columns are separated by a semicolon */
     container->time = 0.25;
     datalog_log(container);
     TEST_ASSERT(strcmp(localeconv()->decimal_point, ",") == 0);
@@ -54,12 +54,8 @@ static int check_c_locale(container_t *container, const char *host_locale) {
     const int read_row = read_header && fgets(line, sizeof(line), fp) != NULL;
     fclose(fp);
     TEST_ASSERT(read_row);
-    int nb_commas = 0;
-    for (const char *c = line; *c; c += 1)
-        nb_commas += (*c == ',');
-    TEST_ASSERT_EQUAL_INT(1, nb_commas);
-    TEST_ASSERT(strchr(line, '.') != NULL);
-    TEST_ASSERT(strstr(line, "0.25") != NULL);
+    TEST_ASSERT(strncmp(line, "0,25;", 5) == 0);
+    TEST_ASSERT(strchr(line, '.') == NULL);
 
     return 0;
 }
@@ -113,8 +109,7 @@ int test_locale_line_to_host_decimal_point(void) {
 }
 
 
-/* A decimal point of several bytes: scanf() may not read it, so the configuration is refused, and a real is still
-   written with a dot. */
+/* A decimal point of several bytes: scanf() may not read it, so the configuration is refused. */
 int test_locale_long_decimal_point(void) {
     if (!setlocale(LC_ALL, "fa_IR.UTF-8") || strlen(localeconv()->decimal_point) < 2) {
         setlocale(LC_ALL, "C");
@@ -123,7 +118,6 @@ int test_locale_long_decimal_point(void) {
     }
 
     char location[4096];
-    char text[64];
     char line[] = "2.5";
     config_file_t file;
 
@@ -139,13 +133,11 @@ int test_locale_long_decimal_point(void) {
     if (container)
         container_free(container);
 
-    config_real_to_text(text, sizeof(text), "%.17g", 0.25);
     setlocale(LC_ALL, "C");
 
     TEST_ASSERT(converted != 0);
     TEST_ASSERT(strcmp(line, "2.5") == 0);
     TEST_ASSERT(configured != 0);
-    TEST_ASSERT(strcmp(text, "0.25") == 0);
 
     return 0;
 }

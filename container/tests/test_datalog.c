@@ -1,3 +1,4 @@
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -68,6 +69,53 @@ int test_datalog_rows(void) {
     TEST_ASSERT(has_row);
     TEST_ASSERT(time == 0.1);       /* read back bit for bit */
     TEST_ASSERT(value == third);
+
+    return 0;
+}
+
+
+/* With a decimal comma, the columns are separated by a semicolon: a name is quoted if it contains a semicolon. */
+int test_datalog_decimal_comma(void) {
+    static const char *names =
+        "# Datalog filename\n" DATALOG_DIR "/datalog.csv\n"
+        "# real64: <VR> <NAME>\n2\n2 a[1,2]\n2 b;c\n"
+        "0\n0\n0\n0\n0\n0\n0\n0\n0\n0\n0\n0\n0\n0\n";   /* the 14 other types */
+    char *original = read_file(TEST_FIXTURES_DIR "/one_fmu/container.txt");
+    TEST_ASSERT(original != NULL);
+    const int written = test_write_file(DATALOG_DIR, "container.txt", original) ||
+                        test_write_file(DATALOG_DIR, "datalog.txt", names);
+    free(original);
+    TEST_ASSERT_EQUAL_INT(0, written);
+
+    if (!setlocale(LC_ALL, "fr_FR.UTF-8") && !setlocale(LC_ALL, "fr_FR.utf8") && !setlocale(LC_ALL, "de_DE.UTF-8") &&
+        !setlocale(LC_ALL, "de_DE.utf8") && !setlocale(LC_ALL, "French_France.1252")) {
+        printf("No locale with a decimal comma on this system: test skipped.\n");
+        remove(DATALOG_DIR "/datalog.txt");
+        return 0;
+    }
+
+    container_t *container = container_new("datalog", "{uuid}", 2);
+    const int configured = container ? container_configure(container, "file://" DATALOG_DIR) : 1;
+    if (container) {
+        if (configured == 0) {
+            container->time = 0.25;
+            datalog_log(container);
+        }
+        container_free(container);
+    }
+    setlocale(LC_ALL, "C");
+    remove(DATALOG_DIR "/datalog.txt");
+    TEST_ASSERT_EQUAL_INT(0, configured);
+
+    char *csv = read_file(DATALOG_DIR "/datalog.csv");
+    TEST_ASSERT(csv != NULL);
+    const int header_ok = strncmp(csv, "time;a[1,2];\"b;c\"\n", strlen("time;a[1,2];\"b;c\"\n")) == 0;
+    const char *row = strchr(csv, '\n');
+    const int row_ok = row && strncmp(row + 1, "0,25;", 5) == 0;
+    free(csv);
+
+    TEST_ASSERT(header_ok);
+    TEST_ASSERT(row_ok);
 
     return 0;
 }

@@ -19,6 +19,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟢 **ADDED** the parameters of LS-BUS `Configuration` terminals (`BusNotifications`, `DeliveryOnBoundary`) take the value of
   the Bus Simulation when it is known at build time.
 - 🟢 **ADDED** a link between different LS-BUS types is refused, and different versions of a type give a warning.
+- 🔴 **BREAKING** the datalog follows the locale of the simulation tool: with a decimal comma, the columns are separated by a
+  semicolon. A locale whose decimal point has several bytes (`fa_IR.UTF-8`) is refused by the container.
 - 🔴 **BREAKING** a nested terminal is designated by its full path in a link (`Seg1.P1`): its bare name is refused.
 - 🔴 **BREAKING** `datalog2pcap datalog.csv -fmu container.fmu` writes PCAPNG for CAN, LIN, FlexRay and Ethernet, for the
   Wireshark plugin of FMI-LS-BUS. The option `-can` and the PCAP output are removed.
