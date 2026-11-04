@@ -62,3 +62,17 @@ def test_ls_bus_datalog_with_a_decimal_comma(area_dir, decimal_comma_locale):
 
     DatalogConverter("nodes-only-datalog.csv", "nodes-only.fmu").convert()
     assert Path("nodes-only-datalog.pcapng").read_bytes() == reference
+
+
+def test_ls_bus_capture_has_each_operation_once(area_dir):
+    """Each operation exchanged is once in the capture, also the ones of a Bus Simulation on its scheduled Tx_Clock."""
+    Assembly("bus+nodes.json").make_fmu(fmi_version=3, datalog=True)
+    assert_simulation_log("bus+nodes.fmu", 0.1)
+    log = Path("log-bus+nodes.txt").read_text()
+
+    converter = DatalogConverter("bus+nodes-datalog.csv", "bus+nodes.fmu")
+    converter.convert()
+
+    # Not the operations of the initialization: their clock is already reset on the first row of the datalog.
+    assert converter.nb_operations == (log.count("Transmitting CAN frame") + log.count("Sending confirmation for CAN frame")
+                                       + log.count("Sending CAN frame"))

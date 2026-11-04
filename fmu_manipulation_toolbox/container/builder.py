@@ -1216,8 +1216,12 @@ class FMUContainer:
             ports[output_port.port.type_name].append(Port(layout.outputs[output_port_name], output_port_name))
         for link in self.links.values():
             if link.cport_from is None:
-                # LS-BUS allows connected input clocks.
-                ports[link.cport_to_list[0].port.type_name].append(Port(layout.links[link], link.name))
+                # LS-BUS allows connected input clocks. The column is named after the clock that ticks by itself, the one
+                # of the sender: `datalog2pcap` finds the clock of `<name>_Data` with this name.
+                scheduled = [cport for cport in link.cport_to_list
+                             if cport.port.interval_variability in TIME_BASED_CLOCKS]
+                name = f"{scheduled[0].fmu.id}.{scheduled[0].port.name}" if scheduled else link.name
+                ports[link.cport_to_list[0].port.type_name].append(Port(layout.links[link], name))
             else:
                 ports[link.cport_from.port.type_name].append(Port(layout.links[link], link.name))
 
