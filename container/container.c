@@ -1543,7 +1543,7 @@ static int read_flags(container_t* container, config_file_t* file) {
 static int read_conf_time_step(container_t* container, config_file_t* file) {
     const logger_t *logger = &container->logger;
     CONFIG_GETLINE;
-    if (config_line_without_decimal_point(file) || sscanf(file->line, "%le", &container->time_step) < 1) {
+    if (config_line_to_host_decimal_point(file) || sscanf(file->line, "%le", &container->time_step) < 1) {
         CONFIG_ERROR("Cannot read time_step.");
         return -1;
     }
@@ -2190,7 +2190,7 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
             unsigned int dimension;                                                                 \
                                                                                                     \
             CONFIG_GETLINE;                                                                         \
-            if (config_line_without_decimal_point(file)) {                                          \
+            if (config_line_to_host_decimal_point(file)) {                                          \
                 CONFIG_ERROR("Cannot read %luth start value.", i);                                  \
                 return -5;                                                                          \
             }                                                                                       \
@@ -2383,7 +2383,7 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
             int offset;
 
             CONFIG_GETLINE;
-            if (config_line_without_decimal_point(file)) {
+            if (config_line_to_host_decimal_point(file)) {
                 CONFIG_ERROR("Cannot interpret %luth clock table entries.", i);
                 return -5;
             }

@@ -54,7 +54,7 @@ extern int test_logger_two_instances(void);
 extern int test_logger_fmi3_null_callback(void);
 extern int test_instantiate_invalid_arguments(void);
 extern int test_locale_decimal_comma(void);
-extern int test_locale_line_without_decimal_point(void);
+extern int test_locale_line_to_host_decimal_point(void);
 extern int test_locale_long_decimal_point(void);
 extern int test_malformed_container_txt(void);
 extern int test_malformed_datalog_txt(void);

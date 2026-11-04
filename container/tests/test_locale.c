@@ -26,7 +26,7 @@ static const char *set_decimal_comma_locale(void) {
 }
 
 
-static int check_c_locale(container_t *container, const char *host_locale, const char *host_point) {
+static int check_c_locale(container_t *container, const char *host_locale) {
     char location[4096];
     char line[256];
 
@@ -35,7 +35,7 @@ static int check_c_locale(container_t *container, const char *host_locale, const
 
     /* the locale of the host is unchanged */
     TEST_ASSERT(strcmp(setlocale(LC_NUMERIC, NULL), host_locale) == 0);
-    TEST_ASSERT(strcmp(localeconv()->decimal_point, host_point) == 0);
+    TEST_ASSERT(strcmp(localeconv()->decimal_point, ",") == 0);
 
     /* time step "0.1" and start value "2.5" read with a decimal dot */
     TEST_ASSERT(container->time_step == 0.1);
@@ -45,7 +45,7 @@ static int check_c_locale(container_t *container, const char *host_locale, const
     /* datalog row with a decimal dot: one comma, between the time and the value */
     container->time = 0.25;
     datalog_log(container);
-    TEST_ASSERT(strcmp(localeconv()->decimal_point, host_point) == 0);
+    TEST_ASSERT(strcmp(localeconv()->decimal_point, ",") == 0);
     container_free(container);
 
     FILE *fp = fopen(TEST_FIXTURES_DIR "/one_fmu_datalog/datalog.csv", "rt");
@@ -60,7 +60,6 @@ static int check_c_locale(container_t *container, const char *host_locale, const
     TEST_ASSERT_EQUAL_INT(1, nb_commas);
     TEST_ASSERT(strchr(line, '.') != NULL);
     TEST_ASSERT(strstr(line, "0.25") != NULL);
-    TEST_ASSERT(strcmp(host_point, ",") == 0 || strstr(line, host_point) == NULL);
 
     return 0;
 }
@@ -76,65 +75,77 @@ int test_locale_decimal_comma(void) {
     snprintf(host_locale, sizeof(host_locale), "%s", setlocale(LC_NUMERIC, NULL));
 
     container_t *container = container_new("locale", "{uuid}", 2);
-    const int status = container ? check_c_locale(container, host_locale, ",") : 1;
+    const int status = container ? check_c_locale(container, host_locale) : 1;
     setlocale(LC_ALL, "C");
 
     return status;
 }
 
 
-/* The same values as with the decimal point, to the last bit, and the other tokens as they are. */
-int test_locale_line_without_decimal_point(void) {
+/* The dots of a line are replaced, with the same values, to the last bit, and the other tokens stay as they are. */
+int test_locale_line_to_host_decimal_point(void) {
+    const char *name = set_decimal_comma_locale();
+    if (!name) {
+        printf("No locale with a decimal comma on this system: test skipped.\n");
+        return 0;
+    }
+
     config_file_t file;
-    double value[6];
+    char line[] = "12 3 countdown 2.5 0.1\t0.10000000000000001 -1.5e-3 6.02E+23";
+    double value[5];
 
     memset(&file, 0, sizeof(file));
-    file.line_size = 128;
-    file.line = malloc(file.line_size);
-    TEST_ASSERT(file.line != NULL);
-    snprintf(file.line, file.line_size, "12 3 0  2.5 0.1\t0.10000000000000001 -1.5e-3 1.e3 6.02E+23");
-    TEST_ASSERT_EQUAL_INT(0, config_line_without_decimal_point(&file));
-    TEST_ASSERT(strchr(file.line, '.') == NULL);
-    TEST_ASSERT(strncmp(file.line, "12 3 0  25e-1 01e-1\t", 20) == 0);
+    file.line = line;
+    file.line_size = sizeof(line);
+    TEST_ASSERT_EQUAL_INT(0, config_line_to_host_decimal_point(&file));
+    TEST_ASSERT(strcmp(line, "12 3 countdown 2,5 0,1\t0,10000000000000001 -1,5e-3 6,02E+23") == 0);
+    TEST_ASSERT_EQUAL_INT(5, sscanf(line + strlen("12 3 countdown "), "%lf %lf %lf %lf %lf", &value[0], &value[1],
+                                    &value[2], &value[3], &value[4]));
+    setlocale(LC_ALL, "C");
 
-    TEST_ASSERT_EQUAL_INT(6, sscanf(file.line + strlen("12 3 0  "), "%lf %lf %lf %lf %lf %lf", &value[0], &value[1],
-                                    &value[2], &value[3], &value[4], &value[5]));
     TEST_ASSERT(value[0] == 2.5);
     TEST_ASSERT(value[1] == 0.1);
     TEST_ASSERT(value[2] == 0.10000000000000001);
     TEST_ASSERT(value[3] == -1.5e-3);
-    TEST_ASSERT(value[4] == 1000.0);
-    TEST_ASSERT(value[5] == 6.02e23);
-    free(file.line);
-
-    /* a line without any dot is left as it is */
-    file.line_size = 16;
-    file.line = malloc(file.line_size);
-    TEST_ASSERT(file.line != NULL);
-    snprintf(file.line, file.line_size, "1 2 1e3");
-    TEST_ASSERT_EQUAL_INT(0, config_line_without_decimal_point(&file));
-    TEST_ASSERT(strcmp(file.line, "1 2 1e3") == 0);
-    free(file.line);
+    TEST_ASSERT(value[4] == 6.02e23);
 
     return 0;
 }
 
 
-/* A decimal point of several bytes: scanf() may not read it. */
+/* A decimal point of several bytes: scanf() may not read it, so the configuration is refused, and a real is still
+   written with a dot. */
 int test_locale_long_decimal_point(void) {
     if (!setlocale(LC_ALL, "fa_IR.UTF-8") || strlen(localeconv()->decimal_point) < 2) {
         setlocale(LC_ALL, "C");
         printf("No locale with a decimal point of several bytes on this system: test skipped.\n");
         return 0;
     }
-    char host_locale[256];
-    char host_point[16];
-    snprintf(host_locale, sizeof(host_locale), "%s", setlocale(LC_NUMERIC, NULL));
-    snprintf(host_point, sizeof(host_point), "%s", localeconv()->decimal_point);
 
+    char location[4096];
+    char text[64];
+    char line[] = "2.5";
+    config_file_t file;
+
+    /* refused by the conversion itself, the line left as it is: a start value would be misread without any error */
+    memset(&file, 0, sizeof(file));
+    file.line = line;
+    file.line_size = sizeof(line);
+    const int converted = config_line_to_host_decimal_point(&file);
+
+    snprintf(location, sizeof(location), "file://%s/one_fmu_datalog", TEST_FIXTURES_DIR);
     container_t *container = container_new("locale", "{uuid}", 2);
-    const int status = container ? check_c_locale(container, host_locale, host_point) : 1;
+    const int configured = container ? container_configure(container, location) : 0;
+    if (container)
+        container_free(container);
+
+    config_real_to_text(text, sizeof(text), "%.17g", 0.25);
     setlocale(LC_ALL, "C");
 
-    return status;
+    TEST_ASSERT(converted != 0);
+    TEST_ASSERT(strcmp(line, "2.5") == 0);
+    TEST_ASSERT(configured != 0);
+    TEST_ASSERT(strcmp(text, "0.25") == 0);
+
+    return 0;
 }

@@ -136,57 +136,21 @@ void config_file_error(config_file_t *config_file, unsigned int code_line_number
  * locale of the host, which an FMU must not change (FMI 3.0, 2.2.1): the text is converted on its way to or from them.
  */
 
-/* Before scanf() on a line of numbers. Without a decimal point, a number reads the same in every locale, and has the
-   same value: "2.5" becomes "25e-1". scanf() may not read a decimal point of several bytes (macOS). */
-int config_line_without_decimal_point(config_file_t *config_file) {
-    enum { MAX_EXPONENT_SZ = 24 };  /* "e" and a long */
-    const char *from = config_file->line;
-    size_t nb_dots = 0;
-    size_t length = 0;
+/* Before scanf() on a line of numbers. scanf() may not read a decimal point of several bytes (macOS): such a locale is
+   refused, rather than misreading the values. */
+int config_line_to_host_decimal_point(config_file_t *config_file) {
+    const char *point = localeconv()->decimal_point;
 
-    for (; from[length]; length += 1)
-        nb_dots += (from[length] == '.');
-    if (nb_dots == 0)
-        return 0;
-
-    const size_t size = length + nb_dots * MAX_EXPONENT_SZ + 1;
-    char *text = malloc(size);
-    if (!text)
+    if (strlen(point) != 1) {
+        config_file_error(config_file, __LINE__, "The decimal point '%s' of the locale of the importer is not supported.",
+                          point);
         return -1;
-
-    char *to = text;
-    while (*from) {
-        const size_t token = strcspn(from, " \t");
-        const char *dot = memchr(from, '.', token);
-
-        if (dot) {
-            const size_t before = (size_t)(dot - from);
-            const char *digits = dot + 1;
-            const size_t nb_digits = strspn(digits, "0123456789");
-            const char *exponent = digits + nb_digits;
-            const long value = (*exponent == 'e' || *exponent == 'E') ? strtol(exponent + 1, NULL, 10) : 0;
-
-            memcpy(to, from, before);
-            to += before;
-            memcpy(to, digits, nb_digits);
-            to += nb_digits;
-            to += snprintf(to, MAX_EXPONENT_SZ, "e%ld", value - (long)nb_digits);
-        } else {
-            memcpy(to, from, token);
-            to += token;
-        }
-        from += token;
-
-        const size_t separators = strspn(from, " \t");
-        memcpy(to, from, separators);
-        to += separators;
-        from += separators;
     }
-    *to = '\0';
 
-    free(config_file->line);
-    config_file->line = text;
-    config_file->line_size = size;
+    for (char *c = config_file->line; *c; c += 1) {
+        if (*c == '.')
+            *c = *point;
+    }
 
     return 0;
 }
