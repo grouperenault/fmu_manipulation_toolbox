@@ -100,6 +100,15 @@ def test_tick_announced_again_at_the_same_time_waits_for_a_step(area_dir):
         assert result[f"{fmu}_sum_repeated"][-1] == pytest.approx(2 * 0.25, abs=1e-6)
 
 
+def test_announced_tick_is_kept_if_the_fmu_answers_not_yet_known(area_dir):
+    """FMI 3.0 does not allow this answer about a tick already announced, but it must not lose this tick."""
+    _build_fmu()
+    result = _simulate(["forgetful"])
+    for fmu in ("a", "b"):
+        assert result[f"{fmu}_count_forgetful"][-1] == 1
+        assert result[f"{fmu}_sum_forgetful"][-1] == pytest.approx(0.25, abs=1e-6)
+
+
 def test_declared_interval_and_shift_with_a_decimal_comma(area_dir, decimal_comma_locale):
     """The interval and the shift declared by the modelDescription.xml are read from `container.txt` with a dot,
     whatever the numeric locale of the importer."""

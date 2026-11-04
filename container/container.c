@@ -137,7 +137,8 @@ static fmu_status_t container_clocks_init_schedule(container_t *container) {
 
 
 /* In Event Mode, read what the FMUs may have changed in the schedule. A new interval is relative to the current
-   time (FMI-3.0 2.2.8), fmi3IntervalUnchanged keeps the known tick. */
+   time (FMI-3.0 2.2.8), fmi3IntervalUnchanged keeps the known tick. fmi3IntervalNotYetKnown only happens when no tick
+   is known: if an FMU answers it about a tick it has announced, this tick is kept. */
 static fmu_status_t container_clocks_read_schedule(container_t *container) {
     const logger_t *logger = &container->logger;
 
@@ -170,9 +171,7 @@ static fmu_status_t container_clocks_read_schedule(container_t *container) {
                 clock->next_tick = container->time + interval;
                 clock->next_known = true;
             }
-        } else if (qualifier == fmi3IntervalNotYetKnown) {
-            clock->next_known = false;
-        } else if (!tunable && !clock->next_known) {
+        } else if ((qualifier == fmi3IntervalUnchanged) && !tunable && !clock->next_known) {
             LOGGER_ERROR("Clock '%s' vr=%u has no previous interval and fmi3IntervalUnchanged was set.",
                          container->fmu[clock->fmu_id].name, clock->fmu_vr);
         }

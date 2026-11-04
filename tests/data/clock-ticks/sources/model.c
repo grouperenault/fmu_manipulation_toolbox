@@ -8,15 +8,15 @@
 
 #include "fmi3Functions.h"
 
-#define NB_CLOCKS           6
-#define VR_CLOCK            1   /* constant, fixed, tunable, changing, countdown, repeated */
+#define NB_CLOCKS           7
+#define VR_CLOCK            1   /* constant, fixed, tunable, changing, countdown, repeated, forgetful */
 #define VR_RX_CLOCK         11
 #define VR_COUNT            21
 #define VR_SUM              31
 #define VR_RX_COUNT         41
 #define VR_RX_SUM           51
 
-enum { CONSTANT, FIXED, TUNABLE, CHANGING, COUNTDOWN, REPEATED };
+enum { CONSTANT, FIXED, TUNABLE, CHANGING, COUNTDOWN, REPEATED, FORGETFUL };
 enum { MODE_INSTANTIATED, MODE_INITIALIZATION, MODE_EVENT, MODE_STEP };
 
 typedef struct {
@@ -87,6 +87,8 @@ fmi3Status fmi3EnterInitializationMode(fmi3Instance instance, fmi3Boolean tolera
     MODEL->qualifier[COUNTDOWN] = fmi3IntervalNotYetKnown;
     MODEL->interval[REPEATED] = 0.25;
     MODEL->qualifier[REPEATED] = fmi3IntervalChanged;
+    MODEL->interval[FORGETFUL] = 0.25;
+    MODEL->qualifier[FORGETFUL] = fmi3IntervalChanged;
     return fmi3OK;
 }
 
@@ -248,7 +250,8 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance, const fmi3ValueReferenc
         intervals[i] = MODEL->interval[clock];
         qualifiers[i] = MODEL->qualifier[clock];
         if (MODEL->qualifier[clock] == fmi3IntervalChanged)
-            MODEL->qualifier[clock] = fmi3IntervalUnchanged;
+            /* Not allowed for FORGETFUL, which has announced a tick: the demos of fmi-ls-bus-examples did it. */
+            MODEL->qualifier[clock] = (clock == FORGETFUL) ? fmi3IntervalNotYetKnown : fmi3IntervalUnchanged;
     }
     return fmi3OK;
 }

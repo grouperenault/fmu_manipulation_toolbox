@@ -10,12 +10,14 @@
     <Clock name="clk_changing" valueReference="4" causality="input" intervalVariability="changing"/>
     <Clock name="clk_countdown" valueReference="5" causality="input" intervalVariability="countdown"/>
     <Clock name="clk_repeated" valueReference="6" causality="input" intervalVariability="countdown"/>
+    <Clock name="clk_forgetful" valueReference="7" causality="input" intervalVariability="countdown"/>
     <Clock name="rx_constant" valueReference="11" causality="input" intervalVariability="triggered"/>
     <Clock name="rx_fixed" valueReference="12" causality="input" intervalVariability="triggered"/>
     <Clock name="rx_tunable" valueReference="13" causality="input" intervalVariability="triggered"/>
     <Clock name="rx_changing" valueReference="14" causality="input" intervalVariability="triggered"/>
     <Clock name="rx_countdown" valueReference="15" causality="input" intervalVariability="triggered"/>
     <Clock name="rx_repeated" valueReference="16" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_forgetful" valueReference="17" causality="input" intervalVariability="triggered"/>
     <Float64 name="count_constant" valueReference="21" causality="output" variability="discrete" initial="calculated"/>
     <Float64 name="count_fixed" valueReference="22" causality="output" variability="discrete" initial="calculated"/>
     <Float64 name="count_tunable" valueReference="23" causality="output" variability="discrete" initial="calculated"/>
@@ -40,6 +42,10 @@
     <Float64 name="sum_repeated" valueReference="36" causality="output" variability="discrete" initial="calculated"/>
     <Float64 name="rx_count_repeated" valueReference="46" causality="output" variability="discrete" initial="calculated"/>
     <Float64 name="rx_sum_repeated" valueReference="56" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_forgetful" valueReference="27" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_forgetful" valueReference="37" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_forgetful" valueReference="47" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_forgetful" valueReference="57" causality="output" variability="discrete" initial="calculated"/>
   </ModelVariables>
   <ModelStructure>
     <Output valueReference="21"/>
@@ -66,5 +72,9 @@
     <Output valueReference="36"/>
     <Output valueReference="46"/>
     <Output valueReference="56"/>
+    <Output valueReference="27"/>
+    <Output valueReference="37"/>
+    <Output valueReference="47"/>
+    <Output valueReference="57"/>
   </ModelStructure>
 </fmiModelDescription>
