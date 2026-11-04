@@ -62,7 +62,7 @@ def _build_fmu():
     Path("b.fmu").write_bytes(Path("a.fmu").read_bytes())
 
 
-def _simulate(clocks=CLOCKS):
+def _simulate(clocks=CLOCKS, logger=None):
     from fmpy import simulate_fmu
 
     outputs = []
@@ -75,7 +75,7 @@ def _simulate(clocks=CLOCKS):
         "output": outputs}))
     Assembly("ticks.json").make_fmu(fmi_version=3)
     return simulate_fmu("ticks.fmu", start_time=0, stop_time=STOP_TIME, step_size=STEP_SIZE, output_interval=STEP_SIZE,
-                        validate=False)
+                        validate=False, logger=logger)
 
 
 @pytest.mark.parametrize("clock", CLOCKS)
@@ -107,6 +107,30 @@ def test_announced_tick_is_kept_if_the_fmu_answers_not_yet_known(area_dir):
     for fmu in ("a", "b"):
         assert result[f"{fmu}_count_forgetful"][-1] == 1
         assert result[f"{fmu}_sum_forgetful"][-1] == pytest.approx(0.25, abs=1e-6)
+
+
+@pytest.mark.parametrize("clock", ["silent", "invalid"])
+def test_no_tick_without_a_valid_qualifier(area_dir, clock):
+    """An FMU that writes no qualifier, or an invalid one, announces nothing: the clock does not tick."""
+    messages = []
+
+    def logger(*args):
+        messages.append(args[-1].decode() if isinstance(args[-1], bytes) else str(args[-1]))
+
+    _build_fmu()
+    result = _simulate([clock], logger=logger)
+    for fmu in ("a", "b"):
+        assert result[f"{fmu}_count_{clock}"][-1] == 0
+    assert not any("has no previous interval" in message for message in messages)
+
+
+def test_new_interval_without_its_value_is_refused(area_dir):
+    """A negative interval, here the one left by an FMU that does not write it, stops the simulation."""
+    from fmpy.fmi1 import FMICallException
+
+    _build_fmu()
+    with pytest.raises(FMICallException):
+        _simulate(["unwritten"])
 
 
 def test_declared_interval_and_shift_with_a_decimal_comma(area_dir, decimal_comma_locale):

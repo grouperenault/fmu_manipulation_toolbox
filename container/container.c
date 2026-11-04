@@ -83,8 +83,15 @@ static fmu_status_t container_clock_get_interval(const container_t *container, c
     const logger_t *logger = &container->logger;
     const fmu_t *fmu = &container->fmu[clock->fmu_id];
 
+    /* An FMU that writes no qualifier announces nothing. */
+    *qualifier = fmi3IntervalNotYetKnown;
     if (fmuGetIntervalDecimal(fmu, &clock->fmu_vr, 1, interval, qualifier) != FMU_STATUS_OK) {
         LOGGER_ERROR("FMU '%s' Cannot get the interval of clock vr=%u", fmu->name, clock->fmu_vr);
+        return FMU_STATUS_ERROR;
+    }
+
+    if ((*qualifier == fmi3IntervalChanged) && (*interval < 0.0)) {
+        LOGGER_ERROR("FMU '%s': clock vr=%u has an invalid interval %e", fmu->name, clock->fmu_vr, *interval);
         return FMU_STATUS_ERROR;
     }
 
@@ -101,7 +108,7 @@ static fmu_status_t container_clocks_init_schedule(container_t *container) {
         container_clock_t *clock = &container->clocks_list.clocks[i];
         const fmu_t *fmu = &container->fmu[clock->fmu_id];
         double interval = clock->declared_interval;
-        int qualifier = fmi3IntervalUnchanged;
+        int qualifier;
 
         clock->ticked = false;
         clock->has_ticked = false;
@@ -123,9 +130,10 @@ static fmu_status_t container_clocks_init_schedule(container_t *container) {
             }
             container_clock_set_period(clock, container->time + ((shift < 0.0) ? 0.0 : shift), interval, 0);
         } else {
+            interval = -1.0;
             if (container_clock_get_interval(container, clock, &interval, &qualifier) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
-            if (qualifier != fmi3IntervalNotYetKnown) {
+            if ((qualifier == fmi3IntervalChanged) || ((qualifier == fmi3IntervalUnchanged) && (interval >= 0.0))) {
                 clock->next_tick = container->time + interval;
                 clock->next_known = true;
             }
@@ -147,7 +155,7 @@ static fmu_status_t container_clocks_read_schedule(container_t *container) {
         const bool ticked = clock->ticked;
         const bool tunable = (clock->kind == CONTAINER_CLOCK_TUNABLE) && (clock->declared_interval < 0.0);
         double interval = -1.0;
-        int qualifier = fmi3IntervalUnchanged;
+        int qualifier;
 
         clock->ticked = false;
 

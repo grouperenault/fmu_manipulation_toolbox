@@ -11,6 +11,9 @@
     <Clock name="clk_countdown" valueReference="5" causality="input" intervalVariability="countdown"/>
     <Clock name="clk_repeated" valueReference="6" causality="input" intervalVariability="countdown"/>
     <Clock name="clk_forgetful" valueReference="7" causality="input" intervalVariability="countdown"/>
+    <Clock name="clk_silent" valueReference="8" causality="input" intervalVariability="countdown"/>
+    <Clock name="clk_unwritten" valueReference="9" causality="input" intervalVariability="countdown"/>
+    <Clock name="clk_invalid" valueReference="10" causality="input" intervalVariability="countdown"/>
     <Clock name="rx_constant" valueReference="11" causality="input" intervalVariability="triggered"/>
     <Clock name="rx_fixed" valueReference="12" causality="input" intervalVariability="triggered"/>
     <Clock name="rx_tunable" valueReference="13" causality="input" intervalVariability="triggered"/>
@@ -18,6 +21,9 @@
     <Clock name="rx_countdown" valueReference="15" causality="input" intervalVariability="triggered"/>
     <Clock name="rx_repeated" valueReference="16" causality="input" intervalVariability="triggered"/>
     <Clock name="rx_forgetful" valueReference="17" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_silent" valueReference="18" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_unwritten" valueReference="19" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_invalid" valueReference="20" causality="input" intervalVariability="triggered"/>
     <Float64 name="count_constant" valueReference="21" causality="output" variability="discrete" initial="calculated"/>
     <Float64 name="count_fixed" valueReference="22" causality="output" variability="discrete" initial="calculated"/>
     <Float64 name="count_tunable" valueReference="23" causality="output" variability="discrete" initial="calculated"/>
@@ -46,6 +52,18 @@
     <Float64 name="sum_forgetful" valueReference="37" causality="output" variability="discrete" initial="calculated"/>
     <Float64 name="rx_count_forgetful" valueReference="47" causality="output" variability="discrete" initial="calculated"/>
     <Float64 name="rx_sum_forgetful" valueReference="57" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_silent" valueReference="28" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_unwritten" valueReference="29" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_invalid" valueReference="30" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_silent" valueReference="38" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_unwritten" valueReference="39" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_invalid" valueReference="40" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_silent" valueReference="48" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_unwritten" valueReference="49" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_invalid" valueReference="50" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_silent" valueReference="58" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_unwritten" valueReference="59" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_invalid" valueReference="60" causality="output" variability="discrete" initial="calculated"/>
   </ModelVariables>
   <ModelStructure>
     <Output valueReference="21"/>
@@ -76,5 +94,17 @@
     <Output valueReference="37"/>
     <Output valueReference="47"/>
     <Output valueReference="57"/>
+    <Output valueReference="28"/>
+    <Output valueReference="29"/>
+    <Output valueReference="30"/>
+    <Output valueReference="38"/>
+    <Output valueReference="39"/>
+    <Output valueReference="40"/>
+    <Output valueReference="48"/>
+    <Output valueReference="49"/>
+    <Output valueReference="50"/>
+    <Output valueReference="58"/>
+    <Output valueReference="59"/>
+    <Output valueReference="60"/>
   </ModelStructure>
 </fmiModelDescription>

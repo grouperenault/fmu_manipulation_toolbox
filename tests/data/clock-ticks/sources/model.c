@@ -8,15 +8,16 @@
 
 #include "fmi3Functions.h"
 
-#define NB_CLOCKS           7
-#define VR_CLOCK            1   /* constant, fixed, tunable, changing, countdown, repeated, forgetful */
+#define NB_CLOCKS           10
+#define VR_CLOCK            1   /* constant, fixed, tunable, changing, countdown, repeated, forgetful, silent,
+                                   unwritten, invalid */
 #define VR_RX_CLOCK         11
 #define VR_COUNT            21
 #define VR_SUM              31
 #define VR_RX_COUNT         41
 #define VR_RX_SUM           51
 
-enum { CONSTANT, FIXED, TUNABLE, CHANGING, COUNTDOWN, REPEATED, FORGETFUL };
+enum { CONSTANT, FIXED, TUNABLE, CHANGING, COUNTDOWN, REPEATED, FORGETFUL, SILENT, UNWRITTEN, INVALID };
 enum { MODE_INSTANTIATED, MODE_INITIALIZATION, MODE_EVENT, MODE_STEP };
 
 typedef struct {
@@ -246,6 +247,19 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance, const fmi3ValueReferenc
         if ((clock == CHANGING) && (MODEL->mode != MODE_INITIALIZATION) &&
             (MODEL->qualifier[CHANGING] != fmi3IntervalChanged))
             return fmi3Error;   /* Only if it has just ticked. */
+
+        /* Answers that FMI 3.0 does not allow. */
+        if (clock == SILENT)
+            continue;           /* neither an interval nor a qualifier */
+        if (clock == UNWRITTEN) {
+            qualifiers[i] = fmi3IntervalChanged;
+            continue;           /* a new interval, without its value */
+        }
+        if (clock == INVALID) {
+            intervals[i] = 0.25;
+            qualifiers[i] = (fmi3IntervalQualifier)99;
+            continue;
+        }
 
         intervals[i] = MODEL->interval[clock];
         qualifiers[i] = MODEL->qualifier[clock];
