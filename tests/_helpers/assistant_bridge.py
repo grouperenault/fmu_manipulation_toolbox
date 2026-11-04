@@ -139,8 +139,15 @@ class FakeBridge:
         return dict(self.options)
 
     # -- build / export ----------------------------------------------------
+    def import_assembly(self, assembly, fmu_directory):
+        self._record("import_assembly", assembly.root.name, fmu_directory)
+
     def save_as_json(self, path):
         self._record("save_as_json", path)
+        return path
+
+    def save_as_ssp(self, path, ssp_version="2.0"):
+        self._record("save_as_ssp", path, ssp_version)
         return path
 
     def save_as_fmu(self, path, fmi_version=2, datalog=False):

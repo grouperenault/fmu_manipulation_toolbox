@@ -7,6 +7,27 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
+  was reset before the delivery of the clocked inputs.
+- 🟠 **FIXED** LS-BUS: the `Rx_Clock` of a Bus Simulation was not activated by the `countdown` `Tx_Clock` of a node.
+- 🟠 **FIXED** datalog: a clock scheduled by the container was active on every row, and its column had the name of another
+  clock, so that `datalog2pcap` wrote the operations of a Bus Simulation many times. It is now active on one row per tick, and
+  named after the clock of the sender (`bus.Node1.Tx_Clock`).
+- 🟠 **FIXED** the links of the sub-terminals were lost, without any message: a connection of Physical Signal Abstraction
+  terminals made no link at all. A `Configuration` terminal on one side only raised a raw `KeyError`.
+- 🟠 **FIXED** an FMU with a `GraphicalRepresentation` before its `Terminals` had no terminal, without any message.
+- 🟢 **ADDED** LS-BUS up to 1.3.0-rc.1: LIN, FlexRay and Ethernet. See [LS-BUS](docs/user-guide/fmucontainer/ls-bus.md).
+- 🟢 **ADDED** all the time-based clocks of FMI 3.0 are scheduled, their shift included (`constant`, `fixed`, `tunable`,
+  `changing`), not only `countdown`. `container.txt` is now in version 8.
+- 🟢 **ADDED** the parameters of LS-BUS `Configuration` terminals (`BusNotifications`, `DeliveryOnBoundary`) take the value of
+  the Bus Simulation when it is known at build time.
+- 🟢 **ADDED** a link between different LS-BUS types is refused, and different versions of a type give a warning.
+- 🔴 **BREAKING** the datalog follows the locale of the simulation tool: with a decimal comma, the columns are separated by a
+  semicolon. A locale whose decimal point has several bytes (`fa_IR.UTF-8`) is refused by the container.
+- 🔴 **BREAKING** a nested terminal is designated by its full path in a link (`Seg1.P1`): its bare name is refused.
+- 🔴 **BREAKING** `datalog2pcap datalog.csv -fmu container.fmu` writes PCAPNG for CAN, LIN, FlexRay and Ethernet, for the
+  Wireshark plugin of FMI-LS-BUS. The option `-can` and the PCAP output are removed.
+- 🟢 **ADDED** `fmutool -check` applies the rules of FMI-LS-BUS (`OperationLsBusCheck`).
 - 🟠 **FIXED** SSP export of an LS-BUS terminal link: the connections between input clocks were silently lost, and the
   container built from the SSP file had no clock routing. They are written, and the SSP reader accepts them.
 - 🟠 **FIXED** an FMU without `guid` or `instantiationToken` (e.g. a description only, without implementation) is
@@ -52,10 +73,18 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## AI agents
 
+- 🟢 **ADDED** **assembly files in the MCP server, `fmutool-agent` and the skills**: `import_assembly` loads a JSON,
+  CSV or SSP file to edit it (a non-empty assembly is only replaced with `replace=True`; without the GUI, a file with
+  sub-containers is refused); `inspect_ssp` describes an SSP file without importing it, a refused file being an
+  answer (`readable: false` and its `reason`). See
+  [Assembly files](docs/user-guide/fmucontainer/ai-assistant.md#assembly-files).
+- 🔴 **BREAKING** MCP tools and `fmutool-agent`: `save_assembly` replaces `save_as_json` and also writes SSP files,
+  by the extension of the path; `add_link` is removed, `add_links` takes one link or several (a rejected link is
+  reported in `failed`, not as an error).
 - 🟢 **ADDED** **agent skills**: a Claude Code plugin (the repository is a marketplace:
   `/plugin marketplace add grouperenault/fmutool`) with the skills `fmu-inspect`, `fmu-edit` and
   `fmu-container`, which drive the MCP server, or `fmutool-agent` without it; `tools/build_skill_zips.py` builds
-  them for claude.ai. They need the toolbox 2.1.dev1 or later (`compatibility` field), and check it by the tools
+  them for claude.ai. They need the toolbox 2.1a1 or later (`compatibility` field), and check it by the tools
   available. See [Agent skills](docs/user-guide/agent-skills.md).
 - 🟢 **ADDED** `fmutool-agent`: the tools of the MCP server as a JSON command line (same arguments, same
   results), for agents that only run commands. It needs neither `fastmcp` nor Pydantic; the assembly is kept

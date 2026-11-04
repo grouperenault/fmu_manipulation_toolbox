@@ -1,4 +1,4 @@
-# Version 7
+# Version 8
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
@@ -42,5 +42,5 @@
 0 0
 # clock
 0 0
-# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
+# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> <VARIABILITY> <INTERVAL> <SHIFT> [...]
 0 0

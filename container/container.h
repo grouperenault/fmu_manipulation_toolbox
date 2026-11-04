@@ -12,7 +12,7 @@ extern "C" {
 
 /* Format version of container.txt: the only one read by the runtime. Must be equal to CONTAINER_TXT_VERSION of
  * fmu_manipulation_toolbox/container/types.py. */
-#define CONTAINER_TXT_VERSION		7
+#define CONTAINER_TXT_VERSION		8
 
 /*----------------------------------------------------------------------------
                       C O N T A I N E R _ V R _ T
@@ -44,15 +44,30 @@ typedef struct {
                        C O N T A I N E R _ C L O C K _ T
 ----------------------------------------------------------------------------*/
 
-typedef struct {
-	unsigned long				fmu_id;
-	unsigned long				nb;
-} container_clock_counter_t;
+typedef enum {
+	CONTAINER_CLOCK_CONSTANT,
+	CONTAINER_CLOCK_FIXED,
+	CONTAINER_CLOCK_TUNABLE,
+	CONTAINER_CLOCK_CHANGING,
+	CONTAINER_CLOCK_COUNTDOWN
+} container_clock_kind_t;
 
 typedef struct {
 	unsigned long				fmu_id;
 	fmu_vr_t					fmu_vr;
 	unsigned long				local_vr;
+	container_clock_kind_t		kind;
+	double						declared_interval;	/* from modelDescription.xml, negative if not declared */
+	double						declared_shift;		/* from modelDescription.xml, negative if not declared */
+	double						origin;				/* periodic: time from which the ticks are counted */
+	double						period;				/* periodic: interval between two ticks */
+	unsigned long				nb_ticks;			/* periodic: number of periods since origin */
+	double						next_tick;			/* time of the next tick, if next_known */
+	bool						next_known;
+	bool						ticked;				/* since the last reading of its schedule */
+	bool						tick_to_log;		/* since the last row of the datalog */
+	double						last_tick;			/* time of its last tick, if has_ticked */
+	bool						has_ticked;
 } container_clock_t;
 
 
@@ -62,19 +77,9 @@ typedef struct {
 
 typedef struct {
 	unsigned long				nb_fmu;
-	container_clock_counter_t	*counter;
-
-	double						*buffer_interval;	/* for getIntervalDecimal */
-	double                      *buffer_previous;	/* for getIntervalDecimal and fmi3IntervalUnchanged */
-	int							*buffer_qualifier;  /* for getIntervalDecimal */
-
 	unsigned long				nb_local_clocks;
-	fmu_vr_t					*fmu_vr;            /* ordered clock VR */
-	unsigned long				*clock_index;
-	unsigned long				*fmu_id;		
-
-	unsigned long				nb_next_clocks;
-	container_clock_t			*next_clocks;
+	container_clock_t			*clocks;
+	bool						*active;            /* local clocks activated by the schedule */
 } container_clock_list_t;
 
 
@@ -231,8 +236,8 @@ extern int container_cache_binaries(container_t *container, container_port_t *po
 extern fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id);
 
 /* for datalog facilities. */
-extern void container_clocks_activate(container_t *container);
-extern void container_clocks_deactivate(container_t *container);
+extern void container_clocks_activate_ticked(container_t *container);
+extern void container_clocks_logged(container_t *container);
 
 #	ifdef __cplusplus
 }

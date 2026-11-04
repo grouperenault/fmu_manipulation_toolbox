@@ -64,7 +64,7 @@ def test_the_server_starts_without_any_gui():
             return await client.list_tools(), await client.list_prompts()
 
     tools, prompts = _run(scenario())
-    assert {tool.name for tool in tools} >= {"add_fmu", "add_link", "save_as_fmu"}
+    assert {tool.name for tool in tools} >= {"add_fmu", "add_links", "save_as_fmu"}
     assert {prompt.name for prompt in prompts} == {"build_container", "diagnose_assembly",
                                                    "inspect_fmu", "analyze_assembly"}
 
@@ -76,11 +76,11 @@ def test_it_assembles_fmus_over_stdio(ball, tmp_path):
         async with _client() as client:
             await client.call_tool("add_fmu", {"path": str(ball / "bb_position.fmu")})
             await client.call_tool("add_fmu", {"path": str(ball / "bb_velocity.fmu")})
-            await client.call_tool("add_link", {"from_fmu": "bb_velocity.fmu",
+            await client.call_tool("add_links", {"links": [{"from_fmu": "bb_velocity.fmu",
                                                 "from_port": "velocity",
                                                 "to_fmu": "bb_position.fmu",
-                                                "to_port": "velocity"})
-            return (await client.call_tool("save_as_json",
+                                                "to_port": "velocity"}]})
+            return (await client.call_tool("save_assembly",
                                            {"path": str(destination)})).data
 
     assert _run(scenario()) == str(destination.resolve())

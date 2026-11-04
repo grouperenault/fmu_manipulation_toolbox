@@ -54,11 +54,14 @@ extern int test_logger_two_instances(void);
 extern int test_logger_fmi3_null_callback(void);
 extern int test_instantiate_invalid_arguments(void);
 extern int test_locale_decimal_comma(void);
+extern int test_locale_line_to_host_decimal_point(void);
+extern int test_locale_long_decimal_point(void);
 extern int test_malformed_container_txt(void);
 extern int test_malformed_datalog_txt(void);
 extern int test_start_value_refused(void);
 extern int test_start_value_array(void);
 extern int test_datalog_rows(void);
+extern int test_datalog_decimal_comma(void);
 
 /* Helper: writes content into a temporary file of the test directory. Returns 0 on success. */
 extern int test_write_file(const char *dirname, const char *filename, const char *content);

@@ -1,6 +1,6 @@
 {
   "name": "fmutool",
-  "version": "2.1.0-dev.1",
+  "version": "2.1.0-a1",
   "description": "Inspect FMUs, edit their interface (rename, remove, filter ports by causality, type or variability) and assemble them into FMU containers, with the FMU Manipulation Toolbox.",
   "author": {
     "name": "Nicolas LAURENT",

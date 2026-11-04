@@ -444,6 +444,7 @@ extern fmu_status_t fmu_set_inputs(const fmu_t *fmu);
 extern fmu_status_t fmu_set_continuous_inputs(const fmu_t *fmu);
 extern fmu_status_t fmu_set_clocks(const fmu_t* fmu);
 extern fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu);
+extern fmu_status_t fmu_set_scheduled_clocked_inputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_continuous_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu);
@@ -545,6 +546,7 @@ extern fmu_status_t fmuEnterEventMode(const fmu_t *fmu);
 extern fmu_status_t fmuEnterStepMode(const fmu_t *fmu);
 extern fmu_status_t fmuGetIntervalDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, 
                                           double *interval, int *qualifier);
+extern fmu_status_t fmuGetShiftDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, double *shift);
 
 #	ifdef __cplusplus
 }

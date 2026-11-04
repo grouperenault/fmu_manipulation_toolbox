@@ -55,6 +55,9 @@ class EmbeddedFMUPort:
         self.causality = attrs.get("causality", "local")
         self.variability = attrs.get("variability", None)
         self.interval_variability = attrs.get("intervalVariability", None)
+        self.mime_type = attrs.get("mimeType", None)
+        self.interval_decimal = attrs.get("intervalDecimal", None)
+        self.shift_decimal = attrs.get("shiftDecimal", None)
         self.name = attrs["name"]
         self.vr = int(attrs["valueReference"])
         self.description = attrs.get("description", None)

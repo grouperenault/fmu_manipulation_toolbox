@@ -8,7 +8,7 @@ sections in the order of `ALL_TYPES`, and every value of `CONVERSION_FUNCTION` i
 
 #: Format version of `container.txt`, written in its `# Version <N>` header. The C runtime only reads this version
 #: (`CONTAINER_TXT_VERSION` of `container/container.h`, which must be equal).
-CONTAINER_TXT_VERSION = 7
+CONTAINER_TXT_VERSION = 8
 
 #: Container types, in the order of the sections of `container.txt`. The index of a type is also stored in the
 #: upper byte of the value references of the container (see `ValueReferenceTable`).
@@ -19,6 +19,9 @@ ALL_TYPES = (
     "string",
     "binary", "clock"
 )
+
+#: `intervalVariability` of the clocks whose ticks are known in advance, scheduled by the importer (FMI-3.0 2.2.8).
+TIME_BASED_CLOCKS = ("constant", "fixed", "tunable", "changing", "countdown")
 
 #: Types without start value in `container.txt`.
 NO_START_VALUE_TYPES = ("binary", "clock")
