@@ -112,6 +112,7 @@ static fmu_status_t container_clocks_init_schedule(container_t *container) {
         int qualifier;
 
         clock->ticked = false;
+        clock->tick_to_log = false;
         clock->has_ticked = false;
         clock->next_known = false;
 
@@ -229,23 +230,30 @@ static fmu_status_t container_set_next_event_time(container_t *container) {
 }
 
 
-void container_clocks_activate(container_t *container) {
-    /* Set all (local) clocks */
+/* The scheduled clocks are reset as soon as their inputs are delivered: for the datalog, show the ones that ticked since
+   its last row. */
+void container_clocks_activate_ticked(container_t *container) {
     for(unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1) {
-        container->clocks[container->clocks_list.clocks[i].local_vr] = true;
+        if (container->clocks_list.clocks[i].tick_to_log)
+            container->clocks[container->clocks_list.clocks[i].local_vr] = true;
     }
-
-    return;
 }
 
 
-void container_clocks_deactivate(container_t *container) {
+static void container_clocks_deactivate(container_t *container) {
     /* Reset all (local) clocks */
     for(unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1) {
         container->clocks[container->clocks_list.clocks[i].local_vr] = false;
     }
 
     return;
+}
+
+
+void container_clocks_logged(container_t *container) {
+    container_clocks_deactivate(container);
+    for(unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1)
+        container->clocks_list.clocks[i].tick_to_log = false;
 }
 
 
@@ -281,6 +289,7 @@ static fmu_status_t container_proceed_event(container_t *container, double time)
         container->clocks_list.active[clock->local_vr] = true;
         activated = true;
         clock->ticked = true;
+        clock->tick_to_log = true;
         clock->has_ticked = true;
         clock->last_tick = container->time;
         if (container_clock_is_periodic(clock))

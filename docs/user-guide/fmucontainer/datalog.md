@@ -24,4 +24,6 @@ simulation, recorded at each container time step.
 - A string, or a column name, that contains the separator of the columns, a double quote or a line break is enclosed in double quotes,
   its double quotes being doubled (RFC 4180): `"a[1,2]"`, `"say ""hi"""`. Spreadsheets and the Python `csv`
   module read it as one field.
-- Binaries are written in hexadecimal, booleans and clocks as `0` or `1`.
+- Binaries are written in hexadecimal, booleans and clocks as `0` or `1`. A binary clocked by a clock keeps its last value on
+  the other rows: only read it on the rows where its clock is `1`. A clock is `1` on one row per tick.
+- Input clocks linked together share one column, named after the one that ticks by itself: `bus.Node1.Tx_Clock`.

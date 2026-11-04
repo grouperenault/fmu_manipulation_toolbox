@@ -5,6 +5,7 @@ tunable, changing and countdown).
 wrong call stops the simulation. It counts the ticks of its clocks and sums their times: `a.fmu` owns the time-based
 clocks, each of them drives the triggered clock of `b.fmu`.
 """
+import csv
 import json
 import locale
 import zipfile
@@ -62,7 +63,7 @@ def _build_fmu():
     Path("b.fmu").write_bytes(Path("a.fmu").read_bytes())
 
 
-def _simulate(clocks=CLOCKS, logger=None):
+def _simulate(clocks=CLOCKS, logger=None, datalog=False):
     from fmpy import simulate_fmu
 
     outputs = []
@@ -73,7 +74,7 @@ def _simulate(clocks=CLOCKS, logger=None):
         "name": "ticks.fmu", "fmu": ["a.fmu", "b.fmu"], "step_size": STEP_SIZE,
         "link": [["a.fmu", f"clk_{clock}", "b.fmu", f"rx_{clock}"] for clock in clocks],
         "output": outputs}))
-    Assembly("ticks.json").make_fmu(fmi_version=3)
+    Assembly("ticks.json").make_fmu(fmi_version=3, datalog=datalog)
     return simulate_fmu("ticks.fmu", start_time=0, stop_time=STOP_TIME, step_size=STEP_SIZE, output_interval=STEP_SIZE,
                         validate=False, logger=logger)
 
@@ -143,6 +144,16 @@ def test_declared_interval_and_shift_with_a_decimal_comma(area_dir, decimal_comm
     expected = _expected_ticks()["constant"]
     assert result["a_count_constant"][-1] == len(expected)
     assert result["a_sum_constant"][-1] == pytest.approx(sum(expected), abs=1e-6)
+
+
+@pytest.mark.parametrize("clock", ["constant", "fixed", "tunable", "changing", "countdown"])
+def test_datalog_shows_each_tick_once(area_dir, clock):
+    """A scheduled clock is active on one row of the datalog per tick, at the time of this tick."""
+    _build_fmu()
+    _simulate([clock], datalog=True)
+    with open("ticks-datalog.csv", newline="") as file:
+        ticks = [float(row["time"]) for row in csv.DictReader(file) if row[f"a.clk_{clock}"] == "1"]
+    assert ticks == pytest.approx(_expected_ticks()[clock], abs=1e-6)
 
 
 def test_ticks_of_all_the_clocks_together(area_dir):

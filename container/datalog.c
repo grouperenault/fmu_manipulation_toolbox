@@ -97,13 +97,13 @@ void datalog_log(container_t *container) {
         }
 
         /* clocks */
-        container_clocks_activate(container); /* to get FMI-importer clocks */
+        container_clocks_activate_ticked(container); /* to get FMI-importer clocks */
         if (datalog->nb_clocks > 0) {
             fmi3GetClock(container, datalog->vr_clocks, datalog->nb_clocks, datalog->values_clocks);
             for (unsigned long i = 0; i < datalog->nb_clocks; i += 1)
                 fprintf(datalog->file, "%c%d", datalog->separator, datalog->values_clocks[i]);
         }
-        container_clocks_deactivate(container); /* FMI-importer clocks */
+        container_clocks_logged(container); /* FMI-importer clocks */
 
 #undef LOG2
 #undef LOG3

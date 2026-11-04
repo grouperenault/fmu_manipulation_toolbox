@@ -65,6 +65,7 @@ typedef struct {
 	double						next_tick;			/* time of the next tick, if next_known */
 	bool						next_known;
 	bool						ticked;				/* since the last reading of its schedule */
+	bool						tick_to_log;		/* since the last row of the datalog */
 	double						last_tick;			/* time of its last tick, if has_ticked */
 	bool						has_ticked;
 } container_clock_t;
@@ -235,8 +236,8 @@ extern int container_cache_binaries(container_t *container, container_port_t *po
 extern fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id);
 
 /* for datalog facilities. */
-extern void container_clocks_activate(container_t *container);
-extern void container_clocks_deactivate(container_t *container);
+extern void container_clocks_activate_ticked(container_t *container);
+extern void container_clocks_logged(container_t *container);
 
 #	ifdef __cplusplus
 }

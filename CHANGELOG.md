@@ -10,6 +10,9 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
   was reset before the delivery of the clocked inputs.
 - 🟠 **FIXED** LS-BUS: the `Rx_Clock` of a Bus Simulation was not activated by the `countdown` `Tx_Clock` of a node.
+- 🟠 **FIXED** datalog: a clock scheduled by the container was active on every row, and its column had the name of another
+  clock, so that `datalog2pcap` wrote the operations of a Bus Simulation many times. It is now active on one row per tick, and
+  named after the clock of the sender (`bus.Node1.Tx_Clock`).
 - 🟠 **FIXED** the links of the sub-terminals were lost, without any message: a connection of Physical Signal Abstraction
   terminals made no link at all. A `Configuration` terminal on one side only raised a raw `KeyError`.
 - 🟠 **FIXED** an FMU with a `GraphicalRepresentation` before its `Terminals` had no terminal, without any message.
