@@ -443,8 +443,10 @@ typedef struct {
 extern fmu_status_t fmu_set_inputs(const fmu_t *fmu);
 extern fmu_status_t fmu_set_continuous_inputs(const fmu_t *fmu);
 extern fmu_status_t fmu_set_clocks(const fmu_t* fmu);
+extern bool fmu_clock_has_inputs(const fmu_t* fmu, unsigned long clock_vr);
+extern fmu_status_t fmu_set_clocks_before_outputs(const fmu_t* fmu);
+extern fmu_status_t fmu_set_clocks_after_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu);
-extern fmu_status_t fmu_set_scheduled_clocked_inputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_continuous_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu);

@@ -269,9 +269,37 @@ static bool container_clocks_are_due(const container_t *container) {
 }
 
 
+/* An FMU may evaluate its discrete states when its outputs are read, and then refuse any input until
+   fmi3UpdateDiscreteStates(): outputs and inputs are exchanged in two super-dense time instants. The event iteration which
+   follows calls the update again, and tells if another one is needed. */
+static fmu_status_t container_close_instant(container_t *container) {
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        bool more_event;
+
+        if (fmuUpdateDiscreteStates(container->cs_fmu[i], &more_event) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+    return FMU_STATUS_OK;
+}
+
+
+/* The event iteration reads the output clocks again: the clocks and the inputs they clock reach all the FMUs before it. */
+static fmu_status_t container_deliver_clocked_inputs(container_t *container) {
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t *fmu = container->cs_fmu[i];
+
+        if (fmu_set_clocks_after_outputs(fmu) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+
+        if (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+    return FMU_STATUS_OK;
+}
+
+
 static fmu_status_t container_proceed_event(container_t *container, double time) {
     const logger_t *logger = &container->logger;
-    bool activated = false;
 
     /* Activate the clocks due now and notify FMU */
     for (unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1) {
@@ -287,7 +315,6 @@ static fmu_status_t container_proceed_event(container_t *container, double time)
 #endif
         container->clocks[clock->local_vr] = true;
         container->clocks_list.active[clock->local_vr] = true;
-        activated = true;
         clock->ticked = true;
         clock->tick_to_log = true;
         clock->has_ticked = true;
@@ -297,31 +324,45 @@ static fmu_status_t container_proceed_event(container_t *container, double time)
         else
             clock->next_known = false;
 
+        /* The clock of an input comes with this input, in the second instant. */
+        if (fmu_clock_has_inputs(&container->fmu[clock->fmu_id], clock->local_vr))
+            continue;
+
         if (fmuSetClock(&container->fmu[clock->fmu_id], &clock->fmu_vr, 1, &value) != FMU_STATUS_OK) {
             LOGGER_ERROR("FMU '%s': cannot activate clock vr=%u", container->fmu[clock->fmu_id].name, clock->fmu_vr);
             return FMU_STATUS_ERROR;
         }
     }
 
-    /* Propagate clocks (LS-BUS: input clocks could be shared)*/
+    /* First instant: the outputs (LS-BUS: input clocks could be shared) */
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t *fmu = container->cs_fmu[i];
 
-        if (fmu_set_clocks(fmu) != FMU_STATUS_OK)
+        if (fmu_set_clocks_before_outputs(fmu) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
 
         if (fmu_get_clocked_outputs(fmu) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
     }
 
-    /* The inputs clocked by the schedule need their clock active: deliver them before it is reset. The inputs of
-       the triggered clocks are delivered by the event iteration. */
-    if (activated) {
-        for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-            if (fmu_set_scheduled_clocked_inputs(container->cs_fmu[i]) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
+    if (container_close_instant(container) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+
+    /* Second instant: the inputs, with their clocks. */
+    for (unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1) {
+        const container_clock_t *clock = &container->clocks_list.clocks[i];
+        const bool value = true;
+
+        if (container->clocks_list.active[clock->local_vr] &&
+            fmu_clock_has_inputs(&container->fmu[clock->fmu_id], clock->local_vr) &&
+            fmuSetClock(&container->fmu[clock->fmu_id], &clock->fmu_vr, 1, &value) != FMU_STATUS_OK) {
+            LOGGER_ERROR("FMU '%s': cannot activate clock vr=%u", container->fmu[clock->fmu_id].name, clock->fmu_vr);
+            return FMU_STATUS_ERROR;
         }
     }
+
+    if (container_deliver_clocked_inputs(container) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
 
     /* reset internal clocks */
     container_clocks_deactivate(container);
@@ -364,7 +405,8 @@ static void container_bound_next_step(container_t *container) {
 }
 
 
-static fmu_status_t container_update_discrete_state(container_t *container) {
+/* `delivered`: the clocks and the clocked inputs already reached the FMUs in this instant. */
+static fmu_status_t container_update_discrete_state(container_t *container, bool delivered) {
     const logger_t *logger = &container->logger;
     bool more_event;
     int iter;
@@ -379,17 +421,22 @@ static fmu_status_t container_update_discrete_state(container_t *container) {
            Set inputs -> fmi3UpdateDiscreteStates -> Get outputs, so the outputs
            read back reflect the freshly updated discrete state. */
         more_event = false;
+
+        /* The previous pass read the outputs: this one needs a new instant for its inputs. */
+        if ((iter > 0) && (container_close_instant(container) != FMU_STATUS_OK))
+            return FMU_STATUS_ERROR;
+
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t *fmu = &container->fmu[i];
             bool fmu_more_event = false;
 
-            if (fmu_set_clocks(fmu) != FMU_STATUS_OK)
+            if (!(delivered && (iter == 0)) && (fmu_set_clocks(fmu) != FMU_STATUS_OK))
                 return FMU_STATUS_ERROR;
 
             if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
                 return FMU_STATUS_ERROR;
 
-            if (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK)
+            if (!(delivered && (iter == 0)) && (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK))
                 return FMU_STATUS_ERROR;
 
             /* Closing the super-dense time instant; a further iteration opens a new one. */
@@ -440,9 +487,12 @@ static fmu_status_t container_handle_due_clocks(container_t *container) {
                          CONTAINER_MAX_EVENT_ITER);
             return FMU_STATUS_ERROR;
         }
+        /* The event iteration read the outputs. */
+        if (container_close_instant(container) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
         if (container_proceed_event(container, container->time) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
-        if (container_update_discrete_state(container) != FMU_STATUS_OK)
+        if (container_update_discrete_state(container, true) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
     }
 
@@ -471,7 +521,7 @@ static fmu_status_t container_handle_events(container_t *container) {
         return status;
     
     datalog_log(container);
-    status = container_update_discrete_state(container);
+    status = container_update_discrete_state(container, true);
     if (status != FMU_STATUS_OK)
         return status;
 
@@ -661,7 +711,16 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
        EventMode: run one common event iteration before splitting the modes. */
     container_init_values(container);
 
-    status = container_update_discrete_state(container);
+    /* The outputs were read just above. */
+    status = container_close_instant(container);
+    if (status != FMU_STATUS_OK)
+        return status;
+
+    status = container_deliver_clocked_inputs(container);
+    if (status != FMU_STATUS_OK)
+        return status;
+
+    status = container_update_discrete_state(container, true);
     if (status != FMU_STATUS_OK)
         return status;
 

@@ -66,17 +66,22 @@ sequenceDiagram
     C->>F1: fmi*GetReal/Int/Bool/...<br/>(outputs + clocked outputs)
     C->>F2: fmi*GetReal/Int/Bool/...<br/>(outputs + clocked outputs)
 
+    Note over C, F2: Outputs and inputs go in two super-dense time instants
+    C->>F1: fmi*UpdateDiscreteStates()
+    C->>F2: fmi*UpdateDiscreteStates()
+    C->>F1: fmi*SetClock(vr, true) + clocked inputs
+    C->>F2: fmi*SetClock(vr, true) + clocked inputs
+
     Note over C, F2: Resolve discrete states
     loop Do While more_event
-        C->>F1: fmi*SetClock(vr, true) + clocked inputs
-        C->>F2: fmi*SetClock(vr, true) + clocked inputs
-        C->>C: datalog_log()
-        C->>F1: fmi*GetClock + clocked outputs
-        C->>F2: fmi*GetClock + clocked outputs
+        Note over C, F2: From the second pass: UpdateDiscreteStates(), then clocks and clocked inputs
         C->>F1: fmi*UpdateDiscreteStates()
         F1-->>C: nextEventTime, more_event
+        C->>F1: fmi*GetClock + clocked outputs
         C->>F2: fmi*UpdateDiscreteStates()
         F2-->>C: nextEventTime, more_event
+        C->>F2: fmi*GetClock + clocked outputs
+        C->>C: datalog_log()
     end
 
     Note over C, F2: Prepare first scheduled event

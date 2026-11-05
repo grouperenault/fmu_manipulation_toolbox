@@ -46,6 +46,13 @@ def test_ls_bus_nodes_only(area_dir):
     assert_simulation_log("nodes-only.fmu", 0.1)
     assert_equivalent_csv("nodes-only-datalog.csv", "REF-nodes-only-datalog.csv")
 
+    # Both nodes send at the same time on their triggered clocks: each of them receives the frames of the other one.
+    log = Path("log-nodes-only.txt").read_text()
+    for sender, receiver in (("node1.fmu", "node2.fmu"), ("node2.fmu", "node1.fmu")):
+        sent = log.count(f"{sender}: Transmitting CAN frame")
+        assert sent > 0
+        assert log.count(f"{receiver}: Received CAN frame") == sent
+
 
 def test_ls_bus_datalog_with_a_decimal_comma(area_dir, decimal_comma_locale):
     """The datalog follows the locale of the importer, with a semicolon between its columns: it holds the same values,

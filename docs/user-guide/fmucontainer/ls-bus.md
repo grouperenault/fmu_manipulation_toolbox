@@ -69,6 +69,9 @@ to reach their ticks.
 | `changing`, `countdown` | The FMU announces each tick |
 | `triggered` | Ticks with the clock it is linked to |
 
+- Operations are exchanged in two super-dense time instants: the `Tx_Data` of all the FMUs are read, each FMU closes the instant with
+  `fmi3UpdateDiscreteStates`, then `Rx_Clock` and `Rx_Data` are set. An FMU may evaluate its discrete states when its `Tx_Data` is read,
+  and then refuse any input until this update: the FMUs of SystemDesk do so.
 - A clock ticks at most once per time instant. An FMU that announces a new tick at the current time gets it after a very
   short step (twice the tolerance of the container).
 - A `Rx_Clock` may be periodic (LS-BUS 1.3), but its ticks must match those of the clock of the sender. The container issues

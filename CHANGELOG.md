@@ -9,6 +9,10 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 - 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
   was reset before the delivery of the clocked inputs.
+- 🟠 **FIXED** LS-BUS: `Rx_Data` was set in the instant where `Tx_Data` was read. An FMU which evaluates its discrete states at this
+  read refuses it (`fmi3SetBinary` or `fmi3SetClock`: *Discrete states have already been evaluated*, with the FMUs of SystemDesk):
+  operations are now exchanged in two super-dense time instants.
+- 🟠 **FIXED** LS-BUS: two nodes sending on their triggered `Tx_Clock` at the same time: the second one lost all the frames of the first one.
 - 🟠 **FIXED** LS-BUS: the `Rx_Clock` of a Bus Simulation was not activated by the `countdown` `Tx_Clock` of a node.
 - 🟠 **FIXED** datalog: a clock scheduled by the container was active on every row, and its column had the name of another
   clock, so that `datalog2pcap` wrote the operations of a Bus Simulation many times. It is now active on one row per tick, and
