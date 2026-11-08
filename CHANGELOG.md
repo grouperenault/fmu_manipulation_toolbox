@@ -82,6 +82,13 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟢 **ADDED** `-debug` option of `fmutool` and `fmutool-gui` (at launch): the `DEBUG` lines are logged, in the log
   area for `fmutool-gui`, e.g. the command lines of the compiler and of the linker of `-compile-sources`.
 
+## Native code
+
+- 🟢 **ADDED** a `CMakeLists.txt` at the root of the repository builds the container and the remoting code in one
+  build folder (`cmake -B build-native`), selected by the options `FMUTOOL_BUILD_CONTAINER` and
+  `FMUTOOL_BUILD_REMOTING`. The `container/` and `remoting/` projects can still be built on their own. See the
+  [Installation Guide](docs/installation.md).
+
 ## Graphical User Interfaces
 
 - 🔵 **CHANGED** Container Builder: the buttons are **Exit**, **Load** (Ctrl+O) and **Save** (Ctrl+S); Load and Save

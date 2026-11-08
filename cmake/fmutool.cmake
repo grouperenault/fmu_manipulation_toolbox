@@ -1,6 +1,9 @@
 # Common build settings of the native components (container, remoting).
 # Include it right after project():
 #     include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/fmutool.cmake)
+# Included once per build tree: when both components are built by the root
+# project, the root includes it and the subdirectories inherit its variables.
+include_guard(GLOBAL)
 
 set(FMUTOOL_CMAKE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
@@ -101,14 +104,15 @@ endif()
 
 # -----------------------------------------------------------------------------
 # version.h: regenerated at every build so that the git version is always
-# current, not frozen at configure time.
+# current, not frozen at configure time. Shared by all the native targets.
 # -----------------------------------------------------------------------------
+set(FMUTOOL_GENERATED_DIR ${CMAKE_BINARY_DIR})
 add_custom_target(version_h ALL
-    BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/version.h
+    BYPRODUCTS ${FMUTOOL_GENERATED_DIR}/version.h
     COMMAND ${CMAKE_COMMAND}
         -DSRC_DIR=${FMUTOOL_CMAKE_DIR}
         -DIN_FILE=${FMUTOOL_CMAKE_DIR}/version.h.in
-        -DOUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/version.h
+        -DOUT_FILE=${FMUTOOL_GENERATED_DIR}/version.h
         -P ${FMUTOOL_CMAKE_DIR}/gen_version.cmake
     COMMENT "Generating version.h from git"
     VERBATIM
@@ -126,7 +130,8 @@ function(fmutool_native_target target)
     target_link_libraries(${target} PRIVATE fmutool_flags)
     target_include_directories(${target} PRIVATE
         ${FMUTOOL_CMAKE_DIR}/../fmu_manipulation_toolbox/resources/fmi
-        ${CMAKE_CURRENT_BINARY_DIR}     # version.h, config.h
+        ${FMUTOOL_GENERATED_DIR}        # version.h
+        ${CMAKE_CURRENT_BINARY_DIR}     # config.h
     )
     # The generator expression stops multi-config generators (Visual Studio)
     # from appending a per-configuration subdirectory.
