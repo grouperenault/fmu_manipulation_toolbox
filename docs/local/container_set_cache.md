@@ -1,4 +1,4 @@
-# Container runtime: values set by the importer go through a buffer
+# Container runtime: values set by the importer go through the cache of the ports
 
 ## Context
 
@@ -16,8 +16,12 @@ handle the cases where acting at once is wrong:
 
 The forwarding code is duplicated in the `FMI_SETTER` macros of `fmi2.c` and `fmi3.c`.
 
-Proposal: `fmi*Set` only writes the buffer (the existing cache of the port) and marks it; the buffer is synchronized
+Proposal: `fmi*Set` only writes the cache of the port (it already exists) and marks it; the cache is synchronized
 with the FMUs at defined points, by one function.
+
+Vocabulary: the **local variables** (`DECLARE_LOCAL` of `container.h`) convey the values between the embedded FMUs
+(links, conversions) and are unchanged; the **cache** (`DECLARE_CACHE`) holds the values set by the importer on the
+ports linked to embedded FMUs, and becomes the only way from `fmi*Set` to these FMUs.
 
 ## Decisions (2026-11-09)
 
@@ -27,8 +31,8 @@ with the FMUs at defined points, by one function.
 | 2 | Read after write (`Get` of an FMU after a `Set` of one of its inputs) | The pending values of the FMU are pushed to it before it is read: same result as today |
 | 3 | Scope | All the types that have a cache (numeric, strings, binaries); `fmi3SetClock` stays immediate |
 | 4 | Branch | `refactor/container-set-buffer`, from `integration` (after the merge of FMI-LS-XCP) |
-| 5 | One `fmuSet*` for several value references (one call per type and per FMU) | No: one call per link, as today (buffer and links between FMUs) |
-| 6 | `container.txt` | Unchanged (version 9): the buffer is the existing cache of each linked port; the state of the links is built when the container is loaded |
+| 5 | One `fmuSet*` for several value references (one call per type and per FMU) | No: one call per link, as today (cache and links between FMUs) |
+| 6 | `container.txt` | Unchanged (version 9): the cache of each linked port already exists; the state of the links is built when the container is loaded |
 
 Kept from FMI-LS-XCP: the values set by the importer prevail over the start values; structural parameters are set in
 Configuration Mode only.
@@ -65,10 +69,10 @@ This document.
 
 Commit message:
 ```
-Plan: values set on the container go through a buffer
+Plan: values set on the container go through the cache of the ports
 ```
 
-## Step 1 — Buffer and synchronization in the runtime
+## Step 1 — Cache and synchronization in the runtime
 
 - `container.h` / `container.c` / `fmu.c` / `fmi2.c` / `fmi3.c` as described in **Design**.
 - Native tests (`container/tests`): a value set is not seen by the stub before the synchronization; `Get` after `Set`;
@@ -78,7 +82,7 @@ Plan: values set on the container go through a buffer
 
 Commit message:
 ```
-Container runtime: the values set by the importer go through a buffer
+Container runtime: the values set by the importer go through the cache
 
 fmi*Set only writes the cache of the port; the values are pushed to the
 embedded FMUs at defined points (step, exit of the initialization, read of
@@ -95,7 +99,7 @@ structural parameters.
 
 Commit message:
 ```
-Tests: reference traces of the probe FMU with the buffered values
+Tests: reference traces of the probe FMU with the values set from the cache
 ```
 
 ## Step 3 — Documentation
@@ -108,5 +112,5 @@ Tests: reference traces of the probe FMU with the buffered values
 
 Commit message:
 ```
-Doc: values set on the container go through a buffer
+Doc: values set on the container go through the cache of the ports
 ```
