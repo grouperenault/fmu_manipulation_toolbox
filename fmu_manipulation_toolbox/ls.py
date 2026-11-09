@@ -81,7 +81,7 @@ _A2L_TOKEN = re.compile(r'"(?:[^"\\]|\\.)*"|/\*.*?\*/|//[^\n]*|\S+', re.DOTALL)
 _A2L_ADDRESS_TAGS = ("ADDRESS", "HOST_NAME", "IPV6")
 
 
-def _a2l_tokens(text: str) -> list[str]:
+def a2l_tokens(text: str) -> list[str]:
     """Tokens of an A2L text, without its comments (strings kept whole, with their quotes)."""
     return [token for token in _A2L_TOKEN.findall(text) if not token.startswith(("/*", "//"))]
 
@@ -96,7 +96,7 @@ def read_xcp_settings(a2l_filename: Path) -> dict[str, XcpSettings]:
     Returns:
         dict[str, XcpSettings]: The settings of each protocol found (`"TCP"`, `"UDP"`).
     """
-    tokens = _a2l_tokens(Path(a2l_filename).read_text(encoding="latin-1"))
+    tokens = a2l_tokens(Path(a2l_filename).read_text(encoding="latin-1"))
     settings: dict[str, XcpSettings] = {}
     in_xcp = False
     for i, token in enumerate(tokens):

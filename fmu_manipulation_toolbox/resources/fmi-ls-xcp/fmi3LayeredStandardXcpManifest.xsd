@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- From modelica/fmi-ls-xcp v1.0.0 (commit 2e2f408): schemaLocation of the import changed to the local copy. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:fmi-ls="http://fmi-standard.org/fmi-ls-manifest" elementFormDefault="qualified" attributeFormDefault="qualified">
+	<xs:import namespace="http://fmi-standard.org/fmi-ls-manifest" schemaLocation="../fmi-3.0/fmi3LayeredStandardManifest.xsd"/>
+	<xs:annotation>
+		<xs:documentation>
+Copyright(c) 2023-2026 Modelica Association Project FMI.
+			 All rights reserved.
+
+This file is licensed by the copyright holders under the 2-Clause BSD License
+(https://opensource.org/licenses/BSD-2-Clause):
+
+----------------------------------------------------------------------------
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice,
+ this list of conditions and the following disclaimer.
+
+- Redistributions in binary form must reproduce the above copyright notice,
+ this list of conditions and the following disclaimer in the documentation
+ and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+----------------------------------------------------------------------------
+		</xs:documentation>
+	</xs:annotation>
+	<xs:element name="fmiLayeredStandardManifest">
+		<xs:complexType>
+			<xs:sequence>
+				<xs:element name="Interface" minOccurs="1" maxOccurs="unbounded">
+					<xs:complexType>
+						<xs:sequence>
+							<xs:element name="Variable" minOccurs="0" maxOccurs="unbounded">
+								<xs:complexType>
+									<xs:attribute name="name" type="xs:string" use="required">
+										<xs:annotation>
+											<xs:documentation xml:lang="en">
+												Name of the variable. Must be a valid variable name as defined in the modelDescription.xml
+												of the FMU.
+											</xs:documentation>
+										</xs:annotation>
+									</xs:attribute>
+									<xs:attribute name="role" use="required">
+										<xs:annotation>
+											<xs:documentation xml:lang="en">
+												Role of the variable. Must be a valid role as defined in the enumeration and the specification.
+											</xs:documentation>
+										</xs:annotation>
+										<xs:simpleType>
+											<xs:restriction base="xs:string">
+												<xs:enumeration value="XCPServiceTCPEnable"/>
+												<xs:enumeration value="XCPServiceTCPPort"/>
+												<xs:enumeration value="XCPServiceTCPListenAddress"/>
+												<xs:enumeration value="XCPServiceUDPEnable"/>
+												<xs:enumeration value="XCPServiceUDPPort"/>
+												<xs:enumeration value="XCPServiceUDPListenAddress"/>
+											</xs:restriction>
+										</xs:simpleType>
+									</xs:attribute>
+								</xs:complexType>
+							</xs:element>
+						</xs:sequence>
+						<xs:attribute name="description" type="xs:string">
+							<xs:annotation>
+								<xs:documentation xml:lang="en">
+									Optional human-readable description of the interface being defined.
+								</xs:documentation>
+							</xs:annotation>
+						</xs:attribute>
+						<xs:attribute name="types">
+							<xs:annotation>
+								<xs:documentation xml:lang="en">
+									Optional attribute to restrict the applicability of the interface being defined to certain
+									FMU interface types. The value is provided as a list of interface type names to which this
+									interface applies. If the attribute is not provided, the interface applies to all available
+									FMU interface types.
+								</xs:documentation>
+							</xs:annotation>
+							<xs:simpleType>
+								<xs:list>
+									<xs:simpleType>
+										<xs:restriction base="xs:token">
+											<xs:enumeration value="CoSimulation"/>
+											<xs:enumeration value="ModelExchange"/>
+											<xs:enumeration value="ScheduledExecution"/>
+										</xs:restriction>
+									</xs:simpleType>
+								</xs:list>
+							</xs:simpleType>
+						</xs:attribute>
+						<xs:attribute name="definition" type="xs:anyURI" use="required">
+							<xs:annotation>
+								<xs:documentation xml:lang="en">
+									This attribute must be a relative reference to a URI (formerly called a relative URI) to the A2L
+									definition file for this interface. It may not contain any dot-segments (i.e., complete path segments
+									of `.` or `..`). It is resolved to an absolute URI using a base URI as follows:
+									For any source FMU implementation this is resolved against the manifest file as the base URI,
+									for binary FMU implementations this is resolved against the corresponding target sub-directory
+									of the layered standard `extra` directory as the base URI.
+								</xs:documentation>
+							</xs:annotation>
+						</xs:attribute>
+						<xs:attribute name="containsXCPService" type="xs:boolean" default="false">
+							<xs:annotation>
+								<xs:documentation xml:lang="en">
+									If true, this interface of the FMU provides its own XCP slave implementation.
+								</xs:documentation>
+							</xs:annotation>
+						</xs:attribute>
+						<xs:attribute name="supportsDirectMemoryAccess" type="xs:boolean" default="false">
+							<xs:annotation>
+								<xs:documentation xml:lang="en">
+									If true, this interface of the FMU allows direct memory access from the outside via its definition file.
+									In most cases this mechanism will be used by an external XCP service provided by the importer.
+								</xs:documentation>
+							</xs:annotation>
+						</xs:attribute>
+					</xs:complexType>
+				</xs:element>
+			</xs:sequence>
+			<xs:attribute ref="fmi-ls:fmi-ls-name" use="required" fixed="org.fmi-standard.fmi-ls-xcp"/>
+			<xs:attribute ref="fmi-ls:fmi-ls-version" use="required"/>
+			<xs:attribute ref="fmi-ls:fmi-ls-description" use="required" fixed="Layered standard based on FMI 2.0 and FMI 3.0 for describing and implementing XCP support for FMUs, which can either provide an XCP service or allow direct memory access via A2L files."/>
+		</xs:complexType>
+	</xs:element>
+</xs:schema>

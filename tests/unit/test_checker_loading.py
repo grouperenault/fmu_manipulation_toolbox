@@ -9,7 +9,8 @@ from types import SimpleNamespace
 import pytest
 
 from fmu_manipulation_toolbox import checker
-from fmu_manipulation_toolbox.checker import OperationGenericCheck, OperationLsBusCheck, OperationSemanticCheck, add_from_file, get_checkers
+from fmu_manipulation_toolbox.checker import (OperationGenericCheck, OperationLsBusCheck, OperationLsXcpCheck,
+                                              OperationSemanticCheck, add_from_file, get_checkers)
 
 pytestmark = [pytest.mark.unit]
 
@@ -44,7 +45,7 @@ def test_checker_importing_fmuport_is_reported(tmp_path, caplog):
     with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
         add_from_file(_write_checker(tmp_path, "FMUPort"))
     assert "Cannot load" in caplog.text and HINT in caplog.text
-    assert get_checkers()[:3] == [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck]
+    assert get_checkers()[:4] == [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck, OperationLsXcpCheck]
 
 
 def test_addon_checker_that_cannot_be_imported_is_skipped(monkeypatch, caplog):
@@ -55,5 +56,5 @@ def test_addon_checker_that_cannot_be_imported_is_skipped(monkeypatch, caplog):
     monkeypatch.setattr(checker, "entry_points", lambda group: [broken])
     with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
         checkers = get_checkers()
-    assert checkers == [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck]
+    assert checkers == [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck, OperationLsXcpCheck]
     assert "Cannot load the addon checker 'broken'" in caplog.text and HINT in caplog.text
