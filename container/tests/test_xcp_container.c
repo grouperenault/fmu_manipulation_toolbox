@@ -175,7 +175,8 @@ int test_cache_refused_value(void) {
 }
 
 
-/* The FMU gets the values set on the container in the order of the calls of the importer, after its start values. */
+/* After its start values, the FMU gets the values set on the container type by type (in the order of the types of the
+   cache: integers, then booleans, then strings), each value once. */
 int test_cache_order_of_the_calls(void) {
     fmi2CallbackFunctions functions;
 
@@ -195,9 +196,49 @@ int test_cache_order_of_the_calls(void) {
     fmi2FreeInstance(container);
 
     TEST_ASSERT(strcmp(read_journal("xcp_fmi2"), "set port=6002\n"
-                                                 "set address=0.0.0.0\n"
                                                  "set port=7006\n"
                                                  "set enable=1\n"
+                                                 "set address=0.0.0.0\n"
                                                  "start tcp 0.0.0.0:7006 at fmi2SetupExperiment\n") == 0);
+    return 0;
+}
+
+
+static int structural_warnings;
+
+static void count_structural_warnings(fmi3InstanceEnvironment env, fmi3Status status, fmi3String category,
+                                      fmi3String message) {
+    (void)env; (void)status; (void)category;
+    if (strstr(message, "is configured: the structural parameter"))
+        structural_warnings += 1;
+}
+
+
+/* A structural parameter set before the configuration of the FMU is set without warning; one set after it is not set
+   (it waits for the next configuration), with a warning. */
+int test_cache_structural_warning(void) {
+    char location[4096];
+
+    TEST_ASSERT_EQUAL_INT(0, reset_journal("xcp_fmi3"));
+    snprintf(location, sizeof(location), "%s/xcp_fmi3", TEST_FIXTURES_DIR);
+    fmi3Instance container = fmi3InstantiateCoSimulation("xcp", "{uuid}", location, fmi3False, fmi3True, fmi3False,
+                                                         fmi3False, NULL, 0, NULL, count_structural_warnings, NULL);
+    TEST_ASSERT(container != NULL);
+
+    const fmi3ValueReference vr = PORT_VR_FMI3;
+    const fmi3UInt16 port = 7002, late_port = 7003;
+    structural_warnings = 0;
+    TEST_ASSERT_EQUAL_INT(fmi3OK, fmi3SetUInt16(container, &vr, 1, &port, 1));
+    TEST_ASSERT_EQUAL_INT(fmi3OK, fmi3EnterInitializationMode(container, fmi3False, 0.0, 0.0, fmi3False, 1.0));
+    TEST_ASSERT_EQUAL_INT(0, structural_warnings);
+    TEST_ASSERT_EQUAL_INT(fmi3OK, fmi3SetUInt16(container, &vr, 1, &late_port, 1));
+    TEST_ASSERT_EQUAL_INT(fmi3OK, fmi3ExitInitializationMode(container));
+    TEST_ASSERT_EQUAL_INT(1, structural_warnings);
+    fmi3FreeInstance(container);
+
+    TEST_ASSERT(strcmp(read_journal("xcp_fmi3"), "set port=6000\n"
+                                                 "set address=0.0.0.0\n"
+                                                 "set port=7002\n"
+                                                 "start tcp 0.0.0.0:7002 at fmi3ExitConfigurationMode\n") == 0);
     return 0;
 }

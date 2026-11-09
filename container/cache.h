@@ -13,9 +13,10 @@ extern "C" {
 
 /*
  * Cache of the container: the state to come, set by the importer. It holds the values set on the ports linked to
- * embedded FMUs or to local variables, and for each embedded FMU the set of its links that got a value. fmi*Set only
- * writes the cache (cache_set_<type>); an FMU gets the values of its set when it is synchronized
- * (cache_sync_fmu), in the order of the calls of the importer. When a step becomes pending, every FMU is synchronized:
+ * embedded FMUs or to local variables, and for each embedded FMU, each category (variables, structural parameters) and
+ * each type, the set of its links that got a value. fmi*Set only writes the cache (cache_set_<type>); an FMU gets the
+ * values of its sets when it is synchronized (cache_sync_fmu), type by type: the order of the calls of the importer is
+ * not kept. When a step becomes pending, every FMU is synchronized:
  * what enters the cache while it is pending is for after it, so nothing is synchronized before its end
  * (cache_end_pending_step writes then the local variables of the ports set meanwhile). Clocks are events: never
  * cached.
@@ -38,27 +39,35 @@ typedef enum cache_type_e {
 } cache_type_t;
 #undef DECLARE_CACHE_TYPE
 
+#define CACHE_NB_TYPES              (CACHE_TYPE_binaries + 1)
+
 
 /*----------------------------------------------------------------------------
                       C A C H E _ S E T _ E N T R Y _ T
 ----------------------------------------------------------------------------*/
 
-typedef struct {
-    cache_type_t                type;
+/* The type of an entry is the one of its set. */
+typedef struct cache_set_entry_s {
     container_port_t            *port;
-    container_vr_t              *link;      /* NULL in the set of the ports linked to local variables */
+    container_vr_t              *link;      /* NULL in the sets of the ports linked to local variables */
 } cache_set_entry_t;
 
 
 /*----------------------------------------------------------------------------
                           C A C H E _ S E T _ T
 ----------------------------------------------------------------------------*/
-/* Set of the variables set by the importer: allocated with the cache, for all the entries it may hold. */
-typedef struct {
+/* Set of the variables of one type set by the importer: allocated with the cache, for all the entries it may hold. */
+typedef struct cache_set_s {
     unsigned long               nb;
     unsigned long               size;
     cache_set_entry_t           *entries;
 } cache_set_t;
+
+/* Sets of an embedded FMU: [0] its variables, [1] its structural parameters (set in Configuration Mode). */
+typedef struct cache_fmu_s {
+    unsigned int                types[2];   /* bit of each type whose set is not empty */
+    cache_set_t                 sets[2][CACHE_NB_TYPES];
+} cache_fmu_t;
 
 
 /*----------------------------------------------------------------------------
@@ -76,10 +85,12 @@ typedef struct cache_s {
     DECLARE_VALUES(binaries, Binary, fmu_binary_t)
 #undef DECLARE_VALUES
 
-    cache_set_t                 *sets;          /* for each embedded FMU: its links whose value is to set */
-    unsigned long               nb_sets;
-    cache_set_entry_t           *set_entries;   /* storage of the entries of all the sets of the FMUs */
-    cache_set_t                 deferred;       /* ports linked to local variables set while a step is pending */
+    cache_fmu_t                 *fmus;          /* for each embedded FMU: its links whose value is to set */
+    unsigned long               nb_fmus;
+    cache_set_entry_t           *set_entries;   /* storage of the entries of all the sets */
+    cache_set_t                 deferred[CACHE_NB_TYPES]; /* ports linked to local variables set while a step is
+                                                             pending */
+    unsigned int                deferred_types; /* bit of each type whose set of deferred ports is not empty */
 
     /* arrays of the values of a string or binary port, to set or read them (size: largest dimension) */
     const char                  **strings_scratch;
@@ -120,10 +131,11 @@ extern bool cache_read_strings(const container_t *container, const container_por
 extern bool cache_read_binaries(const container_t *container, const container_port_t *port, size_t size[],
                                 const uint8_t *value[]);
 
-/* Adds again the cached values of the FMU to its set, so that they prevail over its start values: all of them
-   (reset < 0), or those of the variables whose start value has this <RESET>. */
+/* Adds again the cached values of the FMU to its sets, so that they prevail over its start values: all of them
+   (reset < 0), or those of the variables whose start value has this <RESET>; not its structural parameters once it is
+   configured and out of Configuration Mode. */
 extern void cache_mark_fmu(container_t *container, unsigned long fmu_id, int reset);
-/* Sets on the FMU of index fmu_id the values of its set (continuous_only: its real variables only, in Continuous
+/* Sets on the FMU of index fmu_id the values of its sets, type by type (continuous_only: its real variables only, in Continuous
    Time Mode). */
 extern fmu_status_t cache_sync_fmu(container_t *container, unsigned long fmu_id, bool continuous_only);
 /* cache_sync_fmu() before a step or a read of the FMU: nothing while a step is pending. */
