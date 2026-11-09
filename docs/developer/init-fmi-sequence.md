@@ -39,8 +39,8 @@ sequenceDiagram
         C->>F1: fmi3EnterConfigurationMode()<br/>(FMUs with structural parameters only)
         C->>F1: fmi3SetXXX<br/>(start values RESET=2)
         I->>C: fmi3SetXXX (structural parameters)
-        C->>F1: fmi3SetXXX
         I->>C: fmi3ExitConfigurationMode()
+        C->>F1: fmi3SetXXX<br/>(values set by the importer, from the cache)
         C->>F1: fmi3ExitConfigurationMode()
     end
 
@@ -117,8 +117,11 @@ sequenceDiagram
   [container.txt](container-txt-format.md#72-start-values)): the structural parameters (`<RESET>=2`) in
   *Configuration Mode*, the *early* values (`<RESET>` 0 and 1) **before** `fmi2SetupExperiment` (an FMU may use its
   parameters there, e.g. to start the XCP service of FMI-LS-XCP), and the values flagged `<RESET>=1` again once the
-  FMUs are in *Initialization Mode*. After the early values, the values set by the importer on the container (its
-  cache) are set again: they prevail over the start values.
+  FMUs are in *Initialization Mode*. After each phase, the values set by the importer on the same variables (the
+  cache of the container) are set again: they prevail over the start values.
+- The setters of the container only write its cache: an embedded FMU gets the values set by the importer when it is
+  synchronized (see [DoStep FMI Sequence](dostep-fmi-sequence.md#values-set-by-the-importer)); in the diagram, they
+  are set before its `fmi2SetupExperiment`, then when it is read or leaves its *Initialization Mode*.
 - The FMUs with structural parameters set by the container (`<has_configuration_mode>`) go through their
   *Configuration Mode* once after their instantiation and after each reset: with the *Configuration Mode* of the
   container when its importer uses it (FMI 3.0), otherwise right before their early start values. A value set on a

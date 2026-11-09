@@ -117,3 +117,48 @@ Commit message:
 ```
 Doc: values set on the container go through the cache of the ports
 ```
+
+## Review (2026-11-09)
+
+Step 2 needed no commit: the whole test suite passed without change after step 1, the reference traces of the probe
+FMU included (the scenarios set no value between two synchronizations).
+
+### Maintainability
+
+- One way from `fmi*Set` to the embedded FMUs: the places that call `fmuSet*` for a value of the importer go from 10
+  (setters of `fmi2.c` and `fmi3.c` for numbers, strings and binaries, `container_apply_deferred()` for 3 kinds,
+  `container_set_fmu_cache()` for 2) to 2 (`container_sync_fmu()`: one macro for numbers and strings, binaries).
+- The setters no longer know the pending step nor the structural parameters (5 special cases removed from them);
+  they write the cache, mark the links, and write the local variables.
+- The synchronization points are explicit and documented (`docs/developer/dostep-fmi-sequence.md`).
+- Size: the runtime sources grow by 57 lines (`fmi2.c` −28, `fmi3.c` −37, `container.c` +98, `fmu.c` +11): the
+  synchronization handles every type and the Continuous Time Mode of the ME FMUs in one function, with its comments.
+- New state to keep consistent: the state of each link and the counter `nb_pending` of each FMU, only changed by
+  `container_mark_link()`.
+
+### Performance
+
+Micro-benchmark (container of one stub FMU, 10^6 steps, `-O3`, best of 3, macOS arm64), runtime before / after:
+
+| Loop | Before | After |
+|---|---|---|
+| `fmi2DoStep` | 3.9 ns | 3.6 ns |
+| `fmi2SetReal` + `fmi2DoStep` | 6.4 ns | 6.7 ns |
+| `fmi2SetReal` + `fmi2GetReal` + `fmi2DoStep` | 10.4 ns | 10.7 ns |
+
+The differences are within the noise; the calls of a real FMU dominate. Expected effects:
+
+- a value set several times between two steps reaches the FMU once (it was set at each `fmi*Set`);
+- a synchronization goes through all the ports of the container when the FMU has pending values (no cost
+  otherwise): O(number of ports) per FMU and per step when the importer sets values of every FMU at every step. For
+  containers of thousands of ports, an index of the links of each FMU, built when the container is loaded, would
+  remove this scan.
+
+### Test suite
+
+- Native tests: 2 new (`cache_read_after_write`, `cache_refused_value`), 1 adjusted (`xcp_fmi2_before_setup`: the
+  value set by the importer reaches the FMU once, before `fmi2SetupExperiment`, instead of twice).
+- Python tests: unchanged, all passing (2685, `slow` and GUI included); reference traces of the probe FMU
+  unchanged.
+- The deferral of a value set while a step is pending is covered by `test_communication_step_*` of
+  `tests/integration/test_probe_fmu.py` only (`slow`: fmpy and a C compiler); no native test of it.
