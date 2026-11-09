@@ -176,8 +176,8 @@ type for the storages of the container, is for later):
 4. The `<RESET>` of the start value of each link is computed when the container is loaded (`start_reset`, -1 without
    start value; structural parameter = 2): `fmu_start_reset_*()` is no longer called during the simulation.
 5. New module `container/cache.c` / `cache.h`: the values of the cache, the sets, the synchronization, the end of a
-   pending step. As the other modules, its functions and types start with `cache_` (`cache_t`, opaque in
-   `container_t`; `cache_type_t`, `CACHE_TYPE_<type>`; `cache_store_<type>()`, `cache_port_set()`, `cache_sync_fmu()`,
+   pending step. As the other modules, its functions and types start with `cache_` and are declared in `cache.h`
+   (`cache_t`, referenced by `container_t` as `struct cache_s *`, as the solver; `cache_type_t`, `CACHE_TYPE_<type>`; `cache_store_<type>()`, `cache_port_set()`, `cache_sync_fmu()`,
    `cache_mark_fmu()`, `cache_end_pending_step()`...). The fields of the cache in the links and the ports of
    `container.h` are grouped in a sub-structure `cache`.
 6. A `fmi*Get` of a port that has values in the cache (set by the importer) returns them, without synchronizing nor
@@ -210,8 +210,8 @@ the ports of local variables set while a step is pending).
 - One way from `fmi*Set` to the embedded FMUs: the places that call `fmuSet*` for a value of the importer go from 10
   (setters of `fmi2.c` and `fmi3.c` for numbers, strings and binaries, `container_apply_deferred()` for 3 kinds,
   `container_set_fmu_cache()` for 2) to 1 (`cache_sync_entry()`).
-- The cache is a module of its own (`cache.c`, `cache.h`, prefix `cache_`), with an opaque `cache_t` in `container_t`
-  and a narrow interface: store, mark, read, synchronize, end of a pending step. `container.c` goes from 3098 to 2816
+- The cache is a module of its own (`cache.c`, `cache.h`, prefix `cache_`, its types declared in `cache.h`), with a
+  narrow interface: store, mark, read, synchronize, end of a pending step. `container.c` goes from 3098 to 2816
   lines.
 - The setters no longer know the pending step nor the structural parameters: they store the values, add the port to
   the sets, and write the local variables. The getters return the values set by the importer from the cache.

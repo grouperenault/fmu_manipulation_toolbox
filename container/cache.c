@@ -8,57 +8,6 @@
 
 
 /*----------------------------------------------------------------------------
-                          C A C H E _ S E T _ T
-----------------------------------------------------------------------------*/
-
-typedef struct {
-    cache_type_t                type;
-    container_port_t            *port;
-    container_vr_t              *link;      /* NULL in the set of the ports linked to local variables */
-} cache_set_entry_t;
-
-/* Set of the variables set by the importer: allocated with the cache, for all the entries it may hold. */
-typedef struct {
-    unsigned long               nb;
-    unsigned long               size;
-    cache_set_entry_t           *entries;
-} cache_set_t;
-
-/* A cached string keeps its capacity: no allocation when a new value fits. */
-typedef struct {
-    char                        *data;
-    size_t                      max_size;
-} cache_string_t;
-
-
-/*----------------------------------------------------------------------------
-                              C A C H E _ T
-----------------------------------------------------------------------------*/
-
-struct cache_s {
-    /* values set by the importer, at port->cache.offset (dimension values per port) */
-#define DECLARE_VALUES(variable, fmi_type, c_type)  \
-    unsigned long               nb_ ## variable;    \
-    c_type                      *variable;
-
-    FOR_ALL_NUMERIC_TYPES(DECLARE_VALUES)
-    DECLARE_VALUES(strings, String, cache_string_t)
-    DECLARE_VALUES(binaries, Binary, fmu_binary_t)
-#undef DECLARE_VALUES
-
-    cache_set_t                 *sets;          /* for each embedded FMU: its links whose value is to set */
-    unsigned long               nb_sets;
-    cache_set_entry_t           *set_entries;   /* storage of the entries of all the sets of the FMUs */
-    cache_set_t                 deferred;       /* ports linked to local variables set while a step is pending */
-
-    /* arrays of the values of a string or binary port, to set or read them (size: largest dimension) */
-    const char                  **strings_scratch;
-    size_t                      *sizes_scratch;
-    const uint8_t               **binaries_scratch;
-};
-
-
-/*----------------------------------------------------------------------------
                     A L L O C A T I O N   A N D   R E S E T
 ----------------------------------------------------------------------------*/
 
