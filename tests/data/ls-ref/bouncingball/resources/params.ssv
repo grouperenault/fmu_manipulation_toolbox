@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ssv:ParameterSet xmlns:ssv="http://ssp-standard.org/SSP1/SystemStructureParameterValues" version="1.0"
+                  name="Restitution 0.5">
+    <ssv:Parameters>
+        <ssv:Parameter name="e"><ssv:Real value="0.5"/></ssv:Parameter>
+    </ssv:Parameters>
+</ssv:ParameterSet>

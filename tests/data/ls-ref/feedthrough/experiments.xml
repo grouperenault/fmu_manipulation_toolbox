@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Experiments name="Feedthrough" xmlns="http://modelica.org/HSExperiments1/HSExperiments">
+    <TransientExperiment name="Stimuli" startTime="0" stopTime="2" stepSize="0.1">
+        <Stimuli source="in.csv"/>
+        <References source="ref.csv"/>
+    </TransientExperiment>
+</Experiments>
