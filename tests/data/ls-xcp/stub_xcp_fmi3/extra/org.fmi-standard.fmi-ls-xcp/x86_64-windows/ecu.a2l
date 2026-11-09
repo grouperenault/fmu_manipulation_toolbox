@@ -1,0 +1,19 @@
+ASAP2_VERSION 1 71
+/* A2L of the stub FMUs of FMI-LS-XCP (TCP only): only the IF_DATA XCP is meaningful. */
+/begin PROJECT ecu "Test ECU"
+  /begin MODULE ecu "Test ECU"
+    /begin IF_DATA XCP
+      /begin PROTOCOL_LAYER
+        0x0104 1000 2000 0 0 0 0 0 252 1468 BYTE_ORDER_MSB_LAST ADDRESS_GRANULARITY_BYTE
+      /end PROTOCOL_LAYER
+      /begin XCP_ON_TCP_IP
+        0x0104      /* version of XCP on TCP */
+        5555        // port
+        ADDRESS "127.0.0.1"
+      /end XCP_ON_TCP_IP
+    /end IF_DATA
+    /begin MEASUREMENT counter "a counter" UWORD NO_COMPU_METHOD 0 0 0 65535
+      ECU_ADDRESS 0x1000
+    /end MEASUREMENT
+  /end MODULE
+/end PROJECT

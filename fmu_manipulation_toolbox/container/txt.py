@@ -96,7 +96,11 @@ class FMUIOList:
             cport (ContainerPort): The embedded FMU port.
             value (str): The start value.
         """
-        reset = 1 if cport.port.causality == "input" else 0
+        # <RESET>: 2 = structural parameter, set in Configuration Mode; 1 = input, set again in Initialization Mode
+        if cport.port.causality == "structuralParameter":
+            reset = 2
+        else:
+            reset = 1 if cport.port.causality == "input" else 0
         if cport.port.type_name.startswith("boolean"):
             if value == "true" or value == "1":
                 value = "1"
@@ -209,16 +213,21 @@ class InvolvedFMU:
             return self[fmu_name]
         return default
 
-    def write_txt(self, txt_file: IO) -> dict[str, int]:
+    def write_txt(self, txt_file: IO, configured: set[str] = frozenset()) -> dict[str, int]:
+        """Write the declarations of the embedded FMUs. `configured`: names of the FMUs whose structural parameters
+        are set by the container, in Configuration Mode (`<has_configuration_mode>`)."""
         print(f"{len(self.fmu_cs)} {len(self.fmu_me)}", file=txt_file)
         fmu_rank: dict[str, int] = {}
         for i, fmu in enumerate(self.values()):
+            has_configuration_mode = int(fmu.name in configured)
             if fmu.is_me:
-                # ME entries: <filename> <fmi_version> <nx> <nz> / <identifier> / <guid>
-                print(f"{fmu.name} {fmu.fmi_version} {fmu.number_of_continuous_states} {fmu.number_of_event_indicators}", file=txt_file)
+                # ME entries: <filename> <fmi_version> <nx> <nz> <has_configuration_mode> / <identifier> / <guid>
+                print(f"{fmu.name} {fmu.fmi_version} {fmu.number_of_continuous_states} "
+                      f"{fmu.number_of_event_indicators} {has_configuration_mode}", file=txt_file)
             else:
-                # CS entries: <filename> <fmi_version> <has_event_mode> / <identifier> / <guid>
-                print(f"{fmu.name} {fmu.fmi_version} {int(fmu.has_event_mode)}", file=txt_file)
+                # CS entries: <filename> <fmi_version> <has_event_mode> <has_configuration_mode> / <identifier> / <guid>
+                print(f"{fmu.name} {fmu.fmi_version} {int(fmu.has_event_mode)} {has_configuration_mode}",
+                      file=txt_file)
 
             print(f"{fmu.model_identifier}", file=txt_file)
             print(f"{fmu.guid}", file=txt_file)

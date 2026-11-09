@@ -1,11 +1,11 @@
-# Version 8
+# Version 9
 # Container flags <MT> <Profiling> <Sequential>
 @MT@ 0 0
 # Internal time step in seconds
 0.1
 # NB of embedded FMU's
 1 0
-stub.fmu 2 0
+stub.fmu 2 0 0
 stub
 @GUID@
 # Initialization order of the embedded FMU's

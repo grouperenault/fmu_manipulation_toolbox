@@ -16,4 +16,5 @@
 - [X] Agent skills: Claude Code plugin, `fmutool-agent`, filters by type and variability, `describe_port`
 - [X] FMI-LS-BUS up to 1.3.0-rc.1: LIN, FlexRay, Ethernet, all the time-based clocks
 - [ ] FMI-LS-BUS 1.3.0 final
+- [X] FMI-LS-XCP 1.0.0: checker, XCP services of the embedded FMUs forwarded by the container
 - [ ] Export to Simulink

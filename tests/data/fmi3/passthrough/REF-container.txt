@@ -1,17 +1,17 @@
-# Version 8
+# Version 9
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
 1.0
 # NB of embedded FMU's
 3 0
-constant3.fmu 3 1
+constant3.fmu 3 1 0
 untitled
 {cda0b5a1-6cc5-a199-80ce-b28697eb4819}
-passthrough3.fmu 3 1
+passthrough3.fmu 3 1 0
 untitled1
 {f9e70b12-cdc8-2d4a-7111-3090b23594bf}
-not2.fmu 2 0
+not2.fmu 2 0 0
 not_bool
 {68d2a3e5-ae1e-988b-9397-2db08e979e07}
 # Initialization order of the embedded FMU's

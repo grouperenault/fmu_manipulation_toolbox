@@ -138,7 +138,7 @@ def test_building_with_instances(loaded, ball, tmp_path):
 
     with zipfile.ZipFile(tmp_path / "container.fmu") as archive:
         txt = archive.read("resources/container.txt").decode()
-    assert "bb_position-1.fmu 2 0" in txt.splitlines()
+    assert "bb_position-1.fmu 2 0 0" in txt.splitlines()
 
 
 def test_an_unknown_fmu_is_reported_with_what_is_loaded(loaded):

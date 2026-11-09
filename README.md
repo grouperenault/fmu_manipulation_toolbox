@@ -41,7 +41,8 @@ Major features:
 - Add binary interfaces. Typical use case is porting 32-bit FMUs to 64-bit systems (or vice versa). 
 - Combine FMUs into [FMU Containers](https://grouperenault.github.io/fmu_manipulation_toolbox/user-guide/fmucontainer/container/) and allow your favourite FMI tool to orchestrate complex assembly of FMUs.
 
-FMI versions 2.0 and 3.0 are supported.
+FMI versions 2.0 and 3.0 are supported, as well as the layered standards FMI-LS-BUS (networks of FMUs in a container)
+and FMI-LS-XCP (checker, XCP services of the FMUs of a container).
 
 # ⚙️ Installation
 
@@ -231,6 +232,7 @@ fmu_manipulation_toolbox/      # Python package
 ├── container/                 #   FMU Container builder (writes container.txt for the C runtime)
 ├── assembly.py                #   Assembly description parsing
 ├── checker.py                 #   FMU compliance checker
+├── ls.py                      #   Layered standards (manifests of LS-BUS and LS-XCP)
 ├── remoting.py                #   32/64-bit remoting support
 └── ...
 container/                     # C source code for FMU Container runtime

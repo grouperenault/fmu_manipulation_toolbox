@@ -1,11 +1,11 @@
-# Version 8
+# Version 9
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
 0.1
 # NB of embedded FMU's
 1 0
-slx.fmu 2 0
+slx.fmu 2 0 0
 G
 {6853134c-427d-44a3-ac7a-36eca9552797}
 # Initialization order of the embedded FMU's

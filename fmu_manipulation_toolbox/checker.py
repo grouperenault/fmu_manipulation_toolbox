@@ -4,12 +4,13 @@ import inspect
 import logging
 import os
 import re
+import urllib.parse
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import xmlschema
 
-from .ls import LayeredStandard
+from .ls import XCP_ROLE_TYPES, XCP_ROLES, LayeredStandard, XcpInterface, a2l_tokens
 from .model_description import ModelDescription, ModelVariable
 from .operations import OperationAbstract
 from .terminals import CONFIGURATION_KIND, TRANSCEIVER_MEMBERS, TRANSCEIVER_RULE, Terminal, Terminals
@@ -481,7 +482,148 @@ class OperationLsBusCheck(OperationAbstract):
                                f"canHandleVariableCommunicationStepSize.")
 
 
-_checkers_list: list[type[OperationAbstract]] = [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck]
+class OperationLsXcpCheck(OperationAbstract):
+    """Check the rules of FMI-LS-XCP, for an FMU that declares this layered standard.
+
+    Each violation is logged as an error and kept in `errors`:
+
+    - the manifest `extra/org.fmi-standard.fmi-ls-xcp/fmi-ls-manifest.xml` against the XSD of FMI-LS-XCP 1.0.0;
+    - the `definition` of each `Interface`: a relative URI without dot segment, whose A2L file exists for the source
+      code (in the directory of the manifest) or for at least one platform; an A2L file must not use `/include`;
+    - an `Interface` has `containsXCPService` or `supportsDirectMemoryAccess`;
+    - each `Variable` refers to an existing scalar variable, of the type of its role, declared as a fixed
+      `structuralParameter` (FMI 3.0), a fixed `parameter`, a `constant` output or a fixed or tunable
+      `calculatedParameter`; a variable in one entry only, a role once per `Interface`.
+
+    Warnings: an `Interface` restricted to interface types the FMU does not provide, roles in an `Interface`
+    without XCP service, A2L files of a platform without binaries.
+
+    Attributes:
+        errors (list[str]): Violations found.
+    """
+
+    read_only = True
+
+    MANIFEST = Path("extra") / LayeredStandard.XCP_NAME / "fmi-ls-manifest.xml"
+    XSD = Path(__file__).parent / "resources" / "fmi-ls-xcp" / "fmi3LayeredStandardXcpManifest.xsd"
+    #: Allowed (causality, variabilities) of the variables of the roles.
+    CAUSALITIES = {
+        "structuralParameter": ("fixed",),
+        "parameter": ("fixed",),
+        "output": ("constant",),
+        "calculatedParameter": ("fixed", "tunable"),
+    }
+
+    def __init__(self):
+        self.errors: list[str] = []
+
+    def __repr__(self):
+        return "FMU LS-XCP Checks"
+
+    def error(self, message: str):
+        self.errors.append(message)
+        logger.error(message)
+
+    def closure(self):
+        directory = Path(self.fmu.tmp_directory)
+        manifest = directory / self.MANIFEST
+        if not manifest.is_file():
+            return
+
+        try:
+            root = ET.parse(manifest).getroot()
+        except ET.ParseError as error:
+            root = None
+            self.error(f"Cannot parse the manifest of FMI-LS-XCP: {error}")
+
+        if root is not None:
+            for error in xmlschema.XMLSchema(str(self.XSD)).iter_errors(str(manifest)):
+                self.error(f"Manifest of FMI-LS-XCP: {error.reason}" + (f" (at {error.path})" if error.path else ""))
+            ports = {port.get("name"): port for port in self.model_description.iter_ports()}
+            used: dict[str, str] = {}
+            for interface in root.iter("Interface"):
+                self.check_interface(interface, directory, ports, used)
+
+        if self.errors:
+            logger.error(f"{len(self.errors)} error(s) against FMI-LS-XCP.")
+        else:
+            logger.info("No error against FMI-LS-XCP.")
+
+    def check_interface(self, interface: ET.Element, directory: Path, ports: dict[str, ModelVariable],
+                        used: dict[str, str]):
+        definition = interface.get("definition", "")
+        label = f"Interface '{definition}' of FMI-LS-XCP"
+        contains_service = interface.get("containsXCPService") in ("true", "1")
+        if not contains_service and interface.get("supportsDirectMemoryAccess") not in ("true", "1"):
+            self.error(f"{label}: neither containsXCPService nor supportsDirectMemoryAccess is true.")
+
+        types = interface.get("types")
+        if types is not None:
+            missing = [name for name in types.split() if name not in self.model_description.interfaces]
+            if missing:
+                logger.warning(f"{label}: applies to {', '.join(missing)}, which the FMU does not provide.")
+
+        if self.check_definition(label, definition):
+            self.check_a2l_files(label, definition, directory)
+
+        roles = set()
+        for variable in interface.iter("Variable"):
+            name, role = variable.get("name", ""), variable.get("role", "")
+            if not contains_service:
+                logger.warning(f"{label}: role {role} without containsXCPService.")
+            if role in roles:
+                self.error(f"{label}: the role {role} is given several times.")
+            roles.add(role)
+            if name in used:
+                self.error(f"{label}: variable '{name}' is already used by another Variable entry.")
+            used[name] = role
+            if name not in ports:
+                self.error(f"{label}: variable '{name}' of role {role} does not exist.")
+            elif role in XCP_ROLES:
+                self.check_variable(label, role, ports[name])
+
+    def check_definition(self, label: str, definition: str) -> bool:
+        parsed = urllib.parse.urlparse(definition)
+        if not definition or parsed.scheme or parsed.netloc or definition.startswith("/"):
+            self.error(f"{label}: the definition must be a relative URI.")
+            return False
+        if any(segment in (".", "..") for segment in parsed.path.split("/")):
+            self.error(f"{label}: the definition must not contain dot segments.")
+            return False
+        return True
+
+    def check_a2l_files(self, label: str, definition: str, directory: Path):
+        xcp_directory = directory / "extra" / LayeredStandard.XCP_NAME
+        files = XcpInterface(definition=urllib.parse.unquote(definition)).a2l_files(xcp_directory)
+        if not files:
+            self.error(f"{label}: no A2L file, neither in '{xcp_directory.relative_to(directory).as_posix()}' nor "
+                       f"in one of its platform directories.")
+        for platform, filename in files.items():
+            if platform is not None and not (directory / "binaries" / platform).is_dir():
+                logger.warning(f"{label}: A2L file for the platform '{platform}', which has no binaries.")
+            if "/include" in a2l_tokens(filename.read_text(encoding="latin-1")):
+                self.error(f"{label}: '{filename.relative_to(directory).as_posix()}' uses /include, which "
+                           f"FMI-LS-XCP forbids.")
+
+    def check_variable(self, label: str, role: str, port: ModelVariable):
+        name = port.get("name")
+        fmi_version = self.model_description.fmi_version
+        types = XCP_ROLE_TYPES[XCP_ROLES[role]][fmi_version]
+        if port.fmi_type not in types:
+            self.error(f"{label}: variable '{name}' of role {role} must be a {' or '.join(types)}, not a "
+                       f"{port.fmi_type}.")
+        if port.dimensions:
+            self.error(f"{label}: variable '{name}' of role {role} must be a scalar.")
+        variabilities = self.CAUSALITIES.get(port.causality)
+        if variabilities is None or port.variability not in variabilities or \
+                (port.causality == "structuralParameter" and fmi_version != 3):
+            self.error(f"{label}: variable '{name}' of role {role} is a {port.variability} {port.causality}: "
+                       f"FMI-LS-XCP needs a fixed structuralParameter (FMI 3.0), a fixed parameter, a constant "
+                       f"output or a fixed or tunable calculatedParameter.")
+
+
+_checkers_list: list[type[OperationAbstract]] = [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck,
+                                                 OperationLsXcpCheck]
 
 
 def get_checkers() -> list[type[OperationAbstract]]:

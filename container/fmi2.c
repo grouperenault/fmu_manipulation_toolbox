@@ -249,6 +249,8 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                 container-> type [fmu_vr] = value[i];                                                                           \
             } else {                                                                                                            \
                 const fmu_t* fmu = &container->fmu[fmu_id];                                                                     \
+                if (FMU_DEFERS_SET(fmu, type, fmu_vr))   /* set in Configuration Mode, from the cache */                        \
+                    continue;                                                                                                   \
                                                                                                                                 \
                 fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[i], 1);                                            \
                 if (status != FMU_STATUS_OK) {                                                                                  \
@@ -289,7 +291,9 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
             } else {
                 const fmu_t* fmu = &container->fmu[fmu_id];
                 const fmi2ValueReference fmu_vr = port->links[j].fmu_vr;
-                
+                if (FMU_DEFERS_SET(fmu, strings, fmu_vr))   /* set in Configuration Mode, from the cache */
+                    continue;
+
                 fmu_status_t status = fmuSetString(fmu, &fmu_vr, 1, &value[i], 1);
                 if (status != FMU_STATUS_OK) {
                     LOGGER_ERROR("Container: FMU '%s' failed to set string vr=%d.", fmu->name, fmu_vr);

@@ -412,6 +412,12 @@ typedef struct {
     bool                        support_event;
     bool                        need_event_udpate;
 
+    /* FMI-3.0 FMU with structural parameters set by the container (<has_configuration_mode> of container.txt):
+       they are set in Configuration Mode only, once after each instantiation or reset. */
+    bool                        has_configuration_mode;
+    bool                        in_configuration_mode;
+    bool                        configured;
+
     /* Next event time announced by the last UpdateDiscreteStates. */
     bool                        have_next_event_time;
     double                      next_event_time;
@@ -450,6 +456,21 @@ extern fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_continuous_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu);
+extern fmu_status_t fmuEnterConfigurationMode(fmu_t *fmu);
+extern fmu_status_t fmuExitConfigurationMode(fmu_t *fmu);
+
+/* fmu_is_structural_<variable>(fmu, vr): whether vr is a structural parameter of the FMU, that is a variable with a
+   start value of Configuration Mode (<RESET>=2 of container.txt). */
+#define DECLARE_IS_STRUCTURAL(variable, fmi_type, c_type) \
+extern bool fmu_is_structural_ ## variable(const fmu_t *fmu, fmu_vr_t vr);
+FOR_ALL_NUMERIC_TYPES(DECLARE_IS_STRUCTURAL)
+DECLARE_IS_STRUCTURAL(strings, String, const char *)
+#undef DECLARE_IS_STRUCTURAL
+
+/* A structural parameter is set only in Configuration Mode: a value set on the container meanwhile is kept in the
+   cache of the container, and set when the FMU is configured. */
+#define FMU_DEFERS_SET(fmu, variable, vr) \
+    ((fmu)->has_configuration_mode && !(fmu)->in_configuration_mode && fmu_is_structural_ ## variable((fmu), (vr)))
 extern fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,

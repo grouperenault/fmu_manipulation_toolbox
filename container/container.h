@@ -12,7 +12,7 @@ extern "C" {
 
 /* Format version of container.txt: the only one read by the runtime. Must be equal to CONTAINER_TXT_VERSION of
  * fmu_manipulation_toolbox/container/types.py. */
-#define CONTAINER_TXT_VERSION		8
+#define CONTAINER_TXT_VERSION		9
 
 /*----------------------------------------------------------------------------
                       C O N T A I N E R _ V R _ T
@@ -213,6 +213,8 @@ extern int container_configure(container_t* container, const char* resource_loca
 extern void container_free(container_t *container);
 extern fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
                                                double startTime, bool stopTimeDefined, double stopTime);
+extern fmu_status_t container_enter_configuration_mode(container_t* container);
+extern fmu_status_t container_exit_configuration_mode(container_t* container);
 extern fmu_status_t container_enter_initialization_mode(container_t* container);
 extern fmu_status_t container_exit_initialization_mode(container_t* container);
 extern fmu_status_t container_terminate(container_t* container);
@@ -233,7 +235,7 @@ extern int container_cache_strings(container_t *container, container_port_t *por
 extern int container_cache_binaries(container_t *container, container_port_t *port, const size_t size[],
                                     const uint8_t * const value[], size_t nvalues);
 /* Set again the cached values of the ports forwarded to the FMU of index fmu_id. */
-extern fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id);
+extern fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id, bool structural);
 
 /* for datalog facilities. */
 extern void container_clocks_activate_ticked(container_t *container);

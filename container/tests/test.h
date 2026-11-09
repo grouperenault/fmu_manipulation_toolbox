@@ -62,6 +62,11 @@ extern int test_start_value_refused(void);
 extern int test_start_value_array(void);
 extern int test_datalog_rows(void);
 extern int test_datalog_decimal_comma(void);
+extern int test_stub_xcp_fmi2(void);
+extern int test_stub_xcp_fmi3(void);
+extern int test_xcp_configuration_mode(void);
+extern int test_xcp_without_configuration_mode(void);
+extern int test_xcp_fmi2_before_setup_experiment(void);
 
 /* Helper: writes content into a temporary file of the test directory. Returns 0 on success. */
 extern int test_write_file(const char *dirname, const char *filename, const char *content);

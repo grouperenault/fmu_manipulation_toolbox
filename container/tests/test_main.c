@@ -34,6 +34,11 @@ static const struct {
     { "start_value_array",              test_start_value_array },
     { "datalog_rows",                   test_datalog_rows },
     { "datalog_decimal_comma",          test_datalog_decimal_comma },
+    { "stub_xcp_fmi2",                  test_stub_xcp_fmi2 },
+    { "stub_xcp_fmi3",                  test_stub_xcp_fmi3 },
+    { "xcp_configuration_mode",         test_xcp_configuration_mode },
+    { "xcp_without_configuration_mode", test_xcp_without_configuration_mode },
+    { "xcp_fmi2_before_setup",          test_xcp_fmi2_before_setup_experiment },
 };
 
 

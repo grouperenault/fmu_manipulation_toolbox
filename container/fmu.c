@@ -649,6 +649,9 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->kind = kind;
     fmu->reset_trigger = -1; /* read with the I/O of the FMU */
     fmu->reset_pending = false;
+    fmu->has_configuration_mode = false; /* read after the load of the FMU */
+    fmu->in_configuration_mode = false;
+    fmu->configured = false;
     fmu->component = NULL;  /* will be set by fmuInstantiateCoSimulation/ModelExchange() */
 
 #define INIT_FMU_DATA(variable, fmi_type, c_type)       \
@@ -1465,6 +1468,40 @@ void fmuFreeInstance(const fmu_t *fmu) {
             fmu->fmi_functions.version_3.fmi3FreeInstance(fmu->component);
     }
 }
+
+
+fmu_status_t fmuEnterConfigurationMode(fmu_t *fmu) {
+    if (fmu->fmi_version != 3 || !fmu->fmi_functions.version_3.fmi3EnterConfigurationMode)
+        return FMU_STATUS_ERROR;
+    if (fmu->fmi_functions.version_3.fmi3EnterConfigurationMode(fmu->component) != fmi3OK)
+        return FMU_STATUS_ERROR;
+    fmu->in_configuration_mode = true;
+    return FMU_STATUS_OK;
+}
+
+
+fmu_status_t fmuExitConfigurationMode(fmu_t *fmu) {
+    if (fmu->fmi_version != 3 || !fmu->fmi_functions.version_3.fmi3ExitConfigurationMode)
+        return FMU_STATUS_ERROR;
+    fmu->in_configuration_mode = false;
+    if (fmu->fmi_functions.version_3.fmi3ExitConfigurationMode(fmu->component) != fmi3OK)
+        return FMU_STATUS_ERROR;
+    fmu->configured = true;
+    return FMU_STATUS_OK;
+}
+
+
+#define DEFINE_IS_STRUCTURAL(variable, fmi_type, c_type)                                        \
+bool fmu_is_structural_ ## variable(const fmu_t *fmu, fmu_vr_t vr) {                            \
+    for (unsigned long i = 0; i < fmu->fmu_io.start_ ## variable.nb; i += 1) {                  \
+        if (fmu->fmu_io.start_ ## variable.start_values[i].vr == vr)                            \
+            return fmu->fmu_io.start_ ## variable.start_values[i].reset == 2;                   \
+    }                                                                                           \
+    return false;                                                                               \
+}
+FOR_ALL_NUMERIC_TYPES(DEFINE_IS_STRUCTURAL)
+DEFINE_IS_STRUCTURAL(strings, String, const char *)
+#undef DEFINE_IS_STRUCTURAL
 
 
 fmu_status_t fmuTerminate(const fmu_t *fmu) {

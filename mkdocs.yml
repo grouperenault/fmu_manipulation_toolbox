@@ -163,6 +163,7 @@ nav:
       - Reset of Embedded FMUs: user-guide/fmucontainer/container-reset.md
       - Datalog: user-guide/fmucontainer/datalog.md
       - LS-BUS Support: user-guide/fmucontainer/ls-bus.md
+      - LS-XCP Support: user-guide/fmucontainer/ls-xcp.md
   - API documentation:
       - Assembly: API/assembly.md
       - Checker: API/checker.md

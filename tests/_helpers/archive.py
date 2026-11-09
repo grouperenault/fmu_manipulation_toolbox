@@ -31,3 +31,13 @@ def read_entry(fmu: Path | str, name: str) -> bytes | None:
             return zin.read(name)
         except KeyError:
             return None
+
+
+def zip_fmu(directory: Path | str, destination: Path | str) -> Path:
+    """Archive the content of `directory` (an extracted FMU) as the FMU `destination`."""
+    directory, destination = Path(directory), Path(destination)
+    with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as zout:
+        for path in sorted(directory.rglob("*")):
+            if path.is_file():
+                zout.write(path, path.relative_to(directory).as_posix())
+    return destination

@@ -34,14 +34,24 @@ sequenceDiagram
     C->>F1: fmi*Instantiate()<br/>(CoSimulation)
     C->>F2: fmi*Instantiate()<br/>(CoSimulation)
 
+    opt FMI3 container: Configuration Mode of the importer
+        I->>C: fmi3EnterConfigurationMode()
+        C->>F1: fmi3EnterConfigurationMode()<br/>(FMUs with structural parameters only)
+        C->>F1: fmi3SetXXX<br/>(start values RESET=2)
+        I->>C: fmi3SetXXX (structural parameters)
+        C->>F1: fmi3SetXXX
+        I->>C: fmi3ExitConfigurationMode()
+        C->>F1: fmi3ExitConfigurationMode()
+    end
+
     Note over I, F2: Setup experiment (FMI2: fmi2SetupExperiment)
     I->>C: fmi2SetupExperiment(tolerance, startTime, stopTime)
     C->>C: store tolerance / start_time / stop_time
+    Note Over C, F2: FMU after FMU, before its fmi2SetupExperiment
+    C->>F1: fmi3Enter/ExitConfigurationMode()<br/>(structural parameters, if not configured yet)
+    C->>F1: fmi*SetReal/Int/Bool/...<br/>(start values, early or reset, then the values set by the importer)
     C->>F1: fmi2SetupExperiment()<br/>(FMI2 only — no-op in FMI3)
-    C->>F2: fmi2SetupExperiment()<br/>(FMI2 only — no-op in FMI3)
-    Note Over C, F2: Apply "early" start values
-    C->>F1: fmi*SetReal/Int/Bool/...<br/>(start values, early or reset)
-    C->>F2: fmi*SetReal/Int/Bool/...<br/>(start values, early or reset)
+    C->>F2: (same sequence)
 
     Note over I, F2: [INITIALIZATION MODE]
     I->>C: fmi*EnterInitializationMode()
@@ -103,10 +113,16 @@ sequenceDiagram
 - `fmuSetupExperiment()` only emits an FMI call for **FMI 2.0** FMUs
   (`fmi2SetupExperiment`); for **FMI 3.0** FMUs it is a no-op since the equivalent parameters are
   forwarded through `fmi3EnterInitializationMode()`.
-- Start values declared in `container.txt` are applied in **two passes**:
-  the *early* pass (`container_set_start_values(early=1)`) during setup, and the remaining values
-  (`container_set_start_values(early=0)`) once the FMUs are in *Initialization Mode*. Values
-  flagged as `reset` are (re)applied in both passes.
+- Start values declared in `container.txt` are applied in **three phases** (`<RESET>` of
+  [container.txt](container-txt-format.md#72-start-values)): the structural parameters (`<RESET>=2`) in
+  *Configuration Mode*, the *early* values (`<RESET>` 0 and 1) **before** `fmi2SetupExperiment` (an FMU may use its
+  parameters there, e.g. to start the XCP service of FMI-LS-XCP), and the values flagged `<RESET>=1` again once the
+  FMUs are in *Initialization Mode*. After the early values, the values set by the importer on the container (its
+  cache) are set again: they prevail over the start values.
+- The FMUs with structural parameters set by the container (`<has_configuration_mode>`) go through their
+  *Configuration Mode* once after their instantiation and after each reset: with the *Configuration Mode* of the
+  container when its importer uses it (FMI 3.0), otherwise right before their early start values. A value set on a
+  structural parameter outside of *Configuration Mode* is kept until then.
 - The links between the embedded FMUs are **propagated during the initialization**, as Simulink does
   (`container_exit_fmus_initialization()`, run by `fmi*ExitInitializationMode()` of the container): in the
   *initialization order* written by the builder in `container.txt` (a topological sort of the FMUs by

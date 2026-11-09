@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiLayeredStandardManifest
+    xmlns:fmi-ls="http://fmi-standard.org/fmi-ls-manifest"
+    fmi-ls:fmi-ls-name="org.fmi-standard.fmi-ls-xcp"
+    fmi-ls:fmi-ls-version="1.0.0"
+    fmi-ls:fmi-ls-description="Layered standard based on FMI 2.0 and FMI 3.0 for describing and implementing XCP support for FMUs, which can either provide an XCP service or allow direct memory access via A2L files.">
+    <Interface definition="ecu.a2l" description="XCP service of the stub" containsXCPService="true">
+        <Variable name="XCP.TCP.Enable" role="XCPServiceTCPEnable"/>
+        <Variable name="XCP.TCP.Port" role="XCPServiceTCPPort"/>
+        <Variable name="XCP.TCP.ListenAddress" role="XCPServiceTCPListenAddress"/>
+    </Interface>
+</fmiLayeredStandardManifest>

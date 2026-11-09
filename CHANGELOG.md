@@ -7,6 +7,17 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🟢 **ADDED** **FMI-LS-XCP 1.0.0**: the XCP services of the embedded FMUs (`containsXCPService`) are forwarded by the
+  container: declared in its manifest, their A2L files copied, the variables that configure them exposed as
+  `<fmu id>.<variable>`. Two services on the same port are refused at build time. The interfaces with direct memory
+  access only are not forwarded (warning). See [LS-XCP Support](docs/user-guide/fmucontainer/ls-xcp.md).
+- 🟢 **ADDED** a structural parameter of an embedded FMU can be exposed: the container sets it in the Configuration
+  Mode of the FMU (forwarded from the Configuration Mode of an FMI 3.0 container, otherwise before its
+  initialization). `container.txt` is now in version 9.
+- 🔵 **CHANGED** the start values of an embedded FMI 2.0 FMU are set before `fmi2SetupExperiment`, where an FMU may use
+  its parameters (e.g. to start its XCP service).
+- 🟠 **FIXED** a value set by the importer of the container before its initialization was overwritten by the start
+  value of the embedded FMU: it prevails now.
 - 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
   was reset before the delivery of the clocked inputs.
 - 🟠 **FIXED** LS-BUS: `Rx_Data` was set in the instant where `Tx_Data` was read. An FMU which evaluates its discrete states at this
@@ -104,6 +115,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## fmutool and the Python API
 
+- 🟢 **ADDED** `OperationLsXcpCheck`, a built-in checker of the rules of FMI-LS-XCP 1.0.0 (manifest against its XSD,
+  A2L files, role variables), run by `fmutool -check`. See [FMU Checker](docs/user-guide/fmutool/checker.md).
 - 🟢 **ADDED** `-only-type` and `-only-variability` options of `fmutool`, and the `types` and `variabilities`
   arguments of `FMU.apply_operation`: an operation restricted to some types (an FMI 2 type selects its FMI 3
   family) or variabilities (the default of the standard when a port declares none), combined with the

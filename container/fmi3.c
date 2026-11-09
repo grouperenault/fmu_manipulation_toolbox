@@ -347,6 +347,8 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                     container-> type [fmu_vr + k] = value[value_index + k];                                             \
             } else {                                                                                                    \
                 const fmu_t *fmu = &container->fmu[fmu_id];                                                             \
+                if (FMU_DEFERS_SET(fmu, type, fmu_vr))   /* set in Configuration Mode, from the cache */                \
+                    continue;                                                                                           \
                                                                                                                         \
                 fmu_status_t status = function_name (fmu, &fmu_vr, 1, &value[value_index], port->dimension);            \
                 if (status != FMU_STATUS_OK) {                                                                          \
@@ -405,6 +407,8 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
             }
             else {
                 const fmu_t* fmu = &container->fmu[fmu_id];
+                if (FMU_DEFERS_SET(fmu, strings, fmu_vr))   /* set in Configuration Mode, from the cache */
+                    continue;
 
                 fmu_status_t status = fmuSetString(fmu, &fmu_vr, 1, &value[value_index], port->dimension);
                 if (status != FMU_STATUS_OK) {
@@ -660,10 +664,14 @@ fmi3Status fmi3GetAdjointDerivative(fmi3Instance instance,
 }
 
 
+/* The embedded FMUs with structural parameters set by the container follow its Configuration Mode. */
 fmi3Status fmi3EnterConfigurationMode(fmi3Instance instance) {
     container_t* container = (container_t*)instance;
 
     ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_INSTANTIATED);
+
+    if (container_enter_configuration_mode(container) != FMU_STATUS_OK)
+        return fmi3Error;
 
     container->state = CONTAINER_STATE_CONFIGURATION_MODE;
 
@@ -675,6 +683,9 @@ fmi3Status fmi3ExitConfigurationMode(fmi3Instance instance) {
     container_t* container = (container_t*)instance;
 
     ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_CONFIGURATION_MODE);
+
+    if (container_exit_configuration_mode(container) != FMU_STATUS_OK)
+        return fmi3Error;
 
     container->state = CONTAINER_STATE_INSTANTIATED;
 

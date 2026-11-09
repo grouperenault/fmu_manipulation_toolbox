@@ -67,6 +67,8 @@ if(BUILD_TESTING)
         tests/test_datalog.c
         tests/test_thread.c
         tests/test_threads_lifecycle.c
+        tests/test_stub_xcp.c
+        tests/test_xcp_container.c
     )
     target_link_libraries(container_tests PRIVATE fmutool_flags)
     target_include_directories(container_tests PRIVATE
@@ -96,6 +98,21 @@ if(BUILD_TESTING)
     set_target_properties(stub_fmu PROPERTIES PREFIX "" SUFFIX "${_stub_suffix}" C_VISIBILITY_PRESET hidden)
     add_dependencies(container_tests stub_fmu)
 
+    # FMUs of FMI-LS-XCP of the tests (descriptors in tests/data/ls-xcp of the repository), one per FMI version.
+    foreach(_version 2 3)
+        set(_target stub_xcp_fmi${_version})
+        add_library(${_target} MODULE tests/stub_xcp_fmi${_version}.c tests/stub_xcp.h)
+        target_link_libraries(${_target} PRIVATE fmutool_flags)
+        target_include_directories(${_target} PRIVATE ${FMUTOOL_CMAKE_DIR}/../fmu_manipulation_toolbox/resources/fmi)
+        set_target_properties(${_target} PROPERTIES PREFIX "" SUFFIX "${_stub_suffix}" OUTPUT_NAME stub_xcp
+                              C_VISIBILITY_PRESET hidden
+                              LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${_target}")
+        add_dependencies(container_tests ${_target})
+        target_compile_definitions(container_tests PRIVATE
+            STUB_XCP_FMI${_version}_LIBRARY="$<TARGET_FILE:${_target}>")
+    endforeach()
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/stub_xcp")     # journal of the stubs
+
     set(TEST_FIXTURES_DIR "${CMAKE_CURRENT_BINARY_DIR}/fixtures")
     target_compile_definitions(container_tests PRIVATE TEST_FIXTURES_DIR="${TEST_FIXTURES_DIR}")
 
@@ -118,6 +135,34 @@ if(BUILD_TESTING)
     container_fixture(one_fmu_mt            "{stub}"                    1)
     container_fixture(mt_instantiate_fails  "{stub-fail-instantiate}"   1)
     container_fixture(malformed             "{stub}"                    0)  # container.txt rewritten by the tests
+
+    # Fixtures of FMI-LS-XCP: tests/data/xcp/container_fmi<2|3>.txt with the stub FMU of the same FMI version, in the
+    # binaries directory of its FMI version (FMU2_BINDIR / FMU3_BINDIR of fmu.h).
+    if(WIN32)
+        set(_fmi3_platform "$<IF:$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>,x86_64-windows,x86-windows>")
+    elseif(APPLE)
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+            set(_fmi3_platform "aarch64-darwin")
+        else()
+            set(_fmi3_platform "x86_64-darwin")
+        endif()
+    else()
+        set(_fmi3_platform "x86_64-linux")
+    endif()
+    foreach(_version 2 3)
+        if(_version EQUAL 2)
+            set(_platform "${FMI_PLATFORM}")
+        else()
+            set(_platform "${_fmi3_platform}")
+        endif()
+        set(_dir "${TEST_FIXTURES_DIR}/xcp_fmi${_version}")
+        configure_file(tests/data/xcp/container_fmi${_version}.txt "${_dir}/container.txt" COPYONLY)
+        add_custom_command(TARGET stub_xcp_fmi${_version} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory "${_dir}/00/binaries/${_platform}" "${_dir}/00/resources"
+            COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:stub_xcp_fmi${_version}>
+                    "${_dir}/00/binaries/${_platform}/stub_xcp${_stub_suffix}"
+        )
+    endforeach()
 endif()
 
 fmutool_summary()

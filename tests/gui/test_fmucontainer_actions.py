@@ -304,7 +304,7 @@ def test_a_refused_file_is_reported_as_failed_and_changes_nothing(window, monkey
 
     records = [(record.levelname, record.getMessage()) for record in caplog.records]
     assert ("CRITICAL", "'SystemStructure.ssd': connection height -> bb_position.position1: 'position1' of component "
-                        "'bb_position' is an output, not an input or a parameter.") in records
+                        "'bb_position' is an output, not an input or a parameter or a structuralParameter.") in records
     assert records[-1] == ("INFO", "❌ Importing Assembly failed")
     assert not any("Importing Assembly finished" in message for _, message in records)
     assert {node.name for node in window._graph.scene.fmu_nodes()} == before

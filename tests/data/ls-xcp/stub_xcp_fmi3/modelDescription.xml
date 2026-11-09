@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="3.0" modelName="stub_xcp" instantiationToken="{stub-xcp-fmi3}"
+                     description="Stub FMU of the tests of FMI-LS-XCP" generationTool="fmu_manipulation_toolbox tests">
+  <CoSimulation modelIdentifier="stub_xcp" canHandleVariableCommunicationStepSize="true"/>
+  <ModelVariables>
+    <Float64 name="time" valueReference="0" causality="independent" variability="continuous"/>
+    <Boolean name="XCP.TCP.Enable" valueReference="1" causality="structuralParameter" variability="fixed" start="true"/>
+    <UInt16 name="XCP.TCP.Port" valueReference="2" causality="structuralParameter" variability="fixed" start="5555"/>
+    <String name="XCP.TCP.ListenAddress" valueReference="3" causality="structuralParameter" variability="fixed">
+      <Start value="127.0.0.1"/>
+    </String>
+    <Int32 name="counter" valueReference="4" causality="output" variability="discrete" initial="exact" start="0"/>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="4"/>
+  </ModelStructure>
+</fmiModelDescription>

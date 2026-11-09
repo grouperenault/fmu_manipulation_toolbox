@@ -124,7 +124,7 @@ class SSDParser:
     #: Causalities a connector may have, by its role in a connection.
     OUTPUT_ROLES = ("output",)
     INPUT_ROLES = ("input",)
-    EXPOSED_INPUT_ROLES = ("input", "parameter")
+    EXPOSED_INPUT_ROLES = ("input", "parameter", "structuralParameter")  # as the builder (`add_input`)
     EXPOSED_OUTPUT_ROLES = ("output", "local")  # as the builder (`auto_local`)
     #: Attributes of `ssc:BaseUnit`, with their default value.
     BASE_UNIT_DEFAULTS = {"kg": "0", "m": "0", "s": "0", "A": "0", "K": "0", "mol": "0", "cd": "0", "rad": "0",
@@ -1086,8 +1086,8 @@ class SSPWriter:
 
     def _system_connector(self, name: str, inner: ET.Element, kind: str) -> ET.Element:
         """A connector of the system, of the type of the connector it is connected to."""
-        if inner.get("kind") == "parameter" and kind == "input":
-            kind = "parameter"
+        if inner.get("kind") in ("parameter", "structuralParameter") and kind == "input":
+            kind = inner.get("kind")
         element = ET.Element(f"{{{SSDParser.SSD_NAMESPACE}}}Connector", {"name": name, "kind": kind})
         for child in inner:
             element.append(ET.Element(child.tag, dict(child.attrib)))
