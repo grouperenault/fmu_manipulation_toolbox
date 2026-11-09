@@ -495,6 +495,24 @@ class QtAssemblyBridge:
         logger.info(f"[AI] Exported assembly JSON to '{path}'")
         return path
 
+    def save_as_ssp(self, path: str, ssp_version: str = "2.0") -> str:
+        return self._invoker.call(lambda: self._save_as_ssp_impl(path, ssp_version),
+                                  timeout=self._build_timeout)
+
+    def _save_as_ssp_impl(self, path: str, ssp_version: str) -> str:
+        self._window.save_as_ssp(path, ssp_version)
+        logger.info(f"[AI] Exported assembly as SSP {ssp_version} to '{path}'")
+        return path
+
+    def import_assembly(self, assembly: Any, fmu_directory: str) -> None:
+        self._invoker.call(lambda: self._import_assembly_impl(assembly, fmu_directory),
+                           timeout=self._build_timeout)
+
+    def _import_assembly_impl(self, assembly: Any, fmu_directory: str) -> None:
+        self._window._import_data(assembly, Path(fmu_directory))
+        self._mark_dirty()
+        logger.info(f"[AI] Imported '{assembly.root.name}'")
+
     def save_as_fmu(self, path: str, fmi_version: int = 2, datalog: bool = False) -> str:
         return self._invoker.call(lambda: self._save_as_fmu_impl(path, fmi_version, datalog),
                                   timeout=self._build_timeout)

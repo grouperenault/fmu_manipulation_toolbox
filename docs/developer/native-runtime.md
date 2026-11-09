@@ -46,10 +46,17 @@ debug messages are sent only when the debug flag is set.
 
 ## Locale
 
-The configuration files are read, and the reals of the datalog written, with a decimal dot whatever the locale of
-the importer, which is never changed: `config_c_locale_t` (`config.h`) switches the current thread only
-(`newlocale()` / `uselocale()` on POSIX, `_configthreadlocale()` on Windows; the datalog uses `_fprintf_l()` on
-Windows).
+The configuration files are read with a decimal dot whatever the locale of the importer. An FMU must not change the
+global settings of its importer (FMI 3.0, 2.2.1), so the locale is never changed, even for a thread: in a line of numbers,
+the dots are replaced by the decimal point of the locale before `sscanf()` (`config_line_to_host_decimal_point()`).
+
+The configuration is refused if the decimal point of the locale has several bytes (`fa_IR.UTF-8`, for instance):
+`sscanf()` may not read it (macOS), and it would misread the values.
+
+The datalog follows the locale: its reals use its decimal point, and its columns are separated by a semicolon with a
+decimal comma.
+
+The embedded FMUs follow the locale of the importer too, in their logs for instance.
 
 ## Native tests
 

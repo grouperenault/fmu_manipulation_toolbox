@@ -51,6 +51,16 @@ def assert_identical_files(filename1: PathLike, filename2: PathLike) -> None:
         )
 
 
+def _read_csv_rows(filename: PathLike) -> list[list[str]]:
+    """Rows of a CSV file, as written in the C locale: a datalog follows the locale of the importer, a semicolon then
+    separates its columns and a comma is its decimal point."""
+    with open(filename, newline="") as file:
+        semicolon = file.readline().startswith("time;")
+        file.seek(0)
+        rows = [row for row in csv.reader(file, delimiter=";" if semicolon else ",") if row]
+    return [[field.replace(",", ".") for field in row] for row in rows] if semicolon else rows
+
+
 def assert_equivalent_csv(filename1: PathLike, filename2: PathLike, real_columns: Iterable[str] = ("time",),
                           rel_tol: float = 1e-12) -> None:
     """Assert two CSV files (e.g. datalogs) have the same header and rows. The values of `real_columns` are compared
@@ -59,9 +69,8 @@ def assert_equivalent_csv(filename1: PathLike, filename2: PathLike, real_columns
     assert Path(filename1).exists(), f"{filename1} does not exist"
     assert Path(filename2).exists(), f"{filename2} does not exist"
 
-    with open(filename1, newline="") as file1, open(filename2, newline="") as file2:
-        rows1 = [row for row in csv.reader(file1) if row]
-        rows2 = [row for row in csv.reader(file2) if row]
+    rows1 = _read_csv_rows(filename1)
+    rows2 = _read_csv_rows(filename2)
 
     assert rows1 and rows2 and rows1[0] == rows2[0], f"files {filename1} and {filename2} have different headers"
     assert len(rows1) == len(rows2), (

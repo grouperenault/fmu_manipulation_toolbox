@@ -18,6 +18,7 @@ from typing import Any
 
 from ..model_description import ModelDescription
 from ..operations import FMUError
+from ..terminals import TerminalError
 from ..textfiles import ENCODING
 from ..version import __version__ as tool_version
 from .embedded import EmbeddedFMU, EmbeddedFMUPort
@@ -25,7 +26,7 @@ from .errors import FMUContainerError
 from .layout import ContainerLayout
 from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import ClockList, FMUIOList, InvolvedFMU, LocalVariable, Port
-from .types import ALL_TYPES, CONTAINER_TXT_VERSION
+from .types import ALL_TYPES, CONTAINER_TXT_VERSION, TIME_BASED_CLOCKS
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -142,6 +143,7 @@ class FMUContainer:
 
         self.rules: dict[ContainerPort, str] = {}
         self.start_values: dict[ContainerPort, str] = {}
+        self.terminal_parameters: list[tuple[ContainerPort, ContainerPort]] = []
         # What feeds each input of the embedded FMUs: a container input or a link, never both, never two (B6).
         self.input_feeders: dict[ContainerPort, str] = {}
 
@@ -399,13 +401,27 @@ class FMUContainer:
             terminal2 = fmu_to.terminals[to_port_name]
             if terminal1 == terminal2:
                 logger.debug(f"Plugging terminals: {terminal1} <-> {terminal2}")
-                for terminal1_port_name, terminal2_port_name in terminal1.connect(terminal2):
+                try:
+                    links = terminal1.connect(terminal2)
+                except TerminalError as e:
+                    raise FMUContainerError(f"Cannot plug terminals of {fmu_from.name} and {fmu_to.name}: {e}") from e
+                for terminal1_port_name, terminal2_port_name in links:
                     self.add_link_regular(fmu_from, terminal1_port_name, fmu_to, terminal2_port_name)
+                for terminal1_port_name, terminal2_port_name in terminal1.connected_parameters(terminal2):
+                    self.terminal_parameters.append((ContainerPort(fmu_from, terminal1_port_name),
+                                                     ContainerPort(fmu_to, terminal2_port_name)))
             else:
                 logger.error(f"Cannot plug incompatible terminals: {terminal1} <-> {terminal2}")
         else:
             # REGULAR port connection
-            self.add_link_regular(fmu_from, from_port_name, fmu_to, to_port_name)
+            try:
+                self.add_link_regular(fmu_from, from_port_name, fmu_to, to_port_name)
+            except FMUContainerError as e:
+                paths = fmu_from.terminals.paths_of(from_port_name) + fmu_to.terminals.paths_of(to_port_name)
+                if paths:
+                    raise FMUContainerError(f"{e.reason} A nested terminal is designated by its full path: "
+                                            f"{', '.join(paths)}.") from e
+                raise
 
     def add_link_regular(self, fmu_from: EmbeddedFMU, from_port_name: str, fmu_to: EmbeddedFMU, to_port_name: str):
 
@@ -502,6 +518,29 @@ class FMUContainer:
             value = "\n" + "\n".join(value_tokens)
 
         self.start_values[cport] = value
+
+    def apply_terminal_parameters(self):
+        """Give to the parameters of Configuration terminals the value of the connected Bus Simulation.
+
+        These variables are parameters: they cannot be linked. The value is propagated when it is known at build
+        time, unless the user has set a start value.
+        """
+        for cport1, cport2 in self.terminal_parameters:
+            if cport1.port.causality == "parameter" and cport2.port.causality != "parameter":
+                target, source = cport1, cport2
+            elif cport2.port.causality == "parameter" and cport1.port.causality != "parameter":
+                target, source = cport2, cport1
+            else:
+                logger.debug(f"No value to propagate between {cport1} and {cport2}")
+                continue
+
+            if target in self.start_values:
+                logger.debug(f"Start value of {target} is kept: {source} is not propagated")
+            elif source.port.start_value is None:
+                logger.warning(f"The value of {source} is known at runtime only: it is not propagated to {target}.")
+            else:
+                logger.info(f"Start value of {target} is taken from {source}: {source.port.start_value}")
+                self.add_start_value(target.fmu.name, target.port.name, source.port.start_value)
 
     def find_inputs(self, port_to_connect: EmbeddedFMUPort) -> list[ContainerPort]:
         candidates = []
@@ -677,6 +716,8 @@ class FMUContainer:
         """
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)
+
+        self.apply_terminal_parameters()
 
         if step_size is None:
             logger.info("step_size  will be deduced from the embedded FMU's")
@@ -1000,6 +1041,19 @@ class FMUContainer:
                            f"of the links. Topological order of the Co-Simulation FMUs: "
                            f"{', '.join(name_of[rank] for rank in order)}.")
 
+    @staticmethod
+    def check_clocks_of_link(link: Link, scheduled_clocks: list[ContainerPort]):
+        """Warn about the input clocks of a link that will not tick together: they share their local variable."""
+        if not scheduled_clocks:
+            logger.warning(f"No clock drives {', '.join(str(cport) for cport in link.cport_to_list)}: "
+                           f"they will never tick.")
+
+        declared = {(cport.port.interval_decimal, cport.port.shift_decimal or "0") for cport in scheduled_clocks
+                    if cport.port.interval_decimal is not None}
+        if len(declared) > 1:
+            logger.warning(f"The ticks of {', '.join(str(cport) for cport in scheduled_clocks)} must match, "
+                           f"but their intervals and shifts differ.")
+
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
                      layout: ContainerLayout):
         print(f"# Version {CONTAINER_TXT_VERSION}", file=txt_file)
@@ -1049,17 +1103,23 @@ class FMUContainer:
 
         # Links
         for link in self.links.values():
+            scheduled_clocks = []
+
             # FMU Outputs
             if link.cport_from:
                 local_per_type[link.cport_from.port.type_name].append(LocalVariable(layout.links[link], link.size))
                 fmu_io_list.add_output(link.cport_from, layout.links[link])
+                for cport_to in link.cport_to_list:
+                    if cport_to.port.interval_variability in TIME_BASED_CLOCKS:
+                        logger.warning(f"{cport_to} ticks with {link.cport_from} only: their ticks must match.")
             else:
                 local_per_type["clock"].append(LocalVariable(layout.links[link], link.size))
                 for cport_to in link.cport_to_list:
-                    if cport_to.port.interval_variability == "countdown":
+                    if cport_to.port.interval_variability in TIME_BASED_CLOCKS:
+                        scheduled_clocks.append(cport_to)
                         logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, vr={layout.links[link]})")
                         clock_list.append(cport_to, layout.links[link])
-                        break
+                self.check_clocks_of_link(link, scheduled_clocks)
 
             # Converted copies: one local variable per target type, whatever the number of targets of that type.
             for type_name in link.conversions:
@@ -1069,9 +1129,9 @@ class FMUContainer:
 
             # FMU Inputs
             for cport_to in link.cport_to_list:
-                if link.cport_from is not None or not cport_to.fmu.ls.is_bus:
+                if cport_to not in scheduled_clocks:
                     # LS-BUS allows, importer to feed clock signal. In this case, cport_from is None
-                    # FMU will be fed directly by importer, no need to add input link!
+                    # A scheduled clock is activated directly by the schedule, no need to add input link!
                     if link.cport_from is None or cport_to.port.type_name == link.cport_from.port.type_name:
                         local_vr = layout.links[link]
                     else:
@@ -1156,8 +1216,12 @@ class FMUContainer:
             ports[output_port.port.type_name].append(Port(layout.outputs[output_port_name], output_port_name))
         for link in self.links.values():
             if link.cport_from is None:
-                # LS-BUS allows connected input clocks.
-                ports[link.cport_to_list[0].port.type_name].append(Port(layout.links[link], link.name))
+                # LS-BUS allows connected input clocks. The column is named after the clock that ticks by itself, the one
+                # of the sender: `datalog2pcap` finds the clock of `<name>_Data` with this name.
+                scheduled = [cport for cport in link.cport_to_list
+                             if cport.port.interval_variability in TIME_BASED_CLOCKS]
+                name = f"{scheduled[0].fmu.id}.{scheduled[0].port.name}" if scheduled else link.name
+                ports[link.cport_to_list[0].port.type_name].append(Port(layout.links[link], name))
             else:
                 ports[link.cport_from.port.type_name].append(Port(layout.links[link], link.name))
 

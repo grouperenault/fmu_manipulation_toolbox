@@ -1,12 +1,12 @@
 Container model loading...
-FMUContainer 'V1.9.4.2-39-g06bd0af'
+FMUContainer 'V2.1.dev0-78-g63f4a38'
 Solver configure....
 Reading 'container.txt'...
 Container use PARALLEL mode with MONO thread.
 Container time_step = 1.000000e-01s
 2 FMUs to be loaded (2 CS, 0 ME).
-FMU#0: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpp4tker2e\resources\/00' (FMI-3, CS)
-FMU#1: loading 'DemoCanNodeTriggeredOutput.dll' from directory 'C:\Users\a067220\AppData\Local\Temp\tmpp4tker2e\resources\/01' (FMI-3, CS)
+FMU#0: loading 'DemoCanNodeTriggeredOutput.dylib' from directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpds0yvken/resources//00' (FMI-3, CS)
+FMU#1: loading 'DemoCanNodeTriggeredOutput.dylib' from directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpds0yvken/resources//01' (FMI-3, CS)
 reals64   : 1 local variables and 1 ports
 integers32: 2 local variables and 2 ports
 binaries  : 2 local variables and 2 ports
@@ -40,8 +40,12 @@ node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 23 bytes
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 23 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 23 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 23 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
@@ -60,15 +64,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -84,15 +92,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -108,15 +120,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -132,15 +148,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -156,15 +176,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -180,15 +204,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -204,15 +232,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -228,15 +260,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -252,15 +288,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -276,15 +316,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -300,15 +344,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -324,15 +372,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -348,15 +400,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -372,15 +428,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -396,15 +456,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -420,15 +484,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -444,15 +512,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -468,15 +540,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -492,15 +568,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -516,15 +596,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -540,15 +624,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -564,15 +652,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -588,15 +680,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -612,15 +708,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -636,15 +736,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -660,15 +764,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -684,15 +792,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -708,15 +820,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -732,15 +848,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -756,15 +876,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -780,15 +904,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -806,15 +934,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.
@@ -830,15 +962,19 @@ node1.fmu: Entering event mode.
 node2.fmu: Entering event mode.
 node1.fmu: Get TX clock of 1
 node1.fmu: Get TX buffer of 20 bytes
-node2.fmu: Set RX clock to 1
 node2.fmu: Get TX clock of 1
 node2.fmu: Get TX buffer of 20 bytes
+node1.fmu: Ending super dense time step.
+node2.fmu: Ending super dense time step.
 node1.fmu: Set RX clock to 1
 node1.fmu: Set RX buffer of 20 bytes
+node2.fmu: Set RX clock to 1
+node2.fmu: Set RX buffer of 20 bytes
 node1.fmu: Ending super dense time step.
 node1.fmu: Received CAN frame with ID 1 and length 4
 node1.fmu: Get TX clock of 0
 node2.fmu: Ending super dense time step.
+node2.fmu: Received CAN frame with ID 1 and length 4
 node2.fmu: Get TX clock of 0
 node1.fmu: Entering step mode.
 node2.fmu: Entering step mode.

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="3.0" modelName="ClockTicks" instantiationToken="{clock-ticks}">
+  <CoSimulation modelIdentifier="ClockTicks" hasEventMode="true" canHandleVariableCommunicationStepSize="true"/>
+  <DefaultExperiment startTime="0" stopTime="3" stepSize="0.1"/>
+  <ModelVariables>
+    <Float64 name="time" valueReference="0" causality="independent" variability="continuous"/>
+    <Clock name="clk_constant" valueReference="1" causality="input" intervalVariability="constant" intervalDecimal="0.3" shiftDecimal="0.1"/>
+    <Clock name="clk_fixed" valueReference="2" causality="input" intervalVariability="fixed"/>
+    <Clock name="clk_tunable" valueReference="3" causality="input" intervalVariability="tunable"/>
+    <Clock name="clk_changing" valueReference="4" causality="input" intervalVariability="changing"/>
+    <Clock name="clk_countdown" valueReference="5" causality="input" intervalVariability="countdown"/>
+    <Clock name="clk_repeated" valueReference="6" causality="input" intervalVariability="countdown"/>
+    <Clock name="clk_forgetful" valueReference="7" causality="input" intervalVariability="countdown"/>
+    <Clock name="clk_silent" valueReference="8" causality="input" intervalVariability="countdown"/>
+    <Clock name="clk_unwritten" valueReference="9" causality="input" intervalVariability="countdown"/>
+    <Clock name="clk_invalid" valueReference="10" causality="input" intervalVariability="countdown"/>
+    <Clock name="rx_constant" valueReference="11" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_fixed" valueReference="12" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_tunable" valueReference="13" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_changing" valueReference="14" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_countdown" valueReference="15" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_repeated" valueReference="16" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_forgetful" valueReference="17" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_silent" valueReference="18" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_unwritten" valueReference="19" causality="input" intervalVariability="triggered"/>
+    <Clock name="rx_invalid" valueReference="20" causality="input" intervalVariability="triggered"/>
+    <Float64 name="count_constant" valueReference="21" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_fixed" valueReference="22" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_tunable" valueReference="23" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_changing" valueReference="24" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_countdown" valueReference="25" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_constant" valueReference="31" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_fixed" valueReference="32" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_tunable" valueReference="33" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_changing" valueReference="34" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_countdown" valueReference="35" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_constant" valueReference="41" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_fixed" valueReference="42" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_tunable" valueReference="43" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_changing" valueReference="44" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_countdown" valueReference="45" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_constant" valueReference="51" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_fixed" valueReference="52" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_tunable" valueReference="53" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_changing" valueReference="54" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_countdown" valueReference="55" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_repeated" valueReference="26" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_repeated" valueReference="36" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_repeated" valueReference="46" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_repeated" valueReference="56" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_forgetful" valueReference="27" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_forgetful" valueReference="37" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_forgetful" valueReference="47" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_forgetful" valueReference="57" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_silent" valueReference="28" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_unwritten" valueReference="29" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="count_invalid" valueReference="30" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_silent" valueReference="38" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_unwritten" valueReference="39" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="sum_invalid" valueReference="40" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_silent" valueReference="48" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_unwritten" valueReference="49" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_count_invalid" valueReference="50" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_silent" valueReference="58" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_unwritten" valueReference="59" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="rx_sum_invalid" valueReference="60" causality="output" variability="discrete" initial="calculated"/>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="21"/>
+    <Output valueReference="22"/>
+    <Output valueReference="23"/>
+    <Output valueReference="24"/>
+    <Output valueReference="25"/>
+    <Output valueReference="31"/>
+    <Output valueReference="32"/>
+    <Output valueReference="33"/>
+    <Output valueReference="34"/>
+    <Output valueReference="35"/>
+    <Output valueReference="41"/>
+    <Output valueReference="42"/>
+    <Output valueReference="43"/>
+    <Output valueReference="44"/>
+    <Output valueReference="45"/>
+    <Output valueReference="51"/>
+    <Output valueReference="52"/>
+    <Output valueReference="53"/>
+    <Output valueReference="54"/>
+    <Output valueReference="55"/>
+    <Output valueReference="26"/>
+    <Output valueReference="36"/>
+    <Output valueReference="46"/>
+    <Output valueReference="56"/>
+    <Output valueReference="27"/>
+    <Output valueReference="37"/>
+    <Output valueReference="47"/>
+    <Output valueReference="57"/>
+    <Output valueReference="28"/>
+    <Output valueReference="29"/>
+    <Output valueReference="30"/>
+    <Output valueReference="38"/>
+    <Output valueReference="39"/>
+    <Output valueReference="40"/>
+    <Output valueReference="48"/>
+    <Output valueReference="49"/>
+    <Output valueReference="50"/>
+    <Output valueReference="58"/>
+    <Output valueReference="59"/>
+    <Output valueReference="60"/>
+  </ModelStructure>
+</fmiModelDescription>

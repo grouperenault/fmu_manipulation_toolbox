@@ -29,9 +29,10 @@ EXPECTED_TOOLS = {
     "list_fmus": [],
     "list_fmu_ports": ["fmu", "causality", "type", "variability", "name_pattern", "offset", "limit"],
     "inspect_fmu_file": ["path", "causality", "type", "variability", "name_pattern", "offset", "limit"],
+    "import_assembly": ["path", "replace"],
+    "inspect_ssp": ["path", "node", "section", "offset", "limit"],
     "add_fmu": ["path"],
     "remove_fmu": ["name"],
-    "add_link": ["from_fmu", "from_port", "to_fmu", "to_port"],
     "add_links": ["links"],
     "remove_link": ["from_fmu", "from_port", "to_fmu", "to_port"],
     "expose_input": ["fmu", "port"],
@@ -41,7 +42,7 @@ EXPECTED_TOOLS = {
     "set_container_options": ["options"],
     "get_assembly_json": ["node", "section", "offset", "limit"],
     "analyze_assembly": ["mode", "node"],
-    "save_as_json": ["path", "overwrite"],
+    "save_assembly": ["path", "overwrite", "ssp_version"],
     "save_as_fmu": ["path", "fmi_version", "datalog", "overwrite"],
     # Single-FMU tools: they never touch the assembly.
     "summarize_fmu": ["path"],
@@ -183,7 +184,7 @@ def _call_error(tool, arguments, tmp_path=None) -> str:
     ("set_container_options", {"options": {"step_size": -1}},
      "'options.step_size': Input should be greater than 0 (got -1)"),
     ("save_as_fmu", {"path": "out.fmu", "fmi_version": 7}, "'fmi_version': Input should be 2 or 3 (got 7)"),
-    ("add_link", {"from_fmu": "a.fmu", "from_port": "y", "to_fmu": "b.fmu"}, "missing required argument 'to_port'"),
+    ("remove_link", {"from_fmu": "a.fmu", "from_port": "y", "to_fmu": "b.fmu"}, "missing required argument 'to_port'"),
     ("list_fmus", {"verbose": True}, "unknown argument 'verbose'"),
 ], ids=["unknown-option", "constraint", "literal", "missing", "unknown-argument"])
 def test_invalid_arguments_are_reported_without_pydantic_noise(tool, arguments, expected):
@@ -256,7 +257,7 @@ def test_read_only_tools_are_flagged(tool):
     assert annotations.idempotent_hint is True
 
 
-@pytest.mark.parametrize("tool", ["remove_fmu", "save_as_json", "save_as_fmu"])
+@pytest.mark.parametrize("tool", ["remove_fmu", "import_assembly", "save_assembly", "save_as_fmu"])
 def test_destructive_tools_are_flagged(tool):
     tools, _ = run(inventory(FakeBridge()))
     annotations = next(t for t in tools if t.name == tool).annotations
@@ -265,7 +266,7 @@ def test_destructive_tools_are_flagged(tool):
 
 
 @pytest.mark.parametrize("tool", ["expose_input", "expose_output", "set_start_value",
-                                  "set_container_options", "add_link"])
+                                  "set_container_options", "add_links"])
 def test_idempotent_writes_are_flagged(tool):
     tools, _ = run(inventory(FakeBridge()))
     annotations = next(t for t in tools if t.name == tool).annotations

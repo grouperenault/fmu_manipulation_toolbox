@@ -121,10 +121,10 @@ def test_build_a_container_through_mcp(mcp_server, data_dir, tmp_path):
             assert ports.kinds == ["CoSimulation"]
             assert [port.name for port in ports.ports] == ["velocity"]
 
-            await client.call_tool("add_link", {"from_fmu": "bb_velocity.fmu",
+            await client.call_tool("add_links", {"links": [{"from_fmu": "bb_velocity.fmu",
                                                 "from_port": "velocity",
                                                 "to_fmu": "bb_position.fmu",
-                                                "to_port": "velocity"})
+                                                "to_port": "velocity"}]})
             await client.call_tool("set_container_options", {"options": {"step_size": 0.01}})
 
             assembly = (await client.call_tool("get_assembly_json", {})).data
@@ -176,13 +176,13 @@ def test_unknown_port_is_rejected_by_the_live_bridge(mcp_server, data_dir):
     async def scenario():
         async with fastmcp.Client(server) as client:
             await client.call_tool("add_fmu", {"path": str(source / "bb_position.fmu")})
-            await client.call_tool("add_link", {"from_fmu": "bb_position.fmu",
-                                                "from_port": "does_not_exist",
-                                                "to_fmu": "bb_position.fmu",
-                                                "to_port": "velocity"})
+            return (await client.call_tool("add_links", {"links": [{"from_fmu": "bb_position.fmu",
+                                                                    "from_port": "does_not_exist",
+                                                                    "to_fmu": "bb_position.fmu",
+                                                                    "to_port": "velocity"}]})).data
 
-    with pytest.raises(Exception, match="is not an output"):
-        _drive(scenario)
+    (failed,) = _drive(scenario)["failed"]
+    assert "is not an output" in failed["reason"]
 
 
 def test_assembly_stays_empty_without_any_fmu(mcp_server):
@@ -205,10 +205,10 @@ def test_unlinking_cleans_the_scene(mcp_server, data_dir):
         async with fastmcp.Client(server) as client:
             await client.call_tool("add_fmu", {"path": str(source / "bb_position.fmu")})
             await client.call_tool("add_fmu", {"path": str(source / "bb_velocity.fmu")})
-            await client.call_tool("add_link", {"from_fmu": "bb_velocity.fmu",
+            await client.call_tool("add_links", {"links": [{"from_fmu": "bb_velocity.fmu",
                                                 "from_port": "velocity",
                                                 "to_fmu": "bb_position.fmu",
-                                                "to_port": "velocity"})
+                                                "to_port": "velocity"}]})
             time.sleep(0.01)
             wired = len(window._graph.scene.wires())
             await client.call_tool("remove_link", {"from_fmu": "bb_velocity.fmu",
@@ -439,3 +439,33 @@ def test_the_server_logs_only_in_its_window(qapp, data_dir):
     finally:
         _close_container_window(first)
         _close_container_window(second)
+
+
+def test_import_assembly_replaces_the_canvas_and_save_assembly_writes_ssp(mcp_server, data_dir, tmp_path):
+    """The assembly files on the live canvas: an SSP file imported, edited and written back as SSP."""
+    import shutil
+    import zipfile
+
+    server, window = mcp_server
+    source = tmp_path / "bouncing.ssp"
+    shutil.copy(data_dir / "containers" / "ssp" / "bouncing.ssp", source)
+    destination = tmp_path / "written.ssp"
+
+    async def scenario():
+        async with fastmcp.Client(server) as client:
+            await client.call_tool("add_fmu", {"path": str(data_dir / "containers" / "bouncing_ball" / "bb_position.fmu")})
+            with pytest.raises(Exception, match="replace=True"):
+                await client.call_tool("import_assembly", {"path": str(source)})
+
+            imported = (await client.call_tool("import_assembly", {"path": str(source), "replace": True})).data
+            listed = (await client.call_tool("list_fmus", {})).data
+            await client.call_tool("save_assembly", {"path": str(destination)})
+            return imported, listed
+
+    imported, listed = _drive(scenario)
+
+    assert imported["file"] == "bouncing.ssp"
+    assert sorted(listed) == sorted(imported["fmus"])
+    assert window._dirty is False  # saved
+    with zipfile.ZipFile(destination) as archive:
+        assert "SystemStructure.ssd" in archive.namelist()

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiBuildDescription fmiVersion="3.0">
+  <BuildConfiguration modelIdentifier="LsBusStrict">
+    <SourceFileSet language="C99">
+      <SourceFile name="model.c"/>
+      <SourceFile name="stubs.c"/>
+    </SourceFileSet>
+  </BuildConfiguration>
+</fmiBuildDescription>

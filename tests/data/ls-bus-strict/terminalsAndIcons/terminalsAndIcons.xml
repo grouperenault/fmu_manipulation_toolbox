@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiTerminalsAndIcons fmiVersion="3.0">
+  <Terminals>
+    <Terminal name="constant" terminalKind="org.fmi-ls-bus.network-terminal" matchingRule="org.fmi-ls-bus.transceiver">
+      <TerminalMemberVariable variableName="constant.Tx_Data" memberName="Tx_Data" variableKind="signal"/>
+      <TerminalMemberVariable variableName="constant.Tx_Clock" memberName="Tx_Clock" variableKind="signal"/>
+      <TerminalMemberVariable variableName="constant.Rx_Data" memberName="Rx_Data" variableKind="signal"/>
+      <TerminalMemberVariable variableName="constant.Rx_Clock" memberName="Rx_Clock" variableKind="signal"/>
+    </Terminal>
+    <Terminal name="countdown" terminalKind="org.fmi-ls-bus.network-terminal" matchingRule="org.fmi-ls-bus.transceiver">
+      <TerminalMemberVariable variableName="countdown.Tx_Data" memberName="Tx_Data" variableKind="signal"/>
+      <TerminalMemberVariable variableName="countdown.Tx_Clock" memberName="Tx_Clock" variableKind="signal"/>
+      <TerminalMemberVariable variableName="countdown.Rx_Data" memberName="Rx_Data" variableKind="signal"/>
+      <TerminalMemberVariable variableName="countdown.Rx_Clock" memberName="Rx_Clock" variableKind="signal"/>
+    </Terminal>
+    <Terminal name="triggered" terminalKind="org.fmi-ls-bus.network-terminal" matchingRule="org.fmi-ls-bus.transceiver">
+      <TerminalMemberVariable variableName="triggered.Tx_Data" memberName="Tx_Data" variableKind="signal"/>
+      <TerminalMemberVariable variableName="triggered.Tx_Clock" memberName="Tx_Clock" variableKind="signal"/>
+      <TerminalMemberVariable variableName="triggered.Rx_Data" memberName="Rx_Data" variableKind="signal"/>
+      <TerminalMemberVariable variableName="triggered.Rx_Clock" memberName="Rx_Clock" variableKind="signal"/>
+    </Terminal>
+  </Terminals>
+</fmiTerminalsAndIcons>

@@ -94,7 +94,7 @@ class _FmuDescriptor(OperationAbstract):
         return 0
 
     def closure(self):
-        self.terminals = [terminal.name for terminal in Terminals(self.fmu.tmp_directory)]
+        self.terminals = [terminal.path for terminal in Terminals(self.fmu.tmp_directory)]
 
     @property
     def kinds(self) -> list[str]:
@@ -163,10 +163,16 @@ class HeadlessAssemblyBridge:
         self._paths: dict[str, Path] = {}      # name -> FMU file
         self._descriptions: dict[str, dict[str, Any]] = {}
         self._links: list[tuple[str, str, str, str]] = []
-        self._exposed_inputs: list[tuple[str, str]] = []
-        self._exposed_outputs: list[tuple[str, str]] = []
+        self._exposed_inputs: list[tuple[str, str, str]] = []   # FMU, port, name on the container
+        self._exposed_outputs: list[tuple[str, str, str]] = []  # FMU, port, name on the container
         self._start_values: dict[tuple[str, str], str] = {}
         self._options: dict[str, Any] = dict(DEFAULT_OPTIONS)
+        # What only an imported file brings, and what the tools do not change: kept to be written back.
+        self._file_order = False  # the FMUs in the order of the file, not sorted by name
+        self._drops: list[tuple[str, str]] = []
+        self._wires: list[tuple[str, str, str, str | None]] = []
+        self._geometry: dict[str, tuple[float, float, float, float]] = {}
+        self._experiment: tuple[float | None, float | None] = (None, None)
 
     # -- state -------------------------------------------------------------
 
@@ -186,6 +192,11 @@ class HeadlessAssemblyBridge:
             "exposed_outputs": [list(item) for item in self._exposed_outputs],
             "start_values": [[fmu, port, value] for (fmu, port), value in self._start_values.items()],
             "options": dict(self._options),
+            "file_order": self._file_order,
+            "drops": [list(item) for item in self._drops],
+            "wires": [list(item) for item in self._wires],
+            "geometry": {name: list(box) for name, box in self._geometry.items()},
+            "experiment": list(self._experiment),
         }
 
     @classmethod
@@ -205,10 +216,16 @@ class HeadlessAssemblyBridge:
             bridge._paths[name] = Path(path)
             bridge._descriptions[name] = description
         bridge._links = [tuple(link) for link in state.get("links", [])]
-        bridge._exposed_inputs = [tuple(item) for item in state.get("exposed_inputs", [])]
-        bridge._exposed_outputs = [tuple(item) for item in state.get("exposed_outputs", [])]
+        # A state written before the imports has no name on the container: the name of the port.
+        bridge._exposed_inputs = [(item[0], item[1], item[-1]) for item in state.get("exposed_inputs", [])]
+        bridge._exposed_outputs = [(item[0], item[1], item[-1]) for item in state.get("exposed_outputs", [])]
         bridge._start_values = {(fmu, port): value for fmu, port, value in state.get("start_values", [])}
         bridge._options.update(state.get("options", {}))
+        bridge._file_order = state.get("file_order", False)
+        bridge._drops = [tuple(item) for item in state.get("drops", [])]
+        bridge._wires = [tuple(item) for item in state.get("wires", [])]
+        bridge._geometry = {name: tuple(box) for name, box in state.get("geometry", {}).items()}
+        bridge._experiment = tuple(state.get("experiment", (None, None)))
         return bridge
 
     # -- helpers -----------------------------------------------------------
@@ -263,6 +280,43 @@ class HeadlessAssemblyBridge:
 
     # -- mutations ---------------------------------------------------------
 
+    def import_assembly(self, assembly: Assembly, fmu_directory: str) -> None:
+        root = assembly.root
+        if root.children:
+            raise AssemblyError(
+                f"'{root.name}' has sub-containers ({', '.join(root.children)}), and this server only handles flat "
+                f"assemblies. Look at it with `inspect_ssp`, or open it in the Container Builder."
+            )
+        # Filled aside: a file that cannot be imported leaves the assembly as it was.
+        imported = HeadlessAssemblyBridge(root.name)
+        imported._file_order = True
+        names: dict[str, str] = {}
+        for fmu_name in root.fmu_names_list:
+            path = Path(fmu_directory, root.fmu_path(fmu_name))
+            name = Path(instance_name(Path(fmu_name).name, imported._paths)).name
+            names[fmu_name] = name
+            description = describe_fmu(path)
+            description["fmu"] = name
+            imported._paths[name] = path
+            imported._descriptions[name] = description
+        imported._links = [(names[link.from_port.fmu_name], link.from_port.port_name,
+                            names[link.to_port.fmu_name], link.to_port.port_name) for link in root.links]
+        imported._exposed_inputs = [(names[port.fmu_name], port.port_name, name)
+                                    for port, name in root.input_ports.items()]
+        imported._exposed_outputs = [(names[port.fmu_name], port.port_name, name)
+                                     for port, name in root.output_ports.items()]
+        imported._start_values = {(names[port.fmu_name], port.port_name): value
+                                  for port, value in root.start_values.items()}
+        imported._options = {option: getattr(root, option) for option in DEFAULT_OPTIONS}
+        imported._drops = [(names[port.fmu_name], port.port_name) for port in root.drop_ports]
+        imported._wires = [(names[wire.start_fmu], names[wire.end_fmu], wire.orientation, wire.description)
+                           for wire in root.architecture_wires
+                           if wire.start_fmu in names and wire.end_fmu in names]
+        imported._geometry = {names[name]: box for name, box in root.fmu_geometry.items() if name in names}
+        imported._experiment = (root.start_time, root.stop_time)
+        self.__dict__.update(imported.__dict__)
+        logger.info(f"[AI] Imported '{root.name}' ({len(names)} FMU(s))")
+
     def add_fmu(self, path: str) -> dict[str, Any]:
         fmu_path = Path(path)
         description = describe_fmu(fmu_path)
@@ -291,6 +345,9 @@ class HeadlessAssemblyBridge:
         self._exposed_outputs = [item for item in self._exposed_outputs if item[0] != name]
         self._start_values = {key: value for key, value in self._start_values.items()
                               if key[0] != name}
+        self._drops = [item for item in self._drops if item[0] != name]
+        self._wires = [wire for wire in self._wires if name not in wire[:2]]
+        self._geometry.pop(name, None)
         del self._paths[name]
         del self._descriptions[name]
         logger.info(f"[AI] Removed FMU '{name}' ({len(removed)} link(s))")
@@ -320,15 +377,15 @@ class HeadlessAssemblyBridge:
 
     def expose_input(self, fmu: str, port: str) -> str:
         self._check_causality(fmu, port, ("input", "parameter"))
-        if (fmu, port) not in self._exposed_inputs:
-            self._exposed_inputs.append((fmu, port))
+        if not any(item[:2] == (fmu, port) for item in self._exposed_inputs):
+            self._exposed_inputs.append((fmu, port, port))
         logger.info(f"[AI] Exposed input {fmu}/{port}")
         return f"{fmu}/{port}"
 
     def expose_output(self, fmu: str, port: str) -> str:
         self._check_causality(fmu, port, ("output",))
-        if (fmu, port) not in self._exposed_outputs:
-            self._exposed_outputs.append((fmu, port))
+        if not any(item[:2] == (fmu, port) for item in self._exposed_outputs):
+            self._exposed_outputs.append((fmu, port, port))
         logger.info(f"[AI] Exposed output {fmu}/{port}")
         return f"{fmu}/{port}"
 
@@ -378,16 +435,22 @@ class HeadlessAssemblyBridge:
         # instance is referenced as a sibling of its file, which the `path`
         # block of the assembly gives.
         ref = {name: str(path.with_name(name)) for name, path in self._paths.items()}
-        for name in sorted(self._paths):
+        for name in self._paths if self._file_order else sorted(self._paths):
             node.add_fmu(ref[name], str(self._paths[name]))
         for from_fmu, from_port, to_fmu, to_port in self._links:
             node.add_link(ref[from_fmu], from_port, ref[to_fmu], to_port)
-        for fmu, port in self._exposed_inputs:
-            node.add_input(port, ref[fmu], port)
-        for fmu, port in self._exposed_outputs:
-            node.add_output(ref[fmu], port, port)
+        for fmu, port, name in self._exposed_inputs:
+            node.add_input(name, ref[fmu], port)
+        for fmu, port, name in self._exposed_outputs:
+            node.add_output(ref[fmu], port, name)
         for (fmu, port), value in self._start_values.items():
             node.add_start_value(ref[fmu], port, value)
+        for fmu, port in self._drops:
+            node.add_drop_port(ref[fmu], port)
+        for start, end, orientation, description in self._wires:
+            node.add_architecture_wire(ref[start], ref[end], orientation, description)
+        node.fmu_geometry = {ref[name]: box for name, box in self._geometry.items()}
+        node.start_time, node.stop_time = self._experiment
 
         assembly = Assembly()
         assembly.root = node
@@ -398,6 +461,11 @@ class HeadlessAssemblyBridge:
     def save_as_json(self, path: str) -> str:
         self._assembly().write_json(Path(path))
         logger.info(f"[AI] Exported assembly JSON to '{path}'")
+        return path
+
+    def save_as_ssp(self, path: str, ssp_version: str = "2.0") -> str:
+        self._assembly().write_ssp(Path(path).resolve(), ssp_version=ssp_version)
+        logger.info(f"[AI] Exported assembly as SSP {ssp_version} to '{path}'")
         return path
 
     def save_as_fmu(self, path: str, fmi_version: int = 2, datalog: bool = False) -> str:

@@ -364,7 +364,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     ) -> FmuPorts:
         """List the ports of an FMU **already in the assembly**.
 
-        Call it before `add_link`, `expose_input`, `expose_output` or
+        Call it before `add_links`, `expose_input`, `expose_output` or
         `set_start_value`: never guess a port name. Paginated: filter rather
         than page, and check `truncated`. For a file, use `inspect_fmu_file`.
         """
@@ -406,6 +406,37 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
+    def import_assembly(
+        path: Annotated[str, Field(
+            description="'.json', '.csv' or '.ssp' file.")],
+        replace: Annotated[bool, Field(
+            description="Replace a non-empty assembly. Ask the user first.")] = False,
+    ) -> dict[str, Any]:
+        """Load an assembly file to edit it, replacing the assembly.
+
+        Read `warnings`. Without the GUI, sub-containers are refused.
+        """
+        return toolbox.import_assembly(path, replace)
+
+    @mcp.tool(annotations=READ_ONLY)
+    @_guard
+    def inspect_ssp(
+        path: Annotated[str, Field(description="'.ssp' file.")],
+        node: ContainerName = None,
+        section: Annotated[Literal["input", "output", "link", "start", "drop"] | None, Field(
+            description="Section to page through.")] = None,
+        offset: Offset = 0,
+        limit: Limit = DEFAULT_PORT_LIMIT,
+    ) -> dict[str, Any]:
+        """Describe an SSP file without importing it.
+
+        If not `readable`, see `reason`. Otherwise its summary; `node` and
+        `section` page through the details.
+        """
+        return toolbox.inspect_ssp(path, node, section, offset, limit)
+
+    @mcp.tool(annotations=DESTRUCTIVE_WRITE)
+    @_guard
     def remove_fmu(name: FmuName) -> RemovalReport:
         """Remove an FMU from the assembly, along with its links.
 
@@ -416,32 +447,15 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
     @mcp.tool(annotations=IDEMPOTENT_WRITE)
     @_guard
-    def add_link(
-        from_fmu: FmuName,
-        from_port: Annotated[str, Field(
-            description="OUTPUT port of the source FMU, e.g. 'velocity'.")],
-        to_fmu: FmuName,
-        to_port: Annotated[str, Field(
-            description="INPUT port of the destination FMU, e.g. 'velocity'.")],
-    ) -> str:
-        """Connect an OUTPUT port of one FMU to an INPUT port of another.
-
-        Numeric conversions are applied but may lose precision: confirm a
-        real-to-boolean link with the user. `auto_link` (on by default) already
-        connects ports with the same name and type: this is for the others.
-        """
-        return toolbox.add_link(from_fmu, from_port, to_fmu, to_port)
-
-    @mcp.tool(annotations=IDEMPOTENT_WRITE)
-    @_guard
     def add_links(
         links: Annotated[list[Link], Field(
             description="Links to create, applied in order.", min_length=1)],
     ) -> dict[str, Any]:
-        """Create several links in one call (see `add_link`).
+        """Connect OUTPUT ports to INPUT ports, one link or several.
 
-        Links are applied in order and independently: a rejected link does not
-        undo the others, so read `failed` before reporting the wiring as done.
+        Independent: a rejected link does not undo the others, so read `failed`.
+        Confirm lossy conversions (real to boolean) with the user. `auto_link`
+        (on by default) already connects ports with the same name and type.
         """
         return toolbox.add_links([link.model_dump() for link in links])
 
@@ -455,7 +469,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         to_port: Annotated[str, Field(
             description="INPUT port of the destination FMU.")],
     ) -> str:
-        """Disconnect a link created by `add_link`.
+        """Disconnect a link created by `add_links`.
 
         Only explicit links can be removed: those created by `auto_link` are
         derived at build time, so disable the option instead of trying to undo
@@ -553,19 +567,20 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard
-    def save_as_json(
+    def save_assembly(
         path: Annotated[str, Field(
-            description="Destination file, must end with '.json'.")],
+            description="Destination: '.json' or '.ssp'.")],
         overwrite: Annotated[bool, Field(
             description="Replace the file if it already exists. Ask the user "
                         "first.")] = False,
+        ssp_version: Annotated[Literal["1.0", "2.0"], Field(
+            description="Version of an SSP file.")] = "2.0",
     ) -> str:
-        """Export the assembly description as a JSON file.
+        """Write the assembly description to a JSON or SSP file.
 
-        This writes the *description*, not a usable FMU; use `save_as_fmu` to
-        build the container itself.
+        Not a usable FMU: `save_as_fmu` builds the container.
         """
-        return toolbox.save_as_json(path, overwrite)
+        return toolbox.save_assembly(path, overwrite, ssp_version)
 
     @mcp.tool(annotations=DESTRUCTIVE_WRITE)
     @_guard

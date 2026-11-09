@@ -3,8 +3,8 @@
 ## Causality — what a port may be used for
 | Causality | Meaning | Usable as |
 |---|---|---|
-| `input` | Value provided from outside at each step | **destination** of `add_link`, `expose_input`, `set_start_value` |
-| `output` | Value produced by the FMU | **source** of `add_link`, `expose_output` |
+| `input` | Value provided from outside at each step | **destination** of `add_links`, `expose_input`, `set_start_value` |
+| `output` | Value produced by the FMU | **source** of `add_links`, `expose_output` |
 | `parameter` | Constant over the simulation, set before it starts | `set_start_value` only |
 | `calculatedParameter` | Derived by the FMU from other parameters | read-only |
 | `local` | Internal variable, observable but not connectable | read-only |

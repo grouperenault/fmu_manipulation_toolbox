@@ -94,7 +94,68 @@ fmu_status_t fmu_set_clocks(const fmu_t* fmu) {
 }
 
 
+bool fmu_clock_has_inputs(const fmu_t* fmu, unsigned long clock_vr) {
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+
+#define HAS_CLOCKED_INPUT(variable, fmi_type, c_type)                                                       \
+    for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) {                            \
+        if (fmu_io->clocked_ ## variable .in[i].clock_vr == clock_vr)                                       \
+            return true;                                                                                    \
+    }
+
+    FOR_ALL_NUMERIC_TYPES(HAS_CLOCKED_INPUT)
+    HAS_CLOCKED_INPUT(strings, String, const char*)
+    HAS_CLOCKED_INPUT(binaries, Binary, uint8_t*)
+#undef HAS_CLOCKED_INPUT
+
+    return false;
+}
+
+
+/* There is no schedule without any time-based clock. */
+static bool fmu_clock_is_scheduled(const container_t* container, unsigned long clock_vr) {
+    return container->clocks_list.active && container->clocks_list.active[clock_vr];
+}
+
+
+fmu_status_t fmu_set_clocks_before_outputs(const fmu_t* fmu) {
+    const container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+
+    for (unsigned long i = 0; i < fmu_io->clocks.in.nb; i += 1) {
+        const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
+        const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
+        if (fmu_clock_is_scheduled(container, local_vr) && !fmu_clock_has_inputs(fmu, local_vr)) {
+            fmu_status_t status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks[local_vr]);
+            if (status != FMU_STATUS_OK)
+                return status;
+        }
+    }
+
+    return FMU_STATUS_OK;
+}
+
+
+fmu_status_t fmu_set_clocks_after_outputs(const fmu_t* fmu) {
+    const container_t* container = fmu->container;
+    const fmu_io_t* fmu_io = &fmu->fmu_io;
+
+    for (unsigned long i = 0; i < fmu_io->clocks.in.nb; i += 1) {
+        const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
+        const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
+        if (container->clocks[local_vr] && (!fmu_clock_is_scheduled(container, local_vr) || fmu_clock_has_inputs(fmu, local_vr))) {
+            fmu_status_t status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks[local_vr]);
+            if (status != FMU_STATUS_OK)
+                return status;
+        }
+    }
+
+    return FMU_STATUS_OK;
+}
+
+
 fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
+    const bool *clocks = fmu->container->clocks;
     fmu_status_t status = FMU_STATUS_OK;
     const container_t* container = fmu->container;
 #ifdef DEBUG
@@ -110,7 +171,7 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
 #define SET_CLOCKED_INPUT(variable, fmi_type, c_type)                                                       \
     for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_in; i += 1) {                            \
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .in[i];                            \
-        if (container->clocks[clocked_port->clock_vr]) {                                                    \
+        if (clocks[clocked_port->clock_vr]) {                                                               \
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                        \
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;         \
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;           \
@@ -129,7 +190,7 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
     /* strings: Need to add a (cast) to avoid a warning */
     for (unsigned long i = 0; i < fmu_io->clocked_strings.nb_in; i += 1) {
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_strings.in[i];
-        if (container->clocks[clocked_port->clock_vr]) {
+        if (clocks[clocked_port->clock_vr]) {
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
@@ -144,7 +205,7 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
     /* binaries: Need to add size parameter */
     for (unsigned long i = 0; i < fmu_io->clocked_binaries.nb_in; i += 1) {
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_binaries.in[i];
-        if (container->clocks[clocked_port->clock_vr]) {
+        if (clocks[clocked_port->clock_vr]) {
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
@@ -1514,5 +1575,24 @@ fmu_status_t fmuGetIntervalDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t
         return FMU_STATUS_ERROR;
     }
     
+    return FMU_STATUS_OK;
+}
+
+
+fmu_status_t fmuGetShiftDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, double *shift) {
+    const logger_t *logger = &fmu->container->logger;
+
+    if (! fmu->fmi_functions.version_3.fmi3GetShiftDecimal) {
+        LOGGER_DEBUG("FMU '%s' has no fmi3GetShiftDecimal: no shift.", fmu->name);
+        for (size_t i = 0; i < nvr; i += 1)
+            shift[i] = 0.0;
+        return FMU_STATUS_OK;
+    }
+
+    if (fmu->fmi_functions.version_3.fmi3GetShiftDecimal(fmu->component, vr, nvr, shift) != fmi3OK) {
+        LOGGER_ERROR("Cannot GetShiftDecimal for FMU  '%s'", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+
     return FMU_STATUS_OK;
 }
