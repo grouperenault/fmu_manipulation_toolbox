@@ -164,6 +164,37 @@ Commit message:
 Container runtime: the fields of the cache of a port in a sub-structure
 ```
 
+## Step 6 — Module `cache`, small improvements
+
+Decided 2026-11-09 (points 1 to 6 of the review of the cache and of the local variables; point 9, one structure per
+type for the storages of the container, is for later):
+
+1. Dead code removed: `strings_tmp`, `binaries_tmp`, `binaries_size_tmp` of `container_t` (allocated, never used).
+2. Synchronization of a binary: a scratch array allocated with the cache, instead of two allocations per value.
+3. Cached strings keep their capacity (as the binaries): no allocation when a string set by the importer fits.
+4. The `<RESET>` of the start value of each link is computed when the container is loaded (`start_reset`, -1 without
+   start value; structural parameter = 2): `fmu_start_reset_*()` is no longer called during the simulation.
+5. New module `container/cache.c` / `cache.h`: the values of the cache, the sets, the synchronization, the end of a
+   pending step. As the other modules, its functions and types start with `cache_` (`cache_t`, opaque in
+   `container_t`; `cache_type_t`, `CACHE_TYPE_<type>`; `cache_store_<type>()`, `cache_port_set()`, `cache_sync_fmu()`,
+   `cache_mark_fmu()`, `cache_end_pending_step()`...). The fields of the cache in the links and the ports of
+   `container.h` are grouped in a sub-structure `cache`.
+6. A `fmi*Get` of a port that has values in the cache (set by the importer) returns them, without synchronizing nor
+   calling the FMU (FMI: the value of an input is the one set). The other ports keep the synchronization before
+   the read (decision 2).
+
+Verification: native tests (sanitizers), Python tests, micro-benchmarks; developer documentation and review updated.
+
+Commit message:
+```
+Container runtime: module cache
+
+The values set by the importer, the sets of the variables to synchronize and
+the synchronization move to cache.c. The reads of a value set by the importer
+come from the cache, the strings of the cache keep their capacity, the start
+reset of the links is computed once, and the unused buffers are removed.
+```
+
 ## Review (2026-11-09, after step 4)
 
 Step 2 needed no commit: the whole test suite passed without change after step 1, the reference traces of the probe
