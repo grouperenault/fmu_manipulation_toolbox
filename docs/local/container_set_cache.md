@@ -196,6 +196,32 @@ come from the cache, the strings of the cache keep their capacity, the start
 reset of the links is computed once.
 ```
 
+## Step 7 — Strings and binaries: one model
+
+Decided 2026-11-09. A string or a binary of variable size was handled in three ways: local strings as `char *` (`free`
+then `strdup` at each write: one allocation per step for each string output of an FMU in `fmu_get_outputs()`), local
+and cached binaries as `fmu_binary_t` (`data`, `size`, `max_size`: reallocated only when a value does not fit),
+cached strings as `cache_string_t` (`data`, `max_size`), the "reallocate if needed, then copy" code being written six
+times.
+
+- `fmu_string_t` (`data`, `max_size`) in `fmu.h`, next to `fmu_binary_t`: it replaces `cache_string_t`, and the local
+  strings of the container become `fmu_string_t` too (they keep their capacity).
+- `fmu_string_copy()` and `fmu_binary_copy()` (module `fmu`): the only places that reallocate and copy a string or a
+  binary (locals, cache, setters, `fmu_get_outputs()`, clocked outputs, end of a pending step).
+- The getters of strings and `fmu_set_inputs()` give the FMI functions arrays of `char *` built from the
+  `fmu_string_t` (buffer `strings_tmp`). A clocked string output of dimension > 1 is read in `strings_tmp` (it was read
+  in a single pointer).
+
+Commit message:
+```
+Container runtime: strings and binaries keep their capacity
+
+fmu_string_t, next to fmu_binary_t, holds the local and the cached strings: a
+string output of an FMU is copied without allocation at each step.
+fmu_string_copy() and fmu_binary_copy() replace the six copies of the code
+that reallocates and copies a string or a binary.
+```
+
 ## Review (2026-11-09, after step 6)
 
 Step 2 needed no commit: the whole test suite passed without change after step 1, the reference traces of the probe
