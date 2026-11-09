@@ -10,7 +10,7 @@ from pathlib import Path
 
 import xmlschema
 
-from .ls import XCP_ROLES, LayeredStandard, XcpInterface, a2l_tokens
+from .ls import XCP_ROLE_TYPES, XCP_ROLES, LayeredStandard, XcpInterface, a2l_tokens
 from .model_description import ModelDescription, ModelVariable
 from .operations import OperationAbstract
 from .terminals import CONFIGURATION_KIND, TRANSCEIVER_MEMBERS, TRANSCEIVER_RULE, Terminal, Terminals
@@ -506,12 +506,6 @@ class OperationLsXcpCheck(OperationAbstract):
 
     MANIFEST = Path("extra") / LayeredStandard.XCP_NAME / "fmi-ls-manifest.xml"
     XSD = Path(__file__).parent / "resources" / "fmi-ls-xcp" / "fmi3LayeredStandardXcpManifest.xsd"
-    #: Types of the variable of each kind of role (`XCP_ROLES`), for FMI 2.0 and FMI 3.0.
-    ROLE_TYPES = {
-        "Boolean": {2: ("Boolean",), 3: ("Boolean",)},
-        "Port": {2: ("Integer",), 3: ("UInt16",)},
-        "String": {2: ("String",), 3: ("String",)},
-    }
     #: Allowed (causality, variabilities) of the variables of the roles.
     CAUSALITIES = {
         "structuralParameter": ("fixed",),
@@ -614,7 +608,7 @@ class OperationLsXcpCheck(OperationAbstract):
     def check_variable(self, label: str, role: str, port: ModelVariable):
         name = port.get("name")
         fmi_version = self.model_description.fmi_version
-        types = self.ROLE_TYPES[XCP_ROLES[role]][fmi_version]
+        types = XCP_ROLE_TYPES[XCP_ROLES[role]][fmi_version]
         if port.fmi_type not in types:
             self.error(f"{label}: variable '{name}' of role {role} must be a {' or '.join(types)}, not a "
                        f"{port.fmi_type}.")

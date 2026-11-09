@@ -27,6 +27,7 @@ from .layout import ContainerLayout
 from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import ClockList, FMUIOList, InvolvedFMU, LocalVariable, Port
 from .types import ALL_TYPES, CONTAINER_TXT_VERSION, TIME_BASED_CLOCKS
+from . import xcp
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -288,8 +289,8 @@ class FMUContainer:
 
         Raises:
             FMUContainerError: If the FMU or the port does not exist, if the port
-                causality is not `"input"` or `"parameter"`, or if types do not
-                match an existing input with the same name.
+                causality is not `"input"`, `"parameter"` or `"structuralParameter"` (a scalar that gives no
+                dimension), or if types do not match an existing input with the same name.
         """
         try:
             cport_to = ContainerPort(self.get_fmu(to_fmu_filename), to_port_name)
@@ -300,9 +301,11 @@ class FMUContainer:
             container_port_name = self._default_reset_input_name(cport_to.fmu) if cport_to.port.is_reset \
                 else to_port_name
 
-        if cport_to.port.causality not in ("input", "parameter"):  # check causality
+        if cport_to.port.causality not in ("input", "parameter", "structuralParameter"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
                                     f"'{cport_to.port.causality}'.")
+        if cport_to.port.causality == "structuralParameter":
+            self.check_structural_parameter(cport_to)
 
         feeder = f"the container input '{container_port_name}'"
         self.check_not_fed(cport_to, feeder)
@@ -315,6 +318,16 @@ class FMUContainer:
 
         logger.debug(f"INPUT: {to_fmu_filename}:{to_port_name}")
         self.mark_ruled(cport_to, 'INPUT')
+
+    @staticmethod
+    def check_structural_parameter(cport: ContainerPort):
+        """A structural parameter exposed on the container is set in Configuration Mode: it must be a scalar, and
+        not give the dimension of an array (the container is built for the dimensions of the arrays)."""
+        if cport.port.dimensions:
+            raise FMUContainerError(f"Cannot expose {cport}: an array structural parameter is not supported.")
+        for port in cport.fmu.ports.values():
+            if ("valueReference", cport.port.vr) in port.dimensions:
+                raise FMUContainerError(f"Cannot expose {cport}: it gives the dimension of '{port.name}'.")
 
     def add_output(self, from_fmu_filename: str, from_port_name: str, container_port_name: str):
         """Expose a port of an embedded FMU as a container output.
@@ -488,6 +501,16 @@ class FMUContainer:
         if cport.port.is_reset:
             raise FMUContainerError(f"Start value cannot be set on {cport}: it drives the reset of the FMU.")
 
+        self.start_values[cport] = self.start_value_text(cport, value)
+
+    @staticmethod
+    def start_value_text(cport: ContainerPort, value) -> str:
+        """The start value `value` of `cport`, checked and formatted for `container.txt`.
+
+        Raises:
+            FMUContainerError: If the port type has no start value (binary, clock), or if the value cannot be
+                converted to the port's type.
+        """
         if isinstance(value, bool):     # JSON true/false: str() would give 'True'/'False'
             value = "true" if value else "false"
 
@@ -517,7 +540,7 @@ class FMUContainer:
         if cport.port.type_name == 'string':
             value = "\n" + "\n".join(value_tokens)
 
-        self.start_values[cport] = value
+        return value
 
     def apply_terminal_parameters(self):
         """Give to the parameters of Configuration terminals the value of the connected Bus Simulation.
@@ -561,6 +584,8 @@ class FMUContainer:
         3. **auto_local**: Expose local variables.
         4. **auto_input**: Expose remaining unconnected inputs.
         5. **auto_parameter**: Expose parameters.
+        6. Always: expose the variables that configure the XCP services of the embedded FMUs (FMI-LS-XCP), as
+           `<fmu id>.<variable>`.
 
         Args:
             auto_input (bool): Expose unconnected input ports.
@@ -626,6 +651,9 @@ class FMUContainer:
                     logger.info(f"AUTO INPUT: Expose {cport} as {input_name}")
                     self.add_input(input_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_input(input_name, cport.fmu.name, cport.port.name)
+
+        # FMI-LS-XCP: the variables that configure the XCP services of the embedded FMUs, whatever the options
+        xcp.expose_variables(self, auto_wired)
 
         logger.info(f"Auto-wiring: {auto_wired}")
 
@@ -718,6 +746,7 @@ class FMUContainer:
             fmu_filename = Path(fmu_filename)
 
         self.apply_terminal_parameters()
+        xcp.check_ports(self)
 
         if step_size is None:
             logger.info("step_size  will be deduced from the embedded FMU's")
@@ -744,6 +773,8 @@ class FMUContainer:
         if datalog:
             with open(resources_directory / "datalog.txt", "wt", encoding=ENCODING) as datalog_file:
                 self.make_datalog(datalog_file, layout)
+
+        xcp.write_manifest(self, base_directory, list(self.get_platforms(verbose=False)))
 
         self.make_fmu_package(base_directory, fmu_filename)
         if not debug:
@@ -904,8 +935,12 @@ class FMUContainer:
         for input_port_name, input_port in self.inputs.items():
             # Get Start and XML from first connected input
             start = self.start_values.get(input_port.cport_list[0], None)
+            causality = None
+            if self.fmi_version == 2 and input_port.cport_list[0].port.causality == "structuralParameter":
+                causality = "parameter"     # set by the container in Configuration Mode
             add_variable(input_port.cport_list[0].port.xml(layout.inputs[input_port_name], name=input_port_name,
-                                                           start=start, fmi_version=self.fmi_version))
+                                                           causality=causality, start=start,
+                                                           fmi_version=self.fmi_version))
 
         outputs = []    # (value reference of a container output, its variable element), for <ModelStructure>
         for output_port_name, output_port in self.outputs.items():
@@ -1065,8 +1100,15 @@ class FMUContainer:
         print(f"{step_size}", file=txt_file)
 
         print("# NB of embedded FMU's", file=txt_file)
-        # The FMUs with a structural parameter set by the container go through their Configuration Mode
-        configured = {cport.fmu.name for cport in self.start_values if cport.port.causality == "structuralParameter"}
+        # An exposed structural parameter has a start value of Configuration Mode (its start value by default): the
+        # runtime sets it in Configuration Mode only. The FMUs with such values go through their Configuration Mode.
+        start_values = dict(self.start_values)
+        for input_port in self.inputs.values():
+            for cport in input_port.cport_list:
+                if cport.port.causality == "structuralParameter" and cport not in start_values and \
+                        cport.port.start_value is not None:
+                    start_values[cport] = self.start_value_text(cport, cport.port.start_value)
+        configured = {cport.fmu.name for cport in start_values if cport.port.causality == "structuralParameter"}
         fmu_rank = self.involved_fmu.write_txt(txt_file, configured)
 
         print("# Initialization order of the embedded FMU's", file=txt_file)
@@ -1096,7 +1138,7 @@ class FMUContainer:
                     reset_triggers[cport.fmu.name] = layout.reset_inputs[input_port_name]
 
         # Start values
-        for input_port, value in self.start_values.items():
+        for input_port, value in start_values.items():
             fmu_io_list.add_start_value(input_port, value)
 
         # Outputs
@@ -1246,7 +1288,7 @@ class FMUContainer:
         logger.debug(f"Copying {origin} in {destination}")
         shutil.copy(origin, destination)
 
-    def get_platforms(self) -> Generator[Platform, Any, None]:
+    def get_platforms(self, verbose=True) -> Generator[Platform, Any, None]:
         fmu_iter = iter(self.involved_fmu.values())
         try:
             fmu = next(fmu_iter)
@@ -1281,7 +1323,9 @@ class FMUContainer:
         else:
             target_bindirs = origin_bindirs
 
-        if os_list:
+        if not verbose:
+            pass
+        elif os_list:
             logger.info(f"Container will be built for {', '.join(os_list)}.")
         else:
             logger.critical("No common OS found for embedded FMU. Try to re-run with '-debug'. Container won't be runnable.")

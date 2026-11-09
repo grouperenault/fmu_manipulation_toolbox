@@ -49,6 +49,9 @@ must know which FMU to put in Configuration Mode, and it only reads `container.t
 | 11 | Port conflict | Same protocol and same port, whatever the listen addresses (`0.0.0.0` overlaps every address) |
 | 12 | `<has_configuration_mode>` | On the Co-Simulation and the Model-Exchange lines of section 4 |
 | 13 | FMI 2.0: start values applied after `fmi2SetupExperiment`, where an FMU of LS-XCP starts its service | The early start values are applied **before** `fmi2SetupExperiment`, for all the embedded FMUs (allowed in the state Instantiated of FMI 2.0). Decided 2026-11-09, step 4 |
+| 14 | Where the role variables are exposed | In `add_implicit_rule`, always (whatever the `auto_*` options): the assembly records them as its other automatic rules (JSON dump, SSP export, GUI) |
+| 15 | Role variable of a type the container cannot expose for its role (FMI-3.0 `UInt16`/`Boolean` in an FMI-2.0 container; FMI-2.0 `Integer` port in an FMI-3.0 container, which would be an `Int32` instead of the `UInt16` of the role) | Warning, not exposed: its value is its start value |
+| 16 | Read-only role variables (`constant` output, `calculatedParameter`) | Not exposed (information message): used by the port check only; the manifest of the container has no `Variable` for them |
 
 ## Step 0 — Plan
 
@@ -151,24 +154,26 @@ in it.
 
 ## Step 5 — Builder: forwarding of the XCP services
 
-- `EmbeddedFMU` reads the LS-XCP interfaces (step 1).
-- Interfaces forwarded: `containsXCPService="true"`, applicable to the interface type under which the FMU is
-  embedded (CS or ME). `supportsDirectMemoryAccess` only: warning, not forwarded; in a forwarded interface,
-  `supportsDirectMemoryAccess` is not written (the addresses are relative to the binary of the FMU, not of the
-  container).
-- Role variables exposed automatically as `<fmu id>.<variable>`: `structuralParameter` of the container (FMI 3.0
-  container) or `parameter` (FMI 2.0 container) for the configurable roles; outputs of the container for the
-  `constant` output / `calculatedParameter` roles. `add_input` accepts a `structuralParameter` (scalar).
-- Manifest of the container: one `Interface` per forwarded interface, `definition="<fmu id>/<definition>"`,
-  `containsXCPService="true"`, `Variable` with the names exposed on the container. A2L copied in
-  `extra/org.fmi-standard.fmi-ls-xcp/<platform of the container>/<fmu id>/` (mapping of the platform names between
-  FMI 2.0 and 3.0 with `Platform`, only the platforms of the container), or at the root for a source code FMU.
-- Port check: effective port of each enabled service (value given in the description > start value of the role
-  variable > `IF_DATA XCP`), conflict according to decision 11 → `FMUContainerError`; port unknown → warning. Covers several
-  instances of the same FMU.
-- The SSP export and the JSON dump are not affected (the exposure is automatic, the values are start values).
-- Python tests: container built from the test FMUs of step 3 (manifest, A2L, exposed variables, conflicts,
-  FMI 2.0 / 3.0 containers).
+- `LayeredStandard` records, when the FMU is analysed, the A2L files of each interface (paths in the archive) and the
+  `IF_DATA XCP` of the first one: the temporary directory of an embedded FMU is removed once it is analysed. The A2L
+  files are copied from the archive of the FMU.
+- `fmu_manipulation_toolbox/container/xcp.py`:
+  - interfaces forwarded: `containsXCPService="true"`, applicable to the interface type under which the FMU is
+    embedded (CS or ME). `supportsDirectMemoryAccess` only: warning, not forwarded; in a forwarded interface,
+    `supportsDirectMemoryAccess` is not written (the addresses are relative to the binary of the FMU);
+  - role variables exposed by `add_implicit_rule` as `<fmu id>.<variable>` (decisions 14 to 16);
+  - manifest of the container: one `Interface` per forwarded interface, `definition="<fmu id>/<definition>"`,
+    `containsXCPService="true"`, `Variable` with the names exposed on the container (also those exposed by a rule of
+    the user). A2L copied in `extra/org.fmi-standard.fmi-ls-xcp/<platform of the container>/<fmu id>/` (platform
+    names mapped by OS, `PLATFORM_OS` of `embedded.py`), or at the root for a source code FMU;
+  - port check: each enabled service on each protocol it uses (role variables, or a block of the `IF_DATA XCP`),
+    port = value given in the description > start value of the role variable > `IF_DATA XCP`; conflict according to
+    decision 11 → `FMUContainerError`; port unknown → warning. Covers several instances of the same FMU.
+- `add_input` accepts a scalar `structuralParameter` that gives no dimension; it is exposed as `structuralParameter`
+  (FMI-3.0 container) or `parameter` (FMI-2.0 container), with a start value `<RESET>=2` by default.
+- SSP: the system connector of an exposed structural parameter is a `structuralParameter`; the reader accepts it.
+- Python tests: containers built from the test FMUs (manifest, A2L, exposed variables, conflicts, FMI 2.0 / 3.0
+  containers, checker on the container, SSP round trip).
 
 Commit message:
 ```

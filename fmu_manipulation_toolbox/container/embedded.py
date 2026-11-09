@@ -179,6 +179,17 @@ class EmbeddedFMUPort:
         return ET.Element(tag, {key: str(value) for key, value in attrs.items() if value is not None})
 
 
+#: OS of the platform directories (`binaries/<platform>`, FMI 2.0 and FMI 3.0 names) supported by the container.
+PLATFORM_OS = {
+    "win64": "Windows",
+    "linux64": "Linux",
+    "darwin64": "Darwin",
+    "x86_64-windows": "Windows",
+    "x86_64-linux": "Linux",
+    "aarch64-darwin": "Darwin"
+}
+
+
 class EmbeddedFMU(OperationAbstract):
     """Represents an FMU loaded and analyzed for embedding inside a container.
 
@@ -357,18 +368,10 @@ class EmbeddedFMU(OperationAbstract):
         self.number_of_continuous_states, self.number_of_event_indicators = \
             self.model_description.model_exchange_sizes(self.name)
 
-        osname = {
-            "win64": "Windows",
-            "linux64": "Linux",
-            "darwin64": "Darwin",
-            "x86_64-windows": "Windows",
-            "x86_64-linux": "Linux",
-            "aarch64-darwin": "Darwin"
-        }
         try:
             for directory in (Path(self.fmu.tmp_directory) / "binaries").iterdir():
-                if directory.is_dir() and str(directory.stem) in osname:
-                    self.platforms.add(osname[str(directory.stem)])
+                if directory.is_dir() and str(directory.stem) in PLATFORM_OS:
+                    self.platforms.add(PLATFORM_OS[str(directory.stem)])
         except FileNotFoundError:
             pass  # no binaries
 

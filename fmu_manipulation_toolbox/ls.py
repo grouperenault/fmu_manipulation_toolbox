@@ -18,6 +18,13 @@ XCP_ROLES = {
     "XCPServiceUDPListenAddress": "String",
 }
 
+#: FMI types of the variable of each kind of role (`XCP_ROLES`), for FMI 2.0 and FMI 3.0.
+XCP_ROLE_TYPES = {
+    "Boolean": {2: ("Boolean",), 3: ("Boolean",)},
+    "Port": {2: ("Integer",), 3: ("UInt16",)},
+    "String": {2: ("String",), 3: ("String",)},
+}
+
 #: Protocols of an XCP service, as named by the roles (`XCPService<protocol>Port`).
 XCP_PROTOCOLS = ("TCP", "UDP")
 
@@ -35,6 +42,9 @@ class XcpInterface:
         supports_direct_memory_access (bool): The A2L file allows an external XCP slave to access the memory of
             the FMU.
         variables (dict[str, str]): Name of the variable of each role (see `XCP_ROLES`).
+        a2l (dict[str | None, str]): The A2L files found when the manifest was read, as paths in the FMU archive,
+            by platform (see `a2l_files`).
+        settings (dict[str, XcpSettings]): XCP settings of the first of these A2L files (see `read_xcp_settings`).
     """
     definition: str
     types: list[str] | None = None
@@ -42,6 +52,8 @@ class XcpInterface:
     contains_xcp_service: bool = False
     supports_direct_memory_access: bool = False
     variables: dict[str, str] = field(default_factory=dict)
+    a2l: dict[str | None, str] = field(default_factory=dict)
+    settings: dict[str, "XcpSettings"] = field(default_factory=dict)
 
     def applies_to(self, interface_type: str) -> bool:
         """Whether the interface applies to the interface type `interface_type` (e.g. `"CoSimulation"`)."""
@@ -193,6 +205,10 @@ class LayeredStandard:
             )
             for variable in element.iter("Variable"):
                 interface.variables[variable.get("role", "")] = variable.get("name", "")
+            files = interface.a2l_files(self.xcp_directory) if interface.definition else {}
+            interface.a2l = {platform: path.relative_to(self.directory).as_posix() for platform, path in files.items()}
+            if files:
+                interface.settings = read_xcp_settings(next(iter(files.values())))
             self.xcp_interfaces.append(interface)
 
     def __len__(self):
