@@ -76,6 +76,10 @@ CONTAINER_TO_FMI = {
     for fmi_version, types in FMI_TO_CONTAINER.items()
 }
 
+#: Boolean of the other FMI version, by boolean type of the container: an output of an embedded FMU of this type is
+#: exposed by a container of the other FMI version through a converted local variable (see `ContainerLayout`).
+OTHER_BOOLEAN = {"boolean": "boolean1", "boolean1": "boolean"}
+
 #: `"<from type>/<to type>"` -> name of the conversion function of the runtime. Lossy conversions start with `_`
 #: (see `is_lossy`).
 CONVERSION_FUNCTION = {

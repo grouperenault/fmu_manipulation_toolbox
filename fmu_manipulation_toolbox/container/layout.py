@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from .rules import ContainerInput, ContainerPort, Link
-from .types import ALL_TYPES
+from .types import ALL_TYPES, CONTAINER_TO_FMI, CONVERSION_FUNCTION, OTHER_BOOLEAN
 
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -132,12 +132,37 @@ class ValueReferenceTable:
 
 
 @dataclass
+class OutputConversion:
+    """A container output whose embedded port is a boolean of the other FMI version, that the container cannot expose
+    as it is: the value of the FMU goes to the local variable `local` (the one of the link of the port when it has
+    one), converted by `conversion` into the local variable `vr` of type `type_name`, which is the container output.
+
+    Attributes:
+        cport (ContainerPort): The embedded port.
+        local (int): Value reference of the local variable of the value of the FMU.
+        type_name (str): Container type of the output (`boolean1` in an FMI-3.0 container, `boolean` in FMI 2.0).
+        conversion (str): Conversion function of the runtime (`B_B1`, `B1_B`).
+        vr (int): Value reference of the converted local variable, and of the container output.
+        own_local (bool): `local` is allocated for the output (the port has no link).
+        own_copy (bool): `vr` is allocated for the output (no link of the port converts to `type_name`).
+    """
+    cport: ContainerPort
+    local: int
+    type_name: str
+    conversion: str
+    vr: int
+    own_local: bool
+    own_copy: bool
+
+
+@dataclass
 class ContainerLayout:
     """Value references of a container, allocated from its rules before any file is written.
 
     The `modelDescription.xml`, `container.txt` and `datalog.txt` writers only read the layout, so a container can be
     built several times. The allocation order fixes the value references: the reserved variables first (time,
-    `ts_multiplier`, solver, profiling), then the local variables of the links, then the container inputs and outputs.
+    `ts_multiplier`, solver, profiling), then the local variables of the links and of the converted outputs, then the
+    container inputs and outputs.
 
     Attributes:
         table (ValueReferenceTable): The allocator, with the local storage of each type.
@@ -151,6 +176,8 @@ class ContainerLayout:
         outputs (dict[str, int]): Value reference of each container output, by exposed name.
         reset_inputs (dict[str, int]): Local storage offset of each container input feeding `container.reset`
             ports, by exposed name: the runtime reads the trigger there.
+        output_conversions (dict[str, OutputConversion]): The container outputs exposed through a converted local
+            variable, by exposed name.
     """
     table: ValueReferenceTable
     time: int
@@ -162,10 +189,11 @@ class ContainerLayout:
     inputs: dict[str, int]
     outputs: dict[str, int]
     reset_inputs: dict[str, int]
+    output_conversions: dict[str, OutputConversion]
 
     @classmethod
     def allocate(cls, links: Iterable[Link], inputs: dict[str, ContainerInput], outputs: dict[str, ContainerPort],
-                 nb_profiling: int = 0) -> "ContainerLayout":
+                 nb_profiling: int = 0, fmi_version: int | None = None) -> "ContainerLayout":
         """Allocate the value references of a container.
 
         Args:
@@ -173,6 +201,8 @@ class ContainerLayout:
             inputs (dict[str, ContainerInput]): Container inputs, by exposed name.
             outputs (dict[str, ContainerPort]): Container outputs, by exposed name.
             nb_profiling (int): Number of profiling variables (one per embedded FMU), `0` without profiling.
+            fmi_version (int | None): FMI version of the container: an output that is a boolean of the other FMI
+                version is exposed through a converted local variable (`output_conversions`). `None`: no conversion.
 
         Returns:
             ContainerLayout: The value references.
@@ -188,15 +218,49 @@ class ContainerLayout:
         converted: dict[Link, dict[str, int]] = {}
         for link in links:
             link_vrs[link], converted[link] = table.add_link(link)
+        output_conversions = cls._output_conversions(table, link_vrs, converted, outputs, fmi_version)
 
         input_vrs = {name: table.add_vr(input_port.type_name) for name, input_port in inputs.items()}
-        output_vrs = {name: table.add_vr(output_port) for name, output_port in outputs.items()}
+        output_vrs = {name: output_conversions[name].vr if name in output_conversions else table.add_vr(output_port)
+                      for name, output_port in outputs.items()}
         # Last: the other local variables are listed by value reference, their storage follows their order.
         reset_inputs = {name: table.add_storage(input_port.type_name) for name, input_port in inputs.items()
                         if input_port.has_reset}
 
         return cls(table, time, ts_multiplier, solver, profiling, link_vrs, converted, input_vrs, output_vrs,
-                   reset_inputs)
+                   reset_inputs, output_conversions)
+
+    @staticmethod
+    def _output_conversions(table: ValueReferenceTable, link_vrs: dict[Link, int],
+                            converted: dict[Link, dict[str, int]], outputs: dict[str, ContainerPort],
+                            fmi_version: int | None) -> dict[str, OutputConversion]:
+        """The outputs that are booleans of the other FMI version, with their local variables: the one of the link
+        of the port and its converted copy when they exist, allocated otherwise (once per port)."""
+        if fmi_version is None:
+            return {}
+        exposable = CONTAINER_TO_FMI[fmi_version]
+        link_of = {link.cport_from: link for link in link_vrs if link.cport_from is not None}
+        conversions: dict[str, OutputConversion] = {}
+        by_port: dict[ContainerPort, OutputConversion] = {}
+        for name, cport in outputs.items():
+            type_name = cport.port.type_name
+            target = OTHER_BOOLEAN.get(type_name)
+            if type_name in exposable or target not in exposable:
+                continue
+            if cport in by_port:            # the same port exposed under another name
+                conversions[name] = by_port[cport]
+                continue
+            link = link_of.get(cport)
+            if link is not None:
+                local, own_local, vr = link_vrs[link], False, converted[link].get(target)
+            else:
+                local, own_local, vr = table.add_vr(cport, local=True), True, None
+            own_copy = vr is None
+            if own_copy:
+                vr = table.add_vr(target, local=True, port_size=cport.port.size())
+            conversions[name] = by_port[cport] = OutputConversion(
+                cport, local, target, CONVERSION_FUNCTION[f"{type_name}/{target}"], vr, own_local, own_copy)
+        return conversions
 
     def local_offset(self, vr: int) -> int:
         """Index of a local variable in the storage of its type (`<FMU_VR>` of the local lines of `container.txt`)."""

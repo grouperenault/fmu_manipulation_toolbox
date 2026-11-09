@@ -67,13 +67,14 @@ There is no FMI driver in Python and no simulation engine besides the container 
 | 19 | Reference-FMUs in the tests of the replay | **Yes**, BouncingBall and Feedthrough (2.0 and 3.0) compiled at test time and replayed with their `result`, besides the fabricated FMUs. Decided 2026-11-09, step 3 |
 | 20 | `startTime` / `stopTime` absent | The `DefaultExperiment` of the FMU, else the first / last instant of the references (information message). Decided 2026-11-09, step 5 |
 | 21 | Instant of the recorded outputs | At `t_k`, after the stimuli of `t_k` and before the step to `t_k+1` (convention of fmpy and of the results of the Reference-FMUs: an output fed through follows its input at the same instant). Decided 2026-11-09, step 5 |
-
-## Open questions (to be asked at the step that needs them)
-
-- Comparison of non-real outputs (integers, booleans, strings, enumerations): criterion of decision 3 for the numbers,
-  exact equality for the strings? (step 6)
-- Events: an output that jumps between two instants of the reference (e.g. bounce of BouncingBall) may fail the
-  criterion of decision 3 when the step of the simulation and the instants of the reference differ. (step 6)
+| 22 | FMI version of the temporary container | **Always FMI 3.0** (the runtime embeds FMI-2.0 FMUs): the logger of FMI 2.0 is variadic, ctypes cannot read its message on every platform (macOS arm64). Decided 2026-11-09, step 7 |
+| 23 | FMU without binary for the host platform / binary that does not load | No binary: **warning**, not replayed (as decision 6); a binary whose instantiation fails: **error** (a bad binary cannot be told from a failing FMU). Decided 2026-11-09, step 7 |
+| 24 | Boolean of the other FMI version (the FMI-3.0 container cannot expose an FMI-2.0 `Boolean`) | **Builder only, outputs**: an output that is a boolean of the other FMI version is exposed through a converted local variable (`B_B1` / `B1_B`), in both directions; such inputs stay not exposable. Decided 2026-11-09, step 6 |
+| 25 | Stimulus on a boolean input of an FMI-2.0 FMU (decision 24) | **Warning**, the experiment is not replayed. Decided 2026-11-09, step 7 |
+| 26 | Comparison of non-real outputs | Integers, booleans (`true` / `false` or 0 / 1), enumerations: criterion of decision 3; strings: exact equality; binaries: not compared (warning). Decided 2026-11-09, step 7 |
+| 27 | Interpolation of the simulation at the instants of the references | Linear for the continuous real outputs, previous value for the others (as decision 7). Decided 2026-11-09, step 7 |
+| 28 | Event of the references (two rows at the same instant) | The value **after** the event (last row of the instant) is compared. Decided 2026-11-09, step 7 |
+| 29 | Experiment to replay without references | **Replayed without comparison**: the simulation must succeed (information message). Decided 2026-11-09, step 7 |
 
 ## Step 0 — Plan
 
@@ -184,7 +185,36 @@ Commit message:
 LS-REF: replay an experiment with the container runtime
 ```
 
-## Step 6 — Checker `OperationLsRefCheck`, numerical validation
+## Step 6 — Container: boolean outputs of the other FMI version
+
+Found at step 7: the temporary container is FMI 3.0 (decision 22), and the builder cannot expose an FMI-2.0
+`Boolean` (an `int`) in an FMI-3.0 container (nor an FMI-3.0 `Boolean`, a `bool`, in an FMI-2.0 one): the runtime
+accesses the booleans with the functions of their FMI version only (`fmuGetBoolean`: FMI 2.0, `fmuGetBoolean1`:
+FMI 3.0), and a container port reads or writes the embedded FMU directly with its own type.
+
+- Decision 24: builder only, outputs. `ContainerLayout.allocate(..., fmi_version=)`: an output that is a boolean of
+  the other FMI version (`types.OTHER_BOOLEAN`) gets an `OutputConversion`: the value of the FMU in a local variable
+  (the one of the link of the port when it has one), converted (`B_B1` / `B1_B`, conversion table of the FMU) into a
+  local variable of the boolean type of the container, which is the container output (`<FMU_INDEX>` -1). These local
+  variables are allocated after those of the links, before the container ports. No change of `container.txt`.
+- `EmbeddedFMUPort.xml(type_name=)`: the output is declared with the boolean type of the container; `datalog.txt`
+  lists it with this type; the interface computed by the SSP export (`ssp.py`) too.
+- Limitation: `fmusplit` reads these outputs as internal local variables: they are not restored as outputs.
+- Tests (`tests/integration/test_container_boolean_versions.py`): Feedthrough FMI 2.0 in an FMI-3.0 container and
+  FMI 3.0 in an FMI-2.0 container, `Boolean_input` started at `true`, `Boolean_output` exposed (alone, and also
+  linked to another instance): descriptor, conversion of `container.txt`, value simulated with fmpy.
+
+Commit message:
+```
+Container: expose the boolean outputs of the other FMI version
+
+An output of an embedded FMU that is a boolean of the other FMI version (an
+FMI-2.0 Boolean in an FMI-3.0 container, or the reverse) is exposed through a
+converted local variable (conversions B_B1 / B1_B of the runtime). The inputs
+of this kind stay not exposable.
+```
+
+## Step 7 — Checker `OperationLsRefCheck`, numerical validation
 
 - For each experiment of sub-role `smoke-test` / `validation` (decision 8): replay (step 5), comparison with the
   references (step 2, decisions 3 and 4); per failing variable an error with its maximal error and the first instant
@@ -201,7 +231,7 @@ implementing FMI-LS-REF with the container runtime and compares its outputs
 with the references (rtol 1e-3, atol 1e-6).
 ```
 
-## Step 7 — User documentation
+## Step 8 — User documentation
 
 - `docs/user-guide/fmutool/checker.md`: the LS-REF checker (static rules, replay, CSV convention, interpolation,
   tolerances, what is not supported: HDF5, `uncertainty-analysis`, `tolerance`).

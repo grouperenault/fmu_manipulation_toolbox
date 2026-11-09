@@ -98,7 +98,8 @@ class EmbeddedFMUPort:
                                f"which is not supported")
         return size
 
-    def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2) -> ET.Element | None:
+    def xml(self, vr: int, name=None, causality=None, start=None, fmi_version=2,
+            type_name: str | None = None) -> ET.Element | None:
         """Generate the XML element for this port in `modelDescription.xml`.
 
         Produces a `<ScalarVariable>` element (FMI 2.0) or a typed element
@@ -111,6 +112,8 @@ class EmbeddedFMUPort:
             causality (str | None): Override causality. Defaults to `self.causality`.
             start (str | None): Override start value. Defaults to `self.start_value`.
             fmi_version (int): FMI version (`2` or `3`).
+            type_name (str | None): Container type of the variable, when it is exposed with another type than the
+                one of the port (a boolean of the other FMI version). Defaults to `self.type_name`.
 
         Returns:
             ET.Element | None: The variable element, or `None` if the type is
@@ -132,10 +135,10 @@ class EmbeddedFMUPort:
                 variability = "continuous" if "real" in self.type_name else "discrete"
 
         try:
-            fmi_type = CONTAINER_TO_FMI[fmi_version][self.type_name]
+            fmi_type = CONTAINER_TO_FMI[fmi_version][type_name or self.type_name]
         except KeyError:
-            logger.error(f"Cannot expose ({causality}) '{name}' because type '{self.type_name}' is not compatible "
-                         f"with FMI-{fmi_version}.0")
+            logger.error(f"Cannot expose ({causality}) '{name}' because type '{type_name or self.type_name}' is not "
+                         f"compatible with FMI-{fmi_version}.0")
             return None
 
         if fmi_version == 2 and self.is_fmi2_aggregate:
