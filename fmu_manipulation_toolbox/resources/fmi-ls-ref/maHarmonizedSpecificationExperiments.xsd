@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- From modelica/ma-hs-experiments main (commit da1b852, draft), unmodified. -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns="http://modelica.org/HSExperiments1/HSExperiments"
+    targetNamespace="http://modelica.org/HSExperiments1/HSExperiments"
+    elementFormDefault="qualified" attributeFormDefault="unqualified">
+    <xs:annotation>
+        <xs:documentation>
+Copyright(c) 2023-2025 Modelica Association Project "FMI".
+Copyright(c) 2026 Modelica Association Project "COORD".
+             All rights reserved.
+
+This file is licensed by the copyright holders under the 2-Clause BSD License
+(https://opensource.org/licenses/BSD-2-Clause):
+
+----------------------------------------------------------------------------
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+- Redistributions of source code must retain the above copyright notice,
+ this list of conditions and the following disclaimer.
+
+- Redistributions in binary form must reproduce the above copyright notice,
+ this list of conditions and the following disclaimer in the documentation
+ and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+----------------------------------------------------------------------------
+        </xs:documentation>
+    </xs:annotation>
+    <xs:element name="Experiments">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="TransientExperiment" minOccurs="1" maxOccurs="unbounded">
+                    <xs:complexType>
+                        <xs:sequence>
+                            <xs:element name="Parameters" minOccurs="0" type="TParameters" />
+                            <xs:element name="Stimuli" minOccurs="0" type="TTimeSeriesData" />
+                            <xs:element name="References" minOccurs="0" type="TTimeSeriesData" />
+                            <xs:element ref="Annotations" minOccurs="0" />
+                        </xs:sequence>
+                        <xs:attribute name="name" type="xs:string" use="required" />
+                        <xs:attribute name="description" type="xs:string" />
+                        <xs:attribute name="startTime" type="xs:double" />
+                        <xs:attribute name="stopTime" type="xs:double" />
+                        <xs:attribute name="tolerance" type="xs:double" />
+                        <xs:attribute name="stepSize" type="xs:double" />
+                    </xs:complexType>
+                </xs:element>
+                <xs:element ref="Annotations" minOccurs="0" />
+            </xs:sequence>
+            <xs:attribute name="name" type="xs:string" use="required" />
+            <xs:attribute name="description" type="xs:string" />
+        </xs:complexType>
+    </xs:element>
+
+    <xs:complexType name="TParameters">
+        <xs:sequence>
+            <xs:element ref="Annotations" minOccurs="0" />
+        </xs:sequence>
+        <xs:attribute name="type" type="xs:string" use="optional" default="application/x-ssp-parameter-set">
+            <xs:annotation>
+                <xs:documentation xml:lang="en">
+                    This attribute specifies the MIME type of the parameter data source, which
+                    defaults to application/x-ssp-parameter-set to indicate the SSV file format
+                    as specified in the SSP standard. No further types are currently defined,
+                    but can of course be added at a later date.
+                </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="source" type="xs:anyURI" use="required">
+            <xs:annotation>
+                <xs:documentation xml:lang="en">
+                    This attribute indicates the source of the parameter source as a URI
+                    (cf. RFC 3986).  For purposes of the resolution of relative URIs
+                    the base URI is the URI of the experiments file.
+                </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:complexType>
+
+    <xs:complexType name="TTimeSeriesData">
+        <xs:sequence>
+            <xs:element ref="Annotations" minOccurs="0" />
+        </xs:sequence>
+        <xs:attribute name="type" type="xs:string" use="optional" default="text/csv">
+            <xs:annotation>
+                <xs:documentation xml:lang="en">
+                    This attribute specifies the MIME type of the time series data source, which
+                    defaults to text/csv to indicate the CSV file format as specified in XXX.
+                    No further types are currently defined, but can of course be added at a later
+                    date, e.g. for pre-existing time series file formats, like HDF5, MDF, etc.
+                </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+        <xs:attribute name="source" type="xs:anyURI" use="required">
+            <xs:annotation>
+                <xs:documentation xml:lang="en">
+                    This attribute indicates the source of the time series data as a URI
+                    (cf. RFC 3986).  For purposes of the resolution of relative URIs
+                    the base URI is the URI of the current file.
+                </xs:documentation>
+            </xs:annotation>
+        </xs:attribute>
+    </xs:complexType>
+
+    <xs:complexType name="TAnnotations">
+        <xs:sequence maxOccurs="unbounded">
+            <xs:element name="Annotation">
+                <xs:complexType mixed="true">
+                    <xs:sequence>
+                        <xs:any namespace="##any" processContents="lax" minOccurs="0" maxOccurs="unbounded" />
+                    </xs:sequence>
+                    <xs:attribute name="type" type="xs:normalizedString" use="required" />
+                </xs:complexType>
+            </xs:element>
+        </xs:sequence>
+    </xs:complexType>
+    <xs:element name="Annotations" type="TAnnotations" />
+</xs:schema>

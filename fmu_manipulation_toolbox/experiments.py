@@ -19,6 +19,9 @@ PARAMETERS_TYPE = "application/x-ssp-parameter-set"
 #: Default MIME type of the stimuli and of the references of an experiment.
 TIME_SERIES_TYPE = "text/csv"
 
+#: Namespace of the SSV parameter sets of SSP.
+SSV_NAMESPACE = "http://ssp-standard.org/SSP1/SystemStructureParameterValues"
+
 
 class ExperimentsError(Exception):
     """An experiment file that cannot be read."""
@@ -134,3 +137,42 @@ def read_experiments(filename: Path | str, root: Path | str) -> Experiments:
             setattr(experiment, kind.lower(), source)
         experiments.experiments.append(experiment)
     return experiments
+
+
+@dataclass
+class Parameter:
+    """A parameter of an SSV parameter set.
+
+    Attributes:
+        name (str): Name of the variable.
+        type (str): Value element of the parameter (`Real`, `Float64`, `Integer`, `Boolean`, `String`...).
+        value (str): Its value, as written in the file.
+    """
+    name: str
+    type: str
+    value: str
+
+
+def read_parameter_set(filename: Path | str) -> list[Parameter]:
+    """Reads the parameters of an SSV file (`ssv:ParameterSet`). A parameter is given by its first value element
+    (`ssv:Real`, `ssv:Integer`...); a parameter without value element is ignored.
+
+    Raises:
+        ExperimentsError: The file is not well-formed XML or has no `ssv:ParameterSet`.
+    """
+    filename = Path(filename)
+    ssv = f"{{{SSV_NAMESPACE}}}"
+    try:
+        root = ET.parse(filename).getroot()
+    except ET.ParseError as error:
+        raise ExperimentsError(f"cannot parse '{filename.name}': {error}") from None
+    parameter_set = root if root.tag == f"{ssv}ParameterSet" else root.find(f".//{ssv}ParameterSet")
+    if parameter_set is None:
+        raise ExperimentsError(f"'{filename.name}' has no ssv:ParameterSet")
+    parameters = []
+    for parameter in parameter_set.iter(f"{ssv}Parameter"):
+        for child in parameter:
+            if child.tag.startswith(ssv):
+                parameters.append(Parameter(parameter.get("name", ""), _local_name(child), child.get("value", "")))
+                break
+    return parameters

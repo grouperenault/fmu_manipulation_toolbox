@@ -28,8 +28,12 @@ State of the standards (checked 2026-11-09):
     experiments file;
   - the CSV format is not specified (the schema says "as specified in XXX"), nor the mapping of the columns to the
     variables, the interpolation of the stimuli, or any comparison criterion.
-- No public FMU implements LS-REF: `modelica/fmi-ls-ref` and `modelica/ma-hs-experiments` only hold the specification,
-  the XSD and one example XML file each.
+- `modelica/fmi-ls-ref` and `modelica/ma-hs-experiments` only hold the specification, the XSD and one example XML
+  file each. But the Reference-FMUs (v0.0.41, `tests/data/compile`) implement LS-REF (found at step 3): their manifest
+  has one `<Related type="text/csv" source="<model>_out.csv" role="result" description="Output of the default
+  experiment"/>`, no experiment file, and no `fmi-ls-description` (required by the XSD of alpha.1). The result of the
+  FMI-2.0 Feedthrough has the columns of the FMI-3.0 one (variables it does not have), and columns of binaries (hex),
+  strings, booleans (`false`).
 
 Existing material: `fmu_manipulation_toolbox/ls.py` (`LayeredStandard`: LS-BUS, LS-XCP), `checker.py` (checkers of
 `-check`, `get_checkers()`), `ssp.py` (reading of SSV parameter sets), the container builder
@@ -57,6 +61,10 @@ There is no FMI driver in Python and no simulation engine besides the container 
 | 13 | Experiment without `stepSize` | Step size **deduced** by the builder from the FMU (as `fmucontainer` does), information message |
 | 14 | Targets of the stimuli and of the SSV parameters | **Strict**: stimuli on variables of causality `input`; SSV parameters on `parameter` / `structuralParameter` variables (and `input` with a start value); any other variable or unknown name: error of the check |
 | 15 | Dot segments in the relative URIs (manifest, experiment files) | **Allowed** while the resolved path stays inside the FMU (e.g. `../../resources/x.csv`, as the specification supports every relative URI inside the FMU); a path leaving the FMU is reported as an absolute URI (decision 11). Decided 2026-11-09, step 1 |
+| 16 | `fmi-ls-description` of the manifest missing or different from the XSD | **Warning** (the Reference-FMUs have none); the other deviations from the XSD stay errors. Decided 2026-11-09, step 3 |
+| 17 | CSV file of role `result` (Reference-FMUs) | **Replayed** with the `DefaultExperiment` of the FMU (no stimuli, no parameters) and compared with the file. Decided 2026-11-09, step 3 |
+| 18 | Columns of a `result` file that are not outputs of the FMU, or binaries | **Warning**, column ignored; decisions 9 and 14 stay strict for the experiment files. Decided 2026-11-09, step 3 |
+| 19 | Reference-FMUs in the tests of the replay | **Yes**, BouncingBall and Feedthrough (2.0 and 3.0) compiled at test time and replayed with their `result`, besides the fabricated FMUs. Decided 2026-11-09, step 3 |
 
 ## Open questions (to be asked at the step that needs them)
 
@@ -122,7 +130,12 @@ LS-REF: CSV time series, interpolation and comparison
     `application/x-ssp-parameter-set` (parameters); other types: warning (decision 5);
   - CSV files: format of step 2; stimuli columns are `input` variables, reference columns are `output` variables
     (decisions 9 and 14);
-  - SSV parameters: variables of decision 14 (reading of `ssp.py`).
+  - SSV parameters: variables of decision 14 (`experiments.read_parameter_set`: the reader of `ssp.py` is bound to
+    the assembly of SSP);
+  - `result` files (decisions 17 and 18): CSV readable; replayed with the `DefaultExperiment`, the outputs of a
+    comparable type compared;
+  - `fmi-ls-description`: warning (decision 16).
+- The checker keeps the experiments to replay (`RefReplay`: related file, experiment, outputs to compare) for step 6.
 - Registered in `get_checkers()`; unit tests with fabricated FMUs (no binary needed).
 
 Commit message:
@@ -140,7 +153,8 @@ against their XSD, and the stimuli, references and parameters they refer to.
   compiled for the host platform with `compiler.py`; skipped when no compiler is available (same rule as
   `tests/integration/test_compile_sources.py`).
 - Experiments: BouncingBall (`REF-BouncingBall.csv`, outputs `h`, `v`; a parameter set changing `e`), Feedthrough
-  (stimuli on its inputs, references on its outputs).
+  (stimuli on its inputs, references on its outputs); and the Reference-FMUs as they are, with their `result`
+  (decision 19).
 
 Commit message:
 ```

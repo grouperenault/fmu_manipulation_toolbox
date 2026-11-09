@@ -33,6 +33,9 @@ fmu_manipulation_toolbox/resources/fmi-3.0/fmi3Type.xsd
 fmu_manipulation_toolbox/resources/fmi-3.0/fmi3Unit.xsd
 fmu_manipulation_toolbox/resources/fmi-3.0/fmi3Variable.xsd
 fmu_manipulation_toolbox/resources/fmi-3.0/fmi3VariableDependency.xsd
+fmu_manipulation_toolbox/resources/fmi-ls-ref/LICENSE.txt
+fmu_manipulation_toolbox/resources/fmi-ls-ref/fmi3LayeredStandardReferenceManifest.xsd
+fmu_manipulation_toolbox/resources/fmi-ls-ref/maHarmonizedSpecificationExperiments.xsd
 fmu_manipulation_toolbox/resources/fmi-ls-xcp/LICENSE.txt
 fmu_manipulation_toolbox/resources/fmi-ls-xcp/fmi3LayeredStandardXcpManifest.xsd
 fmu_manipulation_toolbox/resources/fmi/fmi2FunctionTypes.h
