@@ -118,6 +118,39 @@ Commit message:
 Doc: values set on the container go through the cache of the ports
 ```
 
+## Step 4 — Cache: values and set of the variables set by the importer
+
+Review of step 1: a synchronization went through all the ports of the container (O(number of ports) per FMU and per
+step), and the links had three states. Decided 2026-11-09: two mechanisms only.
+
+- **Local variables** (unchanged): the variables linked between the embedded FMUs, and those of the container
+  (`time`, `ts_multiplier`, reset triggers...).
+- **Cache**: the state to come, set by the `fmi*Set` of the importer:
+  - the values of each port (as before);
+  - for each embedded FMU, the **set of its links that got a `fmi*Set`**: a list allocated when the container is
+    loaded (one entry per link to this FMU), and a flag on each link (already in the set);
+  - the **set of the ports linked to a local variable** that got a `fmi*Set` while a step is pending.
+- No `deferred` state: when a step becomes pending, every FMU is synchronized, so everything that enters the cache
+  while it is pending is for after it. The sets of the FMUs are not emptied while a step is pending (steps, reads);
+  at its end, the local variables of the set of the ports are written. The configuration, the preparation before
+  `fmi2SetupExperiment` and the reset of an FMU always synchronize it.
+- `container_sync_fmu()` goes through the set of the FMU only, in the order of the calls of the importer; the
+  entries kept (structural parameter out of Configuration Mode, discrete value in Continuous Time Mode) stay in it.
+  `container_mark_fmu_cache()` (initialization, configuration, reset) still goes through the ports: once per phase.
+- Native test: the FMU gets the values in the order of the calls of the importer. Micro-benchmark with many ports,
+  before / after this step.
+- Developer documentation and review updated.
+
+Commit message:
+```
+Container runtime: the cache holds the set of the variables set by the importer
+
+Each embedded FMU has the set of its links that got a value from the importer:
+a synchronization goes through it only, in the order of the calls, instead of
+all the ports of the container. The links lose their deferred state: nothing is
+synchronized while a step is pending.
+```
+
 ## Review (2026-11-09)
 
 Step 2 needed no commit: the whole test suite passed without change after step 1, the reference traces of the probe
