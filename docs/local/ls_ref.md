@@ -65,6 +65,8 @@ There is no FMI driver in Python and no simulation engine besides the container 
 | 17 | CSV file of role `result` (Reference-FMUs) | **Replayed** with the `DefaultExperiment` of the FMU (no stimuli, no parameters) and compared with the file. Decided 2026-11-09, step 3 |
 | 18 | Columns of a `result` file that are not outputs of the FMU, or binaries | **Warning**, column ignored; decisions 9 and 14 stay strict for the experiment files. Decided 2026-11-09, step 3 |
 | 19 | Reference-FMUs in the tests of the replay | **Yes**, BouncingBall and Feedthrough (2.0 and 3.0) compiled at test time and replayed with their `result`, besides the fabricated FMUs. Decided 2026-11-09, step 3 |
+| 20 | `startTime` / `stopTime` absent | The `DefaultExperiment` of the FMU, else the first / last instant of the references (information message). Decided 2026-11-09, step 5 |
+| 21 | Instant of the recorded outputs | At `t_k`, after the stimuli of `t_k` and before the step to `t_k+1` (convention of fmpy and of the results of the Reference-FMUs: an output fed through follows its input at the same instant). Decided 2026-11-09, step 5 |
 
 ## Open questions (to be asked at the step that needs them)
 
@@ -72,8 +74,6 @@ There is no FMI driver in Python and no simulation engine besides the container 
   exact equality for the strings? (step 6)
 - Events: an output that jumps between two instants of the reference (e.g. bounce of BouncingBall) may fail the
   criterion of decision 3 when the step of the simulation and the instants of the reference differ. (step 6)
-- `startTime` / `stopTime` absent: defaults of the `DefaultExperiment` of the FMU, else `0` / last instant of the
-  reference? (step 5)
 
 ## Step 0 — Plan
 
@@ -169,8 +169,11 @@ Tests: FMUs implementing FMI-LS-REF, compiled at test time
     built in a temporary directory, removed afterwards;
   - ctypes driver of the container library of the host platform (FMI 2.0 or FMI 3.0 API): instantiate, setup /
     initialization (`tolerance` not given, decision 12), then for each communication point `t_k = start + k * h`
-    (computed, not accumulated): stimuli interpolated at `t_k` (step 2), `DoStep`, outputs read; terminate, free;
-    messages of the container forwarded to the logger;
+    (computed, not accumulated): stimuli interpolated at `t_k` (step 2), outputs read and recorded at `t_k`
+    (decision 21), `DoStep`; terminate, free; messages of the container forwarded to the logger (debug), the last
+    ones given with a failure;
+  - start and stop times of decision 20; the messages of the builder of the temporary container are debug messages
+    (its errors on the inputs without stimulus would fail `-check`);
   - result: a `TimeSeries` of the outputs.
 - No container library for the host platform: `SimulationUnavailable`, turned into a warning by the checker
   (decision 6).
