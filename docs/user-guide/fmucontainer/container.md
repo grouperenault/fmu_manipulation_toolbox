@@ -117,6 +117,11 @@ initialized with the outputs of `A`, then `C` with the outputs of `B`.
   initialization.
 - The [reset of an embedded FMU](container-reset.md) initializes it again with the current values of its inputs,
   without propagation to the other FMU's.
+- The start values, then the values set by the importer of the container, are set **before** `fmi2SetupExperiment`
+  of an FMI 2.0 FMU (an FMU may use its parameters there, as the XCP service of
+  [FMI-LS-XCP](ls-xcp.md#configuration-mode)): the values set by the importer prevail over the start values.
+- The structural parameters exposed by the container are set in the *Configuration Mode* of their FMU, see
+  [FMI-LS-XCP](ls-xcp.md#configuration-mode).
 
 The FMI calls are detailed in [Initialization FMI Sequence](../../developer/init-fmi-sequence.md).
 
@@ -545,6 +550,11 @@ Those containers may embed
   - Arrays are not supported
 
 - *FMU 3.0* in [Model-Exchange mode](#model-exchange-support).
+
+## Layered standards
+
+- [FMI-LS-BUS](ls-bus.md): networks of FMUs (CAN, LIN, FlexRay, Ethernet) inside a container.
+- [FMI-LS-XCP](ls-xcp.md): the XCP services of the embedded FMUs are forwarded by the container.
 
 ## Model-Exchange support
 
