@@ -25,6 +25,9 @@ extern "C" {
  /*----------------------------------------------------------------------------
                           C A C H E _ T Y P E _ T
 ----------------------------------------------------------------------------*/
+/* port->cache.offset of a port without link: it has no place in the cache. */
+#define CACHE_NONE                  (~0UL)
+
 /* Types of the cache. */
 #define DECLARE_CACHE_TYPE(variable, fmi_type, c_type) CACHE_TYPE_ ## variable,
 typedef enum {

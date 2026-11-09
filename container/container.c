@@ -1765,7 +1765,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                                                                                                                 \
         unsigned long vr_counter = 0;                                                                           \
         for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                               \
-            container_port_t port;                                                                              \
+            container_port_t port = { 0 };    /* its cache is set by cache_new() */                             \
             fmu_vr_t vr;                                                                                        \
             int offset;                                                                                         \
                                                                                                                 \
@@ -1775,9 +1775,6 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                 return -1;                                                                                      \
             }                                                                                                   \
             port.links = &container-> variable .links [vr_counter];                                              \
-            port.cache.offset = CONTAINER_NO_CACHE;                                                             \
-            port.cache.nb = 0;                                                                                 \
-            port.cache.deferred = false;                                                                              \
             for(unsigned long j=0; j < port.nb; j += 1) {                                                       \
                 int read;                                                                                       \
                 long fmu_id;                                                                                    \

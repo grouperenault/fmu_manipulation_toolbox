@@ -32,8 +32,6 @@ typedef struct {
                       C O N T A I N E R _ P O R T _ T
 ----------------------------------------------------------------------------*/
 
-#define CONTAINER_NO_CACHE			(~0UL)
-
 /* Port of the container: its interface (dimension, links to the embedded FMUs or to local variables), used by the
    setters, the getters and the clocks, and its cache (values set by the importer, see cache.h). */
 typedef struct {
@@ -41,7 +39,7 @@ typedef struct {
 	unsigned long               nb;	 /* number of connected FMU from a container port */
     container_vr_t              *links;
 	struct {
-		unsigned long			offset;		/* of its values in the cache, CONTAINER_NO_CACHE if no link */
+		unsigned long			offset;		/* of its values in the cache, CACHE_NONE if no link */
 		unsigned long			nb;			/* number of values set by the importer, 0 if none yet */
 		bool					deferred;	/* in the set of the ports whose local variables are written after the
 											   pending step */

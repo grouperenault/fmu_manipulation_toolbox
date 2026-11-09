@@ -38,7 +38,7 @@ cache_t *cache_new(container_t *container) {
         container_port_t *port = &container-> variable .ports [i];                                             \
         port->cache.nb = 0;                                                                                     \
         port->cache.deferred = false;                                                                           \
-        port->cache.offset = CONTAINER_NO_CACHE;                                                                \
+        port->cache.offset = CACHE_NONE;                                                                \
         if (port->nb > 0) {                                                                                     \
             port->cache.offset = cache->nb_ ## variable;                                                        \
             cache->nb_ ## variable += port->dimension;                                                          \
@@ -170,7 +170,7 @@ void cache_reset(container_t *container) {
 int cache_store_ ## type(container_t *container, container_port_t *port, const c_type value[],                  \
                          size_t nvalues) {                                                                      \
     const logger_t *logger = &container->logger;                                                                \
-    if (port->cache.offset == CONTAINER_NO_CACHE)                                                               \
+    if (port->cache.offset == CACHE_NONE)                                                               \
         return 0;                                                                                               \
     if (nvalues > port->dimension)                                                                              \
         nvalues = port->dimension;                                                                              \
@@ -200,7 +200,7 @@ CACHE_STORE(booleans1,   bool,       "%d",           int)
 int cache_store_strings(container_t *container, container_port_t *port, const char * const value[],
                         size_t nvalues) {
     const logger_t *logger = &container->logger;
-    if (port->cache.offset == CONTAINER_NO_CACHE)
+    if (port->cache.offset == CACHE_NONE)
         return 0;
     if (nvalues > port->dimension)
         nvalues = port->dimension;
@@ -220,7 +220,7 @@ int cache_store_strings(container_t *container, container_port_t *port, const ch
 int cache_store_binaries(container_t *container, container_port_t *port, const size_t size[],
                          const uint8_t * const value[], size_t nvalues) {
     const logger_t *logger = &container->logger;
-    if (port->cache.offset == CONTAINER_NO_CACHE)
+    if (port->cache.offset == CACHE_NONE)
         return 0;
     if (nvalues > port->dimension)
         nvalues = port->dimension;
@@ -240,7 +240,7 @@ int cache_store_binaries(container_t *container, container_port_t *port, const s
 
 /* Whether the port has all its values in the cache. */
 static bool cache_has_values(const container_port_t *port) {
-    return port->cache.offset != CONTAINER_NO_CACHE && port->cache.nb == port->dimension;
+    return port->cache.offset != CACHE_NONE && port->cache.nb == port->dimension;
 }
 
 
