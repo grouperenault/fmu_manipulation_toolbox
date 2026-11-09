@@ -10,6 +10,10 @@ extern "C" {
 #include "library.h"
 #include "logger.h"
 
+/* Declared in cache.h and solver.h (which include this file): referenced by container_t. */
+struct cache_s;
+struct solver_s;
+
 /* Format version of container.txt: the only one read by the runtime. Must be equal to CONTAINER_TXT_VERSION of
  * fmu_manipulation_toolbox/container/types.py. */
 #define CONTAINER_TXT_VERSION		9
