@@ -341,10 +341,10 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     for (size_t i = 0; i < nValueReferences; i += 1) {                                                                  \
         const uint32_t local_vr = valueReferences[i] & 0xFFFFFF;                                                        \
         container_port_t *port = &container-> type .ports [local_vr];                                                   \
-        if (cache_store_ ## type(container, port, &value[value_index], port->dimension) < 0)                            \
+        const int write_locals = cache_set_ ## type(container, port, &value[value_index], port->dimension);             \
+        if (write_locals < 0)                                                                                           \
             return fmi3Error;                                                                                           \
-        const bool write_locals = cache_port_set(container, CACHE_TYPE_ ## type, port);                                 \
-        for(unsigned int j = 0; j < port->nb && write_locals; j += 1) {                                                 \
+        for(unsigned int j = 0; j < port->nb && write_locals > 0; j += 1) {                                             \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                              \
             if ((long)port->links[j].fmu_id >= 0)                                                                       \
                 continue;                                                                                               \
@@ -387,10 +387,10 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
     for (size_t i = 0; i < nvr; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
         container_port_t* port = &container->strings.ports[vr];
-        if (cache_store_strings(container, port, &value[value_index], port->dimension) < 0)
+        const int write_locals = cache_set_strings(container, port, &value[value_index], port->dimension);
+        if (write_locals < 0)
             return fmi3Error;
-        const bool write_locals = cache_port_set(container, CACHE_TYPE_strings, port);
-        for (unsigned int j = 0; j < port->nb && write_locals; j += 1) {
+        for (unsigned int j = 0; j < port->nb && write_locals > 0; j += 1) {
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
             if ((long)port->links[j].fmu_id >= 0)
                 continue;
@@ -426,11 +426,11 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
         container_port_t *port = &container->binaries.ports[vr];
-        if (cache_store_binaries(container, port, &valueSizes[value_index], &values[value_index],
-                                     port->dimension) < 0)
+        const int write_locals = cache_set_binaries(container, port, &valueSizes[value_index], &values[value_index],
+                                                    port->dimension);
+        if (write_locals < 0)
             return fmi3Error;
-        const bool write_locals = cache_port_set(container, CACHE_TYPE_binaries, port);
-        for (unsigned int j = 0; j < port->nb && write_locals; j += 1) {
+        for (unsigned int j = 0; j < port->nb && write_locals > 0; j += 1) {
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
             if ((long)port->links[j].fmu_id >= 0)
                 continue;

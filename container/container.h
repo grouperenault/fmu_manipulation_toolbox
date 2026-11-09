@@ -41,6 +41,7 @@ typedef struct {
 	struct {
 		unsigned long			offset;		/* of its values in the cache, CACHE_NONE if no link */
 		unsigned long			nb;			/* number of values set by the importer, 0 if none yet */
+		bool					has_local;	/* linked to local variables (set by cache_new) */
 		bool					deferred;	/* in the set of the ports whose local variables are written after the
 											   pending step */
 	} cache;

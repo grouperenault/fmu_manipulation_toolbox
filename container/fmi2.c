@@ -241,10 +241,10 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
     for (size_t i = 0; i < nvr; i += 1) {                                                                                       \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                             \
         container_port_t *port = &container-> type .ports [local_vr];                                                           \
-        if (cache_store_ ## type(container, port, &value[i], 1) < 0)                                                            \
+        const int write_locals = cache_set_ ## type(container, port, &value[i], 1);                                             \
+        if (write_locals < 0)                                                                                                   \
             return fmi2Error;                                                                                                   \
-        const bool write_locals = cache_port_set(container, CACHE_TYPE_ ## type, port);                                         \
-        for(unsigned long j = 0; j < port->nb && write_locals; j += 1) {                                                        \
+        for(unsigned long j = 0; j < port->nb && write_locals > 0; j += 1) {                                                    \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                                      \
             if ((long)port->links[j].fmu_id >= 0)                                                                               \
                 continue;                                                                                                       \
@@ -271,10 +271,10 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
     for(size_t i = 0; i < nvr; i += 1) {
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
         container_port_t* port = &container->strings.ports[local_vr];
-        if (cache_store_strings(container, port, &value[i], 1) < 0)
+        const int write_locals = cache_set_strings(container, port, &value[i], 1);
+        if (write_locals < 0)
             return fmi2Error;
-        const bool write_locals = cache_port_set(container, CACHE_TYPE_strings, port);
-        for(unsigned long j = 0; j < port->nb && write_locals; j += 1) {
+        for(unsigned long j = 0; j < port->nb && write_locals > 0; j += 1) {
             if ((long)port->links[j].fmu_id >= 0)
                 continue;
             if (fmu_string_copy(&container->strings.locals[port->links[j].fmu_vr], value[i])) {

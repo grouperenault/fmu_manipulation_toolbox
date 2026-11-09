@@ -49,10 +49,12 @@ cache_t *cache_new(container_t *container) {
             port->cache.offset = cache->nb_ ## variable;                              \
             cache->nb_ ## variable += port->dimension;                                \
         }                                                                             \
+        port->cache.has_local = false;                                                \
         for (unsigned long j = 0; j < port->nb; j += 1) {                             \
             container_vr_t *link = &port->links[j];                                   \
             link->cache.in_set = false;                                               \
             link->cache.start_reset = (long)link->fmu_id >= 0 ? (reset_of_link) : -1; \
+            port->cache.has_local |= (long)link->fmu_id < 0;                          \
         }                                                                             \
     }                                                                                 \
     CACHE_ALLOC(cache->variable, cache->nb_ ## variable)
@@ -179,11 +181,52 @@ void cache_reset(container_t *container) {
                     V A L U E S   S E T   B Y   T H E   I M P O R T E R
 ----------------------------------------------------------------------------*/
 
-/* cache_store_<type>(): fmi*Set of a numeric port. Copies its values in the cache (at most its dimension) and
-   records how many were set. A port without link (CACHE_NONE) is ignored. Returns 0. */
+/* Appends an entry to a set. link is NULL in the set of the deferred ports. */
+static void cache_set_add(cache_set_t *set, cache_type_t type, container_port_t *port, container_vr_t *link) {
+    /* The set holds at most one entry per link (or per port): allocated for all of them */
+    set->entries[set->nb].type = type;
+    set->entries[set->nb].port = port;
+    set->entries[set->nb].link = link;
+    set->nb += 1;
+}
+
+
+/* Adds a link to the set of its FMU, unless it is already in it: its value is set at the next synchronization of
+   the FMU. A link set again before stays at its place: the FMU gets the values in the order of the first calls. */
+static void cache_mark_link(cache_t *cache, cache_type_t type, container_port_t *port, container_vr_t *link) {
+    if (!link->cache.in_set) {
+        link->cache.in_set = true;
+        cache_set_add(&cache->sets[link->fmu_id], type, port, link);
+    }
+}
+
+
+/* Once the values of a port are stored: its links to embedded FMUs join the sets of their FMU. Returns 1 when the
+   caller writes now its local variables; while a step is pending, a port linked to local variables joins the set of
+   the deferred ports instead. */
+static int cache_port_set(container_t *container, cache_type_t type, container_port_t *port) {
+    for (unsigned long j = 0; j < port->nb; j += 1) {
+        if ((long)port->links[j].fmu_id >= 0)
+            cache_mark_link(container->cache, type, port, &port->links[j]);
+    }
+    if (!port->cache.has_local)
+        return 0;
+    if (container->step_pending) {
+        if (!port->cache.deferred) {
+            port->cache.deferred = true;
+            cache_set_add(&container->cache->deferred, type, port, NULL);
+        }
+        return 0;
+    }
+    return 1;
+}
+
+
+/* cache_set_<type>(): fmi*Set of a numeric port. Copies its values in the cache (at most its dimension), records how
+   many were set and adds its links to the sets (cache_port_set). A port without link (CACHE_NONE) is ignored. */
 #define CACHE_STORE(type, c_type, format, cast)                                                   \
-int cache_store_ ## type(container_t *container, container_port_t *port, const c_type value[],    \
-                         size_t nvalues) {                                                        \
+int cache_set_ ## type(container_t *container, container_port_t *port, const c_type value[],      \
+                       size_t nvalues) {                                                          \
     const logger_t *logger = &container->logger;                                                  \
     if (port->cache.offset == CACHE_NONE)                                                         \
         return 0;                                                                                 \
@@ -194,7 +237,7 @@ int cache_store_ ## type(container_t *container, container_port_t *port, const c
     port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */            \
     LOGGER_DEBUG("[DEBUG] Cache " #type " [%lu] = " format " (%zu value(s))", port->cache.offset, \
                  (cast)value[0], nvalues);                                                        \
-    return 0;                                                                                     \
+    return cache_port_set(container, CACHE_TYPE_ ## type, port);                                  \
 }
 
 CACHE_STORE(reals64,     double,     "%g",           double)
@@ -213,10 +256,10 @@ CACHE_STORE(booleans1,   bool,       "%d",           int)
 
 
 /* fmi*Set of a string port: copies its values in the cache, without allocation when they fit the capacity of their
-   places. A port without link is ignored. Returns 0, or -1 on an allocation failure (logged; the port has no value
-   set anymore). */
-int cache_store_strings(container_t *container, container_port_t *port, const char * const value[],
-                        size_t nvalues) {
+   places, and adds its links to the sets. A port without link is ignored. -1 on an allocation failure (logged; the
+   port has no value set anymore). */
+int cache_set_strings(container_t *container, container_port_t *port, const char * const value[],
+                      size_t nvalues) {
     const logger_t *logger = &container->logger;
     if (port->cache.offset == CACHE_NONE)
         return 0;
@@ -231,15 +274,15 @@ int cache_store_strings(container_t *container, container_port_t *port, const ch
     }
     port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */
     LOGGER_DEBUG("[DEBUG] Cache strings [%lu] = %s (%zu value(s))", port->cache.offset, value[0], nvalues);
-    return 0;
+    return cache_port_set(container, CACHE_TYPE_strings, port);
 }
 
 
 /* fmi*Set of a binary port: copies its values (size[k] bytes from value[k]) in the cache, without allocation when they
-   fit the capacity of their places. A port without link is ignored. Returns 0, or -1 on an allocation failure
-   (logged; the port has no value set anymore). */
-int cache_store_binaries(container_t *container, container_port_t *port, const size_t size[],
-                         const uint8_t * const value[], size_t nvalues) {
+   fit the capacity of their places, and adds its links to the sets. A port without link is ignored. -1 on an
+   allocation failure (logged; the port has no value set anymore). */
+int cache_set_binaries(container_t *container, container_port_t *port, const size_t size[],
+                       const uint8_t * const value[], size_t nvalues) {
     const logger_t *logger = &container->logger;
     if (port->cache.offset == CACHE_NONE)
         return 0;
@@ -255,7 +298,7 @@ int cache_store_binaries(container_t *container, container_port_t *port, const s
     port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */
     LOGGER_DEBUG("[DEBUG] Cache binaries [%lu] = %zu byte(s) (%zu value(s))", port->cache.offset, size[0],
                  nvalues);
-    return 0;
+    return cache_port_set(container, CACHE_TYPE_binaries, port);
 }
 
 
@@ -308,47 +351,6 @@ bool cache_read_binaries(const container_t *container, const container_port_t *p
 /*----------------------------------------------------------------------------
                                   S E T S
 ----------------------------------------------------------------------------*/
-
-/* Appends an entry to a set. link is NULL in the set of the deferred ports. */
-static void cache_set_add(cache_set_t *set, cache_type_t type, container_port_t *port, container_vr_t *link) {
-    /* The set holds at most one entry per link (or per port): allocated for all of them */
-    set->entries[set->nb].type = type;
-    set->entries[set->nb].port = port;
-    set->entries[set->nb].link = link;
-    set->nb += 1;
-}
-
-
-/* Adds a link to the set of its FMU, unless it is already in it: its value is set at the next synchronization of
-   the FMU. A link set again before stays at its place: the FMU gets the values in the order of the first calls. */
-static void cache_mark_link(cache_t *cache, cache_type_t type, container_port_t *port, container_vr_t *link) {
-    if (!link->cache.in_set) {
-        link->cache.in_set = true;
-        cache_set_add(&cache->sets[link->fmu_id], type, port, link);
-    }
-}
-
-
-/* fmi*Set of a port, once its values are stored: its links to embedded FMUs join the sets of their FMU. While a step
-   is pending, a port linked to local variables joins the set of the deferred ports, and false is returned: the
-   caller writes its local variables only when true is returned. */
-bool cache_port_set(container_t *container, cache_type_t type, container_port_t *port) {
-    bool has_local = false;
-
-    for (unsigned long j = 0; j < port->nb; j += 1) {
-        if ((long)port->links[j].fmu_id < 0)
-            has_local = true;
-        else
-            cache_mark_link(container->cache, type, port, &port->links[j]);
-    }
-    if (has_local && container->step_pending && !port->cache.deferred) {
-        port->cache.deferred = true;
-        cache_set_add(&container->cache->deferred, type, port, NULL);
-    }
-
-    return !container->step_pending;
-}
-
 
 /* Adds again to the set of an FMU the links that have a value set by the importer, so that these values prevail over
    the start values just set: all of them (reset < 0), or those of the variables whose start value has this <RESET>
@@ -440,11 +442,14 @@ static fmu_status_t cache_sync_entry(container_t *container, const cache_set_ent
 fmu_status_t cache_sync_fmu(container_t *container, unsigned long fmu_id, bool continuous_only) {
     const logger_t *logger = &container->logger;
     cache_set_t *set = &container->cache->sets[fmu_id];
+    /* Without structural parameter nor Continuous Time Mode, every entry is set */
+    const bool set_all = !container->fmu[fmu_id].has_configuration_mode && !continuous_only;
     unsigned long kept = 0;
 
     for (unsigned long i = 0; i < set->nb; i += 1) {
         cache_set_entry_t *entry = &set->entries[i];
-        const cache_sync_action_t action = cache_sync_action(container, entry, continuous_only);
+        const cache_sync_action_t action = set_all ? CACHE_SYNC_SET :
+                                           cache_sync_action(container, entry, continuous_only);
 
         if (action == CACHE_SYNC_KEEP) {
             set->entries[kept++] = *entry;
