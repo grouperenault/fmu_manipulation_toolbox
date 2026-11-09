@@ -175,7 +175,8 @@ int test_cache_refused_value(void) {
 }
 
 
-/* The FMU gets the values set on the container in the order of the calls of the importer, after its start values. */
+/* After its start values, the FMU gets the values set on the container type by type (in the order of the types of the
+   cache: integers, then booleans, then strings), each value once. */
 int test_cache_order_of_the_calls(void) {
     fmi2CallbackFunctions functions;
 
@@ -195,9 +196,9 @@ int test_cache_order_of_the_calls(void) {
     fmi2FreeInstance(container);
 
     TEST_ASSERT(strcmp(read_journal("xcp_fmi2"), "set port=6002\n"
-                                                 "set address=0.0.0.0\n"
                                                  "set port=7006\n"
                                                  "set enable=1\n"
+                                                 "set address=0.0.0.0\n"
                                                  "start tcp 0.0.0.0:7006 at fmi2SetupExperiment\n") == 0);
     return 0;
 }
