@@ -187,7 +187,8 @@ fmi3Status fmi3Reset(fmi3Instance instance) {
 
 
 /* Getting and setting variable values */
-#define FMI_GETTER(type, fmi_type, function_name)                                                                   \
+/* local: how a local variable gives its value (empty for the numbers, .data for the strings) */
+#define FMI_GETTER(type, fmi_type, function_name, local)                                                                   \
 fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference valueReferences[],                  \
     size_t nValueReferences, fmi3 ## fmi_type value[], size_t nValues) {                                            \
                                                                                                                     \
@@ -207,7 +208,7 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                 return fmi3Error;                                                                                   \
             }                                                                                                       \
             for(size_t j = 0; j < port->dimension; j += 1)                                                          \
-                value[value_index + j] = container-> type [fmu_vr + j];                                             \
+                value[value_index + j] = container-> type [fmu_vr + j] local;                                       \
         } else if (!cache_read_ ## type(container, port, &value[value_index])) { /* else: set by the importer */    \
             if (cache_sync_fmu_now(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK) /* read after write */ \
                 return fmi3Error;                                                                                   \
@@ -232,18 +233,18 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
 }
 
 
-FMI_GETTER(reals64,     Float64,    fmuGetReal64)
-FMI_GETTER(reals32,     Float32,    fmuGetReal32)
-FMI_GETTER(integers8,   Int8,       fmuGetInteger8)
-FMI_GETTER(uintegers8,  UInt8,      fmuGetUInteger8)
-FMI_GETTER(integers16,  Int16,      fmuGetInteger16)
-FMI_GETTER(uintegers16, UInt16,     fmuGetUInteger16)
-FMI_GETTER(integers32,  Int32,      fmuGetInteger32)
-FMI_GETTER(uintegers32, UInt32,     fmuGetUInteger32)
-FMI_GETTER(integers64,  Int64,      fmuGetInteger64)
-FMI_GETTER(uintegers64, UInt64,     fmuGetUInteger64)
-FMI_GETTER(booleans1,   Boolean,    fmuGetBoolean1)
-FMI_GETTER(strings,     String,     fmuGetString)
+FMI_GETTER(reals64,     Float64,    fmuGetReal64, )
+FMI_GETTER(reals32,     Float32,    fmuGetReal32, )
+FMI_GETTER(integers8,   Int8,       fmuGetInteger8, )
+FMI_GETTER(uintegers8,  UInt8,      fmuGetUInteger8, )
+FMI_GETTER(integers16,  Int16,      fmuGetInteger16, )
+FMI_GETTER(uintegers16, UInt16,     fmuGetUInteger16, )
+FMI_GETTER(integers32,  Int32,      fmuGetInteger32, )
+FMI_GETTER(uintegers32, UInt32,     fmuGetUInteger32, )
+FMI_GETTER(integers64,  Int64,      fmuGetInteger64, )
+FMI_GETTER(uintegers64, UInt64,     fmuGetUInteger64, )
+FMI_GETTER(booleans1,   Boolean,    fmuGetBoolean1, )
+FMI_GETTER(strings,     String,     fmuGetString, .data)
 
 
 fmi3Status fmi3GetBinary(fmi3Instance instance,
@@ -393,8 +394,10 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
             if ((long)port->links[j].fmu_id >= 0)
                 continue;
             for(size_t k = 0; k < port->dimension; k += 1) {
-                free(container->strings[fmu_vr + k]);
-                container->strings[fmu_vr + k] = strdup(value[value_index + k]);
+                if (fmu_string_copy(&container->strings[fmu_vr + k], value[value_index + k])) {
+                    LOGGER_ERROR("Cannot allocate memory for SetString");
+                    return fmi3Error;
+                }
             }
         }
         value_index += port->dimension;
@@ -431,18 +434,11 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
             if ((long)port->links[j].fmu_id >= 0)
                 continue;
             for(size_t k = 0; k < port->dimension; k += 1) {
-                if (container->binaries[fmu_vr + k].max_size < valueSizes[value_index + k]) {
-                    container->binaries[fmu_vr + k].data = realloc(container->binaries[fmu_vr + k].data, valueSizes[value_index + k]);
-                    if (! container->binaries[fmu_vr + k].data) {
-                        container->binaries[fmu_vr + k].max_size = 0;
-                        LOGGER_ERROR("Cannot allocate memory for SetBinary");
-                        return fmi3Error;
-                    }
-                    container->binaries[fmu_vr + k].max_size = valueSizes[value_index + k];
+                if (fmu_binary_copy(&container->binaries[fmu_vr + k], values[value_index + k],
+                                    valueSizes[value_index + k])) {
+                    LOGGER_ERROR("Cannot allocate memory for SetBinary");
+                    return fmi3Error;
                 }
-
-                container->binaries[fmu_vr + k].size = valueSizes[value_index + k];
-                memcpy(container->binaries[fmu_vr + k].data, values[value_index + k], valueSizes[value_index + k]);
             }
         }
         value_index += port->dimension;

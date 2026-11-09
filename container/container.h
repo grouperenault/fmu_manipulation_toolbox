@@ -147,7 +147,7 @@ typedef struct container_s {
 	c_type						* variable;
 
 	FOR_ALL_NUMERIC_TYPES(DECLARE_LOCAL)
-	DECLARE_LOCAL(strings, String, char *)
+	DECLARE_LOCAL(strings, String, fmu_string_t)
 	DECLARE_LOCAL(binaries, Binary, fmu_binary_t)
 	DECLARE_LOCAL(clocks, Clock, bool)
 

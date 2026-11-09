@@ -46,6 +46,7 @@ extern int test_config_crlf(void);
 extern int test_thread_barrier(void);
 extern int test_thread_barrier_consecutive(void);
 extern int test_configure_empty(void);
+extern int test_local_strings(void);
 extern int test_container_new_null(void);
 extern int test_configure_one_fmu(void);
 extern int test_configure_one_fmu_mt(void);

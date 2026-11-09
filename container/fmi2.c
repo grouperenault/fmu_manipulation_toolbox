@@ -188,7 +188,8 @@ fmi2Status fmi2Reset(fmi2Component c) {
 
 
 /* Getting and setting variable values */
-#define FMI_GETTER(type, fmi_type, function_name)                                                                       \
+/* local: how a local variable gives its value (empty for the numbers, .data for the strings) */
+#define FMI_GETTER(type, fmi_type, function_name, local)                                                                       \
 fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2 ## fmi_type value[]) { \
     container_t* container = (container_t*)c;                                                                           \
     const logger_t *logger = &container->logger;                                                                        \
@@ -204,7 +205,7 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                 LOGGER_ERROR("Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);            \
                 return fmi2Error;                                                                                       \
             }                                                                                                           \
-            value[i] = container-> type [fmu_vr];                                                                       \
+            value[i] = container-> type [fmu_vr] local;                                                                 \
         } else if (!cache_read_ ## type(container, port, &value[i])) {  /* else: the value set by the importer */       \
             if (cache_sync_fmu_now(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)  /* read after write */  \
                 return fmi2Error;                                                                                       \
@@ -222,10 +223,10 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 }
 
 
-FMI_GETTER(reals64,     Real,       fmuGetReal64)
-FMI_GETTER(integers32,  Integer,    fmuGetInteger32)
-FMI_GETTER(booleans,    Boolean,    fmuGetBoolean)
-FMI_GETTER(strings,     String,     fmuGetString)
+FMI_GETTER(reals64,     Real,       fmuGetReal64, )
+FMI_GETTER(integers32,  Integer,    fmuGetInteger32, )
+FMI_GETTER(booleans,    Boolean,    fmuGetBoolean, )
+FMI_GETTER(strings,     String,     fmuGetString, .data)
 #undef FMI_GETTER
 
 /* The values set by the importer go to the cache of the port: the embedded FMUs get them when they are synchronized
@@ -263,6 +264,7 @@ FMI_SETTER(booleans,    Boolean)
 
 fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t nvr, const fmi2String value[]) {
     container_t* container = (container_t*)c;
+    const logger_t *logger = &container->logger;
 
     for(size_t i = 0; i < nvr; i += 1) {
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
@@ -273,8 +275,10 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
         for(unsigned long j = 0; j < port->nb && write_locals; j += 1) {
             if ((long)port->links[j].fmu_id >= 0)
                 continue;
-            free(container->strings[port->links[j].fmu_vr]);
-            container->strings[port->links[j].fmu_vr] = strdup(value[i]);
+            if (fmu_string_copy(&container->strings[port->links[j].fmu_vr], value[i])) {
+                LOGGER_ERROR("Cannot allocate memory for SetString");
+                return fmi2Error;
+            }
         }
     }
     return fmi2OK;

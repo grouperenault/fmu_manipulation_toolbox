@@ -900,14 +900,8 @@ fmu_status_t container_reset(container_t* container) {
     FOR_ALL_NUMERIC_TYPES(RESET_LOCAL)
     RESET_LOCAL(clocks, Clock, bool)
 #undef RESET_LOCAL
-    for (unsigned long i = 0; i < container->nb_local_strings; i += 1) {
-        free(container->strings[i]);
-        container->strings[i] = strdup("");
-        if (!container->strings[i]) {
-            LOGGER_ERROR("Container: cannot allocate memory to reset a string.");
-            return FMU_STATUS_ERROR;
-        }
-    }
+    for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
+        container->strings[i].data[0] = '\0';
     for (unsigned long i = 0; i < container->nb_local_binaries; i += 1)
         container->binaries[i].size = 0;
 
@@ -1710,16 +1704,18 @@ static int read_conf_local(container_t* container, config_file_t* file) {
         container-> variable = NULL;
     
     FOR_ALL_NUMERIC_TYPES(ALLOC)
-    ALLOC(strings, String, char *)
 
     /* Strings cannot be NULL */
-    for (unsigned long i = 0; i < container->nb_local_strings; i += 1) {
-        container->strings[i] = strdup("");
-        if (!container->strings[i]) {
-            CONFIG_ERROR("Virtual memory exhaust. (local strings)");
-            return -2;
+    if (container->nb_local_strings) {
+        CONFIG_ALLOC(container->strings, container->nb_local_strings);
+        for (unsigned long i = 0; i < container->nb_local_strings; i += 1) {
+            if (fmu_string_copy(&container->strings[i], "")) {
+                CONFIG_ERROR("Virtual memory exhaust. (local strings)");
+                return -2;
+            }
         }
-    }
+    } else
+        container->strings = NULL;
 
     /* Binaries have a complex type */
     if (container->nb_local_binaries) {
@@ -2792,9 +2788,9 @@ void container_free(container_t *container) {
     free(container-> variable);
 
     FOR_ALL_NUMERIC_TYPES(FREE)
-    for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
-        free(container->strings[i]);
-    FREE(strings, String, char *)
+    for (unsigned long i = 0; i < container->nb_local_strings && container->strings; i += 1)
+        free(container->strings[i].data);
+    FREE(strings, String, fmu_string_t)
     for (unsigned long i = 0; i < container->nb_local_binaries; i += 1)
         free(container->binaries[i].data);
     FREE(binaries, Binary, fmu_binary_t)

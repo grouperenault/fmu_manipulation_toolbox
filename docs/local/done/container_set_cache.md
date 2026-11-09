@@ -222,7 +222,7 @@ fmu_string_copy() and fmu_binary_copy() replace the six copies of the code
 that reallocates and copies a string or a binary.
 ```
 
-## Review (2026-11-09, after step 6)
+## Review (2026-11-09, after step 7)
 
 Step 2 needed no commit: the whole test suite passed without change after step 1, the reference traces of the probe
 FMU included (the scenarios set no value between two synchronizations).
@@ -246,7 +246,12 @@ the ports of local variables set while a step is pending).
   while a step is pending.
 - The synchronization points are explicit and documented (`docs/developer/dostep-fmi-sequence.md`); the values reach
   an FMU in the order of the calls of the importer.
-- Size, against `integration`: +821 / −525 lines in the runtime, `cache.c` and `cache.h` (648 lines) included
+- Step 7: strings and binaries follow one model (`fmu_string_t`, `fmu_binary_t`: a value and its capacity); the code
+  that reallocates and copies them is in `fmu_string_copy()` and `fmu_binary_copy()` only (it was written six times).
+  An array of local strings or binaries is given to the FMI functions as arrays built from them: the binary arrays
+  of dimension > 1 were given the fields of the first element, and a clocked string output of dimension > 1 was read
+  in a single pointer.
+- Size, after step 6, against `integration`: +821 / −525 lines in the runtime, `cache.c` and `cache.h` (648 lines) included
   (`container.c` −282, `fmi2.c` −27, `fmi3.c` −36, `container.h` −13, `fmu.h` −5, `fmu.c` +11): the sets (types,
   allocation, dispatch by type) and their comments.
 
@@ -275,10 +280,13 @@ inlined there):
   costs a synchronization.
 - A value set several times between two steps reaches the FMU once. A string set by the importer is copied without
   allocation when it fits the capacity of its place in the cache; a binary is synchronized without allocation.
+- Step 7: a string output of an FMU is copied in its local variable without allocation once the local has the
+  capacity (it was freed and duplicated at each step).
 
 ### Test suite
 
-- Native tests: 3 new (`cache_read_after_write`, `cache_refused_value`, `cache_order_of_the_calls`), 1 adjusted
+- Native tests: 4 new (`cache_read_after_write`, `cache_refused_value`, `cache_order_of_the_calls`, and at step 7
+  `local_strings`: a string output reaches the input it is linked to through a local string), 1 adjusted
   (`xcp_fmi2_before_setup`: the value set by the importer reaches the FMU once, before `fmi2SetupExperiment`, instead of
   twice). The fixture `xcp_fmi2` exposes `XCP.TCP.Enable`, `XCP.TCP.ListenAddress` and the output `counter` too.
 - Python tests: unchanged, all passing (2685, `slow` and GUI included); reference traces of the probe FMU unchanged.

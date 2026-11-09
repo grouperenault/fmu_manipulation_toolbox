@@ -188,11 +188,23 @@ typedef struct {
                             F M U _ B I N A R Y _ T
 ----------------------------------------------------------------------------*/
 
+/* A binary and a string keep their capacity (max_size): a new value that fits is copied without allocation (see
+   fmu_binary_copy, fmu_string_copy). */
 typedef struct {
     uint8_t     *data;
     size_t      size;
     size_t      max_size;
-} fmu_binary_t; 
+} fmu_binary_t;
+
+
+/*----------------------------------------------------------------------------
+                            F M U _ S T R I N G _ T
+----------------------------------------------------------------------------*/
+
+typedef struct {
+    char        *data;      /* never NULL once set */
+    size_t      max_size;
+} fmu_string_t;
 
 
 /*----------------------------------------------------------------------------
@@ -456,6 +468,9 @@ extern fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_continuous_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu);
+/* Copies a value in a string or a binary, reallocated only when it does not fit. 0, or -1 on an allocation failure. */
+extern int fmu_string_copy(fmu_string_t *string, const char *value);
+extern int fmu_binary_copy(fmu_binary_t *binary, const uint8_t *data, size_t size);
 extern fmu_status_t fmuEnterConfigurationMode(fmu_t *fmu);
 extern fmu_status_t fmuExitConfigurationMode(fmu_t *fmu);
 

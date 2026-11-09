@@ -21,6 +21,10 @@ extern "C" {
  * cached.
  */
 
+
+ /*----------------------------------------------------------------------------
+                          C A C H E _ T Y P E _ T
+----------------------------------------------------------------------------*/
 /* Types of the cache. */
 #define DECLARE_CACHE_TYPE(variable, fmi_type, c_type) CACHE_TYPE_ ## variable,
 typedef enum {
@@ -32,7 +36,7 @@ typedef enum {
 
 
 /*----------------------------------------------------------------------------
-                          C A C H E _ S E T _ T
+                      C A C H E _ S E T _ E N T R Y _ T
 ----------------------------------------------------------------------------*/
 
 typedef struct {
@@ -41,6 +45,10 @@ typedef struct {
     container_vr_t              *link;      /* NULL in the set of the ports linked to local variables */
 } cache_set_entry_t;
 
+
+/*----------------------------------------------------------------------------
+                          C A C H E _ S E T _ T
+----------------------------------------------------------------------------*/
 /* Set of the variables set by the importer: allocated with the cache, for all the entries it may hold. */
 typedef struct {
     unsigned long               nb;
@@ -48,13 +56,10 @@ typedef struct {
     cache_set_entry_t           *entries;
 } cache_set_t;
 
-/* A cached string keeps its capacity: no allocation when a new value fits. */
-typedef struct {
-    char                        *data;
-    size_t                      max_size;
-} cache_string_t;
 
-
+/*----------------------------------------------------------------------------
+                          C A C H E _ S T R I N G _ T
+----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------
                               C A C H E _ T
 ----------------------------------------------------------------------------*/
@@ -66,7 +71,7 @@ typedef struct cache_s {
     c_type                      *variable;
 
     FOR_ALL_NUMERIC_TYPES(DECLARE_VALUES)
-    DECLARE_VALUES(strings, String, cache_string_t)
+    DECLARE_VALUES(strings, String, fmu_string_t)
     DECLARE_VALUES(binaries, Binary, fmu_binary_t)
 #undef DECLARE_VALUES
 

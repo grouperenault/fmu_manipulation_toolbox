@@ -55,7 +55,7 @@ cache_t *cache_new(container_t *container) {
     SETUP_VALUES(variable, fmi_type, c_type, fmu_start_reset_ ## variable(&container->fmu[link->fmu_id], link->fmu_vr))
 
     FOR_ALL_NUMERIC_TYPES(SETUP_NUMERIC)
-    SETUP_VALUES(strings, String, cache_string_t,
+    SETUP_VALUES(strings, String, fmu_string_t,
                  fmu_start_reset_strings(&container->fmu[link->fmu_id], link->fmu_vr))
     SETUP_VALUES(binaries, Binary, fmu_binary_t, -1)
 #undef SETUP_NUMERIC
@@ -205,19 +205,11 @@ int cache_store_strings(container_t *container, container_port_t *port, const ch
     if (nvalues > port->dimension)
         nvalues = port->dimension;
     for (size_t k = 0; k < nvalues; k += 1) {
-        cache_string_t *cached = &container->cache->strings[port->cache.offset + k];
-        const size_t size = strlen(value[k]) + 1;
-        if (cached->max_size < size) {
-            char *data = realloc(cached->data, size);
-            if (!data) {
-                LOGGER_ERROR("Cannot allocate memory to cache a string.");
-                port->cache.nb = 0;
-                return -1;
-            }
-            cached->data = data;
-            cached->max_size = size;
+        if (fmu_string_copy(&container->cache->strings[port->cache.offset + k], value[k])) {
+            LOGGER_ERROR("Cannot allocate memory to cache a string.");
+            port->cache.nb = 0;
+            return -1;
         }
-        memcpy(cached->data, value[k], size);
     }
     port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */
     LOGGER_DEBUG("[DEBUG] Cache strings [%lu] = %s (%zu value(s))", port->cache.offset, value[0], nvalues);
@@ -233,19 +225,11 @@ int cache_store_binaries(container_t *container, container_port_t *port, const s
     if (nvalues > port->dimension)
         nvalues = port->dimension;
     for (size_t k = 0; k < nvalues; k += 1) {
-        fmu_binary_t *cached = &container->cache->binaries[port->cache.offset + k];
-        if (cached->max_size < size[k]) {
-            uint8_t *data = realloc(cached->data, size[k]);
-            if (!data) {
-                LOGGER_ERROR("Cannot allocate memory to cache a binary.");
-                port->cache.nb = 0;
-                return -1;
-            }
-            cached->data = data;
-            cached->max_size = size[k];
+        if (fmu_binary_copy(&container->cache->binaries[port->cache.offset + k], value[k], size[k])) {
+            LOGGER_ERROR("Cannot allocate memory to cache a binary.");
+            port->cache.nb = 0;
+            return -1;
         }
-        cached->size = size[k];
-        memcpy(cached->data, value[k], size[k]);
     }
     port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */
     LOGGER_DEBUG("[DEBUG] Cache binaries [%lu] = %zu byte(s) (%zu value(s))", port->cache.offset, size[0],
@@ -482,25 +466,20 @@ fmu_status_t cache_end_pending_step(container_t *container) {
 #undef CASE_WRITE
             case CACHE_TYPE_strings:
                 for (unsigned long k = 0; k < port->cache.nb; k += 1) {
-                    free(container->strings[link->fmu_vr + k]);
-                    container->strings[link->fmu_vr + k] = strdup(cache->strings[port->cache.offset + k].data);
+                    if (fmu_string_copy(&container->strings[link->fmu_vr + k],
+                                        cache->strings[port->cache.offset + k].data)) {
+                        LOGGER_ERROR("Cannot allocate memory to set a deferred string.");
+                        return FMU_STATUS_ERROR;
+                    }
                 }
                 break;
             case CACHE_TYPE_binaries:
                 for (unsigned long k = 0; k < port->cache.nb; k += 1) {
                     const fmu_binary_t *cached = &cache->binaries[port->cache.offset + k];
-                    fmu_binary_t *local = &container->binaries[link->fmu_vr + k];
-                    if (local->max_size < cached->size) {
-                        uint8_t *buffer = realloc(local->data, cached->size);
-                        if (!buffer) {
-                            LOGGER_ERROR("Cannot allocate memory to set a deferred binary.");
-                            return FMU_STATUS_ERROR;
-                        }
-                        local->data = buffer;
-                        local->max_size = cached->size;
+                    if (fmu_binary_copy(&container->binaries[link->fmu_vr + k], cached->data, cached->size)) {
+                        LOGGER_ERROR("Cannot allocate memory to set a deferred binary.");
+                        return FMU_STATUS_ERROR;
                     }
-                    local->size = cached->size;
-                    memcpy(local->data, cached->data, cached->size);
                 }
                 break;
             }
