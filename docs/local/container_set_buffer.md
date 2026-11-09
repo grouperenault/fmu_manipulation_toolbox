@@ -27,6 +27,8 @@ with the FMUs at defined points, by one function.
 | 2 | Read after write (`Get` of an FMU after a `Set` of one of its inputs) | The pending values of the FMU are pushed to it before it is read: same result as today |
 | 3 | Scope | All the types that have a cache (numeric, strings, binaries); `fmi3SetClock` stays immediate |
 | 4 | Branch | `refactor/container-set-buffer`, from `integration` (after the merge of FMI-LS-XCP) |
+| 5 | One `fmuSet*` for several value references (one call per type and per FMU) | No: one call per link, as today (buffer and links between FMUs) |
+| 6 | `container.txt` | Unchanged (version 9): the buffer is the existing cache of each linked port; the state of the links is built when the container is loaded |
 
 Kept from FMI-LS-XCP: the values set by the importer prevail over the start values; structural parameters are set in
 Configuration Mode only.
