@@ -151,6 +151,19 @@ all the ports of the container. The links lose their deferred state: nothing is
 synchronized while a step is pending.
 ```
 
+## Step 5 — `container_port_t`: interface of the port and its cache
+
+`container_port_t` describes the interface of a port (dimension, links to the FMUs or to local variables: used by
+the setters, the getters, the clocks) and holds its cache (offset of its values, number of values set, membership of
+the deferred ports). Decided 2026-11-09: the fields of the cache are grouped in a sub-structure `cache`
+(`port->cache.offset`, `port->cache.nb`, `port->cache.deferred`), with no change of behaviour. The cache stays
+allocated for every linked port (outputs included): knowing the inputs would need a new format of `container.txt`.
+
+Commit message:
+```
+Container runtime: the fields of the cache of a port in a sub-structure
+```
+
 ## Review (2026-11-09, after step 4)
 
 Step 2 needed no commit: the whole test suite passed without change after step 1, the reference traces of the probe
