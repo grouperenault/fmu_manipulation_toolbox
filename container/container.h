@@ -10,10 +10,6 @@ extern "C" {
 #include "library.h"
 #include "logger.h"
 
-/* Declared in cache.h and solver.h (which include this file): referenced by container_t. */
-struct cache_s;
-struct solver_s;
-
 /* Format version of container.txt: the only one read by the runtime. Must be equal to CONTAINER_TXT_VERSION of
  * fmu_manipulation_toolbox/container/types.py. */
 #define CONTAINER_TXT_VERSION		9
@@ -25,9 +21,9 @@ struct solver_s;
 typedef struct {
 	fmu_vr_t					fmu_vr;
 	unsigned long				fmu_id;
-	struct {								/* links to an embedded FMU (see cache.h) */
-		bool					in_set;		/* in the set of its FMU */
-		int						start_reset;	/* <RESET> of the start value of the variable, -1 if none */
+	struct  {				                  /* links to an embedded FMU (see cache.h) */
+		bool					in_set;		  /* in the set of its FMU */
+		int						start_reset;  /* <RESET> of the start value of the variable, -1 if none */
 	} cache;
 } container_vr_t;
 

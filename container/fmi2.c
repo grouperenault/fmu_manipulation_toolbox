@@ -16,14 +16,16 @@
 ----------------------------------------------------------------------------*/
 
 /* unimplemented fmi2 functions */
-#define __NOT_IMPLEMENTED__                                                                                 \
-    logger_message(&((container_t *)c)->logger, LOGGER_LEVEL_ERROR, "Function '%s' is not implemented", __func__);  \
+#define __NOT_IMPLEMENTED__                                                 \
+    logger_message(&((container_t *)c)->logger, LOGGER_LEVEL_ERROR,         \
+                   "Function '%s' is not implemented", __func__);           \
     return fmi2Error;
 
-#define ASSERT_CONTAINER_STATE(_container, _state)                                  \
-    if (_container->state != _state) {                                              \
-    	logger_message(&(_container)->logger, LOGGER_LEVEL_ERROR, "Must be in state %s to call %s", #_state, __func__); \
-        return fmi2Error;                                                           \
+#define ASSERT_CONTAINER_STATE(_container, _state)                           \
+    if (_container->state != _state) {                                       \
+    	logger_message(&(_container)->logger, LOGGER_LEVEL_ERROR,            \
+                       "Must be in state %s to call %s", #_state, __func__); \
+        return fmi2Error;                                                    \
     }
 
 /*----------------------------------------------------------------------------
@@ -189,7 +191,7 @@ fmi2Status fmi2Reset(fmi2Component c) {
 
 /* Getting and setting variable values */
 /* local: how a local variable gives its value (empty for the numbers, .data for the strings) */
-#define FMI_GETTER(type, fmi_type, function_name, local)                                                                       \
+#define FMI_GETTER(type, fmi_type, function_name, local)                                                                \
 fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], size_t nvr, fmi2 ## fmi_type value[]) { \
     container_t* container = (container_t*)c;                                                                           \
     const logger_t *logger = &container->logger;                                                                        \
@@ -201,13 +203,13 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
         const fmu_vr_t fmu_vr = port->links[0].fmu_vr;                                                                  \
                                                                                                                         \
         if (fmu_id < 0) {                                                                                               \
-            if (fmu_vr >= container-> type .nb_locals) {                                                               \
+            if (fmu_vr >= container-> type .nb_locals) {                                                                \
                 LOGGER_ERROR("Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);            \
                 return fmi2Error;                                                                                       \
             }                                                                                                           \
-            value[i] = container-> type .locals [fmu_vr] local;                                                                 \
+            value[i] = container-> type .locals [fmu_vr] local;                                                         \
         } else if (!cache_read_ ## type(container, port, &value[i])) {  /* else: the value set by the importer */       \
-            if (cache_sync_fmu_now(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)  /* read after write */  \
+            if (cache_sync_fmu_now(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)  /* read after write */   \
                 return fmi2Error;                                                                                       \
             const fmu_t *fmu = &container->fmu[fmu_id];                                                                 \
                                                                                                                         \
@@ -223,10 +225,10 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
 }
 
 
-FMI_GETTER(reals64,     Real,       fmuGetReal64, )
-FMI_GETTER(integers32,  Integer,    fmuGetInteger32, )
-FMI_GETTER(booleans,    Boolean,    fmuGetBoolean, )
-FMI_GETTER(strings,     String,     fmuGetString, .data)
+FMI_GETTER(reals64,     Real,       fmuGetReal64,         )
+FMI_GETTER(integers32,  Integer,    fmuGetInteger32,      )
+FMI_GETTER(booleans,    Boolean,    fmuGetBoolean,        )
+FMI_GETTER(strings,     String,     fmuGetString,    .data)
 #undef FMI_GETTER
 
 /* The values set by the importer go to the cache of the port: the embedded FMUs get them when they are synchronized
@@ -239,18 +241,18 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
     for (size_t i = 0; i < nvr; i += 1) {                                                                                       \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                             \
         container_port_t *port = &container-> type .ports [local_vr];                                                           \
-        if (cache_store_ ## type(container, port, &value[i], 1) < 0)                                                        \
+        if (cache_store_ ## type(container, port, &value[i], 1) < 0)                                                            \
             return fmi2Error;                                                                                                   \
-        const bool write_locals = cache_port_set(container, CACHE_TYPE_ ## type, port);                                 \
+        const bool write_locals = cache_port_set(container, CACHE_TYPE_ ## type, port);                                         \
         for(unsigned long j = 0; j < port->nb && write_locals; j += 1) {                                                        \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                                      \
             if ((long)port->links[j].fmu_id >= 0)                                                                               \
                 continue;                                                                                                       \
-            if (fmu_vr >= container-> type .nb_locals) {                                                                       \
+            if (fmu_vr >= container-> type .nb_locals) {                                                                        \
                 LOGGER_ERROR("Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);                    \
                 return fmi2Error;                                                                                               \
             }                                                                                                                   \
-            container-> type .locals [fmu_vr] = value[i];                                                                               \
+            container-> type .locals [fmu_vr] = value[i];                                                                       \
         }                                                                                                                       \
     }                                                                                                                           \
                                                                                                                                 \

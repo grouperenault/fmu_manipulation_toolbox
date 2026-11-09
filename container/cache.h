@@ -28,9 +28,10 @@ extern "C" {
 /* port->cache.offset of a port without link: it has no place in the cache. */
 #define CACHE_NONE                  (~0UL)
 
-/* Types of the cache. */
+/* Types of the cache. The types of this file are tagged: an analyzer that reads it twice in one translation unit
+   (IntelliSense, C23) sees the same types. */
 #define DECLARE_CACHE_TYPE(variable, fmi_type, c_type) CACHE_TYPE_ ## variable,
-typedef enum {
+typedef enum cache_type_e {
 	FOR_ALL_NUMERIC_TYPES(DECLARE_CACHE_TYPE)
 	CACHE_TYPE_strings,
 	CACHE_TYPE_binaries
@@ -60,9 +61,6 @@ typedef struct {
 } cache_set_t;
 
 
-/*----------------------------------------------------------------------------
-                          C A C H E _ S T R I N G _ T
-----------------------------------------------------------------------------*/
 /*----------------------------------------------------------------------------
                               C A C H E _ T
 ----------------------------------------------------------------------------*/

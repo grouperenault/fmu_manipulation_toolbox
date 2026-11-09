@@ -16,15 +16,16 @@
 ----------------------------------------------------------------------------*/
 
 /* unimplemented fmi3 functions */
-#define __NOT_IMPLEMENTED__                                                                                 \
-    logger_message(&((container_t *)instance)->logger, LOGGER_LEVEL_ERROR, "Function '%s' is not implemented",      \
-                   __func__);                                                                                       \
+#define __NOT_IMPLEMENTED__                                                  \
+    logger_message(&((container_t *)instance)->logger, LOGGER_LEVEL_ERROR,   \
+                   "Function '%s' is not implemented", __func__);            \
     return fmi3Error;
 
-#define ASSERT_CONTAINER_STATE(_container, _state)                                  \
-    if (_container->state != _state) {                                              \
-    	logger_message(&(_container)->logger, LOGGER_LEVEL_ERROR, "Must be in state %s to call %s", #_state, __func__); \
-        return fmi3Error;                                                           \
+#define ASSERT_CONTAINER_STATE(_container, _state)                           \
+    if (_container->state != _state) {                                       \
+    	logger_message(&(_container)->logger, LOGGER_LEVEL_ERROR,            \
+                       "Must be in state %s to call %s", #_state, __func__); \
+        return fmi3Error;                                                    \
     }
 
 
@@ -188,7 +189,7 @@ fmi3Status fmi3Reset(fmi3Instance instance) {
 
 /* Getting and setting variable values */
 /* local: how a local variable gives its value (empty for the numbers, .data for the strings) */
-#define FMI_GETTER(type, fmi_type, function_name, local)                                                                   \
+#define FMI_GETTER(type, fmi_type, function_name, local)                                                            \
 fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference valueReferences[],                  \
     size_t nValueReferences, fmi3 ## fmi_type value[], size_t nValues) {                                            \
                                                                                                                     \
@@ -203,14 +204,14 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
         const fmu_vr_t fmu_vr = port->links[0].fmu_vr;                                                              \
                                                                                                                     \
         if (fmu_id < 0) {                                                                                           \
-            if (fmu_vr + port->dimension > container-> type .nb_locals) {                                          \
+            if (fmu_vr + port->dimension > container-> type .nb_locals) {                                           \
                 LOGGER_ERROR("Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);        \
                 return fmi3Error;                                                                                   \
             }                                                                                                       \
             for(size_t j = 0; j < port->dimension; j += 1)                                                          \
-                value[value_index + j] = container-> type .locals [fmu_vr + j] local;                                       \
+                value[value_index + j] = container-> type .locals [fmu_vr + j] local;                               \
         } else if (!cache_read_ ## type(container, port, &value[value_index])) { /* else: set by the importer */    \
-            if (cache_sync_fmu_now(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK) /* read after write */ \
+            if (cache_sync_fmu_now(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK) /* read after write */\
                 return fmi3Error;                                                                                   \
             const fmu_t *fmu = &container->fmu[fmu_id];                                                             \
                                                                                                                     \
@@ -233,18 +234,18 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
 }
 
 
-FMI_GETTER(reals64,     Float64,    fmuGetReal64, )
-FMI_GETTER(reals32,     Float32,    fmuGetReal32, )
-FMI_GETTER(integers8,   Int8,       fmuGetInteger8, )
-FMI_GETTER(uintegers8,  UInt8,      fmuGetUInteger8, )
-FMI_GETTER(integers16,  Int16,      fmuGetInteger16, )
-FMI_GETTER(uintegers16, UInt16,     fmuGetUInteger16, )
-FMI_GETTER(integers32,  Int32,      fmuGetInteger32, )
-FMI_GETTER(uintegers32, UInt32,     fmuGetUInteger32, )
-FMI_GETTER(integers64,  Int64,      fmuGetInteger64, )
-FMI_GETTER(uintegers64, UInt64,     fmuGetUInteger64, )
-FMI_GETTER(booleans1,   Boolean,    fmuGetBoolean1, )
-FMI_GETTER(strings,     String,     fmuGetString, .data)
+FMI_GETTER(reals64,     Float64,    fmuGetReal64,          )
+FMI_GETTER(reals32,     Float32,    fmuGetReal32,          )
+FMI_GETTER(integers8,   Int8,       fmuGetInteger8,        )
+FMI_GETTER(uintegers8,  UInt8,      fmuGetUInteger8,       )
+FMI_GETTER(integers16,  Int16,      fmuGetInteger16,       )
+FMI_GETTER(uintegers16, UInt16,     fmuGetUInteger16,      )
+FMI_GETTER(integers32,  Int32,      fmuGetInteger32,       )
+FMI_GETTER(uintegers32, UInt32,     fmuGetUInteger32,      )
+FMI_GETTER(integers64,  Int64,      fmuGetInteger64,       )
+FMI_GETTER(uintegers64, UInt64,     fmuGetUInteger64,      )
+FMI_GETTER(booleans1,   Boolean,    fmuGetBoolean1,        )
+FMI_GETTER(strings,     String,     fmuGetString,     .data)
 
 
 fmi3Status fmi3GetBinary(fmi3Instance instance,
@@ -340,19 +341,19 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
     for (size_t i = 0; i < nValueReferences; i += 1) {                                                                  \
         const uint32_t local_vr = valueReferences[i] & 0xFFFFFF;                                                        \
         container_port_t *port = &container-> type .ports [local_vr];                                                   \
-        if (cache_store_ ## type(container, port, &value[value_index], port->dimension) < 0)                        \
+        if (cache_store_ ## type(container, port, &value[value_index], port->dimension) < 0)                            \
             return fmi3Error;                                                                                           \
-        const bool write_locals = cache_port_set(container, CACHE_TYPE_ ## type, port);                        \
+        const bool write_locals = cache_port_set(container, CACHE_TYPE_ ## type, port);                                 \
         for(unsigned int j = 0; j < port->nb && write_locals; j += 1) {                                                 \
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                              \
             if ((long)port->links[j].fmu_id >= 0)                                                                       \
                 continue;                                                                                               \
-            if (fmu_vr + port->dimension > container-> type .nb_locals) {                                              \
+            if (fmu_vr + port->dimension > container-> type .nb_locals) {                                               \
                 LOGGER_ERROR("Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);            \
                 return fmi3Error;                                                                                       \
             }                                                                                                           \
             for(size_t k = 0; k < port->dimension; k += 1)                                                              \
-                container-> type .locals [fmu_vr + k] = value[value_index + k];                                                 \
+                container-> type .locals [fmu_vr + k] = value[value_index + k];                                         \
         }                                                                                                               \
         value_index += port->dimension;                                                                                 \
     }                                                                                                                   \
