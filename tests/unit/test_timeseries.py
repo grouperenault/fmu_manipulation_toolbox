@@ -95,3 +95,29 @@ def test_compare_nan_fails():
     reference = TimeSeries(times=[0.0], columns={"x": ["1"]})
     simulated = TimeSeries(times=[0.0], columns={"x": [float("nan")]})
     assert not compare(reference, simulated, "x", rtol=1e-3, atol=1e-6).passed
+
+
+def test_compare_strings_exactly():
+    reference = TimeSeries(times=[0.0, 1.0], columns={"s": ["a", "b"]})
+    assert compare(reference, TimeSeries(times=[0.0, 1.0], columns={"s": ["a", "b"]}), "s", 1e-3, 1e-6,
+                   HOLD, exact=True).passed
+    result = compare(reference, TimeSeries(times=[0.0, 1.0], columns={"s": ["a", "c"]}), "s", 1e-3, 1e-6,
+                     HOLD, exact=True)
+    assert (result.failure_time, result.expected, result.simulated) == (1.0, "b", "c")
+
+
+def test_compare_held_values():
+    """A discrete output has no intermediate value: held between the communication points."""
+    reference = TimeSeries(times=[0.5], columns={"i": ["0"]})
+    simulated = TimeSeries(times=[0.0, 1.0], columns={"i": [0, 10]})
+    assert compare(reference, simulated, "i", 1e-3, 1e-6, HOLD).passed
+    assert not compare(reference, simulated, "i", 1e-3, 1e-6, LINEAR).passed
+
+
+def test_compare_value_after_an_event():
+    reference = TimeSeries(times=[0.0, 1.0, 1.0, 2.0], columns={"x": ["0", "5", "-5", "-5"]})
+    simulated = TimeSeries(times=[0.0, 1.0, 2.0], columns={"x": [0.0, -5.0, -5.0]})
+    assert compare(reference, simulated, "x", 1e-3, 1e-6, HOLD).passed
+    result = compare(reference, TimeSeries(times=[0.0, 1.0, 2.0], columns={"x": [0.0, 5.0, -5.0]}), "x", 1e-3, 1e-6,
+                     HOLD)
+    assert (result.failure_time, result.expected, result.simulated) == (1.0, "-5", 5.0)

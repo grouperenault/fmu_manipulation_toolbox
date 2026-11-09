@@ -9,7 +9,8 @@ from _helpers.ls_ref import DATA_DIR, ls_ref_fmu, reference_fmu
 from fmu_manipulation_toolbox.container import FMUContainer
 from fmu_manipulation_toolbox.experiments import Experiment, Parameter, read_parameter_set
 from fmu_manipulation_toolbox.model_description import ModelDescription
-from fmu_manipulation_toolbox.simulation import SimulationError, SimulationUnavailable, experiment_times, replay
+from fmu_manipulation_toolbox.simulation import (SimulationError, SimulationUnavailable, SimulationUnsupported,
+                                                 experiment_times, replay)
 from fmu_manipulation_toolbox.timeseries import TimeSeries, compare, read_csv
 
 pytestmark = [pytest.mark.integration, pytest.mark.lsref, pytest.mark.needs_compiler]
@@ -57,15 +58,28 @@ def test_parameters(fmus, version):
     assert not compare(default, simulated, "h", rtol=1e-3, atol=1e-6).passed
 
 
-@pytest.mark.parametrize("version", VERSIONS)
-def test_stimuli(fmus, version):
+def test_stimuli(fmus):
     references = read_csv(LS_REF / "feedthrough" / "ref.csv")
-    simulated = replay(fmus(version, "Feedthrough"), Experiment("Stimuli", start_time=0, stop_time=2, step_size=0.1),
+    simulated = replay(fmus("3.0", "Feedthrough"), Experiment("Stimuli", start_time=0, stop_time=2, step_size=0.1),
                        list(references.columns), stimuli=read_csv(LS_REF / "feedthrough" / "in.csv"))
     _assert_matches(references, simulated, references.columns)
     # an output fed through follows its input at the same instant: linear for the continuous real, held otherwise
     assert simulated.value("Float64_continuous_output", 0.3) == pytest.approx(3.0)
     assert simulated.value("Int32_output", 0.9) == 0
+
+
+def test_stimuli_of_fmi2(fmus):
+    """The FMI-3.0 container sets the numbers of an FMI-2.0 FMU, not its booleans (they cannot be exposed)."""
+    stimuli = read_csv(LS_REF / "feedthrough" / "in.csv")
+    experiment = Experiment("Stimuli", start_time=0, stop_time=2, step_size=0.1)
+    with pytest.raises(SimulationUnsupported, match="the stimulus of the FMI-2.0 boolean 'Boolean_input'"):
+        replay(fmus("2.0", "Feedthrough"), experiment, ["Float64_continuous_output"], stimuli=stimuli)
+    del stimuli.columns["Boolean_input"]
+    simulated = replay(fmus("2.0", "Feedthrough"), experiment, ["Float64_continuous_output", "Int32_output",
+                                                               "Boolean_output"], stimuli=stimuli)
+    _assert_matches(read_csv(LS_REF / "feedthrough" / "ref.csv"), simulated, ["Float64_continuous_output",
+                                                                              "Int32_output"])
+    assert simulated.columns["Boolean_output"] == [False] * 21        # an FMI-2.0 boolean output, exposed
 
 
 @pytest.mark.parametrize("version", VERSIONS)

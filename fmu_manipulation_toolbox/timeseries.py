@@ -124,33 +124,48 @@ class Comparison:
 
     Attributes:
         name (str): Name of the variable.
-        max_error (float): Maximal absolute error over the instants of the reference.
+        max_error (float): Maximal absolute error over the instants of the reference (numbers only).
         max_error_time (float | None): Instant of the maximal error.
         failure_time (float | None): First instant where the criterion fails; `None` when the variable matches.
+        expected: Value of the reference at `failure_time`.
+        simulated: Simulated value at `failure_time`.
     """
     name: str
     max_error: float = 0.0
     max_error_time: float | None = None
     failure_time: float | None = None
+    expected: object = None
+    simulated: object = None
 
     @property
     def passed(self) -> bool:
         return self.failure_time is None
 
 
-def compare(reference: TimeSeries, simulated: TimeSeries, name: str, rtol: float, atol: float) -> Comparison:
-    """Compares the variable `name` of `simulated` with `reference` at the instants of the reference: the simulated
-    value is interpolated linearly, and the criterion is `abs(simulated - reference) <= atol + rtol * abs(reference)`.
+def compare(reference: TimeSeries, simulated: TimeSeries, name: str, rtol: float, atol: float,
+            interpolation: str = LINEAR, exact: bool = False) -> Comparison:
+    """Compares the variable `name` of `simulated` with `reference` at the instants of the reference.
+
+    The simulated value is interpolated as `interpolation`. Numbers (booleans as 0 / 1) match when
+    `abs(simulated - reference) <= atol + rtol * abs(reference)`; with `exact` (strings), when the texts are equal. At
+    an event of the reference (rows with the same time), the value after it (its last row) is compared.
 
     Raises:
-        TimeSeriesError: A value is not a number, or a series has no instant.
+        TimeSeriesError: A number is not a number, or a series has no instant.
     """
     result = Comparison(name)
-    for time, expected in zip(reference.times, reference.columns[name]):
-        expected = to_number(expected)
-        error = abs(to_number(simulated.value(name, time, LINEAR)) - expected)
-        if error > result.max_error or result.max_error_time is None:
-            result.max_error, result.max_error_time = error, time
-        if result.failure_time is None and not error <= atol + rtol * abs(expected):   # NaN fails
-            result.failure_time = time
+    times, values = reference.times, reference.columns[name]
+    for i, (time, expected) in enumerate(zip(times, values)):
+        if i + 1 < len(times) and times[i + 1] == time:
+            continue                                    # before an event: the value after it is compared
+        actual = simulated.value(name, time, interpolation)
+        if exact:
+            passed = str(actual) == str(expected)
+        else:
+            error = abs(to_number(actual) - to_number(expected))
+            if error > result.max_error or result.max_error_time is None:
+                result.max_error, result.max_error_time = error, time
+            passed = error <= atol + rtol * abs(to_number(expected))    # NaN fails
+        if result.failure_time is None and not passed:
+            result.failure_time, result.expected, result.simulated = time, expected, actual
     return result

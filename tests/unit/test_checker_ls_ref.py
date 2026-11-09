@@ -1,8 +1,9 @@
 """Static rules of FMI-LS-REF (`OperationLsRefCheck`).
 
-`Feedthrough.fmu` of `tests/data/compile` (FMI 2.0 and 3.0, no binary needed), without its own `extra/`, gets an
-LS-REF manifest, an experiment file and the files it refers to, following the standard: one rule is broken in each test by a change of
-these files.
+`Feedthrough.fmu` of `tests/data/compile` (FMI 2.0 and 3.0), without its own `extra/`, gets an LS-REF manifest, an
+experiment file and the files it refers to, following the standard: one rule is broken in each test by a change of
+these files. The FMUs have no binary: the experiments are not replayed (warning), see
+`tests/integration/test_checker_ls_ref_replay.py` for the replay.
 """
 import logging
 from pathlib import Path
@@ -75,7 +76,7 @@ def _fmu(tmp_path: Path, version: str, changes: dict[str, tuple[str, str] | str 
         else:
             files[entry] = change
     return rewrite_fmu(DATA_DIR / "compile" / version / "Feedthrough.fmu", tmp_path / "Feedthrough.fmu",
-                       drop=("extra/",), replace={entry: text.encode() for entry, text in files.items()})
+                       drop=("extra/", "binaries/"), replace={entry: text.encode() for entry, text in files.items()})
 
 
 def _check(path: Path) -> OperationLsRefCheck:
@@ -100,6 +101,7 @@ def test_fmu_follows_the_standard(tmp_path, version, caplog):
     assert [(replay.experiment.name, replay.outputs) for replay in check.experiments] == \
         [("Feedthrough", ["Float64_continuous_output"])]
     assert "No error against FMI-LS-REF" in caplog.text
+    assert "The experiments of FMI-LS-REF are not replayed: the FMU has no binary for the host platform" in caplog.text
 
 
 def test_fmu_without_ls_ref(tmp_path, version, caplog):
@@ -212,10 +214,11 @@ def test_bad_parameter_set(tmp_path):
 
 
 @pytest.mark.parametrize("model", ["BouncingBall", "Feedthrough"])
-def test_reference_fmus(version, model, caplog):
+def test_reference_fmus(tmp_path, version, model, caplog):
     """The Reference-FMUs give the output of their default experiment (role `result`), without description of the
     manifest; the FMI-2.0 Feedthrough has columns of variables it does not have (those of FMI 3.0)."""
-    check = _check(DATA_DIR / "compile" / version / f"{model}.fmu")
+    check = _check(rewrite_fmu(DATA_DIR / "compile" / version / f"{model}.fmu", tmp_path / f"{model}.fmu",
+                               drop=("binaries/",)))
     assert check.errors == []
     assert "Manifest of FMI-LS-REF: missing required attribute" in caplog.text
     replay, = check.experiments

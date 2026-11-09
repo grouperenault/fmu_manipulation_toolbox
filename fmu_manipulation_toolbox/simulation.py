@@ -1,7 +1,9 @@
 """Replay of an experiment of FMI-LS-REF with the container runtime.
 
-The FMU is embedded in a temporary container (`FMUContainer`): one input per stimulus, one output per variable to
-record, the parameters as start values. The library of the container is then driven through its FMI API (ctypes):
+The FMU is embedded in a temporary FMI-3.0 container (`FMUContainer`, whatever the FMI version of the FMU: the
+runtime embeds FMI-2.0 FMUs as well): one input per stimulus, one output per variable to record, the parameters as
+start values. The library of the container is then driven through its FMI-3.0 API (ctypes; the logger of FMI 2.0 is
+variadic, which ctypes cannot read on every platform):
 at each communication point `t_k = start + k * step` (computed, not accumulated), the stimuli interpolated at `t_k`
 are set, the outputs are read and recorded at `t_k`, then the container steps to `t_k+1` (convention of fmpy and of
 the results of the Reference-FMUs: an output fed through follows its input at the same instant).
@@ -18,6 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
+from .compiler import SourceCompiler
 from .container import FMUContainer, FMUContainerError
 from .experiments import Experiment, Parameter
 from .model_description import ModelDescription, ModelVariable
@@ -34,7 +37,11 @@ class SimulationError(Exception):
 
 
 class SimulationUnavailable(SimulationError):
-    """The container runtime is not available for the host platform."""
+    """The container runtime, or the binary of the FMU, is not available for the host platform."""
+
+
+class SimulationUnsupported(SimulationError):
+    """An experiment that the temporary container cannot replay (a stimulus on a boolean input of an FMI-2.0 FMU)."""
 
 
 @dataclass
@@ -96,12 +103,21 @@ def replay(fmu_filename: Path | str, experiment: Experiment, outputs: list[str],
         TimeSeries: The values of `outputs` at each communication point.
 
     Raises:
-        SimulationUnavailable: The container has no library for the host platform.
+        SimulationUnavailable: The container or the FMU has no library for the host platform.
+        SimulationUnsupported: A stimulus is on a boolean input of an FMI-2.0 FMU, which the FMI-3.0 container cannot
+            expose.
         SimulationError: The container cannot be built or the simulation fails.
     """
     fmu_filename = Path(fmu_filename)
     with zipfile.ZipFile(fmu_filename) as archive:
         model_description = ModelDescription.load(archive.read("modelDescription.xml"))
+    _check_host_binary(fmu_filename, model_description)
+    if stimuli and model_description.fmi_version == 2:
+        booleans = {port.get("name") for port in model_description.iter_ports() if port.fmi_type == "Boolean"}
+        for name in stimuli.columns:
+            if name in booleans:
+                raise SimulationUnsupported(f"the stimulus of the FMI-2.0 boolean '{name}' cannot be set through the "
+                                            f"FMI-3.0 container")
     start_time, stop_time = experiment_times(experiment, model_description, references)
     if experiment.tolerance is not None:
         logger.info(f"Experiment '{experiment.name}': its tolerance ({experiment.tolerance}) is not used.")
@@ -111,8 +127,8 @@ def replay(fmu_filename: Path | str, experiment: Experiment, outputs: list[str],
         fmus = directory / "fmus"
         fmus.mkdir()
         shutil.copy(fmu_filename, fmus / fmu_filename.name)
-        step_size = _build_container(fmus, fmu_filename.name, model_description.fmi_version, experiment, outputs,
-                                     stimuli, parameters or [], directory / f"{IDENTIFIER}.fmu")
+        step_size = _build_container(fmus, fmu_filename.name, experiment, outputs, stimuli, parameters or [],
+                                     directory / f"{IDENTIFIER}.fmu")
         extracted = directory / "container"
         with zipfile.ZipFile(directory / f"{IDENTIFIER}.fmu") as archive:
             archive.extractall(extracted)
@@ -121,6 +137,20 @@ def replay(fmu_filename: Path | str, experiment: Experiment, outputs: list[str],
             return driver.run(start_time, stop_time, step_size, stimuli, outputs)
         finally:
             driver.unload()
+
+
+def _check_host_binary(fmu_filename: Path, model_description: ModelDescription):
+    """Raises `SimulationUnavailable` when the FMU has no binary for the host platform."""
+    try:
+        host = SourceCompiler.host_platform(model_description.fmi_version)
+    except Exception as error:      # OperationError: the host platform has no name in this FMI version
+        raise SimulationUnavailable(str(error)) from None
+    with zipfile.ZipFile(fmu_filename) as archive:
+        names = set(archive.namelist())
+    identifiers = {element.get("modelIdentifier") for element in model_description.interfaces.values()}
+    if not any(f"binaries/{host}/{identifier}{SourceCompiler.library_suffix()}" in names
+               for identifier in identifiers if identifier):
+        raise SimulationUnavailable(f"the FMU has no binary for the host platform ({host})")
 
 
 class _DebugOnly(logging.Filter):
@@ -144,13 +174,13 @@ def _quiet_builder():
         logger.removeFilter(debug_only)
 
 
-def _build_container(fmus: Path, fmu_name: str, fmi_version: int, experiment: Experiment, outputs: list[str],
+def _build_container(fmus: Path, fmu_name: str, experiment: Experiment, outputs: list[str],
                      stimuli: TimeSeries | None, parameters: list[Parameter], destination: Path) -> float:
     """Builds the temporary container; returns its step size."""
     step_size = experiment.step_size
     try:
         with _quiet_builder():
-            container = FMUContainer(IDENTIFIER, fmus, fmi_version=fmi_version)
+            container = FMUContainer(IDENTIFIER, fmus, fmi_version=3)
             container.get_fmu(fmu_name)
             for name in (stimuli.columns if stimuli else []):
                 container.add_input(name, fmu_name, name)
@@ -169,9 +199,9 @@ def _build_container(fmus: Path, fmu_name: str, fmi_version: int, experiment: Ex
 
 
 # --------------------------------------------------------------------------- #
-#                         FMI driver of the container                         #
+#                      FMI-3.0 driver of the container                        #
 # --------------------------------------------------------------------------- #
-#: C types of the FMI types of the ports, and the FMI 3.0 function that sets or gets them.
+#: C types of the FMI types of the ports, and the name of the function that sets or gets them.
 FMI3_TYPES = {
     "Float64": (ctypes.c_double, "Float64"), "Float32": (ctypes.c_float, "Float32"),
     "Int8": (ctypes.c_int8, "Int8"), "UInt8": (ctypes.c_uint8, "UInt8"),
@@ -181,41 +211,24 @@ FMI3_TYPES = {
     "Enumeration": (ctypes.c_int64, "Int64"), "Boolean": (ctypes.c_bool, "Boolean"),
     "String": (ctypes.c_char_p, "String"),
 }
-#: Same for FMI 2.0.
-FMI2_TYPES = {
-    "Real": (ctypes.c_double, "Real"), "Integer": (ctypes.c_int, "Integer"),
-    "Enumeration": (ctypes.c_int, "Integer"), "Boolean": (ctypes.c_int, "Boolean"),
-    "String": (ctypes.c_char_p, "String"),
-}
 
-FMI2_LOGGER = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p,
-                               ctypes.c_char_p)
 FMI3_LOG_MESSAGE = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p)
 
 
-class _Fmi2CallbackFunctions(ctypes.Structure):
-    _fields_ = [("logger", FMI2_LOGGER), ("allocateMemory", ctypes.c_void_p), ("freeMemory", ctypes.c_void_p),
-                ("stepFinished", ctypes.c_void_p), ("componentEnvironment", ctypes.c_void_p)]
-
-
 class _Driver:
-    """FMI driver of an extracted container: Co-Simulation, FMI 2.0 or FMI 3.0 according to its descriptor."""
+    """FMI-3.0 Co-Simulation driver of an extracted container."""
 
     def __init__(self, directory: Path):
         self.directory = directory
         self.model_description = ModelDescription.load(directory / "modelDescription.xml")
-        self.fmi_version = self.model_description.fmi_version
         self.messages: deque[str] = deque(maxlen=20)
         self.library = self._load_library()
         self.instance = None
         self.ports = {port.get("name"): self._port(port) for port in self.model_description.iter_ports()}
-        # the callbacks must live as long as the instance
-        self._logger = FMI2_LOGGER(self._fmi2_logger)
-        self._log_message = FMI3_LOG_MESSAGE(self._fmi3_log_message)
-        self._callbacks = _Fmi2CallbackFunctions(logger=self._logger)
+        self._log_message = FMI3_LOG_MESSAGE(self._fmi3_log_message)     # must live as long as the instance
 
     def _load_library(self) -> ctypes.CDLL:
-        suffix = {"Windows": ".dll", "Darwin": ".dylib"}.get(platform.system(), ".so")
+        suffix = SourceCompiler.library_suffix()
         libraries = sorted((self.directory / "binaries").glob(f"*/{IDENTIFIER}{suffix}"))
         if not libraries:
             raise SimulationUnavailable(f"the container runtime has no library for {platform.system()}")
@@ -224,30 +237,27 @@ class _Driver:
         except OSError as error:
             raise SimulationUnavailable(f"cannot load the container runtime: {error}") from None
 
-    def _port(self, variable: ModelVariable) -> _Port:
-        continuous = variable.variability == "continuous" and variable.has_type(("Real", "Float64", "Float32"))
+    @staticmethod
+    def _port(variable: ModelVariable) -> _Port:
+        continuous = variable.variability == "continuous" and variable.has_type(("Float64", "Float32"))
         return _Port(variable.get("name"), int(variable.get("valueReference")), variable.fmi_type,
                      LINEAR if continuous else HOLD)
 
-    def _record(self, status, category, message):
+    def _fmi3_log_message(self, environment, status, category, message):
         text = message.decode("utf-8", "replace") if message else ""
         self.messages.append(text)
         logger.debug(f"Container [{status}]: {text}")
 
-    def _fmi2_logger(self, environment, instance_name, status, category, message):
-        self._record(status, category, message)
+    def _last_messages(self) -> str:
+        last = "; ".join(message for message in self.messages if message)[-500:]
+        return f": {last}" if last else ""
 
-    def _fmi3_log_message(self, environment, status, category, message):
-        self._record(status, category, message)
-
-    def _call(self, name: str, *arguments, restype=ctypes.c_int):
+    def _call(self, name: str, *arguments):
         function = getattr(self.library, name)
-        function.restype = restype
-        status = function(*arguments)
-        if restype is ctypes.c_int and status > 1:      # fmi2Error / fmi3Error and worse
-            last = "; ".join(message for message in self.messages if message)[-500:]
-            raise SimulationError(f"{name} failed (status {status})" + (f": {last}" if last else ""))
-        return status
+        function.restype = ctypes.c_int
+        status = function(ctypes.c_void_p(self.instance), *arguments)
+        if status > 1:      # fmi3Error, fmi3Fatal
+            raise SimulationError(f"{name} failed (status {status}){self._last_messages()}")
 
     # ----------------------------------------------------------------- run
     def run(self, start_time: float, stop_time: float, step_size: float, stimuli: TimeSeries | None,
@@ -261,79 +271,55 @@ class _Driver:
         result = TimeSeries(columns={name: [] for name in outputs})
 
         self._instantiate()
-        self._enter_initialization(start_time, stop_time)
+        self._call("fmi3EnterInitializationMode", ctypes.c_bool(False), ctypes.c_double(0.0),
+                   ctypes.c_double(start_time), ctypes.c_bool(True), ctypes.c_double(stop_time))
         self._set_inputs(inputs, stimuli, start_time)
-        self._call(f"fmi{self.fmi_version}ExitInitializationMode", ctypes.c_void_p(self.instance))
+        self._call("fmi3ExitInitializationMode")
         self._record_outputs(result, recorded, start_time)
         for k in range(nb_steps):
-            time = start_time + k * step_size
-            self._do_step(time, step_size)
+            self._do_step(start_time + k * step_size, step_size)
             time = start_time + (k + 1) * step_size
             self._set_inputs(inputs, stimuli, time)
             self._record_outputs(result, recorded, time)
-        self._call(f"fmi{self.fmi_version}Terminate", ctypes.c_void_p(self.instance))
+        self._call("fmi3Terminate")
         return result
 
     def unload(self):
         if self.instance:
-            getattr(self.library, f"fmi{self.fmi_version}FreeInstance")(ctypes.c_void_p(self.instance))
+            self.library.fmi3FreeInstance(ctypes.c_void_p(self.instance))
             self.instance = None
 
     def _instantiate(self):
-        root = self.model_description.root
-        resources = self.directory / "resources"
-        if self.fmi_version == 2:
-            function = self.library.fmi2Instantiate
-            function.restype = ctypes.c_void_p
-            function.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p,
-                                 ctypes.POINTER(_Fmi2CallbackFunctions), ctypes.c_int, ctypes.c_int]
-            self.instance = function(b"lsref", 1, root.get("guid", "").encode(), resources.as_uri().encode(),
-                                     ctypes.byref(self._callbacks), 0, 1)
-        else:
-            function = self.library.fmi3InstantiateCoSimulation
-            function.restype = ctypes.c_void_p
-            function.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_bool, ctypes.c_bool,
-                                 ctypes.c_bool, ctypes.c_bool, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p,
-                                 FMI3_LOG_MESSAGE, ctypes.c_void_p]
-            self.instance = function(b"lsref", root.get("instantiationToken", "").encode(),
-                                     (str(resources) + "/").encode(), False, True, False, False, None, 0, None,
-                                     self._log_message, None)
+        function = self.library.fmi3InstantiateCoSimulation
+        function.restype = ctypes.c_void_p
+        function.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_bool, ctypes.c_bool,
+                             ctypes.c_bool, ctypes.c_bool, ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p,
+                             FMI3_LOG_MESSAGE, ctypes.c_void_p]
+        token = self.model_description.root.get("instantiationToken", "")
+        resources = str(self.directory / "resources") + "/"
+        self.instance = function(b"lsref", token.encode(), resources.encode(), False, True, False, False, None, 0,
+                                 None, self._log_message, None)
         if not self.instance:
-            last = "; ".join(message for message in self.messages if message)[-500:]
-            raise SimulationError("the container cannot be instantiated" + (f": {last}" if last else ""))
-
-    def _enter_initialization(self, start_time: float, stop_time: float):
-        instance = ctypes.c_void_p(self.instance)
-        if self.fmi_version == 2:
-            self._call("fmi2SetupExperiment", instance, ctypes.c_int(0), ctypes.c_double(0.0),
-                       ctypes.c_double(start_time), ctypes.c_int(1), ctypes.c_double(stop_time))
-            self._call("fmi2EnterInitializationMode", instance)
-        else:
-            self._call("fmi3EnterInitializationMode", instance, ctypes.c_bool(False), ctypes.c_double(0.0),
-                       ctypes.c_double(start_time), ctypes.c_bool(True), ctypes.c_double(stop_time))
+            raise SimulationError(f"the container cannot be instantiated{self._last_messages()}")
 
     def _do_step(self, time: float, step_size: float):
-        instance = ctypes.c_void_p(self.instance)
-        if self.fmi_version == 2:
-            self._call("fmi2DoStep", instance, ctypes.c_double(time), ctypes.c_double(step_size), ctypes.c_int(1))
-        else:
-            event, terminate, early = ctypes.c_bool(), ctypes.c_bool(), ctypes.c_bool()
-            last_time = ctypes.c_double()
-            self._call("fmi3DoStep", instance, ctypes.c_double(time), ctypes.c_double(step_size), ctypes.c_bool(True),
-                       ctypes.byref(event), ctypes.byref(terminate), ctypes.byref(early), ctypes.byref(last_time))
-            if terminate.value:
-                raise SimulationError(f"the container asks to terminate the simulation at {last_time.value}")
+        event, terminate, early = ctypes.c_bool(), ctypes.c_bool(), ctypes.c_bool()
+        last_time = ctypes.c_double()
+        self._call("fmi3DoStep", ctypes.c_double(time), ctypes.c_double(step_size), ctypes.c_bool(True),
+                   ctypes.byref(event), ctypes.byref(terminate), ctypes.byref(early), ctypes.byref(last_time))
+        if terminate.value:
+            raise SimulationError(f"the container asks to terminate the simulation at {last_time.value}")
 
-    def _types(self, port: _Port) -> tuple:
-        types = FMI2_TYPES if self.fmi_version == 2 else FMI3_TYPES
-        if port.fmi_type not in types:
+    @staticmethod
+    def _types(port: _Port) -> tuple:
+        if port.fmi_type not in FMI3_TYPES:
             raise SimulationError(f"variable '{port.name}': type {port.fmi_type} is not supported")
-        return types[port.fmi_type]
+        return FMI3_TYPES[port.fmi_type]
 
     @staticmethod
     def _c_value(c_type, value):
         if c_type is ctypes.c_char_p:
-            return str(value).encode("utf-8")
+            return c_type(str(value).encode("utf-8"))
         number = to_number(value)
         if c_type in (ctypes.c_double, ctypes.c_float):
             return c_type(number)
@@ -342,29 +328,21 @@ class _Driver:
         return c_type(int(round(number)))
 
     def _set_inputs(self, inputs: list[_Port], stimuli: TimeSeries | None, time: float):
-        instance = ctypes.c_void_p(self.instance)
         for port in inputs:
             c_type, function = self._types(port)
             value = self._c_value(c_type, stimuli.value(port.name, time, port.interpolation))
             vr = ctypes.c_uint32(port.vr)
-            if self.fmi_version == 2:
-                self._call(f"fmi2Set{function}", instance, ctypes.byref(vr), ctypes.c_size_t(1), ctypes.byref(value))
-            else:
-                self._call(f"fmi3Set{function}", instance, ctypes.byref(vr), ctypes.c_size_t(1), ctypes.byref(value),
-                           ctypes.c_size_t(1))
+            self._call(f"fmi3Set{function}", ctypes.byref(vr), ctypes.c_size_t(1), ctypes.byref(value),
+                       ctypes.c_size_t(1))
 
     def _record_outputs(self, result: TimeSeries, outputs: list[_Port], time: float):
-        instance = ctypes.c_void_p(self.instance)
         result.times.append(time)
         for port in outputs:
             c_type, function = self._types(port)
             value = c_type()
             vr = ctypes.c_uint32(port.vr)
-            if self.fmi_version == 2:
-                self._call(f"fmi2Get{function}", instance, ctypes.byref(vr), ctypes.c_size_t(1), ctypes.byref(value))
-            else:
-                self._call(f"fmi3Get{function}", instance, ctypes.byref(vr), ctypes.c_size_t(1), ctypes.byref(value),
-                           ctypes.c_size_t(1))
+            self._call(f"fmi3Get{function}", ctypes.byref(vr), ctypes.c_size_t(1), ctypes.byref(value),
+                       ctypes.c_size_t(1))
             if c_type is ctypes.c_char_p:
                 result.columns[port.name].append((value.value or b"").decode("utf-8", "replace"))
             else:

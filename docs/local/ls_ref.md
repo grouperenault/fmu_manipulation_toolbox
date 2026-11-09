@@ -165,7 +165,7 @@ Tests: FMUs implementing FMI-LS-REF, compiled at test time
 ## Step 5 — Replay of an experiment with the container runtime
 
 - New module `fmu_manipulation_toolbox/simulation.py`:
-  - temporary container (FMI version of the FMU) built with `FMUContainer`: one input per stimulus column, one output
+  - temporary container (FMI 3.0, decision 22; FMI version of the FMU before step 7) built with `FMUContainer`: one input per stimulus column, one output
     per reference column, the SSV parameters as start values, step size of the experiment or deduced (decision 13);
     built in a temporary directory, removed afterwards;
   - ctypes driver of the container library of the host platform (FMI 2.0 or FMI 3.0 API): instantiate, setup /
@@ -176,8 +176,9 @@ Tests: FMUs implementing FMI-LS-REF, compiled at test time
   - start and stop times of decision 20; the messages of the builder of the temporary container are debug messages
     (its errors on the inputs without stimulus would fail `-check`);
   - result: a `TimeSeries` of the outputs.
-- No container library for the host platform: `SimulationUnavailable`, turned into a warning by the checker
-  (decision 6).
+- No container library, or no binary of the FMU, for the host platform: `SimulationUnavailable`, turned into a
+  warning by the checker (decisions 6 and 23). A stimulus on a boolean input of an FMI-2.0 FMU:
+  `SimulationUnsupported` (decision 25, step 7).
 - Tests with the FMUs of step 4.
 
 Commit message:
@@ -216,19 +217,27 @@ of this kind stay not exposable.
 
 ## Step 7 — Checker `OperationLsRefCheck`, numerical validation
 
-- For each experiment of sub-role `smoke-test` / `validation` (decision 8): replay (step 5), comparison with the
-  references (step 2, decisions 3 and 4); per failing variable an error with its maximal error and the first instant
-  of failure; a summary per experiment (information). `uncertainty-analysis`: information message, not replayed.
-- An experiment that cannot be replayed (missing file, failure of the simulation): error.
-- Tests: references that match, a reference altered beyond the tolerance (error), runtime unavailable (warning).
+- For each experiment of sub-role `smoke-test` / `validation` (decision 8) and each `result` file (decision 17):
+  replay on the FMU as it is (repacked in a temporary directory) (step 5), comparison with the references
+  (`timeseries.compare`, decisions 3, 4, 26, 27, 28); per failing variable an error with the first instant of failure,
+  the expected and simulated values and the maximal error; an information message per experiment that matches.
+  `uncertainty-analysis`: not replayed.
+- An experiment without references: simulated only (decision 29). A replay that fails: error. Runtime or binary of
+  the FMU unavailable: warning, no replay (decisions 6, 23). A stimulus on an FMI-2.0 boolean: warning, experiment not
+  replayed (decision 25). The binaries of the references are not compared (warning, decision 26).
+- Tests: unit tests of the comparison (strings, held values, events); the checker on the test FMUs (references that
+  match, that differ, strings, experiment without references, failing replay, runtime unavailable, FMI-2.0 boolean
+  stimulus), the Reference-FMUs with their `result`, `fmutool -check` exit code. The unit tests of the static part use
+  FMUs without binaries (not replayed).
 
 Commit message:
 ```
 Checker: replay the experiments of FMI-LS-REF and compare the results
 
 fmutool -check replays the smoke-test and validation experiments of an FMU
-implementing FMI-LS-REF with the container runtime and compares its outputs
-with the references (rtol 1e-3, atol 1e-6).
+implementing FMI-LS-REF, and the result files of the Reference-FMUs, with the
+container runtime, and compares its outputs with the references (rtol 1e-3,
+atol 1e-6; strings exactly).
 ```
 
 ## Step 8 — User documentation
