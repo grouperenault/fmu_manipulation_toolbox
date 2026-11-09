@@ -72,7 +72,7 @@ if(BUILD_TESTING)
     target_include_directories(container_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${FMUTOOL_CMAKE_DIR}/../fmu_manipulation_toolbox/resources/fmi
-        ${CMAKE_CURRENT_BINARY_DIR}     # version.h
+        ${FMUTOOL_GENERATED_DIR}        # version.h
     )
     target_compile_definitions(container_tests PRIVATE
         TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/data"

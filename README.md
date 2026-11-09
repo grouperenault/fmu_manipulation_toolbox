@@ -272,16 +272,16 @@ pip install -e ".[all]"
 
 ### Building C code (optional)
 
-The container and remoting binaries can be built with CMake:
+The container and remoting binaries can be built with CMake, from the root of the repository:
 
 ```bash
-cd container
-mkdir -p build && cd build
-cmake ..
-cmake --build .
+cmake -B build-native
+cmake --build build-native --config Release
+ctest --test-dir build-native -C Release
 ```
 
-Same process applies for the `remoting/` directory.
+Each component can also be built on its own from its directory (`container/` or `remoting/`). See the
+[Installation Guide](docs/installation.md) for the options and the 32-bit binaries.
 
 ### Running tests
 

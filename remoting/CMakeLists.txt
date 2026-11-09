@@ -2,9 +2,10 @@ cmake_minimum_required(VERSION 3.21)
 
 # 32-bit Linux build. Set before project() so that the compiler checks, and
 # therefore FMI_PLATFORM, see a 32-bit target. (macOS: no 32-bit support,
-# Windows: use the -A Win32 generator option instead.)
+# Windows: use the -A Win32 generator option instead.) When built by the root
+# project, the root handles it.
 option(BUILD_32 "Build for a 32-bit Linux target" OFF)
-if(BUILD_32)
+if(BUILD_32 AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     string(APPEND CMAKE_C_FLAGS " -m32")
 endif()
 

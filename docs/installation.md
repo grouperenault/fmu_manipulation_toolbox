@@ -165,8 +165,10 @@ Two native components are written in C and should be compiled. Both require a C2
 also needs a compiler able to produce 64-bit and 32-bit objects. The binaries are written to
 `fmu_manipulation_toolbox/resources/<platform>/` (`win32`, `win64`, `linux32`, `linux64` or `darwin64`).
 
-Both CMake projects share their build settings, located in the `cmake/` folder at the root of the repository. The
-build type defaults to `Release`. The following options can be given at configuration time (`cmake .. -D<option>=<value>`):
+Each component is a CMake project (`container/` and `remoting/`). The `CMakeLists.txt` at the root of the repository
+builds both of them in one build folder. All the projects share their build settings, located in the `cmake/` folder
+at the root of the repository. The build type defaults to `Release`. The following options can be given at
+configuration time (`cmake -B <build folder> -D<option>=<value>`):
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -175,7 +177,9 @@ build type defaults to `Release`. The following options can be given at configur
 | `FMUTOOL_PGO` | `OFF` | Profile-Guided Optimization: `OFF`, `GENERATE` or `USE` (see below) |
 | `FMUTOOL_SANITIZE` | `OFF` | GCC and Clang only: build with AddressSanitizer and UndefinedBehaviorSanitizer |
 | `BUILD_TESTING` | `ON` | Container only: build the native tests (`container_tests`) |
-| `BUILD_32` | `OFF` | Remoting only, Linux only: build 32-bit binaries |
+| `BUILD_32` | `OFF` | Root project or remoting, Linux only: build 32-bit binaries |
+| `FMUTOOL_BUILD_CONTAINER` | `ON` | Root project only: build the container runtime |
+| `FMUTOOL_BUILD_REMOTING` | `ON` | Root project only: build the remoting client and server |
 
 ??? note "Profile-Guided Optimization"
     1. Configure with `-DFMUTOOL_PGO=GENERATE` and build. The binaries are instrumented and write profile data to
@@ -186,7 +190,19 @@ build type defaults to `Release`. The following options can be given at configur
     4. Reconfigure with `-DFMUTOOL_PGO=USE` and rebuild.
 
 
-#### Container code
+#### All components
+
+From the root of the repository, on all supported platforms (the remoting code is built for the default
+architecture of the compiler only, see below for the 32-bit binaries):
+```bash
+cmake -B build-native
+cmake --build build-native --config Release
+ctest --test-dir build-native -C Release --output-on-failure
+```
+
+The last command runs the native tests of the container (`container/tests`).
+
+#### Container code only
 
 The following commands can be used on all supported platforms:
 ```bash
@@ -203,7 +219,7 @@ The native tests of the container (`container/tests`) run with CTest, from the b
 ctest -C Release --output-on-failure
 ```
 
-#### Remoting code
+#### Remoting code only
 
 === "Windows"
   
