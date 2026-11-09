@@ -49,7 +49,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
 #endif
 
     /* The values set by the importer on the container since the last synchronization of the FMU */
-    status = container_sync_fmu(fmu->container, (unsigned long)fmu->index, false);
+    status = container_sync_fmu_now(fmu->container, (unsigned long)fmu->index, false);
     if (status != FMU_STATUS_OK)
         return status;
 
@@ -300,7 +300,7 @@ fmu_status_t fmu_set_continuous_inputs(const fmu_t* fmu) {
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
     /* The real values set by the importer on the container since the last synchronization of the FMU */
-    status = container_sync_fmu(fmu->container, (unsigned long)fmu->index, true);
+    status = container_sync_fmu_now(fmu->container, (unsigned long)fmu->index, true);
     if (status != FMU_STATUS_OK)
         return status;
 
@@ -662,7 +662,6 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->has_configuration_mode = false; /* read after the load of the FMU */
     fmu->in_configuration_mode = false;
     fmu->configured = false;
-    fmu->nb_pending = 0;
     fmu->component = NULL;  /* will be set by fmuInstantiateCoSimulation/ModelExchange() */
 
 #define INIT_FMU_DATA(variable, fmi_type, c_type)       \

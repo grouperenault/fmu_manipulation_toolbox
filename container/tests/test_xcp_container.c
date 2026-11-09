@@ -16,6 +16,8 @@
 
 #define PORT_VR_FMI3        83886080    /* uinteger16 of the container, linked to XCP.TCP.Port */
 #define PORT_VR_FMI2        100663298   /* integer32 of the container, linked to XCP.TCP.Port */
+#define ENABLE_VR_FMI2      167772160   /* boolean of the container, linked to XCP.TCP.Enable */
+#define ADDRESS_VR_FMI2     201326592   /* string of the container, linked to XCP.TCP.ListenAddress */
 
 
 static const char *read_journal(const char *fixture) {
@@ -165,5 +167,33 @@ int test_cache_refused_value(void) {
     fmi2FreeInstance(container);
 
     TEST_ASSERT(strstr(read_journal("xcp_fmi2"), "refused port in started service\n") != NULL);
+    return 0;
+}
+
+
+/* The FMU gets the values set on the container in the order of the calls of the importer, after its start values. */
+int test_cache_order_of_the_calls(void) {
+    fmi2CallbackFunctions functions;
+
+    TEST_ASSERT_EQUAL_INT(0, reset_journal("xcp_fmi2"));
+    fmi2Component container = instantiate_fmi2(&functions);
+    TEST_ASSERT(container != NULL);
+
+    const fmi2ValueReference port_vr = PORT_VR_FMI2, enable_vr = ENABLE_VR_FMI2, address_vr = ADDRESS_VR_FMI2;
+    const fmi2Integer port = 7006;
+    const fmi2Boolean enable = fmi2True;
+    const fmi2String address = "0.0.0.0";
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetString(container, &address_vr, 1, &address));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetInteger(container, &port_vr, 1, &port));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetBoolean(container, &enable_vr, 1, &enable));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetInteger(container, &port_vr, 1, &port));     /* already in the set */
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetupExperiment(container, fmi2False, 0.0, 0.0, fmi2False, 1.0));
+    fmi2FreeInstance(container);
+
+    TEST_ASSERT(strcmp(read_journal("xcp_fmi2"), "set port=6002\n"
+                                                 "set address=0.0.0.0\n"
+                                                 "set port=7006\n"
+                                                 "set enable=1\n"
+                                                 "start tcp 0.0.0.0:7006 at fmi2SetupExperiment\n") == 0);
     return 0;
 }

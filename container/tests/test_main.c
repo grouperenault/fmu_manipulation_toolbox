@@ -41,6 +41,7 @@ static const struct {
     { "xcp_fmi2_before_setup",          test_xcp_fmi2_before_setup_experiment },
     { "cache_read_after_write",         test_cache_read_after_write },
     { "cache_refused_value",            test_cache_refused_value },
+    { "cache_order_of_the_calls",       test_cache_order_of_the_calls },
 };
 
 

@@ -418,10 +418,6 @@ typedef struct {
     bool                        in_configuration_mode;
     bool                        configured;
 
-    /* Number of links of the ports of the container to this FMU whose value set by the importer is pending (see
-       container_sync_fmu). */
-    unsigned long               nb_pending;
-
     /* Next event time announced by the last UpdateDiscreteStates. */
     bool                        have_next_event_time;
     double                      next_event_time;

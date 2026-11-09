@@ -89,28 +89,32 @@ does not fit (communication step not a multiple of the internal step), it stays 
 (`container->step_pending`):
 
 - when it becomes pending, every embedded FMU is synchronized with the values set until then (the inputs of `T`);
-- while it is pending, the values set by the importer are **deferred** (state `CONTAINER_LINK_DEFERRED` of the
-  links, `container_port_t.deferred` for the local variables); the outputs of the embedded FMU's, read by the
-  getters, are those of `T`;
-- the call of the importer that reaches `T + H` makes the step, then the deferred values become pending
-  (`container_end_pending_step()`): the local variables (`TS_MULTIPLIER`, reset triggers) are written, the embedded
-  FMU's get theirs at their next synchronization, for the following steps.
+- while it is pending, nothing is synchronized: the values set by the importer stay in the cache (they are for the
+  steps after it), the ports linked to local variables join the set `container_t.deferred`; the outputs of the
+  embedded FMU's, read by the getters, are those of `T`;
+- the call of the importer that reaches `T + H` makes the step, then writes the local variables of the deferred ports
+  (`container_end_pending_step()`: `TS_MULTIPLIER`, reset triggers); the embedded FMU's get their values at their
+  next synchronization, for the following steps.
 
 The container is at `t + h` after every call (`reals64[0]`, its time output).
 
 ## Values set by the importer
 
 The setters of the container (`fmi2Set*`, `fmi3Set*`, except `fmi3SetClock`) do not call the embedded FMU's: they
-write the **cache** of the port (`container_cache_*`) and mark its links (`container_port_set()`, state
-`CONTAINER_LINK_PENDING` of `container_vr_t`, counter `nb_pending` of the FMU). A port linked to a local variable
-writes it at once. An FMU gets the values marked for it when it is **synchronized** (`container_sync_fmu()`, one
-`fmi*Set` per link, from the cache):
+write the **cache**, the state to come: the values of the port (`container_cache_*`), and its links added to the
+**set** of their FMU (`container_port_set()`, `container_t.sets`; a link is in a set once, `container_vr_t.in_set`).
+A port linked to a local variable writes it at once. An FMU gets the values of its set when it is **synchronized**
+(`container_sync_fmu()`, one `fmi*Set` per link, from the cache, in the order of the calls of the importer):
 
 - before each of its steps, at the exit of the Initialization Mode and at the event iterations (`fmu_set_inputs`);
   in Continuous Time Mode, its real values only (`fmu_set_continuous_inputs`), as its links;
 - before it is read by a getter of the container (read after write);
-- in its Configuration Mode (its structural parameters only), before its `fmi2SetupExperiment` and after its reset,
-  where all the cached values are marked again (they prevail over the start values).
+- in its Configuration Mode (its structural parameters only, `container_vr_t.structural`), before its
+  `fmi2SetupExperiment` and after its reset, where all its cached values join its set again (they prevail over the
+  start values; this goes through all the ports, once per phase).
+
+The sets are allocated when the container is loaded, for all the entries they may hold: a synchronization goes
+through the set of the FMU only, and costs nothing when it is empty.
 
 A value refused by an FMU is reported by the call that synchronizes it (`fmi*DoStep`, `fmi*ExitInitializationMode`,
 `fmi*Get*`...), not by `fmi*Set*`. In the multi-thread mode, the synchronization runs in the main thread
