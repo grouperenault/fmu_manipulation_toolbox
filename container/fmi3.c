@@ -198,17 +198,17 @@ fmi3Status fmi3Get ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                                                                                                                     \
     for (size_t i = 0; i < nValueReferences; i += 1) {                                                              \
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;                                                          \
-        const container_port_t *port = &container->port_ ##type [vr];                                               \
+        const container_port_t *port = &container-> type .ports [vr];                                               \
         const int fmu_id = port->links[0].fmu_id;                                                                   \
         const fmu_vr_t fmu_vr = port->links[0].fmu_vr;                                                              \
                                                                                                                     \
         if (fmu_id < 0) {                                                                                           \
-            if (fmu_vr + port->dimension > container->nb_local_ ## type) {                                          \
+            if (fmu_vr + port->dimension > container-> type .nb_locals) {                                          \
                 LOGGER_ERROR("Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);        \
                 return fmi3Error;                                                                                   \
             }                                                                                                       \
             for(size_t j = 0; j < port->dimension; j += 1)                                                          \
-                value[value_index + j] = container-> type [fmu_vr + j] local;                                       \
+                value[value_index + j] = container-> type .locals [fmu_vr + j] local;                                       \
         } else if (!cache_read_ ## type(container, port, &value[value_index])) { /* else: set by the importer */    \
             if (cache_sync_fmu_now(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK) /* read after write */ \
                 return fmi3Error;                                                                                   \
@@ -259,14 +259,14 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
-        const container_port_t *port = &container->port_binaries[vr];
+        const container_port_t *port = &container->binaries.ports[vr];
         const int fmu_id = port->links[0].fmu_id;
         const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
 
         if (fmu_id < 0) {
             for(size_t j = 0; j < port->dimension; j += 1) {
-                values[value_index + j] = container->binaries[fmu_vr + j].data;
-                valueSizes[value_index + j] = container->binaries[fmu_vr + j].size;
+                values[value_index + j] = container->binaries.locals[fmu_vr + j].data;
+                valueSizes[value_index + j] = container->binaries.locals[fmu_vr + j].size;
             }
         } else if (!cache_read_binaries(container, port, &valueSizes[value_index], &values[value_index])) {
             if (cache_sync_fmu_now(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK) /* read after write */
@@ -302,12 +302,12 @@ fmi3Status fmi3GetClock(fmi3Instance instance,
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
-        const container_port_t *port = &container->port_clocks[vr];
+        const container_port_t *port = &container->clocks.ports[vr];
         const int fmu_id = port->links[0].fmu_id;
         const fmu_vr_t fmu_vr = port->links[0].fmu_vr;
 
         if (fmu_id < 0) {
-            values[i] = container->clocks[fmu_vr];
+            values[i] = container->clocks.locals[fmu_vr];
         } else {
             if (cache_sync_fmu_now(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK) /* read after write */
                 return fmi3Error;
@@ -339,7 +339,7 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
                                                                                                                         \
     for (size_t i = 0; i < nValueReferences; i += 1) {                                                                  \
         const uint32_t local_vr = valueReferences[i] & 0xFFFFFF;                                                        \
-        container_port_t *port = &container->port_ ##type [local_vr];                                                   \
+        container_port_t *port = &container-> type .ports [local_vr];                                                   \
         if (cache_store_ ## type(container, port, &value[value_index], port->dimension) < 0)                        \
             return fmi3Error;                                                                                           \
         const bool write_locals = cache_port_set(container, CACHE_TYPE_ ## type, port);                        \
@@ -347,12 +347,12 @@ fmi3Status fmi3Set ## fmi_type (fmi3Instance instance, const fmi3ValueReference 
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                              \
             if ((long)port->links[j].fmu_id >= 0)                                                                       \
                 continue;                                                                                               \
-            if (fmu_vr + port->dimension > container->nb_local_ ## type) {                                              \
+            if (fmu_vr + port->dimension > container-> type .nb_locals) {                                              \
                 LOGGER_ERROR("Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);            \
                 return fmi3Error;                                                                                       \
             }                                                                                                           \
             for(size_t k = 0; k < port->dimension; k += 1)                                                              \
-                container-> type [fmu_vr + k] = value[value_index + k];                                                 \
+                container-> type .locals [fmu_vr + k] = value[value_index + k];                                                 \
         }                                                                                                               \
         value_index += port->dimension;                                                                                 \
     }                                                                                                                   \
@@ -385,7 +385,7 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
 
     for (size_t i = 0; i < nvr; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
-        container_port_t* port = &container->port_strings[vr];
+        container_port_t* port = &container->strings.ports[vr];
         if (cache_store_strings(container, port, &value[value_index], port->dimension) < 0)
             return fmi3Error;
         const bool write_locals = cache_port_set(container, CACHE_TYPE_strings, port);
@@ -394,7 +394,7 @@ fmi3Status fmi3SetString(fmi3Instance instance, const fmi3ValueReference valueRe
             if ((long)port->links[j].fmu_id >= 0)
                 continue;
             for(size_t k = 0; k < port->dimension; k += 1) {
-                if (fmu_string_copy(&container->strings[fmu_vr + k], value[value_index + k])) {
+                if (fmu_string_copy(&container->strings.locals[fmu_vr + k], value[value_index + k])) {
                     LOGGER_ERROR("Cannot allocate memory for SetString");
                     return fmi3Error;
                 }
@@ -424,7 +424,7 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
-        container_port_t *port = &container->port_binaries[vr];
+        container_port_t *port = &container->binaries.ports[vr];
         if (cache_store_binaries(container, port, &valueSizes[value_index], &values[value_index],
                                      port->dimension) < 0)
             return fmi3Error;
@@ -434,7 +434,7 @@ fmi3Status fmi3SetBinary(fmi3Instance instance,
             if ((long)port->links[j].fmu_id >= 0)
                 continue;
             for(size_t k = 0; k < port->dimension; k += 1) {
-                if (fmu_binary_copy(&container->binaries[fmu_vr + k], values[value_index + k],
+                if (fmu_binary_copy(&container->binaries.locals[fmu_vr + k], values[value_index + k],
                                     valueSizes[value_index + k])) {
                     LOGGER_ERROR("Cannot allocate memory for SetBinary");
                     return fmi3Error;
@@ -462,13 +462,13 @@ fmi3Status fmi3SetClock(fmi3Instance instance,
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
-        const container_port_t *port = &container->port_clocks[vr];
+        const container_port_t *port = &container->clocks.ports[vr];
 
         for (unsigned int j = 0; j < port->nb; j += 1) {
             const int fmu_id = port->links[j].fmu_id;
 
             if (fmu_id < 0) {
-                container->clocks[vr] = values[i];
+                container->clocks.locals[vr] = values[i];
             } else {
                 const fmu_vr_t fmu_vr = port->links[j].fmu_vr;
                 const fmu_t *fmu = &container->fmu[fmu_id];
@@ -664,7 +664,7 @@ fmi3Status fmi3GetIntervalDecimal(fmi3Instance instance,
 
     for (size_t i = 0; i < nValueReferences; i += 1) {
         const uint32_t vr = valueReferences[i] & 0xFFFFFF;
-        const container_port_t* port = &container->port_clocks[vr];
+        const container_port_t* port = &container->clocks.ports[vr];
         const int fmu_id = port->links[0].fmu_id;
 
         if (fmu_id < 0) {
@@ -875,7 +875,7 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
     if (container_do_step(container, currentCommunicationPoint, communicationStepSize) != FMU_STATUS_OK)
         return fmi3Error;
 
-    *lastSuccessfulTime = container->reals64[0];
+    *lastSuccessfulTime = container->reals64.locals[0];
 
     return fmi3OK;
 }

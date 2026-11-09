@@ -10,16 +10,21 @@ The twelve numeric types of the runtime are listed once, by the X-macro `FOR_ALL
 the other types (`strings`, `binaries`, `clocks`) being written explicitly:
 
 ```c
-#define FREE(variable, fmi_type, c_type) \
-    free(container->vr_ ## variable);    \
-    free(container-> variable);
+#define FREE(variable, fmi_type, c_type)       \
+    free(container-> variable .links);         \
+    free(container-> variable .ports);         \
+    free(container-> variable .locals);
 
     FOR_ALL_NUMERIC_TYPES(FREE)
-    FREE(strings, String, char *)
+    FREE(strings, String, fmu_string_t)
 #undef FREE
 ```
 
 No separator is inserted between the expansions: each one must be a complete statement or declaration.
+
+The container stores each type in one structure, `container_<type>_t`, named by the type in `container_t`: its local
+variables (`container->reals64.locals`, `.nb_locals`: the values conveyed from one FMU to another and the variables
+of the container), its ports (`.ports`, `.nb_ports`, by value reference) and the storage of their links (`.links`).
 
 ## Modules
 

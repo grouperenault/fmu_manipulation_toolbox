@@ -254,7 +254,7 @@ The local variables, the ports and the links of each type are grouped in
 container_<type>_t (container->reals64.locals, .ports, .links).
 ```
 
-## Review (2026-11-09, after step 7)
+## Review (2026-11-09, after step 8)
 
 Step 2 needed no commit: the whole test suite passed without change after step 1, the reference traces of the probe
 FMU included (the scenarios set no value between two synchronizations).
@@ -283,6 +283,9 @@ the ports of local variables set while a step is pending).
   An array of local strings or binaries is given to the FMI functions as arrays built from them: the binary arrays
   of dimension > 1 were given the fields of the first element, and a clocked string output of dimension > 1 was read
   in a single pointer.
+- Step 8: the storages of each type of the container are one structure, `container_<type>_t`
+  (`container->reals64.locals`, `.ports`, `.links`), instead of four families of fields per type: 187 lines of
+  accesses renamed, no change of behaviour nor of performance.
 - Size, after step 6, against `integration`: +821 / −525 lines in the runtime, `cache.c` and `cache.h` (648 lines) included
   (`container.c` −282, `fmi2.c` −27, `fmi3.c` −36, `container.h` −13, `fmu.h` −5, `fmu.c` +11): the sets (types,
   allocation, dispatch by type) and their comments.

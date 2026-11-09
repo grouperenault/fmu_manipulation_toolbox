@@ -50,6 +50,28 @@ typedef struct {
 
 
 /*----------------------------------------------------------------------------
+                  C O N T A I N E R _ < T Y P E > _ T
+----------------------------------------------------------------------------*/
+
+/* Storages of one type in the container (container-><type>): the local variables (values conveyed from one FMU to
+   another, and the variables of the container), and the ports of the container with their links. */
+#define DECLARE_STORAGE_TYPE(variable, fmi_type, c_type)                                                            \
+typedef struct {                                                                                                    \
+	unsigned long				nb_locals;                                                                          \
+	c_type						*locals;	/* local variables */                                                   \
+	unsigned long				nb_ports;                                                                           \
+	container_port_t			*ports;		/* ports of the container, by value reference (masked) */               \
+	container_vr_t				*links;		/* storage of the links of all the ports */                             \
+} container_ ## variable ## _t;
+
+FOR_ALL_NUMERIC_TYPES(DECLARE_STORAGE_TYPE)
+DECLARE_STORAGE_TYPE(strings, String, fmu_string_t)
+DECLARE_STORAGE_TYPE(binaries, Binary, fmu_binary_t)
+DECLARE_STORAGE_TYPE(clocks, Clock, bool)
+#undef DECLARE_STORAGE_TYPE
+
+
+/*----------------------------------------------------------------------------
                        C O N T A I N E R _ C L O C K _ T
 ----------------------------------------------------------------------------*/
 
@@ -141,33 +163,20 @@ typedef struct container_s {
 	int							fmi_version;	/* 2 or 3: API used to instantiate the container */
 	container_state_t			state;		/* managed in fmi2.c and fmi3.c */
 
-	/* storage of local variables (conveyed from one FMU to an other) */
-#define DECLARE_LOCAL(variable, fmi_type, c_type) 	\
-	unsigned long				nb_local_ ## variable;	\
-	c_type						* variable;
+	/* storages of each type: local variables, ports and their links (see container_<type>_t) */
+#define DECLARE_STORAGE(variable, fmi_type, c_type) \
+	container_ ## variable ## _t	variable;
 
-	FOR_ALL_NUMERIC_TYPES(DECLARE_LOCAL)
-	DECLARE_LOCAL(strings, String, fmu_string_t)
-	DECLARE_LOCAL(binaries, Binary, fmu_binary_t)
-	DECLARE_LOCAL(clocks, Clock, bool)
+	FOR_ALL_NUMERIC_TYPES(DECLARE_STORAGE)
+	DECLARE_STORAGE(strings, String, fmu_string_t)
+	DECLARE_STORAGE(binaries, Binary, fmu_binary_t)
+	DECLARE_STORAGE(clocks, Clock, bool)
+#undef DECLARE_STORAGE
 
+	/* buffers of fmu_get_outputs() and fmu_set_inputs() for the arrays of strings and of binaries */
 	const uint8_t 				**binaries_tmp;
 	size_t 						*binaries_size_tmp;
 	const char					**strings_tmp;
-
-#undef DECLARE_LOCAL
-
-	/* container ports definition */
-#define DECLARE_PORT(variable, fmi_type, c_type)	\
-    unsigned long	   			nb_ports_ ## variable;	\
-    container_vr_t				*vr_ ## variable; /* used as buffer to optimize malloc() operations */ \
-    container_port_t            *port_ ## variable;
-
-	FOR_ALL_NUMERIC_TYPES(DECLARE_PORT)
-	DECLARE_PORT(strings, String, char *)
-	DECLARE_PORT(binaries, Binary, fmu_binary_t)
-	DECLARE_PORT(clocks, Clock, bool)
-#undef DECLARE_PORT
 
 	/* values set by the importer (see cache.h) */
 	struct cache_s				*cache;

@@ -196,16 +196,16 @@ fmi2Status fmi2Get ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                                                                                                                         \
     for (size_t i = 0; i < nvr; i += 1) {                                                                               \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                     \
-        const container_port_t *port = &container->port_ ##type [local_vr];                                             \
+        const container_port_t *port = &container-> type .ports [local_vr];                                             \
         const int fmu_id = port->links[0].fmu_id;                                                                       \
         const fmu_vr_t fmu_vr = port->links[0].fmu_vr;                                                                  \
                                                                                                                         \
         if (fmu_id < 0) {                                                                                               \
-            if (fmu_vr >= container->nb_local_ ## type) {                                                               \
+            if (fmu_vr >= container-> type .nb_locals) {                                                               \
                 LOGGER_ERROR("Container: failed to get " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);            \
                 return fmi2Error;                                                                                       \
             }                                                                                                           \
-            value[i] = container-> type [fmu_vr] local;                                                                 \
+            value[i] = container-> type .locals [fmu_vr] local;                                                                 \
         } else if (!cache_read_ ## type(container, port, &value[i])) {  /* else: the value set by the importer */       \
             if (cache_sync_fmu_now(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)  /* read after write */  \
                 return fmi2Error;                                                                                       \
@@ -238,7 +238,7 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
                                                                                                                                 \
     for (size_t i = 0; i < nvr; i += 1) {                                                                                       \
         const uint32_t local_vr = vr[i] & 0xFFFFFF;                                                                             \
-        container_port_t *port = &container->port_ ##type [local_vr];                                                           \
+        container_port_t *port = &container-> type .ports [local_vr];                                                           \
         if (cache_store_ ## type(container, port, &value[i], 1) < 0)                                                        \
             return fmi2Error;                                                                                                   \
         const bool write_locals = cache_port_set(container, CACHE_TYPE_ ## type, port);                                 \
@@ -246,11 +246,11 @@ fmi2Status fmi2Set ## fmi_type (fmi2Component c, const fmi2ValueReference vr[], 
             const fmu_vr_t fmu_vr = port->links[j].fmu_vr;                                                                      \
             if ((long)port->links[j].fmu_id >= 0)                                                                               \
                 continue;                                                                                                       \
-            if (fmu_vr >= container->nb_local_ ## type) {                                                                       \
+            if (fmu_vr >= container-> type .nb_locals) {                                                                       \
                 LOGGER_ERROR("Container: failed to set " #fmi_type " vr=%d. Out of bounds access.", fmu_vr);                    \
                 return fmi2Error;                                                                                               \
             }                                                                                                                   \
-            container-> type [fmu_vr] = value[i];                                                                               \
+            container-> type .locals [fmu_vr] = value[i];                                                                               \
         }                                                                                                                       \
     }                                                                                                                           \
                                                                                                                                 \
@@ -268,14 +268,14 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
 
     for(size_t i = 0; i < nvr; i += 1) {
         const uint32_t local_vr = vr[i] & 0xFFFFFF;
-        container_port_t* port = &container->port_strings[local_vr];
+        container_port_t* port = &container->strings.ports[local_vr];
         if (cache_store_strings(container, port, &value[i], 1) < 0)
             return fmi2Error;
         const bool write_locals = cache_port_set(container, CACHE_TYPE_strings, port);
         for(unsigned long j = 0; j < port->nb && write_locals; j += 1) {
             if ((long)port->links[j].fmu_id >= 0)
                 continue;
-            if (fmu_string_copy(&container->strings[port->links[j].fmu_vr], value[i])) {
+            if (fmu_string_copy(&container->strings.locals[port->links[j].fmu_vr], value[i])) {
                 LOGGER_ERROR("Cannot allocate memory for SetString");
                 return fmi2Error;
             }

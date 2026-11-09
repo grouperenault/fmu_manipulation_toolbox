@@ -63,9 +63,9 @@ void convert_proceed(const container_t *container, const convert_table_t *table)
 
 #define CONVERSION_FUNCTION(name, from_type, from_c_type, to_type, to_c_type)                                       \
 static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
-    unsigned long dimension = container->port_ ## from_type [from].dimension;                                       \
-    const from_c_type *from_value = container-> from_type + container->port_ ## from_type [from].links[0].fmu_vr;   \
-    to_c_type         *to_value   = container-> to_type   + container->port_ ## to_type [to].links[0].fmu_vr;       \
+    unsigned long dimension = container-> from_type .ports [from].dimension;                                       \
+    const from_c_type *from_value = container-> from_type .locals + container-> from_type .ports [from].links[0].fmu_vr;   \
+    to_c_type         *to_value   = container-> to_type .locals   + container-> to_type .ports [to].links[0].fmu_vr;       \
                                                                                                                     \
     for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
         to_value[i] = (to_c_type)from_value[i];                                                                     \
@@ -74,9 +74,9 @@ static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr
 
 #define CONVERSION_FUNCTION_F_B(name, from_type, from_c_type, to_type, to_c_type)                                   \
 static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
-    unsigned long dimension = container->port_ ## from_type [from].dimension;                                       \
-    const from_c_type *from_value = container-> from_type + container->port_ ## from_type [from].links[0].fmu_vr;   \
-    to_c_type         *to_value   = container-> to_type   + container->port_ ## to_type [to].links[0].fmu_vr;       \
+    unsigned long dimension = container-> from_type .ports [from].dimension;                                       \
+    const from_c_type *from_value = container-> from_type .locals + container-> from_type .ports [from].links[0].fmu_vr;   \
+    to_c_type         *to_value   = container-> to_type .locals   + container-> to_type .ports [to].links[0].fmu_vr;       \
                                                                                                                     \
     for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
         to_value[i] = (to_c_type)(fabs((double)from_value[i]) > container->tolerance);                              \
@@ -85,9 +85,9 @@ static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr
 
 #define CONVERSION_FUNCTION_D_B(name, from_type, from_c_type, to_type, to_c_type)                                   \
 static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
-    unsigned long dimension = container->port_ ## from_type [from].dimension;                                       \
-    const from_c_type *from_value = container-> from_type + container->port_ ## from_type [from].links[0].fmu_vr;   \
-    to_c_type         *to_value   = container-> to_type   + container->port_ ## to_type [to].links[0].fmu_vr;       \
+    unsigned long dimension = container-> from_type .ports [from].dimension;                                       \
+    const from_c_type *from_value = container-> from_type .locals + container-> from_type .ports [from].links[0].fmu_vr;   \
+    to_c_type         *to_value   = container-> to_type .locals   + container-> to_type .ports [to].links[0].fmu_vr;       \
                                                                                                                     \
     for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
         to_value[i] = (to_c_type)(from_value[i] != 0);                                                              \
@@ -96,9 +96,9 @@ static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr
 
 #define CONVERSION_FUNCTION_B(name, from_type, from_c_type, to_type, to_c_type)                                     \
 static void convert_ ## name(const container_t *container, fmu_vr_t from, fmu_vr_t to) {                            \
-    unsigned long dimension = container->port_ ## from_type [from].dimension;                                       \
-    const from_c_type *from_value = container-> from_type + container->port_ ## from_type [from].links[0].fmu_vr;   \
-    to_c_type         *to_value   = container-> to_type   + container->port_ ## to_type [to].links[0].fmu_vr;       \
+    unsigned long dimension = container-> from_type .ports [from].dimension;                                       \
+    const from_c_type *from_value = container-> from_type .locals + container-> from_type .ports [from].links[0].fmu_vr;   \
+    to_c_type         *to_value   = container-> to_type .locals   + container-> to_type .ports [to].links[0].fmu_vr;       \
                                                                                                                     \
     for(unsigned long i = 0; i < dimension; i += 1)                                                                 \
         to_value[i] = (to_c_type)(from_value[i]?1:0);                                                               \
@@ -310,7 +310,7 @@ int convert_destination_real(const char *function_name) {
 
 /* Number of local variables of the container of the type of a code of the conversion names, or -1 if unknown. */
 static long convert_nb_local(const container_t *container, const char *code, size_t len) {
-#define CODE(x, variable) if (len == strlen(x) && strncmp(code, x, len) == 0) return (long)container->nb_local_ ## variable
+#define CODE(x, variable) if (len == strlen(x) && strncmp(code, x, len) == 0) return (long)container-> variable .nb_locals
     CODE("F64", reals64);
     CODE("F32", reals32);
     CODE("D8",  integers8);

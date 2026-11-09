@@ -34,8 +34,8 @@ cache_t *cache_new(container_t *container) {
     size_t max_strings = 0;
     size_t max_binaries = 0;
 #define SETUP_VALUES(variable, fmi_type, c_type, reset_of_link)                                                   \
-    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                   \
-        container_port_t *port = &container->port_ ## variable [i];                                             \
+    for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                                   \
+        container_port_t *port = &container-> variable .ports [i];                                             \
         port->cache.nb = 0;                                                                                     \
         port->cache.deferred = false;                                                                           \
         port->cache.offset = CONTAINER_NO_CACHE;                                                                \
@@ -68,8 +68,8 @@ cache_t *cache_new(container_t *container) {
     cache->nb_sets = (unsigned long)container->nb_fmu;
     CACHE_ALLOC(cache->sets, cache->nb_sets)
 #define COUNT_LINKS(variable, fmi_type, c_type)                                                                 \
-    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                   \
-        const container_port_t *port = &container->port_ ## variable [i];                                       \
+    for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                                   \
+        const container_port_t *port = &container-> variable .ports [i];                                       \
         bool has_local = false;                                                                                 \
         for (unsigned long j = 0; j < port->nb; j += 1) {                                                       \
             if ((long)port->links[j].fmu_id < 0)                                                                \
@@ -96,13 +96,13 @@ cache_t *cache_new(container_t *container) {
     CACHE_ALLOC(cache->deferred.entries, nb_deferred)
     cache->deferred.size = nb_deferred;
 
-    for (unsigned long i = 0; i < container->nb_ports_strings; i += 1) {
-        if (container->port_strings[i].dimension > max_strings)
-            max_strings = container->port_strings[i].dimension;
+    for (unsigned long i = 0; i < container->strings.nb_ports; i += 1) {
+        if (container->strings.ports[i].dimension > max_strings)
+            max_strings = container->strings.ports[i].dimension;
     }
-    for (unsigned long i = 0; i < container->nb_ports_binaries; i += 1) {
-        if (container->port_binaries[i].dimension > max_binaries)
-            max_binaries = container->port_binaries[i].dimension;
+    for (unsigned long i = 0; i < container->binaries.nb_ports; i += 1) {
+        if (container->binaries.ports[i].dimension > max_binaries)
+            max_binaries = container->binaries.ports[i].dimension;
     }
     CACHE_ALLOC(cache->strings_scratch, max_strings)
     CACHE_ALLOC(cache->sizes_scratch, max_binaries)
@@ -143,8 +143,8 @@ void cache_reset(container_t *container) {
     cache_t *cache = container->cache;
 
 #define RESET_PORTS(variable, fmi_type, c_type)                                 \
-    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {   \
-        container_port_t *port = &container->port_ ## variable [i];             \
+    for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {   \
+        container_port_t *port = &container-> variable .ports [i];             \
         port->cache.nb = 0;                                                     \
         port->cache.deferred = false;                                           \
         for (unsigned long j = 0; j < port->nb; j += 1)                         \
@@ -320,8 +320,8 @@ bool cache_port_set(container_t *container, cache_type_t type, container_port_t 
 /* Goes through all the ports: once per initialization, configuration or reset. */
 void cache_mark_fmu(container_t *container, unsigned long fmu_id, int reset) {
 #define MARK_FMU(variable, fmi_type, c_type)                                                                    \
-    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                   \
-        container_port_t *port = &container->port_ ## variable [i];                                             \
+    for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                                   \
+        container_port_t *port = &container-> variable .ports [i];                                             \
         for (unsigned long j = 0; j < port->nb && port->cache.nb > 0; j += 1) {                                 \
             container_vr_t *link = &port->links[j];                                                             \
             if (link->fmu_id == fmu_id && (reset < 0 || link->cache.start_reset == reset))                      \
@@ -460,13 +460,13 @@ fmu_status_t cache_end_pending_step(container_t *container) {
 #define CASE_WRITE(variable, fmi_type, c_type)                                                                  \
             case CACHE_TYPE_ ## variable:                                                                       \
                 for (unsigned long k = 0; k < port->cache.nb; k += 1)                                           \
-                    container-> variable [link->fmu_vr + k] = cache-> variable [port->cache.offset + k];        \
+                    container-> variable .locals [link->fmu_vr + k] = cache-> variable [port->cache.offset + k];        \
                 break;
             FOR_ALL_NUMERIC_TYPES(CASE_WRITE)
 #undef CASE_WRITE
             case CACHE_TYPE_strings:
                 for (unsigned long k = 0; k < port->cache.nb; k += 1) {
-                    if (fmu_string_copy(&container->strings[link->fmu_vr + k],
+                    if (fmu_string_copy(&container->strings.locals[link->fmu_vr + k],
                                         cache->strings[port->cache.offset + k].data)) {
                         LOGGER_ERROR("Cannot allocate memory to set a deferred string.");
                         return FMU_STATUS_ERROR;
@@ -476,7 +476,7 @@ fmu_status_t cache_end_pending_step(container_t *container) {
             case CACHE_TYPE_binaries:
                 for (unsigned long k = 0; k < port->cache.nb; k += 1) {
                     const fmu_binary_t *cached = &cache->binaries[port->cache.offset + k];
-                    if (fmu_binary_copy(&container->binaries[link->fmu_vr + k], cached->data, cached->size)) {
+                    if (fmu_binary_copy(&container->binaries.locals[link->fmu_vr + k], cached->data, cached->size)) {
                         LOGGER_ERROR("Cannot allocate memory to set a deferred binary.");
                         return FMU_STATUS_ERROR;
                     }
