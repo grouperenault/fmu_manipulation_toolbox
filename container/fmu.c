@@ -3,6 +3,7 @@
 
 #include "config.h" /* for STRLCAT/STRLCPY */
 #include "convert.h"
+#include "cache.h"
 #include "container.h"
 #include "fmu.h"
 #include "logger.h"
@@ -21,7 +22,7 @@
         const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                 \
         const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr;                     \
         const unsigned int dimension = fmu_io->variable .in.translations[i].dimension;              \
-        status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
+        status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
         if (status != FMU_STATUS_OK)                                                                \
             return status;                                                                          \
     }
@@ -31,10 +32,56 @@
         const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr;                      \
         const fmu_vr_t local_vr = fmu_io-> variable .out.translations[i].vr;                        \
         const unsigned int dimension = fmu_io-> variable .out.translations[i].dimension;            \
-        status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
+        status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
         if (status != FMU_STATUS_OK)                                                                \
             return status;                                                                          \
     }
+
+
+int fmu_string_copy(fmu_string_t *string, const char *value) {
+    const size_t size = strlen(value) + 1;
+    if (string->max_size < size) {
+        char *data = realloc(string->data, size);
+        if (!data)
+            return -1;
+        string->data = data;
+        string->max_size = size;
+    }
+    memcpy(string->data, value, size);
+    return 0;
+}
+
+
+int fmu_binary_copy(fmu_binary_t *binary, const uint8_t *data, size_t size) {
+    if (binary->max_size < size) {
+        uint8_t *buffer = realloc(binary->data, size);
+        if (!buffer)
+            return -1;
+        binary->data = buffer;
+        binary->max_size = size;
+    }
+    if (size > 0)
+        memcpy(binary->data, data, size);
+    binary->size = size;
+    return 0;
+}
+
+
+/* The values of local strings (or binaries) as the arrays of the FMI functions, in the buffers of the container. */
+static const char * const *fmu_strings_values(const container_t *container, unsigned long local_vr,
+                                              unsigned int dimension) {
+    for (unsigned int k = 0; k < dimension; k += 1)
+        container->strings_tmp[k] = container->strings.locals[local_vr + k].data;
+    return container->strings_tmp;
+}
+
+
+static void fmu_binaries_values(const container_t *container, unsigned long local_vr, unsigned int dimension) {
+    for (unsigned int k = 0; k < dimension; k += 1) {
+        container->binaries_size_tmp[k] = container->binaries.locals[local_vr + k].size;
+        container->binaries_tmp[k] = container->binaries.locals[local_vr + k].data;
+    }
+}
 
 
 fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
@@ -48,6 +95,11 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
         LOGGER_DEBUG("[DEBUG] Time=%e | fmu_set_inputs(%s)", fmu->container->time, fmu->name);
 #endif
 
+    /* The values set by the importer on the container since the last synchronization of the FMU */
+    status = cache_sync_fmu_now(fmu->container, (unsigned long)fmu->index, false);
+    if (status != FMU_STATUS_OK)
+        return status;
+
     FOR_ALL_NUMERIC_TYPES(SET_INPUT)
 
     /* strings: Need to add a (cast) to avoid a warning */
@@ -55,7 +107,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
         const unsigned int fmu_vr = fmu_io->strings.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->strings.in.translations[i].vr;
         const unsigned int dimension = fmu_io->strings.in.translations[i].dimension;
-        status = fmuSetString(fmu, &fmu_vr, 1, (const char *const*)&container->strings[local_vr], dimension);
+        status = fmuSetString(fmu, &fmu_vr, 1, fmu_strings_values(container, local_vr, dimension), dimension);
         if (status != FMU_STATUS_OK)
             return status;
     }
@@ -65,8 +117,8 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
         const unsigned int fmu_vr = fmu_io->binaries.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->binaries.in.translations[i].vr;
         const unsigned int dimension = fmu_io->binaries.in.translations[i].dimension;
-        status = fmuSetBinary(fmu, &fmu_vr, 1, &container->binaries[local_vr].size,
-                              (const uint8_t *const*)&container->binaries[local_vr].data, dimension);
+        fmu_binaries_values(container, local_vr, dimension);
+        status = fmuSetBinary(fmu, &fmu_vr, 1, container->binaries_size_tmp, container->binaries_tmp, dimension);
         if (status != FMU_STATUS_OK)
             return status;
     }
@@ -83,8 +135,8 @@ fmu_status_t fmu_set_clocks(const fmu_t* fmu) {
     for (unsigned long i = 0; i < fmu_io->clocks.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
-        if (container->clocks[local_vr]) {
-            status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks[local_vr]);
+        if (container->clocks.locals[local_vr]) {
+            status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks.locals[local_vr]);
             if (status != FMU_STATUS_OK)
                 return status;
         }
@@ -126,7 +178,7 @@ fmu_status_t fmu_set_clocks_before_outputs(const fmu_t* fmu) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
         if (fmu_clock_is_scheduled(container, local_vr) && !fmu_clock_has_inputs(fmu, local_vr)) {
-            fmu_status_t status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks[local_vr]);
+            fmu_status_t status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks.locals[local_vr]);
             if (status != FMU_STATUS_OK)
                 return status;
         }
@@ -143,8 +195,8 @@ fmu_status_t fmu_set_clocks_after_outputs(const fmu_t* fmu) {
     for (unsigned long i = 0; i < fmu_io->clocks.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
-        if (container->clocks[local_vr] && (!fmu_clock_is_scheduled(container, local_vr) || fmu_clock_has_inputs(fmu, local_vr))) {
-            fmu_status_t status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks[local_vr]);
+        if (container->clocks.locals[local_vr] && (!fmu_clock_is_scheduled(container, local_vr) || fmu_clock_has_inputs(fmu, local_vr))) {
+            fmu_status_t status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks.locals[local_vr]);
             if (status != FMU_STATUS_OK)
                 return status;
         }
@@ -155,7 +207,7 @@ fmu_status_t fmu_set_clocks_after_outputs(const fmu_t* fmu) {
 
 
 fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
-    const bool *clocks = fmu->container->clocks;
+    const bool *clocks = fmu->container->clocks.locals;
     fmu_status_t status = FMU_STATUS_OK;
     const container_t* container = fmu->container;
 #ifdef DEBUG
@@ -176,7 +228,7 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;         \
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;           \
                 const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;   \
-                status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
+                status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
                 if (status != FMU_STATUS_OK)                                                                \
                     return status;                                                                          \
             }                                                                                               \
@@ -195,7 +247,7 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
                 const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;
-                status = fmuSetString(fmu, &fmu_vr, 1, (const char *const*)&container->strings[local_vr], dimension);
+                status = fmuSetString(fmu, &fmu_vr, 1, fmu_strings_values(container, local_vr, dimension), dimension);
                 if (status != FMU_STATUS_OK)
                     return status;
             }
@@ -210,8 +262,9 @@ fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
                 const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;
-                status = fmuSetBinary(fmu, &fmu_vr, 1, &container->binaries[local_vr].size,
-                        (const uint8_t *const*)&container->binaries[local_vr].data, dimension);
+                fmu_binaries_values(container, local_vr, dimension);
+                status = fmuSetBinary(fmu, &fmu_vr, 1, container->binaries_size_tmp, container->binaries_tmp,
+                                      dimension);
                 if (status != FMU_STATUS_OK)
                     return status;
             }
@@ -247,8 +300,10 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
                 return status;
 
             for(unsigned int j = 0; j < dimension; j += 1) {
-                free(container->strings[local_vr + j]);
-                container->strings[local_vr + j] = strdup(container->strings_tmp[j]);
+                if (fmu_string_copy(&container->strings.locals[local_vr + j], container->strings_tmp[j])) {
+                    LOGGER_ERROR("Cannot allocate memory for get output.");
+                    return FMU_STATUS_ERROR;
+                }
             }
     }
 
@@ -261,18 +316,11 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
             if (status != FMU_STATUS_OK)
                 return status;
             for(unsigned int j=0; j < dimension; j += 1) {
-                size_t size = container->binaries_size_tmp[j];
-                if (container->binaries[local_vr + j].max_size < size) {
-                    free(container->binaries[local_vr + j].data);
-                    container->binaries[local_vr + j].data = malloc(size * sizeof(*container->binaries[local_vr + j].data));
-                    if (! container->binaries[local_vr + j].data) {
-                        LOGGER_ERROR("Cannot allocate memory for get output.");
-                        return FMU_STATUS_ERROR;
-                    }
-                    container->binaries[local_vr + j].max_size = size;
+                if (fmu_binary_copy(&container->binaries.locals[local_vr + j], container->binaries_tmp[j],
+                                    container->binaries_size_tmp[j])) {
+                    LOGGER_ERROR("Cannot allocate memory for get output.");
+                    return FMU_STATUS_ERROR;
                 }
-                memcpy(container->binaries[local_vr + j].data, container->binaries_tmp[j], size);
-                container->binaries[local_vr + j].size = size;
             }
         }
 
@@ -293,6 +341,11 @@ fmu_status_t fmu_set_continuous_inputs(const fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
+
+    /* The real values set by the importer on the container since the last synchronization of the FMU */
+    status = cache_sync_fmu_now(fmu->container, (unsigned long)fmu->index, true);
+    if (status != FMU_STATUS_OK)
+        return status;
 
     SET_INPUT(reals64, Real64, double)
     SET_INPUT(reals32, Real32, float)
@@ -332,7 +385,7 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
     for (size_t i = 0; i < fmu_io->clocks.out.nb; i += 1) {
         const fmu_vr_t fmu_vr = fmu_io->clocks.out.translations[i].fmu_vr;
         const fmu_vr_t local_vr = fmu_io->clocks.out.translations[i].vr;
-        status = fmuGetClock(fmu, &fmu_vr, 1, &container->clocks[local_vr]);
+        status = fmuGetClock(fmu, &fmu_vr, 1, &container->clocks.locals[local_vr]);
         if (status != FMU_STATUS_OK)
             return status;
     }
@@ -344,12 +397,12 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
 #define GET_CLOCKED_OUTPUT(variable, fmi_type, c_type)                                                      \
     for (unsigned long i = 0; i < fmu_io->clocked_ ## variable .nb_out; i += 1) {                           \
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_ ## variable .out[i];                           \
-        if (container->clocks[clocked_port->clock_vr]) {                                                    \
+        if (container->clocks.locals[clocked_port->clock_vr]) {                                                    \
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {                        \
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;         \
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;           \
                 const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;   \
-                status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable [local_vr], dimension); \
+                status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
                 if (status != FMU_STATUS_OK)                                                                \
                     return status;                                                                          \
             }                                                                                               \
@@ -361,17 +414,20 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
     /* strings: Need to add a (cast) to avoid a warning */
     for (unsigned long i = 0; i < fmu_io->clocked_strings.nb_out; i += 1) {
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_strings.out[i];
-        if (container->clocks[clocked_port->clock_vr]) {
+        if (container->clocks.locals[clocked_port->clock_vr]) {
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
                 const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;
-                const char* str;
-                status = fmuGetString(fmu, &fmu_vr, 1, &str, dimension);
+                status = fmuGetString(fmu, &fmu_vr, 1, container->strings_tmp, dimension);
                 if (status != FMU_STATUS_OK)
                     return status;
-                free(container->strings[local_vr]);
-                container->strings[local_vr] = strdup(str);
+                for (unsigned int k = 0; k < dimension; k += 1) {
+                    if (fmu_string_copy(&container->strings.locals[local_vr + k], container->strings_tmp[k])) {
+                        LOGGER_ERROR("Cannot allocate memory for get output.");
+                        return FMU_STATUS_ERROR;
+                    }
+                }
             } 
         }
     }
@@ -379,27 +435,22 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
     /* binaries: Need to add size parameter */
     for (unsigned long i = 0; i < fmu_io->clocked_binaries.nb_out; i += 1) {
         fmu_clocked_port_t *clocked_port = &fmu_io->clocked_binaries.out[i];
-        if (container->clocks[clocked_port->clock_vr]) {
+        if (container->clocks.locals[clocked_port->clock_vr]) {
             for(unsigned long j=0; j < clocked_port->translations_list.nb; j += 1) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
                 const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;
-                const uint8_t *data;
-                size_t size;
-                status = fmuGetBinary(fmu, &fmu_vr, 1, &size, &data, dimension);
+                status = fmuGetBinary(fmu, &fmu_vr, 1, container->binaries_size_tmp, container->binaries_tmp,
+                                      dimension);
                 if (status != FMU_STATUS_OK)
                     return status;
-                if (container->binaries[local_vr].max_size < size) {
-                    free(container->binaries[local_vr].data);
-                    container->binaries[local_vr].data = malloc(size * sizeof(*container->binaries[local_vr].data));
-                    if (! container->binaries[local_vr].data) {
+                for (unsigned int k = 0; k < dimension; k += 1) {
+                    if (fmu_binary_copy(&container->binaries.locals[local_vr + k], container->binaries_tmp[k],
+                                        container->binaries_size_tmp[k])) {
                         LOGGER_ERROR("Cannot allocate memory for get output.");
                         return FMU_STATUS_ERROR;
                     }
-                    container->binaries[local_vr].max_size = size;
                 }
-                memcpy(container->binaries[local_vr].data, data, size);
-                container->binaries[local_vr].size = size;
             }
         }
     }
@@ -1320,7 +1371,7 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
     }
       
     if (fmu->profile) {
-        fmu->container->reals64[fmu->index+1] = profile_toc(fmu->profile, currentCommunicationPoint+communicationStepSize);
+        fmu->container->reals64.locals[fmu->index+1] = profile_toc(fmu->profile, currentCommunicationPoint+communicationStepSize);
     }
 
     return status;
@@ -1491,17 +1542,17 @@ fmu_status_t fmuExitConfigurationMode(fmu_t *fmu) {
 }
 
 
-#define DEFINE_IS_STRUCTURAL(variable, fmi_type, c_type)                                        \
-bool fmu_is_structural_ ## variable(const fmu_t *fmu, fmu_vr_t vr) {                            \
+#define DEFINE_START_RESET(variable, fmi_type, c_type)                                          \
+int fmu_start_reset_ ## variable(const fmu_t *fmu, fmu_vr_t vr) {                               \
     for (unsigned long i = 0; i < fmu->fmu_io.start_ ## variable.nb; i += 1) {                  \
         if (fmu->fmu_io.start_ ## variable.start_values[i].vr == vr)                            \
-            return fmu->fmu_io.start_ ## variable.start_values[i].reset == 2;                   \
+            return fmu->fmu_io.start_ ## variable.start_values[i].reset;                        \
     }                                                                                           \
-    return false;                                                                               \
+    return -1;                                                                                  \
 }
-FOR_ALL_NUMERIC_TYPES(DEFINE_IS_STRUCTURAL)
-DEFINE_IS_STRUCTURAL(strings, String, const char *)
-#undef DEFINE_IS_STRUCTURAL
+FOR_ALL_NUMERIC_TYPES(DEFINE_START_RESET)
+DEFINE_START_RESET(strings, String, const char *)
+#undef DEFINE_START_RESET
 
 
 fmu_status_t fmuTerminate(const fmu_t *fmu) {

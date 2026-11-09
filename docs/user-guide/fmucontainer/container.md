@@ -122,6 +122,9 @@ initialized with the outputs of `A`, then `C` with the outputs of `B`.
   [FMI-LS-XCP](ls-xcp.md#configuration-mode)): the values set by the importer prevail over the start values.
 - The structural parameters exposed by the container are set in the *Configuration Mode* of their FMU, see
   [FMI-LS-XCP](ls-xcp.md#configuration-mode).
+- A value set on the container (`fmi*Set*`) is kept by the container and given to the embedded FMU when it needs it:
+  before its next step, when it leaves its *Initialization Mode*, or when one of its variables is read. If the
+  embedded FMU refuses the value, the error is reported by that call, not by `fmi*Set*`.
 
 The FMI calls are detailed in [Initialization FMI Sequence](../../developer/init-fmi-sequence.md).
 

@@ -188,11 +188,23 @@ typedef struct {
                             F M U _ B I N A R Y _ T
 ----------------------------------------------------------------------------*/
 
+/* A binary and a string keep their capacity (max_size): a new value that fits is copied without allocation (see
+   fmu_binary_copy, fmu_string_copy). */
 typedef struct {
     uint8_t     *data;
     size_t      size;
     size_t      max_size;
-} fmu_binary_t; 
+} fmu_binary_t;
+
+
+/*----------------------------------------------------------------------------
+                            F M U _ S T R I N G _ T
+----------------------------------------------------------------------------*/
+
+typedef struct {
+    char        *data;      /* never NULL once set */
+    size_t      max_size;
+} fmu_string_t;
 
 
 /*----------------------------------------------------------------------------
@@ -456,21 +468,19 @@ extern fmu_status_t fmu_set_clocked_inputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_continuous_outputs(const fmu_t* fmu);
 extern fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu);
+/* Copies a value in a string or a binary, reallocated only when it does not fit. 0, or -1 on an allocation failure. */
+extern int fmu_string_copy(fmu_string_t *string, const char *value);
+extern int fmu_binary_copy(fmu_binary_t *binary, const uint8_t *data, size_t size);
 extern fmu_status_t fmuEnterConfigurationMode(fmu_t *fmu);
 extern fmu_status_t fmuExitConfigurationMode(fmu_t *fmu);
 
-/* fmu_is_structural_<variable>(fmu, vr): whether vr is a structural parameter of the FMU, that is a variable with a
-   start value of Configuration Mode (<RESET>=2 of container.txt). */
-#define DECLARE_IS_STRUCTURAL(variable, fmi_type, c_type) \
-extern bool fmu_is_structural_ ## variable(const fmu_t *fmu, fmu_vr_t vr);
-FOR_ALL_NUMERIC_TYPES(DECLARE_IS_STRUCTURAL)
-DECLARE_IS_STRUCTURAL(strings, String, const char *)
-#undef DECLARE_IS_STRUCTURAL
-
-/* A structural parameter is set only in Configuration Mode: a value set on the container meanwhile is kept in the
-   cache of the container, and set when the FMU is configured. */
-#define FMU_DEFERS_SET(fmu, variable, vr) \
-    ((fmu)->has_configuration_mode && !(fmu)->in_configuration_mode && fmu_is_structural_ ## variable((fmu), (vr)))
+/* fmu_start_reset_<variable>(fmu, vr): <RESET> of the start value of vr in container.txt (2: structural parameter,
+   set in Configuration Mode; 1: set again in Initialization Mode; 0), -1 if vr has no start value. */
+#define DECLARE_START_RESET(variable, fmi_type, c_type) \
+extern int fmu_start_reset_ ## variable(const fmu_t *fmu, fmu_vr_t vr);
+FOR_ALL_NUMERIC_TYPES(DECLARE_START_RESET)
+DECLARE_START_RESET(strings, String, const char *)
+#undef DECLARE_START_RESET
 extern fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,

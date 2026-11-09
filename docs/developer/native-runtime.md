@@ -10,16 +10,29 @@ The twelve numeric types of the runtime are listed once, by the X-macro `FOR_ALL
 the other types (`strings`, `binaries`, `clocks`) being written explicitly:
 
 ```c
-#define FREE(variable, fmi_type, c_type) \
-    free(container->vr_ ## variable);    \
-    free(container-> variable);
+#define FREE(variable, fmi_type, c_type)       \
+    free(container-> variable .links);         \
+    free(container-> variable .ports);         \
+    free(container-> variable .locals);
 
     FOR_ALL_NUMERIC_TYPES(FREE)
-    FREE(strings, String, char *)
+    FREE(strings, String, fmu_string_t)
 #undef FREE
 ```
 
 No separator is inserted between the expansions: each one must be a complete statement or declaration.
+
+The container stores each type in one structure, `container_<type>_t`, named by the type in `container_t`: its local
+variables (`container->reals64.locals`, `.nb_locals`: the values conveyed from one FMU to another and the variables
+of the container), its ports (`.ports`, `.nb_ports`, by value reference) and the storage of their links (`.links`).
+
+## Modules
+
+Each module of the runtime prefixes its functions and its types with its name: `cache_` (`cache.c`: the values set by
+the importer and their synchronization with the embedded FMUs, see [DoStep FMI
+Sequence](dostep-fmi-sequence.md#values-set-by-the-importer)), `datalog_`, `fmu_`/`fmu` (embedded FMUs), `logger_`,
+`solver_`, `thread_`... `container_` is the container itself (`container.c`), whose FMI APIs are in `fmi2.c` and
+`fmi3.c`.
 
 ## Logger
 
@@ -71,7 +84,8 @@ sources of the runtime are compiled again with the tests, so that the internal f
 - `stub_xcp_fmi2.c`, `stub_xcp_fmi3.c`: FMUs of FMI-LS-XCP (descriptors in `tests/data/ls-xcp` of the repository).
   Their XCP service only writes a journal, `<resources>/xcp.log`, of the configuration they receive and of when the
   service starts; the fixtures `xcp_fmi2` and `xcp_fmi3` (`tests/data/xcp/container_fmi<2|3>.txt`) check the
-  Configuration Mode and the order of the start values.
+  Configuration Mode, the order of the start values and the cache of the values set by the importer (`cache_*`
+  tests: nothing reaches the FMU before its synchronization, read after write, refused value).
 - Fixtures: `tests/data/one_fmu/container.txt.in` is turned by CMake (`container_fixture()`) into
   `<build folder>/fixtures/<name>/container.txt`, with the stub FMU in `00/binaries/<platform>/`. The tests of
   malformed files (`test_malformed.c`) rewrite one line of the fixture `one_fmu` into the fixture `malformed`.

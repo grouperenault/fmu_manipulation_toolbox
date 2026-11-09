@@ -7,6 +7,10 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🔵 **CHANGED** runtime: a value set on the container (`fmi*Set*`) goes to its cache, and the embedded FMU gets it
+  when it needs it: before its next step, when it leaves its Initialization Mode, or when it is read. A value refused
+  by an embedded FMU is reported by that call instead of `fmi*Set*`. The values set by the importer before the
+  Initialization Mode prevail over the start values of the variables set again in it.
 - 🟢 **ADDED** **FMI-LS-XCP 1.0.0**: the XCP services of the embedded FMUs (`containsXCPService`) are forwarded by the
   container: declared in its manifest, their A2L files copied, the variables that configure them exposed as
   `<fmu id>.<variable>`. Two services on the same port are refused at build time. The interfaces with direct memory

@@ -18,6 +18,7 @@ static const struct {
     { "thread_barrier",                 test_thread_barrier },
     { "thread_barrier_consecutive",     test_thread_barrier_consecutive },
     { "configure_empty",                test_configure_empty },
+    { "local_strings",                  test_local_strings },
     { "container_new_null",             test_container_new_null },
     { "configure_one_fmu",              test_configure_one_fmu },
     { "configure_one_fmu_mt",           test_configure_one_fmu_mt },
@@ -39,6 +40,10 @@ static const struct {
     { "xcp_configuration_mode",         test_xcp_configuration_mode },
     { "xcp_without_configuration_mode", test_xcp_without_configuration_mode },
     { "xcp_fmi2_before_setup",          test_xcp_fmi2_before_setup_experiment },
+    { "cache_read_after_write",         test_cache_read_after_write },
+    { "cache_refused_value",            test_cache_refused_value },
+    { "cache_order_of_the_calls",       test_cache_order_of_the_calls },
+    { "cache_structural_warning",       test_cache_structural_warning },
 };
 
 

@@ -21,6 +21,10 @@ extern "C" {
 typedef struct {
 	fmu_vr_t					fmu_vr;
 	unsigned long				fmu_id;
+	struct  {				                  /* links to an embedded FMU (see cache.h) */
+		bool					in_set;		  /* in the set of its FMU */
+		int						start_reset;  /* <RESET> of the start value of the variable, -1 if none */
+	} cache;
 } container_vr_t;
 
 
@@ -28,16 +32,42 @@ typedef struct {
                       C O N T A I N E R _ P O R T _ T
 ----------------------------------------------------------------------------*/
 
-#define CONTAINER_NO_CACHE			(~0UL)
-
+/* Port of the container: its interface (dimension, links to the embedded FMUs or to local variables), used by the
+   setters, the getters and the clocks, and its cache (values set by the importer, see cache.h). */
 typedef struct {
 	unsigned long				dimension; /* dimension of variable */
 	unsigned long               nb;	 /* number of connected FMU from a container port */
     container_vr_t              *links;
-	unsigned long				cache_offset; /* in container->cache_<type>, CONTAINER_NO_CACHE if no link */
-	unsigned long				nb_cached;	/* number of values set by the importer, 0 if none yet */
-	bool						deferred;	/* set by the importer while a step was pending: to apply after it */
+	struct {
+		unsigned long			offset;		/* of its values in the cache, CACHE_NONE if no link */
+		unsigned long			nb;			/* number of values set by the importer, 0 if none yet */
+		bool					has_local;	/* linked to local variables (set by cache_new) */
+		bool					deferred;	/* in the set of the ports whose local variables are written after the
+											   pending step */
+	} cache;
 } container_port_t;
+
+
+/*----------------------------------------------------------------------------
+                  C O N T A I N E R _ < T Y P E > _ T
+----------------------------------------------------------------------------*/
+
+/* Storages of one type in the container (container-><type>): the local variables (values conveyed from one FMU to
+   another, and the variables of the container), and the ports of the container with their links. */
+#define DECLARE_STORAGE_TYPE(variable, fmi_type, c_type)                                                            \
+typedef struct {                                                                                                    \
+	unsigned long				nb_locals;                                                                          \
+	c_type						*locals;	/* local variables */                                                   \
+	unsigned long				nb_ports;                                                                           \
+	container_port_t			*ports;		/* ports of the container, by value reference (masked) */               \
+	container_vr_t				*links;		/* storage of the links of all the ports */                             \
+} container_ ## variable ## _t;
+
+FOR_ALL_NUMERIC_TYPES(DECLARE_STORAGE_TYPE)
+DECLARE_STORAGE_TYPE(strings, String, fmu_string_t)
+DECLARE_STORAGE_TYPE(binaries, Binary, fmu_binary_t)
+DECLARE_STORAGE_TYPE(clocks, Clock, bool)
+#undef DECLARE_STORAGE_TYPE
 
 
 /*----------------------------------------------------------------------------
@@ -132,44 +162,23 @@ typedef struct container_s {
 	int							fmi_version;	/* 2 or 3: API used to instantiate the container */
 	container_state_t			state;		/* managed in fmi2.c and fmi3.c */
 
-	/* storage of local variables (conveyed from one FMU to an other) */
-#define DECLARE_LOCAL(variable, fmi_type, c_type) 	\
-	unsigned long				nb_local_ ## variable;	\
-	c_type						* variable;
+	/* storages of each type: local variables, ports and their links (see container_<type>_t) */
+#define DECLARE_STORAGE(variable, fmi_type, c_type) \
+	container_ ## variable ## _t	variable;
 
-	FOR_ALL_NUMERIC_TYPES(DECLARE_LOCAL)
-	DECLARE_LOCAL(strings, String, char *)
-	DECLARE_LOCAL(binaries, Binary, fmu_binary_t)
-	DECLARE_LOCAL(clocks, Clock, bool)
+	FOR_ALL_NUMERIC_TYPES(DECLARE_STORAGE)
+	DECLARE_STORAGE(strings, String, fmu_string_t)
+	DECLARE_STORAGE(binaries, Binary, fmu_binary_t)
+	DECLARE_STORAGE(clocks, Clock, bool)
+#undef DECLARE_STORAGE
 
+	/* buffers of fmu_get_outputs() and fmu_set_inputs() for the arrays of strings and of binaries */
 	const uint8_t 				**binaries_tmp;
 	size_t 						*binaries_size_tmp;
 	const char					**strings_tmp;
 
-#undef DECLARE_LOCAL
-
-	/* container ports definition */
-#define DECLARE_PORT(variable, fmi_type, c_type)	\
-    unsigned long	   			nb_ports_ ## variable;	\
-    container_vr_t				*vr_ ## variable; /* used as buffer to optimize malloc() operations */ \
-    container_port_t            *port_ ## variable;
-
-	FOR_ALL_NUMERIC_TYPES(DECLARE_PORT)
-	DECLARE_PORT(strings, String, char *)
-	DECLARE_PORT(binaries, Binary, fmu_binary_t)
-	DECLARE_PORT(clocks, Clock, bool)
-#undef DECLARE_PORT
-
-	/* values set by the importer on the ports forwarded to embedded FMUs, set again after the reset of an FMU
-	   (clocks are events: never cached) */
-#define DECLARE_CACHE(variable, fmi_type, c_type)	\
-	unsigned long				nb_cache_ ## variable;	\
-	c_type						*cache_ ## variable;
-
-	FOR_ALL_NUMERIC_TYPES(DECLARE_CACHE)
-	DECLARE_CACHE(strings, String, char *)
-	DECLARE_CACHE(binaries, Binary, fmu_binary_t)
-#undef DECLARE_CACHE
+	/* values set by the importer (see cache.h) */
+	struct cache_s				*cache;
 
 	convert_table_t				conversions;
 
@@ -222,20 +231,6 @@ extern fmu_status_t container_reset(container_t* container);
 extern fmu_status_t container_enter_event_mode(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);
-
-/* cache of the values set by the importer (see DECLARE_CACHE). nvalues: number of values in value[]. */
-#define DECLARE_CACHE_FUNCTION(variable, fmi_type, c_type)                                                 \
-extern int container_cache_ ## variable(container_t *container, container_port_t *port, const c_type value[], \
-                                        size_t nvalues);
-
-FOR_ALL_NUMERIC_TYPES(DECLARE_CACHE_FUNCTION)
-#undef DECLARE_CACHE_FUNCTION
-extern int container_cache_strings(container_t *container, container_port_t *port, const char * const value[],
-                                   size_t nvalues);
-extern int container_cache_binaries(container_t *container, container_port_t *port, const size_t size[],
-                                    const uint8_t * const value[], size_t nvalues);
-/* Set again the cached values of the ports forwarded to the FMU of index fmu_id. */
-extern fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id, bool structural);
 
 /* for datalog facilities. */
 extern void container_clocks_activate_ticked(container_t *container);

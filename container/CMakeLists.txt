@@ -20,6 +20,7 @@ endif()
 # container: the shared library embedded in the container FMUs.
 # -----------------------------------------------------------------------------
 set(CONTAINER_SOURCES
+    cache.c     cache.h
     config.c    config.h
     container.c container.h
     convert.c   convert.h
@@ -135,6 +136,10 @@ if(BUILD_TESTING)
     container_fixture(one_fmu_mt            "{stub}"                    1)
     container_fixture(mt_instantiate_fails  "{stub-fail-instantiate}"   1)
     container_fixture(malformed             "{stub}"                    0)  # container.txt rewritten by the tests
+    container_fixture(one_fmu_strings       "{stub}"                    0)  # container.txt replaced below
+    set(GUID "{stub}")
+    set(MT 0)
+    configure_file(tests/data/one_fmu/strings.txt.in "${TEST_FIXTURES_DIR}/one_fmu_strings/container.txt" @ONLY)
 
     # Fixtures of FMI-LS-XCP: tests/data/xcp/container_fmi<2|3>.txt with the stub FMU of the same FMI version, in the
     # binaries directory of its FMI version (FMU2_BINDIR / FMU3_BINDIR of fmu.h).

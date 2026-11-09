@@ -133,11 +133,11 @@ static void solver_mark_outputs(const container_t *container, const fmu_t *fmu, 
     for (unsigned long i = 0; i < fmu->conversions->nb; i += 1) {
         const convert_table_entry_t *entry = &fmu->conversions->entries[i];
         if (entry->to_real == 64)
-            solver_mark(slots64, container->port_reals64[entry->to].links[0].fmu_vr,
-                        container->port_reals64[entry->to].dimension);
+            solver_mark(slots64, container->reals64.ports[entry->to].links[0].fmu_vr,
+                        container->reals64.ports[entry->to].dimension);
         else if (entry->to_real == 32)
-            solver_mark(slots32, container->port_reals32[entry->to].links[0].fmu_vr,
-                        container->port_reals32[entry->to].dimension);
+            solver_mark(slots32, container->reals32.ports[entry->to].links[0].fmu_vr,
+                        container->reals32.ports[entry->to].dimension);
     }
 }
 
@@ -171,7 +171,7 @@ static int solver_select_inputs(const fmu_translation_list_t *list, const bool *
 static int solver_find_couplings(solver_t *solver) {
     const container_t *container = solver->container;
     const logger_t *logger = &container->logger;
-    const unsigned long nb64 = container->nb_local_reals64, nb32 = container->nb_local_reals32;
+    const unsigned long nb64 = container->reals64.nb_locals, nb32 = container->reals32.nb_locals;
     bool *produced64 = calloc(nb64 + 1, sizeof(bool)), *produced32 = calloc(nb32 + 1, sizeof(bool));
     bool *consumed64 = calloc(nb64 + 1, sizeof(bool)), *consumed32 = calloc(nb32 + 1, sizeof(bool));
     bool *outputs64 = calloc(nb64 + 1, sizeof(bool)), *outputs32 = calloc(nb32 + 1, sizeof(bool));
@@ -227,7 +227,7 @@ int solver_configure(solver_t *solver) {
     /* Called again by each ExitInitializationMode after a reset of the container. */
     solver_free_buffers(solver);
 
-    const int solver_integrator = solver->container->integers32[1];
+    const int solver_integrator = solver->container->integers32.locals[1];
     
     switch(solver_integrator) {
         case 0: /* Euler */
@@ -323,14 +323,14 @@ static fmu_status_t solver_propagate(solver_t *solver) {
 
         for (unsigned long k = 0; k < e->coupled_reals64.nb; k += 1) {
             const fmu_translation_t *t = &e->coupled_reals64.translations[k];
-            if (fmuSetReal64(e->fmu, &t->fmu_vr, 1, &container->reals64[t->vr], t->dimension) != FMU_STATUS_OK) {
+            if (fmuSetReal64(e->fmu, &t->fmu_vr, 1, &container->reals64.locals[t->vr], t->dimension) != FMU_STATUS_OK) {
                 LOGGER_ERROR("ME FMU '%s': cannot set inputs.", e->fmu->name);
                 return FMU_STATUS_ERROR;
             }
         }
         for (unsigned long k = 0; k < e->coupled_reals32.nb; k += 1) {
             const fmu_translation_t *t = &e->coupled_reals32.translations[k];
-            if (fmuSetReal32(e->fmu, &t->fmu_vr, 1, &container->reals32[t->vr], t->dimension) != FMU_STATUS_OK) {
+            if (fmuSetReal32(e->fmu, &t->fmu_vr, 1, &container->reals32.locals[t->vr], t->dimension) != FMU_STATUS_OK) {
                 LOGGER_ERROR("ME FMU '%s': cannot set inputs.", e->fmu->name);
                 return FMU_STATUS_ERROR;
             }
