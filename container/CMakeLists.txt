@@ -67,6 +67,7 @@ if(BUILD_TESTING)
         tests/test_datalog.c
         tests/test_thread.c
         tests/test_threads_lifecycle.c
+        tests/test_stub_xcp.c
     )
     target_link_libraries(container_tests PRIVATE fmutool_flags)
     target_include_directories(container_tests PRIVATE
@@ -95,6 +96,21 @@ if(BUILD_TESTING)
     endif()
     set_target_properties(stub_fmu PROPERTIES PREFIX "" SUFFIX "${_stub_suffix}" C_VISIBILITY_PRESET hidden)
     add_dependencies(container_tests stub_fmu)
+
+    # FMUs of FMI-LS-XCP of the tests (descriptors in tests/data/ls-xcp of the repository), one per FMI version.
+    foreach(_version 2 3)
+        set(_target stub_xcp_fmi${_version})
+        add_library(${_target} MODULE tests/stub_xcp_fmi${_version}.c tests/stub_xcp.h)
+        target_link_libraries(${_target} PRIVATE fmutool_flags)
+        target_include_directories(${_target} PRIVATE ${FMUTOOL_CMAKE_DIR}/../fmu_manipulation_toolbox/resources/fmi)
+        set_target_properties(${_target} PROPERTIES PREFIX "" SUFFIX "${_stub_suffix}" OUTPUT_NAME stub_xcp
+                              C_VISIBILITY_PRESET hidden
+                              LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${_target}")
+        add_dependencies(container_tests ${_target})
+        target_compile_definitions(container_tests PRIVATE
+            STUB_XCP_FMI${_version}_LIBRARY="$<TARGET_FILE:${_target}>")
+    endforeach()
+    file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/stub_xcp")     # journal of the stubs
 
     set(TEST_FIXTURES_DIR "${CMAKE_CURRENT_BINARY_DIR}/fixtures")
     target_compile_definitions(container_tests PRIVATE TEST_FIXTURES_DIR="${TEST_FIXTURES_DIR}")

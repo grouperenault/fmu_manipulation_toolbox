@@ -48,6 +48,7 @@ must know which FMU to put in Configuration Mode, and it only reads `container.t
 | 10 | Test FMUs of the Python tests | `.fmu` archives without binaries (descriptor, manifest, A2L) in `tests/data/ls-xcp/`: enough to build a container. The runtime sequence is checked by the native tests only, with the stub FMU built by CMake |
 | 11 | Port conflict | Same protocol and same port, whatever the listen addresses (`0.0.0.0` overlaps every address) |
 | 12 | `<has_configuration_mode>` | On the Co-Simulation and the Model-Exchange lines of section 4 |
+| 13 | FMI 2.0: start values applied after `fmi2SetupExperiment`, where an FMU of LS-XCP starts its service | The early start values are applied **before** `fmi2SetupExperiment`, for all the embedded FMUs (allowed in the state Instantiated of FMI 2.0). Decided 2026-11-09, step 4 |
 
 ## Step 0 — Plan
 
@@ -98,18 +99,19 @@ fmutool -check validates the manifest of FMI-LS-XCP against its XSD, the A2L
 files of the interfaces and the role of the variables.
 ```
 
-## Step 3 — Stub FMU of the tests
+## Step 3 — Stub FMUs of the tests
 
-- `container/tests/stub_xcp_fmu.c` (model of `stub_fmu.c`), compiled for FMI 2.0 and FMI 3.0: role variables
-  `XCP.TCP.Enable`, `XCP.TCP.Port`, `XCP.TCP.ListenAddress` (`parameter` in FMI 2.0, `structuralParameter` in
-  FMI 3.0), manifest and A2L. It logs the received configuration, refuses a structural parameter set outside of
-  Configuration Mode, and logs when its service "starts" (`fmi2SetupExperiment`, `fmi3ExitConfigurationMode` or
-  `fmi3EnterInitializationMode`).
-- Python test data (decision 10).
+- `container/tests/stub_xcp_fmi2.c` and `container/tests/stub_xcp_fmi3.c`, with the journal of their XCP service in
+  `container/tests/stub_xcp.h`; their descriptors, manifest and A2L are those of `tests/data/ls-xcp/stub_xcp_fmi<2|3>`
+  (created at step 2 for the checker). Role variables `XCP.TCP.Enable`, `XCP.TCP.Port`, `XCP.TCP.ListenAddress`
+  (`parameter` in FMI 2.0, `structuralParameter` in FMI 3.0). The stub journals in `<resources>/xcp.log` the received
+  configuration, the refused sets (FMI 2.0: after the start of its service; FMI 3.0: outside of Configuration Mode)
+  and when its service starts (`fmi2SetupExperiment`, `fmi3ExitConfigurationMode` or `fmi3EnterInitializationMode`).
+- Built by `container/CMakeLists.txt` with the native tests; `test_stub_xcp.c` calls them directly.
 
 Commit message:
 ```
-Tests: stub FMU implementing FMI-LS-XCP
+Tests: stub FMUs implementing FMI-LS-XCP
 ```
 
 ## Step 4 — `container.txt` version 9 and Configuration Mode in the runtime
