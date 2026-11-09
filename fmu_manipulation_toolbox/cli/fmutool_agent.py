@@ -39,14 +39,14 @@ from ..version import __version__ as version
 
 #: Tools working on the assembly: they need `--state`.
 ASSEMBLY_TOOLS = frozenset({
-    "list_fmus", "list_fmu_ports", "add_fmu", "remove_fmu", "add_link", "add_links", "remove_link",
+    "list_fmus", "list_fmu_ports", "import_assembly", "add_fmu", "remove_fmu", "add_links", "remove_link",
     "expose_input", "expose_output", "set_start_value", "unset_start_value", "set_container_options",
-    "get_assembly_json", "analyze_assembly", "save_as_json", "save_as_fmu",
+    "get_assembly_json", "analyze_assembly", "save_assembly", "save_as_fmu",
 })
 
 #: Assembly tools that change it: the state is written back after them.
 CHANGING_TOOLS = frozenset({
-    "add_fmu", "remove_fmu", "add_link", "add_links", "remove_link", "expose_input", "expose_output",
+    "import_assembly", "add_fmu", "remove_fmu", "add_links", "remove_link", "expose_input", "expose_output",
     "set_start_value", "unset_start_value", "set_container_options",
 })
 

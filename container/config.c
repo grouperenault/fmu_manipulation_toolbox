@@ -1,3 +1,4 @@
+#include <locale.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
@@ -131,65 +132,25 @@ void config_file_error(config_file_t *config_file, unsigned int code_line_number
 
 
 /*
- * C numeric locale of the current thread: the configuration files and the datalog use a decimal dot whatever the
- * locale of the host. enter / leave switch the current thread only; they may be called several times.
+ * The configuration files use a decimal dot, whereas scanf() uses the decimal point of the locale of the host, which an
+ * FMU must not change (FMI 3.0, 2.2.1): the text is converted on its way to it.
  */
-int config_c_locale_init(config_c_locale_t *c_locale) {
-#ifdef _WIN32
-    c_locale->per_thread = 0;
-    c_locale->previous = NULL;
-    c_locale->locale = _create_locale(LC_NUMERIC, "C");
-    return c_locale->locale ? 0 : -1;
-#else
-    c_locale->previous = (locale_t)0;
-    locale_t base = duplocale(LC_GLOBAL_LOCALE);
-    if (!base)
-        return -1;
-    c_locale->c_locale = newlocale(LC_NUMERIC_MASK, "C", base);
-    if (!c_locale->c_locale) {
-        freelocale(base);
+
+/* Before scanf() on a line of numbers. scanf() may not read a decimal point of several bytes (macOS): such a locale is
+   refused, rather than misreading the values. */
+int config_line_to_host_decimal_point(config_file_t *config_file) {
+    const char *point = localeconv()->decimal_point;
+
+    if (strlen(point) != 1) {
+        config_file_error(config_file, __LINE__, "The decimal point '%s' of the locale of the importer is not supported.",
+                          point);
         return -1;
     }
+
+    for (char *c = config_file->line; *c; c += 1) {
+        if (*c == '.')
+            *c = *point;
+    }
+
     return 0;
-#endif
-}
-
-
-void config_c_locale_enter(config_c_locale_t *c_locale) {
-#ifdef _WIN32
-    c_locale->per_thread = _configthreadlocale(_ENABLE_PER_THREAD_LOCALE);
-    const char *previous = setlocale(LC_NUMERIC, NULL);
-    c_locale->previous = previous ? _strdup(previous) : NULL;
-    setlocale(LC_NUMERIC, "C");
-#else
-    c_locale->previous = uselocale(c_locale->c_locale);
-#endif
-}
-
-
-void config_c_locale_leave(config_c_locale_t *c_locale) {
-#ifdef _WIN32
-    if (c_locale->previous) {
-        setlocale(LC_NUMERIC, c_locale->previous);
-        free(c_locale->previous);
-        c_locale->previous = NULL;
-    }
-    if (c_locale->per_thread != -1)
-        _configthreadlocale(c_locale->per_thread);
-#else
-    if (c_locale->previous)
-        uselocale(c_locale->previous);
-    c_locale->previous = (locale_t)0;
-#endif
-}
-
-
-void config_c_locale_free(config_c_locale_t *c_locale) {
-#ifdef _WIN32
-    free(c_locale->previous);
-    c_locale->previous = NULL;
-    _free_locale(c_locale->locale);
-#else
-    freelocale(c_locale->c_locale);
-#endif
 }

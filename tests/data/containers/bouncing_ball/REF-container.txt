@@ -1,4 +1,4 @@
-# Version 7
+# Version 8
 # Container flags <MT> <Profiling> <Sequential>
 1 0 0
 # Internal time step in seconds
@@ -349,5 +349,5 @@ bb_velocity
 0
 # Reset trigger of bb_velocity.fmu: <LOCAL_OFFSET>
 -1
-# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
+# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> <VARIABILITY> <INTERVAL> <SHIFT> [...]
 0 0

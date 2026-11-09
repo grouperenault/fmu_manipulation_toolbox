@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiTerminalsAndIcons fmiVersion="3.0">
+  <Terminals>
+    <Terminal terminalKind="org.fmi-ls-bus.network-terminal" name="Powertrain" matchingRule="bus"
+        description="Powertrain CAN bus defined by an AUTOSAR system extract">
+      <Terminal terminalKind="org.fmi-ls-bus.frame-terminal" name="tcuSensors" matchingRule="bus">
+        <TerminalMemberVariable variableKind="signal"
+          variableName="PowertrainCluster.Powertrain.tcuSensors_FrameTriggering_Clock" memberName="TransmissionClock" />
+        <Terminal terminalKind="org.fmi-ls-bus.pdu-terminal" name="tcuSensors" matchingRule="bus">
+          <TerminalMemberVariable variableKind="signal"
+            variableName="PowertrainCluster.Powertrain.tcuSensors.vCar_ISignalTriggering" memberName="vCar" />
+          <TerminalMemberVariable variableKind="signal"
+            variableName="PowertrainCluster.Powertrain.tcuSensors.oilTemp_ISignalTriggering" memberName="oilTemp" />
+        </Terminal>
+      </Terminal>
+      <Annotations>
+        <Annotation type="ECU" />
+      </Annotations>
+    </Terminal>
+  </Terminals>
+</fmiTerminalsAndIcons>

@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiTerminalsAndIcons fmiVersion="3.0">
+  <Terminals>
+    <Terminal terminalKind="org.fmi-ls-bus.network-terminal" name="Powertrain" matchingRule="bus"
+        description="Powertrain CAN bus defined with dbc file">
+      <Terminal terminalKind="org.fmi-ls-bus.frame-terminal" name="tcuSensors" matchingRule="bus">
+        <TerminalMemberVariable variableKind="signal"
+          variableName="Powertrain.tcuSensors_Clock" memberName="TransmissionClock" />
+        <Terminal terminalKind="org.fmi-ls-bus.pdu-terminal" name="tcuSensors" matchingRule="bus">
+          <TerminalMemberVariable variableKind="signal"
+            variableName="Powertrain.tcuSensors.tcuSensors.vCar" memberName="vCar" />
+          <TerminalMemberVariable variableKind="signal"
+            variableName="Powertrain.tcuSensors.tcuSensors.oilTemp" memberName="oilTemp" />
+        </Terminal>
+      </Terminal>
+      <Terminal terminalKind="org.fmi-ls-bus.frame-terminal" name="tcuState" matchingRule="bus">
+        <TerminalMemberVariable variableKind="signal"
+          variableName="Powertrain.tcuState_Clock" memberName="TransmissionClock" />
+        <Terminal terminalKind="org.fmi-ls-bus.pdu-terminal" name="tcuState" matchingRule="bus">
+          <TerminalMemberVariable variableKind="signal"
+            variableName="Powertrain.tcuState.tcuState.state" memberName="state" />
+          <TerminalMemberVariable variableKind="signal"
+            variableName="Powertrain.tcuState.tcuState.gear" memberName="gear" />
+          <TerminalMemberVariable variableKind="signal"
+            variableName="Powertrain.tcuState.tcuState.targetGear" memberName="targetGear" />
+        </Terminal>
+      </Terminal>
+      <Terminal terminalKind="org.fmi-ls-bus.frame-terminal" name="ecuState" matchingRule="bus">
+        <TerminalMemberVariable variableKind="signal"
+          variableName="Powertrain.ecuState_Clock" memberName="TransmissionClock" />
+        <Terminal terminalKind="org.fmi-ls-bus.pdu-terminal" name="ecuState" matchingRule="bus">
+          <TerminalMemberVariable variableKind="signal"
+            variableName="Powertrain.ecuState.ecuState.accelPedal" memberName="accelPedal" />
+          <TerminalMemberVariable variableKind="signal"
+            variableName="Powertrain.ecuState.ecuState.k15" memberName="k15" />
+          <TerminalMemberVariable variableKind="signal"
+            variableName="Powertrain.ecuState.ecuState.oilTemp" memberName="oilTemp" />
+          <TerminalMemberVariable variableKind="signal"
+            variableName="Powertrain.ecuState.ecuState.radiatorTemp" memberName="radiatorTemp" />
+        </Terminal>
+      </Terminal>
+      <Annotations>
+        <Annotation type="ECU" />
+      </Annotations>
+    </Terminal>
+  </Terminals>
+</fmiTerminalsAndIcons>

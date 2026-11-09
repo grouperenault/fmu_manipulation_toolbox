@@ -98,8 +98,8 @@ for). That budget defaults to **60 s** and can be changed with
 FMUCONTAINER_MCP_TIMEOUT=180 fmucontainer-gui
 ```
 
-Building a container may be slower than editing one, so `save_as_json` and
-`save_as_fmu` get ten times that budget automatically — there is no second
+Building a container may be slower than editing one, so `import_assembly`,
+`save_assembly` and `save_as_fmu` get ten times that budget automatically — there is no second
 variable to set.
 
 A timeout means the window did not *answer*, usually because a dialog is
@@ -195,16 +195,18 @@ Create `.vscode/mcp.json` at the root of your workspace:
 | `list_fmus` | List FMUs currently in the assembly |
 | `list_fmu_ports` | List the ports of an FMU on the canvas, with filters and paging |
 | `inspect_fmu_file` | Describe an `.fmu` file without adding it to the assembly |
+| `inspect_ssp` | Describe an `.ssp` file without importing it, or tell why it is refused (see [Assembly files](#assembly-files)) |
+| `import_assembly` | Replace the assembly by the one of a `.json`, `.csv` or `.ssp` file (see [Assembly files](#assembly-files)) |
 | `add_fmu` | Add an FMU file to the assembly; adding a file again adds another instance of it (`model-1.fmu`), whose name is returned |
 | `remove_fmu` | Remove an FMU and its wires |
-| `add_link` / `add_links` | Connect an output port to an input port, one at a time or in bulk |
+| `add_links` | Connect output ports to input ports, one link or several |
 | `remove_link` | Disconnect an explicit link |
 | `expose_input` / `expose_output` | Surface a port on the container boundary |
 | `set_start_value` / `unset_start_value` | Set, or drop, a start value / parameter |
 | `set_container_options` | Set `step_size`, `mt`, `profiling`, `auto_*`, … |
 | `get_assembly_json` | Review the assembly; a large one comes one container, then one section, at a time |
 | `analyze_assembly` | Summarise the assembly, or lint it before building (see [Analysing an assembly](#analysing-an-assembly)) |
-| `save_as_json` | Export the assembly description |
+| `save_assembly` | Write the assembly description: JSON or SSP, by the extension of the file |
 | `save_as_fmu` | Build the container FMU (FMI 2 or 3), reporting progress |
 
 ### Single-FMU tools
@@ -269,11 +271,35 @@ The `counts` field always describes the whole FMU, whatever the filter, and
 Two resources are also exposed: `guide://usage` (how to drive the tool) and
 `assembly://current` (the current assembly as JSON).
 
+### Assembly files
+
+An agent can start from an existing file, and save its work in another format:
+
+- `inspect_ssp` looks at an SSP file without importing it, and writes nothing next
+  to it. It gives a summary per system, its `warnings`, and with `node` and
+  `section` the details, paged as `get_assembly_json`. A file the container refuses
+  is an answer, not an error: `readable` is false and `reason` says why.
+- `import_assembly` loads a `.json`, `.csv` or `.ssp` file and returns its summary
+  and the `warnings` of the reader. It replaces the assembly: on a non-empty one it
+  is refused until called with `replace=True`, which the agent is told to confirm
+  with you. A file that cannot be imported leaves the assembly as it was. The FMUs
+  of an SSP file are extracted in `<file>.dir`, next to it; those of a description
+  must be allowed by `FMUCONTAINER_MCP_ROOT`, as for `add_fmu`.
+- `save_assembly` writes the description in the format of the extension: `.json`,
+  or `.ssp` with the FMUs embedded and the routing resolved (see
+  [SSP export](container.md#ssp-export)), in SSP 2.0, or 1.0 with
+  `ssp_version="1.0"`.
+
+The standalone server keeps what the tools do not handle (names on the container,
+dropped ports, architecture wires, geometry, start and stop times), and refuses a
+file with sub-containers: look at it with `inspect_ssp`, or open it in the GUI,
+which imports it on the live canvas.
+
 ### Reading the assembly
 
 `get_assembly_json` returns the assembly in the format of a
 [JSON description](container.md#json-input-file), the FMUs being designated by
-their **name**, as in the other tools (`save_as_json` still writes the complete
+their **name**, as in the other tools (`save_assembly` still writes the complete
 file). A real assembly of a few hundred ports is over 100,000 characters, far
 more than a tool answer can carry, so the answer is bounded:
 
@@ -500,12 +526,11 @@ They are harmless as long as the tools work.
 - **No nested containers can be created.** The tools add FMUs to a single,
   flat container. Use the Container Builder GUI or a hand-written JSON
   description for a hierarchy. A nested assembly loaded in the GUI can be
-  read and analysed (`node`); the standalone server only knows flat ones.
+  read and analysed (`node`); the standalone server only knows flat ones, and
+  `import_assembly` refuses the others there.
 - **The lint does not see the ports of sub-containers**: the entries
   that involve a sub-container are not checked against its ports, which only
   exist once built.
-- **No `read_assembly`.** An existing `.json` description cannot be loaded
-  into the assistant; open it in the GUI instead.
 - **`auto_link` links cannot be removed** one by one: they are derived when
   the container is built. Disable the option and wire explicitly.
 - **Units are not converted.** Linking `m/s` to `km/h` is accepted and gives

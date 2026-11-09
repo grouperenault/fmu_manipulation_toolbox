@@ -27,7 +27,7 @@ In a virtual environment:
 ```bash
 python -m venv .venv
 source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install "fmu-manipulation-toolbox[mcp]>=2.1.dev1"   # the version the skills need
+pip install "fmu-manipulation-toolbox[mcp]>=2.1a1"   # the version the skills need
 fmutool-mcp --help                   # the MCP server the plugin starts
 fmutool-agent list-tools             # the same tools, as a command line
 ```
@@ -199,8 +199,23 @@ The agent loads **`fmu-container`**:
     that the velocity is reset when the ball touches the ground. The unconnected output `position1` is exposed
     by the container.
 
-To keep the description of the assembly, ask for it: `save_as_json` writes the
-[JSON description](../user-guide/fmucontainer/container.md#json-input-file), which `fmucontainer` builds again.
+To keep the description of the assembly, ask for it: `save_assembly` writes the
+[JSON description](../user-guide/fmucontainer/container.md#json-input-file) or, for a `.ssp` path, an
+[SSP file](../user-guide/fmucontainer/container.md#ssp-export), which `fmucontainer` builds again.
+
+## Step 7 — Start from an SSP file
+
+!!! example "Prompt"
+
+    Save this assembly as `bouncing.ssp`. Then tell me what `bouncing.ssp` contains, load it, set the start value
+    of `reset` to false, and save it as `bouncing-2.ssp`.
+
+The `fmu-inspect` skill calls `inspect_ssp`, which reads the file without importing it; the `fmu-container` skill
+calls `import_assembly`, edits the assembly with the same tools as above, and `save_assembly`. Since an assembly is
+already loaded, `import_assembly` is first refused: the agent asks you, then calls it again with `replace=True`.
+
+A file the container refuses is reported by `inspect_ssp` with its reason (`readable: false`). A file with
+sub-containers can be inspected, but not imported without the Container Builder GUI.
 
 ## Without the MCP server
 
@@ -218,6 +233,10 @@ fmutool-agent add_fmu --state assembly.json --args '{"path": "bb_velocity.fmu"}'
 fmutool-agent add_links --state assembly.json --args '{"links": [{"from_fmu": "bb_position.fmu", "from_port": "is_ground", "to_fmu": "bb_velocity.fmu", "to_port": "reset"}]}'
 fmutool-agent analyze_assembly --state assembly.json --args '{"mode": "lint"}'
 fmutool-agent save_as_fmu --state assembly.json --args '{"path": "bouncing.fmu", "fmi_version": 3}'
+fmutool-agent save_assembly --state assembly.json --args '{"path": "bouncing.ssp"}'
+
+fmutool-agent inspect_ssp --args '{"path": "bouncing.ssp"}'
+fmutool-agent import_assembly --state assembly.json --args '{"path": "bouncing.ssp", "replace": true}'
 ```
 
 Each call is a separate process: the assembly lives in the file given by `--state`, created by the first call.
@@ -231,7 +250,7 @@ One file per assembly; delete it to start over.
 3. In a conversation, attach the FMUs and write the same requests as above.
 
 The agent runs in a sandbox without MCP server: following the skills, it installs the toolbox
-(`pip install "fmu-manipulation-toolbox>=2.1.dev1"`, which needs network access from the sandbox) and uses `fmutool-agent`.
+(`pip install "fmu-manipulation-toolbox>=2.1a1"`, which needs network access from the sandbox) and uses `fmutool-agent`.
 It gives back the FMUs it wrote as files to download.
 
 ## With other agents

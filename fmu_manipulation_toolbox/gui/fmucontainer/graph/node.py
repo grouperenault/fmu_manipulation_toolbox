@@ -269,7 +269,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
 
     def closure(self):
         for terminal in Terminals(self.fmu.tmp_directory):
-            self.fmu_terminal_names.append(terminal.name)
+            self.fmu_terminal_names.append(terminal.path)
 
         # For FMI-2 FMUs, expose contiguous families of scalar ports named
         # `basename[k]` or `basename[i,j,...]` (Modelica-style comma notation)

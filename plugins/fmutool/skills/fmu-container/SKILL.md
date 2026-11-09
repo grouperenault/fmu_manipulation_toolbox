@@ -1,7 +1,7 @@
 ---
 name: fmu-container
-compatibility: Requires fmu-manipulation-toolbox 2.1.dev1 or later (pip install "fmu-manipulation-toolbox>=2.1.dev1").
-description: Assemble several FMUs (.fmu files) into one FMU container with the FMU Manipulation Toolbox - add FMUs, connect outputs to inputs, expose ports on the container interface, set start values and parameters, choose the container options (step size, multithreading, auto-linking), review and lint the assembly, then build the container FMU (FMI 2.0 or 3.0) or export its JSON description. Use when asked to combine, couple, wire or co-simulate FMUs together, or to build an FMU container.
+compatibility: Requires fmu-manipulation-toolbox 2.1a1 or later (pip install "fmu-manipulation-toolbox>=2.1a1").
+description: Assemble several FMUs (.fmu files) into one FMU container with the FMU Manipulation Toolbox - add FMUs, connect outputs to inputs, expose ports on the container interface, set start values and parameters, choose the container options (step size, multithreading, auto-linking), review and lint the assembly, then build the container FMU (FMI 2.0 or 3.0) or save its description as JSON or SSP. Also loads an existing JSON, CSV or SSP assembly file to edit it. Use when asked to combine, couple, wire or co-simulate FMUs together, to build an FMU container, or to edit or convert an assembly or an SSP file.
 ---
 
 # Build an FMU container
@@ -22,15 +22,15 @@ Use the first one available:
    file given by `--state`, created by the first call: pass the same file to
    every call of one assembly, and a new file for a new assembly.
 3. Neither: install the toolbox with
-   `pip install "fmu-manipulation-toolbox>=2.1.dev1"`
-   (`"fmu-manipulation-toolbox[mcp]>=2.1.dev1"` for the MCP server), then use
+   `pip install "fmu-manipulation-toolbox>=2.1a1"`
+   (`"fmu-manipulation-toolbox[mcp]>=2.1a1"` for the MCP server), then use
    `fmutool-agent`.
 
-**Too old?** This skill needs fmu-manipulation-toolbox **2.1.dev1 or later**.
-When the MCP server has no `describe_port` tool, or `fmutool-agent` is missing
-or does not list `describe_port`, the installed toolbox is older: say so (with
+**Too old?** This skill needs fmu-manipulation-toolbox **2.1a1 or later**.
+When the MCP server has no `save_assembly` tool, or `fmutool-agent` is missing
+or does not list `save_assembly`, the installed toolbox is older: say so (with
 the `version` printed by `fmutool-agent list-tools`, if any) and upgrade it with
-`pip install --upgrade "fmu-manipulation-toolbox>=2.1.dev1"`.
+`pip install --upgrade "fmu-manipulation-toolbox>=2.1a1"`.
 
 ## Procedure
 
@@ -83,18 +83,37 @@ the `version` printed by `fmutool-agent list-tools`, if any) and upgrade it with
    `fmi_version` 2 or 3 for the interface of the container (an FMI 2 container
    cannot expose the FMI 3 ports that have no FMI 2 type: prefer 3 when it
    embeds FMI 3 FMUs, and report the ports the build log says it could not
-   expose), `datalog` to record the exchanged values. `save_as_json` writes the
-   description only.
+   expose), `datalog` to record the exchanged values. `save_assembly` writes the
+   description only, in the format of the extension of its path: `.json`, or
+   `.ssp` with the FMUs embedded and the routing resolved (`ssp_version` `2.0`
+   by default, or `1.0`).
 
    ```bash
-   fmutool-agent save_as_json --state assembly.json --args '{"path": "container.json"}'
+   fmutool-agent save_assembly --state assembly.json --args '{"path": "container.json"}'
+   fmutool-agent save_assembly --state assembly.json --args '{"path": "container.ssp"}'
    fmutool-agent save_as_fmu --state assembly.json --args '{"path": "container.fmu", "fmi_version": 3}'
    ```
+
+## From an existing file
+
+`import_assembly` loads a `.json`, `.csv` or `.ssp` file, to edit it with the
+tools above and save it again, in the same format or another one. It replaces
+the assembly: on a non-empty one it is refused until called with
+`"replace": true`, so ask the user first. Report its `warnings`: what the file
+holds and the container ignores (a component without source, for instance).
+
+```bash
+fmutool-agent import_assembly --state assembly.json --args '{"path": "container.ssp", "replace": true}'
+```
+
+An FMU of an SSP file is extracted next to it, in `<file>.dir`. To look at an
+SSP file without importing it: `inspect_ssp` (see the skill `fmu-inspect`).
 
 ## Limits
 
 - One flat container: nested containers are built from a JSON description with
-  the `fmucontainer` command line or the Container Builder GUI.
+  the `fmucontainer` command line or the Container Builder GUI. Without the GUI,
+  `import_assembly` refuses a file with sub-containers.
 - Removing an FMU (`remove_fmu`) also removes its links: say how many
   (`removed_links`).
 

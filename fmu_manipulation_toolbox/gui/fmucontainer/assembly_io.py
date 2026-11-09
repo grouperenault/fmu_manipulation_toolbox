@@ -727,7 +727,7 @@ class AssemblyIOMixin:
         assembly.write_json(output_path)
         self._dirty = False
 
-    def save_as_ssp(self, output_path):
+    def save_as_ssp(self, output_path, ssp_version="2.0"):
         """Export the current assembly as an SSP file: the routing resolved, the positions of the nodes as
         geometry, the architecture wires kept.
 
@@ -738,7 +738,7 @@ class AssemblyIOMixin:
         assembly = self.create_assembly()
         if assembly is None:
             raise AssemblyError("Cannot build the assembly from the current content.")
-        assembly.write_ssp(Path(output_path).resolve())
+        assembly.write_ssp(Path(output_path).resolve(), ssp_version=ssp_version)
         self._dirty = False
 
     def save_as_fmu(self, output_path, fmi_version=2, datalog=False):

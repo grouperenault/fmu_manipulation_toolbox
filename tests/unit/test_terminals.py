@@ -10,9 +10,11 @@ link is emitted), as well as the XML parser's tolerance to malformed input.
 import io
 import logging
 
+from pathlib import Path
+
 import pytest
 
-from fmu_manipulation_toolbox.terminals import Terminal, Terminals
+from fmu_manipulation_toolbox.terminals import Terminal, TerminalError, Terminals
 
 pytestmark = [pytest.mark.unit]
 
@@ -123,9 +125,152 @@ def test_terminals_parse_from_xml_source():
                             "Tx_Data": "CanChannel.Tx_Data"}
 
 
+def test_terminals_parse_after_graphical_representation():
+    xml = _VALID_XML.replace("<Terminals>", "<GraphicalRepresentation><Icon/></GraphicalRepresentation><Terminals>")
+    terminals = Terminals.from_xml_source(io.StringIO(xml), label="<test>")
+    assert list(terminals.terminals) == ["CanChannel"]
+
+
+def test_terminals_parse_without_terminals_is_not_an_error(caplog):
+    xml = '<fmiTerminalsAndIcons fmiVersion="3.0"><GraphicalRepresentation/></fmiTerminalsAndIcons>'
+    with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
+        terminals = Terminals.from_xml_source(io.StringIO(xml), label="<test>")
+    assert len(terminals) == 0
+    assert caplog.text == ""
+
+
 def test_terminals_parse_malformed_xml_logs_error_without_raising(caplog):
     with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
         terminals = Terminals.from_xml_source(io.StringIO("<not-closed>"), label="<bad>")
     assert len(terminals) == 0
     assert "Cannot parse" in caplog.text
 
+
+# --------------------------------------------------------------------------- #
+#                             nested terminals                                  #
+# --------------------------------------------------------------------------- #
+_MEMBERS = ("Tx_Data", "Tx_Clock", "Rx_Data", "Rx_Clock")
+_SPEC_EXAMPLES = Path(__file__).parent.parent / "data" / "ls-bus-spec"
+
+
+def _bus_xml(name, prefix=None, content=""):
+    members = "".join(f'<TerminalMemberVariable variableKind="signal" variableName="{prefix or name}.{member}" '
+                      f'memberName="{member}"/>' for member in _MEMBERS)
+    return (f'<Terminal terminalKind="org.fmi-ls-bus.network-terminal" name="{name}" '
+            f'matchingRule="org.fmi-ls-bus.transceiver">{members}{content}</Terminal>')
+
+
+def _group_xml(name, content):
+    return f'<Terminal name="{name}" matchingRule="none">{content}</Terminal>'
+
+
+_CONFIGURATION_XML = ('<Terminal terminalKind="org.fmi-ls-bus.network-terminal.configuration" name="Configuration" '
+                      'matchingRule="bus"><TerminalMemberVariable variableKind="signal" '
+                      'variableName="BusNotifications" memberName="BusNotifications"/></Terminal>')
+
+
+def _terminals(*content):
+    xml = f'<fmiTerminalsAndIcons fmiVersion="3.0"><Terminals>{"".join(content)}</Terminals></fmiTerminalsAndIcons>'
+    return Terminals.from_xml_source(io.StringIO(xml))
+
+
+def _with_subs(name, matching, *subs):
+    terminal = _terminal(name, matching, {})
+    for sub in subs:
+        sub.path = f"{name}.{sub.name}"
+        terminal.sub_terminals[sub.name] = sub
+    return terminal
+
+
+def test_nested_terminals_are_designated_by_their_full_path():
+    terminals = _terminals(_group_xml("Seg1", _bus_xml("P1", "S1P1") + _bus_xml("P2", "S1P2")),
+                           _group_xml("Seg2", _bus_xml("P1", "S2P1")))
+    assert list(terminals.terminals) == ["Seg1", "Seg1.P1", "Seg1.P2", "Seg2", "Seg2.P1"]
+    assert terminals["Seg1.P1"].members["Tx_Data"] == "S1P1.Tx_Data"
+    assert terminals["Seg2.P1"].members["Tx_Data"] == "S2P1.Tx_Data"
+    assert "P1" not in terminals
+    assert terminals.paths_of("P1") == ["Seg1.P1", "Seg2.P1"]
+    assert terminals.paths_of("Seg1") == []
+
+
+def test_grouping_terminal_links_its_sub_terminals_without_error(caplog):
+    terminals = _terminals(_group_xml("Seg1", _bus_xml("P1", "A")))
+    others = _terminals(_group_xml("Seg1", _bus_xml("P1", "B")))
+    with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
+        links = terminals["Seg1"].connect(others["Seg1"])
+    assert ("A.Tx_Data", "B.Rx_Data") in links and len(links) == 4
+    assert caplog.text == ""
+
+
+def test_links_of_the_rule_and_of_the_sub_terminals_are_both_kept():
+    a = _with_subs("T", "bus", _terminal("S", "bus", {"s": "A.s"}))
+    b = _with_subs("T", "bus", _terminal("S", "bus", {"s": "B.s"}))
+    a.add_member("x", "A.x")
+    b.add_member("x", "B.x")
+    assert a.connect(b) == [("A.x", "B.x"), ("A.s", "B.s")]
+
+
+@pytest.mark.parametrize("rule", ["plug", "sequence", "none", "org.fmi-ls-bus.transceiver"])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_missing_sub_terminal_is_an_error(rule, reverse):
+    members = {member: f"A.{member}" for member in _MEMBERS} if rule == "org.fmi-ls-bus.transceiver" else {}
+    a = _with_subs("A", rule, _terminal("S", "bus", {}), _terminal("Only", "bus", {}))
+    b = _with_subs("B", rule, _terminal("S", "bus", {}))
+    a.members.update(members)
+    b.members.update(members)
+    with pytest.raises(TerminalError, match="A.Only"):
+        (b.connect(a) if reverse else a.connect(b))
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_missing_sub_terminal_of_the_bus_rule_is_ignored(reverse):
+    a = _with_subs("A", "bus", _terminal("S", "bus", {"s": "A.s"}), _terminal("Only", "bus", {"o": "A.o"}))
+    b = _with_subs("B", "bus", _terminal("S", "bus", {"s": "B.s"}))
+    assert (b.connect(a) if reverse else a.connect(b)) == ([("B.s", "A.s")] if reverse else [("A.s", "B.s")])
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_configuration_may_be_missing_on_one_side(reverse):
+    with_configuration = _terminals(_bus_xml("A", content=_CONFIGURATION_XML))["A"]
+    without = _terminals(_bus_xml("B"))["B"]
+    links = without.connect(with_configuration) if reverse else with_configuration.connect(without)
+    assert len(links) == 4
+
+
+def test_configuration_is_neither_linked_nor_connectable():
+    terminals = _terminals(_bus_xml("A", content=_CONFIGURATION_XML))
+    others = _terminals(_bus_xml("B", content=_CONFIGURATION_XML))
+    assert list(terminals.terminals) == ["A"]
+    assert "A.Configuration" not in terminals
+    assert [terminal.path for terminal in terminals.walk()] == ["A", "A.Configuration"]
+    assert len(terminals["A"].connect(others["B"])) == 4
+
+
+def test_incompatible_sub_terminals_are_an_error():
+    a = _with_subs("A", "none", _terminal("S", "bus", {}, kind="k1"))
+    b = _with_subs("B", "none", _terminal("S", "bus", {}, kind="k2"))
+    with pytest.raises(TerminalError, match="Incompatible"):
+        a.connect(b)
+
+
+def test_transceiver_without_its_members_is_an_error():
+    a = _terminal("A", "org.fmi-ls-bus.transceiver", {"Tx_Data": "A.Tx_Data"})
+    b = _terminal("B", "org.fmi-ls-bus.transceiver", {member: member for member in _MEMBERS})
+    with pytest.raises(TerminalError, match="Tx_Clock, Rx_Data, Rx_Clock"):
+        a.connect(b)
+
+
+@pytest.mark.parametrize("example, name, nb_links", [
+    ("X_network4FMI_terminalsAndIcons_lowCut.xml", "Powertrain", 4),
+    ("X_network4FMI_terminalsAndIcons_highCut_dbc.xml", "Powertrain", 12),
+    ("X_network4FMI_terminalsAndIcons_highCut_autosar.xml", "Powertrain", 3),
+])
+def test_examples_of_the_specification(example, name, nb_links):
+    terminals = Terminals.from_xml_source(str(_SPEC_EXAMPLES / example))
+    assert len(terminals[name].connect(terminals[name])) == nb_links
+
+
+def test_frame_and_pdu_of_the_same_name_do_not_collide():
+    terminals = Terminals.from_xml_source(str(_SPEC_EXAMPLES / "X_network4FMI_terminalsAndIcons_highCut_dbc.xml"))
+    assert terminals["Powertrain.tcuSensors"].kind == "org.fmi-ls-bus.frame-terminal"
+    assert terminals["Powertrain.tcuSensors.tcuSensors"].kind == "org.fmi-ls-bus.pdu-terminal"

@@ -34,8 +34,8 @@ def test_tools_are_forwarded_to_the_bridge(tmp_path):
         async with fastmcp.Client(build_server(bridge)) as client:
             await client.call_tool("add_fmu", {"path": str(first)})
             await client.call_tool("add_fmu", {"path": str(second)})
-            await client.call_tool("add_link", {"from_fmu": "a.fmu", "from_port": "y",
-                                                "to_fmu": "b.fmu", "to_port": "u"})
+            await client.call_tool("add_links", {"links": [{"from_fmu": "a.fmu", "from_port": "y",
+                                                "to_fmu": "b.fmu", "to_port": "u"}]})
             return await client.call_tool("list_fmus", {})
 
     result = run(scenario())
@@ -327,8 +327,8 @@ def test_analyze_assembly_lints_the_ports_with_the_builder(tmp_path):
         async with fastmcp.Client(server) as client:
             for name in ("a.fmu", "b.fmu"):
                 await client.call_tool("add_fmu", {"path": str(tmp_path / name)})
-            await client.call_tool("add_link", {"from_fmu": "a.fmu", "from_port": "y",
-                                                "to_fmu": "b.fmu", "to_port": "y"})
+            await client.call_tool("add_links", {"links": [{"from_fmu": "a.fmu", "from_port": "y",
+                                                "to_fmu": "b.fmu", "to_port": "y"}]})
             return (await client.call_tool("analyze_assembly", {"mode": "lint"})).data
 
     report = run(scenario())
@@ -429,12 +429,12 @@ def test_unsetting_a_start_value_that_was_never_set_is_reported():
 # --------------------------------------------------------------------------- #
 #                              write guard-rails                              #
 # --------------------------------------------------------------------------- #
-@pytest.mark.parametrize("tool, name", [("save_as_json", "out.csv"),
-                                        ("save_as_json", "out.fmu"),
+@pytest.mark.parametrize("tool, name", [("save_assembly", "out.csv"),
+                                        ("save_assembly", "out.fmu"),
                                         ("save_as_fmu", "out.json"),
                                         ("save_as_fmu", "out.txt")])
 def test_saving_rejects_a_foreign_extension(tmp_path, tool, name):
-    """A file is only written with the extension of its format: `save_as_json`
+    """A file is only written with the extension of its format: `save_assembly`
     must not overwrite a versioned `.csv` file, for instance."""
     bridge = FakeBridge()
     with pytest.raises(Exception, match="must end with"):
@@ -442,7 +442,7 @@ def test_saving_rejects_a_foreign_extension(tmp_path, tool, name):
     assert not bridge.calls
 
 
-@pytest.mark.parametrize("tool, name", [("save_as_json", "out.json"),
+@pytest.mark.parametrize("tool, name", [("save_assembly", "out.json"),
                                         ("save_as_fmu", "out.fmu")])
 def test_saving_refuses_to_overwrite_by_default(tmp_path, tool, name):
     existing = tmp_path / name
@@ -456,7 +456,7 @@ def test_saving_refuses_to_overwrite_by_default(tmp_path, tool, name):
     assert existing.read_text() == "precious"
 
 
-@pytest.mark.parametrize("tool, name", [("save_as_json", "out.json"),
+@pytest.mark.parametrize("tool, name", [("save_assembly", "out.json"),
                                         ("save_as_fmu", "out.fmu")])
 def test_saving_overwrites_when_explicitly_allowed(tmp_path, tool, name):
     existing = tmp_path / name
@@ -471,7 +471,7 @@ def test_saving_overwrites_when_explicitly_allowed(tmp_path, tool, name):
 
 def test_saving_rejects_a_missing_directory(tmp_path):
     with pytest.raises(Exception, match="Directory does not exist"):
-        call_tool(FakeBridge(), "save_as_json", {"path": str(tmp_path / "nope" / "out.json")})
+        call_tool(FakeBridge(), "save_assembly", {"path": str(tmp_path / "nope" / "out.json")})
 
 
 def test_add_fmu_rejects_a_missing_file(tmp_path):
@@ -500,10 +500,10 @@ def test_paths_outside_the_allowed_root_are_rejected(tmp_path):
     bridge = FakeBridge()
 
     with pytest.raises(Exception, match="outside the allowed directory"):
-        call_tool(bridge, "save_as_json", {"path": str(outside / "out.json")}, policy=policy)
+        call_tool(bridge, "save_assembly", {"path": str(outside / "out.json")}, policy=policy)
     assert not bridge.calls
 
-    result = call_tool(bridge, "save_as_json", {"path": str(allowed / "out.json")}, policy=policy)
+    result = call_tool(bridge, "save_assembly", {"path": str(allowed / "out.json")}, policy=policy)
     assert result.data == str((allowed / "out.json").resolve())
 
 
@@ -513,7 +513,7 @@ def test_traversal_out_of_the_allowed_root_is_rejected(tmp_path):
     policy = PathPolicy(root=allowed)
 
     with pytest.raises(Exception, match="outside the allowed directory"):
-        call_tool(FakeBridge(), "save_as_json",
+        call_tool(FakeBridge(), "save_assembly",
               {"path": str(allowed / ".." / "escaped.json")}, policy=policy)
 
 
@@ -540,15 +540,15 @@ def test_scenario_assemble_two_fmus_and_export_json(tmp_path):
             ports = (await client.call_tool("list_fmu_ports", {"fmu": "position.fmu"})).data
             assert [port.name for port in ports.ports if port.causality == "output"] == ["y"]
 
-            await client.call_tool("add_link", {"from_fmu": "velocity.fmu", "from_port": "y",
-                                                "to_fmu": "position.fmu", "to_port": "u"})
+            await client.call_tool("add_links", {"links": [{"from_fmu": "velocity.fmu", "from_port": "y",
+                                                "to_fmu": "position.fmu", "to_port": "u"}]})
             await client.call_tool("set_container_options", {"options": {"step_size": 0.01}})
 
             assembly = (await client.call_tool("get_assembly_json", {})).data
             assert assembly["fmu"] == ["position.fmu", "velocity.fmu"]
             assert assembly["link"] == [["velocity.fmu", "y", "position.fmu", "u"]]
 
-            return (await client.call_tool("save_as_json", {"path": str(destination)})).data
+            return (await client.call_tool("save_assembly", {"path": str(destination)})).data
 
     assert run(scenario()) == str(destination.resolve())
     assert bridge.options["step_size"] == 0.01
@@ -576,8 +576,8 @@ def test_scenario_build_a_container(tmp_path):
 
 
 @pytest.mark.parametrize("tool, arguments, expected", [
-    ("add_link", {"from_fmu": "a.fmu", "from_port": "nope",
-                  "to_fmu": "a.fmu", "to_port": "u"}, "is not an output"),
+    ("remove_link", {"from_fmu": "a.fmu", "from_port": "nope",
+                     "to_fmu": "a.fmu", "to_port": "u"}, "no link"),
     ("list_fmu_ports", {"fmu": "ghost.fmu"}, "ghost.fmu"),
     # A misspelled option is caught by the schema; the message names it and lists the allowed ones.
     ("set_container_options", {"options": {"stepsize": 1}}, r"unknown option 'stepsize' \(allowed: .*step_size"),

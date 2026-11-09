@@ -1,4 +1,4 @@
-# Version 7
+# Version 8
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
@@ -543,5 +543,5 @@ not_bool
 0
 # Reset trigger of not2.fmu: <LOCAL_OFFSET>
 -1
-# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> [<FMU_VR> <VR>]
+# importer CLOCKS: <FMU_INDEX> <NB> <FMU_VR> <VR> <VARIABILITY> <INTERVAL> <SHIFT> [...]
 0 0

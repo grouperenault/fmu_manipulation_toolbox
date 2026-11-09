@@ -1,6 +1,6 @@
 # Plan: SSP in the MCP server, fmutool-agent and the agent skills
 
-**Created**: 1 November 2026 — **Status**: to do — **Depends on**: [ssp_export.md](done/ssp_export.md)
+**Created**: 1 November 2026 — **Status**: done — **Depends on**: [ssp_export.md](done/ssp_export.md)
 
 The SSP reader is stable and assemblies can be written as SSP, but an AI agent cannot use either: the MCP server
 has no SSP tool, cannot load an existing assembly ("No `read_assembly`", a documented limit), and the skills do not
@@ -15,7 +15,7 @@ the assembly, edit it and save it as SSP, through the MCP server and `fmutool-ag
   `save_as_json(path, overwrite)` and `save_as_fmu(path, fmi_version, datalog, overwrite)` write the assembly.
 - Bridges: `assistant/headless.py` (`HeadlessAssemblyBridge`, state of `fmutool-agent` in `state()`/`from_state()`)
   and `gui/fmucontainer/mcp_bridge.py` (the live canvas). Neither can load an assembly file.
-- Budget of the tool definitions: **17 444 / 18 000** characters (`tests/_helpers/mcp_budget.py`).
+- Budget of the tool definitions: **17 444 / 18 000** characters before this plan, 17 995 after it (`tests/_helpers/mcp_budget.py`).
 - Skills: `plugins/fmutool/skills/fmu-container` (assembly), `fmu-inspect` (FMU files only).
 - Documentation: `docs/user-guide/fmucontainer/ai-assistant.md` (Known limits: no nested container created, no
   `read_assembly`), `docs/user-guide/agent-skills.md`.
@@ -28,16 +28,12 @@ the assembly, edit it and save it as SSP, through the MCP server and `fmutool-ag
 |---|---|---|
 | A1 | SSP tools | **`save_as_ssp`**, **`import_assembly`** (JSON, CSV or SSP into the assembly) and **`inspect_ssp`** (an SSP file described without importing it) (1 November 2026). |
 | A2 | Definitions budget | **Merge tools** rather than raise the budget (1 November 2026): breaking for the MCP API, documented in the CHANGELOG. Which tools, see A3. |
+| A3 | The merge | **`save_assembly(path, overwrite, ssp_version)`** replaces `save_as_json`, the format given by the extension (`.json`, `.ssp`); **`add_link` removed**, `add_links` covers it; `save_as_fmu` kept (3 November 2026). |
+| A4 | `import_assembly` on a non-empty assembly | **A `replace` argument**: refused by default, replaced with `replace=True` (3 November 2026). |
+| A5 | Content of `inspect_ssp` | **A summary per system, the details paged** like `get_assembly_json`; a refused file is an answer, `readable: false` with the `reason`, not an error (3 November 2026). |
+| A6 | Nested assemblies in the headless bridge | **Refused with a clear error** pointing to `inspect_ssp` and the GUI; flat files are imported without loss (3 November 2026). |
 
-### To be decided at the start of the step concerned
-
-| # | Question | Step |
-|---|---|---|
-| A3 | The merge: e.g. `save_assembly(path, format="json"\|"ssp", overwrite)` replacing `save_as_json` (and no `save_as_ssp`), `save_as_fmu` kept (a build, with progress); other candidates if the budget is still exceeded | 1 |
-| A4 | `import_assembly` on a non-empty assembly: replace it (a `replace` argument required, the tool being destructive), or refuse | 1 |
-| A5 | Content and bounds of `inspect_ssp`: systems, components, connections, parameter values, what would be refused or reported — paged like `get_assembly_json` | 1 |
-| A6 | Nested assemblies: the headless bridge only builds flat ones; `import_assembly` of a nested assembly in the headless bridge: refused, or flattened, or the headless bridge made hierarchical | 1 |
-| A7 | Skills: extend `fmu-container` (import, export as SSP) and `fmu-inspect` (`inspect_ssp`), or a new `ssp` skill | 3 |
+| A7 | Skills | **Extend `fmu-container`** (import, save as SSP) **and `fmu-inspect`** (`inspect_ssp`), no new skill; they need the toolbox **2.1a1**, the first release with `save_assembly` (3 November 2026). |
 
 ---
 
