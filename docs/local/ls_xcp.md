@@ -129,8 +129,13 @@ Tests: stub FMUs implementing FMI-LS-XCP
   - if the importer did not use the Configuration Mode (FMI 2.0 container, or FMI 3.0 importer that skipped it):
     before the early start values, each flagged FMU goes through `fmi3EnterConfigurationMode`, `<RESET>=2` start
     values, cached values, `fmi3ExitConfigurationMode`.
-- Native tests with the stub FMU (call sequence, values received); test of the equality of the two
-  `CONTAINER_TXT_VERSION`.
+  - decision 13: before `fmi2SetupExperiment` of each FMU, its configuration (if not done), its early start values,
+    then the values set by the importer (cache of the container), which prevail over the start values (before, an
+    early start value overwrote a value set by the importer before `fmi2SetupExperiment`). The reset of an embedded
+    FMU follows the same sequence. The reference traces of the probe FMU (`tests/data/probe/REF-*.csv`) are
+    regenerated for this order.
+- Native tests with the stub FMUs (fixtures `xcp_fmi2`, `xcp_fmi3`: call sequence, values received); Python tests of
+  the writer; the REF `container.txt` of the tests in version 9.
 - Developer docs: `docs/developer/container-txt-format.md` (version 9), `docs/developer/init-fmi-sequence.md`
   (Configuration Mode).
 

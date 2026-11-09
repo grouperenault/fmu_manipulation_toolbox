@@ -1,14 +1,14 @@
-# Version 8
+# Version 9
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
 0.1
 # NB of embedded FMU's
 2 0
-scalar2array-2.fmu 2 0
+scalar2array-2.fmu 2 0 0
 scalar2array
 {28c5607a-c2b7-c62d-f3cf-78813e466082}
-array2scalar-3.fmu 3 1
+array2scalar-3.fmu 3 1 0
 array2scalar
 {75d40875-14e3-e8a1-f5d6-557662a999a0}
 # Initialization order of the embedded FMU's

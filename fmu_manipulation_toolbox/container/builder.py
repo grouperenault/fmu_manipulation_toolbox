@@ -1065,7 +1065,9 @@ class FMUContainer:
         print(f"{step_size}", file=txt_file)
 
         print("# NB of embedded FMU's", file=txt_file)
-        fmu_rank = self.involved_fmu.write_txt(txt_file)
+        # The FMUs with a structural parameter set by the container go through their Configuration Mode
+        configured = {cport.fmu.name for cport in self.start_values if cport.port.causality == "structuralParameter"}
+        fmu_rank = self.involved_fmu.write_txt(txt_file, configured)
 
         print("# Initialization order of the embedded FMU's", file=txt_file)
         print(" ".join(str(rank) for rank in self.initialization_order(fmu_rank)), file=txt_file)

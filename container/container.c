@@ -545,14 +545,34 @@ static fmu_status_t container_handle_events(container_t *container) {
                            C O N F I G U R A T I O N
 ----------------------------------------------------------------------------*/
 
-/* Start values of one embedded FMU. early_set: all of them (before the initialization mode); otherwise only
-   those flagged <RESET> (set again in initialization mode). */
-static fmu_status_t container_set_fmu_start_values(const fmu_t *fmu, int early_set) {
+/* When the start values of an embedded FMU are set, according to their <RESET> in container.txt. */
+typedef enum {
+    START_VALUES_CONFIGURATION,     /* <RESET>=2: structural parameters, in Configuration Mode */
+    START_VALUES_EARLY,             /* <RESET>=0 or 1: before the Initialization Mode */
+    START_VALUES_INITIALIZATION,    /* <RESET>=1: set again in Initialization Mode */
+} start_values_phase_t;
+
+
+static bool container_start_value_phase(int reset, start_values_phase_t phase) {
+    switch (phase) {
+    case START_VALUES_CONFIGURATION:
+        return reset == 2;
+    case START_VALUES_EARLY:
+        return reset != 2;
+    case START_VALUES_INITIALIZATION:
+        return reset == 1;
+    }
+    return false;
+}
+
+
+/* Start values of one embedded FMU set in the phase `phase`. */
+static fmu_status_t container_set_fmu_start_values(const fmu_t *fmu, start_values_phase_t phase) {
     const logger_t *logger = &fmu->container->logger;
 
 #define SET_START(variable, fmi_type, c_type)                                                   \
     for(unsigned long j=0; j<fmu->fmu_io.start_ ## variable .nb; j ++) {                        \
-        if ((early_set || fmu->fmu_io.start_ ## variable.start_values[j].reset) &&              \
+        if (container_start_value_phase(fmu->fmu_io.start_ ## variable.start_values[j].reset, phase) && \
             fmuSet ## fmi_type(fmu,                                                             \
                 &fmu->fmu_io.start_ ## variable.start_values[j].vr, 1,                          \
                 fmu->fmu_io.start_ ## variable.start_values[j].value,                           \
@@ -571,22 +591,101 @@ static fmu_status_t container_set_fmu_start_values(const fmu_t *fmu, int early_s
 }
 
 
-static fmu_status_t container_set_start_values(container_t* container, int early_set) {
+static fmu_status_t container_set_start_values(container_t* container, start_values_phase_t phase) {
     const logger_t *logger = &container->logger;
-    if (early_set)
+    if (phase == START_VALUES_EARLY)
         LOGGER_DEBUG("Setting start values...");
     else
         LOGGER_DEBUG("Re-setting some start values...");
     for (int i = 0; i < container->nb_fmu; i += 1)
-        if (container_set_fmu_start_values(&container->fmu[i], early_set) != FMU_STATUS_OK)
+        if (container_set_fmu_start_values(&container->fmu[i], phase) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
     LOGGER_DEBUG("Start values are set.");
     return FMU_STATUS_OK;
 }
 
 
+/* Configuration Mode of an FMU with structural parameters: its start values of Configuration Mode, then the values
+   set on the container for its structural parameters (cache) are set. */
+static fmu_status_t container_enter_fmu_configuration(container_t *container, int fmu_id) {
+    const logger_t *logger = &container->logger;
+    fmu_t *fmu = &container->fmu[fmu_id];
+
+    if (fmuEnterConfigurationMode(fmu) != FMU_STATUS_OK) {
+        LOGGER_ERROR("Container: FMU '%s' cannot enter Configuration Mode.", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+    if (container_set_fmu_start_values(fmu, START_VALUES_CONFIGURATION) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    return container_set_fmu_cache(container, (unsigned long)fmu_id, true);
+}
+
+
+static fmu_status_t container_exit_fmu_configuration(container_t *container, int fmu_id) {
+    const logger_t *logger = &container->logger;
+    fmu_t *fmu = &container->fmu[fmu_id];
+
+    if (fmuExitConfigurationMode(fmu) != FMU_STATUS_OK) {
+        LOGGER_ERROR("Container: FMU '%s' cannot exit Configuration Mode.", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
+    return FMU_STATUS_OK;
+}
+
+
+/* Configuration of an FMU with structural parameters that its importer did not configure (fmi3EnterConfigurationMode
+   of the container): FMI-2.0 container, or FMI-3.0 importer that does not use the Configuration Mode. */
+static fmu_status_t container_configure_fmu(container_t *container, int fmu_id) {
+    const fmu_t *fmu = &container->fmu[fmu_id];
+
+    if (!fmu->has_configuration_mode || fmu->configured)
+        return FMU_STATUS_OK;
+    if (container_enter_fmu_configuration(container, fmu_id) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    return container_exit_fmu_configuration(container, fmu_id);
+}
+
+
+/* fmi3EnterConfigurationMode of the container: the FMUs with structural parameters enter their Configuration Mode,
+   with their start values of Configuration Mode. */
+fmu_status_t container_enter_configuration_mode(container_t* container) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        if (container->fmu[i].has_configuration_mode &&
+            container_enter_fmu_configuration(container, i) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+    return FMU_STATUS_OK;
+}
+
+
+fmu_status_t container_exit_configuration_mode(container_t* container) {
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        if (container->fmu[i].in_configuration_mode &&
+            container_exit_fmu_configuration(container, i) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+    return FMU_STATUS_OK;
+}
+
+
+/* Before fmi2SetupExperiment (the FMU may use its parameters there, e.g. an XCP service of FMI-LS-XCP): its
+   structural parameters, its start values, then the values set on the container (cache), which prevail. */
+static fmu_status_t container_prepare_fmu(container_t *container, int fmu_id) {
+    fmu_t *fmu = &container->fmu[fmu_id];
+
+    if (container_configure_fmu(container, fmu_id) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    if (container_set_fmu_start_values(fmu, START_VALUES_EARLY) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    if (container_set_fmu_cache(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)
+        return FMU_STATUS_ERROR;
+    return fmuSetupExperiment(fmu, container->time);
+}
+
+
 fmu_status_t container_setup_experiment(container_t* container, bool toleranceDefined, double tolerance,
                                         double startTime, bool stopTimeDefined, double stopTime) {
+    const logger_t *logger = &container->logger;
     (void)stopTimeDefined; /* unused parameter */
 
     container->tolerance_defined = toleranceDefined;
@@ -595,15 +694,16 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
     container->start_time = startTime;
     container->stop_time_defined = 0; /* stopTime can cause rounding issues. Disbale it.*/
     container->stop_time = stopTime;
-
-    for(int i=0; i < container->nb_fmu; i += 1) {        
-        if (fmuSetupExperiment(&container->fmu[i], container->start_time) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-    }
-
     container->time = container->start_time;
 
-    return container_set_start_values(container, 1);
+    LOGGER_DEBUG("Setting start values...");
+    for(int i=0; i < container->nb_fmu; i += 1) {
+        if (container_prepare_fmu(container, i) != FMU_STATUS_OK)
+            return FMU_STATUS_ERROR;
+    }
+    LOGGER_DEBUG("Start values are set.");
+
+    return FMU_STATUS_OK;
 }
 
 
@@ -668,7 +768,7 @@ fmu_status_t container_enter_initialization_mode(container_t* container) {
             return FMU_STATUS_ERROR;
     }
 
-    return container_set_start_values(container, 0);
+    return container_set_start_values(container, START_VALUES_INITIALIZATION);
 }
 
 
@@ -774,6 +874,8 @@ fmu_status_t container_reset(container_t* container) {
         fmu->need_event_udpate = false;
         fmu->have_next_event_time = false;
         fmu->reset_pending = false;
+        fmu->in_configuration_mode = false;
+        fmu->configured = false;
         if (fmu->profile) {
             fmu->profile->current_tic = 0;
             fmu->profile->total_elapsed = 0.0;
@@ -1087,16 +1189,13 @@ static fmu_status_t container_reset_fmu(container_t *container, int fmu_id) {
         return FMU_STATUS_ERROR;
     }
 
-    if (fmuSetupExperiment(fmu, container->time) != FMU_STATUS_OK)
-        return FMU_STATUS_ERROR;
-    if (container_set_fmu_start_values(fmu, 1) != FMU_STATUS_OK)
-        return FMU_STATUS_ERROR;
-    if (container_set_fmu_cache(container, (unsigned long)fmu_id) != FMU_STATUS_OK)
+    fmu->configured = false;
+    if (container_prepare_fmu(container, fmu_id) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
 
     if (fmuEnterInitializationMode(fmu, container->time) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
-    if (container_set_fmu_start_values(fmu, 0) != FMU_STATUS_OK)
+    if (container_set_fmu_start_values(fmu, START_VALUES_INITIALIZATION) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
     if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
@@ -1464,9 +1563,12 @@ int container_cache_binaries(container_t *container, container_port_t *port, con
 }
 
 
-fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id) {
+/* Sets again, on one embedded FMU, the values set on the container (cache): those of its structural parameters
+   (in Configuration Mode), or all the others. */
+fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id, bool structural) {
     const logger_t *logger = &container->logger;
     const fmu_t *fmu = &container->fmu[fmu_id];
+    unsigned long nb_set = 0;
 
 #define SET_CACHE_CAST(variable, fmi_type, cast)                                                                \
     for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                   \
@@ -1474,7 +1576,8 @@ fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_i
         if (port->nb_cached == 0)                                                                               \
             continue;                                                                                           \
         for (unsigned long j = 0; j < port->nb; j += 1) {                                                       \
-            if (port->links[j].fmu_id != fmu_id)                                                                \
+            if (port->links[j].fmu_id != fmu_id ||                                                              \
+                fmu_is_structural_ ## variable(fmu, port->links[j].fmu_vr) != structural)                       \
                 continue;                                                                                       \
             if (fmuSet ## fmi_type(fmu, &port->links[j].fmu_vr, 1,                                              \
                               cast &container->cache_ ## variable [port->cache_offset],                         \
@@ -1483,6 +1586,7 @@ fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_i
                              port->links[j].fmu_vr);                                                            \
                 return FMU_STATUS_ERROR;                                                                        \
             }                                                                                                   \
+            nb_set += 1;                                                                                        \
         }                                                                                                       \
     }
 
@@ -1493,7 +1597,7 @@ fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_i
 #undef SET_CACHE
 #undef SET_CACHE_CAST
 
-    for (unsigned long i = 0; i < container->nb_ports_binaries; i += 1) {
+    for (unsigned long i = 0; i < container->nb_ports_binaries && !structural; i += 1) {
         const container_port_t *port = &container->port_binaries[i];
         if (port->nb_cached == 0)
             continue;
@@ -1525,9 +1629,11 @@ fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_i
         free(data);
         if (status != FMU_STATUS_OK)
             return status;
+        nb_set += 1;
     }
 
-    LOGGER_DEBUG("[DEBUG] FMU '%s': cached values are set again.", fmu->name);
+    if (nb_set > 0)
+        LOGGER_DEBUG("[DEBUG] FMU '%s': cached values are set again.", fmu->name);
     return FMU_STATUS_OK;
 }
 
@@ -1640,18 +1746,17 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
 /*
  * # NB of embedded FMU's: <nb_fmu_cs> <nb_fmu_me>
  * 2 1
- * # CS entries: <filename> <fmi_version> <has_event_mode> / <identifier> / <guid>
- * scalar2array.fmu 3 1
+ * # CS entries: <filename> <fmi_version> <has_event_mode> <has_configuration_mode> / <identifier> / <guid>
+ * scalar2array.fmu 3 1 0
  * vec
  * {121d828d-d4dd-3c76-8227-7be1b268a801}
- * array2scalar.fmu 3 1
+ * array2scalar.fmu 3 1 0
  * array
  * {e092864e-3b8e-7e1d-a4bf-ee0e4c648539}
- * # ME entries: <filename> <fmi_version> <nx> <nz> / <identifier> / <guid>
- * bouncing_ball.fmu 2
+ * # ME entries: <filename> <fmi_version> <nx> <nz> <has_configuration_mode> / <identifier> / <guid>
+ * bouncing_ball.fmu 2 2 1 0
  * bb
  * {3f2a1c4e-6b8d-4f1a-9c7e-2d5b8a0f3e91}
- * 2 1
  */
 
 /* Returns -1 when the FMU could not be loaded (caller drops the whole array),
@@ -1674,6 +1779,7 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
     }
     int fmi_version = 2;
     int support_event = 0;
+    int has_configuration_mode = 0;
     size_t nx = 0;
     size_t nz = 0;
     
@@ -1688,20 +1794,25 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
     }
 
     if (kind == FMU_KIND_CS) {
-        /* "<filename> <fmi_version> [<has_event_mode>]": ME entries have no event flag. */
-        if (sscanf(flags, "%d %d", &fmi_version, &support_event) < 2) {
+        /* "<filename> <fmi_version> <has_event_mode> <has_configuration_mode>": ME entries have no event flag. */
+        if (sscanf(flags, "%d %d %d", &fmi_version, &support_event, &has_configuration_mode) < 3) {
             CONFIG_ERROR("Cannot read CS flags from FMU '%s'.", name);
             free(name);
             return -2;
         }
     } else {
-        /* "<filename> <fmi_version> <nx> <nz>": ME entries carry nb continuous
+        /* "<filename> <fmi_version> <nx> <nz> <has_configuration_mode>": ME entries carry nb continuous
            states and event indicators on the same line as the filename. */
-        if (sscanf(flags, "%d %zu %zu", &fmi_version, &nx, &nz) < 3) {
+        if (sscanf(flags, "%d %zu %zu %d", &fmi_version, &nx, &nz, &has_configuration_mode) < 4) {
             CONFIG_ERROR("Cannot read ME sizes (nb_states nb_event_indicators) for FMU '%s'.", name);
             free(name);
             return -2;
         }
+    }
+    if (has_configuration_mode && fmi_version != 3) {
+        CONFIG_ERROR("FMU '%s': only an FMI-3.0 FMU has a Configuration Mode.", name);
+        free(name);
+        return -2;
     }
 
     if (get_line(file)) {
@@ -1736,6 +1847,14 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
     /* on a failure, the slot is released here: container_free() only releases the FMUs fully loaded */
     if (status) {
         CONFIG_ERROR("Cannot load FMU from directory '%s' (status=%d).", directory, status);
+        fmu_unload(&container->fmu[index]);
+        return -1;
+    }
+
+    container->fmu[index].has_configuration_mode = has_configuration_mode != 0;
+    if (has_configuration_mode && (!container->fmu[index].fmi_functions.version_3.fmi3EnterConfigurationMode ||
+                                   !container->fmu[index].fmi_functions.version_3.fmi3ExitConfigurationMode)) {
+        CONFIG_ERROR("FMU '%s' has no API of the Configuration Mode.", container->fmu[index].name);
         fmu_unload(&container->fmu[index]);
         return -1;
     }

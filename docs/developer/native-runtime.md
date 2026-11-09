@@ -68,6 +68,10 @@ sources of the runtime are compiled again with the tests, so that the internal f
   success, registered in the table of `test_main.c`.
 - `stub_fmu.c`: an FMI 2.0 Co-Simulation FMU built with the tests. Its behaviour depends on the GUID given to
   `fmi2Instantiate` (e.g. `{stub-fail-instantiate}`); each type has 16 variables, any other VR is an error.
+- `stub_xcp_fmi2.c`, `stub_xcp_fmi3.c`: FMUs of FMI-LS-XCP (descriptors in `tests/data/ls-xcp` of the repository).
+  Their XCP service only writes a journal, `<resources>/xcp.log`, of the configuration they receive and of when the
+  service starts; the fixtures `xcp_fmi2` and `xcp_fmi3` (`tests/data/xcp/container_fmi<2|3>.txt`) check the
+  Configuration Mode and the order of the start values.
 - Fixtures: `tests/data/one_fmu/container.txt.in` is turned by CMake (`container_fixture()`) into
   `<build folder>/fixtures/<name>/container.txt`, with the stub FMU in `00/binaries/<platform>/`. The tests of
   malformed files (`test_malformed.c`) rewrite one line of the fixture `one_fmu` into the fixture `malformed`.
