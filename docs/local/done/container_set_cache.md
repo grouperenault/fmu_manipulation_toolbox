@@ -254,7 +254,28 @@ The local variables, the ports and the links of each type are grouped in
 container_<type>_t (container->reals64.locals, .ports, .links).
 ```
 
-## Review (2026-11-09, after step 8)
+## Step 9 — One call per value set by the importer
+
+Decided 2026-11-09, after a profile of the worst case (the importer sets every port at every step): half of the
+overhead was in the path of the setters (two calls and two loops over the links of a port per value), and a
+synchronization examined every entry. Tried on the branch `perf/cache-setters`, merged.
+
+1. `cache_set_<type>()` stores the values of a port and adds its links to the sets in one call (it replaces
+   `cache_store_<type>()` and `cache_port_set()`, now internal to `cache.c`); it returns 1 when the caller writes the
+   local variables of the port, 0 otherwise, -1 on an allocation failure.
+2. A port knows when the container is loaded whether it has local variables (`port->cache.has_local`): the setters
+   skip their loop over the links otherwise.
+3. `cache_sync_fmu()` sets every entry without examining it when the FMU has no structural parameter and is not in
+   Continuous Time Mode.
+
+Result (LTO): the worst case goes from 4.44 µs to 3.68 µs per step (−17 %), the other cases from 0 to −12 %.
+
+Commit message:
+```
+Container runtime: one call per value set by the importer
+```
+
+## Review (2026-11-09, after step 9)
 
 Step 2 needed no commit: the whole test suite passed without change after step 1, the reference traces of the probe
 FMU included (the scenarios set no value between two synchronizations).
@@ -292,31 +313,32 @@ the ports of local variables set while a step is pending).
 
 ### Performance
 
-Micro-benchmarks, `-O3`, best of 3, macOS arm64, stub FMU whose `fmi2SetReal` does nothing (the overhead of the
-runtime only), per step (compiled without link-time optimization: the CMake build enables it, so `cache_*` can be
-inlined there):
+Micro-benchmarks compiled with link-time optimization (`-O3 -flto`, as the CMake build), stub FMU whose `fmi2SetReal`
+does nothing (the overhead of the runtime only), macOS arm64, median of 3 alternated runs (each the best of 3), per
+step; `integration` before the branch, the branch after step 9:
 
-| Loop | `integration` | Steps 1-3 | Step 4 | Step 6 |
-|---|---|---|---|---|
-| 1 port: `fmi2DoStep` | 3.3 ns | 3.3 ns | 3.4 ns | 3.8 ns |
-| 1 port: `fmi2SetReal` + `fmi2DoStep` | 6.4 ns | 6.4 ns | 6.1 ns | 6.2 ns |
-| 1 port: `fmi2SetReal` + `fmi2GetReal` + `fmi2DoStep` | 10.0 ns | 10.4 ns | 12.9 ns | 10.4 ns |
-| 1000 ports, none set | 181 ns | 581 ns | 20-33 ns | 31 ns |
-| 1000 ports, 1 set | 190 ns | 607 ns | 28-33 ns | 32 ns |
-| 1000 ports, 10 set | 227 ns | 664 ns | 78 ns | 82 ns |
-| 1000 ports, all set | 3.75 µs | 7.2 µs | 5.6 µs | 5.9 µs |
+| Loop | `integration` | Branch | Ratio |
+|---|---|---|---|
+| 1 port: `fmi2DoStep` | 3.6 ns | 3.6 ns | ×1.00 |
+| 1 port: `fmi2SetReal` + `fmi2DoStep` | 4.8 ns | 5.6 ns | ×1.17 |
+| 1 port: `fmi2SetReal` + `fmi2GetReal` + `fmi2DoStep` | 6.5 ns | 6.3 ns | ×0.97 |
+| 1000 ports, none set | 181 ns | 21 ns | ×0.12 |
+| 1000 ports, 1 set | 190 ns | 26 ns | ×0.14 |
+| 1000 ports, 10 set | 212 ns | 59 ns | ×0.28 |
+| 1000 ports, all set | 2.45 µs | 3.68 µs | ×1.51 |
 
 - The steps no longer go through all the ports: `integration` went through them at the end of each pending step
-  (`container_apply_deferred()`, frequent when the communication points are computed by additions of floats), steps
-  1-3 through all their links.
-- When the importer sets every port at every step, the cost per value grows by about 2 ns (the value is written in
-  the cache, then set from it, instead of being set at once): negligible against the `fmi*Set` of a real FMU.
+  (`container_apply_deferred()`, frequent when the communication points are computed by additions of floats).
+- When the importer sets every port at every step, the cost per value grows by about 1.2 ns (the value is written in
+  the cache, its link added to a set, then set from it): negligible against the `fmi*Set` of a real FMU. The rest is
+  the addition of the links to the sets, the principle of the cache; grouping the value references (decision 5,
+  declined) would be the next step.
+- The debug trace of `cache_set_<type>()` (`LOGGER_DEBUG`, tested even when the debug is off) costs about 1 ns per
+  value set: most of the difference of the case of one port.
 - A read of a port set by the importer no longer calls the FMU; a read of another port of an FMU with pending values
   costs a synchronization.
-- A value set several times between two steps reaches the FMU once. A string set by the importer is copied without
-  allocation when it fits the capacity of its place in the cache; a binary is synchronized without allocation.
-- Step 7: a string output of an FMU is copied in its local variable without allocation once the local has the
-  capacity (it was freed and duplicated at each step).
+- A value set several times between two steps reaches the FMU once. Strings and binaries are copied without
+  allocation when they fit the capacity of their places.
 
 ### Test suite
 

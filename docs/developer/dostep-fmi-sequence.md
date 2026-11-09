@@ -100,11 +100,13 @@ The container is at `t + h` after every call (`reals64[0]`, its time output).
 
 ## Values set by the importer
 
-The setters of the container (`fmi2Set*`, `fmi3Set*`, except `fmi3SetClock`) do not call the embedded FMU's: they
-write the **cache** (module `cache.c`), the state to come: the values of the port (`cache_store_<type>()`), and its
-links added to the **set** of their FMU (`cache_port_set()`; a link is in a set once, `container_vr_t.cache.in_set`).
-A port linked to a local variable writes it at once. An FMU gets the values of its set when it is **synchronized**
-(`cache_sync_fmu()`, one `fmi*Set` per link, from the cache, in the order of the calls of the importer):
+The setters of the container (`fmi2Set*`, `fmi3Set*`, except `fmi3SetClock`) do not call the embedded FMU's: one call
+of `cache_set_<type>()` per port writes the **cache** (module `cache.c`), the state to come: the values of the port,
+and its links added to the **set** of their FMU (a link is in a set once, `container_vr_t.cache.in_set`). It tells
+the setter whether to write the local variables of the port at once: the port has some
+(`container_port_t.cache.has_local`, known when the container is loaded) and no step is pending. An FMU gets the
+values of its set when it is **synchronized** (`cache_sync_fmu()`, one `fmi*Set` per link, from the cache, in the
+order of the calls of the importer):
 
 - before each of its steps, at the exit of the Initialization Mode and at the event iterations (`fmu_set_inputs`);
   in Continuous Time Mode, its real values only (`fmu_set_continuous_inputs`), as its links;
@@ -115,7 +117,8 @@ A port linked to a local variable writes it at once. An FMU gets the values of i
   start values; this goes through all the ports, once per phase).
 
 The sets are allocated when the container is loaded, for all the entries they may hold: a synchronization goes
-through the set of the FMU only, and costs nothing when it is empty.
+through the set of the FMU only, and costs nothing when it is empty. For an FMU without structural parameter, out of
+Continuous Time Mode, every entry is set without being examined.
 
 A value refused by an FMU is reported by the call that synchronizes it (`fmi*DoStep`, `fmi*ExitInitializationMode`,
 `fmi*Get*`...), not by `fmi*Set*`. In the multi-thread mode, the synchronization runs in the main thread
