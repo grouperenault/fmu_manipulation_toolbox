@@ -95,27 +95,75 @@ int test_xcp_without_configuration_mode(void) {
 }
 
 
-/* FMI 2.0: the start values, then the values set on the container, before fmi2SetupExperiment. */
-int test_xcp_fmi2_before_setup_experiment(void) {
+static fmi2Component instantiate_fmi2(fmi2CallbackFunctions *functions) {
     char location[4096];
+
+    snprintf(location, sizeof(location), "file://%s/xcp_fmi2", TEST_FIXTURES_DIR);
+    memset(functions, 0, sizeof(*functions));
+    return fmi2Instantiate("xcp", fmi2CoSimulation, "{uuid}", location, functions, fmi2False, fmi2False);
+}
+
+
+/* FMI 2.0: a value set on the container goes to its cache only; before fmi2SetupExperiment, the FMU gets its start
+   values, then the values set on the container, which prevail. */
+int test_xcp_fmi2_before_setup_experiment(void) {
     fmi2CallbackFunctions functions;
 
     TEST_ASSERT_EQUAL_INT(0, reset_journal("xcp_fmi2"));
-    snprintf(location, sizeof(location), "file://%s/xcp_fmi2", TEST_FIXTURES_DIR);
-    memset(&functions, 0, sizeof(functions));
-    fmi2Component container = fmi2Instantiate("xcp", fmi2CoSimulation, "{uuid}", location, &functions, fmi2False,
-                                              fmi2False);
+    fmi2Component container = instantiate_fmi2(&functions);
     TEST_ASSERT(container != NULL);
 
     const fmi2ValueReference vr = PORT_VR_FMI2;
     const fmi2Integer port = 7002;
     TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetInteger(container, &vr, 1, &port));
+    TEST_ASSERT(strcmp(read_journal("xcp_fmi2"), "") == 0);       /* not synchronized yet */
     TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetupExperiment(container, fmi2False, 0.0, 0.0, fmi2False, 1.0));
     fmi2FreeInstance(container);
 
-    TEST_ASSERT(strcmp(read_journal("xcp_fmi2"), "set port=7002\n"
-                                                 "set port=6002\n"
+    TEST_ASSERT(strcmp(read_journal("xcp_fmi2"), "set port=6002\n"
                                                  "set port=7002\n"
                                                  "start tcp 127.0.0.1:7002 at fmi2SetupExperiment\n") == 0);
+    return 0;
+}
+
+
+/* Read after write: the FMU is synchronized before it is read. */
+int test_cache_read_after_write(void) {
+    fmi2CallbackFunctions functions;
+
+    TEST_ASSERT_EQUAL_INT(0, reset_journal("xcp_fmi2"));
+    fmi2Component container = instantiate_fmi2(&functions);
+    TEST_ASSERT(container != NULL);
+
+    const fmi2ValueReference vr = PORT_VR_FMI2;
+    const fmi2Integer port = 7004;
+    fmi2Integer read = 0;
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetInteger(container, &vr, 1, &port));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2GetInteger(container, &vr, 1, &read));
+    TEST_ASSERT_EQUAL_INT(7004, read);
+    TEST_ASSERT(strcmp(read_journal("xcp_fmi2"), "set port=7004\n") == 0);
+    fmi2FreeInstance(container);
+
+    return 0;
+}
+
+
+/* A value refused by the FMU is reported by the call that synchronizes it, not by fmi*Set. */
+int test_cache_refused_value(void) {
+    fmi2CallbackFunctions functions;
+
+    TEST_ASSERT_EQUAL_INT(0, reset_journal("xcp_fmi2"));
+    fmi2Component container = instantiate_fmi2(&functions);
+    TEST_ASSERT(container != NULL);
+
+    const fmi2ValueReference vr = PORT_VR_FMI2;
+    const fmi2Integer port = 7005;
+    fmi2Integer read = 0;
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetupExperiment(container, fmi2False, 0.0, 0.0, fmi2False, 1.0));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetInteger(container, &vr, 1, &port));    /* the service is started */
+    TEST_ASSERT_EQUAL_INT(fmi2Error, fmi2GetInteger(container, &vr, 1, &read));
+    fmi2FreeInstance(container);
+
+    TEST_ASSERT(strstr(read_journal("xcp_fmi2"), "refused port in started service\n") != NULL);
     return 0;
 }

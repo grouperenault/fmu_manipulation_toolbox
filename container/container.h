@@ -18,9 +18,17 @@ extern "C" {
                       C O N T A I N E R _ V R _ T
 ----------------------------------------------------------------------------*/
 
+/* State of a link from a port of the container to an embedded FMU, for the values set by the importer. */
+typedef enum {
+	CONTAINER_LINK_CLEAN,		/* the FMU has the value of the cache */
+	CONTAINER_LINK_PENDING,		/* the value of the cache is set at the next synchronization of the FMU */
+	CONTAINER_LINK_DEFERRED		/* set while a step was pending: pending once this step is done */
+} container_link_state_t;
+
 typedef struct {
 	fmu_vr_t					fmu_vr;
 	unsigned long				fmu_id;
+	container_link_state_t		state;		/* links to an embedded FMU only */
 } container_vr_t;
 
 
@@ -36,7 +44,8 @@ typedef struct {
     container_vr_t              *links;
 	unsigned long				cache_offset; /* in container->cache_<type>, CONTAINER_NO_CACHE if no link */
 	unsigned long				nb_cached;	/* number of values set by the importer, 0 if none yet */
-	bool						deferred;	/* set by the importer while a step was pending: to apply after it */
+	bool						deferred;	/* local variables set by the importer while a step was pending: to
+											   write after it */
 } container_port_t;
 
 
@@ -160,8 +169,9 @@ typedef struct container_s {
 	DECLARE_PORT(clocks, Clock, bool)
 #undef DECLARE_PORT
 
-	/* values set by the importer on the ports forwarded to embedded FMUs, set again after the reset of an FMU
-	   (clocks are events: never cached) */
+	/* values set by the importer on the ports linked to embedded FMUs or to local variables: the only way from
+	   fmi*Set to the embedded FMUs, which get them when they are synchronized (container_sync_fmu). Clocks are
+	   events: never cached. */
 #define DECLARE_CACHE(variable, fmi_type, c_type)	\
 	unsigned long				nb_cache_ ## variable;	\
 	c_type						*cache_ ## variable;
@@ -234,8 +244,12 @@ extern int container_cache_strings(container_t *container, container_port_t *por
                                    size_t nvalues);
 extern int container_cache_binaries(container_t *container, container_port_t *port, const size_t size[],
                                     const uint8_t * const value[], size_t nvalues);
-/* Set again the cached values of the ports forwarded to the FMU of index fmu_id. */
-extern fmu_status_t container_set_fmu_cache(container_t *container, unsigned long fmu_id, bool structural);
+/* fmi*Set of a port, whose values are already in the cache: marks its links to embedded FMUs. Returns true when
+   the caller writes now its local variables (not while a step is pending). */
+extern bool container_port_set(container_t *container, container_port_t *port);
+/* Sets on the FMU of index fmu_id the values of the cache marked for it (continuous_only: its real variables only,
+   in Continuous Time Mode). */
+extern fmu_status_t container_sync_fmu(container_t *container, unsigned long fmu_id, bool continuous_only);
 
 /* for datalog facilities. */
 extern void container_clocks_activate_ticked(container_t *container);

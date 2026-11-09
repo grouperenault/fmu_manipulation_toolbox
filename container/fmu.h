@@ -418,6 +418,10 @@ typedef struct {
     bool                        in_configuration_mode;
     bool                        configured;
 
+    /* Number of links of the ports of the container to this FMU whose value set by the importer is pending (see
+       container_sync_fmu). */
+    unsigned long               nb_pending;
+
     /* Next event time announced by the last UpdateDiscreteStates. */
     bool                        have_next_event_time;
     double                      next_event_time;
@@ -459,18 +463,13 @@ extern fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu);
 extern fmu_status_t fmuEnterConfigurationMode(fmu_t *fmu);
 extern fmu_status_t fmuExitConfigurationMode(fmu_t *fmu);
 
-/* fmu_is_structural_<variable>(fmu, vr): whether vr is a structural parameter of the FMU, that is a variable with a
-   start value of Configuration Mode (<RESET>=2 of container.txt). */
-#define DECLARE_IS_STRUCTURAL(variable, fmi_type, c_type) \
-extern bool fmu_is_structural_ ## variable(const fmu_t *fmu, fmu_vr_t vr);
-FOR_ALL_NUMERIC_TYPES(DECLARE_IS_STRUCTURAL)
-DECLARE_IS_STRUCTURAL(strings, String, const char *)
-#undef DECLARE_IS_STRUCTURAL
-
-/* A structural parameter is set only in Configuration Mode: a value set on the container meanwhile is kept in the
-   cache of the container, and set when the FMU is configured. */
-#define FMU_DEFERS_SET(fmu, variable, vr) \
-    ((fmu)->has_configuration_mode && !(fmu)->in_configuration_mode && fmu_is_structural_ ## variable((fmu), (vr)))
+/* fmu_start_reset_<variable>(fmu, vr): <RESET> of the start value of vr in container.txt (2: structural parameter,
+   set in Configuration Mode; 1: set again in Initialization Mode; 0), -1 if vr has no start value. */
+#define DECLARE_START_RESET(variable, fmi_type, c_type) \
+extern int fmu_start_reset_ ## variable(const fmu_t *fmu, fmu_vr_t vr);
+FOR_ALL_NUMERIC_TYPES(DECLARE_START_RESET)
+DECLARE_START_RESET(strings, String, const char *)
+#undef DECLARE_START_RESET
 extern fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate);
 extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *directory, const char *name,

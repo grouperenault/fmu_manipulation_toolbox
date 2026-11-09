@@ -60,8 +60,9 @@ Configuration Mode only.
 - **Removed**: the forwarding in the `FMI_SETTER` macros, `FMU_DEFERS_SET`, `container_apply_deferred()`,
   `container_set_fmu_cache()`. `container.txt` is unchanged (the cache already exists for each linked port).
 
-To verify while implementing: no worker thread runs between two calls of the importer (the main thread writes the
-links, the thread of an FMU clears them).
+Verified while implementing: the worker threads of the multi-thread mode only run `fmuDoStep`, between two barriers;
+`fmu_set_inputs`, hence the synchronization, runs in the main thread. In Continuous Time Mode (ME), only the real
+values are synchronized (`fmu_set_continuous_inputs`), as the links: the discrete ones wait for the Event Mode.
 
 ## Step 0 — Plan
 
@@ -76,8 +77,10 @@ Plan: values set on the container go through the cache of the ports
 
 - `container.h` / `container.c` / `fmu.c` / `fmi2.c` / `fmi3.c` as described in **Design**.
 - Native tests (`container/tests`): a value set is not seen by the stub before the synchronization; `Get` after `Set`;
-  refused value reported by the synchronizing call; set while a step is pending (the pending step uses the old value,
-  the next one the new value); reset of an FMU; structural parameters (the tests of FMI-LS-XCP still pass).
+  refused value reported by the synchronizing call; structural parameters (the tests of FMI-LS-XCP still pass). A
+  value set while a step is pending is covered by `test_communication_step_*` of `tests/integration/test_probe_fmu.py`
+  (each internal step uses the last value set before its beginning), the reset of an FMU by the tests of
+  `container-reset`.
 - Build with `FMUTOOL_SANITIZE` and `FMUTOOL_WARNINGS_AS_ERRORS`.
 
 Commit message:

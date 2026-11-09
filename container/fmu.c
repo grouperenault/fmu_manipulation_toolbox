@@ -48,6 +48,11 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
         LOGGER_DEBUG("[DEBUG] Time=%e | fmu_set_inputs(%s)", fmu->container->time, fmu->name);
 #endif
 
+    /* The values set by the importer on the container since the last synchronization of the FMU */
+    status = container_sync_fmu(fmu->container, (unsigned long)fmu->index, false);
+    if (status != FMU_STATUS_OK)
+        return status;
+
     FOR_ALL_NUMERIC_TYPES(SET_INPUT)
 
     /* strings: Need to add a (cast) to avoid a warning */
@@ -293,6 +298,11 @@ fmu_status_t fmu_set_continuous_inputs(const fmu_t* fmu) {
     fmu_status_t status = FMU_STATUS_OK;
     const container_t* container = fmu->container;
     const fmu_io_t* fmu_io = &fmu->fmu_io;
+
+    /* The real values set by the importer on the container since the last synchronization of the FMU */
+    status = container_sync_fmu(fmu->container, (unsigned long)fmu->index, true);
+    if (status != FMU_STATUS_OK)
+        return status;
 
     SET_INPUT(reals64, Real64, double)
     SET_INPUT(reals32, Real32, float)
@@ -652,6 +662,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     fmu->has_configuration_mode = false; /* read after the load of the FMU */
     fmu->in_configuration_mode = false;
     fmu->configured = false;
+    fmu->nb_pending = 0;
     fmu->component = NULL;  /* will be set by fmuInstantiateCoSimulation/ModelExchange() */
 
 #define INIT_FMU_DATA(variable, fmi_type, c_type)       \
@@ -1491,17 +1502,17 @@ fmu_status_t fmuExitConfigurationMode(fmu_t *fmu) {
 }
 
 
-#define DEFINE_IS_STRUCTURAL(variable, fmi_type, c_type)                                        \
-bool fmu_is_structural_ ## variable(const fmu_t *fmu, fmu_vr_t vr) {                            \
+#define DEFINE_START_RESET(variable, fmi_type, c_type)                                          \
+int fmu_start_reset_ ## variable(const fmu_t *fmu, fmu_vr_t vr) {                               \
     for (unsigned long i = 0; i < fmu->fmu_io.start_ ## variable.nb; i += 1) {                  \
         if (fmu->fmu_io.start_ ## variable.start_values[i].vr == vr)                            \
-            return fmu->fmu_io.start_ ## variable.start_values[i].reset == 2;                   \
+            return fmu->fmu_io.start_ ## variable.start_values[i].reset;                        \
     }                                                                                           \
-    return false;                                                                               \
+    return -1;                                                                                  \
 }
-FOR_ALL_NUMERIC_TYPES(DEFINE_IS_STRUCTURAL)
-DEFINE_IS_STRUCTURAL(strings, String, const char *)
-#undef DEFINE_IS_STRUCTURAL
+FOR_ALL_NUMERIC_TYPES(DEFINE_START_RESET)
+DEFINE_START_RESET(strings, String, const char *)
+#undef DEFINE_START_RESET
 
 
 fmu_status_t fmuTerminate(const fmu_t *fmu) {

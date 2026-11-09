@@ -39,6 +39,8 @@ static const struct {
     { "xcp_configuration_mode",         test_xcp_configuration_mode },
     { "xcp_without_configuration_mode", test_xcp_without_configuration_mode },
     { "xcp_fmi2_before_setup",          test_xcp_fmi2_before_setup_experiment },
+    { "cache_read_after_write",         test_cache_read_after_write },
+    { "cache_refused_value",            test_cache_refused_value },
 };
 
 
