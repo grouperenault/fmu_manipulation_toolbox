@@ -71,6 +71,7 @@ extern int test_xcp_fmi2_before_setup_experiment(void);
 extern int test_cache_read_after_write(void);
 extern int test_cache_refused_value(void);
 extern int test_cache_order_of_the_calls(void);
+extern int test_cache_structural_warning(void);
 
 /* Helper: writes content into a temporary file of the test directory. Returns 0 on success. */
 extern int test_write_file(const char *dirname, const char *filename, const char *content);

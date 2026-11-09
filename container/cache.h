@@ -132,7 +132,8 @@ extern bool cache_read_binaries(const container_t *container, const container_po
                                 const uint8_t *value[]);
 
 /* Adds again the cached values of the FMU to its sets, so that they prevail over its start values: all of them
-   (reset < 0), or those of the variables whose start value has this <RESET>. */
+   (reset < 0), or those of the variables whose start value has this <RESET>; not its structural parameters once it is
+   configured and out of Configuration Mode. */
 extern void cache_mark_fmu(container_t *container, unsigned long fmu_id, int reset);
 /* Sets on the FMU of index fmu_id the values of its sets, type by type (continuous_only: its real variables only, in Continuous
    Time Mode). */

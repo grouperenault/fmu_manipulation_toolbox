@@ -370,15 +370,20 @@ bool cache_read_binaries(const container_t *container, const container_port_t *p
 
 /* Adds again to the set of an FMU the links that have a value set by the importer, so that these values prevail over
    the start values just set: all of them (reset < 0), or those of the variables whose start value has this <RESET>
-   (1: set again in Initialization Mode). Goes through all the ports: once per initialization, configuration or
-   reset. */
+   (1: set again in Initialization Mode). The structural parameters of an FMU configured and out of Configuration Mode
+   are not added: they got their values at its configuration. Goes through all the ports: once per initialization,
+   configuration or reset. */
 void cache_mark_fmu(container_t *container, unsigned long fmu_id, int reset) {
+    const fmu_t *fmu = &container->fmu[fmu_id];
+    const bool structural_done = fmu->configured && !fmu->in_configuration_mode;
 #define MARK_FMU(variable, fmi_type, c_type)                                                                    \
-    for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                                   \
-        container_port_t *port = &container-> variable .ports [i];                                             \
+    for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                                     \
+        container_port_t *port = &container-> variable .ports [i];                                              \
         for (unsigned long j = 0; j < port->nb && port->cache.nb > 0; j += 1) {                                 \
             container_vr_t *link = &port->links[j];                                                             \
-            if (link->fmu_id == fmu_id && (reset < 0 || link->cache.start_reset == reset))                      \
+            if (link->fmu_id != fmu_id || (reset >= 0 && link->cache.start_reset != reset))                     \
+                continue;                                                                                       \
+            if (!(structural_done && link->cache.start_reset == 2))                                             \
                 cache_mark_link(container->cache, CACHE_TYPE_ ## variable, port, link);                         \
         }                                                                                                       \
     }
@@ -398,8 +403,9 @@ void cache_mark_fmu(container_t *container, unsigned long fmu_id, int reset) {
 #define CACHE_CONTINUOUS_TYPES      ((1u << CACHE_TYPE_reals64) | (1u << CACHE_TYPE_reals32))
 
 
-/* Sets on an FMU the cached values of the entries of one of its sets, one call per link, and empties it. On a value
-   refused by the FMU, logs it, keeps the entries not processed yet and returns FMU_STATUS_ERROR. */
+/* Sets on an FMU the cached values of the entries of one of its sets, one call per link, and empties it. An entry
+   whose port has no value anymore (allocation failure of a string or binary) is dropped. On a value refused by the
+   FMU, logs it, keeps the entries not processed yet and returns FMU_STATUS_ERROR. */
 static fmu_status_t cache_sync_set(container_t *container, const fmu_t *fmu, cache_type_t type, cache_set_t *set) {
     const logger_t *logger = &container->logger;
     cache_t *cache = container->cache;
@@ -412,6 +418,8 @@ static fmu_status_t cache_sync_set(container_t *container, const fmu_t *fmu, cac
         while (i < set->nb && status == FMU_STATUS_OK) {                                                        \
             const cache_set_entry_t *entry = &set->entries[i++];                                                \
             entry->link->cache.in_set = false;                                                                  \
+            if (entry->port->cache.nb == 0)                                                                     \
+                continue;                                                                                       \
             status = fmuSet ## fmi_type(fmu, &entry->link->fmu_vr, 1,                                           \
                                         &cache-> variable [entry->port->cache.offset], entry->port->cache.nb);  \
         }                                                                                                       \
@@ -423,6 +431,8 @@ static fmu_status_t cache_sync_set(container_t *container, const fmu_t *fmu, cac
             const cache_set_entry_t *entry = &set->entries[i++];
             const container_port_t *port = entry->port;
             entry->link->cache.in_set = false;
+            if (port->cache.nb == 0)
+                continue;
             for (unsigned long k = 0; k < port->cache.nb; k += 1)
                 cache->strings_scratch[k] = cache->strings[port->cache.offset + k].data;
             status = fmuSetString(fmu, &entry->link->fmu_vr, 1, cache->strings_scratch, port->cache.nb);
@@ -433,6 +443,8 @@ static fmu_status_t cache_sync_set(container_t *container, const fmu_t *fmu, cac
             const cache_set_entry_t *entry = &set->entries[i++];
             const container_port_t *port = entry->port;
             entry->link->cache.in_set = false;
+            if (port->cache.nb == 0)
+                continue;
             for (unsigned long k = 0; k < port->cache.nb; k += 1) {
                 cache->sizes_scratch[k] = cache->binaries[port->cache.offset + k].size;
                 cache->binaries_scratch[k] = cache->binaries[port->cache.offset + k].data;
@@ -558,7 +570,8 @@ static int cache_write_local(container_t *container, cache_type_t type, const co
 
 /* End of a pending step: writes the local variables of the ports set by the importer meanwhile (set of the deferred
    ports) from the cache, and empties these sets. The embedded FMUs get the values of their sets at their next
-   synchronization. Returns FMU_STATUS_ERROR on an allocation failure (logged). */
+   synchronization. Returns FMU_STATUS_ERROR on an allocation failure (logged): the ports not written yet stay in their
+   set, so that a port is never twice in it. */
 fmu_status_t cache_end_pending_step(container_t *container) {
     cache_t *cache = container->cache;
 
@@ -569,13 +582,16 @@ fmu_status_t cache_end_pending_step(container_t *container) {
         cache_set_t *deferred = &cache->deferred[t];
         for (unsigned long i = 0; i < deferred->nb; i += 1) {
             container_port_t *port = deferred->entries[i].port;
-            port->cache.deferred = false;
 
             for (unsigned long j = 0; j < port->nb; j += 1) {
                 const container_vr_t *link = &port->links[j];
-                if ((long)link->fmu_id < 0 && cache_write_local(container, (cache_type_t)t, port, link))
+                if ((long)link->fmu_id < 0 && cache_write_local(container, (cache_type_t)t, port, link)) {
+                    memmove(deferred->entries, deferred->entries + i, (deferred->nb - i) * sizeof(*deferred->entries));
+                    deferred->nb -= i;
                     return FMU_STATUS_ERROR;
+                }
             }
+            port->cache.deferred = false;
         }
         deferred->nb = 0;
         cache->deferred_types &= ~(1u << t);

@@ -43,6 +43,7 @@ static const struct {
     { "cache_read_after_write",         test_cache_read_after_write },
     { "cache_refused_value",            test_cache_refused_value },
     { "cache_order_of_the_calls",       test_cache_order_of_the_calls },
+    { "cache_structural_warning",       test_cache_structural_warning },
 };
 
 

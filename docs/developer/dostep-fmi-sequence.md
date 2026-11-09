@@ -114,8 +114,9 @@ type: the order of the calls of the importer is not kept):
 - before it is read by a getter of the container (read after write). A getter on a port set by the importer returns
   the value of the cache (`cache_read_<type>()`), without calling the FMU;
 - in its Configuration Mode (its structural parameters only: `container_vr_t.cache.start_reset` is 2), before its
-  `fmi2SetupExperiment` and after its reset, where all its cached values join its set again (they prevail over the
-  start values; this goes through all the ports, once per phase).
+  `fmi2SetupExperiment` and after its reset, where its cached values join its sets again (they prevail over the
+  start values; this goes through all the ports, once per phase), but its structural parameters once it is configured
+  (they got their values at its configuration).
 
 The sets are allocated when the container is loaded, for all the entries they may hold: a synchronization goes
 through the non-empty sets of the FMU only (a mask per category, `cache_fmu_t.types`), and costs nothing when they are
