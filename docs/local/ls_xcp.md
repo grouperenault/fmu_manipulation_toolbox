@@ -1,0 +1,187 @@
+# FMI-LS-XCP support
+
+## Context
+
+[FMI-LS-XCP 1.0.0](https://fmi-standard.org/fmi-ls-xcp/1.0.0) describes how an FMU gives access to its internal
+variables to an MCD tool (XCP master) with A2L files:
+
+- the manifest `extra/org.fmi-standard.fmi-ls-xcp/fmi-ls-manifest.xml` holds one or more `Interface` elements, each
+  one with an A2L file (`definition`, relative URI resolved in `extra/org.fmi-standard.fmi-ls-xcp/` for a source code
+  FMU, in `extra/org.fmi-standard.fmi-ls-xcp/<platform>/` for a binary FMU, the platform being named as in
+  `binaries/`);
+- `containsXCPService="true"`: the FMU implements its own XCP slave, listening on a TCP and/or UDP port;
+- `supportsDirectMemoryAccess="true"`: the A2L holds addresses relative to the base of the FMU binary, the importer
+  provides the XCP slave;
+- `Variable` elements give a role to variables of the FMU: `XCPService{TCP|UDP}{Enable|Port|ListenAddress}`
+  (Boolean, UInt16/Integer, String), scalars, declared as fixed `structuralParameter` (FMI 3.0, set in Configuration
+  Mode; the service starts at `fmi3ExitConfigurationMode`, or at `fmi3EnterInitializationMode` at the latest), fixed
+  `parameter` (the service starts at `fmi2SetupExperiment` / `fmi3EnterInitializationMode`), `constant` output or
+  `calculatedParameter` (configuration only announced, not changeable);
+- without a variable for a role, the value is the one of the `IF_DATA XCP` of the A2L (port, address), or `true`
+  for `Enable`;
+- the importer must check that the ports do not collide, and keep the port of the FMU configuration consistent with
+  the A2L given to the MCD tool;
+- the `/include` mechanism of A2L is forbidden.
+
+Inside a container, the container is the importer of the embedded FMUs. No public FMU implements LS-XCP (checked
+2026-11-09: `modelica/fmi-ls-xcp` only holds the specification, the XSD and an example manifest; nothing in
+`modelica/Reference-FMUs`, `fmi-ls-bus-examples`, `fmi-ls-ref`).
+
+The runtime does not support the Configuration Mode: `fmi3EnterConfigurationMode` / `fmi3ExitConfigurationMode` of
+the container only change its state (`container/fmi3.c`), and are not forwarded to the embedded FMUs. FMI 3.0 forbids
+calling `fmi3EnterConfigurationMode` on an FMU without structural parameter (`2_3_common_states.adoc`): the runtime
+must know which FMU to put in Configuration Mode, and it only reads `container.txt`.
+
+## Decisions (2026-11-09)
+
+| # | Question | Decision |
+|---|----------|----------|
+| 1 | Approach | **Passthrough**: the container forwards the XCP services of the embedded FMUs (one `Interface` per forwarded interface in the manifest of the container, A2L copied, role variables exposed). No XCP slave in the container runtime (aggregation discarded for now) |
+| 2 | `container.txt` | Format version 9, minimal change: a flag `<has_configuration_mode>` per embedded FMU (section 4), and the value `<RESET>=2` for the start values applied in Configuration Mode (section 7.2) |
+| 3 | Port conflict between embedded FMUs | Error at build time (`FMUContainerError`), naming the FMUs, the protocol and the port |
+| 4 | Exposure of the role variables | Automatic, named `<fmu id>.<variable>` (convention of `auto_parameter`), declared in the manifest of the container |
+| 5 | FMI versions | FMI 2.0 and FMI 3.0, for the embedded FMUs and for the container |
+| 6 | Interface with `supportsDirectMemoryAccess` only | Warning, not forwarded to the container |
+| 7 | Port of an interface without role variable | Read from the `IF_DATA XCP` of the A2L (`XCP_ON_TCP_IP` / `XCP_ON_UDP_IP`), minimal reader, no full A2L parser |
+| 8 | Checker | An LS-XCP checker for `fmutool -check`, in this plan |
+| 9 | Test FMUs | A C stub FMU, FMI 2.0 and 3.0, without real XCP service: it logs the configuration it receives and when it "starts" its service |
+| 10 | Test FMUs of the Python tests | `.fmu` archives without binaries (descriptor, manifest, A2L) in `tests/data/ls-xcp/`: enough to build a container. The runtime sequence is checked by the native tests only, with the stub FMU built by CMake |
+| 11 | Port conflict | Same protocol and same port, whatever the listen addresses (`0.0.0.0` overlaps every address) |
+| 12 | `<has_configuration_mode>` | On the Co-Simulation and the Model-Exchange lines of section 4 |
+
+## Step 0 — Plan
+
+This document.
+
+Commit message:
+```
+Plan: FMI-LS-XCP support
+```
+
+## Step 1 — Reading of the LS-XCP manifest and of the A2L
+
+- `fmu_manipulation_toolbox/ls.py`: `LayeredStandard` detects LS-XCP besides LS-BUS (`standards` lists
+  `"LS-XCP"`). New dataclasses `XcpInterface` (`definition`, `types`, `description`, `contains_xcp_service`,
+  `supports_direct_memory_access`, `variables: dict[role, name]`) and a reader of the manifest.
+- Resolution of the A2L of an interface: source code (manifest directory) or per platform
+  (`<platform>/<definition>`); the list of the platforms that have it.
+- Minimal reader of `IF_DATA XCP`: for `XCP_ON_TCP_IP` and `XCP_ON_UDP_IP`, the port and the address (`ADDRESS` /
+  `HOST_NAME`). Comments (`/* */`, `//`) skipped. Returns `None` for what is missing.
+- Unit tests with fabricated manifests and A2L (`tests/data/ls-xcp/`).
+
+Commit message:
+```
+LS-XCP: read the manifest and the XCP settings of the A2L files
+```
+
+## Step 2 — Checker `OperationLsXcpCheck`
+
+- The XSD of LS-XCP (`fmi3LayeredStandardXcpManifest.xsd`, 2-Clause BSD) is shipped in
+  `fmu_manipulation_toolbox/resources/fmi-ls-xcp/` with its license.
+- Checks, each violation logged as an error (model of `OperationLsBusCheck`):
+  - manifest valid against the XSD, `fmi-ls-name` and `fmi-ls-version`;
+  - `definition`: relative URI without dot segment; A2L present in the root (source code) or for at least one
+    platform of `binaries/`; no `/include` in the A2L;
+  - at least one of `containsXCPService` / `supportsDirectMemoryAccess` is `true`;
+  - `types`: interface types the FMU provides;
+  - `Variable`: the variable exists; a variable in one entry only; a role once per `Interface`; scalar; type of the
+    role (Boolean, UInt16 or Integer, String); causality/variability among the four combinations of the
+    specification (`structuralParameter` only in FMI 3.0);
+  - roles without `containsXCPService`: warning (they have no meaning).
+- Registered in `get_checkers()`; unit tests.
+
+Commit message:
+```
+Checker: rules of FMI-LS-XCP
+
+fmutool -check validates the manifest of FMI-LS-XCP against its XSD, the A2L
+files of the interfaces and the role of the variables.
+```
+
+## Step 3 — Stub FMU of the tests
+
+- `container/tests/stub_xcp_fmu.c` (model of `stub_fmu.c`), compiled for FMI 2.0 and FMI 3.0: role variables
+  `XCP.TCP.Enable`, `XCP.TCP.Port`, `XCP.TCP.ListenAddress` (`parameter` in FMI 2.0, `structuralParameter` in
+  FMI 3.0), manifest and A2L. It logs the received configuration, refuses a structural parameter set outside of
+  Configuration Mode, and logs when its service "starts" (`fmi2SetupExperiment`, `fmi3ExitConfigurationMode` or
+  `fmi3EnterInitializationMode`).
+- Python test data (decision 10).
+
+Commit message:
+```
+Tests: stub FMU implementing FMI-LS-XCP
+```
+
+## Step 4 — `container.txt` version 9 and Configuration Mode in the runtime
+
+- Format: `<has_configuration_mode>` (section 4, CS and ME lines), `<RESET>=2` (section 7.2).
+  `CONTAINER_TXT_VERSION` = 9 in `types.py` and `container.h`. `split.py` reads version 9.
+- Writer (`txt.py`): flag of the FMU when it has a fixed or tunable structural parameter exposed or with a start
+  value; every exposed structural parameter gets a start value line `<RESET>=2` (its start value by default), so
+  that the runtime knows the list of the structural parameters.
+- Runtime (`container.c`, `fmi3.c`, `fmi2.c`):
+  - `fmi3EnterConfigurationMode` / `fmi3ExitConfigurationMode` of the container forwarded to the flagged FMUs;
+    the `<RESET>=2` start values applied after their `fmi3EnterConfigurationMode`;
+  - a `Set` on a container port linked to a structural parameter, while the FMU is not in Configuration Mode, is
+    cached (existing cache) instead of forwarded;
+  - if the importer did not use the Configuration Mode (FMI 2.0 container, or FMI 3.0 importer that skipped it):
+    before the early start values, each flagged FMU goes through `fmi3EnterConfigurationMode`, `<RESET>=2` start
+    values, cached values, `fmi3ExitConfigurationMode`.
+- Native tests with the stub FMU (call sequence, values received); test of the equality of the two
+  `CONTAINER_TXT_VERSION`.
+- Developer docs: `docs/developer/container-txt-format.md` (version 9), `docs/developer/init-fmi-sequence.md`
+  (Configuration Mode).
+
+Commit message:
+```
+Container runtime: forward the Configuration Mode to the embedded FMUs
+
+container.txt version 9: a flag per embedded FMU that has structural
+parameters, and the start values applied in Configuration Mode (RESET=2). A
+structural parameter set outside of Configuration Mode is cached and applied
+in it.
+```
+
+## Step 5 — Builder: forwarding of the XCP services
+
+- `EmbeddedFMU` reads the LS-XCP interfaces (step 1).
+- Interfaces forwarded: `containsXCPService="true"`, applicable to the interface type under which the FMU is
+  embedded (CS or ME). `supportsDirectMemoryAccess` only: warning, not forwarded; in a forwarded interface,
+  `supportsDirectMemoryAccess` is not written (the addresses are relative to the binary of the FMU, not of the
+  container).
+- Role variables exposed automatically as `<fmu id>.<variable>`: `structuralParameter` of the container (FMI 3.0
+  container) or `parameter` (FMI 2.0 container) for the configurable roles; outputs of the container for the
+  `constant` output / `calculatedParameter` roles. `add_input` accepts a `structuralParameter` (scalar).
+- Manifest of the container: one `Interface` per forwarded interface, `definition="<fmu id>/<definition>"`,
+  `containsXCPService="true"`, `Variable` with the names exposed on the container. A2L copied in
+  `extra/org.fmi-standard.fmi-ls-xcp/<platform of the container>/<fmu id>/` (mapping of the platform names between
+  FMI 2.0 and 3.0 with `Platform`, only the platforms of the container), or at the root for a source code FMU.
+- Port check: effective port of each enabled service (value given in the description > start value of the role
+  variable > `IF_DATA XCP`), conflict according to decision 11 → `FMUContainerError`; port unknown → warning. Covers several
+  instances of the same FMU.
+- The SSP export and the JSON dump are not affected (the exposure is automatic, the values are start values).
+- Python tests: container built from the test FMUs of step 3 (manifest, A2L, exposed variables, conflicts,
+  FMI 2.0 / 3.0 containers).
+
+Commit message:
+```
+Container: forward the XCP services of the embedded FMUs (FMI-LS-XCP)
+
+The interfaces of the embedded FMUs with an XCP service are declared in the
+manifest of the container, their A2L files copied, and their configuration
+variables exposed. A port used by two services is refused at build time.
+```
+
+## Step 6 — Documentation
+
+- `docs/user-guide/fmucontainer/ls-xcp.md` (new, in the `mkdocs.yml` navigation next to LS-BUS): what is
+  forwarded, naming, port conflicts, Configuration Mode, limits (no direct memory access, no XCP slave in the
+  container).
+- `docs/user-guide/fmutool/checker.md`: the LS-XCP checker.
+- `docs/user-guide/fmucontainer/container.md`: link to the LS-XCP page.
+- `CHANGELOG.md`, `README.md` (list of the supported layered standards), `docs/local/ROADMAP.md`.
+
+Commit message:
+```
+Doc: FMI-LS-XCP support of the container and of the checker
+```
