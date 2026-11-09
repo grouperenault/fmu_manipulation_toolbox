@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiReferences
+    xmlns:fmi-ls="http://fmi-standard.org/fmi-ls-manifest"
+    fmi-ls:fmi-ls-name="org.fmi-standard.fmi-ls-ref"
+    fmi-ls:fmi-ls-version="1.0.0-alpha.1"
+    fmi-ls:fmi-ls-description="Reference material of the tests">
+    <Related type="application/x-ma-hs-experiments" source="smoke.xml" role="experiment" description="Smoke tests">
+        <Label name="os:any" description="Any platform"/>
+    </Related>
+    <Related type="application/x-ma-hs-experiments" source="validation%20tests.xml" role="experiment/validation"/>
+    <Related type="application/x-ma-hs-experiments" source="../../resources/uncertainty.xml"
+             role="experiment/uncertainty-analysis"/>
+    <Related type="application/x-ssp-parameter-set" source="missing.ssv" role="parameter"/>
+    <Related type="text/html" source="https://example.com/model.html" role="documentation"/>
+    <Related type="text/plain" source="../../../outside.txt" role="documentation"/>
+</fmiReferences>

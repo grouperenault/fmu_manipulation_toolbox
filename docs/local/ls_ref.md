@@ -56,6 +56,7 @@ There is no FMI driver in Python and no simulation engine besides the container 
 | 12 | Attribute `tolerance` of an experiment | **Ignored** (information message when present): the container runtime also uses the tolerance of `SetupExperiment` as its tolerance on time (see the pending step issue found during the cache benchmark) |
 | 13 | Experiment without `stepSize` | Step size **deduced** by the builder from the FMU (as `fmucontainer` does), information message |
 | 14 | Targets of the stimuli and of the SSV parameters | **Strict**: stimuli on variables of causality `input`; SSV parameters on `parameter` / `structuralParameter` variables (and `input` with a start value); any other variable or unknown name: error of the check |
+| 15 | Dot segments in the relative URIs (manifest, experiment files) | **Allowed** while the resolved path stays inside the FMU (e.g. `../../resources/x.csv`, as the specification supports every relative URI inside the FMU); a path leaving the FMU is reported as an absolute URI (decision 11). Decided 2026-11-09, step 1 |
 
 ## Open questions (to be asked at the step that needs them)
 
@@ -83,8 +84,8 @@ Plan: FMI-LS-REF support
 - New module `fmu_manipulation_toolbox/experiments.py`: reader of MA-HS-Experiments. Dataclasses `Experiment`
   (`name`, `description`, `start_time`, `stop_time`, `step_size`, `tolerance`, `parameters`, `stimuli`,
   `references`) and `ExperimentSource` (`source`, `type`), sources resolved relative to the experiments file.
-- Resolution of the URIs: relative URI without dot segment, inside the FMU; absolute URIs and missing files reported
-  (decision 11).
+- Resolution of the URIs (`ls.resolve_uri`): relative URI, percent-decoded, dot segments allowed inside the FMU
+  (decision 15); absolute URIs, paths leaving the FMU and missing files reported (decision 11).
 - Unit tests with fabricated manifests and experiment files (`tests/data/ls-ref/`).
 
 Commit message:
@@ -114,8 +115,8 @@ LS-REF: CSV time series, interpolation and comparison
   shipped in `fmu_manipulation_toolbox/resources/fmi-ls-ref/` with their license.
 - Checks, each violation logged as an error unless stated (model of `OperationLsXcpCheck`):
   - manifest valid against its XSD, `fmi-ls-name`, `fmi-ls-version`;
-  - `Related`: role and sub-roles (unknown experiment sub-role: error); missing file or absolute URI: warning
-    (decision 11);
+  - `Related`: role and sub-roles (unknown experiment sub-role: error); missing file, absolute URI or path leaving
+    the FMU: warning (decision 11);
   - experiment files of type `application/x-ma-hs-experiments`: valid against their XSD; for each experiment:
     `startTime < stopTime` when both given, `stepSize > 0`; sources of type `text/csv` (stimuli, references) and
     `application/x-ssp-parameter-set` (parameters); other types: warning (decision 5);
