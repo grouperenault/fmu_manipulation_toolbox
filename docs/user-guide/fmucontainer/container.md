@@ -534,7 +534,8 @@ Without any additional option, `fmucontainer` will produce FMI-2.0 containers. T
 - *FMU 2.0* in [Model-Exchange mode](#model-exchange-support).
 - *FMU 3.0* in cosimulation mode with limitations:
   - Variables with FMI-3.0 specific types can be used for routing but cannot be exposed (as input, output, parameter or local).
-    Note: `boolean` is redefined in FMI-3.0. So cannot be exposed from an FMU-3.0.
+    Note: `boolean` is redefined in FMI-3.0: a `Boolean` output of an FMU-3.0 is exposed as an FMI-2.0 `Boolean`
+    (converted by the container); a `Boolean` input, parameter or local cannot be exposed.
   - Early Return feature is not supported
   - Arrays are not supported
 - *FMU 3.0* in [Model-Exchange mode](#model-exchange-support) (same type/exposition limitations as above).
@@ -544,7 +545,8 @@ To produce FMI-3.0 compliant containers, use option `-fmi 3` in `fmucontainer` c
 Those containers may embed
 
 - *FMU 2.0* in cosimulation mode with limitations:
-  - `boolean` variables can be used for routing but cannot be exposed (as input, output, parameter or local).
+  - `boolean` variables can be used for routing; a `Boolean` output is exposed as an FMI-3.0 `Boolean` (converted
+    by the container), a `Boolean` input, parameter or local cannot be exposed.
 
 - *FMU 2.0* in [Model-Exchange mode](#model-exchange-support).
 

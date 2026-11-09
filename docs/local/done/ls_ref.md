@@ -243,8 +243,10 @@ atol 1e-6; strings exactly).
 ## Step 8 — User documentation
 
 - `docs/user-guide/fmutool/checker.md`: the LS-REF checker (static rules, replay, CSV convention, interpolation,
-  tolerances, what is not supported: HDF5, `uncertainty-analysis`, `tolerance`).
-- `docs/whats-new.md`, `CHANGELOG.md`.
+  tolerances, what is not supported: HDF5, `uncertainty-analysis`, `tolerance`, FMI-2.0 boolean stimuli).
+- `docs/user-guide/fmucontainer/container.md`: the boolean outputs of the other FMI version (step 6).
+- `docs/API/ls_ref.md` (navigation of `mkdocs.yml`): the modules `experiments`, `timeseries`, `simulation`.
+- `CHANGELOG.md` (`docs/whats-new.md` describes the release 2.0 only: not changed, as for LS-XCP).
 - Move this plan to `docs/local/done/`.
 
 Commit message:
