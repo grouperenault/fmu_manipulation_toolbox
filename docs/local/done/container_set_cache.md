@@ -169,7 +169,8 @@ Container runtime: the fields of the cache of a port in a sub-structure
 Decided 2026-11-09 (points 1 to 6 of the review of the cache and of the local variables; point 9, one structure per
 type for the storages of the container, is for later):
 
-1. Dead code removed: `strings_tmp`, `binaries_tmp`, `binaries_size_tmp` of `container_t` (allocated, never used).
+1. ~~Dead code removed: `strings_tmp`, `binaries_tmp`, `binaries_size_tmp` of `container_t`.~~ Dropped: they are used
+   by `fmu_get_outputs()` (`fmu.c`) to read the string and binary outputs; the review had missed it.
 2. Synchronization of a binary: a scratch array allocated with the cache, instead of two allocations per value.
 3. Cached strings keep their capacity (as the binaries): no allocation when a string set by the importer fits.
 4. The `<RESET>` of the start value of each link is computed when the container is loaded (`start_reset`, -1 without
@@ -192,60 +193,68 @@ Container runtime: module cache
 The values set by the importer, the sets of the variables to synchronize and
 the synchronization move to cache.c. The reads of a value set by the importer
 come from the cache, the strings of the cache keep their capacity, the start
-reset of the links is computed once, and the unused buffers are removed.
+reset of the links is computed once.
 ```
 
-## Review (2026-11-09, after step 4)
+## Review (2026-11-09, after step 6)
 
 Step 2 needed no commit: the whole test suite passed without change after step 1, the reference traces of the probe
 FMU included (the scenarios set no value between two synchronizations).
 
 Two mechanisms remain: the **local variables** (links between the FMUs, variables of the container) and the **cache**
-(state to come: the values of the ports, the set of the links of each FMU that got a `fmi*Set`, the set of the ports
-of local variables set while a step is pending).
+(module `cache.c`: the values set by the importer, the set of the links of each FMU that got a `fmi*Set`, the set of
+the ports of local variables set while a step is pending).
 
 ### Maintainability
 
 - One way from `fmi*Set` to the embedded FMUs: the places that call `fmuSet*` for a value of the importer go from 10
   (setters of `fmi2.c` and `fmi3.c` for numbers, strings and binaries, `container_apply_deferred()` for 3 kinds,
-  `container_set_fmu_cache()` for 2) to 1 (`container_sync_entry()`).
-- The setters no longer know the pending step nor the structural parameters: they write the cache, add the port to
-  the sets, and write the local variables.
-- No state per link but the membership of a set (`in_set`), and the structural flag computed when the container is
-  loaded. No `deferred` state: nothing is synchronized while a step is pending.
+  `container_set_fmu_cache()` for 2) to 1 (`cache_sync_entry()`).
+- The cache is a module of its own (`cache.c`, `cache.h`, prefix `cache_`), with an opaque `cache_t` in `container_t`
+  and a narrow interface: store, mark, read, synchronize, end of a pending step. `container.c` goes from 3098 to 2816
+  lines.
+- The setters no longer know the pending step nor the structural parameters: they store the values, add the port to
+  the sets, and write the local variables. The getters return the values set by the importer from the cache.
+- No state per link but the membership of a set and the `<RESET>` of its start value, computed when the container is
+  loaded (in a sub-structure `cache` of the links and of the ports). No `deferred` state: nothing is synchronized
+  while a step is pending.
 - The synchronization points are explicit and documented (`docs/developer/dostep-fmi-sequence.md`); the values reach
   an FMU in the order of the calls of the importer.
-- Size, against `integration`: +461 / −326 lines in the runtime (`fmi2.c` −28, `fmi3.c` −37, `fmu.c` +10, `fmu.h` −5,
-  `container.h` +42, `container.c` +153): the sets (types, allocation, dispatch by type) and their comments.
+- Size, against `integration`: +821 / −525 lines in the runtime, `cache.c` and `cache.h` (648 lines) included
+  (`container.c` −282, `fmi2.c` −27, `fmi3.c` −36, `container.h` −13, `fmu.h` −5, `fmu.c` +11): the sets (types,
+  allocation, dispatch by type) and their comments.
 
 ### Performance
 
 Micro-benchmarks, `-O3`, best of 3, macOS arm64, stub FMU whose `fmi2SetReal` does nothing (the overhead of the
-runtime only), per step:
+runtime only), per step (compiled without link-time optimization: the CMake build enables it, so `cache_*` can be
+inlined there):
 
-| Loop | `integration` | Steps 1-3 | Step 4 |
-|---|---|---|---|
-| 1 port: `fmi2DoStep` | 3.3 ns | 3.3 ns | 3.4 ns |
-| 1 port: `fmi2SetReal` + `fmi2DoStep` | 6.4 ns | 6.4 ns | 6.1 ns |
-| 1 port: `fmi2SetReal` + `fmi2GetReal` + `fmi2DoStep` | 10.0 ns | 10.4 ns | 12.9 ns |
-| 1000 ports, none set | 181 ns | 581 ns | 20-33 ns |
-| 1000 ports, 1 set | 190 ns | 607 ns | 28-33 ns |
-| 1000 ports, 10 set | 227 ns | 664 ns | 78 ns |
-| 1000 ports, all set | 3.75 µs | 7.2 µs | 5.6 µs |
+| Loop | `integration` | Steps 1-3 | Step 4 | Step 6 |
+|---|---|---|---|---|
+| 1 port: `fmi2DoStep` | 3.3 ns | 3.3 ns | 3.4 ns | 3.8 ns |
+| 1 port: `fmi2SetReal` + `fmi2DoStep` | 6.4 ns | 6.4 ns | 6.1 ns | 6.2 ns |
+| 1 port: `fmi2SetReal` + `fmi2GetReal` + `fmi2DoStep` | 10.0 ns | 10.4 ns | 12.9 ns | 10.4 ns |
+| 1000 ports, none set | 181 ns | 581 ns | 20-33 ns | 31 ns |
+| 1000 ports, 1 set | 190 ns | 607 ns | 28-33 ns | 32 ns |
+| 1000 ports, 10 set | 227 ns | 664 ns | 78 ns | 82 ns |
+| 1000 ports, all set | 3.75 µs | 7.2 µs | 5.6 µs | 5.9 µs |
 
 - The steps no longer go through all the ports: `integration` went through them at the end of each pending step
   (`container_apply_deferred()`, frequent when the communication points are computed by additions of floats), steps
   1-3 through all their links.
-- When the importer sets every port at every step, the cost per value grows by about 1.8 ns (the value is written in
+- When the importer sets every port at every step, the cost per value grows by about 2 ns (the value is written in
   the cache, then set from it, instead of being set at once): negligible against the `fmi*Set` of a real FMU.
-- A read after a write costs a synchronization (about 3 ns).
-- A value set several times between two steps reaches the FMU once.
+- A read of a port set by the importer no longer calls the FMU; a read of another port of an FMU with pending values
+  costs a synchronization.
+- A value set several times between two steps reaches the FMU once. A string set by the importer is copied without
+  allocation when it fits the capacity of its place in the cache; a binary is synchronized without allocation.
 
 ### Test suite
 
 - Native tests: 3 new (`cache_read_after_write`, `cache_refused_value`, `cache_order_of_the_calls`), 1 adjusted
   (`xcp_fmi2_before_setup`: the value set by the importer reaches the FMU once, before `fmi2SetupExperiment`, instead of
-  twice). The fixture `xcp_fmi2` exposes `XCP.TCP.Enable` and `XCP.TCP.ListenAddress` too.
+  twice). The fixture `xcp_fmi2` exposes `XCP.TCP.Enable`, `XCP.TCP.ListenAddress` and the output `counter` too.
 - Python tests: unchanged, all passing (2685, `slow` and GUI included); reference traces of the probe FMU unchanged.
 - The deferral of a value set while a step is pending is covered by `test_communication_step_*` of
   `tests/integration/test_probe_fmu.py` only (`slow`: fmpy and a C compiler); no native test of it.

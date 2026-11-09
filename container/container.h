@@ -21,8 +21,10 @@ extern "C" {
 typedef struct {
 	fmu_vr_t					fmu_vr;
 	unsigned long				fmu_id;
-	bool						in_set;		/* link to an embedded FMU in the set of its FMU (see container_set_t) */
-	bool						structural;	/* link to a structural parameter (start value <RESET>=2) */
+	struct {								/* links to an embedded FMU (see cache.h) */
+		bool					in_set;		/* in the set of its FMU */
+		int						start_reset;	/* <RESET> of the start value of the variable, -1 if none */
+	} cache;
 } container_vr_t;
 
 
@@ -33,46 +35,18 @@ typedef struct {
 #define CONTAINER_NO_CACHE			(~0UL)
 
 /* Port of the container: its interface (dimension, links to the embedded FMUs or to local variables), used by the
-   setters, the getters and the clocks, and its cache (values set by the importer, see DECLARE_CACHE). */
+   setters, the getters and the clocks, and its cache (values set by the importer, see cache.h). */
 typedef struct {
 	unsigned long				dimension; /* dimension of variable */
 	unsigned long               nb;	 /* number of connected FMU from a container port */
     container_vr_t              *links;
 	struct {
-		unsigned long			offset;		/* in container->cache_<type>, CONTAINER_NO_CACHE if no link */
+		unsigned long			offset;		/* of its values in the cache, CONTAINER_NO_CACHE if no link */
 		unsigned long			nb;			/* number of values set by the importer, 0 if none yet */
 		bool					deferred;	/* in the set of the ports whose local variables are written after the
-											   pending step (container_t.deferred) */
+											   pending step */
 	} cache;
 } container_port_t;
-
-
-/*----------------------------------------------------------------------------
-                      C O N T A I N E R _ S E T _ T
-----------------------------------------------------------------------------*/
-
-/* Types of the cache, to dispatch the entries of a set. */
-#define DECLARE_CACHE_TYPE(variable, fmi_type, c_type) CONTAINER_TYPE_ ## variable,
-typedef enum {
-	FOR_ALL_NUMERIC_TYPES(DECLARE_CACHE_TYPE)
-	CONTAINER_TYPE_strings,
-	CONTAINER_TYPE_binaries
-} container_type_t;
-#undef DECLARE_CACHE_TYPE
-
-typedef struct {
-	container_type_t			type;
-	container_port_t			*port;
-	container_vr_t				*link;		/* NULL in the set of the ports linked to local variables */
-} container_set_entry_t;
-
-/* Set of the variables set by the importer, part of the cache: allocated when the container is loaded, for all the
-   entries it may hold. */
-typedef struct {
-	unsigned long				nb;
-	unsigned long				size;
-	container_set_entry_t		*entries;
-} container_set_t;
 
 
 /*----------------------------------------------------------------------------
@@ -195,20 +169,8 @@ typedef struct container_s {
 	DECLARE_PORT(clocks, Clock, bool)
 #undef DECLARE_PORT
 
-	/* values set by the importer on the ports linked to embedded FMUs or to local variables: the only way from
-	   fmi*Set to the embedded FMUs, which get them when they are synchronized (container_sync_fmu). Clocks are
-	   events: never cached. */
-#define DECLARE_CACHE(variable, fmi_type, c_type)	\
-	unsigned long				nb_cache_ ## variable;	\
-	c_type						*cache_ ## variable;
-
-	FOR_ALL_NUMERIC_TYPES(DECLARE_CACHE)
-	DECLARE_CACHE(strings, String, char *)
-	DECLARE_CACHE(binaries, Binary, fmu_binary_t)
-#undef DECLARE_CACHE
-	container_set_t				*sets;		/* for each embedded FMU: its links whose value is to set */
-	container_set_entry_t		*set_entries;	/* storage of the entries of all the sets of the FMUs */
-	container_set_t				deferred;	/* ports linked to local variables set while a step is pending */
+	/* values set by the importer (see cache.h) */
+	struct cache_s				*cache;
 
 	convert_table_t				conversions;
 
@@ -261,27 +223,6 @@ extern fmu_status_t container_reset(container_t* container);
 extern fmu_status_t container_enter_event_mode(container_t *container);
 extern fmu_status_t container_enter_step_mode(container_t *container);
 extern fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize);
-
-/* cache of the values set by the importer (see DECLARE_CACHE). nvalues: number of values in value[]. */
-#define DECLARE_CACHE_FUNCTION(variable, fmi_type, c_type)                                                 \
-extern int container_cache_ ## variable(container_t *container, container_port_t *port, const c_type value[], \
-                                        size_t nvalues);
-
-FOR_ALL_NUMERIC_TYPES(DECLARE_CACHE_FUNCTION)
-#undef DECLARE_CACHE_FUNCTION
-extern int container_cache_strings(container_t *container, container_port_t *port, const char * const value[],
-                                   size_t nvalues);
-extern int container_cache_binaries(container_t *container, container_port_t *port, const size_t size[],
-                                    const uint8_t * const value[], size_t nvalues);
-/* fmi*Set of a port, whose values are already in the cache: adds its links to embedded FMUs to the sets of their
-   FMU. Returns true when the caller writes now its local variables (not while a step is pending). */
-extern bool container_port_set(container_t *container, container_type_t type, container_port_t *port);
-/* Sets on the FMU of index fmu_id the values of its set (continuous_only: its real variables only, in Continuous
-   Time Mode). */
-extern fmu_status_t container_sync_fmu(container_t *container, unsigned long fmu_id, bool continuous_only);
-/* container_sync_fmu() before a step or a read of the FMU: nothing while a step is pending (its values are for the
-   steps after it). */
-extern fmu_status_t container_sync_fmu_now(container_t *container, unsigned long fmu_id, bool continuous_only);
 
 /* for datalog facilities. */
 extern void container_clocks_activate_ticked(container_t *container);

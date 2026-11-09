@@ -20,6 +20,7 @@ endif()
 # container: the shared library embedded in the container FMUs.
 # -----------------------------------------------------------------------------
 set(CONTAINER_SOURCES
+    cache.c     cache.h
     config.c    config.h
     container.c container.h
     convert.c   convert.h

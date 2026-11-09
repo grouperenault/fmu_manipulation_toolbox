@@ -3,6 +3,7 @@
 
 #include "config.h" /* for STRLCAT/STRLCPY */
 #include "convert.h"
+#include "cache.h"
 #include "container.h"
 #include "fmu.h"
 #include "logger.h"
@@ -49,7 +50,7 @@ fmu_status_t fmu_set_inputs(const fmu_t* fmu) {
 #endif
 
     /* The values set by the importer on the container since the last synchronization of the FMU */
-    status = container_sync_fmu_now(fmu->container, (unsigned long)fmu->index, false);
+    status = cache_sync_fmu_now(fmu->container, (unsigned long)fmu->index, false);
     if (status != FMU_STATUS_OK)
         return status;
 
@@ -300,7 +301,7 @@ fmu_status_t fmu_set_continuous_inputs(const fmu_t* fmu) {
     const fmu_io_t* fmu_io = &fmu->fmu_io;
 
     /* The real values set by the importer on the container since the last synchronization of the FMU */
-    status = container_sync_fmu_now(fmu->container, (unsigned long)fmu->index, true);
+    status = cache_sync_fmu_now(fmu->container, (unsigned long)fmu->index, true);
     if (status != FMU_STATUS_OK)
         return status;
 

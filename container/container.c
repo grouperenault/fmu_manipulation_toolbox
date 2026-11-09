@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "cache.h"
 #include "config.h"
 #include "container.h"
 #include "datalog.h"
@@ -545,10 +546,6 @@ static fmu_status_t container_handle_events(container_t *container) {
                            C O N F I G U R A T I O N
 ----------------------------------------------------------------------------*/
 
-static void container_mark_fmu_cache(container_t *container, unsigned long fmu_id, int reset);
-static fmu_status_t container_sync_fmus(container_t *container);
-
-
 /* When the start values of an embedded FMU are set, according to their <RESET> in container.txt. */
 typedef enum {
     START_VALUES_CONFIGURATION,     /* <RESET>=2: structural parameters, in Configuration Mode */
@@ -621,8 +618,8 @@ static fmu_status_t container_enter_fmu_configuration(container_t *container, in
     }
     if (container_set_fmu_start_values(fmu, START_VALUES_CONFIGURATION) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
-    container_mark_fmu_cache(container, (unsigned long)fmu_id, -1);
-    return container_sync_fmu(container, (unsigned long)fmu_id, false);
+    cache_mark_fmu(container, (unsigned long)fmu_id, -1);
+    return cache_sync_fmu(container, (unsigned long)fmu_id, false);
 }
 
 
@@ -630,7 +627,7 @@ static fmu_status_t container_exit_fmu_configuration(container_t *container, int
     const logger_t *logger = &container->logger;
     fmu_t *fmu = &container->fmu[fmu_id];
 
-    if (container_sync_fmu(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)  /* set by the importer meanwhile */
+    if (cache_sync_fmu(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)  /* set by the importer meanwhile */
         return FMU_STATUS_ERROR;
     if (fmuExitConfigurationMode(fmu) != FMU_STATUS_OK) {
         LOGGER_ERROR("Container: FMU '%s' cannot exit Configuration Mode.", fmu->name);
@@ -684,8 +681,8 @@ static fmu_status_t container_prepare_fmu(container_t *container, int fmu_id) {
         return FMU_STATUS_ERROR;
     if (container_set_fmu_start_values(fmu, START_VALUES_EARLY) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
-    container_mark_fmu_cache(container, (unsigned long)fmu_id, -1);
-    if (container_sync_fmu(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)
+    cache_mark_fmu(container, (unsigned long)fmu_id, -1);
+    if (cache_sync_fmu(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
     return fmuSetupExperiment(fmu, container->time);
 }
@@ -780,7 +777,7 @@ fmu_status_t container_enter_initialization_mode(container_t* container) {
         return FMU_STATUS_ERROR;
     /* The values set by the importer on these variables prevail: set at the next synchronization of each FMU */
     for (int i = 0; i < container->nb_fmu; i += 1)
-        container_mark_fmu_cache(container, (unsigned long)i, 1);
+        cache_mark_fmu(container, (unsigned long)i, 1);
     return FMU_STATUS_OK;
 }
 
@@ -889,7 +886,6 @@ fmu_status_t container_reset(container_t* container) {
         fmu->reset_pending = false;
         fmu->in_configuration_mode = false;
         fmu->configured = false;
-        container->sets[i].nb = 0;
         if (fmu->profile) {
             fmu->profile->current_tic = 0;
             fmu->profile->total_elapsed = 0.0;
@@ -920,19 +916,7 @@ fmu_status_t container_reset(container_t* container) {
     container->integers32[1] = 0;                /* Default: solver config (euler) */
 
     /* Values set by the importer */
-#define RESET_CACHE(variable, fmi_type, c_type)                                 \
-    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {   \
-        container_port_t *port = &container->port_ ## variable [i];             \
-        port->cache.nb = 0;                                                    \
-        port->cache.deferred = false;                                                 \
-        for (unsigned long j = 0; j < port->nb; j += 1)                         \
-            port->links[j].in_set = false;                                      \
-    }
-
-    FOR_ALL_NUMERIC_TYPES(RESET_CACHE)
-    RESET_CACHE(strings, String, char *)
-    RESET_CACHE(binaries, Binary, fmu_binary_t)
-#undef RESET_CACHE
+    cache_reset(container);
 
     /* Clocks schedule */
     for (unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1) {
@@ -942,7 +926,6 @@ fmu_status_t container_reset(container_t* container) {
 
     /* Simulation */
     container->step_pending = false;
-    container->deferred.nb = 0;
     container->nb_steps = 0;
     container->next_step = container->time_step; /* Default: no next event time */
     container->time = container->start_time;
@@ -1215,8 +1198,8 @@ static fmu_status_t container_reset_fmu(container_t *container, int fmu_id) {
         return FMU_STATUS_ERROR;
     if (container_set_fmu_start_values(fmu, START_VALUES_INITIALIZATION) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
-    container_mark_fmu_cache(container, (unsigned long)fmu_id, 1);
-    if (container_sync_fmu(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)   /* even in a pending step */
+    cache_mark_fmu(container, (unsigned long)fmu_id, 1);
+    if (cache_sync_fmu(container, (unsigned long)fmu_id, false) != FMU_STATUS_OK)   /* even in a pending step */
         return FMU_STATUS_ERROR;
     if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
         return FMU_STATUS_ERROR;
@@ -1303,61 +1286,6 @@ static void container_clear_reset_triggers(container_t *container) {
 }
 
 
-/*
- * End of a pending step: the local variables of the ports set by the importer meanwhile are written from the cache,
- * for the steps after it (the pending step itself used the values of its beginning). The embedded FMUs get the values
- * of their sets at their next synchronization.
- */
-static fmu_status_t container_end_pending_step(container_t *container) {
-    const logger_t *logger = &container->logger;
-
-    for (unsigned long i = 0; i < container->deferred.nb; i += 1) {
-        const container_set_entry_t *entry = &container->deferred.entries[i];
-        container_port_t *port = entry->port;
-        port->cache.deferred = false;
-
-        for (unsigned long j = 0; j < port->nb; j += 1) {
-            const container_vr_t *link = &port->links[j];
-            if ((long)link->fmu_id >= 0)
-                continue;
-            switch (entry->type) {
-#define CASE_WRITE(variable, fmi_type, c_type)                                                                      \
-            case CONTAINER_TYPE_ ## variable:                                                                       \
-                for (unsigned long k = 0; k < port->cache.nb; k += 1)                                              \
-                    container-> variable [link->fmu_vr + k] = container->cache_ ## variable [port->cache.offset + k]; \
-                break;
-            FOR_ALL_NUMERIC_TYPES(CASE_WRITE)
-#undef CASE_WRITE
-            case CONTAINER_TYPE_strings:
-                for (unsigned long k = 0; k < port->cache.nb; k += 1) {
-                    free(container->strings[link->fmu_vr + k]);
-                    container->strings[link->fmu_vr + k] = strdup(container->cache_strings[port->cache.offset + k]);
-                }
-                break;
-            case CONTAINER_TYPE_binaries:
-                for (unsigned long k = 0; k < port->cache.nb; k += 1) {
-                    const fmu_binary_t *cached = &container->cache_binaries[port->cache.offset + k];
-                    fmu_binary_t *local = &container->binaries[link->fmu_vr + k];
-                    if (local->max_size < cached->size) {
-                        uint8_t *buffer = realloc(local->data, cached->size);
-                        if (!buffer) {
-                            LOGGER_ERROR("Cannot allocate memory to set a deferred binary.");
-                            return FMU_STATUS_ERROR;
-                        }
-                        local->data = buffer;
-                        local->max_size = cached->size;
-                    }
-                    local->size = cached->size;
-                    memcpy(local->data, cached->data, cached->size);
-                }
-                break;
-            }
-        }
-    }
-    container->deferred.nb = 0;
-
-    return FMU_STATUS_OK;
-}
 
 
 fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
@@ -1423,7 +1351,7 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
         /* The pending step is done: the values deferred meanwhile are for the next steps. */
         if (container->step_pending) {
             container->step_pending = false;
-            status = container_end_pending_step(container);
+            status = cache_end_pending_step(container);
             if (status != FMU_STATUS_OK)
                 return status;
         }
@@ -1432,7 +1360,7 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
     container->time = container->start_time + container->time_step * container->nb_steps;
     if (!container->step_pending && end_time - container->time > container->tolerance) {
         /* A step becomes pending: it uses the values set until now, those set meanwhile are deferred. */
-        status = container_sync_fmus(container);
+        status = cache_sync_fmus(container);
         if (status != FMU_STATUS_OK)
             return status;
         container->step_pending = true;
@@ -1450,281 +1378,8 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
 
 /* Values set by the importer on the ports forwarded to embedded FMUs: they are set again after the reset of an
    FMU. Returns 0, or -1 if a value cannot be stored. */
-#define CACHE_FUNCTION(type, c_type, format, cast)                                                              \
-int container_cache_ ## type(container_t *container, container_port_t *port, const c_type value[],              \
-                             size_t nvalues) {                                                                  \
-    const logger_t *logger = &container->logger;                                                                \
-    if (port->cache.offset == CONTAINER_NO_CACHE)                                                               \
-        return 0;                                                                                               \
-    if (nvalues > port->dimension)                                                                              \
-        nvalues = port->dimension;                                                                              \
-    for (size_t k = 0; k < nvalues; k += 1)                                                                     \
-        container->cache_ ## type [port->cache.offset + k] = value[k];                                          \
-    port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */                         \
-    LOGGER_DEBUG("[DEBUG] Cache " #type " [%lu] = " format " (%zu value(s))", port->cache.offset,               \
-                 (cast)value[0], nvalues);                                                                      \
-    return 0;                                                                                                   \
-}
-
-CACHE_FUNCTION(reals64,     double,     "%g",           double)
-CACHE_FUNCTION(reals32,     float,      "%g",           double)
-CACHE_FUNCTION(integers8,   int8_t,     "%" PRId8,      int8_t)
-CACHE_FUNCTION(uintegers8,  uint8_t,    "%" PRIu8,      uint8_t)
-CACHE_FUNCTION(integers16,  int16_t,    "%" PRId16,     int16_t)
-CACHE_FUNCTION(uintegers16, uint16_t,   "%" PRIu16,     uint16_t)
-CACHE_FUNCTION(integers32,  int32_t,    "%" PRId32,     int32_t)
-CACHE_FUNCTION(uintegers32, uint32_t,   "%" PRIu32,     uint32_t)
-CACHE_FUNCTION(integers64,  int64_t,    "%" PRId64,     int64_t)
-CACHE_FUNCTION(uintegers64, uint64_t,   "%" PRIu64,     uint64_t)
-CACHE_FUNCTION(booleans,    int,        "%d",           int)
-CACHE_FUNCTION(booleans1,   bool,       "%d",           int)
-#undef CACHE_FUNCTION
 
 
-int container_cache_strings(container_t *container, container_port_t *port, const char * const value[],
-                            size_t nvalues) {
-    const logger_t *logger = &container->logger;
-    if (port->cache.offset == CONTAINER_NO_CACHE)
-        return 0;
-    if (nvalues > port->dimension)
-        nvalues = port->dimension;
-    for (size_t k = 0; k < nvalues; k += 1) {
-        char **cached = &container->cache_strings[port->cache.offset + k];
-        free(*cached);
-        *cached = strdup(value[k]);
-        if (!*cached) {
-            LOGGER_ERROR("Cannot allocate memory to cache a string.");
-            port->cache.nb = 0;
-            return -1;
-        }
-    }
-    port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */
-    LOGGER_DEBUG("[DEBUG] Cache strings [%lu] = %s (%zu value(s))", port->cache.offset, value[0], nvalues);
-    return 0;
-}
-
-
-int container_cache_binaries(container_t *container, container_port_t *port, const size_t size[],
-                             const uint8_t * const value[], size_t nvalues) {
-    const logger_t *logger = &container->logger;
-    if (port->cache.offset == CONTAINER_NO_CACHE)
-        return 0;
-    if (nvalues > port->dimension)
-        nvalues = port->dimension;
-    for (size_t k = 0; k < nvalues; k += 1) {
-        fmu_binary_t *cached = &container->cache_binaries[port->cache.offset + k];
-        if (cached->max_size < size[k]) {
-            uint8_t *data = realloc(cached->data, size[k]);
-            if (!data) {
-                LOGGER_ERROR("Cannot allocate memory to cache a binary.");
-                port->cache.nb = 0;
-                return -1;
-            }
-            cached->data = data;
-            cached->max_size = size[k];
-        }
-        cached->size = size[k];
-        memcpy(cached->data, value[k], size[k]);
-    }
-    port->cache.nb = (unsigned long)nvalues;   /* at most the dimension of the port */
-    LOGGER_DEBUG("[DEBUG] Cache binaries [%lu] = %zu byte(s) (%zu value(s))", port->cache.offset, size[0],
-                 nvalues);
-    return 0;
-}
-
-
-/*----------------------------------------------------------------------------
-        V A L U E S   S E T   B Y   T H E   I M P O R T E R   ( C A C H E )
-----------------------------------------------------------------------------*/
-
-/*
- * The cache is the state to come, set by the importer: the values of the ports, and for each embedded FMU the set of
- * its links that got a value (container_t.sets). fmi*Set only writes the cache; an FMU gets the values of its set when
- * it is synchronized (container_sync_fmu), in the order of the calls of the importer: before each of its steps
- * (fmu_set_inputs), before it is read, in its Configuration Mode, before its fmi2SetupExperiment and after its reset.
- * When a step becomes pending, every FMU is synchronized: what enters the cache while it is pending is for after it,
- * so nothing is synchronized before its end (the local variables of the ports set meanwhile are written then).
- */
-
-static void container_set_add(container_set_t *set, container_type_t type, container_port_t *port,
-                              container_vr_t *link) {
-    /* The set holds at most one entry per link (or per port): allocated for all of them */
-    set->entries[set->nb].type = type;
-    set->entries[set->nb].port = port;
-    set->entries[set->nb].link = link;
-    set->nb += 1;
-}
-
-
-static void container_mark_link(container_t *container, container_type_t type, container_port_t *port,
-                                container_vr_t *link) {
-    if (!link->in_set) {
-        link->in_set = true;
-        container_set_add(&container->sets[link->fmu_id], type, port, link);
-    }
-}
-
-
-bool container_port_set(container_t *container, container_type_t type, container_port_t *port) {
-    bool has_local = false;
-
-    for (unsigned long j = 0; j < port->nb; j += 1) {
-        if ((long)port->links[j].fmu_id < 0)
-            has_local = true;
-        else
-            container_mark_link(container, type, port, &port->links[j]);
-    }
-    if (has_local && container->step_pending && !port->cache.deferred) {
-        port->cache.deferred = true;
-        container_set_add(&container->deferred, type, port, NULL);
-    }
-
-    return !container->step_pending;
-}
-
-
-/* Adds again the cached values of the FMU to its set, so that they prevail over its start values: all of them
-   (reset < 0), or those of the variables whose start value has this <RESET>. Goes through all the ports: once per
-   initialization, configuration or reset. */
-static void container_mark_fmu_cache(container_t *container, unsigned long fmu_id, int reset) {
-    const fmu_t *fmu = &container->fmu[fmu_id];
-
-#define MARK_CACHE(variable, fmi_type, c_type)                                                                  \
-    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                   \
-        container_port_t *port = &container->port_ ## variable [i];                                             \
-        for (unsigned long j = 0; j < port->nb && port->cache.nb > 0; j += 1) {                                \
-            container_vr_t *link = &port->links[j];                                                             \
-            if (link->fmu_id == fmu_id &&                                                                       \
-                (reset < 0 || fmu_start_reset_ ## variable(fmu, link->fmu_vr) == reset))                        \
-                container_mark_link(container, CONTAINER_TYPE_ ## variable, port, link);                        \
-        }                                                                                                       \
-    }
-
-    FOR_ALL_NUMERIC_TYPES(MARK_CACHE)
-    MARK_CACHE(strings, String, char *)
-#undef MARK_CACHE
-
-    for (unsigned long i = 0; i < container->nb_ports_binaries && reset < 0; i += 1) {
-        container_port_t *port = &container->port_binaries[i];
-        for (unsigned long j = 0; j < port->nb && port->cache.nb > 0; j += 1) {
-            if (port->links[j].fmu_id == fmu_id)
-                container_mark_link(container, CONTAINER_TYPE_binaries, port, &port->links[j]);
-        }
-    }
-}
-
-
-typedef enum {
-    SYNC_SET,       /* set the value now */
-    SYNC_KEEP,      /* keep the entry in the set */
-    SYNC_DROP       /* remove the entry from the set without setting the value */
-} sync_action_t;
-
-
-/* A structural parameter is set in Configuration Mode only, the other variables out of it; in Continuous Time Mode,
-   the real variables only. A structural parameter set after the configuration of its FMU waits for its next
-   configuration (reset), where the cache is marked again. */
-static sync_action_t container_sync_action(const container_t *container, const container_set_entry_t *entry,
-                                           bool continuous_only) {
-    const logger_t *logger = &container->logger;
-    const fmu_t *fmu = &container->fmu[entry->link->fmu_id];
-    const bool structural = entry->link->structural;
-
-    if (continuous_only && entry->type != CONTAINER_TYPE_reals64 && entry->type != CONTAINER_TYPE_reals32)
-        return SYNC_KEEP;
-
-    if (structural == fmu->in_configuration_mode)
-        return SYNC_SET;
-    if (structural && fmu->configured) {
-        LOGGER_WARNING("Container: FMU '%s' is configured: the structural parameter vr=%u set on the container is set "
-                       "at its next configuration.", fmu->name, entry->link->fmu_vr);
-        return SYNC_DROP;
-    }
-    return SYNC_KEEP;
-}
-
-
-/* Sets on its FMU the cached value of an entry of its set. */
-static fmu_status_t container_sync_entry(container_t *container, const container_set_entry_t *entry) {
-    const fmu_t *fmu = &container->fmu[entry->link->fmu_id];
-    const container_port_t *port = entry->port;
-    const fmu_vr_t *vr = &entry->link->fmu_vr;
-
-    switch (entry->type) {
-#define CASE_SET(variable, fmi_type, c_type)                                                                \
-    case CONTAINER_TYPE_ ## variable:                                                                       \
-        return fmuSet ## fmi_type(fmu, vr, 1, &container->cache_ ## variable [port->cache.offset], port->cache.nb);
-    FOR_ALL_NUMERIC_TYPES(CASE_SET)
-#undef CASE_SET
-    case CONTAINER_TYPE_strings:
-        return fmuSetString(fmu, vr, 1, (const char * const *)&container->cache_strings[port->cache.offset],
-                            port->cache.nb);
-    case CONTAINER_TYPE_binaries: {
-        const fmu_binary_t *cached = &container->cache_binaries[port->cache.offset];
-        size_t *size = malloc(port->cache.nb * sizeof(*size));
-        const uint8_t **data = malloc(port->cache.nb * sizeof(*data));
-        fmu_status_t status = FMU_STATUS_ERROR;
-        if (size && data) {
-            for (unsigned long k = 0; k < port->cache.nb; k += 1) {
-                size[k] = cached[k].size;
-                data[k] = cached[k].data;
-            }
-            status = fmuSetBinary(fmu, vr, 1, size, data, port->cache.nb);
-        }
-        free(size);
-        free(data);
-        return status;
-    }
-    }
-    return FMU_STATUS_ERROR;
-}
-
-
-fmu_status_t container_sync_fmu(container_t *container, unsigned long fmu_id, bool continuous_only) {
-    const logger_t *logger = &container->logger;
-    container_set_t *set = &container->sets[fmu_id];
-    unsigned long kept = 0;
-
-    for (unsigned long i = 0; i < set->nb; i += 1) {
-        container_set_entry_t *entry = &set->entries[i];
-        const sync_action_t action = container_sync_action(container, entry, continuous_only);
-
-        if (action == SYNC_KEEP) {
-            set->entries[kept++] = *entry;
-            continue;
-        }
-        entry->link->in_set = false;
-        if (action == SYNC_SET && container_sync_entry(container, entry) != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' refused the value set on the container for vr=%u.",
-                         container->fmu[fmu_id].name, entry->link->fmu_vr);
-            /* the entries not processed yet stay in the set */
-            for (unsigned long j = i + 1; j < set->nb; j += 1)
-                set->entries[kept++] = set->entries[j];
-            set->nb = kept;
-            return FMU_STATUS_ERROR;
-        }
-    }
-    set->nb = kept;
-
-    return FMU_STATUS_OK;
-}
-
-
-fmu_status_t container_sync_fmu_now(container_t *container, unsigned long fmu_id, bool continuous_only) {
-    if (container->step_pending)
-        return FMU_STATUS_OK;
-    return container_sync_fmu(container, fmu_id, continuous_only);
-}
-
-
-/* Before a step becomes pending: the FMUs get the values set until now, the inputs of the beginning of this step. */
-static fmu_status_t container_sync_fmus(container_t *container) {
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        if (container_sync_fmu(container, (unsigned long)i, false) != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
-    }
-    return FMU_STATUS_OK;
-}
 
 
 /*----------------------------------------------------------------------------
@@ -2152,8 +1807,8 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                 }                                                                                               \
                 container->vr_ ## variable [vr_counter].fmu_id = (unsigned long)fmu_id;                         \
                 container->vr_ ## variable [vr_counter].fmu_vr = fmu_vr;                                        \
-                container->vr_ ## variable [vr_counter].in_set = false;                                         \
-                container->vr_ ## variable [vr_counter].structural = false;                                     \
+                container->vr_ ## variable [vr_counter].cache.in_set = false;                                   \
+                container->vr_ ## variable [vr_counter].cache.start_reset = -1;                                 \
                 offset += read;                                                                                 \
                 vr_counter += 1;                                                                                \
             }                                                                                                   \
@@ -2176,64 +1831,6 @@ static int read_conf_io(container_t* container, config_file_t* file) {
     READ_CONF_IO(clocks, Clock, bool)
 #undef READ_CONF_IO
 
-    /* Cache of the ports with a link, to an embedded FMU or to a local variable (no clock): values set again at
-       the reset of an FMU, or deferred while a step is pending. */
-#define SETUP_CACHE(variable, fmi_type, c_type)                                                                 \
-    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                   \
-        container_port_t *port = &container->port_ ## variable [i];                                             \
-        if (port->nb > 0) {                                                                                     \
-            port->cache.offset = container->nb_cache_ ## variable;                                              \
-            container->nb_cache_ ## variable += port->dimension;                                                \
-        }                                                                                                       \
-    }                                                                                                           \
-    if (container->nb_cache_ ## variable > 0) {                                                                 \
-        CONFIG_ALLOC(container->cache_ ## variable, container->nb_cache_ ## variable);                          \
-    }
-
-    FOR_ALL_NUMERIC_TYPES(SETUP_CACHE)
-    SETUP_CACHE(strings, String, char *)
-    SETUP_CACHE(binaries, Binary, fmu_binary_t)
-#undef SETUP_CACHE
-
-    /* Sets of the cache: one entry per link to an embedded FMU in the set of this FMU, one entry per port linked to a
-       local variable in the set of the deferred ports. Never reallocated. */
-    unsigned long nb_entries = 0;
-    unsigned long nb_deferred = 0;
-    if (container->nb_fmu > 0) {
-        CONFIG_ALLOC(container->sets, container->nb_fmu);
-    }
-#define COUNT_LINKS(variable, fmi_type, c_type)                                                                 \
-    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                   \
-        const container_port_t *port = &container->port_ ## variable [i];                                       \
-        bool has_local = false;                                                                                 \
-        for (unsigned long j = 0; j < port->nb; j += 1) {                                                       \
-            if ((long)port->links[j].fmu_id < 0)                                                                \
-                has_local = true;                                                                               \
-            else {                                                                                              \
-                container->sets[port->links[j].fmu_id].size += 1;                                               \
-                nb_entries += 1;                                                                                \
-            }                                                                                                   \
-        }                                                                                                       \
-        nb_deferred += has_local ? 1 : 0;                                                                       \
-    }
-
-    FOR_ALL_NUMERIC_TYPES(COUNT_LINKS)
-    COUNT_LINKS(strings, String, char *)
-    COUNT_LINKS(binaries, Binary, fmu_binary_t)
-#undef COUNT_LINKS
-
-    if (nb_entries > 0) {
-        CONFIG_ALLOC(container->set_entries, nb_entries);
-    }
-    unsigned long offset = 0;
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        container->sets[i].entries = container->set_entries + offset;
-        offset += container->sets[i].size;
-    }
-    if (nb_deferred > 0) {
-        CONFIG_ALLOC(container->deferred.entries, nb_deferred);
-    }
-    container->deferred.size = nb_deferred;
 
     return 0;
 }
@@ -2996,19 +2593,12 @@ int container_configure(container_t* container, const char* resource_location) {
 #undef LOG_START
     }
 
-    /* The links to the structural parameters, known once the start values are read: set in Configuration Mode only */
-#define SET_STRUCTURAL(variable, fmi_type, c_type)                                                              \
-    for (unsigned long i = 0; i < container->nb_ports_ ## variable; i += 1) {                                   \
-        container_port_t *port = &container->port_ ## variable [i];                                             \
-        for (unsigned long j = 0; j < port->nb; j += 1) {                                                       \
-            container_vr_t *link = &port->links[j];                                                             \
-            link->structural = (long)link->fmu_id >= 0 &&                                                      \
-                fmu_start_reset_ ## variable(&container->fmu[link->fmu_id], link->fmu_vr) == 2;                 \
-        }                                                                                                       \
+    /* The cache of the values set by the importer, once the ports and the start values are read */
+    container->cache = cache_new(container);
+    if (!container->cache) {
+        config_file_close(&file);
+        return -12;
     }
-    FOR_ALL_NUMERIC_TYPES(SET_STRUCTURAL)
-    SET_STRUCTURAL(strings, String, char *)
-#undef SET_STRUCTURAL
 
     if (read_conf_clocks(container, &file)) {
         config_file_close(&file);
@@ -3051,8 +2641,7 @@ int container_configure(container_t* container, const char* resource_location) {
     
     container->datalog = datalog_new(logger, dirname);
 
-
-    /* Allocate buffer for arrays of strings and arrays of binaries */
+    /* Buffers of fmu_get_outputs() for the arrays of strings and of binaries */
     if (container->nb_local_strings) {
         container->strings_tmp = malloc(container->nb_local_strings * sizeof(*container->strings_tmp));
         if (!container->strings_tmp) {
@@ -3073,6 +2662,7 @@ int container_configure(container_t* container, const char* resource_location) {
         container->binaries_tmp = NULL;
         container->binaries_size_tmp = NULL;
     }
+
 
     /* Build the CS working set (pointers into container->fmu[]). */
     container->nb_cs = 0;
@@ -3126,11 +2716,12 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         container->fmu = NULL;
         container->init_order = NULL;
         container->step_pending = false;
-        container->sets = NULL;
-        container->set_entries = NULL;
-        container->deferred.nb = 0;
-        container->deferred.size = 0;
-        container->deferred.entries = NULL;
+        container->cache = NULL;
+
+        /* allocated at the end of the configuration: freed by container_free() even if it fails before */
+        container->binaries_tmp = NULL;
+        container->binaries_size_tmp = NULL;
+        container->strings_tmp = NULL;
 
         container->nb_cs = 0;
         container->cs_fmu = NULL;
@@ -3149,19 +2740,6 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         INIT(clocks, Clock, bool)
 #undef INIT
 
-#define INIT_CACHE(variable, fmi_type, c_type)  \
-        container->nb_cache_ ## variable = 0;   \
-        container->cache_ ## variable = NULL;
-
-        FOR_ALL_NUMERIC_TYPES(INIT_CACHE)
-        INIT_CACHE(strings, String, char *)
-        INIT_CACHE(binaries, Binary, fmu_binary_t)
-#undef INIT_CACHE
-
-        /* allocated at the end of the configuration: freed by container_free() even if it fails before */
-        container->binaries_tmp = NULL;
-        container->binaries_size_tmp = NULL;
-        container->strings_tmp = NULL;
 
         container->time = 0.0;
         container->time_step = 0.001;
@@ -3213,9 +2791,6 @@ void container_free(container_t *container) {
     free(container->port_ ## variable);     \
     free(container-> variable);
 
-#define FREE_CACHE(variable, fmi_type, c_type) \
-    free(container->cache_ ## variable);
-
     FOR_ALL_NUMERIC_TYPES(FREE)
     for (unsigned long i = 0; i < container->nb_local_strings; i += 1)
         free(container->strings[i]);
@@ -3226,17 +2801,7 @@ void container_free(container_t *container) {
     FREE(clocks, Clock, bool)
 #undef FREE
 
-    FOR_ALL_NUMERIC_TYPES(FREE_CACHE)
-#undef FREE_CACHE
-    for (unsigned long i = 0; i < container->nb_cache_strings; i += 1)
-        free(container->cache_strings[i]);
-    free(container->cache_strings);
-    for (unsigned long i = 0; i < container->nb_cache_binaries; i += 1)
-        free(container->cache_binaries[i].data);
-    free(container->cache_binaries);
-    free(container->sets);
-    free(container->set_entries);
-    free(container->deferred.entries);
+    cache_free(container->cache);
     free(container->binaries_tmp);
     free(container->binaries_size_tmp);
     free(container->strings_tmp);

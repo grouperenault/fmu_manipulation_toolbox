@@ -1,6 +1,7 @@
 # Version 9
 # FMI-2.0 stub of FMI-LS-XCP: XCP.TCP.Port (integer32 VR 100663298), XCP.TCP.Enable (boolean VR 167772160) and
-# XCP.TCP.ListenAddress (string VR 201326592) exposed, start value of a parameter
+# XCP.TCP.ListenAddress (string VR 201326592) exposed, counter output (integer32 VR 100663299), start value of a
+# parameter
 # Container flags <MT> <Profiling> <Sequential>
 0 0 0
 # Internal time step in seconds
@@ -29,10 +30,11 @@ stub_xcp
 # uinteger16
 0 0
 # integer32
-3 3
+4 4
 100663296 1 1 -1 0
 100663297 1 1 -1 1
 100663298 1 1 0 2
+100663299 1 1 0 4
 # uinteger32
 0 0
 # integer64

@@ -18,6 +18,7 @@
 #define PORT_VR_FMI2        100663298   /* integer32 of the container, linked to XCP.TCP.Port */
 #define ENABLE_VR_FMI2      167772160   /* boolean of the container, linked to XCP.TCP.Enable */
 #define ADDRESS_VR_FMI2     201326592   /* string of the container, linked to XCP.TCP.ListenAddress */
+#define COUNTER_VR_FMI2     100663299   /* integer32 of the container, linked to the output counter */
 
 
 static const char *read_journal(const char *fixture) {
@@ -129,7 +130,8 @@ int test_xcp_fmi2_before_setup_experiment(void) {
 }
 
 
-/* Read after write: the FMU is synchronized before it is read. */
+/* Read after write: the value of a port set by the importer comes from the cache, without calling the FMU; an output
+   of the FMU is read once the FMU is synchronized. */
 int test_cache_read_after_write(void) {
     fmi2CallbackFunctions functions;
 
@@ -137,12 +139,14 @@ int test_cache_read_after_write(void) {
     fmi2Component container = instantiate_fmi2(&functions);
     TEST_ASSERT(container != NULL);
 
-    const fmi2ValueReference vr = PORT_VR_FMI2;
+    const fmi2ValueReference vr = PORT_VR_FMI2, counter_vr = COUNTER_VR_FMI2;
     const fmi2Integer port = 7004;
     fmi2Integer read = 0;
     TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetInteger(container, &vr, 1, &port));
     TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2GetInteger(container, &vr, 1, &read));
     TEST_ASSERT_EQUAL_INT(7004, read);
+    TEST_ASSERT(strcmp(read_journal("xcp_fmi2"), "") == 0);           /* from the cache */
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2GetInteger(container, &counter_vr, 1, &read));
     TEST_ASSERT(strcmp(read_journal("xcp_fmi2"), "set port=7004\n") == 0);
     fmi2FreeInstance(container);
 
@@ -158,12 +162,12 @@ int test_cache_refused_value(void) {
     fmi2Component container = instantiate_fmi2(&functions);
     TEST_ASSERT(container != NULL);
 
-    const fmi2ValueReference vr = PORT_VR_FMI2;
+    const fmi2ValueReference vr = PORT_VR_FMI2, counter_vr = COUNTER_VR_FMI2;
     const fmi2Integer port = 7005;
     fmi2Integer read = 0;
     TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetupExperiment(container, fmi2False, 0.0, 0.0, fmi2False, 1.0));
     TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetInteger(container, &vr, 1, &port));    /* the service is started */
-    TEST_ASSERT_EQUAL_INT(fmi2Error, fmi2GetInteger(container, &vr, 1, &read));
+    TEST_ASSERT_EQUAL_INT(fmi2Error, fmi2GetInteger(container, &counter_vr, 1, &read));
     fmi2FreeInstance(container);
 
     TEST_ASSERT(strstr(read_journal("xcp_fmi2"), "refused port in started service\n") != NULL);

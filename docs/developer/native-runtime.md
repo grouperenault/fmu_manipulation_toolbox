@@ -21,6 +21,14 @@ the other types (`strings`, `binaries`, `clocks`) being written explicitly:
 
 No separator is inserted between the expansions: each one must be a complete statement or declaration.
 
+## Modules
+
+Each module of the runtime prefixes its functions and its types with its name: `cache_` (`cache.c`: the values set by
+the importer and their synchronization with the embedded FMUs, see [DoStep FMI
+Sequence](dostep-fmi-sequence.md#values-set-by-the-importer)), `datalog_`, `fmu_`/`fmu` (embedded FMUs), `logger_`,
+`solver_`, `thread_`... `container_` is the container itself (`container.c`), whose FMI APIs are in `fmi2.c` and
+`fmi3.c`.
+
 ## Logger
 
 Each instance of the container has its own logger, `container_t.logger` (`logger_t`: FMI version, callback and
