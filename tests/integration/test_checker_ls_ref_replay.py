@@ -1,20 +1,21 @@
 """Numerical validation of FMI-LS-REF by the checker (`OperationLsRefCheck`): the experiments are replayed with the
 container runtime and compared with their references, on the test FMUs of `_helpers/ls_ref.py` compiled for the
 host platform."""
+import functools
 import logging
 import sys
 
 import pytest
 
 from _helpers.archive import read_entry, rewrite_fmu
-from _helpers.ls_ref import REF, compiled_fmu, ls_ref_files, ls_ref_fmu, reference_fmu
+from _helpers.ls_ref import DATA_DIR, REF, compiled_fmu, ls_ref_files, ls_ref_fmu, reference_fmu
 from fmu_manipulation_toolbox import checker
 from fmu_manipulation_toolbox.checker import OperationLsRefCheck
 from fmu_manipulation_toolbox.cli.fmutool import fmutool
 from fmu_manipulation_toolbox.cli.utils import ExitCode
 from fmu_manipulation_toolbox.container import FMUContainer
 from fmu_manipulation_toolbox.operations import FMU
-from fmu_manipulation_toolbox.simulation import SimulationError
+from fmu_manipulation_toolbox.simulation import SimulationError, replay
 
 pytestmark = [pytest.mark.integration, pytest.mark.lsref, pytest.mark.needs_compiler]
 
@@ -118,6 +119,8 @@ def test_experiment_that_fails(fmus, monkeypatch, caplog):
 
 
 def test_runtime_unavailable(fmus, monkeypatch, caplog):
+    """In the calling process: the patch of the builder does not reach a dedicated process."""
+    monkeypatch.setattr(checker, "replay", functools.partial(replay, isolated=False))
     monkeypatch.setattr(FMUContainer, "get_platforms", lambda self, verbose=True: iter(()))
     check = _check(fmus("3.0", "BouncingBall"), caplog)
     assert check.errors == []
@@ -138,3 +141,52 @@ def test_cli_check(fmus, tmp_path, monkeypatch, patch, code):
         with pytest.raises(SystemExit) as exit_info:
             fmutool()
         assert exit_info.value.code == code
+
+
+#: `calculateValues` of Feedthrough patched: a crash (null pointer) when `Int32_input` is 13, an infinite loop when it
+#: is 14.
+FAULTS = """Status calculateValues(ModelInstance *comp) {
+    if (M(Int32_input) == 13) { volatile int *crash = NULL; *crash = 0; }
+    if (M(Int32_input) == 14) { volatile int loop = 1; while (loop) {} }
+"""
+
+FAULT_EXPERIMENTS = """<?xml version="1.0" encoding="UTF-8"?>
+<Experiments name="Faults" xmlns="http://modelica.org/HSExperiments1/HSExperiments">
+    <TransientExperiment name="Fault" startTime="0" stopTime="2" stepSize="0.1">
+        <Stimuli source="fault.csv"/>
+        <References source="ref.csv"/>
+    </TransientExperiment>
+    <TransientExperiment name="Stimuli" startTime="0" stopTime="2" stepSize="0.1">
+        <Stimuli source="in.csv"/>
+        <References source="ref.csv"/>
+    </TransientExperiment>
+</Experiments>
+"""
+
+
+def _faulty_fmu(tmp_path, value: int):
+    """Feedthrough FMI 3.0 that crashes (13) or never returns (14) when its `Int32_input` reaches `value` (at t=1),
+    in the first of two experiments."""
+    model = read_entry(DATA_DIR / "compile" / "3.0" / "Feedthrough.fmu", "sources/model.c").decode()
+    assert "Status calculateValues(ModelInstance *comp) {\n" in model
+    files = ls_ref_files("Feedthrough")
+    files["sources/model.c"] = model.replace("Status calculateValues(ModelInstance *comp) {\n", FAULTS)
+    files[f"{REF}/experiments.xml"] = FAULT_EXPERIMENTS
+    files[f"{REF}/fault.csv"] = f"time,Int32_input\n0,0\n1,{value}\n"
+    return compiled_fmu("3.0", "Feedthrough", tmp_path / "Feedthrough.fmu", files)
+
+
+def test_crash_of_the_fmu(tmp_path, caplog):
+    """A segmentation fault fails its experiment only: the checker and the other experiments go on."""
+    errors = _check(_faulty_fmu(tmp_path, 13), caplog).errors
+    assert len(errors) == 1
+    assert errors[0].startswith("Experiment 'Fault' of 'experiments.xml': cannot be replayed: the simulation crashed (")
+    assert "Experiment 'Stimuli' of 'experiments.xml': the 3 output(s) match the references" in caplog.text
+
+
+def test_simulation_that_never_returns(tmp_path, monkeypatch, caplog):
+    monkeypatch.setattr(OperationLsRefCheck, "TIMEOUT", 3)
+    errors = _check(_faulty_fmu(tmp_path, 14), caplog).errors
+    assert errors == ["Experiment 'Fault' of 'experiments.xml': cannot be replayed: the simulation did not end within "
+                      "3 s: it is stopped."]
+    assert "Experiment 'Stimuli' of 'experiments.xml': the 3 output(s) match the references" in caplog.text

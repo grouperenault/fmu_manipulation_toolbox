@@ -75,6 +75,10 @@ There is no FMI driver in Python and no simulation engine besides the container 
 | 27 | Interpolation of the simulation at the instants of the references | Linear for the continuous real outputs, previous value for the others (as decision 7). Decided 2026-11-09, step 7 |
 | 28 | Event of the references (two rows at the same instant) | The value **after** the event (last row of the instant) is compared. Decided 2026-11-09, step 7 |
 | 29 | Experiment to replay without references | **Replayed without comparison**: the simulation must succeed (information message). Decided 2026-11-09, step 7 |
+| 30 | Process of the replay | A **dedicated process per experiment** (`multiprocessing`, `spawn`): a crash of the FMU or of the runtime (segmentation fault, `abort`) only fails its experiment; the libraries are unloaded with the process. Decided 2026-11-10, step 9 |
+| 31 | Time limit of a replay | **60 s**, fixed (constant of the checker, as `RTOL` / `ATOL`): beyond, the process is killed, **error** of the check. Decided 2026-11-10, step 9 |
+| 32 | Where | A step 9 of this plan (and the documentation at step 10). Decided 2026-11-10 |
+| 33 | Test FMUs that crash or never return | **Feedthrough FMI 3.0 patched at test time**: its `calculateValues` crashes (null pointer) or loops forever for given values of `Int32_input`, compiled as the other test FMUs. Decided 2026-11-10, step 9 |
 
 ## Step 0 — Plan
 
@@ -247,9 +251,42 @@ atol 1e-6; strings exactly).
 - `docs/user-guide/fmucontainer/container.md`: the boolean outputs of the other FMI version (step 6).
 - `docs/API/ls_ref.md` (navigation of `mkdocs.yml`): the modules `experiments`, `timeseries`, `simulation`.
 - `CHANGELOG.md` (`docs/whats-new.md` describes the release 2.0 only: not changed, as for LS-XCP).
-- Move this plan to `docs/local/done/`.
 
 Commit message:
 ```
 Doc: FMI-LS-REF checker
+```
+
+## Step 9 — Replay in a dedicated process
+
+- `simulation.replay(..., timeout=)`: the temporary directory is created by the calling process (removed after the
+  child process ends: a library still loaded locks its files on Windows); the simulation (build of the container,
+  FMI driver) runs in a child process started with `multiprocessing` (`spawn`, same behaviour on every OS), which
+  returns the simulated time series, or the exception (`SimulationUnavailable`, `SimulationUnsupported`,
+  `SimulationError`), and its log messages, re-emitted by the calling process.
+- A child process that ends without result (crash): `SimulationError` with its exit code or signal. A child process
+  still running after `timeout` seconds: killed, `SimulationError` (decision 31). `isolated=False` runs the simulation
+  in the calling process (tests).
+- Checker: `TIMEOUT = 60` (decision 31), each experiment replayed in its own process (decision 30).
+- Tests: Feedthrough FMI 3.0 whose `calculateValues` is patched (decision 33): a crash, and an infinite loop with a
+  timeout of a few seconds; the other experiments of the FMU are still replayed.
+
+Commit message:
+```
+LS-REF: replay each experiment in a dedicated process
+
+A crash of the FMU (segmentation fault) or a simulation that never returns
+fails its experiment only: the simulation runs in a child process, killed
+after 60 s.
+```
+
+## Step 10 — User documentation of the dedicated process
+
+- `docs/user-guide/fmutool/checker.md`: the replay runs in a dedicated process, the time limit, the errors of a
+  crash and of a timeout. `CHANGELOG.md`.
+- Move this plan to `docs/local/done/`.
+
+Commit message:
+```
+Doc: replay of FMI-LS-REF in a dedicated process
 ```

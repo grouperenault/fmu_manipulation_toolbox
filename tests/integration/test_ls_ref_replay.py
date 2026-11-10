@@ -143,6 +143,8 @@ def test_bad_parameter(fmus):
 
 
 def test_runtime_unavailable(fmus, monkeypatch):
+    """In the calling process: the patch of the builder does not reach a dedicated process."""
     monkeypatch.setattr(FMUContainer, "get_platforms", lambda self, verbose=True: iter(()))
     with pytest.raises(SimulationUnavailable, match="the container runtime has no library"):
-        replay(fmus("3.0", "BouncingBall"), Experiment("T", start_time=0, stop_time=0.1, step_size=0.01), ["h"])
+        replay(fmus("3.0", "BouncingBall"), Experiment("T", start_time=0, stop_time=0.1, step_size=0.01), ["h"],
+               isolated=False)

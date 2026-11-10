@@ -659,7 +659,8 @@ class OperationLsRefCheck(OperationAbstract):
       `structuralParameter` variables, or `input` variables with a start value;
     - a CSV file of role `result` (output of the `DefaultExperiment` of the FMU, as in the Reference-FMUs): readable;
       it is replayed with the `DefaultExperiment`, its columns compared when they are outputs of a comparable type;
-    - the experiments to replay are simulated with the container runtime (`simulation.replay`) and their outputs
+    - the experiments to replay are simulated with the container runtime (`simulation.replay`), each one in a
+      dedicated process stopped after `TIMEOUT` seconds (a crash or a timeout is an error), and their outputs
       compared with the references at the instants of the references (`timeseries.compare`, `RTOL`, `ATOL`):
       simulation interpolated linearly for the continuous reals, previous value otherwise; strings compared exactly;
       at an event of the references, the value after it. An experiment without references is only simulated.
@@ -687,6 +688,8 @@ class OperationLsRefCheck(OperationAbstract):
     #: Tolerances of the comparison with the references.
     RTOL = 1e-3
     ATOL = 1e-6
+    #: Time limit of the replay of an experiment, in seconds (each experiment is replayed in a dedicated process).
+    TIMEOUT = 60
 
     def __init__(self):
         self.errors: list[str] = []
@@ -892,7 +895,8 @@ class OperationLsRefCheck(OperationAbstract):
             references = read_csv(experiment.references.path) if experiment.references else None
             stimuli = read_csv(experiment.stimuli.path) if experiment.stimuli else None
             parameters = read_parameter_set(experiment.parameters.path) if experiment.parameters else None
-            simulated = replay(fmu_filename, experiment, ref_replay.outputs, stimuli, parameters, references)
+            simulated = replay(fmu_filename, experiment, ref_replay.outputs, stimuli, parameters, references,
+                               timeout=self.TIMEOUT)
         except SimulationUnavailable:
             raise
         except SimulationUnsupported as error:

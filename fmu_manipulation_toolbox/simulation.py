@@ -7,12 +7,18 @@ variadic, which ctypes cannot read on every platform):
 at each communication point `t_k = start + k * step` (computed, not accumulated), the stimuli interpolated at `t_k`
 are set, the outputs are read and recorded at `t_k`, then the container steps to `t_k+1` (convention of fmpy and of
 the results of the Reference-FMUs: an output fed through follows its input at the same instant).
+
+The simulation runs in a dedicated process (`multiprocessing`, `spawn`): a crash of the FMU or of the runtime, or a
+simulation that never returns, fails the replay instead of the calling process, and the libraries loaded by the
+simulation are unloaded with its process.
 """
 import ctypes
 import logging
 import math
+import multiprocessing
 import platform
 import shutil
+import signal
 import tempfile
 import zipfile
 from collections import deque
@@ -86,7 +92,8 @@ def experiment_times(experiment: Experiment, model_description: ModelDescription
 
 
 def replay(fmu_filename: Path | str, experiment: Experiment, outputs: list[str], stimuli: TimeSeries | None = None,
-           parameters: list[Parameter] | None = None, references: TimeSeries | None = None) -> TimeSeries:
+           parameters: list[Parameter] | None = None, references: TimeSeries | None = None,
+           timeout: float | None = None, isolated: bool = True) -> TimeSeries:
     """Replays `experiment` on the FMU `fmu_filename` with the container runtime and records `outputs`.
 
     Args:
@@ -98,6 +105,8 @@ def replay(fmu_filename: Path | str, experiment: Experiment, outputs: list[str],
         stimuli: Values of input variables (linear interpolation for the continuous reals, previous value otherwise).
         parameters: Start values of parameters.
         references: The references, whose instants give the start and stop times when nothing else does.
+        timeout: Time limit of the simulation, in seconds (`None`: no limit). Only with `isolated`.
+        isolated: Run the simulation in a dedicated process (`False`: in the calling process).
 
     Returns:
         TimeSeries: The values of `outputs` at each communication point.
@@ -106,9 +115,22 @@ def replay(fmu_filename: Path | str, experiment: Experiment, outputs: list[str],
         SimulationUnavailable: The container or the FMU has no library for the host platform.
         SimulationUnsupported: A stimulus is on a boolean input of an FMI-2.0 FMU, which the FMI-3.0 container cannot
             expose.
-        SimulationError: The container cannot be built or the simulation fails.
+        SimulationError: The container cannot be built, the simulation fails, crashes or exceeds `timeout`.
     """
-    fmu_filename = Path(fmu_filename)
+    # Created and removed here: a library loaded by the simulation locks its files on Windows until its process ends.
+    directory = Path(tempfile.mkdtemp(prefix="fmutool-lsref-"))
+    try:
+        arguments = (directory, Path(fmu_filename), experiment, outputs, stimuli, parameters or [], references)
+        if isolated:
+            return _simulate_in_process(arguments, timeout)
+        return _simulate(*arguments)
+    finally:
+        shutil.rmtree(directory, ignore_errors=True)
+
+
+def _simulate(directory: Path, fmu_filename: Path, experiment: Experiment, outputs: list[str],
+              stimuli: TimeSeries | None, parameters: list[Parameter], references: TimeSeries | None) -> TimeSeries:
+    """The simulation of `replay`, in the temporary directory `directory`."""
     with zipfile.ZipFile(fmu_filename) as archive:
         model_description = ModelDescription.load(archive.read("modelDescription.xml"))
     _check_host_binary(fmu_filename, model_description)
@@ -122,21 +144,94 @@ def replay(fmu_filename: Path | str, experiment: Experiment, outputs: list[str],
     if experiment.tolerance is not None:
         logger.info(f"Experiment '{experiment.name}': its tolerance ({experiment.tolerance}) is not used.")
 
-    with tempfile.TemporaryDirectory(prefix="fmutool-lsref-") as directory:
-        directory = Path(directory)
-        fmus = directory / "fmus"
-        fmus.mkdir()
-        shutil.copy(fmu_filename, fmus / fmu_filename.name)
-        step_size = _build_container(fmus, fmu_filename.name, experiment, outputs, stimuli, parameters or [],
-                                     directory / f"{IDENTIFIER}.fmu")
-        extracted = directory / "container"
-        with zipfile.ZipFile(directory / f"{IDENTIFIER}.fmu") as archive:
-            archive.extractall(extracted)
-        driver = _Driver(extracted)
+    fmus = directory / "fmus"
+    fmus.mkdir()
+    shutil.copy(fmu_filename, fmus / fmu_filename.name)
+    step_size = _build_container(fmus, fmu_filename.name, experiment, outputs, stimuli, parameters,
+                                 directory / f"{IDENTIFIER}.fmu")
+    extracted = directory / "container"
+    with zipfile.ZipFile(directory / f"{IDENTIFIER}.fmu") as archive:
+        archive.extractall(extracted)
+    driver = _Driver(extracted)
+    try:
+        return driver.run(start_time, stop_time, step_size, stimuli, outputs)
+    finally:
+        driver.unload()
+
+
+# --------------------------------------------------------------------------- #
+#                              Dedicated process                              #
+# --------------------------------------------------------------------------- #
+#: Exceptions given back by the dedicated process, by name.
+_EXCEPTIONS = {cls.__name__: cls for cls in (SimulationError, SimulationUnavailable, SimulationUnsupported)}
+
+
+class _Recorder(logging.Handler):
+    """Keeps the messages of the dedicated process, to be emitted again by the calling process."""
+
+    def __init__(self):
+        super().__init__(logging.DEBUG)
+        self.records: list[tuple[int, str]] = []
+
+    def emit(self, record: logging.LogRecord):
+        self.records.append((record.levelno, record.getMessage()))
+
+
+def _child(connection, arguments: tuple, level: int):
+    """Body of the dedicated process: the simulation, its result or its exception, and its messages."""
+    recorder = _Recorder()
+    logger.addHandler(recorder)
+    logger.setLevel(level)
+    try:
+        result = ("ok", _simulate(*arguments))
+    except SimulationError as error:
+        result = ("error", type(error).__name__, str(error))
+    except Exception as error:      # noqa: BLE001 - any failure of the simulation is reported by the calling process
+        result = ("error", "SimulationError", f"{type(error).__name__}: {error}")
+    connection.send((result, recorder.records))
+    connection.close()
+
+
+def _exit_reason(exit_code: int | None) -> str:
+    """Why the dedicated process ended: a signal (POSIX) or an exit code (Windows: an NTSTATUS, in hexadecimal)."""
+    if exit_code is None:
+        return "no exit code"
+    if exit_code < 0:
         try:
-            return driver.run(start_time, stop_time, step_size, stimuli, outputs)
-        finally:
-            driver.unload()
+            return f"signal {signal.Signals(-exit_code).name}"
+        except ValueError:
+            return f"signal {-exit_code}"
+    return f"exit code {exit_code:#x}" if exit_code > 0xFFFF else f"exit code {exit_code}"
+
+
+def _simulate_in_process(arguments: tuple, timeout: float | None) -> TimeSeries:
+    """`_simulate` in a dedicated process, killed after `timeout` seconds."""
+    context = multiprocessing.get_context("spawn")
+    receiver, sender = context.Pipe(duplex=False)
+    process = context.Process(target=_child, args=(sender, arguments, logger.getEffectiveLevel()), daemon=True)
+    process.start()
+    sender.close()      # the end of the child only: its crash closes the pipe
+    try:
+        if not receiver.poll(timeout):
+            process.kill()
+            raise SimulationError(f"the simulation did not end within {timeout:g} s: it is stopped")
+        try:
+            result, records = receiver.recv()
+        except EOFError:
+            process.join()
+            raise SimulationError(f"the simulation crashed ({_exit_reason(process.exitcode)})") from None
+    finally:
+        receiver.close()
+        process.join(10)
+        if process.is_alive():
+            process.kill()
+            process.join()
+
+    for level, message in records:
+        logger.log(level, message)
+    if result[0] == "ok":
+        return result[1]
+    raise _EXCEPTIONS.get(result[1], SimulationError)(result[2])
 
 
 def _check_host_binary(fmu_filename: Path, model_description: ModelDescription):
