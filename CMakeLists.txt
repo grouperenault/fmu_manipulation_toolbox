@@ -2,7 +2,6 @@
 # tree. The platforms are described by CMakePresets.json, used by the CI:
 #     cmake --list-presets
 #     cmake --workflow --preset <platform>
-# Each component also remains a standalone project.
 cmake_minimum_required(VERSION 3.25)
 
 # 32-bit Linux build. Set before project() so that the compiler checks, and
