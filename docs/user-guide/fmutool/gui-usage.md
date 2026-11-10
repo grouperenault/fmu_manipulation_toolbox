@@ -43,9 +43,19 @@ The window is organized as a single grid:
 
 - Clicking a button immediately applies the corresponding operation to the loaded FMU (some
   buttons prompt for a value or a file first).
+- The buttons are disabled (gray) until an FMU is loaded.
+- **Alternative actions**: while **Option** (macOS) or **Alt** (Windows, Linux) is held, the buttons that have an
+  alternative action show its label, and a click runs it. The other buttons keep their label and their action. The
+  tooltip of a button names its alternative action (e.g. "Option-click: Selected Check").
+
+| Button | Alternative action | |
+|---|---|---|
+| Check | **Selected Check** | choose the checkers and the settings of FMI-LS-REF, see [Check FMU](#check-fmu) |
+| Compile sources | **Advanced Compile** | set the compilation options first, see [Compile Sources](#compile-sources) |
 
 ### 3. Reload / Filter Row
-- **Reload** button: discards all changes applied so far and reloads the FMU from disk.
+- **Reload** button: discards all changes applied so far and reloads the FMU from disk. It is disabled, as the
+  filter, until an FMU is loaded.
 - **Apply only on:** a single dropdown button listing all causalities
   (`parameter`, `calculatedParameter`, `input`, `output`, `local`, `independent`). Uncheck the
   causalities you want to *exclude*; every operation triggered afterwards only applies to the
@@ -54,6 +64,8 @@ The window is organized as a single grid:
 ### 4. Log Area (center)
 - A scrollable text log reporting every action performed: the FMU summary (printed automatically
   after loading), each applied operation, and any warning or error.
+- In the summary, the `temporary directory` where the FMU is extracted is a link: a click opens it in the file
+  manager (Finder, Explorer…).
 - Each FMU Tool window has its own log area: with several windows opened from the [launcher](../launcher.md), an
   operation is only logged in the window that runs it.
 - This is **not** an editable/sortable port table — port names are only shown as part of the
@@ -62,7 +74,10 @@ The window is organized as a single grid:
 ### 5. Bottom Bar
 - **Exit**: close the application.
 - **Save log as**: export the log area content to a `.txt` file.
-- **Save modified FMU as**: repack the current (in-memory) modifications into a new `.fmu` file.
+- **Save modified FMU as**: repack the current (in-memory) modifications into a new `.fmu` file. It is enabled once
+  an operation that modifies the FMU has run without error: Add Win32/Win64 remoting or frontend, a successful
+  Compile sources, and the orange and red operations. It does not tell whether the operation actually changed
+  something (e.g. a **Remove Regexp** that matches no port). Loading or reloading an FMU disables it again.
 
 ## Button Color Code
 
@@ -181,6 +196,10 @@ is found: other options would not help.
 
 To see the command lines of the compiler and of the linker, with every option, launch `fmutool-gui -debug`.
 
+**Advanced Compile** (Option-click or Alt-click on **Compile sources**) opens the same dialog before the
+compilation, pre-filled with the options of the session, with a **Compile** button. **Cancel** compiles nothing.
+After a failure, the dialog comes back as above.
+
 #### 🟢 Add Binary Interface (Windows FMUs)
 
 **Use Case:** Add a 64-bit interface to a 32-bit-only Windows FMU
@@ -204,6 +223,16 @@ FMI 2.0 co-simulation FMUs).
 2. Read the result in the log area (compliant / not compliant, with XSD validation details)
 
 ![Result of Check in the log area](fmutool-check.png)
+
+**Selected Check** (Option-click or Alt-click on **Check**) opens a dialog to choose:
+
+- the checkers to run (at least one), built-in and custom;
+- the settings of the replay of [FMI-LS-REF](checker.md#validation-of-the-results-fmi-ls-ref), when its checker is
+  selected: relative tolerance `rtol` (`1e-3` by default), absolute tolerance `atol` (`1e-6`) and time limit of each
+  experiment (`60` s).
+
+**Check** runs the selected checkers. The selection and the settings are kept until the application is closed.
+**Check** itself always runs every checker with the default settings.
 
 ### Step 4: Restrict the Scope of an Operation
 

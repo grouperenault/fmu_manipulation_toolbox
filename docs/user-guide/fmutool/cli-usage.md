@@ -85,6 +85,20 @@ Two built-in checkers are run, followed by the custom ones (see [FMU Checker](ch
 Each violation is logged as an error. If any checker logs an error, `fmutool` exits with status `7`,
 after having performed the other requested actions (e.g. `-output`), so that `-check` can be used in CI.
 
+The replay of the experiments of [FMI-LS-REF](checker.md#validation-of-the-results-fmi-ls-ref) has settings:
+
+| Option | Meaning | Default |
+|--------|---------|---------|
+| `-ref-rtol` | relative tolerance of the comparison with the references, `>= 0` | `1e-3` |
+| `-ref-atol` | absolute tolerance of the comparison with the references, `>= 0` | `1e-6` |
+| `-ref-timeout` | time limit of the simulation of each experiment, in seconds, `> 0` | `60` |
+
+```bash
+fmutool -input module.fmu -check -ref-rtol 1e-2 -ref-timeout 300
+```
+
+They need `-check`. Without it, or with a value out of its range, `fmutool` exits with status `2`.
+
 ### List All Ports in CSV
 
 ```bash
