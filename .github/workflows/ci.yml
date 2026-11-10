@@ -31,8 +31,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Build all native targets (remoting + container) through the reusable
-  # workflow. Each matrix entry maps to one platform/artifact.
+  # Build the native binaries (remoting + container) through the reusable
+  # workflow: one job per OS, running the workflow presets of CMakePresets.json
+  # for every platform of this OS, and uploading one artifact.
   # The Linux binaries are built on the oldest supported Ubuntu: they then only
   # require its glibc (2.35) and load on the newer distributions as well.
   build-native:
@@ -40,62 +41,28 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # remoting: 32-bit Windows
+          # Windows: container + remoting 64-bit, remoting 32-bit
           - os: windows-latest
-            source_dir: remoting
-            configure_args: "-DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -A Win32"
-            build_args: "--config Release"
-            artifact_name: remoting-win32
-            resource_subdir: win32
-          # remoting: 64-bit Windows
-          - os: windows-latest
-            source_dir: remoting
-            configure_args: "-DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -A x64"
-            build_args: "--config Release"
-            artifact_name: remoting-win64
-            resource_subdir: win64
-          # remoting: 32-bit Linux (needs gcc-multilib)
+            presets: "win64 win32"
+            artifact_name: native-windows
+            resource_subdirs: "win64 win32"
+          # Linux: container + remoting 64-bit, remoting 32-bit (needs gcc-multilib)
           - os: ubuntu-22.04
-            source_dir: remoting
-            configure_args: "-DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release -DBUILD_32=ON"
-            build_args: "--config Release"
-            artifact_name: remoting-linux32
-            resource_subdir: linux32
+            presets: "linux64 linux32"
+            artifact_name: native-linux
+            resource_subdirs: "linux64 linux32"
             install_multilib: true
-          # remoting: 64-bit Linux
-          - os: ubuntu-22.04
-            source_dir: remoting
-            configure_args: "-DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release"
-            build_args: "--config Release"
-            artifact_name: remoting-linux64
-            resource_subdir: linux64
-          # container: 64-bit Windows
-          - os: windows-latest
-            source_dir: container
-            configure_args: "-DCMAKE_CXX_COMPILER=cl -DCMAKE_C_COMPILER=cl -DCMAKE_BUILD_TYPE=Release -A x64"
-            build_args: "--config Release"
-            artifact_name: container-win64
-            resource_subdir: win64
-          # container: 64-bit Linux
-          - os: ubuntu-22.04
-            source_dir: container
-            configure_args: "-DCMAKE_CXX_COMPILER=g++ -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=Release"
-            build_args: "--config Release"
-            artifact_name: container-linux64
-            resource_subdir: linux64
-          # container: macOS (Apple Silicon; default generator and flags)
+          # macOS (Apple Silicon): container
           - os: macos-latest
-            source_dir: container
-            artifact_name: container-darwin64
-            resource_subdir: darwin64
+            presets: "darwin64"
+            artifact_name: native-macos
+            resource_subdirs: "darwin64"
     uses: ./.github/workflows/build-native.yml
     with:
       os: ${{ matrix.os }}
-      source_dir: ${{ matrix.source_dir }}
-      configure_args: ${{ matrix.configure_args }}
-      build_args: ${{ matrix.build_args }}
+      presets: ${{ matrix.presets }}
       artifact_name: ${{ matrix.artifact_name }}
-      resource_subdir: ${{ matrix.resource_subdir }}
+      resource_subdirs: ${{ matrix.resource_subdirs }}
       install_multilib: ${{ matrix.install_multilib || false }}
 
   tests-win64:
@@ -113,16 +80,8 @@ jobs:
     - uses: actions/checkout@v7
     - uses: actions/download-artifact@v8
       with:
-        name: remoting-win64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v8
-      with:
-        name: remoting-win32
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
-    - uses: actions/download-artifact@v8
-      with:
-        name: container-win64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
+        name: native-windows
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v7
       with:
@@ -179,34 +138,12 @@ jobs:
         # The package version comes from the git tags (setuptools-scm): the whole history is needed, a shallow clone
         # would give a wrong version.
         fetch-depth: 0
+    # Every native artifact, each one holding resources/<platform> folders.
     - uses: actions/download-artifact@v8
       with:
-        name: remoting-win64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v8
-      with:
-        name: remoting-win32
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
-    - uses: actions/download-artifact@v8
-      with:
-        name: remoting-linux32
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux32/
-    - uses: actions/download-artifact@v8
-      with:
-        name: remoting-linux64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
-    - uses: actions/download-artifact@v8
-      with:
-        name: container-win64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v8
-      with:
-        name: container-linux64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
-    - uses: actions/download-artifact@v8
-      with:
-        name: container-darwin64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
+        pattern: native-*
+        merge-multiple: true
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v7
       with:
@@ -266,28 +203,17 @@ jobs:
     - uses: actions/checkout@v7
       with:
         fetch-depth: 0
+    # Every native artifact, each one holding resources/<platform> folders.
     - uses: actions/download-artifact@v8
       with:
-        name: remoting-linux64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
-    - uses: actions/download-artifact@v8
-      with:
-        name: container-win64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v8
-      with:
-        name: container-darwin64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
-    # Replaces the linux64 runtime of the package by the instrumented one.
-    - name: Build the instrumented runtime
-      run: |
-        cmake -B ${{ github.workspace }}/build-sanitize -S ${{ github.workspace }}/container \
-              -DCMAKE_C_COMPILER=gcc -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFMUTOOL_SANITIZE=ON
-        cmake --build ${{ github.workspace }}/build-sanitize
-    - name: Native tests
+        pattern: native-*
+        merge-multiple: true
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/
+    # Replaces the linux64 runtime of the package by the instrumented one, and runs the native tests.
+    - name: Build and test the instrumented runtime
       env:
         UBSAN_OPTIONS: "print_stacktrace=1"
-      run: ctest --test-dir ${{ github.workspace }}/build-sanitize --output-on-failure
+      run: cmake --workflow --preset linux64-sanitize
     - name: Set up Python ${{ env.NEWEST_PYTHON }}
       uses: actions/setup-python@v7
       with:
@@ -322,8 +248,8 @@ jobs:
     - uses: actions/checkout@v7
     - uses: actions/download-artifact@v8
       with:
-        name: container-darwin64
-        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
+        name: native-macos
+        path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v7
       with:
