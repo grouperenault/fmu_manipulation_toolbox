@@ -45,7 +45,7 @@ def test_boolean_output_is_exposed(tmp_path, version, fmi_version, conversion, c
         assert re.search(r'<ScalarVariable name="flag" valueReference="\d+" causality="output"[^>]*>\s*<Boolean',
                          description)
     txt = read_entry(tmp_path / "booleans.fmu", "resources/container.txt").decode()
-    assert re.search(rf"^\d+ \d+ {conversion}$", txt, re.MULTILINE)
+    assert re.search(rf"^\d+ \d+ {conversion}\r?$", txt, re.MULTILINE)     # `\r\n` on Windows
 
 
 @pytest.mark.needs_fmpy
