@@ -8,7 +8,7 @@ import textwrap
 
 from PySide6.QtCore import Qt, QEvent
 from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton,
-                               QInputDialog, QMenu, QDialog, QHBoxLayout, QVBoxLayout)
+                               QInputDialog, QMenu, QDialog, QHBoxLayout, QVBoxLayout, QCheckBox)
 from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
@@ -17,7 +17,7 @@ from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogWidget, busy_curs
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
-from fmu_manipulation_toolbox.checker import get_checkers
+from fmu_manipulation_toolbox.checker import OperationLsRefCheck, get_checkers
 from fmu_manipulation_toolbox.compiler import OperationCompileSources, Toolchain
 from fmu_manipulation_toolbox.help import Help
 from fmu_manipulation_toolbox.version import __version__ as version
@@ -157,29 +157,113 @@ class CompileOptionsDialog(QDialog):
             layout.addWidget(edit)
             self.edits[key] = edit
 
-        # -- Retry / Cancel --
-        retry_button = QPushButton("Retry")
-        retry_button.setProperty("class", "save")
-        retry_button.setDefault(True)
-        retry_button.clicked.connect(self.accept)
-
-        cancel_button = QPushButton("Cancel")
-        cancel_button.setProperty("class", "quit")
-        cancel_button.clicked.connect(self.reject)
-
-        width = max(retry_button.sizeHint().width(), cancel_button.sizeHint().width(), 150)
-        retry_button.setMinimumWidth(width)
-        cancel_button.setMinimumWidth(width)
-
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-        button_row.addWidget(cancel_button)
-        button_row.addWidget(retry_button)
-        layout.addSpacing(12)
-        layout.addLayout(button_row)
+        _dialog_buttons(layout, self, "Retry")
 
     def values(self) -> dict[str, str]:
         return {key: edit.text().strip() for key, edit in self.edits.items()}
+
+
+def _dialog_buttons(layout: QVBoxLayout, dialog: QDialog, accept_label: str) -> QPushButton:
+    """Adds the Cancel and `accept_label` buttons at the bottom of `layout`. Returns the accept button."""
+    accept_button = QPushButton(accept_label)
+    accept_button.setProperty("class", "save")
+    accept_button.setDefault(True)
+    accept_button.clicked.connect(dialog.accept)
+
+    cancel_button = QPushButton("Cancel")
+    cancel_button.setProperty("class", "quit")
+    cancel_button.clicked.connect(dialog.reject)
+
+    width = max(accept_button.sizeHint().width(), cancel_button.sizeHint().width(), 150)
+    accept_button.setMinimumWidth(width)
+    cancel_button.setMinimumWidth(width)
+
+    button_row = QHBoxLayout()
+    button_row.addStretch()
+    button_row.addWidget(cancel_button)
+    button_row.addWidget(accept_button)
+    layout.addSpacing(12)
+    layout.addLayout(button_row)
+    return accept_button
+
+
+class CheckSelectionDialog(QDialog):
+    """Choose the checkers to run, and the settings of the checker of FMI-LS-REF.
+
+    Args:
+        checkers (list[type]): The checkers that can be chosen, as returned by `get_checkers()`.
+        selected (set[type]): The checkers checked at the opening.
+        settings (dict[str, float]): Settings of `OperationLsRefCheck` at the opening: `rtol`, `atol`, `timeout`.
+    """
+
+    SETTINGS = (("rtol", "Relative tolerance (rtol)"), ("atol", "Absolute tolerance (atol)"),
+                ("timeout", "Time limit of each experiment, in seconds"))
+
+    def __init__(self, checkers: list[type], selected: set[type], settings: dict[str, float], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Selected Check")
+        self.setMinimumWidth(500)
+
+        layout = QVBoxLayout(self)
+        caption = QLabel("Checkers")
+        caption.setProperty("class", "caption")
+        layout.addWidget(caption)
+        self.boxes: dict[type, QCheckBox] = {}
+        for checker in checkers:
+            box = QCheckBox(repr(checker()))
+            box.setChecked(checker in selected)
+            box.toggled.connect(self.update_state)
+            layout.addWidget(box)
+            self.boxes[checker] = box
+
+        self.edits: dict[str, QLineEdit] = {}
+        for key, label in self.SETTINGS:
+            caption = QLabel(f"FMI-LS-REF: {label}")
+            caption.setProperty("class", "caption")
+            edit = QLineEdit(f"{settings[key]:g}")
+            layout.addSpacing(8)
+            layout.addWidget(caption)
+            layout.addWidget(edit)
+            self.edits[key] = edit
+
+        self.message = QLabel()
+        self.message.setWordWrap(True)
+        self.message.setProperty("class", "status_error")
+        layout.addWidget(self.message)
+        self.check_button = _dialog_buttons(layout, self, "Check")
+        self.update_state()
+
+    def update_state(self):
+        """The Check button needs a checker; the settings of FMI-LS-REF need its checker."""
+        self.check_button.setEnabled(any(box.isChecked() for box in self.boxes.values()))
+        ls_ref = any(box.isChecked() for checker, box in self.boxes.items() if issubclass(checker, OperationLsRefCheck))
+        for edit in self.edits.values():
+            edit.setEnabled(ls_ref)
+
+    def accept(self):
+        try:
+            OperationLsRefCheck(**self.settings())
+        except ValueError as error:
+            self.message.setText(f"Invalid setting of FMI-LS-REF: {error}.")
+            return
+        super().accept()
+
+    def selected(self) -> list[type]:
+        return [checker for checker, box in self.boxes.items() if box.isChecked()]
+
+    def settings(self) -> dict[str, float]:
+        """The settings typed.
+
+        Raises:
+            ValueError: A setting is not a number.
+        """
+        settings = {}
+        for key, edit in self.edits.items():
+            try:
+                settings[key] = float(edit.text())
+            except ValueError:
+                raise ValueError(f"{key} must be a number, not '{edit.text()}'") from None
+        return settings
 
 
 class MainWindow(QWidget):
@@ -212,13 +296,18 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.compile_options: dict[str, str] = {}
         # An operation has modified the loaded FMU: it can be saved.
         self.fmu_modified = False
+        # Checkers and settings of FMI-LS-REF chosen in `CheckSelectionDialog`, kept for the session.
+        self.check_selection: set[type] = set(get_checkers())
+        self.ls_ref_settings = {"rtol": OperationLsRefCheck.RTOL, "atol": OperationLsRefCheck.ATOL,
+                                "timeout": OperationLsRefCheck.TIMEOUT}
 
         # Operations
         self.help = Help()
         # Grid of WIDTH columns, one line per theme: analysis and export, binary interfaces (green), name changes
         # (orange), removals (red). `modifies`: the operation modifies the FMU (when it ends without an exception).
         operations_list = [
-            ("Check",                 '-check',              'info',    get_checkers()),
+            ("Check",                 '-check',              'info',    get_checkers(),
+             {"alternative": ("Selected Check", self.selected_check)}),
             ("Save description.xml",  '-extract-descriptor', 'info',    None, {"func": self.save_descriptor}),
             ("Save port names",       '-dump-csv',           'info',    OperationSaveNamesToCSV, {"prompt_file": "write"}),
             ("Compile sources",       '-compile-sources',    'info',    None, {"func": self.compile_sources}),
@@ -440,6 +529,22 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.set_tooltip(button, usage)
         button.setProperty("class", severity)
         return button
+
+    def selected_check(self):
+        """Run the checkers chosen in `CheckSelectionDialog`, with its settings of FMI-LS-REF."""
+        if not self.dropped_fmu.fmu:
+            return
+        checkers = get_checkers()
+        dialog = CheckSelectionDialog(checkers, self.check_selection, self.ls_ref_settings, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.check_selection = set(dialog.selected())
+        self.ls_ref_settings = dialog.settings()
+        for checker in dialog.selected():
+            if issubclass(checker, OperationLsRefCheck):
+                self.apply_operation(checker(**self.ls_ref_settings))
+            else:
+                self.apply_operation(checker())
 
     def compile_sources(self):
         """Compile the sources; after a compilation failure, ask for additional options and retry (until success

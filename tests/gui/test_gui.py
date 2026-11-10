@@ -209,6 +209,113 @@ def test_fmutool_deactivation_restores_the_labels(qtbot):
     assert button.text() == button.label
 
 
+class _FakeCheckSelectionDialog:
+    """Replaces `CheckSelectionDialog`: answers `answer` ((selected, settings), `None` = Cancel), records the calls."""
+    answer = None
+    calls: list = []
+
+    def __init__(self, checkers, selected, settings, parent=None):
+        _FakeCheckSelectionDialog.calls.append((set(selected), dict(settings)))
+
+    def exec(self):
+        from PySide6.QtWidgets import QDialog
+        return QDialog.DialogCode.Rejected if self.answer is None else QDialog.DialogCode.Accepted
+
+    def selected(self):
+        return self.answer[0]
+
+    def settings(self):
+        return self.answer[1]
+
+
+@pytest.fixture
+def fake_check_dialog(monkeypatch):
+    import fmu_manipulation_toolbox.gui.fmutool.__main__ as fmutool_gui
+    monkeypatch.setattr(fmutool_gui, "CheckSelectionDialog", _FakeCheckSelectionDialog)
+    _FakeCheckSelectionDialog.answer, _FakeCheckSelectionDialog.calls = None, []
+    return _FakeCheckSelectionDialog
+
+
+def _applied(window, monkeypatch) -> list:
+    """The operations applied by `window` from now on."""
+    applied = []
+    apply_operation = window.apply_operation
+    monkeypatch.setattr(window, "apply_operation", lambda operation: applied.append(operation) or
+                        apply_operation(operation))
+    return applied
+
+
+def test_fmutool_selected_check(qtbot, bouncing_ball, fake_check_dialog, monkeypatch):
+    from fmu_manipulation_toolbox.checker import OperationGenericCheck, OperationLsRefCheck, get_checkers
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    applied = _applied(window, monkeypatch)
+    settings = {"rtol": 0.01, "atol": 0.5, "timeout": 10.0}
+    fake_check_dialog.answer = ([OperationGenericCheck, OperationLsRefCheck], settings)
+    window.selected_check()
+    assert [type(operation) for operation in applied] == [OperationGenericCheck, OperationLsRefCheck]
+    assert (applied[1].rtol, applied[1].atol, applied[1].timeout) == (0.01, 0.5, 10.0)
+    assert fake_check_dialog.calls == [(set(get_checkers()), {"rtol": 1e-3, "atol": 1e-6, "timeout": 60})]
+
+    # The selection and the settings are kept for the session.
+    window.selected_check()
+    assert fake_check_dialog.calls[1] == ({OperationGenericCheck, OperationLsRefCheck}, settings)
+
+
+def test_fmutool_selected_check_cancel(qtbot, bouncing_ball, fake_check_dialog, monkeypatch):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    applied = _applied(window, monkeypatch)
+    window.selected_check()
+    assert applied == [] and len(fake_check_dialog.calls) == 1
+
+
+def test_fmutool_alternative_of_check(qtbot, bouncing_ball, fake_check_dialog):
+    from PySide6.QtCore import Qt
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    button = _button(window, "Check")
+    qtbot.keyPress(window, Qt.Key.Key_Alt)
+    assert button.text() == "Selected Check"
+    button.click()
+    assert len(fake_check_dialog.calls) == 1
+
+
+def test_fmutool_check_selection_dialog(qtbot):
+    from fmu_manipulation_toolbox.checker import OperationGenericCheck, OperationLsRefCheck, get_checkers
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import CheckSelectionDialog
+    checkers = get_checkers()
+    dialog = CheckSelectionDialog(checkers, {OperationLsRefCheck}, {"rtol": 1e-3, "atol": 1e-6, "timeout": 60})
+    qtbot.addWidget(dialog)
+    assert dialog.selected() == [OperationLsRefCheck]
+    assert dialog.boxes[OperationLsRefCheck].text() == "FMU LS-REF Checks"
+    assert dialog.settings() == {"rtol": 1e-3, "atol": 1e-6, "timeout": 60}
+    assert dialog.check_button.isEnabled() and dialog.edits["rtol"].isEnabled()
+
+    dialog.boxes[OperationLsRefCheck].setChecked(False)
+    assert not dialog.check_button.isEnabled()          # no checker
+    dialog.boxes[OperationGenericCheck].setChecked(True)
+    assert dialog.check_button.isEnabled() and not dialog.edits["rtol"].isEnabled()
+
+
+@pytest.mark.parametrize("key, text, message", [
+    ("timeout", "0", "timeout must be a number > 0, not 0"),
+    ("atol", "x", "atol must be a number, not 'x'"),
+])
+def test_fmutool_check_selection_dialog_invalid(qtbot, key, text, message):
+    from fmu_manipulation_toolbox.checker import OperationLsRefCheck, get_checkers
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import CheckSelectionDialog
+    dialog = CheckSelectionDialog(get_checkers(), {OperationLsRefCheck}, {"rtol": 1e-3, "atol": 1e-6, "timeout": 60})
+    qtbot.addWidget(dialog)
+    dialog.edits[key].setText(text)
+    dialog.accept()
+    assert dialog.result() != dialog.DialogCode.Accepted
+    assert dialog.message.text() == f"Invalid setting of FMI-LS-REF: {message}."
+
+
 def test_fmutool_busy_cursor_during_operation(qtbot, bouncing_ball):
     """The wait cursor is shown while an operation runs, and restored afterwards, also when it fails."""
     from PySide6.QtCore import Qt
