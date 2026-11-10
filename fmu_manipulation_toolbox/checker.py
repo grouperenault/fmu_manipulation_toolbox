@@ -2,6 +2,7 @@ import importlib.util
 from importlib.metadata import entry_points
 import inspect
 import logging
+import math
 import os
 import re
 import tempfile
@@ -662,8 +663,8 @@ class OperationLsRefCheck(OperationAbstract):
     - a CSV file of role `result` (output of the `DefaultExperiment` of the FMU, as in the Reference-FMUs): readable;
       it is replayed with the `DefaultExperiment`, its columns compared when they are outputs of a comparable type;
     - the experiments to replay are simulated with the container runtime (`simulation.replay`), each one in a
-      dedicated process stopped after `TIMEOUT` seconds (a crash or a timeout is an error), and their outputs
-      compared with the references at the instants of the references (`timeseries.compare`, `RTOL`, `ATOL`):
+      dedicated process stopped after `timeout` seconds (a crash or a timeout is an error), and their outputs
+      compared with the references at the instants of the references (`timeseries.compare`, `rtol`, `atol`):
       simulation interpolated linearly for the continuous reals, previous value otherwise; strings compared exactly;
       at an event of the references, the value after it. An experiment without references is only simulated.
 
@@ -673,6 +674,14 @@ class OperationLsRefCheck(OperationAbstract):
     SSV, a file of an `uncertainty-analysis` experiment not found, a column of a result file that is not an output or
     is a binary, a binary of the references (ignored), the container runtime or the binary of the FMU not available for
     the host platform (no replay), a stimulus on a boolean input of an FMI-2.0 FMU (experiment not replayed).
+
+    Args:
+        rtol (float): Relative tolerance of the comparison with the references (`RTOL` by default), `>= 0`.
+        atol (float): Absolute tolerance of the comparison with the references (`ATOL` by default), `>= 0`.
+        timeout (float): Time limit of the replay of an experiment, in seconds (`TIMEOUT` by default), `> 0`.
+
+    Raises:
+        ValueError: A setting is out of its range or not finite.
 
     Attributes:
         errors (list[str]): Violations found.
@@ -687,13 +696,20 @@ class OperationLsRefCheck(OperationAbstract):
     EXPERIMENTS_XSD = XSD_DIRECTORY / "maHarmonizedSpecificationExperiments.xsd"
     #: Sub-roles of the experiments replayed by the checker.
     REPLAYED_SUB_ROLES = ("smoke-test", "validation")
-    #: Tolerances of the comparison with the references.
+    #: Default tolerances of the comparison with the references.
     RTOL = 1e-3
     ATOL = 1e-6
-    #: Time limit of the replay of an experiment, in seconds (each experiment is replayed in a dedicated process).
+    #: Default time limit of the replay of an experiment, in seconds (each experiment is replayed in a dedicated
+    #: process).
     TIMEOUT = 60
 
-    def __init__(self):
+    def __init__(self, rtol: float = RTOL, atol: float = ATOL, timeout: float = TIMEOUT):
+        for name, value in (("rtol", rtol), ("atol", atol)):
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be a number >= 0, not {value:g}")
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError(f"timeout must be a number > 0, not {timeout:g}")
+        self.rtol, self.atol, self.timeout = rtol, atol, timeout
         self.errors: list[str] = []
         self.experiments: list[RefReplay] = []
 
@@ -895,14 +911,14 @@ class OperationLsRefCheck(OperationAbstract):
     def replay_experiment(self, fmu_filename: Path, ref_replay: RefReplay, ports: dict[str, ModelVariable]):
         experiment = ref_replay.experiment
         label = f"Experiment '{experiment.name}' of '{ref_replay.related.source}'"
-        logger.info(f"Simulating experiment '{experiment.name}' (rtol={self.RTOL:g}, atol={self.ATOL:g}, "
-                    f"timeout={self.TIMEOUT:g} s).")
+        logger.info(f"Simulating experiment '{experiment.name}' (rtol={self.rtol:g}, atol={self.atol:g}, "
+                    f"timeout={self.timeout:g} s).")
         try:
             references = read_csv(experiment.references.path) if experiment.references else None
             stimuli = read_csv(experiment.stimuli.path) if experiment.stimuli else None
             parameters = read_parameter_set(experiment.parameters.path) if experiment.parameters else None
             simulated = replay(fmu_filename, experiment, ref_replay.outputs, stimuli, parameters, references,
-                               timeout=self.TIMEOUT)
+                               timeout=self.timeout)
         except SimulationUnavailable:
             raise
         except SimulationUnsupported as error:
@@ -921,7 +937,7 @@ class OperationLsRefCheck(OperationAbstract):
             continuous = port.variability == "continuous" and port.has_type(("Real", "Float64", "Float32"))
             exact = port.fmi_type == "String"
             try:
-                result = compare(references, simulated, name, self.RTOL, self.ATOL, LINEAR if continuous else HOLD,
+                result = compare(references, simulated, name, self.rtol, self.atol, LINEAR if continuous else HOLD,
                                  exact)
             except TimeSeriesError as error:
                 self.error(f"{label}: output '{name}': {error}.")

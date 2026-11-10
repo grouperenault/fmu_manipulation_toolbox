@@ -37,8 +37,8 @@ def fmus(tmp_path_factory):
     return get
 
 
-def _check(path, caplog) -> OperationLsRefCheck:
-    check = OperationLsRefCheck()
+def _check(path, caplog, **settings) -> OperationLsRefCheck:
+    check = OperationLsRefCheck(**settings)
     with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
         with FMU(path) as fmu:
             fmu.apply_operation(check)
@@ -89,6 +89,15 @@ def test_reference_that_differs(fmus, tmp_path, caplog):
            "at t=1.5: expected 5.1, simulated 5.0 (maximal error 0.1 at t=1.5)." in errors
     assert "Experiment 'Stimuli' of 'experiments.xml': output 'Boolean_output' differs from the references at t=1.5: " \
            "expected false, simulated true (maximal error 1 at t=1.5)." in errors
+
+
+def test_reference_within_the_tolerances(fmus, tmp_path, caplog):
+    """An error of 0.1 on 5.1 passes with rtol=0.05; the boolean (reference 0) still fails: only atol applies."""
+    path = _patched(fmus("3.0", "Feedthrough"), tmp_path / "Feedthrough.fmu", f"{REF}/ref.csv", "1.5,5,5,true",
+                    "1.5,5.1,5,false")
+    errors = _check(path, caplog, rtol=0.05).errors
+    assert [error.split(": output ")[1].split(" ")[0] for error in errors] == ["'Boolean_output'"]
+    assert "Simulating experiment 'Stimuli' (rtol=0.05, atol=1e-06, timeout=60 s)." in caplog.text
 
 
 def test_strings_are_compared_exactly(tmp_path, caplog):
@@ -143,6 +152,16 @@ def test_cli_check(fmus, tmp_path, monkeypatch, patch, code):
         assert exit_info.value.code == code
 
 
+def test_cli_check_with_tolerance(fmus, tmp_path, monkeypatch, caplog):
+    """The references of e = 0.7 compared with e = 0.5 pass with a large absolute tolerance."""
+    path = _patched(fmus("3.0", "BouncingBall"), tmp_path / "BouncingBall.fmu", f"{REF}/experiments.xml",
+                    'source="REF-e05.csv"', 'source="REF-BouncingBall.csv"')
+    monkeypatch.setattr(sys, "argv", ["fmutool", "-input", str(path), "-check", "-ref-atol", "100",
+                                      "-ref-timeout", "30"])
+    fmutool()
+    assert "(rtol=0.001, atol=100, timeout=30 s)" in caplog.text
+
+
 #: `calculateValues` of Feedthrough patched: a crash (null pointer) when `Int32_input` is 13, an infinite loop when it
 #: is 14.
 FAULTS = """Status calculateValues(ModelInstance *comp) {
@@ -184,9 +203,8 @@ def test_crash_of_the_fmu(tmp_path, caplog):
     assert "Experiment 'Stimuli' of 'experiments.xml': the 3 output(s) match the references" in caplog.text
 
 
-def test_simulation_that_never_returns(tmp_path, monkeypatch, caplog):
-    monkeypatch.setattr(OperationLsRefCheck, "TIMEOUT", 3)
-    errors = _check(_faulty_fmu(tmp_path, 14), caplog).errors
+def test_simulation_that_never_returns(tmp_path, caplog):
+    errors = _check(_faulty_fmu(tmp_path, 14), caplog, timeout=3).errors
     assert errors == ["Experiment 'Fault' of 'experiments.xml': cannot be replayed: the simulation did not end within "
                       "3 s: it is stopped."]
     assert "Experiment 'Stimuli' of 'experiments.xml': the 3 output(s) match the references" in caplog.text

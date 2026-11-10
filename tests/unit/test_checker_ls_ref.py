@@ -6,12 +6,15 @@ these files. The FMUs have no binary: the experiments are not replayed (warning)
 `tests/integration/test_checker_ls_ref_replay.py` for the replay.
 """
 import logging
+import sys
 from pathlib import Path
 
 import pytest
 
 from _helpers.archive import rewrite_fmu
 from fmu_manipulation_toolbox.checker import OperationLsRefCheck, get_checkers
+from fmu_manipulation_toolbox.cli.fmutool import fmutool
+from fmu_manipulation_toolbox.cli.utils import ExitCode
 from fmu_manipulation_toolbox.operations import FMU
 
 pytestmark = [pytest.mark.unit, pytest.mark.lsref]
@@ -255,3 +258,35 @@ def test_bad_result(tmp_path):
                                        '<Related type="text/csv" source="out.csv" role="result"/>'),
         f"{REF}/out.csv": "time,Int32_output\n1,1\n0,2\n"})).errors
     assert _has(errors, "time 0.0 before the previous one")
+
+
+def test_default_settings():
+    check = OperationLsRefCheck()
+    assert (check.rtol, check.atol, check.timeout) == (1e-3, 1e-6, 60)
+    check = OperationLsRefCheck(rtol=0.01, atol=0, timeout=2.5)
+    assert (check.rtol, check.atol, check.timeout) == (0.01, 0, 2.5)
+
+
+@pytest.mark.parametrize("settings, message", [
+    ({"rtol": -1}, "rtol must be a number >= 0"),
+    ({"atol": float("nan")}, "atol must be a number >= 0"),
+    ({"timeout": 0}, "timeout must be a number > 0"),
+    ({"timeout": float("inf")}, "timeout must be a number > 0"),
+])
+def test_invalid_settings(settings, message):
+    with pytest.raises(ValueError, match=message):
+        OperationLsRefCheck(**settings)
+
+
+@pytest.mark.parametrize("arguments, message", [
+    (["-ref-rtol", "0.01"], "-ref-rtol need(s) '-check'."),
+    (["-ref-atol", "1", "-ref-timeout", "5"], "-ref-atol, -ref-timeout need(s) '-check'."),
+    (["-check", "-ref-timeout", "0"], "Invalid setting of FMI-LS-REF: timeout must be a number > 0, not 0."),
+    (["-check", "-ref-rtol", "-1"], "Invalid setting of FMI-LS-REF: rtol must be a number >= 0, not -1."),
+])
+def test_cli_invalid_settings(monkeypatch, caplog, arguments, message):
+    monkeypatch.setattr(sys, "argv", ["fmutool", "-input", "unused.fmu"] + arguments)
+    with pytest.raises(SystemExit) as exit_info:
+        fmutool()
+    assert exit_info.value.code == ExitCode.USAGE_ERROR
+    assert message in caplog.text

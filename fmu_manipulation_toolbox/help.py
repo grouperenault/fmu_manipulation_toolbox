@@ -108,6 +108,15 @@ class Help:
         '-check': "performs some check of FMU and display Errors or Warnings. This is useful to avoid later "
                   "issues when using the FMU.",
 
+        '-ref-rtol': "with -check: relative tolerance of the comparison of the experiments of FMI-LS-REF with their "
+                     "references (default: 1e-3). This option is available from version 2.1.",
+
+        '-ref-atol': "with -check: absolute tolerance of the comparison of the experiments of FMI-LS-REF with their "
+                     "references (default: 1e-6). This option is available from version 2.1.",
+
+        '-ref-timeout': "with -check: time limit of the simulation of each experiment of FMI-LS-REF, in seconds "
+                        "(default: 60). This option is available from version 2.1.",
+
         '-debug': "log the details of the operations, e.g. the command lines of -compile-sources. This option is "
                   "available from version 2.1.",
 

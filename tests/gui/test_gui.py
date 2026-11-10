@@ -52,6 +52,270 @@ def test_fmutool_operations_buttons_exist(qtbot):
     assert len(window.operations_button_list) == 16
 
 
+def _button(window, label):
+    return next(button for button in window.operations_button_list if button.text() == label)
+
+
+def test_fmutool_buttons_disabled_without_fmu(qtbot):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    assert not any(button.isEnabled() for button in window.operations_button_list)
+    assert not window.reload_button.isEnabled()
+    assert not window.filter_list.isEnabled()
+    assert not window.save_fmu_button.isEnabled()
+    assert window.save_log_button.isEnabled() and window.exit_button.isEnabled()
+
+
+def test_fmutool_buttons_enabled_with_fmu(qtbot, bouncing_ball):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    assert all(button.isEnabled() for button in window.operations_button_list)
+    assert window.reload_button.isEnabled() and window.filter_list.isEnabled()
+    assert not window.save_fmu_button.isEnabled()       # not modified yet
+
+
+def test_fmutool_buttons_disabled_after_load_failure(qtbot, bouncing_ball, tmp_path):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    not_a_zip = tmp_path / "broken.fmu"
+    not_a_zip.write_text("not a zip")
+    window.load(str(not_a_zip))
+    assert not any(button.isEnabled() for button in window.operations_button_list)
+    assert not window.reload_button.isEnabled()
+
+
+def test_fmutool_save_enabled_after_modification(qtbot, bouncing_ball):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    _button(window, "Check").click()
+    assert not window.save_fmu_button.isEnabled()
+    _button(window, "Remove all").click()             # refused: it would remove every variable
+    assert not window.save_fmu_button.isEnabled()
+    _button(window, "Remove Toplevel").click()
+    assert window.save_fmu_button.isEnabled()
+    window.reload_fmu()
+    assert not window.save_fmu_button.isEnabled()
+
+
+def test_fmutool_failed_operation_returns_false(qtbot, bouncing_ball):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    from fmu_manipulation_toolbox.operations import OperationAbstract, OperationError
+
+    class Failure(OperationAbstract):
+        def closure(self):
+            raise OperationError("failure")
+
+    assert window.apply_operation(Failure()) is False
+    assert not window.save_fmu_button.isEnabled()
+
+
+def _links(log_widget) -> list[tuple[str, str]]:
+    """(text, href) of the links of a log widget."""
+    links = []
+    block = log_widget.document().begin()
+    while block.isValid():
+        it = block.begin()
+        while not it.atEnd():
+            fragment = it.fragment()
+            if fragment.charFormat().isAnchor():
+                links.append((fragment.text(), fragment.charFormat().anchorHref()))
+            it += 1
+        block = block.next()
+    return links
+
+
+def test_fmutool_summary_links_the_temporary_directory(qtbot, bouncing_ball, monkeypatch):
+    from PySide6.QtCore import QUrl
+    import fmu_manipulation_toolbox.gui.log as gui_log
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    directory = window.dropped_fmu.fmu.tmp_directory
+    url = QUrl.fromLocalFile(directory).toString()
+    assert _links(window.log_widget) == [(directory, url)]
+    assert f"| temporary directory = {directory}\n" in window.log_widget.toPlainText()
+
+    opened = []
+    monkeypatch.setattr(gui_log.QDesktopServices, "openUrl", lambda link: opened.append(link.toString()))
+    window.log_widget.anchorClicked.emit(QUrl(url))
+    assert opened == [url]
+
+
+def test_fmutool_text_after_the_link_is_not_a_link(qtbot, bouncing_ball):
+    from fmu_manipulation_toolbox.operations import OperationSummary
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    window.apply_operation(OperationSummary())
+    assert len(_links(window.log_widget)) == 2      # one per summary, nothing else
+
+
+def test_fmutool_operation_button_alternative(qtbot):
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import OperationButton
+    calls = []
+    button = OperationButton("Normal", lambda: calls.append("normal"), ("Other", lambda: calls.append("other")))
+    qtbot.addWidget(button)
+    button.setToolTip("Help.")
+    assert button.toolTip() == f"Help.\n\n{OperationButton.ALTERNATIVE_CLICK}: Other"
+    button.click()
+    button.show_alternative(True)
+    assert button.text() == "Other"
+    button.click()
+    button.show_alternative(False)
+    assert button.text() == "Normal"
+    button.click()
+    assert calls == ["normal", "other", "normal"]
+
+
+def test_fmutool_operation_button_without_alternative(qtbot):
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import OperationButton
+    calls = []
+    button = OperationButton("Normal", lambda: calls.append("normal"))
+    qtbot.addWidget(button)
+    button.setToolTip("Help.")
+    assert button.toolTip() == "Help."
+    button.show_alternative(True)
+    button.click()
+    assert button.text() == "Normal" and calls == ["normal"]
+
+
+def test_fmutool_alt_key_switches_the_buttons(qtbot):
+    from PySide6.QtCore import Qt
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    button = _button(window, "Save port names")
+    button.alternative = ("Alternative", lambda: None)
+    others = [other for other in window.operations_button_list if not other.alternative]
+    qtbot.keyPress(window, Qt.Key.Key_Alt)
+    assert button.text() == "Alternative"
+    assert [other.text() for other in others] == [other.label for other in others]
+    qtbot.keyRelease(window, Qt.Key.Key_Alt)
+    assert button.text() == button.label
+
+
+def test_fmutool_deactivation_restores_the_labels(qtbot):
+    from PySide6.QtCore import QEvent, Qt
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    button = window.operations_button_list[0]
+    button.alternative = ("Alternative", lambda: None)
+    qtbot.keyPress(window, Qt.Key.Key_Alt)
+    QApplication.sendEvent(window, QEvent(QEvent.Type.WindowDeactivate))
+    assert button.text() == button.label
+
+
+class _FakeCheckSelectionDialog:
+    """Replaces `CheckSelectionDialog`: answers `answer` ((selected, settings), `None` = Cancel), records the calls."""
+    answer = None
+    calls: list = []
+
+    def __init__(self, checkers, selected, settings, parent=None):
+        _FakeCheckSelectionDialog.calls.append((set(selected), dict(settings)))
+
+    def exec(self):
+        from PySide6.QtWidgets import QDialog
+        return QDialog.DialogCode.Rejected if self.answer is None else QDialog.DialogCode.Accepted
+
+    def selected(self):
+        return self.answer[0]
+
+    def settings(self):
+        return self.answer[1]
+
+
+@pytest.fixture
+def fake_check_dialog(monkeypatch):
+    import fmu_manipulation_toolbox.gui.fmutool.__main__ as fmutool_gui
+    monkeypatch.setattr(fmutool_gui, "CheckSelectionDialog", _FakeCheckSelectionDialog)
+    _FakeCheckSelectionDialog.answer, _FakeCheckSelectionDialog.calls = None, []
+    return _FakeCheckSelectionDialog
+
+
+def _applied(window, monkeypatch) -> list:
+    """The operations applied by `window` from now on."""
+    applied = []
+    apply_operation = window.apply_operation
+    monkeypatch.setattr(window, "apply_operation", lambda operation: applied.append(operation) or
+                        apply_operation(operation))
+    return applied
+
+
+def test_fmutool_selected_check(qtbot, bouncing_ball, fake_check_dialog, monkeypatch):
+    from fmu_manipulation_toolbox.checker import OperationGenericCheck, OperationLsRefCheck, get_checkers
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    applied = _applied(window, monkeypatch)
+    settings = {"rtol": 0.01, "atol": 0.5, "timeout": 10.0}
+    fake_check_dialog.answer = ([OperationGenericCheck, OperationLsRefCheck], settings)
+    window.selected_check()
+    assert [type(operation) for operation in applied] == [OperationGenericCheck, OperationLsRefCheck]
+    assert (applied[1].rtol, applied[1].atol, applied[1].timeout) == (0.01, 0.5, 10.0)
+    assert fake_check_dialog.calls == [(set(get_checkers()), {"rtol": 1e-3, "atol": 1e-6, "timeout": 60})]
+
+    # The selection and the settings are kept for the session.
+    window.selected_check()
+    assert fake_check_dialog.calls[1] == ({OperationGenericCheck, OperationLsRefCheck}, settings)
+
+
+def test_fmutool_selected_check_cancel(qtbot, bouncing_ball, fake_check_dialog, monkeypatch):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    applied = _applied(window, monkeypatch)
+    window.selected_check()
+    assert applied == [] and len(fake_check_dialog.calls) == 1
+
+
+def test_fmutool_alternative_of_check(qtbot, bouncing_ball, fake_check_dialog):
+    from PySide6.QtCore import Qt
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    button = _button(window, "Check")
+    qtbot.keyPress(window, Qt.Key.Key_Alt)
+    assert button.text() == "Selected Check"
+    button.click()
+    assert len(fake_check_dialog.calls) == 1
+
+
+def test_fmutool_check_selection_dialog(qtbot):
+    from fmu_manipulation_toolbox.checker import OperationGenericCheck, OperationLsRefCheck, get_checkers
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import CheckSelectionDialog
+    checkers = get_checkers()
+    dialog = CheckSelectionDialog(checkers, {OperationLsRefCheck}, {"rtol": 1e-3, "atol": 1e-6, "timeout": 60})
+    qtbot.addWidget(dialog)
+    assert dialog.selected() == [OperationLsRefCheck]
+    assert dialog.boxes[OperationLsRefCheck].text() == "FMU LS-REF Checks"
+    assert dialog.settings() == {"rtol": 1e-3, "atol": 1e-6, "timeout": 60}
+    assert dialog.check_button.isEnabled() and dialog.edits["rtol"].isEnabled()
+
+    dialog.boxes[OperationLsRefCheck].setChecked(False)
+    assert not dialog.check_button.isEnabled()          # no checker
+    dialog.boxes[OperationGenericCheck].setChecked(True)
+    assert dialog.check_button.isEnabled() and not dialog.edits["rtol"].isEnabled()
+
+
+@pytest.mark.parametrize("key, text, message", [
+    ("timeout", "0", "timeout must be a number > 0, not 0"),
+    ("atol", "x", "atol must be a number, not 'x'"),
+])
+def test_fmutool_check_selection_dialog_invalid(qtbot, key, text, message):
+    from fmu_manipulation_toolbox.checker import OperationLsRefCheck, get_checkers
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import CheckSelectionDialog
+    dialog = CheckSelectionDialog(get_checkers(), {OperationLsRefCheck}, {"rtol": 1e-3, "atol": 1e-6, "timeout": 60})
+    qtbot.addWidget(dialog)
+    dialog.edits[key].setText(text)
+    dialog.accept()
+    assert dialog.result() != dialog.DialogCode.Accepted
+    assert dialog.message.text() == f"Invalid setting of FMI-LS-REF: {message}."
+
+
 def test_fmutool_busy_cursor_during_operation(qtbot, bouncing_ball):
     """The wait cursor is shown while an operation runs, and restored afterwards, also when it fails."""
     from PySide6.QtCore import Qt
@@ -84,9 +348,11 @@ class _FakeCompileOptionsDialog:
     """Replaces `CompileOptionsDialog`: answers with the next of `answers` (`None` = Cancel), records the calls."""
     answers: list = []
     calls: list = []
+    failed: list = []
 
-    def __init__(self, values, toolchain, parent=None):
+    def __init__(self, values, toolchain, parent=None, failed=True):
         _FakeCompileOptionsDialog.calls.append(dict(values))
+        _FakeCompileOptionsDialog.failed.append(failed)
         self.answer = _FakeCompileOptionsDialog.answers.pop(0)
 
     def exec(self):
@@ -101,7 +367,7 @@ class _FakeCompileOptionsDialog:
 def fake_compile_dialog(monkeypatch):
     import fmu_manipulation_toolbox.gui.fmutool.__main__ as fmutool_gui
     monkeypatch.setattr(fmutool_gui, "CompileOptionsDialog", _FakeCompileOptionsDialog)
-    _FakeCompileOptionsDialog.answers, _FakeCompileOptionsDialog.calls = [], []
+    _FakeCompileOptionsDialog.answers, _FakeCompileOptionsDialog.calls, _FakeCompileOptionsDialog.failed = [], [], []
     return _FakeCompileOptionsDialog
 
 
@@ -134,6 +400,7 @@ def test_fmutool_compile_retry_with_options(qtbot, fake_compile_dialog, needs_fo
     assert fake_compile_dialog.calls == [{}]
     assert _host_binary(window).is_file()
     assert window.compile_options["compiler_options"] == "-DFOO"
+    assert window.save_fmu_button.isEnabled()
 
     # Next click on another FMU: the remembered options are used, no dialog.
     window.load(needs_foo_fmu)
@@ -153,6 +420,37 @@ def test_fmutool_compile_cancel(qtbot, fake_compile_dialog, needs_foo_fmu):
     # Two failures (with -DBAR, then -DBAZ), the dialog pre-filled with the last values, then Cancel.
     assert [call["compiler_options"] for call in fake_compile_dialog.calls] == ["-DBAR", "-DBAZ"]
     assert not _host_binary(window).exists()
+    assert not window.save_fmu_button.isEnabled()
+
+
+@pytest.mark.needs_compiler
+def test_fmutool_advanced_compile(qtbot, fake_compile_dialog, needs_foo_fmu):
+    """The options are asked before the compilation, and used by it."""
+    from PySide6.QtCore import Qt
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(needs_foo_fmu)
+    fake_compile_dialog.answers = [{"compiler_options": "-DFOO", "linker_options": "", "libraries": ""}]
+    button = _button(window, "Compile sources")
+    qtbot.keyPress(window, Qt.Key.Key_Alt)
+    assert button.text() == "Advanced Compile"
+    button.click()
+    assert fake_compile_dialog.failed == [False]
+    assert _host_binary(window).is_file()
+    assert window.compile_options["compiler_options"] == "-DFOO"
+    assert window.save_fmu_button.isEnabled()
+
+
+def test_fmutool_advanced_compile_cancel(qtbot, fake_compile_dialog, needs_foo_fmu, monkeypatch):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(needs_foo_fmu)
+    applied = _applied(window, monkeypatch)
+    window.compile_options = {"compiler_options": "-DBAR", "linker_options": "", "libraries": ""}
+    fake_compile_dialog.answers = [None]
+    window.compile_sources(ask_first=True)
+    assert fake_compile_dialog.calls == [window.compile_options]
+    assert applied == []
 
 
 def test_fmutool_compile_no_dialog_without_sources(qtbot, fake_compile_dialog, data_dir, tmp_path):
@@ -166,6 +464,15 @@ def test_fmutool_compile_no_dialog_without_sources(qtbot, fake_compile_dialog, d
     window.compile_sources()
     assert fake_compile_dialog.calls == []
     assert "does not embed sources" in window.log_widget.toPlainText()
+
+
+def test_fmutool_compile_options_dialog_before_compilation(qtbot):
+    from PySide6.QtWidgets import QLabel, QPushButton
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import CompileOptionsDialog
+    dialog = CompileOptionsDialog({}, None, failed=False)
+    qtbot.addWidget(dialog)
+    assert "Options of the compilation with the C compiler." in [label.text() for label in dialog.findChildren(QLabel)]
+    assert "Compile" in [button.text() for button in dialog.findChildren(QPushButton)]
 
 
 def test_fmutool_compile_options_dialog(qtbot):
