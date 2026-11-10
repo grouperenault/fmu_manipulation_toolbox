@@ -107,12 +107,14 @@ class OperationButton(QPushButton):
 
 
 class CompileOptionsDialog(QDialog):
-    """Ask for additional compiler options, linker options and libraries after a compilation failure.
+    """Ask for additional compiler options, linker options and libraries: after a compilation failure, or before
+    the compilation ("Advanced Compile").
 
     Args:
         values (dict[str, str]): Pre-filled values, keyed by `compiler_options`, `linker_options` and `libraries`.
         toolchain (Toolchain | None): Compilers in use (`None` if unknown): named in the message, and the examples
             of the fields are written for them.
+        failed (bool): After a compilation failure (button `Retry`), or before the compilation (button `Compile`).
     """
 
     FIELDS = (("compiler_options", "Compiler options"), ("linker_options", "Linker options"),
@@ -128,7 +130,7 @@ class CompileOptionsDialog(QDialog):
                   "libraries": "names separated by commas, e.g. foo,bar"},
     }
 
-    def __init__(self, values: dict[str, str], toolchain: Toolchain | None, parent=None):
+    def __init__(self, values: dict[str, str], toolchain: Toolchain | None, parent=None, failed: bool = True):
         super().__init__(parent)
         self.setWindowTitle("Compile sources")
         self.setMinimumWidth(500)
@@ -141,7 +143,10 @@ class CompileOptionsDialog(QDialog):
         placeholders = self.PLACEHOLDERS["msvc" if toolchain and toolchain.family == "msvc" else "other"]
 
         # Same look as the dialogs of FMU Container Builder (`NodeInfoDialog`): captions above the fields.
-        message = QLabel(f"The compilation with {description} failed: see the log. Add options and retry.")
+        if failed:
+            message = QLabel(f"The compilation with {description} failed: see the log. Add options and retry.")
+        else:
+            message = QLabel(f"Options of the compilation with {description}.")
         message.setWordWrap(True)
 
         layout = QVBoxLayout(self)
@@ -157,7 +162,7 @@ class CompileOptionsDialog(QDialog):
             layout.addWidget(edit)
             self.edits[key] = edit
 
-        _dialog_buttons(layout, self, "Retry")
+        _dialog_buttons(layout, self, "Retry" if failed else "Compile")
 
     def values(self) -> dict[str, str]:
         return {key: edit.text().strip() for key, edit in self.edits.items()}
@@ -310,7 +315,9 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
              {"alternative": ("Selected Check", self.selected_check)}),
             ("Save description.xml",  '-extract-descriptor', 'info',    None, {"func": self.save_descriptor}),
             ("Save port names",       '-dump-csv',           'info',    OperationSaveNamesToCSV, {"prompt_file": "write"}),
-            ("Compile sources",       '-compile-sources',    'info',    None, {"func": self.compile_sources}),
+            ("Compile sources",       '-compile-sources',    'info',    None,
+             {"func": self.compile_sources,
+              "alternative": ("Advanced Compile", partial(self.compile_sources, ask_first=True))}),
             ("Add Win32 remoting",    '-add-remoting-win32', 'info',    OperationAddRemotingWin32, {"modifies": True}),
             ("Add Win32 frontend",    '-add-frontend-win32', 'info',    OperationAddFrontendWin32, {"modifies": True}),
             ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64, {"modifies": True}),
@@ -546,11 +553,17 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             else:
                 self.apply_operation(checker())
 
-    def compile_sources(self):
+    def compile_sources(self, ask_first: bool = False):
         """Compile the sources; after a compilation failure, ask for additional options and retry (until success
-        or Cancel). The options are kept for the rest of the session."""
+        or Cancel). With `ask_first` ("Advanced Compile"), ask for the options before the first attempt. The options
+        are kept for the rest of the session."""
         if not self.dropped_fmu.fmu:
             return
+        if ask_first:
+            dialog = CompileOptionsDialog(self.compile_options, self.host_toolchain(), parent=self, failed=False)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            self.compile_options = dialog.values()
         while True:
             try:
                 operation = OperationCompileSources(**self.compile_parameters())

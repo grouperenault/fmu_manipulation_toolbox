@@ -188,12 +188,12 @@ def test_fmutool_alt_key_switches_the_buttons(qtbot):
     from PySide6.QtCore import Qt
     window = FMUToolWindow()
     qtbot.addWidget(window)
-    button = window.operations_button_list[0]
+    button = _button(window, "Save port names")
     button.alternative = ("Alternative", lambda: None)
-    others = [other.text() for other in window.operations_button_list[1:]]
+    others = [other for other in window.operations_button_list if not other.alternative]
     qtbot.keyPress(window, Qt.Key.Key_Alt)
     assert button.text() == "Alternative"
-    assert [other.text() for other in window.operations_button_list[1:]] == others
+    assert [other.text() for other in others] == [other.label for other in others]
     qtbot.keyRelease(window, Qt.Key.Key_Alt)
     assert button.text() == button.label
 
@@ -348,9 +348,11 @@ class _FakeCompileOptionsDialog:
     """Replaces `CompileOptionsDialog`: answers with the next of `answers` (`None` = Cancel), records the calls."""
     answers: list = []
     calls: list = []
+    failed: list = []
 
-    def __init__(self, values, toolchain, parent=None):
+    def __init__(self, values, toolchain, parent=None, failed=True):
         _FakeCompileOptionsDialog.calls.append(dict(values))
+        _FakeCompileOptionsDialog.failed.append(failed)
         self.answer = _FakeCompileOptionsDialog.answers.pop(0)
 
     def exec(self):
@@ -365,7 +367,7 @@ class _FakeCompileOptionsDialog:
 def fake_compile_dialog(monkeypatch):
     import fmu_manipulation_toolbox.gui.fmutool.__main__ as fmutool_gui
     monkeypatch.setattr(fmutool_gui, "CompileOptionsDialog", _FakeCompileOptionsDialog)
-    _FakeCompileOptionsDialog.answers, _FakeCompileOptionsDialog.calls = [], []
+    _FakeCompileOptionsDialog.answers, _FakeCompileOptionsDialog.calls, _FakeCompileOptionsDialog.failed = [], [], []
     return _FakeCompileOptionsDialog
 
 
@@ -421,6 +423,36 @@ def test_fmutool_compile_cancel(qtbot, fake_compile_dialog, needs_foo_fmu):
     assert not window.save_fmu_button.isEnabled()
 
 
+@pytest.mark.needs_compiler
+def test_fmutool_advanced_compile(qtbot, fake_compile_dialog, needs_foo_fmu):
+    """The options are asked before the compilation, and used by it."""
+    from PySide6.QtCore import Qt
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(needs_foo_fmu)
+    fake_compile_dialog.answers = [{"compiler_options": "-DFOO", "linker_options": "", "libraries": ""}]
+    button = _button(window, "Compile sources")
+    qtbot.keyPress(window, Qt.Key.Key_Alt)
+    assert button.text() == "Advanced Compile"
+    button.click()
+    assert fake_compile_dialog.failed == [False]
+    assert _host_binary(window).is_file()
+    assert window.compile_options["compiler_options"] == "-DFOO"
+    assert window.save_fmu_button.isEnabled()
+
+
+def test_fmutool_advanced_compile_cancel(qtbot, fake_compile_dialog, needs_foo_fmu, monkeypatch):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(needs_foo_fmu)
+    applied = _applied(window, monkeypatch)
+    window.compile_options = {"compiler_options": "-DBAR", "linker_options": "", "libraries": ""}
+    fake_compile_dialog.answers = [None]
+    window.compile_sources(ask_first=True)
+    assert fake_compile_dialog.calls == [window.compile_options]
+    assert applied == []
+
+
 def test_fmutool_compile_no_dialog_without_sources(qtbot, fake_compile_dialog, data_dir, tmp_path):
     """Not a compilation failure: no dialog."""
     from _helpers.archive import rewrite_fmu
@@ -432,6 +464,15 @@ def test_fmutool_compile_no_dialog_without_sources(qtbot, fake_compile_dialog, d
     window.compile_sources()
     assert fake_compile_dialog.calls == []
     assert "does not embed sources" in window.log_widget.toPlainText()
+
+
+def test_fmutool_compile_options_dialog_before_compilation(qtbot):
+    from PySide6.QtWidgets import QLabel, QPushButton
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import CompileOptionsDialog
+    dialog = CompileOptionsDialog({}, None, failed=False)
+    qtbot.addWidget(dialog)
+    assert "Options of the compilation with the C compiler." in [label.text() for label in dialog.findChildren(QLabel)]
+    assert "Compile" in [button.text() for button in dialog.findChildren(QPushButton)]
 
 
 def test_fmutool_compile_options_dialog(qtbot):
