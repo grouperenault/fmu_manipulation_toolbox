@@ -370,6 +370,7 @@ class OperationLsBusCheck(OperationAbstract):
         has_terminals = any(terminal.kind in self.MATCHING_RULES for terminal in terminals.walk())
         has_manifest = (directory / self.MANIFEST).is_file()
         if not has_terminals and not has_manifest:
+            logger.info("FMI-LS-BUS not present.")
             return
 
         if md.fmi_version != 3:
@@ -535,6 +536,7 @@ class OperationLsXcpCheck(OperationAbstract):
         directory = Path(self.fmu.tmp_directory)
         manifest = directory / self.MANIFEST
         if not manifest.is_file():
+            logger.info("FMI-LS-XCP not present.")
             return
 
         try:
@@ -706,6 +708,7 @@ class OperationLsRefCheck(OperationAbstract):
         directory = Path(self.fmu.tmp_directory)
         manifest = directory / self.MANIFEST
         if not manifest.is_file():
+            logger.info("FMI-LS-REF not present.")
             return
 
         try:
@@ -714,7 +717,8 @@ class OperationLsRefCheck(OperationAbstract):
             self.error(f"Cannot parse the manifest of FMI-LS-REF: {error}")
         else:
             for error in xmlschema.XMLSchema(str(self.MANIFEST_XSD)).iter_errors(str(manifest)):
-                message = f"Manifest of FMI-LS-REF: {error.reason}" + (f" (at {error.path})" if error.path else "")
+                reason = re.sub(r"\{[^}]*}", "", str(error.reason))     # names without their namespace
+                message = f"Manifest of FMI-LS-REF: {reason}" + (f" (at {error.path})" if error.path else "")
                 if "fmi-ls-description" in str(error.reason):
                     logger.warning(message)     # the Reference-FMUs have no description
                 else:
@@ -891,6 +895,8 @@ class OperationLsRefCheck(OperationAbstract):
     def replay_experiment(self, fmu_filename: Path, ref_replay: RefReplay, ports: dict[str, ModelVariable]):
         experiment = ref_replay.experiment
         label = f"Experiment '{experiment.name}' of '{ref_replay.related.source}'"
+        logger.info(f"Simulating experiment '{experiment.name}' (rtol={self.RTOL:g}, atol={self.ATOL:g}, "
+                    f"timeout={self.TIMEOUT:g} s).")
         try:
             references = read_csv(experiment.references.path) if experiment.references else None
             stimuli = read_csv(experiment.stimuli.path) if experiment.stimuli else None
@@ -928,8 +934,7 @@ class OperationLsRefCheck(OperationAbstract):
                 self.error(f"{label}: output '{name}' differs from the references at t={result.failure_time:g}: "
                            f"expected {result.expected}, simulated {value}{detail}.")
         if not failures:
-            logger.info(f"{label}: the {len(ref_replay.outputs)} output(s) match the references "
-                        f"(rtol={self.RTOL:g}, atol={self.ATOL:g}).")
+            logger.info(f"{label}: the {len(ref_replay.outputs)} output(s) match the references.")
 
 
 _checkers_list: list[type[OperationAbstract]] = [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck,

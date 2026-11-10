@@ -105,10 +105,12 @@ def test_fmu_follows_the_standard(tmp_path, version, caplog):
 
 
 def test_fmu_without_ls_ref(tmp_path, version, caplog):
-    check = _check(rewrite_fmu(DATA_DIR / "compile" / version / "Feedthrough.fmu", tmp_path / "Feedthrough.fmu",
-                               drop=("extra/",)))
+    with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
+        check = _check(rewrite_fmu(DATA_DIR / "compile" / version / "Feedthrough.fmu", tmp_path / "Feedthrough.fmu",
+                                   drop=("extra/",)))
     assert check.errors == [] and check.experiments == []
-    assert "FMI-LS-REF" not in caplog.text
+    assert "FMI-LS-REF not present." in caplog.text
+    assert "error against FMI-LS-REF" not in caplog.text
 
 
 def test_broken_manifest(tmp_path):
@@ -220,7 +222,8 @@ def test_reference_fmus(tmp_path, version, model, caplog):
     check = _check(rewrite_fmu(DATA_DIR / "compile" / version / f"{model}.fmu", tmp_path / f"{model}.fmu",
                                drop=("binaries/",)))
     assert check.errors == []
-    assert "Manifest of FMI-LS-REF: missing required attribute" in caplog.text
+    assert "Manifest of FMI-LS-REF: missing required attribute 'fmi-ls-description' (at /fmiReferences)" \
+        in caplog.text
     replay, = check.experiments
     assert replay.related.main_role == "result"
     assert replay.experiment.name == "DefaultExperiment"

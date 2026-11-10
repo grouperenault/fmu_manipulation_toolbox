@@ -54,7 +54,8 @@ def test_fmu_without_ls_bus_is_not_checked(caplog):
     path = next((DATA_DIR / "compile" / "3.0").glob("*.fmu"))
     with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
         assert _errors(path) == []
-    assert "LS-BUS" not in caplog.text
+    assert "FMI-LS-BUS not present." in caplog.text
+    assert "error against FMI-LS-BUS" not in caplog.text
 
 
 def test_version_of_the_manifest_is_read(tmp_path):
