@@ -12,8 +12,8 @@ from collections import deque
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal, QObject, QEvent
-from PySide6.QtGui import QColor, QPixmap, QTextCursor
+from PySide6.QtCore import Qt, Signal, QObject, QEvent, QUrl
+from PySide6.QtGui import QColor, QDesktopServices, QPixmap, QTextCharFormat, QTextCursor
 from PySide6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
                                QSizePolicy, QStatusBar, QTextBrowser, QVBoxLayout, QWidget)
 
@@ -357,6 +357,9 @@ class LogWidget(QTextBrowser):
         self.setMinimumWidth(width)
         self.setMinimumHeight(height)
         self.setSearchPaths([str(Path(__file__).parent.parent / "resources")])
+        # The links open in the application of the system (file manager...), not in the log.
+        self.setOpenLinks(False)
+        self.anchorClicked.connect(self.open_link)
 
     def loadResource(self, _, name):
         image_path = Path(__file__).parent.parent / "resources" / name.toString()
@@ -367,6 +370,26 @@ class LogWidget(QTextBrowser):
         self.moveCursor(QTextCursor.MoveOperation.End)
         self.setTextColor(QColor(_level_color(levelno)))
         self.insertPlainText(self.LOG_PREFIX.get(levelno, "") + text + "\n")
+        self.ensureCursorVisible()
+
+    @staticmethod
+    def open_link(url: QUrl):
+        QDesktopServices.openUrl(url)
+
+    def append_link(self, levelno: int, text: str, path: str):
+        """Like ``append_record``, followed by *path* as a link that opens it (file or directory)."""
+        self.moveCursor(QTextCursor.MoveOperation.End)
+        cursor = self.textCursor()
+        plain = QTextCharFormat()
+        plain.setForeground(QColor(_level_color(levelno)))
+        cursor.insertText(self.LOG_PREFIX.get(levelno, "") + text, plain)
+        link = QTextCharFormat(plain)
+        link.setAnchor(True)
+        link.setAnchorHref(QUrl.fromLocalFile(path).toString())
+        link.setFontUnderline(True)
+        cursor.insertText(path, link)
+        cursor.insertText("\n", plain)
+        self.setTextCursor(cursor)
         self.ensureCursorVisible()
 
 

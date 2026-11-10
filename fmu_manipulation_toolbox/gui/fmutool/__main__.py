@@ -1,6 +1,7 @@
 import argparse
 import logging
 import os.path
+import re
 import shlex
 import sys
 import textwrap
@@ -149,6 +150,9 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 
     """
 
+    #: The line of `Summary` giving the extraction directory, shown as a link.
+    TEMPORARY_DIRECTORY = re.compile(r"(\| temporary directory = )(.+)")
+
     def __init__(self, debug: bool = False):
         super().__init__()
         self.setWindowTitle('FMU Manipulation Toolbox')
@@ -278,7 +282,11 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         """Show the records of this window (and the records without owner) in the log area."""
         if not self.log_handler.accepts(self, owner, levelno):
             return
-        self.log_widget.append_record(levelno, text)
+        directory = self.TEMPORARY_DIRECTORY.fullmatch(text)
+        if directory:
+            self.log_widget.append_link(levelno, directory[1], directory[2])
+        else:
+            self.log_widget.append_record(levelno, text)
         # The operations block the main thread: repaint each record immediately.
         QApplication.processEvents()
 

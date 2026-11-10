@@ -114,6 +114,47 @@ def test_fmutool_failed_operation_returns_false(qtbot, bouncing_ball):
     assert not window.save_fmu_button.isEnabled()
 
 
+def _links(log_widget) -> list[tuple[str, str]]:
+    """(text, href) of the links of a log widget."""
+    links = []
+    block = log_widget.document().begin()
+    while block.isValid():
+        it = block.begin()
+        while not it.atEnd():
+            fragment = it.fragment()
+            if fragment.charFormat().isAnchor():
+                links.append((fragment.text(), fragment.charFormat().anchorHref()))
+            it += 1
+        block = block.next()
+    return links
+
+
+def test_fmutool_summary_links_the_temporary_directory(qtbot, bouncing_ball, monkeypatch):
+    from PySide6.QtCore import QUrl
+    import fmu_manipulation_toolbox.gui.log as gui_log
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    directory = window.dropped_fmu.fmu.tmp_directory
+    url = QUrl.fromLocalFile(directory).toString()
+    assert _links(window.log_widget) == [(directory, url)]
+    assert f"| temporary directory = {directory}\n" in window.log_widget.toPlainText()
+
+    opened = []
+    monkeypatch.setattr(gui_log.QDesktopServices, "openUrl", lambda link: opened.append(link.toString()))
+    window.log_widget.anchorClicked.emit(QUrl(url))
+    assert opened == [url]
+
+
+def test_fmutool_text_after_the_link_is_not_a_link(qtbot, bouncing_ball):
+    from fmu_manipulation_toolbox.operations import OperationSummary
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    window.apply_operation(OperationSummary())
+    assert len(_links(window.log_widget)) == 2      # one per summary, nothing else
+
+
 def test_fmutool_busy_cursor_during_operation(qtbot, bouncing_ball):
     """The wait cursor is shown while an operation runs, and restored afterwards, also when it fails."""
     from PySide6.QtCore import Qt
