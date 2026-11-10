@@ -6,6 +6,8 @@ series of their stimuli and references, and the replay of an experiment with the
 
 ::: fmu_manipulation_toolbox.experiments
 
+::: fmu_manipulation_toolbox.ls.resolve_uri
+
 ::: fmu_manipulation_toolbox.timeseries
 
 ::: fmu_manipulation_toolbox.simulation
