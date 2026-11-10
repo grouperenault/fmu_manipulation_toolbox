@@ -177,6 +177,12 @@ class _Recorder(logging.Handler):
         self.records.append((record.levelno, record.getMessage()))
 
 
+def _is_windows_exception(error: OSError) -> bool:
+    """On Windows, ctypes catches the structured exceptions (access violation, ...) of a foreign function and raises
+    `OSError("exception: access violation writing 0x...")` or `OSError("exception code 0x...")` instead."""
+    return platform.system() == "Windows" and str(error).startswith("exception")
+
+
 def _child(connection, arguments: tuple, level: int):
     """Body of the dedicated process: the simulation, its result or its exception, and its messages."""
     recorder = _Recorder()
@@ -186,6 +192,11 @@ def _child(connection, arguments: tuple, level: int):
         result = ("ok", _simulate(*arguments))
     except SimulationError as error:
         result = ("error", type(error).__name__, str(error))
+    except OSError as error:
+        if _is_windows_exception(error):    # the process survives a fault of the FMU, which ctypes turns into OSError
+            result = ("error", "SimulationError", f"the simulation crashed ({str(error).removeprefix('exception: ')})")
+        else:
+            result = ("error", "SimulationError", f"{type(error).__name__}: {error}")
     except Exception as error:      # noqa: BLE001 - any failure of the simulation is reported by the calling process
         result = ("error", "SimulationError", f"{type(error).__name__}: {error}")
     connection.send((result, recorder.records))
