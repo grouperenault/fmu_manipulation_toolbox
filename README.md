@@ -54,7 +54,7 @@ Two options available to install FMU Manipulation Toolbox:
   - pip ≥ 21.3. The Python dependencies are declared in [`pyproject.toml`](https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/pyproject.toml)
     and installed by `pip install .` (see [Development](#-development)).
   - C compiler with C23 support (for the container) or C99 (for remoting)
-  - CMake ≥ 3.21
+  - CMake ≥ 3.25
 
 By default, `pip install fmu-manipulation-toolbox` only installs the **CLI** and **Python API** (no GUI toolkit
 required). If you also want the **Graphical User Interfaces** (`fmutoolbox`, `fmutool-gui`, `fmueditor`,
@@ -254,7 +254,7 @@ Key design points:
 
 - Python ≥ 3.10
 - C compiler with C23 support (for the container) or C99 (for remoting) — only needed for building the container/remoting binaries
-- CMake ≥ 3.21 — only needed for building the C code
+- CMake ≥ 3.25 — only needed for building the C code
 
 ### Setup
 
@@ -274,16 +274,15 @@ pip install -e ".[all]"
 
 ### Building C code (optional)
 
-The container and remoting binaries can be built with CMake, from the root of the repository:
+The container and remoting binaries are built with CMake, from the root of the repository, through the preset of
+the platform (`win64`, `win32`, `linux64`, `linux32` or `darwin64`):
 
 ```bash
-cmake -B build-native
-cmake --build build-native --config Release
-ctest --test-dir build-native -C Release
+cmake --list-presets
+cmake --workflow --preset <preset>
 ```
 
-Each component can also be built on its own from its directory (`container/` or `remoting/`). See the
-[Installation Guide](docs/installation.md) for the options and the 32-bit binaries.
+See the [Installation Guide](docs/installation.md) for the presets and the options.
 
 ### Running tests
 

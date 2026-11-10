@@ -21,7 +21,7 @@ This guide walks you through installing **FMU Manipulation Toolbox** on your sys
   - Windows: Visual Studio 2022+ or MinGW
   - Linux: GCC 11+ or Clang 16+
   - macOS: Xcode Command Line Tools (with recent Clang)
-- **CMake 3.21 or higher**
+- **CMake 3.25 or higher**
 
 ### Optional Dependencies (to compile the sources of an FMU)
 
@@ -165,10 +165,35 @@ Two native components are written in C and should be compiled. Both require a C2
 also needs a compiler able to produce 64-bit and 32-bit objects. The binaries are written to
 `fmu_manipulation_toolbox/resources/<platform>/` (`win32`, `win64`, `linux32`, `linux64` or `darwin64`).
 
-Each component is a CMake project (`container/` and `remoting/`). The `CMakeLists.txt` at the root of the repository
-builds both of them in one build folder. All the projects share their build settings, located in the `cmake/` folder
-at the root of the repository. The build type defaults to `Release`. The following options can be given at
-configuration time (`cmake -B <build folder> -D<option>=<value>`):
+The `CMakeLists.txt` at the root of the repository builds both components (`container/` and `remoting/`). Their
+build settings are shared, located in the `cmake/` folder at the root of the repository. The builds of each platform
+are described by CMake presets (`CMakePresets.json`), the ones used by the CI. Each preset has its own build folder,
+`build-native/<preset>`:
+
+| Preset | Host | Binaries |
+|--------|------|----------|
+| `win64` | Windows | container and remoting, 64-bit |
+| `win32` | Windows | remoting, 32-bit |
+| `linux64` | Linux | container and remoting, 64-bit |
+| `linux32` | Linux | remoting, 32-bit (needs a 32-bit toolchain, e.g. `gcc-multilib`) |
+| `darwin64` | macOS | container (the remoting code is not supported on macOS) |
+| `linux64-sanitize` | Linux | container, with AddressSanitizer and UndefinedBehaviorSanitizer (see [Native runtime of the container](developer/native-runtime.md#sanitizers)) |
+
+From the root of the repository, one command configures, builds and runs the native tests of the container
+(`container/tests`) for a platform:
+```bash
+cmake --workflow --preset <preset>
+```
+
+`cmake --list-presets` lists the presets of the host. All the binaries of an OS need one command per preset, e.g.
+`win64` then `win32` on Windows, `linux64` then `linux32` on Linux.
+
+The build type defaults to `Release`. The following options can be given at configuration time:
+```bash
+cmake --preset <preset> -D<option>=<value>
+cmake --build --preset <preset>
+ctest --preset <preset>    # presets that build the container
+```
 
 | Option | Default | Description |
 |--------|---------|-------------|
@@ -176,10 +201,10 @@ configuration time (`cmake -B <build folder> -D<option>=<value>`):
 | `FMUTOOL_STRICT_CONVERSION` | `OFF` | Warn about implicit conversions (`-Wconversion`, `-Wsign-conversion`) |
 | `FMUTOOL_PGO` | `OFF` | Profile-Guided Optimization: `OFF`, `GENERATE` or `USE` (see below) |
 | `FMUTOOL_SANITIZE` | `OFF` | GCC and Clang only: build with AddressSanitizer and UndefinedBehaviorSanitizer |
-| `BUILD_TESTING` | `ON` | Container only: build the native tests (`container_tests`) |
-| `BUILD_32` | `OFF` | Root project or remoting, Linux only: build 32-bit binaries |
-| `FMUTOOL_BUILD_CONTAINER` | `ON` | Root project only: build the container runtime |
-| `FMUTOOL_BUILD_REMOTING` | `ON` | Root project only: build the remoting client and server |
+| `BUILD_TESTING` | `ON` | Build the native tests of the container (`container_tests`) |
+| `BUILD_32` | `OFF` | Linux only: build 32-bit binaries (set by the `linux32` preset) |
+| `FMUTOOL_BUILD_CONTAINER` | `ON` | Build the container runtime |
+| `FMUTOOL_BUILD_REMOTING` | `ON` | Build the remoting client and server |
 
 ??? note "Profile-Guided Optimization"
     1. Configure with `-DFMUTOOL_PGO=GENERATE` and build. The binaries are instrumented and write profile data to
@@ -188,73 +213,6 @@ configuration time (`cmake -B <build folder> -D<option>=<value>`):
     3. With Clang only, merge the profiles:
        `llvm-profdata merge -output=pgo-data/default.profdata pgo-data/*.profraw`.
     4. Reconfigure with `-DFMUTOOL_PGO=USE` and rebuild.
-
-
-#### All components
-
-From the root of the repository, on all supported platforms (the remoting code is built for the default
-architecture of the compiler only, see below for the 32-bit binaries):
-```bash
-cmake -B build-native
-cmake --build build-native --config Release
-ctest --test-dir build-native -C Release --output-on-failure
-```
-
-The last command runs the native tests of the container (`container/tests`).
-
-#### Container code only
-
-The following commands can be used on all supported platforms:
-```bash
-cd container
-mkdir build
-cd build
-cmake ..
-cmake --build . --config Release
-cd ..
-```
-
-The native tests of the container (`container/tests`) run with CTest, from the build folder:
-```bash
-ctest -C Release --output-on-failure
-```
-
-#### Remoting code only
-
-=== "Windows"
-  
-    ```bash
-    cd remoting
-    mkdir build32
-    cd build32
-    cmake .. -A Win32
-    cmake --build . --config Release
-    cd ..
-    mkdir build64
-    cd build64
-    cmake .. -A x64
-    cmake --build . --config Release
-    cd ..
-    ```
-
-=== "Linux"
-
-    ```bash
-    cd remoting
-    mkdir build32
-    cd build32
-    cmake .. -DBUILD_32=ON
-    cmake --build . --config Release
-    cd ..
-    mkdir build64
-    cd build64
-    cmake ..
-    cmake --build . --config Release
-    cd ..
-    ```
-
-=== "MacOS"
-    The remoting code is not supported on MacOS.
 
 
 ### Step 4: Install the Package

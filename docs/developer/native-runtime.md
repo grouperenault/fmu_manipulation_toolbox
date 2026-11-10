@@ -74,7 +74,8 @@ The embedded FMUs follow the locale of the importer too, in their logs for insta
 ## Native tests
 
 `container/tests` holds the C tests of the runtime, built by CMake as `container_tests` and run by CTest
-(`ctest -C Release --output-on-failure` from the build folder, or `container_tests <test name>` for one test). The
+(`cmake --workflow --preset <preset>` or `ctest --preset <preset>` from the root of the repository, see
+[Compile C Components](../installation.md#step-3-compile-c-components), or `container_tests <test name>` for one test). The
 sources of the runtime are compiled again with the tests, so that the internal functions can be called.
 
 - `test.h`: assertion macros (`TEST_ASSERT`, `TEST_ASSERT_EQUAL_INT`); a test is a function that returns 0 on
@@ -93,6 +94,7 @@ sources of the runtime are compiled again with the tests, so that the internal f
 ## Sanitizers
 
 With `-DFMUTOOL_SANITIZE=ON` (GCC, Clang), the runtime and its tests are built with AddressSanitizer and
-UndefinedBehaviorSanitizer; any undefined behaviour aborts. The CI job `sanitizers` (Linux) runs the C tests with
+UndefinedBehaviorSanitizer; any undefined behaviour aborts. The preset `linux64-sanitize` builds and tests the
+instrumented runtime: `cmake --workflow --preset linux64-sanitize`. The CI job `sanitizers` (Linux) runs the C tests with
 the leak detection, then the integration tests with the instrumented `linux64` runtime, the ASan runtime being
 loaded first in Python (`LD_PRELOAD`).

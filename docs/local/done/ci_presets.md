@@ -154,7 +154,9 @@ BUILD_32 on their own.
   - the sanitized runtime: the `linux64-sanitize` preset.
 - `README.md`: CMake 3.25 in both requirement lists; the build commands with the presets; the sentence on the
   standalone component builds is removed.
-- `CHANGELOG.md`: CMake presets, CMake 3.25 minimum, standalone component projects removed.
+- `docs/developer/native-runtime.md`: the native tests and the sanitized runtime run through the presets.
+- `CHANGELOG.md`: CMake presets, CMake 3.25 minimum, standalone component projects removed (marked BREAKING, the
+  legend of the changelog has no REMOVED entry).
 
 Verification: `mkdocs build --strict`.
 
