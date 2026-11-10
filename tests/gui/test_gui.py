@@ -155,6 +155,60 @@ def test_fmutool_text_after_the_link_is_not_a_link(qtbot, bouncing_ball):
     assert len(_links(window.log_widget)) == 2      # one per summary, nothing else
 
 
+def test_fmutool_operation_button_alternative(qtbot):
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import OperationButton
+    calls = []
+    button = OperationButton("Normal", lambda: calls.append("normal"), ("Other", lambda: calls.append("other")))
+    qtbot.addWidget(button)
+    button.setToolTip("Help.")
+    assert button.toolTip() == f"Help.\n\n{OperationButton.ALTERNATIVE_CLICK}: Other"
+    button.click()
+    button.show_alternative(True)
+    assert button.text() == "Other"
+    button.click()
+    button.show_alternative(False)
+    assert button.text() == "Normal"
+    button.click()
+    assert calls == ["normal", "other", "normal"]
+
+
+def test_fmutool_operation_button_without_alternative(qtbot):
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import OperationButton
+    calls = []
+    button = OperationButton("Normal", lambda: calls.append("normal"))
+    qtbot.addWidget(button)
+    button.setToolTip("Help.")
+    assert button.toolTip() == "Help."
+    button.show_alternative(True)
+    button.click()
+    assert button.text() == "Normal" and calls == ["normal"]
+
+
+def test_fmutool_alt_key_switches_the_buttons(qtbot):
+    from PySide6.QtCore import Qt
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    button = window.operations_button_list[0]
+    button.alternative = ("Alternative", lambda: None)
+    others = [other.text() for other in window.operations_button_list[1:]]
+    qtbot.keyPress(window, Qt.Key.Key_Alt)
+    assert button.text() == "Alternative"
+    assert [other.text() for other in window.operations_button_list[1:]] == others
+    qtbot.keyRelease(window, Qt.Key.Key_Alt)
+    assert button.text() == button.label
+
+
+def test_fmutool_deactivation_restores_the_labels(qtbot):
+    from PySide6.QtCore import QEvent, Qt
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    button = window.operations_button_list[0]
+    button.alternative = ("Alternative", lambda: None)
+    qtbot.keyPress(window, Qt.Key.Key_Alt)
+    QApplication.sendEvent(window, QEvent(QEvent.Type.WindowDeactivate))
+    assert button.text() == button.label
+
+
 def test_fmutool_busy_cursor_during_operation(qtbot, bouncing_ball):
     """The wait cursor is shown while an operation runs, and restored afterwards, also when it fails."""
     from PySide6.QtCore import Qt

@@ -6,7 +6,7 @@ import shlex
 import sys
 import textwrap
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton,
                                QInputDialog, QMenu, QDialog, QHBoxLayout, QVBoxLayout)
 from PySide6.QtGui import QTextCursor, QAction
@@ -63,6 +63,47 @@ class FilterWidget(QPushButton):
             return []
         else:
             return sorted(self.items_selected)
+
+
+class OperationButton(QPushButton):
+    """Button of an operation, with an optional alternative action: while the alternative is shown (Option or Alt
+    held, see `MainWindow.eventFilter`), the button shows the alternative label and a click runs the alternative
+    action.
+
+    Args:
+        label (str): Label of the normal action.
+        action (Callable[[], None]): Normal action.
+        alternative (tuple[str, Callable[[], None]] | None): Label and alternative action.
+    """
+
+    #: How to reach the alternative action, in the tooltips.
+    ALTERNATIVE_CLICK = "Option-click" if sys.platform == "darwin" else "Alt-click"
+
+    def __init__(self, label: str, action, alternative=None, parent=None):
+        super().__init__(label, parent)
+        self.label = label
+        self.action = action
+        self.alternative = alternative
+        self.alternative_shown = False
+        self.clicked.connect(self.run)
+
+    def setToolTip(self, text: str):
+        if self.alternative:
+            text += f"\n\n{self.ALTERNATIVE_CLICK}: {self.alternative[0]}"
+        super().setToolTip(text)
+
+    def show_alternative(self, shown: bool):
+        """Shows the alternative label (`shown`) or the normal one. Without alternative, nothing changes."""
+        if self.alternative and shown != self.alternative_shown:
+            self.alternative_shown = shown
+            self.setText(self.alternative[0] if shown else self.label)
+
+    def run(self):
+        """Runs the action of the label shown."""
+        if self.alternative_shown:
+            self.alternative[1]()
+        else:
+            self.action()
 
 
 class CompileOptionsDialog(QDialog):
@@ -264,6 +305,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         self.setLayout(self.layout)
 
         self.update_buttons()
+        # Option (macOS) or Alt held: the buttons show their alternative action.
+        QApplication.instance().installEventFilter(self)
 
         # show the window
         self.show()
@@ -290,7 +333,24 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         # The operations block the main thread: repaint each record immediately.
         QApplication.processEvents()
 
+    def eventFilter(self, watched, event) -> bool:
+        """Switches the operation buttons to their alternative action while Option (macOS) or Alt is held. The
+        modifiers are read again when the window is activated or deactivated: Alt may be released in another
+        window."""
+        if event.type() in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease) and event.key() == Qt.Key.Key_Alt:
+            self.show_alternatives(event.type() == QEvent.Type.KeyPress)
+        elif watched is self and event.type() == QEvent.Type.WindowActivate:
+            self.show_alternatives(bool(QApplication.queryKeyboardModifiers() & Qt.KeyboardModifier.AltModifier))
+        elif watched is self and event.type() == QEvent.Type.WindowDeactivate:
+            self.show_alternatives(False)
+        return False
+
+    def show_alternatives(self, shown: bool):
+        for button in self.operations_button_list:
+            button.show_alternative(shown)
+
     def closeEvent(self, event):
+        QApplication.instance().removeEventFilter(self)
         if self.log_handler.is_registered(self):
             self.log_handler.record_emitted.disconnect(self._on_record)
             self.log_handler.unregister_window(self)
@@ -349,7 +409,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
                 logger.error(f"{e}")
 
     def add_operation(self, name, usage, severity, operation, prompt=None, prompt_file=None, arg=None,
-                      func=None, modifies=False) -> QPushButton:
+                      func=None, modifies=False, alternative=None) -> OperationButton:
         def apply(instance):
             if self.apply_operation(instance) and modifies:
                 self.set_modified()
@@ -376,14 +436,9 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
                 else:
                     apply(operation())
 
-        button = QPushButton(name)
+        button = OperationButton(name, func or operation_handler, alternative)
         self.set_tooltip(button, usage)
         button.setProperty("class", severity)
-        if func:
-            button.clicked.connect(func)
-        else:
-            button.clicked.connect(operation_handler)
-
         return button
 
     def compile_sources(self):
