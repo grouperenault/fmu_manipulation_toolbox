@@ -52,6 +52,68 @@ def test_fmutool_operations_buttons_exist(qtbot):
     assert len(window.operations_button_list) == 16
 
 
+def _button(window, label):
+    return next(button for button in window.operations_button_list if button.text() == label)
+
+
+def test_fmutool_buttons_disabled_without_fmu(qtbot):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    assert not any(button.isEnabled() for button in window.operations_button_list)
+    assert not window.reload_button.isEnabled()
+    assert not window.filter_list.isEnabled()
+    assert not window.save_fmu_button.isEnabled()
+    assert window.save_log_button.isEnabled() and window.exit_button.isEnabled()
+
+
+def test_fmutool_buttons_enabled_with_fmu(qtbot, bouncing_ball):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    assert all(button.isEnabled() for button in window.operations_button_list)
+    assert window.reload_button.isEnabled() and window.filter_list.isEnabled()
+    assert not window.save_fmu_button.isEnabled()       # not modified yet
+
+
+def test_fmutool_buttons_disabled_after_load_failure(qtbot, bouncing_ball, tmp_path):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    not_a_zip = tmp_path / "broken.fmu"
+    not_a_zip.write_text("not a zip")
+    window.load(str(not_a_zip))
+    assert not any(button.isEnabled() for button in window.operations_button_list)
+    assert not window.reload_button.isEnabled()
+
+
+def test_fmutool_save_enabled_after_modification(qtbot, bouncing_ball):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    _button(window, "Check").click()
+    assert not window.save_fmu_button.isEnabled()
+    _button(window, "Remove all").click()             # refused: it would remove every variable
+    assert not window.save_fmu_button.isEnabled()
+    _button(window, "Remove Toplevel").click()
+    assert window.save_fmu_button.isEnabled()
+    window.reload_fmu()
+    assert not window.save_fmu_button.isEnabled()
+
+
+def test_fmutool_failed_operation_returns_false(qtbot, bouncing_ball):
+    window = FMUToolWindow()
+    qtbot.addWidget(window)
+    window.load(bouncing_ball)
+    from fmu_manipulation_toolbox.operations import OperationAbstract, OperationError
+
+    class Failure(OperationAbstract):
+        def closure(self):
+            raise OperationError("failure")
+
+    assert window.apply_operation(Failure()) is False
+    assert not window.save_fmu_button.isEnabled()
+
+
 def test_fmutool_busy_cursor_during_operation(qtbot, bouncing_ball):
     """The wait cursor is shown while an operation runs, and restored afterwards, also when it fails."""
     from PySide6.QtCore import Qt
@@ -134,6 +196,7 @@ def test_fmutool_compile_retry_with_options(qtbot, fake_compile_dialog, needs_fo
     assert fake_compile_dialog.calls == [{}]
     assert _host_binary(window).is_file()
     assert window.compile_options["compiler_options"] == "-DFOO"
+    assert window.save_fmu_button.isEnabled()
 
     # Next click on another FMU: the remembered options are used, no dialog.
     window.load(needs_foo_fmu)
@@ -153,6 +216,7 @@ def test_fmutool_compile_cancel(qtbot, fake_compile_dialog, needs_foo_fmu):
     # Two failures (with -DBAR, then -DBAZ), the dialog pre-filled with the last values, then Cancel.
     assert [call["compiler_options"] for call in fake_compile_dialog.calls] == ["-DBAR", "-DBAZ"]
     assert not _host_binary(window).exists()
+    assert not window.save_fmu_button.isEnabled()
 
 
 def test_fmutool_compile_no_dialog_without_sources(qtbot, fake_compile_dialog, data_dir, tmp_path):

@@ -165,28 +165,30 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 
         # Options of `Compile sources`, typed after a compilation failure, kept for the session.
         self.compile_options: dict[str, str] = {}
+        # An operation has modified the loaded FMU: it can be saved.
+        self.fmu_modified = False
 
         # Operations
         self.help = Help()
         # Grid of WIDTH columns, one line per theme: analysis and export, binary interfaces (green), name changes
-        # (orange), removals (red).
+        # (orange), removals (red). `modifies`: the operation modifies the FMU (when it ends without an exception).
         operations_list = [
             ("Check",                 '-check',              'info',    get_checkers()),
             ("Save description.xml",  '-extract-descriptor', 'info',    None, {"func": self.save_descriptor}),
             ("Save port names",       '-dump-csv',           'info',    OperationSaveNamesToCSV, {"prompt_file": "write"}),
             ("Compile sources",       '-compile-sources',    'info',    None, {"func": self.compile_sources}),
-            ("Add Win32 remoting",    '-add-remoting-win32', 'info',    OperationAddRemotingWin32),
-            ("Add Win32 frontend",    '-add-frontend-win32', 'info',    OperationAddFrontendWin32),
-            ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64),
-            ("Add Win64 frontend",    '-add-frontend-win64', 'info',    OperationAddFrontendWin64),
-            ("Rename ports from CSV", '-rename-from-csv',    'modify',  OperationRenameFromCSV, {"prompt_file": "read"}),
-            ("Trim Until",            '-trim-until',         'modify',  OperationTrimUntil, {"prompt": "Prefix"}),
-            ("Remove Toplevel",       '-remove-toplevel',    'modify',  OperationStripTopLevel),
-            ("Merge Toplevel",        '-merge-toplevel',     'modify',  OperationMergeTopLevel),
-            ("Remove Regexp",         '-remove-regexp',      'removal', OperationRemoveRegexp, {"prompt": "regexp"}),
-            ("Keep only Regexp",      '-keep-only-regexp',   'removal', OperationKeepOnlyRegexp, {"prompt": "regexp"}),
-            ("Remove all",            '-remove-all',         'removal', OperationRemoveRegexp, {"arg": ".*"}),
-            ("Remove sources",        '-remove-sources',     'removal', OperationRemoveSources),
+            ("Add Win32 remoting",    '-add-remoting-win32', 'info',    OperationAddRemotingWin32, {"modifies": True}),
+            ("Add Win32 frontend",    '-add-frontend-win32', 'info',    OperationAddFrontendWin32, {"modifies": True}),
+            ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64, {"modifies": True}),
+            ("Add Win64 frontend",    '-add-frontend-win64', 'info',    OperationAddFrontendWin64, {"modifies": True}),
+            ("Rename ports from CSV", '-rename-from-csv',    'modify',  OperationRenameFromCSV, {"prompt_file": "read", "modifies": True}),
+            ("Trim Until",            '-trim-until',         'modify',  OperationTrimUntil, {"prompt": "Prefix", "modifies": True}),
+            ("Remove Toplevel",       '-remove-toplevel',    'modify',  OperationStripTopLevel, {"modifies": True}),
+            ("Merge Toplevel",        '-merge-toplevel',     'modify',  OperationMergeTopLevel, {"modifies": True}),
+            ("Remove Regexp",         '-remove-regexp',      'removal', OperationRemoveRegexp, {"prompt": "regexp", "modifies": True}),
+            ("Keep only Regexp",      '-keep-only-regexp',   'removal', OperationKeepOnlyRegexp, {"prompt": "regexp", "modifies": True}),
+            ("Remove all",            '-remove-all',         'removal', OperationRemoveRegexp, {"arg": ".*", "modifies": True}),
+            ("Remove sources",        '-remove-sources',     'removal', OperationRemoveSources, {"modifies": True}),
         ]
 
         line = 1
@@ -257,6 +259,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             self.layout.setRowMinimumHeight(row, 36)
         self.setLayout(self.layout)
 
+        self.update_buttons()
+
         # show the window
         self.show()
 
@@ -287,6 +291,20 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
     def set_tooltip(self, widget, usage):
         widget.setToolTip("\n".join(line for paragraph in self.help.usage(usage).splitlines()
                                      for line in textwrap.wrap(paragraph)))
+
+    def update_buttons(self):
+        """Enable the buttons that have something to do: the operations need an FMU, saving it needs a
+        modification."""
+        loaded = self.dropped_fmu.fmu is not None
+        for button in self.operations_button_list:
+            button.setEnabled(loaded)
+        self.reload_button.setEnabled(loaded)
+        self.filter_list.setEnabled(loaded)
+        self.save_fmu_button.setEnabled(loaded and self.fmu_modified)
+
+    def set_modified(self):
+        self.fmu_modified = True
+        self.update_buttons()
 
     def reload_fmu(self):
         if self.dropped_fmu.fmu:
@@ -323,28 +341,32 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
                 logger.error(f"{e}")
 
     def add_operation(self, name, usage, severity, operation, prompt=None, prompt_file=None, arg=None,
-                      func=None) -> QPushButton:
+                      func=None, modifies=False) -> QPushButton:
+        def apply(instance):
+            if self.apply_operation(instance) and modifies:
+                self.set_modified()
+
         if prompt:
             def operation_handler():
                 local_arg = self.prompt_string(prompt)
                 if local_arg:
-                    self.apply_operation(operation(local_arg))
+                    apply(operation(local_arg))
         elif prompt_file:
             def operation_handler():
                 local_arg = self.prompt_file(prompt_file)
                 if local_arg:
-                    self.apply_operation(operation(local_arg))
+                    apply(operation(local_arg))
         elif arg:
             def operation_handler():
-                self.apply_operation(operation(arg))
+                apply(operation(arg))
         else:
             def operation_handler():
                 # Checker can be a list of operations!
                 if isinstance(operation, list):
                     for op in operation:
-                        self.apply_operation(op())
+                        apply(op())
                 else:
-                    self.apply_operation(operation())
+                    apply(operation())
 
         button = QPushButton(name)
         self.set_tooltip(button, usage)
@@ -367,7 +389,9 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             except ValueError as error:                 # unbalanced quotes
                 logger.error(f"Invalid options: {error}.")
             else:
-                self.apply_operation(operation)
+                if self.apply_operation(operation):
+                    self.set_modified()
+                    return
                 if not operation.compilation_failed:
                     return
             dialog = CompileOptionsDialog(self.compile_options, self.host_toolchain(), parent=self)
@@ -412,6 +436,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         return None
 
     def update_fmu(self):
+        self.fmu_modified = False
+        self.update_buttons()
         if self.dropped_fmu.fmu:
             self.fmu_title.setText(os.path.basename(self.dropped_fmu.fmu.fmu_filename))
             self.log_widget.clear()
@@ -422,30 +448,35 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         else:
             self.fmu_title.setText('')
 
-    def apply_operation(self, operation):
+    def apply_operation(self, operation) -> bool:
+        """Apply `operation` to the loaded FMU. Returns whether it ended without an exception."""
         with window_log_context(self):
-            self._apply_operation(operation)
+            return self._apply_operation(operation)
 
-    def _apply_operation(self, operation):
-        if self.dropped_fmu.fmu:
-            self.log_widget.moveCursor(QTextCursor.MoveOperation.End)
-            fmu_filename = os.path.basename(self.dropped_fmu.fmu.fmu_filename)
-            logger.info('-' * 100)
-            self.log_widget.insertHtml(f"<strong>{fmu_filename}: {operation}</strong><br>")
+    def _apply_operation(self, operation) -> bool:
+        if not self.dropped_fmu.fmu:
+            return False
+        self.log_widget.moveCursor(QTextCursor.MoveOperation.End)
+        fmu_filename = os.path.basename(self.dropped_fmu.fmu.fmu_filename)
+        logger.info('-' * 100)
+        self.log_widget.insertHtml(f"<strong>{fmu_filename}: {operation}</strong><br>")
 
-            apply_on = self.filter_list.get()
-            if apply_on:
-                self.log_widget.insertHtml(f"<i>Applied only for ports with  causality = " +
-                                           ", ".join(apply_on) + "</i><br>")
-            logger.info('-' * 100)
-            with busy_cursor():
-                try:
-                    self.dropped_fmu.fmu.apply_operation(operation, apply_on=apply_on)
-                except Exception as e:
-                    logger.error(f"{e}")
+        apply_on = self.filter_list.get()
+        if apply_on:
+            self.log_widget.insertHtml(f"<i>Applied only for ports with  causality = " +
+                                       ", ".join(apply_on) + "</i><br>")
+        logger.info('-' * 100)
+        with busy_cursor():
+            try:
+                self.dropped_fmu.fmu.apply_operation(operation, apply_on=apply_on)
+                succeeded = True
+            except Exception as e:
+                logger.error(f"{e}")
+                succeeded = False
 
-            scroll_bar = self.log_widget.verticalScrollBar()
-            scroll_bar.setValue(scroll_bar.maximum())
+        scroll_bar = self.log_widget.verticalScrollBar()
+        scroll_bar.setValue(scroll_bar.maximum())
+        return succeeded
 
 
 def parse_arguments(arguments: list[str]) -> argparse.Namespace:
