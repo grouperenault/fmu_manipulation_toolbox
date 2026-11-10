@@ -86,7 +86,9 @@ and stop times, its step size, and its parameters (SSV file), stimuli and refere
 
 The experiments of sub-role `smoke-test` (the default) and `validation`, and the `result` files, are replayed on the
 host platform with the runtime of the FMU Container: the FMU is embedded in a temporary FMI 3.0 container, then
-simulated.
+simulated. Each experiment is simulated in a **dedicated process**: a crash of the FMU (e.g. a segmentation fault)
+or a simulation that does not end within **60 s** fails this experiment only (error, with the signal or the exit
+code of the process), the check and the other experiments go on.
 
 - **Times**: those of the experiment, else those of the `DefaultExperiment` of the FMU, else the first and last
   instants of the references. Without `stepSize`, the step size is deduced from the FMU as `fmucontainer` does. The
@@ -97,7 +99,8 @@ simulated.
   (booleans as `0`/`1`) matches when `|simulated - reference| <= atol + rtol * |reference|`, with `rtol = 1e-3` and
   `atol = 1e-6`; a string must be equal. At an event of the references (two rows with the same time), the value
   after the event is compared. Each output that differs is an error, with the first instant of the difference.
-- An experiment without references is simulated only. A simulation that fails is an error.
+- An experiment without references is simulated only. A simulation that fails, crashes or exceeds 60 s is an
+  error.
 - Not replayed (warning): the experiments of sub-role `uncertainty-analysis`, when the runtime of the container or the
   binary of the FMU is not available for the host platform, and the experiments with a stimulus on a `Boolean` input
   of an FMI 2.0 FMU (the FMI 3.0 container cannot expose it).

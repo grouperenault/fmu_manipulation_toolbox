@@ -125,7 +125,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟢 **ADDED** **FMI-LS-REF** (1.0.0-alpha.1, with the draft MA-HS-Experiments): `fmutool -check` validates the
   manifest and the experiment files of an FMU (`OperationLsRefCheck`), **replays its experiments** (and the `result`
   files of the Reference FMUs) with the runtime of the FMU Container and compares its outputs with the references
-  (`rtol=1e-3`, `atol=1e-6`). New modules `experiments`, `timeseries` and `simulation`. See
+  (`rtol=1e-3`, `atol=1e-6`). Each experiment runs in a dedicated process: a crash of the FMU, or a simulation longer
+  than 60 s, fails this experiment only. New modules `experiments`, `timeseries` and `simulation`. See
   [FMU Checker](docs/user-guide/fmutool/checker.md#validation-of-the-results-fmi-ls-ref).
 - 🟢 **ADDED** `OperationLsXcpCheck`, a built-in checker of the rules of FMI-LS-XCP 1.0.0 (manifest against its XSD,
   A2L files, role variables), run by `fmutool -check`. See [FMU Checker](docs/user-guide/fmutool/checker.md).
