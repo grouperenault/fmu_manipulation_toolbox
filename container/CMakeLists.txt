@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.25)
 project(container C)
 include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/fmutool.cmake)
 

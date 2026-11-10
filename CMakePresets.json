@@ -1,0 +1,136 @@
+{
+    "version": 6,
+    "cmakeMinimumRequired": {"major": 3, "minor": 25, "patch": 0},
+    "configurePresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "binaryDir": "${sourceDir}/build-native/${presetName}"
+        },
+        {
+            "name": "windows",
+            "hidden": true,
+            "inherits": "base",
+            "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows"}
+        },
+        {
+            "name": "linux",
+            "hidden": true,
+            "inherits": "base",
+            "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux"}
+        },
+        {
+            "name": "darwin",
+            "hidden": true,
+            "inherits": "base",
+            "condition": {"type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin"}
+        },
+        {
+            "name": "win64",
+            "displayName": "Windows 64-bit: container and remoting",
+            "inherits": "windows",
+            "architecture": {"value": "x64", "strategy": "set"}
+        },
+        {
+            "name": "win32",
+            "displayName": "Windows 32-bit: remoting",
+            "inherits": "windows",
+            "architecture": {"value": "Win32", "strategy": "set"},
+            "cacheVariables": {"FMUTOOL_BUILD_CONTAINER": "OFF"}
+        },
+        {
+            "name": "linux64",
+            "displayName": "Linux 64-bit: container and remoting",
+            "inherits": "linux"
+        },
+        {
+            "name": "linux32",
+            "displayName": "Linux 32-bit: remoting",
+            "inherits": "linux",
+            "cacheVariables": {"BUILD_32": "ON", "FMUTOOL_BUILD_CONTAINER": "OFF"}
+        },
+        {
+            "name": "darwin64",
+            "displayName": "macOS: container",
+            "inherits": "darwin",
+            "cacheVariables": {"FMUTOOL_BUILD_REMOTING": "OFF"}
+        },
+        {
+            "name": "linux64-sanitize",
+            "displayName": "Linux 64-bit: container with AddressSanitizer and UndefinedBehaviorSanitizer",
+            "inherits": "linux",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "FMUTOOL_SANITIZE": "ON",
+                "FMUTOOL_BUILD_REMOTING": "OFF"
+            }
+        }
+    ],
+    "buildPresets": [
+        {"name": "win64",            "configurePreset": "win64",            "configuration": "Release"},
+        {"name": "win32",            "configurePreset": "win32",            "configuration": "Release"},
+        {"name": "linux64",          "configurePreset": "linux64",          "configuration": "Release"},
+        {"name": "linux32",          "configurePreset": "linux32",          "configuration": "Release"},
+        {"name": "darwin64",         "configurePreset": "darwin64",         "configuration": "Release"},
+        {"name": "linux64-sanitize", "configurePreset": "linux64-sanitize", "configuration": "RelWithDebInfo"}
+    ],
+    "testPresets": [
+        {
+            "name": "base",
+            "hidden": true,
+            "output": {"outputOnFailure": true}
+        },
+        {"name": "win64",            "inherits": "base", "configurePreset": "win64",            "configuration": "Release"},
+        {"name": "linux64",          "inherits": "base", "configurePreset": "linux64",          "configuration": "Release"},
+        {"name": "darwin64",         "inherits": "base", "configurePreset": "darwin64",         "configuration": "Release"},
+        {"name": "linux64-sanitize", "inherits": "base", "configurePreset": "linux64-sanitize", "configuration": "RelWithDebInfo"}
+    ],
+    "workflowPresets": [
+        {
+            "name": "win64",
+            "steps": [
+                {"type": "configure", "name": "win64"},
+                {"type": "build", "name": "win64"},
+                {"type": "test", "name": "win64"}
+            ]
+        },
+        {
+            "name": "win32",
+            "steps": [
+                {"type": "configure", "name": "win32"},
+                {"type": "build", "name": "win32"}
+            ]
+        },
+        {
+            "name": "linux64",
+            "steps": [
+                {"type": "configure", "name": "linux64"},
+                {"type": "build", "name": "linux64"},
+                {"type": "test", "name": "linux64"}
+            ]
+        },
+        {
+            "name": "linux32",
+            "steps": [
+                {"type": "configure", "name": "linux32"},
+                {"type": "build", "name": "linux32"}
+            ]
+        },
+        {
+            "name": "darwin64",
+            "steps": [
+                {"type": "configure", "name": "darwin64"},
+                {"type": "build", "name": "darwin64"},
+                {"type": "test", "name": "darwin64"}
+            ]
+        },
+        {
+            "name": "linux64-sanitize",
+            "steps": [
+                {"type": "configure", "name": "linux64-sanitize"},
+                {"type": "build", "name": "linux64-sanitize"},
+                {"type": "test", "name": "linux64-sanitize"}
+            ]
+        }
+    ]
+}

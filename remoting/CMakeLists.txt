@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21)
+cmake_minimum_required(VERSION 3.25)
 
 # 32-bit Linux build. Set before project() so that the compiler checks, and
 # therefore FMI_PLATFORM, see a 32-bit target. (macOS: no 32-bit support,
