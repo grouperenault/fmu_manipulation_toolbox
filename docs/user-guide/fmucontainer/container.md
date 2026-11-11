@@ -92,6 +92,17 @@ parent at 0.01 s and a sub-container at 0.02 s — the container behaves like an
 This makes it possible to gather FMU's of different rates in sub-containers of different steps, the parent at the
 fastest rate (see [One sub-container per sample time](../../examples/simulink-to-container.md#one-sub-container-per-sample-time)).
 
+## Termination requested by an embedded FMU
+
+When an embedded FMU asks to terminate the simulation (`terminateSimulation` of FMI 3.0, or `fmi2Discard` with
+`fmi2Terminated` of FMI 2.0), the container stops at the time reached and tells its importer:
+
+- FMI 3.0 container: `fmi3DoStep` returns `terminateSimulation = true`, with the time reached in `lastSuccessfulTime`;
+- FMI 2.0 container: `fmi2DoStep` returns `fmi2Discard`, then `fmi2GetBooleanStatus(fmi2Terminated)` is true and
+  `fmi2GetRealStatus(fmi2LastSuccessfulTime)` gives the time reached.
+
+The rest of the communication step is not done, and a further step is refused: the importer ends the simulation.
+
 ## Sequential mode
 
 With the `sequential` option (`-sequential` on the command line), the Co-Simulation FMU's step one after the

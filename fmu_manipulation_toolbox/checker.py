@@ -930,6 +930,11 @@ class OperationLsRefCheck(OperationAbstract):
         if references is None:
             logger.info(f"{label}: simulated, no references to compare.")
             return
+        if simulated.times and references.times and references.times[-1] > simulated.times[-1] + 1e-9:
+            # An FMU terminated the simulation before the end of the references
+            logger.warning(f"{label}: the simulation ends at t={simulated.times[-1]:g}: the references after it are "
+                           f"not compared.")
+            references = references.until(simulated.times[-1])
 
         failures = 0
         for name in ref_replay.outputs:

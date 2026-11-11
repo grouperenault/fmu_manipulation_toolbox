@@ -134,6 +134,7 @@ if(BUILD_TESTING)
     configure_file(tests/data/one_fmu/datalog.txt.in "${TEST_FIXTURES_DIR}/one_fmu_datalog/datalog.txt" @ONLY)
     container_fixture(one_fmu_mt            "{stub}"                    1)
     container_fixture(mt_instantiate_fails  "{stub-fail-instantiate}"   1)
+    container_fixture(one_fmu_terminate     "{stub-terminate}"          0)
     container_fixture(malformed             "{stub}"                    0)  # container.txt rewritten by the tests
     container_fixture(one_fmu_strings       "{stub}"                    0)  # container.txt replaced below
     set(GUID "{stub}")

@@ -6,17 +6,22 @@
 /*
  * FMI 2.0 Co-Simulation FMU used by the native tests. Its behaviour is chosen by the GUID given to fmi2Instantiate:
  *   - "{stub}":                    every call succeeds;
- *   - "{stub-fail-instantiate}":   fmi2Instantiate returns NULL.
+ *   - "{stub-fail-instantiate}":   fmi2Instantiate returns NULL;
+ *   - "{stub-terminate}":          asks to terminate the simulation in the step that reaches STUB_TERMINATE_TIME:
+ *                                  fmi2DoStep returns fmi2Discard, fmi2Terminated is then true.
  * Each type has STUB_NB_VARIABLES variables (VR 0 to STUB_NB_VARIABLES-1); any other VR is an error.
  */
 
 #define STUB_NB_VARIABLES   16
+#define STUB_TERMINATE_TIME 0.25
 
 typedef struct {
     fmi2Real                reals[STUB_NB_VARIABLES];
     fmi2Integer             integers[STUB_NB_VARIABLES];
     fmi2Boolean             booleans[STUB_NB_VARIABLES];
     char                    *strings[STUB_NB_VARIABLES];
+    fmi2Boolean             terminate;      /* "{stub-terminate}" */
+    fmi2Boolean             terminated;
 } stub_t;
 
 
@@ -54,6 +59,8 @@ fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2Str
         return NULL;
 
     stub_t *stub = calloc(1, sizeof(*stub));
+    if (stub)
+        stub->terminate = (strcmp(fmuGUID, "{stub-terminate}") == 0);
     return stub;
 }
 
@@ -161,7 +168,13 @@ fmi2Status fmi2SetString(fmi2Component c, const fmi2ValueReference vr[], size_t 
 
 fmi2Status fmi2DoStep(fmi2Component c, fmi2Real currentCommunicationPoint, fmi2Real communicationStepSize,
                       fmi2Boolean noSetFMUStatePriorToCurrentPoint) {
-    (void)c; (void)currentCommunicationPoint; (void)communicationStepSize; (void)noSetFMUStatePriorToCurrentPoint;
+    (void)noSetFMUStatePriorToCurrentPoint;
+    stub_t *stub = (stub_t *)c;
+
+    if (stub->terminate && (currentCommunicationPoint + communicationStepSize >= STUB_TERMINATE_TIME)) {
+        stub->terminated = fmi2True;
+        return fmi2Discard;
+    }
     return fmi2OK;
 }
 
@@ -174,7 +187,7 @@ fmi2Status fmi2GetRealStatus(fmi2Component c, const fmi2StatusKind s, fmi2Real* 
 
 
 fmi2Status fmi2GetBooleanStatus(fmi2Component c, const fmi2StatusKind s, fmi2Boolean* value) {
-    (void)c; (void)s;
-    *value = fmi2False;
+    const stub_t *stub = (const stub_t *)c;
+    *value = (s == fmi2Terminated) ? stub->terminated : fmi2False;
     return fmi2OK;
 }

@@ -7,6 +7,8 @@ variadic, which ctypes cannot read on every platform):
 at each communication point `t_k = start + k * step` (computed, not accumulated), the stimuli interpolated at `t_k`
 are set, the outputs are read and recorded at `t_k`, then the container steps to `t_k+1` (convention of fmpy and of
 the results of the Reference-FMUs: an output fed through follows its input at the same instant).
+When an embedded FMU asks to terminate the simulation, the container stops at the time reached: the simulation ends
+there, the outputs of this instant being the last ones recorded.
 
 The simulation runs in a dedicated process (`multiprocessing`, `spawn`): a crash of the FMU or of the runtime, or a
 simulation that never returns, fails the replay instead of the calling process, and the libraries loaded by the
@@ -383,7 +385,12 @@ class _Driver:
         self._call("fmi3ExitInitializationMode")
         self._record_outputs(result, recorded, start_time)
         for k in range(nb_steps):
-            self._do_step(start_time + k * step_size, step_size)
+            last_time = self._do_step(start_time + k * step_size, step_size)
+            if last_time is not None:
+                # The container ends the simulation where an FMU asked for it: the outputs of this instant end it.
+                logger.info(f"The container terminates the simulation at {last_time} (requested by an FMU).")
+                self._record_outputs(result, recorded, last_time)
+                break
             time = start_time + (k + 1) * step_size
             self._set_inputs(inputs, stimuli, time)
             self._record_outputs(result, recorded, time)
@@ -408,13 +415,13 @@ class _Driver:
         if not self.instance:
             raise SimulationError(f"the container cannot be instantiated{self._last_messages()}")
 
-    def _do_step(self, time: float, step_size: float):
+    def _do_step(self, time: float, step_size: float) -> float | None:
+        """Steps the container: `None`, or the time reached when it terminates the simulation."""
         event, terminate, early = ctypes.c_bool(), ctypes.c_bool(), ctypes.c_bool()
         last_time = ctypes.c_double()
         self._call("fmi3DoStep", ctypes.c_double(time), ctypes.c_double(step_size), ctypes.c_bool(True),
                    ctypes.byref(event), ctypes.byref(terminate), ctypes.byref(early), ctypes.byref(last_time))
-        if terminate.value:
-            raise SimulationError(f"the container asks to terminate the simulation at {last_time.value}")
+        return last_time.value if terminate.value else None
 
     @staticmethod
     def _types(port: _Port) -> tuple:

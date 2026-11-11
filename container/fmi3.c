@@ -800,17 +800,16 @@ fmi3Status fmi3UpdateDiscreteStates(fmi3Instance instance,
                                     fmi3Boolean* valuesOfContinuousStatesChanged,
                                     fmi3Boolean* nextEventTimeDefined,
                                     fmi3Float64* nextEventTime) {
-    (void)instance; /* unused parameter */
     (void)discreteStatesNeedUpdate; /* unused parameter */
-    (void)terminateSimulation; /* unused parameter */
     (void)nominalsOfContinuousStatesChanged; /* unused parameter */
     (void)valuesOfContinuousStatesChanged; /* unused parameter */
     (void)nextEventTimeDefined; /* unused parameter */
     (void)nextEventTime; /* unused parameter */
     
     /* Container has no discrete mode */
+    container_t* container = (container_t*)instance;
     *discreteStatesNeedUpdate = false;
-    *terminateSimulation = false;
+    *terminateSimulation = container->terminate_requested;
     *nominalsOfContinuousStatesChanged = false;
     *valuesOfContinuousStatesChanged = false;
     *nextEventTimeDefined = false;
@@ -869,7 +868,6 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
 
     *earlyReturn = false;
     *eventHandlingNeeded = false;   /* Events cannot pass through container boundary */
-    *terminateSimulation = false;
 
     ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_STEP_MODE);
 
@@ -877,6 +875,7 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
         return fmi3Error;
 
     *lastSuccessfulTime = container->reals64.locals[0];
+    *terminateSimulation = container->terminate_requested;
 
     return fmi3OK;
 }

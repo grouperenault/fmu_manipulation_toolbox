@@ -154,6 +154,10 @@ typedef struct container_s {
 	   deferred, the step uses the inputs of its beginning. */
 	bool						step_pending;
 
+	/* An embedded FMU asked to terminate the simulation (terminateSimulation): the container stops at the time reached
+	   and tells its importer, which may not step any further. */
+	bool						terminate_requested;
+
 	/* ME working set (states, derivatives, event indicators, flat buffers). */
 	struct solver_s				*solver;
 

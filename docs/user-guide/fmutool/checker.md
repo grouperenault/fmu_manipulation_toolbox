@@ -101,6 +101,8 @@ code of the process), the check and the other experiments go on.
   after the event is compared. Each output that differs is an error, with the first instant of the difference.
 - An experiment without references is simulated only. A simulation that fails, crashes or exceeds its time limit
   is an error.
+- An FMU may terminate the simulation (`terminateSimulation`): the simulation ends at the time reached, which is
+  normal. The references after it are not compared (warning).
 - Not replayed (warning): the experiments of sub-role `uncertainty-analysis`, when the runtime of the container or the
   binary of the FMU is not available for the host platform, and the experiments with a stimulus on a `Boolean` input
   of an FMI 2.0 FMU (the FMI 3.0 container cannot expose it).

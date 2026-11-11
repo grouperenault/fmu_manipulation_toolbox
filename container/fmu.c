@@ -1103,7 +1103,7 @@ fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate)
         }
         if (info.terminateSimulation) {
             LOGGER_WARNING("FMU '%s' requested to stop simulation.", fmu->name);
-            return FMU_STATUS_ERROR;
+            fmu->container->terminate_requested = true;
         }
 
         *discreteStatesNeedUpdate = info.newDiscreteStatesNeeded ? true : false;
@@ -1137,7 +1137,7 @@ fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate)
 
     if (terminateSimulation) {
         LOGGER_WARNING("FMU '%s' requested to stop simulation.", fmu->name);
-        return FMU_STATUS_ERROR;
+        fmu->container->terminate_requested = true;
     }
 
     fmu->have_next_event_time = nextEventTimeDefined ? true : false;
@@ -1351,6 +1351,15 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
                                                           fmi2True); /* noSetFMUStatePriorToCurrentPoint */
         if ((status2 == fmi2OK) || (status2 == fmi2Warning))
             status = FMU_STATUS_OK;
+        else if (status2 == fmi2Discard) {
+            /* FMI-2.0: an FMU that asks to terminate the simulation discards its step and tells it by fmi2Terminated. */
+            fmi2Boolean terminated = fmi2False;
+            if ((fmuGetBooleanStatus(fmu, fmi2Terminated, &terminated) == FMU_STATUS_OK) && terminated) {
+                LOGGER_WARNING("FMU '%s' requested to end the simulation.", fmu->name);
+                fmu->container->terminate_requested = true;
+                status = FMU_STATUS_OK;
+            }
+        }
     } else {
         fmi3Status status3;
         fmi3Boolean terminateSimulation = false;
@@ -1364,18 +1373,18 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
                                                           &terminateSimulation, 
                                                           &earlyReturn, 
                                                           &lastSuccessfulTime);
+        if ((status3 == fmi3OK) || (status3 == fmi3Warning))
+            status = FMU_STATUS_OK;
+
         if (terminateSimulation) {
             LOGGER_WARNING("FMU '%s' requested to end the simulation.", fmu->name);
-            status = FMU_STATUS_ERROR;
+            fmu->container->terminate_requested = true;
         }
 
         if (earlyReturn) {
             LOGGER_ERROR("FMU '%s' made an early return which is not supported.", fmu->name);
             status = FMU_STATUS_ERROR;
         }
-            
-        if ((status3 == fmi3OK) || (status3 == fmi3Warning))
-            status = FMU_STATUS_OK;
     }
       
     if (fmu->profile) {

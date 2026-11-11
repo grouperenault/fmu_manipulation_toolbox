@@ -87,3 +87,40 @@ int test_local_strings(void) {
 
     return 0;
 }
+
+
+/* An FMU that asks to terminate the simulation (FMI-2.0: fmi2Discard, then fmi2Terminated) ends the simulation of the
+   container: fmi2DoStep returns fmi2Discard, fmi2Terminated and fmi2LastSuccessfulTime tell it, no further step. */
+int test_terminate_simulation(void) {
+    char location[4096];
+    fmi2CallbackFunctions functions;
+
+    snprintf(location, sizeof(location), "file://%s/one_fmu_terminate", TEST_FIXTURES_DIR);
+    memset(&functions, 0, sizeof(functions));
+    functions.logger = test_print_logger;
+    fmi2Component container = fmi2Instantiate("terminate", fmi2CoSimulation, "{uuid}", location, &functions,
+                                              fmi2False, fmi2False);
+    TEST_ASSERT(container != NULL);
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetupExperiment(container, fmi2False, 0.0, 0.0, fmi2False, 1.0));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2EnterInitializationMode(container));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2ExitInitializationMode(container));
+
+    fmi2Boolean terminated = fmi2True;
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2DoStep(container, 0.0, 0.1, fmi2True));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2DoStep(container, 0.1, 0.1, fmi2True));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2GetBooleanStatus(container, fmi2Terminated, &terminated));
+    TEST_ASSERT(terminated == fmi2False);
+
+    /* The stub asks to terminate in the step from 0.2 to 0.3 */
+    fmi2Real last_time = -1.0;
+    TEST_ASSERT_EQUAL_INT(fmi2Discard, fmi2DoStep(container, 0.2, 0.1, fmi2True));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2GetBooleanStatus(container, fmi2Terminated, &terminated));
+    TEST_ASSERT(terminated == fmi2True);
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2GetRealStatus(container, fmi2LastSuccessfulTime, &last_time));
+    TEST_ASSERT(last_time > 0.29 && last_time < 0.31);
+
+    TEST_ASSERT_EQUAL_INT(fmi2Error, fmi2DoStep(container, 0.3, 0.1, fmi2True));    /* no further step */
+    fmi2FreeInstance(container);
+
+    return 0;
+}

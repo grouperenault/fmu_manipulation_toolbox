@@ -32,6 +32,11 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   is now refused (explicit exposure) or left out with a warning (implicit rules).
 - 🟠 **FIXED** a time-based input clock of an embedded FMU that was not linked never ticked, and cannot be exposed:
   the container schedules it now, like the linked ones.
+- 🟠 **FIXED** an embedded FMU that asked to terminate the simulation made the container fail (in Event Mode), or was
+  ignored (at the end of its step, and for FMI 2.0 `fmi2Discard`): the container now stops at the time reached and
+  tells its importer (FMI 3.0 `terminateSimulation`, FMI 2.0 `fmi2Discard` and `fmi2Terminated`).
+- 🟠 **FIXED** checker FMI-LS-REF: a simulation terminated by the FMU was an error; it ends normally, the references
+  after its end are not compared (warning). The FMI 3.0 Stair of the Reference-FMUs passes.
 - 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
   was reset before the delivery of the clocked inputs.
 - 🟠 **FIXED** LS-BUS: `Rx_Data` was set in the instant where `Tx_Data` was read. An FMU which evaluates its discrete states at this

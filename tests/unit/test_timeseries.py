@@ -69,6 +69,19 @@ def test_interpolation(time, linear, hold):
     assert SERIES.value("s", time, HOLD) == hold
 
 
+@pytest.mark.parametrize("time, times", [
+    (1.0, [0.0, 1.0, 1.0]),             # the instants of an event at the end are kept
+    (1.0 - 1e-12, [0.0, 1.0, 1.0]),     # within the epsilon of index()
+    (1.5, [0.0, 1.0, 1.0]),
+    (-1.0, []),
+])
+def test_until(time, times):
+    series = SERIES.until(time)
+    assert series.times == times
+    assert all(len(values) == len(times) for values in series.columns.values())
+    assert len(SERIES.times) == 4           # the series itself is not modified
+
+
 def test_empty_series():
     with pytest.raises(TimeSeriesError, match="no instant"):
         TimeSeries(columns={"x": []}).value("x", 0.0)

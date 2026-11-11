@@ -38,6 +38,11 @@ class TimeSeries:
         computed by the simulation finds the row of its instant."""
         return bisect.bisect_right(self.times, time + 1e-9 * max(1.0, abs(time))) - 1
 
+    def until(self, time: float) -> "TimeSeries":
+        """Copy of the series up to `time` included (within the epsilon of `index`)."""
+        end = self.index(time) + 1
+        return TimeSeries(times=self.times[:end], columns={name: values[:end] for name, values in self.columns.items()})
+
     def value(self, name: str, time: float, interpolation: str = LINEAR):
         """Value of the variable `name` at `time`: before the first instant, the first value; after the last one, the
         last value; in between, the value interpolated as `interpolation` (`LINEAR` or `HOLD`).

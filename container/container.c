@@ -920,6 +920,7 @@ fmu_status_t container_reset(container_t* container) {
 
     /* Simulation */
     container->step_pending = false;
+    container->terminate_requested = false;
     container->nb_steps = 0;
     container->next_step = container->time_step; /* Default: no next event time */
     container->time = container->start_time;
@@ -1290,6 +1291,11 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
     fmu_status_t status = FMU_STATUS_OK;
     const double end_time = currentCommunicationPoint + communicationStepSize;
 
+    if (container->terminate_requested) {
+        LOGGER_ERROR("The simulation has been terminated at time=%e: no further step.", container->reals64.locals[0]);
+        return FMU_STATUS_ERROR;
+    }
+
     /*
      * Internal steps of the container (time_step x TS_MULTIPLIER, the multiplier read at the beginning of each
      * step) that end before end_time. A step that does not fit (communication step not a multiple of the internal
@@ -1338,6 +1344,13 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
             if ( status != FMU_STATUS_OK) {
                 LOGGER_ERROR("Container cannot Handle Events (time=%e)", container->time);
                 return status;
+            }
+
+            if (container->terminate_requested) {
+                /* The importer gets the time reached: the rest of the communication step is not done. */
+                LOGGER_WARNING("Container terminates the simulation at time=%e.", container->time);
+                container->reals64.locals[0] = container->time;
+                return FMU_STATUS_OK;
             }
         }
         container->nb_steps += ts_multiplier;
@@ -2709,6 +2722,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         container->fmu = NULL;
         container->init_order = NULL;
         container->step_pending = false;
+        container->terminate_requested = false;
         container->cache = NULL;
 
         /* allocated at the end of the configuration: freed by container_free() even if it fails before */

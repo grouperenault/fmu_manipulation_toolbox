@@ -19,6 +19,7 @@ static const struct {
     { "thread_barrier_consecutive",     test_thread_barrier_consecutive },
     { "configure_empty",                test_configure_empty },
     { "local_strings",                  test_local_strings },
+    { "terminate_simulation",           test_terminate_simulation },
     { "container_new_null",             test_container_new_null },
     { "configure_one_fmu",              test_configure_one_fmu },
     { "configure_one_fmu_mt",           test_configure_one_fmu_mt },

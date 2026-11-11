@@ -407,6 +407,10 @@ fmi2Status fmi2DoStep(fmi2Component c,
     if (container_do_step(container, currentCommunicationPoint, communicationStepSize) != FMU_STATUS_OK)
         return fmi2Error;
 
+    /* FMI-2.0: the importer gets fmi2Terminated and fmi2LastSuccessfulTime with fmi2GetBooleanStatus/RealStatus. */
+    if (container->terminate_requested)
+        return fmi2Discard;
+
     return fmi2OK;
 }
 
@@ -442,6 +446,11 @@ fmi2Status fmi2GetStatus(fmi2Component c, const fmi2StatusKind s, fmi2Status* va
 fmi2Status fmi2GetRealStatus(fmi2Component c, const fmi2StatusKind s, fmi2Real* value) {
     container_t *container = (container_t*)c;
 
+    if ((s == fmi2LastSuccessfulTime) && container->terminate_requested) {
+        *value = container->reals64.locals[0];
+        return fmi2OK;
+    }
+
     if (s == fmi2LastSuccessfulTime) {
         *value = -1.0;
         fmi2Real last_time;
@@ -476,6 +485,11 @@ fmi2Status fmi2GetIntegerStatus(fmi2Component c, const fmi2StatusKind s, fmi2Int
 fmi2Status fmi2GetBooleanStatus(fmi2Component c, const fmi2StatusKind s, fmi2Boolean* value) {
 
     container_t *container = (container_t*)c;
+
+    if ((s == fmi2Terminated) && container->terminate_requested) {
+        *value = fmi2True;
+        return fmi2OK;
+    }
 
     if (s == fmi2Terminated) {
         for(int i = 0; i < container->nb_fmu; i += 1) {
