@@ -51,6 +51,19 @@ class ContainerPort:
             raise FMUContainerError(f"Cannot use {self} as {role} of the container: clocks and clocked variables "
                                     f"cannot be exposed.")
 
+    def check_structural_parameter(self):
+        """A structural parameter exposed on the container is set in Configuration Mode: it must be a scalar, and
+        not give the dimension of an array (the container is built for the dimensions of the arrays).
+
+        Raises:
+            FMUContainerError: If the structural parameter is an array or gives the dimension of a port.
+        """
+        if self.port.dimensions:
+            raise FMUContainerError(f"Cannot expose {self}: an array structural parameter is not supported.")
+        for port in self.fmu.ports.values():
+            if ("valueReference", self.port.vr) in port.dimensions:
+                raise FMUContainerError(f"Cannot expose {self}: it gives the dimension of '{port.name}'.")
+
     def __hash__(self):
         return hash(str(self))
 

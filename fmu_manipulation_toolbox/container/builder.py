@@ -306,7 +306,7 @@ class FMUContainer:
                                     f"'{cport_to.port.causality}'.")
         cport_to.check_not_clocked("INPUT")
         if cport_to.port.causality == "structuralParameter":
-            self.check_structural_parameter(cport_to)
+            cport_to.check_structural_parameter()
 
         feeder = f"the container input '{container_port_name}'"
         self.check_not_fed(cport_to, feeder)
@@ -319,16 +319,6 @@ class FMUContainer:
 
         logger.debug(f"INPUT: {to_fmu_filename}:{to_port_name}")
         self.mark_ruled(cport_to, 'INPUT')
-
-    @staticmethod
-    def check_structural_parameter(cport: ContainerPort):
-        """A structural parameter exposed on the container is set in Configuration Mode: it must be a scalar, and
-        not give the dimension of an array (the container is built for the dimensions of the arrays)."""
-        if cport.port.dimensions:
-            raise FMUContainerError(f"Cannot expose {cport}: an array structural parameter is not supported.")
-        for port in cport.fmu.ports.values():
-            if ("valueReference", cport.port.vr) in port.dimensions:
-                raise FMUContainerError(f"Cannot expose {cport}: it gives the dimension of '{port.name}'.")
 
     def add_output(self, from_fmu_filename: str, from_port_name: str, container_port_name: str):
         """Expose a port of an embedded FMU as a container output.
