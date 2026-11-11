@@ -25,6 +25,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   its parameters (e.g. to start its XCP service).
 - 🟠 **FIXED** a value set by the importer of the container before its initialization was overwritten by the start
   value of the embedded FMU: it prevails now.
+- 🟠 **FIXED** the `resourcePath` given to an embedded FMI 3.0 FMU had no trailing file separator (FMI 3.0, 2.3.1): the
+  FMUs that check it, like the Reference-FMUs since v0.0.42, could not be instantiated.
 - 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
   was reset before the delivery of the clocked inputs.
 - 🟠 **FIXED** LS-BUS: `Rx_Data` was set in the instant where `Tx_Data` was read. An FMU which evaluates its discrete states at this

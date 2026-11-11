@@ -732,6 +732,14 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     }
     STRLCAT(library_filename, FMU_BIN_SUFFIXE, FMU_PATH_MAX_LEN);
  	fs_make_path(fmu->resource_dir, FMU_PATH_MAX_LEN, directory, "resources", NULL);
+    if (fmi_version == 3) {
+        /* FMI-3.0: resourcePath is a file path with a trailing file separator */
+#ifdef _WIN32
+        STRLCAT(fmu->resource_dir, "\\", FMU_PATH_MAX_LEN);
+#else
+        STRLCAT(fmu->resource_dir, "/", FMU_PATH_MAX_LEN);
+#endif
+    }
 
     fmu->library = library_load(logger, library_filename);
     if (!fmu->library)
