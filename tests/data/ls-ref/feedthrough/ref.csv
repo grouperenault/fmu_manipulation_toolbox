@@ -1,0 +1,6 @@
+time,Float64_continuous_output,Int32_output,Boolean_output
+0,0,0,false
+0.5,5,0,false
+1,10,5,true
+1.5,5,5,true
+2,0,7,false

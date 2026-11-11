@@ -1024,7 +1024,7 @@ class SSPWriter:
 
         container = self._resolved(node, {name: self._interface(child, tmp) for name, child in node.children.items()})
         layout = ContainerLayout.allocate(container.links.values(), container.inputs, container.outputs,
-                                          nb_profiling=0)
+                                          nb_profiling=0, fmi_version=container.fmi_version)
         directory = tmp / Path(node.name).stem
         directory.mkdir(parents=True, exist_ok=True)
         try:

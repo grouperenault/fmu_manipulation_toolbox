@@ -764,7 +764,8 @@ class FMUContainer:
 
         # Allocated again at each build: the rules are never modified by a build.
         layout = ContainerLayout.allocate(self.links.values(), self.inputs, self.outputs,
-                                          nb_profiling=len(self.involved_fmu) if profiling else 0)
+                                          nb_profiling=len(self.involved_fmu) if profiling else 0,
+                                          fmi_version=self.fmi_version)
 
         self.make_fmu_xml(base_directory / "modelDescription.xml", step_size, profiling, ts_multiplier, layout)
         with open(resources_directory / "container.txt", "wt", encoding=ENCODING) as txt_file:
@@ -944,8 +945,10 @@ class FMUContainer:
 
         outputs = []    # (value reference of a container output, its variable element), for <ModelStructure>
         for output_port_name, output_port in self.outputs.items():
+            conversion = layout.output_conversions.get(output_port_name)
             variable = add_variable(output_port.port.xml(layout.outputs[output_port_name], name=output_port_name,
-                                                         fmi_version=self.fmi_version))
+                                                         fmi_version=self.fmi_version,
+                                                         type_name=conversion.type_name if conversion else None))
             if variable is not None:
                 outputs.append((layout.outputs[output_port_name], variable))
 
@@ -1141,9 +1144,10 @@ class FMUContainer:
         for input_port, value in start_values.items():
             fmu_io_list.add_start_value(input_port, value)
 
-        # Outputs
+        # Outputs; those exposed through a converted local variable are listed with the local variables
         for output_port_name, output_port in self.outputs.items():
-            outputs_per_type[output_port.port.type_name].append((output_port_name, output_port))
+            if output_port_name not in layout.output_conversions:
+                outputs_per_type[output_port.port.type_name].append((output_port_name, output_port))
 
         # Links
         for link in self.links.values():
@@ -1186,6 +1190,19 @@ class FMUContainer:
                     else:
                         fmu_io_list.add_input(cport_to, local_vr)
 
+        # Outputs exposed through a converted local variable: the value of the FMU and its converted copy, unless the
+        # link of the port already has them (allocated after the local variables of the links, in this order).
+        output_conversions_per_fmu: dict[str, list[tuple[int, int, str]]] = defaultdict(list)
+        for conversion in {id(conversion): conversion for conversion in layout.output_conversions.values()}.values():
+            size = conversion.cport.port.size()
+            if conversion.own_local:
+                local_per_type[conversion.cport.port.type_name].append(LocalVariable(conversion.local, size))
+                fmu_io_list.add_output(conversion.cport, conversion.local)
+            if conversion.own_copy:
+                local_per_type[conversion.type_name].append(LocalVariable(conversion.vr, size))
+                output_conversions_per_fmu[conversion.cport.fmu.name].append(
+                    (conversion.local, conversion.vr, conversion.conversion))
+
         print("# NB local variables:", ", ".join(ALL_TYPES), file=txt_file)
         nb_storage = [f"{layout.table.nb_storage(type_name)}" for type_name in ALL_TYPES]
         print(" ".join(nb_storage), file=txt_file, end='')
@@ -1227,10 +1244,13 @@ class FMUContainer:
             fmu_io_list.write_txt(fmu.name, txt_file)
 
             print(f"# Conversion table of {fmu.name}: <VR_FROM> <VR_TO> <CONVERSION>", file=txt_file)
-            print(sum(len(link.conversions) for link in links_per_fmu[fmu.name]), file=txt_file)
+            print(sum(len(link.conversions) for link in links_per_fmu[fmu.name]) +
+                  len(output_conversions_per_fmu[fmu.name]), file=txt_file)
             for link in links_per_fmu[fmu.name]:
                 for type_name, conversion in link.conversions.items():
                     print(f"{layout.links[link]} {layout.converted[link][type_name]} {conversion}", file=txt_file)
+            for vr_from, vr_to, conversion in output_conversions_per_fmu[fmu.name]:
+                print(f"{vr_from} {vr_to} {conversion}", file=txt_file)
 
             print(f"# Reset trigger of {fmu.name}: <LOCAL_OFFSET>", file=txt_file)
             print(reset_triggers.get(fmu.name, -1), file=txt_file)
@@ -1257,7 +1277,9 @@ class FMUContainer:
         for input_port_name, input_port in self.inputs.items():
             ports[input_port.type_name].append(Port(layout.inputs[input_port_name], input_port_name))
         for output_port_name, output_port in self.outputs.items():
-            ports[output_port.port.type_name].append(Port(layout.outputs[output_port_name], output_port_name))
+            conversion = layout.output_conversions.get(output_port_name)
+            ports[conversion.type_name if conversion else output_port.port.type_name].append(
+                Port(layout.outputs[output_port_name], output_port_name))
         for link in self.links.values():
             if link.cport_from is None:
                 # LS-BUS allows connected input clocks. The column is named after the clock that ticks by itself, the one

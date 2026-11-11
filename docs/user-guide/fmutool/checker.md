@@ -25,6 +25,9 @@ custom checkers.
       or `Integer` in FMI 2.0, `String`), declared as a fixed `structuralParameter` (FMI 3.0), a fixed `parameter`,
       a `constant` output or a fixed or tunable `calculatedParameter`; a variable is used once, a role once per
       interface.
+- `OperationLsRefCheck` checks the reference material of FMI-LS-REF, for an FMU that declares it (manifest
+  `extra/org.fmi-standard.fmi-ls-ref/fmi-ls-manifest.xml`), and **replays its experiments** to compare the results
+  with the references: see [Validation of the results (FMI-LS-REF)](#validation-of-the-results-fmi-ls-ref).
 
 With `fmutool -check`, any error logged by a checker makes the command exit with status `7`.
 
@@ -55,6 +58,62 @@ With `fmutool -check`, any error logged by a checker makes the command exit with
     else:
         print("FMU is NOT compliant")
     ```
+
+## Validation of the results (FMI-LS-REF)
+
+[FMI-LS-REF](https://modelica.github.io/fmi-ls-ref/main) (1.0.0-alpha.1, a draft) lists the files related to an FMU
+in its manifest. The experiment files (role `experiment`, type `application/x-ma-hs-experiments`) follow the draft
+[MA-HS-Experiments](https://modelica.github.io/ma-hs-experiments/main/): each `TransientExperiment` gives its start
+and stop times, its step size, and its parameters (SSV file), stimuli and references (CSV files). The
+[Reference FMUs](https://github.com/modelica/Reference-FMUs) give instead the output of their default experiment
+(role `result`, a CSV file).
+
+### Static checks
+
+- The manifest and the experiment files are valid against their XSD (shipped with the toolbox). A missing or
+  different `fmi-ls-description` is a warning (the Reference FMUs have none).
+- A related file that is not in the FMU (missing file, absolute URI, relative URI leaving the FMU) is a warning. The
+  relative URIs may hold `..` while they stay inside the FMU (e.g. `../../resources/stimuli.csv`).
+- Experiments: `startTime` before `stopTime`, a positive `stepSize`. The files of an experiment that is replayed must
+  be in the FMU (error); the stimuli and references of a type other than `text/csv`, the parameters of a type other
+  than `application/x-ssp-parameter-set`, are not supported (warning, the experiment is not replayed).
+- The columns of the stimuli are `input` variables, those of the references `output` variables; the parameters of the
+  SSV file are `parameter` or `structuralParameter` variables, or `input` variables with a start value. A `result`
+  file of the Reference FMUs may have columns that are not outputs of the FMU, or binaries: they are ignored
+  (warning).
+
+### Replay and comparison
+
+The experiments of sub-role `smoke-test` (the default) and `validation`, and the `result` files, are replayed on the
+host platform with the runtime of the FMU Container: the FMU is embedded in a temporary FMI 3.0 container, then
+simulated. Each experiment is simulated in a **dedicated process**: a crash of the FMU (e.g. a segmentation fault)
+or a simulation that does not end within **60 s** (`-ref-timeout`) fails this experiment only (error, with the signal or the exit
+code of the process), the check and the other experiments go on.
+
+- **Times**: those of the experiment, else those of the `DefaultExperiment` of the FMU, else the first and last
+  instants of the references. Without `stepSize`, the step size is deduced from the FMU as `fmucontainer` does. The
+  `tolerance` of the experiment is not used.
+- **Stimuli** are interpolated at each communication point: linearly for the continuous real inputs, previous value
+  for the others. The outputs are recorded at each communication point, after the stimuli of this instant.
+- **Comparison** at the instants of the references, the simulation being interpolated as the stimuli: a number
+  (booleans as `0`/`1`) matches when `|simulated - reference| <= atol + rtol * |reference|`, with `rtol = 1e-3` and
+  `atol = 1e-6` by default (`-ref-rtol`, `-ref-atol`, or **Selected Check** in `fmutool-gui`); a string must be equal. At an event of the references (two rows with the same time), the value
+  after the event is compared. Each output that differs is an error, with the first instant of the difference.
+- An experiment without references is simulated only. A simulation that fails, crashes or exceeds its time limit
+  is an error.
+- Not replayed (warning): the experiments of sub-role `uncertainty-analysis`, when the runtime of the container or the
+  binary of the FMU is not available for the host platform, and the experiments with a stimulus on a `Boolean` input
+  of an FMI 2.0 FMU (the FMI 3.0 container cannot expose it).
+
+The CSV files follow the convention of the FMI cross-check: comma separator, a first column `time`, one column per
+variable named after it:
+
+```text
+time,Float64_continuous_input,Int32_input,Boolean_input
+0,0,0,false
+1,10,5,true
+2,0,7,false
+```
 
 ## Writing a Custom Checker
 

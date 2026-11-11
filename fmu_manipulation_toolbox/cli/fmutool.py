@@ -10,7 +10,7 @@ from ..operations import (OperationSummary, OperationError, OperationRemoveRegex
                           OperationStripTopLevel, OperationRenameFromCSV, OperationSaveNamesToCSV, FMU, FMUError)
 from ..remoting import  (OperationAddFrontendWin32, OperationAddFrontendWin64, OperationAddRemotingWin32,
                          OperationAddRemotingWin64)
-from ..checker import get_checkers
+from ..checker import OperationLsRefCheck, get_checkers
 from ..model_description import ModelDescription
 from ..compiler import OperationCompileSources
 from ..version import __version__ as version
@@ -84,6 +84,9 @@ def fmutool():
     add_option('-summary', action='append_const', dest='operations_list', const=OperationSummary())
     checkers = [checker() for checker in get_checkers()]
     add_option('-check', action='append_const', dest='operations_list', const=checkers)
+    add_option('-ref-rtol', action='store', dest='ref_rtol', type=float, metavar='rtol')
+    add_option('-ref-atol', action='store', dest='ref_atol', type=float, metavar='atol')
+    add_option('-ref-timeout', action='store', dest='ref_timeout', type=float, metavar='seconds')
     # Logging
     add_option('-debug', action='store_true', dest='debug')
 
@@ -107,6 +110,25 @@ def fmutool():
     compile_operation.linker_options = shlex.split(cli_options.link_options or "", posix=posix)
     compile_operation.libraries = [name.strip() for name in (cli_options.link_libraries or "").split(",")
                                    if name.strip()]
+
+    ref_parameters = {"-ref-rtol": ("rtol", cli_options.ref_rtol), "-ref-atol": ("atol", cli_options.ref_atol),
+                      "-ref-timeout": ("timeout", cli_options.ref_timeout)}
+    given = [option for option, (_, value) in ref_parameters.items() if value is not None]
+    if given and checkers not in cli_options.operations_list:
+        logger.fatal(f"{', '.join(given)} need(s) '-check'.")
+        close_logger(logger)
+        sys.exit(ExitCode.USAGE_ERROR)
+    if given:
+        settings = {name: value for name, value in ref_parameters.values() if value is not None}
+        try:
+            # The list `checkers` is the one of '-check': its LS-REF checker is replaced in place.
+            for i, checker in enumerate(checkers):
+                if isinstance(checker, OperationLsRefCheck):
+                    checkers[i] = OperationLsRefCheck(**settings)
+        except ValueError as error:
+            logger.fatal(f"Invalid setting of FMI-LS-REF: {error}.")
+            close_logger(logger)
+            sys.exit(ExitCode.USAGE_ERROR)
 
     if cli_options.fmu_input == cli_options.fmu_output:
         logger.fatal(f"'-input' and '-output' should point to different files.")

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Experiments name="BouncingBall" xmlns="http://modelica.org/HSExperiments1/HSExperiments">
+    <TransientExperiment name="Default" startTime="0" stopTime="3" stepSize="0.01">
+        <References source="REF-BouncingBall.csv"/>
+    </TransientExperiment>
+    <TransientExperiment name="Restitution 0.5" description="e = 0.5" startTime="0" stopTime="3" stepSize="0.01">
+        <Parameters source="../../resources/params.ssv"/>
+        <References source="REF-e05.csv"/>
+    </TransientExperiment>
+</Experiments>

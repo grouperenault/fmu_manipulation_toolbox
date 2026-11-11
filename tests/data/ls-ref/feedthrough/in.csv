@@ -1,0 +1,4 @@
+time,Float64_continuous_input,Int32_input,Boolean_input
+0,0,0,false
+1,10,5,true
+2,0,7,false

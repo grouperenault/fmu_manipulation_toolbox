@@ -18,6 +18,9 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟢 **ADDED** a structural parameter of an embedded FMU can be exposed: the container sets it in the Configuration
   Mode of the FMU (forwarded from the Configuration Mode of an FMI 3.0 container, otherwise before its
   initialization). `container.txt` is now in version 9.
+- 🟢 **ADDED** a `Boolean` output of an embedded FMU of the other FMI version (FMI 2.0 in an FMI 3.0 container, or
+  the reverse) is exposed, converted by the container. The `Boolean` inputs of this kind still cannot be exposed.
+  `fmusplit` does not restore these outputs.
 - 🔵 **CHANGED** the start values of an embedded FMI 2.0 FMU are set before `fmi2SetupExperiment`, where an FMU may use
   its parameters (e.g. to start its XCP service).
 - 🟠 **FIXED** a value set by the importer of the container before its initialization was overwritten by the start
@@ -119,6 +122,14 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## fmutool and the Python API
 
+- 🟢 **ADDED** **FMI-LS-REF** (1.0.0-alpha.1, with the draft MA-HS-Experiments): `fmutool -check` validates the
+  manifest and the experiment files of an FMU (`OperationLsRefCheck`), **replays its experiments** (and the `result`
+  files of the Reference FMUs) with the runtime of the FMU Container and compares its outputs with the references
+  (`rtol=1e-3`, `atol=1e-6`). Each experiment runs in a dedicated process: a crash of the FMU, or a simulation longer
+  than 60 s, fails this experiment only. New modules `experiments`, `timeseries` and `simulation`. See
+  [FMU Checker](docs/user-guide/fmutool/checker.md#validation-of-the-results-fmi-ls-ref).
+- 🟢 **ADDED** `-ref-rtol`, `-ref-atol` and `-ref-timeout` options of `fmutool -check`, and the `rtol`, `atol` and
+  `timeout` arguments of `OperationLsRefCheck`: the settings of the replay of FMI-LS-REF.
 - 🟢 **ADDED** `OperationLsXcpCheck`, a built-in checker of the rules of FMI-LS-XCP 1.0.0 (manifest against its XSD,
   A2L files, role variables), run by `fmutool -check`. See [FMU Checker](docs/user-guide/fmutool/checker.md).
 - 🟢 **ADDED** `-only-type` and `-only-variability` options of `fmutool`, and the `types` and `variabilities`
@@ -144,6 +155,12 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## Graphical User Interfaces
 
+- 🔵 **CHANGED** FMU Tool: the buttons are disabled until an FMU is loaded, and **Save modified FMU as** until an
+  operation has modified it.
+- 🟢 **ADDED** FMU Tool: alternative actions, shown while Option (macOS) or Alt (Windows, Linux) is held: **Selected
+  Check** chooses the checkers and the settings of FMI-LS-REF, **Advanced Compile** sets the compilation options
+  before compiling. See [GUI Usage](docs/user-guide/fmutool/gui-usage.md#2-operation-buttons-grid-upper-area).
+- 🟢 **ADDED** FMU Tool: the extraction directory of the summary is a link that opens it in the file manager.
 - 🔵 **CHANGED** Container Builder: the buttons are **Exit**, **Load** (Ctrl+O) and **Save** (Ctrl+S); Load and Save
   replace **Load FMU Container**, **Import**, **Export as JSON**, **Export as SSP** and **Save as FMU Container**: the
   extension of the file decides (`.fmu` container, `.json`, `.csv` or `.ssp` assembly file; saved as an FMU

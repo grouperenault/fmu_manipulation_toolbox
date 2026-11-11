@@ -124,6 +124,8 @@ fmu_manipulation_toolbox = [
     # FMI-LS-XCP 1.0.0 manifest schema (Modelica Association Project "FMI", BSD 2-Clause): checker of LS-XCP.
     "resources/fmi-ls-xcp/*.xsd",
     "resources/fmi-ls-xcp/LICENSE.txt",
+    "resources/fmi-ls-ref/*.xsd",
+    "resources/fmi-ls-ref/LICENSE.txt",
     # FMI headers: used by the native builds (cmake/fmutool.cmake) and to compile the sources of an FMU.
     "resources/fmi/*.h",
 ]

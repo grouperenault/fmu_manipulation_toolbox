@@ -1,13 +1,14 @@
 import argparse
 import logging
 import os.path
+import re
 import shlex
 import sys
 import textwrap
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton,
-                               QInputDialog, QMenu, QDialog, QHBoxLayout, QVBoxLayout)
+                               QInputDialog, QMenu, QDialog, QHBoxLayout, QVBoxLayout, QCheckBox)
 from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
@@ -16,7 +17,7 @@ from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogWidget, busy_curs
 from fmu_manipulation_toolbox.operations import *
 from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
                                                OperationAddFrontendWin64)
-from fmu_manipulation_toolbox.checker import get_checkers
+from fmu_manipulation_toolbox.checker import OperationLsRefCheck, get_checkers
 from fmu_manipulation_toolbox.compiler import OperationCompileSources, Toolchain
 from fmu_manipulation_toolbox.help import Help
 from fmu_manipulation_toolbox.version import __version__ as version
@@ -64,13 +65,56 @@ class FilterWidget(QPushButton):
             return sorted(self.items_selected)
 
 
+class OperationButton(QPushButton):
+    """Button of an operation, with an optional alternative action: while the alternative is shown (Option or Alt
+    held, see `MainWindow.eventFilter`), the button shows the alternative label and a click runs the alternative
+    action.
+
+    Args:
+        label (str): Label of the normal action.
+        action (Callable[[], None]): Normal action.
+        alternative (tuple[str, Callable[[], None]] | None): Label and alternative action.
+    """
+
+    #: How to reach the alternative action, in the tooltips.
+    ALTERNATIVE_CLICK = "Option-click" if sys.platform == "darwin" else "Alt-click"
+
+    def __init__(self, label: str, action, alternative=None, parent=None):
+        super().__init__(label, parent)
+        self.label = label
+        self.action = action
+        self.alternative = alternative
+        self.alternative_shown = False
+        self.clicked.connect(self.run)
+
+    def setToolTip(self, text: str):
+        if self.alternative:
+            text += f"\n\n{self.ALTERNATIVE_CLICK}: {self.alternative[0]}"
+        super().setToolTip(text)
+
+    def show_alternative(self, shown: bool):
+        """Shows the alternative label (`shown`) or the normal one. Without alternative, nothing changes."""
+        if self.alternative and shown != self.alternative_shown:
+            self.alternative_shown = shown
+            self.setText(self.alternative[0] if shown else self.label)
+
+    def run(self):
+        """Runs the action of the label shown."""
+        if self.alternative_shown:
+            self.alternative[1]()
+        else:
+            self.action()
+
+
 class CompileOptionsDialog(QDialog):
-    """Ask for additional compiler options, linker options and libraries after a compilation failure.
+    """Ask for additional compiler options, linker options and libraries: after a compilation failure, or before
+    the compilation ("Advanced Compile").
 
     Args:
         values (dict[str, str]): Pre-filled values, keyed by `compiler_options`, `linker_options` and `libraries`.
         toolchain (Toolchain | None): Compilers in use (`None` if unknown): named in the message, and the examples
             of the fields are written for them.
+        failed (bool): After a compilation failure (button `Retry`), or before the compilation (button `Compile`).
     """
 
     FIELDS = (("compiler_options", "Compiler options"), ("linker_options", "Linker options"),
@@ -86,7 +130,7 @@ class CompileOptionsDialog(QDialog):
                   "libraries": "names separated by commas, e.g. foo,bar"},
     }
 
-    def __init__(self, values: dict[str, str], toolchain: Toolchain | None, parent=None):
+    def __init__(self, values: dict[str, str], toolchain: Toolchain | None, parent=None, failed: bool = True):
         super().__init__(parent)
         self.setWindowTitle("Compile sources")
         self.setMinimumWidth(500)
@@ -99,7 +143,10 @@ class CompileOptionsDialog(QDialog):
         placeholders = self.PLACEHOLDERS["msvc" if toolchain and toolchain.family == "msvc" else "other"]
 
         # Same look as the dialogs of FMU Container Builder (`NodeInfoDialog`): captions above the fields.
-        message = QLabel(f"The compilation with {description} failed: see the log. Add options and retry.")
+        if failed:
+            message = QLabel(f"The compilation with {description} failed: see the log. Add options and retry.")
+        else:
+            message = QLabel(f"Options of the compilation with {description}.")
         message.setWordWrap(True)
 
         layout = QVBoxLayout(self)
@@ -115,29 +162,113 @@ class CompileOptionsDialog(QDialog):
             layout.addWidget(edit)
             self.edits[key] = edit
 
-        # -- Retry / Cancel --
-        retry_button = QPushButton("Retry")
-        retry_button.setProperty("class", "save")
-        retry_button.setDefault(True)
-        retry_button.clicked.connect(self.accept)
-
-        cancel_button = QPushButton("Cancel")
-        cancel_button.setProperty("class", "quit")
-        cancel_button.clicked.connect(self.reject)
-
-        width = max(retry_button.sizeHint().width(), cancel_button.sizeHint().width(), 150)
-        retry_button.setMinimumWidth(width)
-        cancel_button.setMinimumWidth(width)
-
-        button_row = QHBoxLayout()
-        button_row.addStretch()
-        button_row.addWidget(cancel_button)
-        button_row.addWidget(retry_button)
-        layout.addSpacing(12)
-        layout.addLayout(button_row)
+        _dialog_buttons(layout, self, "Retry" if failed else "Compile")
 
     def values(self) -> dict[str, str]:
         return {key: edit.text().strip() for key, edit in self.edits.items()}
+
+
+def _dialog_buttons(layout: QVBoxLayout, dialog: QDialog, accept_label: str) -> QPushButton:
+    """Adds the Cancel and `accept_label` buttons at the bottom of `layout`. Returns the accept button."""
+    accept_button = QPushButton(accept_label)
+    accept_button.setProperty("class", "save")
+    accept_button.setDefault(True)
+    accept_button.clicked.connect(dialog.accept)
+
+    cancel_button = QPushButton("Cancel")
+    cancel_button.setProperty("class", "quit")
+    cancel_button.clicked.connect(dialog.reject)
+
+    width = max(accept_button.sizeHint().width(), cancel_button.sizeHint().width(), 150)
+    accept_button.setMinimumWidth(width)
+    cancel_button.setMinimumWidth(width)
+
+    button_row = QHBoxLayout()
+    button_row.addStretch()
+    button_row.addWidget(cancel_button)
+    button_row.addWidget(accept_button)
+    layout.addSpacing(12)
+    layout.addLayout(button_row)
+    return accept_button
+
+
+class CheckSelectionDialog(QDialog):
+    """Choose the checkers to run, and the settings of the checker of FMI-LS-REF.
+
+    Args:
+        checkers (list[type]): The checkers that can be chosen, as returned by `get_checkers()`.
+        selected (set[type]): The checkers checked at the opening.
+        settings (dict[str, float]): Settings of `OperationLsRefCheck` at the opening: `rtol`, `atol`, `timeout`.
+    """
+
+    SETTINGS = (("rtol", "Relative tolerance (rtol)"), ("atol", "Absolute tolerance (atol)"),
+                ("timeout", "Time limit of each experiment, in seconds"))
+
+    def __init__(self, checkers: list[type], selected: set[type], settings: dict[str, float], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Selected Check")
+        self.setMinimumWidth(500)
+
+        layout = QVBoxLayout(self)
+        caption = QLabel("Checkers")
+        caption.setProperty("class", "caption")
+        layout.addWidget(caption)
+        self.boxes: dict[type, QCheckBox] = {}
+        for checker in checkers:
+            box = QCheckBox(repr(checker()))
+            box.setChecked(checker in selected)
+            box.toggled.connect(self.update_state)
+            layout.addWidget(box)
+            self.boxes[checker] = box
+
+        self.edits: dict[str, QLineEdit] = {}
+        for key, label in self.SETTINGS:
+            caption = QLabel(f"FMI-LS-REF: {label}")
+            caption.setProperty("class", "caption")
+            edit = QLineEdit(f"{settings[key]:g}")
+            layout.addSpacing(8)
+            layout.addWidget(caption)
+            layout.addWidget(edit)
+            self.edits[key] = edit
+
+        self.message = QLabel()
+        self.message.setWordWrap(True)
+        self.message.setProperty("class", "status_error")
+        layout.addWidget(self.message)
+        self.check_button = _dialog_buttons(layout, self, "Check")
+        self.update_state()
+
+    def update_state(self):
+        """The Check button needs a checker; the settings of FMI-LS-REF need its checker."""
+        self.check_button.setEnabled(any(box.isChecked() for box in self.boxes.values()))
+        ls_ref = any(box.isChecked() for checker, box in self.boxes.items() if issubclass(checker, OperationLsRefCheck))
+        for edit in self.edits.values():
+            edit.setEnabled(ls_ref)
+
+    def accept(self):
+        try:
+            OperationLsRefCheck(**self.settings())
+        except ValueError as error:
+            self.message.setText(f"Invalid setting of FMI-LS-REF: {error}.")
+            return
+        super().accept()
+
+    def selected(self) -> list[type]:
+        return [checker for checker, box in self.boxes.items() if box.isChecked()]
+
+    def settings(self) -> dict[str, float]:
+        """The settings typed.
+
+        Raises:
+            ValueError: A setting is not a number.
+        """
+        settings = {}
+        for key, edit in self.edits.items():
+            try:
+                settings[key] = float(edit.text())
+            except ValueError:
+                raise ValueError(f"{key} must be a number, not '{edit.text()}'") from None
+        return settings
 
 
 class MainWindow(QWidget):
@@ -148,6 +279,9 @@ Note: modifying the modelDescription.xml can damage your FMU !
 Communicating with the FMU-developer and adapting the way the FMU is generated, is preferable when possible.
 
     """
+
+    #: The line of `Summary` giving the extraction directory, shown as a link.
+    TEMPORARY_DIRECTORY = re.compile(r"(\| temporary directory = )(.+)")
 
     def __init__(self, debug: bool = False):
         super().__init__()
@@ -165,28 +299,37 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 
         # Options of `Compile sources`, typed after a compilation failure, kept for the session.
         self.compile_options: dict[str, str] = {}
+        # An operation has modified the loaded FMU: it can be saved.
+        self.fmu_modified = False
+        # Checkers and settings of FMI-LS-REF chosen in `CheckSelectionDialog`, kept for the session.
+        self.check_selection: set[type] = set(get_checkers())
+        self.ls_ref_settings = {"rtol": OperationLsRefCheck.RTOL, "atol": OperationLsRefCheck.ATOL,
+                                "timeout": OperationLsRefCheck.TIMEOUT}
 
         # Operations
         self.help = Help()
         # Grid of WIDTH columns, one line per theme: analysis and export, binary interfaces (green), name changes
-        # (orange), removals (red).
+        # (orange), removals (red). `modifies`: the operation modifies the FMU (when it ends without an exception).
         operations_list = [
-            ("Check",                 '-check',              'info',    get_checkers()),
+            ("Check",                 '-check',              'info',    get_checkers(),
+             {"alternative": ("Selected Check", self.selected_check)}),
             ("Save description.xml",  '-extract-descriptor', 'info',    None, {"func": self.save_descriptor}),
             ("Save port names",       '-dump-csv',           'info',    OperationSaveNamesToCSV, {"prompt_file": "write"}),
-            ("Compile sources",       '-compile-sources',    'info',    None, {"func": self.compile_sources}),
-            ("Add Win32 remoting",    '-add-remoting-win32', 'info',    OperationAddRemotingWin32),
-            ("Add Win32 frontend",    '-add-frontend-win32', 'info',    OperationAddFrontendWin32),
-            ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64),
-            ("Add Win64 frontend",    '-add-frontend-win64', 'info',    OperationAddFrontendWin64),
-            ("Rename ports from CSV", '-rename-from-csv',    'modify',  OperationRenameFromCSV, {"prompt_file": "read"}),
-            ("Trim Until",            '-trim-until',         'modify',  OperationTrimUntil, {"prompt": "Prefix"}),
-            ("Remove Toplevel",       '-remove-toplevel',    'modify',  OperationStripTopLevel),
-            ("Merge Toplevel",        '-merge-toplevel',     'modify',  OperationMergeTopLevel),
-            ("Remove Regexp",         '-remove-regexp',      'removal', OperationRemoveRegexp, {"prompt": "regexp"}),
-            ("Keep only Regexp",      '-keep-only-regexp',   'removal', OperationKeepOnlyRegexp, {"prompt": "regexp"}),
-            ("Remove all",            '-remove-all',         'removal', OperationRemoveRegexp, {"arg": ".*"}),
-            ("Remove sources",        '-remove-sources',     'removal', OperationRemoveSources),
+            ("Compile sources",       '-compile-sources',    'info',    None,
+             {"func": self.compile_sources,
+              "alternative": ("Advanced Compile", partial(self.compile_sources, ask_first=True))}),
+            ("Add Win32 remoting",    '-add-remoting-win32', 'info',    OperationAddRemotingWin32, {"modifies": True}),
+            ("Add Win32 frontend",    '-add-frontend-win32', 'info',    OperationAddFrontendWin32, {"modifies": True}),
+            ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64, {"modifies": True}),
+            ("Add Win64 frontend",    '-add-frontend-win64', 'info',    OperationAddFrontendWin64, {"modifies": True}),
+            ("Rename ports from CSV", '-rename-from-csv',    'modify',  OperationRenameFromCSV, {"prompt_file": "read", "modifies": True}),
+            ("Trim Until",            '-trim-until',         'modify',  OperationTrimUntil, {"prompt": "Prefix", "modifies": True}),
+            ("Remove Toplevel",       '-remove-toplevel',    'modify',  OperationStripTopLevel, {"modifies": True}),
+            ("Merge Toplevel",        '-merge-toplevel',     'modify',  OperationMergeTopLevel, {"modifies": True}),
+            ("Remove Regexp",         '-remove-regexp',      'removal', OperationRemoveRegexp, {"prompt": "regexp", "modifies": True}),
+            ("Keep only Regexp",      '-keep-only-regexp',   'removal', OperationKeepOnlyRegexp, {"prompt": "regexp", "modifies": True}),
+            ("Remove all",            '-remove-all',         'removal', OperationRemoveRegexp, {"arg": ".*", "modifies": True}),
+            ("Remove sources",        '-remove-sources',     'removal', OperationRemoveSources, {"modifies": True}),
         ]
 
         line = 1
@@ -257,6 +400,10 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             self.layout.setRowMinimumHeight(row, 36)
         self.setLayout(self.layout)
 
+        self.update_buttons()
+        # Option (macOS) or Alt held: the buttons show their alternative action.
+        QApplication.instance().installEventFilter(self)
+
         # show the window
         self.show()
 
@@ -274,11 +421,32 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         """Show the records of this window (and the records without owner) in the log area."""
         if not self.log_handler.accepts(self, owner, levelno):
             return
-        self.log_widget.append_record(levelno, text)
+        directory = self.TEMPORARY_DIRECTORY.fullmatch(text)
+        if directory:
+            self.log_widget.append_link(levelno, directory[1], directory[2])
+        else:
+            self.log_widget.append_record(levelno, text)
         # The operations block the main thread: repaint each record immediately.
         QApplication.processEvents()
 
+    def eventFilter(self, watched, event) -> bool:
+        """Switches the operation buttons to their alternative action while Option (macOS) or Alt is held. The
+        modifiers are read again when the window is activated or deactivated: Alt may be released in another
+        window."""
+        if event.type() in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease) and event.key() == Qt.Key.Key_Alt:
+            self.show_alternatives(event.type() == QEvent.Type.KeyPress)
+        elif watched is self and event.type() == QEvent.Type.WindowActivate:
+            self.show_alternatives(bool(QApplication.queryKeyboardModifiers() & Qt.KeyboardModifier.AltModifier))
+        elif watched is self and event.type() == QEvent.Type.WindowDeactivate:
+            self.show_alternatives(False)
+        return False
+
+    def show_alternatives(self, shown: bool):
+        for button in self.operations_button_list:
+            button.show_alternative(shown)
+
     def closeEvent(self, event):
+        QApplication.instance().removeEventFilter(self)
         if self.log_handler.is_registered(self):
             self.log_handler.record_emitted.disconnect(self._on_record)
             self.log_handler.unregister_window(self)
@@ -287,6 +455,20 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
     def set_tooltip(self, widget, usage):
         widget.setToolTip("\n".join(line for paragraph in self.help.usage(usage).splitlines()
                                      for line in textwrap.wrap(paragraph)))
+
+    def update_buttons(self):
+        """Enable the buttons that have something to do: the operations need an FMU, saving it needs a
+        modification."""
+        loaded = self.dropped_fmu.fmu is not None
+        for button in self.operations_button_list:
+            button.setEnabled(loaded)
+        self.reload_button.setEnabled(loaded)
+        self.filter_list.setEnabled(loaded)
+        self.save_fmu_button.setEnabled(loaded and self.fmu_modified)
+
+    def set_modified(self):
+        self.fmu_modified = True
+        self.update_buttons()
 
     def reload_fmu(self):
         if self.dropped_fmu.fmu:
@@ -323,51 +505,74 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
                 logger.error(f"{e}")
 
     def add_operation(self, name, usage, severity, operation, prompt=None, prompt_file=None, arg=None,
-                      func=None) -> QPushButton:
+                      func=None, modifies=False, alternative=None) -> OperationButton:
+        def apply(instance):
+            if self.apply_operation(instance) and modifies:
+                self.set_modified()
+
         if prompt:
             def operation_handler():
                 local_arg = self.prompt_string(prompt)
                 if local_arg:
-                    self.apply_operation(operation(local_arg))
+                    apply(operation(local_arg))
         elif prompt_file:
             def operation_handler():
                 local_arg = self.prompt_file(prompt_file)
                 if local_arg:
-                    self.apply_operation(operation(local_arg))
+                    apply(operation(local_arg))
         elif arg:
             def operation_handler():
-                self.apply_operation(operation(arg))
+                apply(operation(arg))
         else:
             def operation_handler():
                 # Checker can be a list of operations!
                 if isinstance(operation, list):
                     for op in operation:
-                        self.apply_operation(op())
+                        apply(op())
                 else:
-                    self.apply_operation(operation())
+                    apply(operation())
 
-        button = QPushButton(name)
+        button = OperationButton(name, func or operation_handler, alternative)
         self.set_tooltip(button, usage)
         button.setProperty("class", severity)
-        if func:
-            button.clicked.connect(func)
-        else:
-            button.clicked.connect(operation_handler)
-
         return button
 
-    def compile_sources(self):
-        """Compile the sources; after a compilation failure, ask for additional options and retry (until success
-        or Cancel). The options are kept for the rest of the session."""
+    def selected_check(self):
+        """Run the checkers chosen in `CheckSelectionDialog`, with its settings of FMI-LS-REF."""
         if not self.dropped_fmu.fmu:
             return
+        checkers = get_checkers()
+        dialog = CheckSelectionDialog(checkers, self.check_selection, self.ls_ref_settings, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self.check_selection = set(dialog.selected())
+        self.ls_ref_settings = dialog.settings()
+        for checker in dialog.selected():
+            if issubclass(checker, OperationLsRefCheck):
+                self.apply_operation(checker(**self.ls_ref_settings))
+            else:
+                self.apply_operation(checker())
+
+    def compile_sources(self, ask_first: bool = False):
+        """Compile the sources; after a compilation failure, ask for additional options and retry (until success
+        or Cancel). With `ask_first` ("Advanced Compile"), ask for the options before the first attempt. The options
+        are kept for the rest of the session."""
+        if not self.dropped_fmu.fmu:
+            return
+        if ask_first:
+            dialog = CompileOptionsDialog(self.compile_options, self.host_toolchain(), parent=self, failed=False)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            self.compile_options = dialog.values()
         while True:
             try:
                 operation = OperationCompileSources(**self.compile_parameters())
             except ValueError as error:                 # unbalanced quotes
                 logger.error(f"Invalid options: {error}.")
             else:
-                self.apply_operation(operation)
+                if self.apply_operation(operation):
+                    self.set_modified()
+                    return
                 if not operation.compilation_failed:
                     return
             dialog = CompileOptionsDialog(self.compile_options, self.host_toolchain(), parent=self)
@@ -412,6 +617,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         return None
 
     def update_fmu(self):
+        self.fmu_modified = False
+        self.update_buttons()
         if self.dropped_fmu.fmu:
             self.fmu_title.setText(os.path.basename(self.dropped_fmu.fmu.fmu_filename))
             self.log_widget.clear()
@@ -422,30 +629,35 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
         else:
             self.fmu_title.setText('')
 
-    def apply_operation(self, operation):
+    def apply_operation(self, operation) -> bool:
+        """Apply `operation` to the loaded FMU. Returns whether it ended without an exception."""
         with window_log_context(self):
-            self._apply_operation(operation)
+            return self._apply_operation(operation)
 
-    def _apply_operation(self, operation):
-        if self.dropped_fmu.fmu:
-            self.log_widget.moveCursor(QTextCursor.MoveOperation.End)
-            fmu_filename = os.path.basename(self.dropped_fmu.fmu.fmu_filename)
-            logger.info('-' * 100)
-            self.log_widget.insertHtml(f"<strong>{fmu_filename}: {operation}</strong><br>")
+    def _apply_operation(self, operation) -> bool:
+        if not self.dropped_fmu.fmu:
+            return False
+        self.log_widget.moveCursor(QTextCursor.MoveOperation.End)
+        fmu_filename = os.path.basename(self.dropped_fmu.fmu.fmu_filename)
+        logger.info('-' * 100)
+        self.log_widget.insertHtml(f"<strong>{fmu_filename}: {operation}</strong><br>")
 
-            apply_on = self.filter_list.get()
-            if apply_on:
-                self.log_widget.insertHtml(f"<i>Applied only for ports with  causality = " +
-                                           ", ".join(apply_on) + "</i><br>")
-            logger.info('-' * 100)
-            with busy_cursor():
-                try:
-                    self.dropped_fmu.fmu.apply_operation(operation, apply_on=apply_on)
-                except Exception as e:
-                    logger.error(f"{e}")
+        apply_on = self.filter_list.get()
+        if apply_on:
+            self.log_widget.insertHtml(f"<i>Applied only for ports with  causality = " +
+                                       ", ".join(apply_on) + "</i><br>")
+        logger.info('-' * 100)
+        with busy_cursor():
+            try:
+                self.dropped_fmu.fmu.apply_operation(operation, apply_on=apply_on)
+                succeeded = True
+            except Exception as e:
+                logger.error(f"{e}")
+                succeeded = False
 
-            scroll_bar = self.log_widget.verticalScrollBar()
-            scroll_bar.setValue(scroll_bar.maximum())
+        scroll_bar = self.log_widget.verticalScrollBar()
+        scroll_bar.setValue(scroll_bar.maximum())
+        return succeeded
 
 
 def parse_arguments(arguments: list[str]) -> argparse.Namespace:

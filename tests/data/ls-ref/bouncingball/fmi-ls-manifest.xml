@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiReferences
+    xmlns:fmi-ls="http://fmi-standard.org/fmi-ls-manifest"
+    fmi-ls:fmi-ls-name="org.fmi-standard.fmi-ls-ref"
+    fmi-ls:fmi-ls-version="1.0.0-alpha.1"
+    fmi-ls:fmi-ls-description="Layered Standard providing information on related files included in an FMU.">
+    <Related type="application/x-ma-hs-experiments" source="experiments.xml" role="experiment/validation"
+             description="Bounces with the default and with a lower coefficient of restitution"/>
+</fmiReferences>

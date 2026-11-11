@@ -2,15 +2,23 @@ import importlib.util
 from importlib.metadata import entry_points
 import inspect
 import logging
+import math
 import os
 import re
+import tempfile
 import urllib.parse
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from pathlib import Path
 
 import xmlschema
 
-from .ls import XCP_ROLE_TYPES, XCP_ROLES, LayeredStandard, XcpInterface, a2l_tokens
+from .experiments import (PARAMETERS_TYPE, TIME_SERIES_TYPE, Experiment, ExperimentSource, ExperimentsError,
+                          read_experiments, read_parameter_set)
+from .ls import (REF_EXPERIMENT_SUB_ROLES, REF_EXPERIMENTS_TYPE, XCP_ROLE_TYPES, XCP_ROLES, LayeredStandard,
+                 RefRelated, XcpInterface, a2l_tokens)
+from .simulation import SimulationError, SimulationUnavailable, SimulationUnsupported, replay
+from .timeseries import HOLD, LINEAR, TimeSeriesError, compare, read_csv
 from .model_description import ModelDescription, ModelVariable
 from .operations import OperationAbstract
 from .terminals import CONFIGURATION_KIND, TRANSCEIVER_MEMBERS, TRANSCEIVER_RULE, Terminal, Terminals
@@ -363,6 +371,7 @@ class OperationLsBusCheck(OperationAbstract):
         has_terminals = any(terminal.kind in self.MATCHING_RULES for terminal in terminals.walk())
         has_manifest = (directory / self.MANIFEST).is_file()
         if not has_terminals and not has_manifest:
+            logger.info("FMI-LS-BUS not present.")
             return
 
         if md.fmi_version != 3:
@@ -528,6 +537,7 @@ class OperationLsXcpCheck(OperationAbstract):
         directory = Path(self.fmu.tmp_directory)
         manifest = directory / self.MANIFEST
         if not manifest.is_file():
+            logger.info("FMI-LS-XCP not present.")
             return
 
         try:
@@ -622,8 +632,329 @@ class OperationLsXcpCheck(OperationAbstract):
                        f"output or a fixed or tunable calculatedParameter.")
 
 
+@dataclass
+class RefReplay:
+    """An experiment of FMI-LS-REF that the checker replays.
+
+    Attributes:
+        related (RefRelated): The related file it comes from: an experiment file, or a result file replayed with the
+            `DefaultExperiment` of the FMU.
+        experiment (Experiment): The experiment.
+        outputs (list[str]): The variables to compare with the references.
+    """
+    related: RefRelated
+    experiment: Experiment
+    outputs: list[str]
+
+
+class OperationLsRefCheck(OperationAbstract):
+    """Check the rules of FMI-LS-REF, for an FMU that declares this layered standard.
+
+    Each violation is logged as an error and kept in `errors`:
+
+    - the manifest `extra/org.fmi-standard.fmi-ls-ref/fmi-ls-manifest.xml` against the XSD of FMI-LS-REF (roles and
+      experiment sub-roles included);
+    - the experiment files (`application/x-ma-hs-experiments`) against the XSD of MA-HS-Experiments; for each
+      experiment: `startTime` before `stopTime`, a positive `stepSize`;
+    - the files of an experiment replayed by the checker (sub-role `smoke-test`, the default, or `validation`): found
+      in the FMU; the CSV files (convention of the FMI cross-check) readable, their columns `input` variables for the
+      stimuli and `output` variables for the references; the parameters of the SSV files `parameter` or
+      `structuralParameter` variables, or `input` variables with a start value;
+    - a CSV file of role `result` (output of the `DefaultExperiment` of the FMU, as in the Reference-FMUs): readable;
+      it is replayed with the `DefaultExperiment`, its columns compared when they are outputs of a comparable type;
+    - the experiments to replay are simulated with the container runtime (`simulation.replay`), each one in a
+      dedicated process stopped after `timeout` seconds (a crash or a timeout is an error), and their outputs
+      compared with the references at the instants of the references (`timeseries.compare`, `rtol`, `atol`):
+      simulation interpolated linearly for the continuous reals, previous value otherwise; strings compared exactly;
+      at an event of the references, the value after it. An experiment without references is only simulated.
+
+    Warnings: the `fmi-ls-description` of the manifest missing or different from the one of the XSD (the
+    Reference-FMUs have none), a related file not found in the FMU (absolute URI, path leaving the FMU, missing
+    file), an experiment file of another type, a stimuli, references or parameters file of a type other than CSV or
+    SSV, a file of an `uncertainty-analysis` experiment not found, a column of a result file that is not an output or
+    is a binary, a binary of the references (ignored), the container runtime or the binary of the FMU not available for
+    the host platform (no replay), a stimulus on a boolean input of an FMI-2.0 FMU (experiment not replayed).
+
+    Args:
+        rtol (float): Relative tolerance of the comparison with the references (`RTOL` by default), `>= 0`.
+        atol (float): Absolute tolerance of the comparison with the references (`ATOL` by default), `>= 0`.
+        timeout (float): Time limit of the replay of an experiment, in seconds (`TIMEOUT` by default), `> 0`.
+
+    Raises:
+        ValueError: A setting is out of its range or not finite.
+
+    Attributes:
+        errors (list[str]): Violations found.
+        experiments (list[RefReplay]): The experiments to replay.
+    """
+
+    read_only = True
+
+    MANIFEST = Path("extra") / LayeredStandard.REF_NAME / "fmi-ls-manifest.xml"
+    XSD_DIRECTORY = Path(__file__).parent / "resources" / "fmi-ls-ref"
+    MANIFEST_XSD = XSD_DIRECTORY / "fmi3LayeredStandardReferenceManifest.xsd"
+    EXPERIMENTS_XSD = XSD_DIRECTORY / "maHarmonizedSpecificationExperiments.xsd"
+    #: Sub-roles of the experiments replayed by the checker.
+    REPLAYED_SUB_ROLES = ("smoke-test", "validation")
+    #: Default tolerances of the comparison with the references.
+    RTOL = 1e-3
+    ATOL = 1e-6
+    #: Default time limit of the replay of an experiment, in seconds (each experiment is replayed in a dedicated
+    #: process).
+    TIMEOUT = 60
+
+    def __init__(self, rtol: float = RTOL, atol: float = ATOL, timeout: float = TIMEOUT):
+        for name, value in (("rtol", rtol), ("atol", atol)):
+            if not math.isfinite(value) or value < 0:
+                raise ValueError(f"{name} must be a number >= 0, not {value:g}")
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise ValueError(f"timeout must be a number > 0, not {timeout:g}")
+        self.rtol, self.atol, self.timeout = rtol, atol, timeout
+        self.errors: list[str] = []
+        self.experiments: list[RefReplay] = []
+
+    def __repr__(self):
+        return "FMU LS-REF Checks"
+
+    def error(self, message: str):
+        self.errors.append(message)
+        logger.error(message)
+
+    def closure(self):
+        directory = Path(self.fmu.tmp_directory)
+        manifest = directory / self.MANIFEST
+        if not manifest.is_file():
+            logger.info("FMI-LS-REF not present.")
+            return
+
+        try:
+            ET.parse(manifest)
+        except ET.ParseError as error:
+            self.error(f"Cannot parse the manifest of FMI-LS-REF: {error}")
+        else:
+            for error in xmlschema.XMLSchema(str(self.MANIFEST_XSD)).iter_errors(str(manifest)):
+                reason = re.sub(r"\{[^}]*}", "", str(error.reason))     # names without their namespace
+                message = f"Manifest of FMI-LS-REF: {reason}" + (f" (at {error.path})" if error.path else "")
+                if "fmi-ls-description" in str(error.reason):
+                    logger.warning(message)     # the Reference-FMUs have no description
+                else:
+                    self.error(message)
+            ports = {port.get("name"): port for port in self.model_description.iter_ports()}
+            for related in LayeredStandard(directory).ref_related:
+                self.check_related(related, directory, ports)
+            if self.experiments:
+                self.replay_experiments(ports)
+
+        if self.errors:
+            logger.error(f"{len(self.errors)} error(s) against FMI-LS-REF.")
+        else:
+            logger.info("No error against FMI-LS-REF.")
+
+    def check_related(self, related: RefRelated, directory: Path, ports: dict[str, ModelVariable]):
+        label = f"Related file '{related.source}' of FMI-LS-REF"
+        if related.is_experiment:
+            for sub_role in related.sub_roles:
+                if sub_role not in REF_EXPERIMENT_SUB_ROLES:
+                    self.error(f"{label}: unknown experiment sub-role '{sub_role}'.")
+        if related.path is None:
+            logger.warning(f"{label}: {related.problem}, it is ignored.")
+            return
+        if related.main_role == "result" and related.type == TIME_SERIES_TYPE:
+            self.check_result(label, related, directory, ports)
+            return
+        if not related.is_experiment:
+            return
+        if related.type != REF_EXPERIMENTS_TYPE:
+            logger.warning(f"{label}: experiment file of type '{related.type}', only '{REF_EXPERIMENTS_TYPE}' is "
+                           f"supported: it is ignored.")
+            return
+
+        filename = directory / related.path
+        try:
+            experiments = read_experiments(filename, directory)
+        except ExperimentsError as error:
+            self.error(f"{label}: {error}.")
+            return
+        for error in xmlschema.XMLSchema(str(self.EXPERIMENTS_XSD)).iter_errors(str(filename)):
+            self.error(f"{label}: {error.reason}" + (f" (at {error.path})" if error.path else ""))
+        replayed = related.sub_role in self.REPLAYED_SUB_ROLES
+        for experiment in experiments.experiments:
+            outputs = self.check_experiment(f"{label}, experiment '{experiment.name}'", experiment, replayed, ports)
+            if outputs is not None and replayed:
+                self.experiments.append(RefReplay(related, experiment, outputs))
+
+    def check_result(self, label: str, related: RefRelated, directory: Path, ports: dict[str, ModelVariable]):
+        """A result file, replayed with the `DefaultExperiment` of the FMU."""
+        path = directory / related.path
+        try:
+            series = read_csv(path)
+        except TimeSeriesError as error:
+            self.error(f"{label}: {error}.")
+            return
+        outputs = []
+        for name in series.columns:
+            port = ports.get(name)
+            if port is None or port.causality != "output":
+                logger.warning(f"{label}: the column '{name}' is not an output of the FMU, it is ignored.")
+            elif port.fmi_type == "Binary":
+                logger.warning(f"{label}: the column '{name}' is a binary, it is ignored.")
+            else:
+                outputs.append(name)
+        if not outputs:
+            logger.warning(f"{label}: no output to compare, it is not replayed.")
+            return
+        default = self.model_description.default_experiment
+        attributes = default.attrib if default is not None else {}
+
+        def time(name: str) -> float | None:
+            try:
+                return float(attributes[name])
+            except (KeyError, ValueError):
+                return None
+
+        experiment = Experiment(name="DefaultExperiment", description=related.description,
+                                start_time=time("startTime"), stop_time=time("stopTime"), step_size=time("stepSize"),
+                                tolerance=time("tolerance"),
+                                references=ExperimentSource(related.source, related.type, path))
+        self.experiments.append(RefReplay(related, experiment, outputs))
+
+    def check_experiment(self, label: str, experiment: Experiment, replayed: bool,
+                         ports: dict[str, ModelVariable]) -> list[str] | None:
+        """Checks an experiment; returns the variables of its references when it can be replayed (no error, its
+        files found and supported), `None` otherwise."""
+        errors = len(self.errors)
+        if experiment.start_time is not None and experiment.stop_time is not None and \
+                not experiment.start_time < experiment.stop_time:
+            self.error(f"{label}: startTime {experiment.start_time} is not before stopTime {experiment.stop_time}.")
+        if experiment.step_size is not None and not experiment.step_size > 0:
+            self.error(f"{label}: stepSize {experiment.step_size} is not positive.")
+
+        supported = True
+        outputs: list[str] = []
+        for kind, source, expected_type in (("parameters", experiment.parameters, PARAMETERS_TYPE),
+                                            ("stimuli", experiment.stimuli, TIME_SERIES_TYPE),
+                                            ("references", experiment.references, TIME_SERIES_TYPE)):
+            if source is None:
+                continue
+            if source.path is None:
+                message = f"{label}: the {kind} '{source.source}' cannot be used: {source.problem}."
+                if replayed:
+                    self.error(message)
+                else:
+                    logger.warning(message)
+                supported = False
+            elif source.type != expected_type:
+                logger.warning(f"{label}: the {kind} '{source.source}' are of type '{source.type}', only "
+                               f"'{expected_type}' is supported.")
+                supported = False
+            elif kind == "parameters":
+                self.check_parameters(label, source, ports)
+            elif kind == "stimuli":
+                self.check_time_series(label, kind, source, ports)
+            else:
+                outputs = self.check_time_series(label, kind, source, ports)
+        return outputs if supported and len(self.errors) == errors else None
+
+    def check_time_series(self, label: str, kind: str, source: ExperimentSource,
+                          ports: dict[str, ModelVariable]) -> list[str]:
+        """Checks the stimuli or the references of an experiment; returns the names of their columns."""
+        causality = "input" if kind == "stimuli" else "output"
+        try:
+            series = read_csv(source.path)
+        except TimeSeriesError as error:
+            self.error(f"{label}: {error}.")
+            return []
+        names = []
+        for name in series.columns:
+            port = ports.get(name)
+            if port is None:
+                self.error(f"{label}: the {kind} '{source.source}' give the variable '{name}', which does not exist.")
+            elif port.causality != causality:
+                self.error(f"{label}: the {kind} '{source.source}' give the variable '{name}', which is a "
+                           f"{port.causality}, not an {causality}.")
+            elif kind == "references" and port.fmi_type == "Binary":
+                logger.warning(f"{label}: the {kind} '{source.source}' give the binary '{name}', it is not compared.")
+            else:
+                names.append(name)
+        return names
+
+    def check_parameters(self, label: str, source: ExperimentSource, ports: dict[str, ModelVariable]):
+        try:
+            parameters = read_parameter_set(source.path)
+        except ExperimentsError as error:
+            self.error(f"{label}: {error}.")
+            return
+        for parameter in parameters:
+            port = ports.get(parameter.name)
+            if port is None:
+                self.error(f"{label}: the parameters '{source.source}' give the variable '{parameter.name}', which "
+                           f"does not exist.")
+            elif port.causality not in ("parameter", "structuralParameter") and \
+                    not (port.causality == "input" and port.get("start") is not None):
+                self.error(f"{label}: the parameters '{source.source}' give the variable '{parameter.name}', which "
+                           f"is a {port.causality}: only parameters, structural parameters and inputs with a start "
+                           f"value can be set.")
+
+
+    def replay_experiments(self, ports: dict[str, ModelVariable]):
+        """Replays the experiments on the FMU as it is now (repacked in a temporary directory)."""
+        with tempfile.TemporaryDirectory(prefix="fmutool-lsref-") as directory:
+            fmu_filename = Path(directory) / Path(self.fmu.fmu_filename).name
+            self.fmu.repack(str(fmu_filename))
+            for experiment in self.experiments:
+                try:
+                    self.replay_experiment(fmu_filename, experiment, ports)
+                except SimulationUnavailable as error:
+                    logger.warning(f"The experiments of FMI-LS-REF are not replayed: {error}.")
+                    return
+
+    def replay_experiment(self, fmu_filename: Path, ref_replay: RefReplay, ports: dict[str, ModelVariable]):
+        experiment = ref_replay.experiment
+        label = f"Experiment '{experiment.name}' of '{ref_replay.related.source}'"
+        logger.info(f"Simulating experiment '{experiment.name}' (rtol={self.rtol:g}, atol={self.atol:g}, "
+                    f"timeout={self.timeout:g} s).")
+        try:
+            references = read_csv(experiment.references.path) if experiment.references else None
+            stimuli = read_csv(experiment.stimuli.path) if experiment.stimuli else None
+            parameters = read_parameter_set(experiment.parameters.path) if experiment.parameters else None
+            simulated = replay(fmu_filename, experiment, ref_replay.outputs, stimuli, parameters, references,
+                               timeout=self.timeout)
+        except SimulationUnavailable:
+            raise
+        except SimulationUnsupported as error:
+            logger.warning(f"{label}: not replayed: {error}.")
+            return
+        except (SimulationError, TimeSeriesError, ExperimentsError) as error:
+            self.error(f"{label}: cannot be replayed: {error}.")
+            return
+        if references is None:
+            logger.info(f"{label}: simulated, no references to compare.")
+            return
+
+        failures = 0
+        for name in ref_replay.outputs:
+            port = ports[name]
+            continuous = port.variability == "continuous" and port.has_type(("Real", "Float64", "Float32"))
+            exact = port.fmi_type == "String"
+            try:
+                result = compare(references, simulated, name, self.rtol, self.atol, LINEAR if continuous else HOLD,
+                                 exact)
+            except TimeSeriesError as error:
+                self.error(f"{label}: output '{name}': {error}.")
+                failures += 1
+                continue
+            if not result.passed:
+                failures += 1
+                detail = "" if exact else f" (maximal error {result.max_error:g} at t={result.max_error_time:g})"
+                value = str(result.simulated).lower() if isinstance(result.simulated, bool) else result.simulated
+                self.error(f"{label}: output '{name}' differs from the references at t={result.failure_time:g}: "
+                           f"expected {result.expected}, simulated {value}{detail}.")
+        if not failures:
+            logger.info(f"{label}: the {len(ref_replay.outputs)} output(s) match the references.")
+
+
 _checkers_list: list[type[OperationAbstract]] = [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck,
-                                                 OperationLsXcpCheck]
+                                                 OperationLsXcpCheck, OperationLsRefCheck]
 
 
 def get_checkers() -> list[type[OperationAbstract]]:

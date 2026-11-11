@@ -169,6 +169,7 @@ nav:
       - Checker: API/checker.md
       - Compiler: API/compiler.md
       - Container: API/container.md
+      - LS-REF: API/ls_ref.md
       - Model description: API/model_description.md
       - Operations: API/operations.md
       - Remoting: API/remoting.md

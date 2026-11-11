@@ -65,7 +65,8 @@ def test_fmu_without_ls_xcp_is_not_checked(caplog):
     path = DATA_DIR / "ls-bus" / "node1.fmu"
     with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
         assert _errors(path) == []
-    assert "LS-XCP" not in caplog.text
+    assert "FMI-LS-XCP not present." in caplog.text
+    assert "error against FMI-LS-XCP" not in caplog.text
 
 
 @pytest.mark.parametrize("old, new, expected", [
