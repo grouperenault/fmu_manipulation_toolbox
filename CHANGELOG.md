@@ -38,8 +38,9 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟠 **FIXED** checker FMI-LS-REF: a simulation terminated by the FMU was an error; it ends normally, the references
   after its end are not compared (warning). The FMI 3.0 Stair of the Reference-FMUs passes.
 - 🟠 **FIXED** the resource locations given to the embedded FMUs: for FMI 2.0, a malformed URI (`file:////…`, `\`
-  separators on Windows, octets not percent-encoded) is now a `file` URI of RFC 3986; for FMI 3.0, `NULL` when the FMU
-  has no `resources` folder (2.3.1); no more doubled separator in their paths.
+  separators on Windows, octets not percent-encoded) is now a `file` URI of RFC 3986; no more doubled separator in
+  their paths. An embedded FMU without `resources` folder gets an empty one: FMI 3.0 would give it a `NULL`
+  `resourcePath` (2.3.1), which some FMUs do not expect.
 - 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
   was reset before the delivery of the clocked inputs.
 - 🟠 **FIXED** LS-BUS: `Rx_Data` was set in the instant where `Tx_Data` was read. An FMU which evaluates its discrete states at this

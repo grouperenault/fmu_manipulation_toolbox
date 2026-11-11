@@ -36,8 +36,10 @@ Sequence](dostep-fmi-sequence.md#values-set-by-the-importer)), `datalog_`, `fmu_
 
 The resource locations follow the FMI version of each embedded FMU: a `file` URI for FMI 2.0
 (`file:///C:/…/resources`, separators `/`, percent-encoded octets, `path_to_uri()`), a native path with a trailing
-separator for FMI 3.0, or `NULL` when the FMU has no `resources` folder. The resource location of the container
-itself, given by its importer, is decoded by `path_from_uri()`.
+separator for FMI 3.0, or `NULL` when the FMU has no `resources` folder. The builder gives an empty `resources` folder
+to every embedded FMU that has none, since some FMUs do not expect a `NULL` `resourcePath` (`strdup(resourcePath)`):
+`NULL` only remains for the containers built before. The resource location of the container itself, given by its
+importer, is decoded by `path_from_uri()`.
 
 ## Logger
 

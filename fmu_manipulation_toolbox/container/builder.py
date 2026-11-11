@@ -1419,6 +1419,9 @@ class FMUContainer:
         for i, fmu in enumerate(self.involved_fmu.values()):
             with zipfile.ZipFile(fmu.fmu.fmu_filename) as zin:
                 zin.extractall(self.long_path(resources_directory / f"{i:02x}"))
+            # FMI 3.0 gives a NULL resourcePath to an FMU without resources folder (2.3.1), which some FMUs do not
+            # expect (strdup(resourcePath)): every embedded FMU gets one, empty when it has none.
+            os.makedirs(self.long_path(resources_directory / f"{i:02x}" / "resources"), exist_ok=True)
 
         return resources_directory
 
@@ -1430,6 +1433,8 @@ class FMUContainer:
             def add_file(directory: Path):
                 for entry in directory.iterdir():
                     if entry.is_dir():
+                        if not any(entry.iterdir()):
+                            zip_file.write(str(entry), str(entry)[offset:])     # an empty folder is kept
                         add_file(directory / entry)
                     elif entry.is_file():
                         zip_file.write(str(entry), str(entry)[offset:])

@@ -58,6 +58,9 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
   A time-based input clock (`intervalVariability` `constant`, `fixed`, `tunable`, `changing` or `countdown`) that is
   not linked is scheduled by the container, from its interval and shift: its first tick is at the start time plus its
   shift (FMI 3.0, 2.2.8.2). A `triggered` input clock that is not linked never ticks.
+  The clocked variables are not exchanged in the Initialization Mode: FMI 3.0 allows it (2.2.7.2), but many FMUs refuse
+  it. The local variable of a link between clocked variables keeps 0 (or empty) until the first tick of its clock, and
+  the clocked input it feeds keeps its own start value meanwhile; the datalog shows these values.
 
 Some of these parameters can be defined by Command Line Interface or by the input files.
 

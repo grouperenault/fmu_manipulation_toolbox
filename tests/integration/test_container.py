@@ -306,3 +306,21 @@ def test_container_with_instances_simulates(area_dir):
 
     result = simulate("twice.fmu", stop_time=1, output=["first", "second"])
     assert result["time"][-1] == pytest.approx(1)
+
+
+# --------------------------------------------------------------------------- #
+#                     Resources folder of the embedded FMUs                     #
+# --------------------------------------------------------------------------- #
+@pytest.mark.area("ls-bus")
+def test_every_embedded_fmu_gets_a_resources_folder(area_dir):
+    """An FMU without resources folder gets an empty one: FMI 3.0 would give it a NULL resourcePath, which some FMUs
+    do not expect (strdup(resourcePath))."""
+    import zipfile
+    container = FMUContainer("node", Path("."), fmi_version=3)
+    container.get_fmu("node1.fmu")
+    container.add_implicit_rule(auto_input=False, auto_output=False)
+    container.make_fmu("node.fmu", step_size=0.1)
+    with zipfile.ZipFile("node1.fmu") as fmu:
+        assert not any(name.startswith("resources/") for name in fmu.namelist())
+    with zipfile.ZipFile("node.fmu") as packed:
+        assert "resources/00/resources/" in packed.namelist()
