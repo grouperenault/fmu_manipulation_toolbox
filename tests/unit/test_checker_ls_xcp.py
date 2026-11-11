@@ -79,6 +79,14 @@ def test_manifest_against_xsd(stub, old, new, expected):
     assert _has(_errors(_patched(stub[0], MANIFEST, old, new)), expected)
 
 
+def test_manifest_errors_name_the_attributes_without_namespace(stub):
+    """A fixed value of the XSD: the attribute is named 'fmi-ls-description', without its namespace."""
+    errors = _errors(_patched(stub[0], MANIFEST, 'fmi-ls:fmi-ls-description="Layered',
+                              'fmi-ls:fmi-ls-description="Other'))
+    assert _has(errors, "Manifest of FMI-LS-XCP: attribute 'fmi-ls-description' has a fixed value")
+    assert not any("{" in error for error in errors)
+
+
 def test_neither_service_nor_direct_memory_access(stub):
     path = _patched(stub[0], MANIFEST, 'containsXCPService="true"', "")
     errors = _errors(path)

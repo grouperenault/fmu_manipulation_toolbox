@@ -26,6 +26,11 @@ from .terminals import CONFIGURATION_KIND, TRANSCEIVER_MEMBERS, TRANSCEIVER_RULE
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 
+def xsd_reason(error: xmlschema.XMLSchemaValidationError) -> str:
+    """Reason of an error of validation against an XSD, its names without their namespace (`{uri}name` -> `name`)."""
+    return re.sub(r"\{[^}]*}", "", str(error.reason))
+
+
 class OperationGenericCheck(OperationAbstract):
     """Check FMU compliance against the FMI standard XSD schema.
 
@@ -548,7 +553,8 @@ class OperationLsXcpCheck(OperationAbstract):
 
         if root is not None:
             for error in xmlschema.XMLSchema(str(self.XSD)).iter_errors(str(manifest)):
-                self.error(f"Manifest of FMI-LS-XCP: {error.reason}" + (f" (at {error.path})" if error.path else ""))
+                self.error(f"Manifest of FMI-LS-XCP: {xsd_reason(error)}"
+                           + (f" (at {error.path})" if error.path else ""))
             ports = {port.get("name"): port for port in self.model_description.iter_ports()}
             used: dict[str, str] = {}
             for interface in root.iter("Interface"):
@@ -733,8 +739,7 @@ class OperationLsRefCheck(OperationAbstract):
             self.error(f"Cannot parse the manifest of FMI-LS-REF: {error}")
         else:
             for error in xmlschema.XMLSchema(str(self.MANIFEST_XSD)).iter_errors(str(manifest)):
-                reason = re.sub(r"\{[^}]*}", "", str(error.reason))     # names without their namespace
-                message = f"Manifest of FMI-LS-REF: {reason}" + (f" (at {error.path})" if error.path else "")
+                message = f"Manifest of FMI-LS-REF: {xsd_reason(error)}" + (f" (at {error.path})" if error.path else "")
                 if "fmi-ls-description" in str(error.reason):
                     logger.warning(message)     # the Reference-FMUs have no description
                 else:
