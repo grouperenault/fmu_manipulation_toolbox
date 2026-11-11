@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from _helpers.archive import read_entry
+from _helpers.archive import read_entry, rewrite_fmu
 from _helpers.ls_ref import DATA_DIR, ls_ref_fmu, reference_fmu
 from fmu_manipulation_toolbox.container import FMUContainer
 from fmu_manipulation_toolbox.experiments import Experiment, Parameter, read_parameter_set
@@ -80,6 +80,34 @@ def test_stimuli_of_fmi2(fmus):
     _assert_matches(read_csv(LS_REF / "feedthrough" / "ref.csv"), simulated, ["Float64_continuous_output",
                                                                               "Int32_output"])
     assert simulated.columns["Boolean_output"] == [False] * 21        # an FMI-2.0 boolean output, exposed
+
+
+@pytest.mark.parametrize("first, second, columns", [
+    ("y[1]", "y[2]", ["y[1]", "y[2]"]),
+    ("m[1,1]", "m[1,2]", ["m[1,1]", "m[1,2]"]),
+], ids=["vector", "matrix"])
+def test_array_output(fmus, tmp_path, first, second, columns):
+    """An array output gives one column per element, named as by FMI 3.0: the two real outputs of the FMI-2.0
+    Feedthrough, renamed as the elements of an array (value references 8 and 10), are aggregated by the container into
+    one array output.
+
+    The container exposes an FMI-2.0 aggregate through a local variable, updated after each step: an element fed
+    through follows its input one step later than the scalar output, read once the inputs are set."""
+    path = fmus("2.0", "Feedthrough")
+    text = read_entry(path, "modelDescription.xml").decode()
+    text = text.replace('name="Float64_continuous_output"', f'name="{first}"')
+    text = text.replace('name="Float64_discrete_output" valueReference="10" causality="output" variability="discrete"',
+                        f'name="{second}" valueReference="10" causality="output"')
+    array = rewrite_fmu(path, tmp_path / "array.fmu", replace={"modelDescription.xml": text.encode()})
+    stimuli = TimeSeries(times=[0.0, 1.0], columns={"Float64_continuous_input": [1.0, 2.0],
+                                                    "Float64_discrete_input": [3.0, 3.0]})
+    experiment = Experiment("Array", start_time=0, stop_time=1, step_size=0.5)
+    simulated = replay(array, experiment, [first.split("[")[0]], stimuli=stimuli)
+    scalars = replay(path, experiment, ["Float64_continuous_output", "Float64_discrete_output"], stimuli=stimuli)
+    assert list(simulated.columns) == columns
+    assert scalars.columns["Float64_continuous_output"] == pytest.approx([1.0, 1.5, 2.0])
+    assert simulated.columns[columns[0]] == pytest.approx([1.0, 1.0, 1.5])
+    assert simulated.columns[columns[1]] == scalars.columns["Float64_discrete_output"] == pytest.approx([3.0] * 3)
 
 
 @pytest.mark.parametrize("version", VERSIONS)

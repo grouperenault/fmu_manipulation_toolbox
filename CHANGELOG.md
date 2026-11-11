@@ -150,6 +150,10 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   (`rtol=1e-3`, `atol=1e-6`). Each experiment runs in a dedicated process: a crash of the FMU, or a simulation longer
   than 60 s, fails this experiment only. New modules `experiments`, `timeseries` and `simulation`. See
   [FMU Checker](docs/user-guide/fmutool/checker.md#validation-of-the-results-fmi-ls-ref).
+- 🟢 **ADDED** `simulation.replay` records an array output as one column per element, named as by the structured
+  naming convention of FMI 3.0 (`y[1]`, `y[2]`..., `m[1,1]`, `m[1,2]`...: indices from 1, row-major order); a stimulus
+  on an array input, or an output whose dimension is a structural parameter, is refused (`SimulationUnsupported`).
+  An array output was read as a scalar: the replay failed.
 - 🟢 **ADDED** `-ref-rtol`, `-ref-atol` and `-ref-timeout` options of `fmutool -check`, and the `rtol`, `atol` and
   `timeout` arguments of `OperationLsRefCheck`: the settings of the replay of FMI-LS-REF.
 - 🟢 **ADDED** `OperationLsXcpCheck`, a built-in checker of the rules of FMI-LS-XCP 1.0.0 (manifest against its XSD,

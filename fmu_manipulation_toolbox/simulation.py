@@ -9,12 +9,15 @@ are set, the outputs are read and recorded at `t_k`, then the container steps to
 the results of the Reference-FMUs: an output fed through follows its input at the same instant).
 When an embedded FMU asks to terminate the simulation, the container stops at the time reached: the simulation ends
 there, the outputs of this instant being the last ones recorded.
+An array output is recorded as one column per element, named as by the structured naming convention of FMI 3.0
+(indices from 1, row-major order): `y[1]`, `y[2]`... or `m[1,1]`, `m[1,2]`...
 
 The simulation runs in a dedicated process (`multiprocessing`, `spawn`): a crash of the FMU or of the runtime, or a
 simulation that never returns, fails the replay instead of the calling process, and the libraries loaded by the
 simulation are unloaded with its process.
 """
 import ctypes
+import itertools
 import logging
 import math
 import multiprocessing
@@ -59,6 +62,19 @@ class _Port:
     vr: int
     fmi_type: str
     interpolation: str
+    shape: tuple[int, ...] | None = ()     # sizes of the dimensions of an array, () for a scalar, None: unknown
+
+    @property
+    def size(self) -> int:
+        return math.prod(self.shape)
+
+    @property
+    def columns(self) -> list[str]:
+        """Names of the recorded columns: the name of a scalar, one name per element of an array."""
+        if not self.shape:
+            return [self.name]
+        return [f"{self.name}[{','.join(str(i) for i in index)}]"
+                for index in itertools.product(*(range(1, n + 1) for n in self.shape))]
 
 
 def _time(element, name: str) -> float | None:
@@ -111,12 +127,13 @@ def replay(fmu_filename: Path | str, experiment: Experiment, outputs: list[str],
         isolated: Run the simulation in a dedicated process (`False`: in the calling process).
 
     Returns:
-        TimeSeries: The values of `outputs` at each communication point.
+        TimeSeries: The values of `outputs` at each communication point; an array output gives one column per
+            element (`y[1]`, `y[2]`..., `m[1,1]`, `m[1,2]`...: indices from 1, row-major order).
 
     Raises:
         SimulationUnavailable: The container or the FMU has no library for the host platform.
         SimulationUnsupported: A stimulus is on a boolean input of an FMI-2.0 FMU, which the FMI-3.0 container cannot
-            expose.
+            expose, or on an array input; an output is an array whose dimension is given by a structural parameter.
         SimulationError: The container cannot be built, the simulation fails, crashes or exceeds `timeout`.
     """
     # Created and removed here: a library loaded by the simulation locks its files on Windows until its process ends.
@@ -348,8 +365,10 @@ class _Driver:
     @staticmethod
     def _port(variable: ModelVariable) -> _Port:
         continuous = variable.variability == "continuous" and variable.has_type(("Float64", "Float32"))
+        dimensions = variable.dimensions
+        shape = tuple(size for kind, size in dimensions) if all(kind == "start" for kind, _ in dimensions) else None
         return _Port(variable.get("name"), int(variable.get("valueReference")), variable.fmi_type,
-                     LINEAR if continuous else HOLD)
+                     LINEAR if continuous else HOLD, shape)
 
     def _fmi3_log_message(self, environment, status, category, message):
         text = message.decode("utf-8", "replace") if message else ""
@@ -376,7 +395,14 @@ class _Driver:
                         f"stops at {start_time + nb_steps * step_size}.")
         inputs = [self.ports[name] for name in (stimuli.columns if stimuli else [])]
         recorded = [self.ports[name] for name in outputs]
-        result = TimeSeries(columns={name: [] for name in outputs})
+        for port in inputs:
+            if port.shape != ():
+                raise SimulationUnsupported(f"the stimulus of the array '{port.name}' cannot be set")
+        for port in recorded:
+            if port.shape is None:
+                raise SimulationUnsupported(f"the dimension of the array '{port.name}' is given by a structural "
+                                            f"parameter")
+        result = TimeSeries(columns={column: [] for port in recorded for column in port.columns})
 
         self._instantiate()
         self._call("fmi3EnterInitializationMode", ctypes.c_bool(False), ctypes.c_double(0.0),
@@ -452,11 +478,12 @@ class _Driver:
         result.times.append(time)
         for port in outputs:
             c_type, function = self._types(port)
-            value = c_type()
+            values = (c_type * port.size)()
             vr = ctypes.c_uint32(port.vr)
-            self._call(f"fmi3Get{function}", ctypes.byref(vr), ctypes.c_size_t(1), ctypes.byref(value),
-                       ctypes.c_size_t(1))
-            if c_type is ctypes.c_char_p:
-                result.columns[port.name].append((value.value or b"").decode("utf-8", "replace"))
-            else:
-                result.columns[port.name].append(value.value)
+            self._call(f"fmi3Get{function}", ctypes.byref(vr), ctypes.c_size_t(1), values,
+                       ctypes.c_size_t(port.size))
+            for column, value in zip(port.columns, values):
+                if c_type is ctypes.c_char_p:
+                    result.columns[column].append((value or b"").decode("utf-8", "replace"))
+                else:
+                    result.columns[column].append(value)
