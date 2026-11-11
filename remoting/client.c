@@ -185,7 +185,8 @@ static int client_module_path(char path[MAX_PATH])  {
 
     /* on linux, sometime info.dli does not contain an absolute path */
     if (info.dli_fname[0] != '/') {
-        getcwd(path, MAX_PATH);
+        if (!getcwd(path, MAX_PATH))
+            return -2;
         strncat(path, "/", MAX_PATH - strlen(path));
         strncat(path, info.dli_fname, MAX_PATH - strlen(path));
     } else
