@@ -27,6 +27,9 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   value of the embedded FMU: it prevails now.
 - 🟠 **FIXED** the `resourcePath` given to an embedded FMI 3.0 FMU had no trailing file separator (FMI 3.0, 2.3.1): the
   FMUs that check it, like the Reference-FMUs since v0.0.42, could not be instantiated.
+- 🟠 **FIXED** a clock or a clocked variable of an embedded FMU could be exposed on the container, explicitly or by
+  `auto_input` / `auto_output` / `auto_local`: the container then accessed it outside the activation of its clock. It
+  is now refused (explicit exposure) or left out with a warning (implicit rules).
 - 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
   was reset before the delivery of the clocked inputs.
 - 🟠 **FIXED** LS-BUS: `Rx_Data` was set in the instant where `Tx_Data` was read. An FMU which evaluates its discrete states at this

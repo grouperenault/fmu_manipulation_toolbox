@@ -7,6 +7,7 @@ import importlib
 import io
 import logging
 import re
+import shutil
 import xml.etree.ElementTree as ET
 import zipfile
 from pathlib import Path
@@ -614,3 +615,37 @@ def test_an_fmu_that_cannot_be_embedded_is_refused_clearly(tmp_path, attributes,
                             '</fmiModelDescription>')
     with pytest.raises(FMUContainerError, match=message):
         FMUContainer("test", tmp_path).get_fmu(fmu.name)
+
+
+# --------------------------------------------------------------------------- #
+#                    Clocks and clocked variables are not exposed               #
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def node(tmp_path) -> FMUContainer:
+    """A container embedding an LS-BUS node: two clocks and two variables clocked by them."""
+    shutil.copy(REPOSITORY / "tests" / "data" / "ls-bus" / "node1.fmu", tmp_path)
+    container = FMUContainer("test", tmp_path)
+    container.get_fmu("node1.fmu")
+    return container
+
+
+@pytest.mark.parametrize("port", ["CanChannel.Tx_Clock", "CanChannel.Tx_Data"], ids=["clock", "clocked"])
+def test_a_clock_or_a_clocked_variable_is_not_exposed_as_output(node, port):
+    with pytest.raises(FMUContainerError, match="clocks and clocked variables cannot be exposed"):
+        node.add_output("node1.fmu", port, "")
+    assert not node.outputs
+
+
+@pytest.mark.parametrize("port", ["CanChannel.Rx_Clock", "CanChannel.Rx_Data"], ids=["clock", "clocked"])
+def test_a_clock_or_a_clocked_variable_is_not_exposed_as_input(node, port):
+    with pytest.raises(FMUContainerError, match="clocks and clocked variables cannot be exposed"):
+        node.add_input("", "node1.fmu", port)
+    assert not node.inputs
+
+
+def test_implicit_rules_leave_out_clocks_and_clocked_variables(node, caplog):
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        node.add_implicit_rule(auto_input=True, auto_output=True, auto_link=False, auto_local=True)
+    assert not node.inputs and not node.outputs
+    for port in ("CanChannel.Rx_Clock", "CanChannel.Rx_Data", "CanChannel.Tx_Clock", "CanChannel.Tx_Data"):
+        assert f"{port} is not exposed" in caplog.text

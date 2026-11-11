@@ -52,6 +52,10 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
   container, the port is exposed as `<fmu>.<port>` instead (e.g. `bb_position-1.position1`), so that every
   variable of the container keeps a distinct name.
 
+  Clocks and clocked variables (attribute `clocks`) are never exposed: the container has no clocked partition on its
+  interface. Exposing one explicitly stops the build with an error; *auto_input*, *auto_output* and *auto_local* leave
+  them out (a warning is issued for the inputs and the outputs). They can only be linked between embedded FMUs.
+
 Some of these parameters can be defined by Command Line Interface or by the input files.
 
 To rebuild as a container an assembly of FMUs made in Simulink, see

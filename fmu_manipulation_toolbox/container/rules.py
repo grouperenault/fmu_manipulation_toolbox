@@ -41,6 +41,16 @@ class ContainerPort:
     def __repr__(self):
         return f"Port {self.fmu.name}/{self.port.name}"
 
+    def check_not_clocked(self, role: str):
+        """Clocks and clocked variables cannot be exposed: the container has no clocked partition on its interface.
+
+        Raises:
+            FMUContainerError: If the port is a clock or a clocked variable.
+        """
+        if self.port.is_clocked:
+            raise FMUContainerError(f"Cannot use {self} as {role} of the container: clocks and clocked variables "
+                                    f"cannot be exposed.")
+
     def __hash__(self):
         return hash(str(self))
 

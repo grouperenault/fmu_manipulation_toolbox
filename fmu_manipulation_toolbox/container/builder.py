@@ -304,6 +304,7 @@ class FMUContainer:
         if cport_to.port.causality not in ("input", "parameter", "structuralParameter"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
                                     f"'{cport_to.port.causality}'.")
+        cport_to.check_not_clocked("INPUT")
         if cport_to.port.causality == "structuralParameter":
             self.check_structural_parameter(cport_to)
 
@@ -354,6 +355,7 @@ class FMUContainer:
         if cport_from.port.causality not in ("output", "local"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_from}' as OUTPUT of the container but FMU causality is "
                                     f"'{cport_from.port.causality}'.")
+        cport_from.check_not_clocked("OUTPUT")
 
         if container_port_name in self.outputs:
             raise FMUContainerError(f"Duplicate OUTPUT {container_port_name} already connected to {cport_from}")
@@ -620,6 +622,9 @@ class FMUContainer:
                                       candidate_cport.fmu.name, candidate_cport.port.name)
                         auto_wired.add_link(cport.fmu.name, cport.port.name,
                                             candidate_cport.fmu.name, candidate_cport.port.name)
+                elif auto_output and cport not in self.rules and cport.port.is_clocked:
+                    logger.warning(f"AUTO OUTPUT: {cport} is not exposed: clocks and clocked variables cannot be "
+                                   f"exposed.")
                 elif auto_output and cport not in self.rules:
                     output_name = self._auto_name(cport)
                     logger.info(f"AUTO OUTPUT: Expose {cport} as {output_name}")
@@ -630,6 +635,8 @@ class FMUContainer:
                 if cport.port.name.startswith("container."):
                     local_portname = "container." + cport.fmu.id + "." + cport.port.name[10:]
                     logger.info(f"PROFILING: Expose {cport}")
+                elif auto_local and cport.port.is_clocked:
+                    logger.debug(f"AUTO LOCAL: {cport} is not exposed: clocks and clocked variables cannot be exposed.")
                 elif auto_local:
                     local_portname = cport.fmu.id + "." + cport.port.name
                     logger.info(f"AUTO LOCAL: Expose {cport}")
@@ -645,6 +652,9 @@ class FMUContainer:
                     logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
                     self.add_input(parameter_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
+                elif auto_input and cport.port.causality == 'input' and cport.port.is_clocked:
+                    logger.warning(f"AUTO INPUT: {cport} is not exposed: clocks and clocked variables cannot be "
+                                   f"exposed.")
                 elif auto_input and cport.port.causality == 'input' :
                     input_name = self._default_reset_input_name(cport.fmu) if cport.port.is_reset \
                         else self._auto_name(cport)

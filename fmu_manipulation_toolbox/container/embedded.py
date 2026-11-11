@@ -88,6 +88,11 @@ class EmbeddedFMUPort:
         self.initial = attrs.get("initial", None)
         self.clock = attrs.get("clocks", None)
 
+    @property
+    def is_clocked(self) -> bool:
+        """A clock, or a variable of a clocked partition (attribute `clocks`)."""
+        return self.type_name == "clock" or bool(self.clock)
+
     def size(self) -> int:
         size = 1
         for dimension in self.dimensions:
