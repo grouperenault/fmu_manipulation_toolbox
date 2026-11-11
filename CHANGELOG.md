@@ -25,6 +25,11 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   its parameters (e.g. to start its XCP service).
 - 🟠 **FIXED** a value set by the importer of the container before its initialization was overwritten by the start
   value of the embedded FMU: it prevails now.
+- 🟠 **FIXED** an FMI 2.0 array aggregate (`name[1]`, `name[2]`, ...) was exchanged with consecutive value
+  references from its first element: each element is now exchanged with its own value reference (links and start
+  values), as an element may have any value reference (e.g. an alias). Exposed by an FMI 3.0 container, only its
+  first element was exchanged: an exposed aggregate is now a local variable of the container, its elements exchanged
+  one by one after (outputs) or before (inputs) each step of the FMU.
 - 🟠 **FIXED** the `resourcePath` given to an embedded FMI 3.0 FMU had no trailing file separator (FMI 3.0, 2.3.1): the
   FMUs that check it, like the Reference-FMUs since v0.0.42, could not be instantiated.
 - 🟠 **FIXED** a clock or a clocked variable of an embedded FMU could be exposed on the container, explicitly or by

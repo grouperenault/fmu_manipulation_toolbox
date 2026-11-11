@@ -1169,9 +1169,10 @@ class FMUContainer:
         for input_port, value in start_values.items():
             fmu_io_list.add_start_value(input_port, value)
 
-        # Outputs; those exposed through a converted local variable are listed with the local variables
+        # Outputs; those exposed through a local variable (converted, FMI-2 array aggregate) are listed with the local
+        # variables
         for output_port_name, output_port in self.outputs.items():
-            if output_port_name not in layout.output_conversions:
+            if output_port_name not in layout.output_conversions and output_port_name not in layout.aggregate_outputs:
                 outputs_per_type[output_port.port.type_name].append((output_port_name, output_port))
 
         # Links
@@ -1227,6 +1228,23 @@ class FMUContainer:
                 local_per_type[conversion.type_name].append(LocalVariable(conversion.vr, size))
                 output_conversions_per_fmu[conversion.cport.fmu.name].append(
                     (conversion.local, conversion.vr, conversion.conversion))
+
+        # FMI-2 array aggregates exposed by the container: a local variable, whose elements are exchanged one by one
+        # with the FMU (allocated after the converted outputs, the outputs first).
+        aggregate_locals = {}
+        for output_port_name, vr in layout.aggregate_outputs.items():
+            output_port = self.outputs[output_port_name]
+            if vr not in aggregate_locals:
+                aggregate_locals[vr] = (output_port.port.type_name, output_port.port.size())
+                fmu_io_list.add_output(output_port, vr)
+        for input_port_name, vr in layout.aggregate_inputs.items():
+            input_port = self.inputs[input_port_name]
+            aggregate_locals[vr] = (input_port.type_name, input_port.size)
+            for cport in input_port.cport_list:
+                if cport.port.is_fmi2_aggregate:
+                    fmu_io_list.add_input(cport, vr)
+        for vr, (type_name, size) in sorted(aggregate_locals.items()):
+            local_per_type[type_name].append(LocalVariable(vr, size))
 
         print("# NB local variables:", ", ".join(ALL_TYPES), file=txt_file)
         nb_storage = [f"{layout.table.nb_storage(type_name)}" for type_name in ALL_TYPES]
@@ -1286,12 +1304,15 @@ class FMUContainer:
     @staticmethod
     def _input_links(input_port: ContainerInput, layout: ContainerLayout, fmu_rank: dict[str, int]) -> list[str]:
         """`<FMU_INDEX> <FMU_VR>` pairs of a container input. The `container.reset` ports it feeds share one local
-        variable (`-1 <LOCAL_OFFSET>`), listed first: the getter of the container reads the first pair."""
+        variable (`-1 <LOCAL_OFFSET>`), and so do the FMI-2 array aggregates it feeds: listed first, the getter of the
+        container reads the first pair."""
         links = []
         if input_port.has_reset:
             links.append(f"-1 {layout.reset_inputs[input_port.name]}")
+        if input_port.name in layout.aggregate_inputs:     # FMI-2 array aggregates: through their local variable
+            links.append(f"-1 {layout.local_offset(layout.aggregate_inputs[input_port.name])}")
         links.extend(f"{fmu_rank[cport.fmu.name]} {cport.port.vr}" for cport in input_port.cport_list
-                     if not cport.port.is_reset)
+                     if not cport.port.is_reset and not cport.port.is_fmi2_aggregate)
         return links
 
     def make_datalog(self, datalog_file, layout: ContainerLayout):

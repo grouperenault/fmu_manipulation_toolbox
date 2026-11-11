@@ -691,3 +691,79 @@ def test_sanity_check_tells_the_scheduled_clocks_apart(clocked, caplog):
         clocked.sanity_check(0.1)
     assert "Input clock 'Port model.fmu/periodic' is not linked: the container schedules it." in caplog.text
     assert "Input 'Port model.fmu/triggered' is not connected" in caplog.text
+
+
+DATA_DIR = Path(__file__).parent.parent / "data"
+
+
+@pytest.fixture
+def aggregates(tmp_path) -> Path:
+    """Two FMI-2.0 FMUs whose real ports are the elements of arrays with value references that are not consecutive:
+    `u[1]` (7), `u[2]` (9), `y[1]` (8), `y[2]` (10) (the Feedthrough of the Reference-FMUs, renamed)."""
+    source = DATA_DIR / "compile" / "2.0" / "Feedthrough.fmu"
+    with zipfile.ZipFile(source) as archive:
+        text = archive.read("modelDescription.xml").decode()
+    for old, new in (('name="Float64_continuous_output"', 'name="y[1]"'),
+                     ('name="Float64_discrete_output" valueReference="10" causality="output" variability="discrete"',
+                      'name="y[2]" valueReference="10" causality="output"'),
+                     ('name="Float64_continuous_input"', 'name="u[1]"'),
+                     ('name="Float64_discrete_input" valueReference="9" causality="input" variability="discrete"',
+                      'name="u[2]" valueReference="9" causality="input"')):
+        assert old in text
+        text = text.replace(old, new)
+    for name in ("a.fmu", "b.fmu"):
+        with zipfile.ZipFile(source) as zin, zipfile.ZipFile(tmp_path / name, "w") as zout:
+            for item in zin.infolist():
+                zout.writestr(item, text if item.filename == "modelDescription.xml" else zin.read(item))
+    return tmp_path
+
+
+def _section(lines: list[str], header: str) -> list[str]:
+    """Entries of a section of `container.txt` whose first line is their number."""
+    start = lines.index(header) + 1
+    return lines[start + 1:start + 1 + int(lines[start].split()[0])]
+
+
+def test_fmi2_aggregate_with_value_references_not_consecutive(aggregates):
+    port = FMUContainer("c", aggregates, fmi_version=3).get_fmu("a.fmu").ports["y"]
+    assert (port.is_fmi2_aggregate, port.size(), port.vrs) == (True, 2, [8, 10])
+
+
+def test_fmi2_aggregate_link_exchanges_each_element(aggregates):
+    container = FMUContainer("c", aggregates, fmi_version=3)
+    container.add_link("a.fmu", "y", "b.fmu", "u")
+    layout, lines = _container_txt(container)
+    offset = layout.local_offset(layout.links[next(iter(container.links.values()))])
+    assert _section(lines, "# Outputs of a.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>") == \
+        [f"{offset} 1 8", f"{offset + 1} 1 10"]
+    assert _section(lines, "# Inputs of b.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>") == \
+        [f"{offset} 1 7", f"{offset + 1} 1 9"]
+
+
+def test_fmi2_aggregate_start_value_of_each_element(aggregates):
+    container = FMUContainer("c", aggregates, fmi_version=3)
+    container.get_fmu("a.fmu")
+    container.add_start_value("a.fmu", "u", "1 3")
+    _, lines = _container_txt(container)
+    assert _section(lines, "# Start values of a.fmu - real64: <FMU_VR> <DIM> <RESET> <VALUE>") == \
+        ["7 1 1 1", "9 1 1 3"]
+
+
+def test_fmi2_aggregate_exposed_through_a_local_variable(aggregates):
+    """The runtime exchanges a port of an FMI-2.0 FMU as one scalar: an exposed aggregate is a local variable of the
+    container, whose elements are exchanged one by one with the FMU."""
+    container = FMUContainer("c", aggregates, fmi_version=3)
+    container.get_fmu("a.fmu")
+    container.add_output("a.fmu", "y", "y")
+    container.add_input("u", "a.fmu", "u")
+    layout, lines = _container_txt(container)
+
+    output, local_input = layout.local_offset(layout.outputs["y"]), layout.local_offset(layout.aggregate_inputs["u"])
+    assert layout.outputs["y"] == layout.aggregate_outputs["y"]
+    assert f"{layout.outputs['y']} 2 1 -1 {output}" in lines
+    assert f"{layout.inputs['u']} 2 1 -1 {local_input}" in lines
+    assert f"{layout.aggregate_inputs['u']} 2 1 -1 {local_input}" in lines
+    assert _section(lines, "# Outputs of a.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>") == \
+        [f"{output} 1 8", f"{output + 1} 1 10"]
+    assert _section(lines, "# Inputs of a.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>") == \
+        [f"{local_input} 1 7", f"{local_input + 1} 1 9"]

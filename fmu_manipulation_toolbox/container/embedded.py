@@ -75,6 +75,8 @@ class EmbeddedFMUPort:
         # used to mark each individual scalar port as LINK when the aggregate is
         # connected, so the checker does not report them as unconnected.
         self.element_names: list[str] = []
+        # Value references of these elements, in the order of the array (row-major): they need not be consecutive.
+        self.element_vrs: list[int] = []
         # Virtual `container.reset` input added by the container (option `reset_ports`): it drives the reset of the
         # FMU and has no value reference in the FMU.
         self.is_reset: bool = False
@@ -87,6 +89,11 @@ class EmbeddedFMUPort:
         self.start_value = attrs.get("start", None)
         self.initial = attrs.get("initial", None)
         self.clock = attrs.get("clocks", None)
+
+    @property
+    def vrs(self) -> list[int]:
+        """Value references of the elements of an FMI-2 aggregate, else the value reference of the port."""
+        return self.element_vrs if self.is_fmi2_aggregate else [self.vr]
 
     @property
     def is_clocked(self) -> bool:
@@ -326,6 +333,7 @@ class EmbeddedFMU(OperationAbstract):
             aggregate.dimensions = [("start", d) for d in agg.dims]
             aggregate.is_fmi2_aggregate = True
             aggregate.element_names = [p.name for p in elements]
+            aggregate.element_vrs = [p.vr for p in elements]
             aggregate.clock = first.clock
             self.ports[agg.basename] = aggregate
             logger.debug(f"'{self.name}': aggregated FMI-2 array '{agg.basename}' "

@@ -178,6 +178,11 @@ class ContainerLayout:
             ports, by exposed name: the runtime reads the trigger there.
         output_conversions (dict[str, OutputConversion]): The container outputs exposed through a converted local
             variable, by exposed name.
+        aggregate_outputs (dict[str, int]): Value reference of the local variable of each container output that is
+            an FMI-2 array aggregate (not converted), by exposed name: the variable is the output, its elements are
+            exchanged one by one with the FMU.
+        aggregate_inputs (dict[str, int]): Value reference of the local variable of each container input feeding
+            FMI-2 array aggregates, by exposed name: the input writes it, its elements go one by one to the FMUs.
     """
     table: ValueReferenceTable
     time: int
@@ -190,6 +195,8 @@ class ContainerLayout:
     outputs: dict[str, int]
     reset_inputs: dict[str, int]
     output_conversions: dict[str, OutputConversion]
+    aggregate_outputs: dict[str, int]
+    aggregate_inputs: dict[str, int]
 
     @classmethod
     def allocate(cls, links: Iterable[Link], inputs: dict[str, ContainerInput], outputs: dict[str, ContainerPort],
@@ -219,16 +226,29 @@ class ContainerLayout:
         for link in links:
             link_vrs[link], converted[link] = table.add_link(link)
         output_conversions = cls._output_conversions(table, link_vrs, converted, outputs, fmi_version)
+        # FMI-2 array aggregates: the runtime exchanges a port of an FMI-2 FMU as one scalar, their elements are
+        # exchanged one by one through a local variable (once per port).
+        aggregate_outputs: dict[str, int] = {}
+        by_port: dict[ContainerPort, int] = {}
+        for name, cport in outputs.items():
+            if cport.port.is_fmi2_aggregate and name not in output_conversions:
+                if cport not in by_port:
+                    by_port[cport] = table.add_vr(cport, local=True)
+                aggregate_outputs[name] = by_port[cport]
+        aggregate_inputs = {name: table.add_vr(input_port.type_name, local=True, port_size=input_port.size)
+                            for name, input_port in inputs.items()
+                            if any(cport.port.is_fmi2_aggregate for cport in input_port.cport_list)}
 
         input_vrs = {name: table.add_vr(input_port.type_name) for name, input_port in inputs.items()}
-        output_vrs = {name: output_conversions[name].vr if name in output_conversions else table.add_vr(output_port)
+        output_vrs = {name: output_conversions[name].vr if name in output_conversions else
+                      aggregate_outputs[name] if name in aggregate_outputs else table.add_vr(output_port)
                       for name, output_port in outputs.items()}
         # Last: the other local variables are listed by value reference, their storage follows their order.
         reset_inputs = {name: table.add_storage(input_port.type_name) for name, input_port in inputs.items()
                         if input_port.has_reset}
 
         return cls(table, time, ts_multiplier, solver, profiling, link_vrs, converted, input_vrs, output_vrs,
-                   reset_inputs, output_conversions)
+                   reset_inputs, output_conversions, aggregate_outputs, aggregate_inputs)
 
     @staticmethod
     def _output_conversions(table: ValueReferenceTable, link_vrs: dict[Link, int],

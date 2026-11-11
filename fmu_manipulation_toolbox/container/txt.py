@@ -79,15 +79,13 @@ class FMUIOList:
                 return
             nb_clocked[cport.port.type_name][cport.fmu.name] += 1
 
-        dim = cport.port.size()
         local_offset = self.vr_table.vr_to_local[local_vr]
-        fmu_vr = cport.port.vr
         references_of_fmu = references[cport.port.type_name][cport.fmu.name][clock]
-        if dim > 1 and cport.fmu.fmi_version == 2:
-            # FMI-2 array aggregate: one exchange per scalar element, with consecutive value references.
-            references_of_fmu.extend(IOReference(local_offset + k, 1, fmu_vr + k) for k in range(dim))
+        if cport.port.is_fmi2_aggregate:
+            # FMI-2 array aggregate: one exchange per scalar element, with the value reference of each element.
+            references_of_fmu.extend(IOReference(local_offset + k, 1, vr) for k, vr in enumerate(cport.port.vrs))
         else:
-            references_of_fmu.append(IOReference(local_offset, dim, fmu_vr))
+            references_of_fmu.append(IOReference(local_offset, cport.port.size(), cport.port.vr))
 
     def add_start_value(self, cport: ContainerPort, value: str):
         """Register a start value for an embedded FMU port.
@@ -107,18 +105,15 @@ class FMUIOList:
             else:
                 value = "0"
 
-        fmu_vr = cport.port.vr
-        dim = cport.port.size()
-        if dim > 1 and cport.fmu.fmi_version == 2:
+        if cport.port.is_fmi2_aggregate:
             tokens = str(value).split(' ')
             if len(tokens) == 1:
-                tokens = tokens * dim
-            for k, token in zip(range(dim), tokens):
-                self.start_values[cport.port.type_name][cport.fmu.name].append(
-                    (fmu_vr + k, 1, reset, token))
+                tokens = tokens * len(cport.port.vrs)
+            for vr, token in zip(cport.port.vrs, tokens):
+                self.start_values[cport.port.type_name][cport.fmu.name].append((vr, 1, reset, token))
         else:
             self.start_values[cport.port.type_name][cport.fmu.name].append(
-                (fmu_vr, cport.port.size(), reset, value))
+                (cport.port.vr, cport.port.size(), reset, value))
 
     def write_txt(self, fmu_name: str, txt_file: IO) -> None:
         """Write the I/O mapping for one FMU to the `container.txt` file.

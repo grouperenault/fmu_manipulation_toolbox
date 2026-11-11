@@ -641,6 +641,9 @@ first-class variables carrying one or more `<Dimension>` elements.
   if desired.
 - When the aggregate is linked, each underlying scalar element port is also marked as
   connected (rule `LINK`), so it will not be picked up by `auto_input` / `auto_output`.
+- The value references of the elements need not be consecutive (e.g. an element that is an
+  alias of another variable shares its value reference): each element is exchanged with its
+  own value reference, start values included.
 
 **Example — 1D vector.** Connect a 3-element vector produced by an FMI-2 FMU to a
 3-dimensional array consumed by an FMI-3 FMU:
@@ -690,6 +693,12 @@ Notes and limitations:
 - Aggregated FMI-2 array ports can only be *linked* between embedded FMUs — they
   cannot be exposed as container inputs/outputs in an FMI-2 container (an FMI-2
   container has no way to expose a native array).
+- In an FMI-3 container, an exposed aggregate is a local variable of the container, whose
+  elements are exchanged one by one with the FMU: an output is updated after each step of
+  the FMU, an input is given to the FMU before its step. An element that the FMU feeds
+  through from an input therefore follows it one step later than a scalar output, which the
+  container reads on demand once the inputs are set (as the `Boolean` outputs converted
+  from the other FMI version).
 
 
 # Multi-Threading

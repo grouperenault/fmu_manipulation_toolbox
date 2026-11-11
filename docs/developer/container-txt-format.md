@@ -284,7 +284,8 @@ For each type:
 - `<nb_inputs>`: Number of input mappings for this type.
 - Each line maps a container local variable, given by its offset in the local storage of the type
   (`LOCAL_OFFSET`, version ≥ 5; the masked local VR before), of dimension `DIM` to an FMU input port
-  (`FMU_VR`). An FMI-2 array aggregate (`name[1]`, `name[2]`, ...) gives one line per element.
+  (`FMU_VR`). An FMI-2 array aggregate (`name[1]`, `name[2]`, ...) gives one line per element, with
+  the value reference of each element (not necessarily consecutive).
 
 #### Clocked Inputs (Version ≥ 3, not for type `clock`)
 
