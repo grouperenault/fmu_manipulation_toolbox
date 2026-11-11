@@ -101,7 +101,10 @@ When an embedded FMU asks to terminate the simulation (`terminateSimulation` of 
 - FMI 2.0 container: `fmi2DoStep` returns `fmi2Discard`, then `fmi2GetBooleanStatus(fmi2Terminated)` is true and
   `fmi2GetRealStatus(fmi2LastSuccessfulTime)` gives the time reached.
 
-The rest of the communication step is not done, and a further step is refused: the importer ends the simulation.
+The time reached is the end of the internal step of the container in which the request came, even when the FMU
+that asked to terminate did not complete this step (FMI 2.0 `fmi2Discard`): it is the time of the other embedded
+FMUs and of the outputs read by the importer. The rest of the communication step is not done, and a further step is
+refused: the importer ends the simulation.
 
 ## Sequential mode
 
