@@ -7,6 +7,7 @@
 #include "container.h"
 #include "fmu.h"
 #include "logger.h"
+#include "path.h"
 #include "profile.h"
 
 //#define DEBUG
@@ -658,28 +659,6 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version, fmu_kind_t k
 }
 
 
-static void fs_make_path(char* buffer, size_t len, ...) {
-	va_list params;
-	va_start(params, len);
-	const char* folder;
-	int i = 0;
-	while ((folder = va_arg(params, const char*))) {
-		if (i > 0) {
-#ifdef _WIN32
-            STRLCAT(buffer, "\\", len);
-#else
-            STRLCAT(buffer, "/", len);
-#endif
-		}
-        STRLCAT(buffer, folder, len);
-		i += 1;
-	}
-	va_end(params);
-
-	return;
-}
-
-
 int fmu_load_from_directory(container_t *container, int i, const char *directory, const char *name,
                             const char *identifier, const char *guid, fmu_version_t fmi_version, int support_event,
                             fmu_kind_t kind) {
@@ -716,30 +695,39 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
 #undef INIT_FMU_DATA
 
     char library_filename[FMU_PATH_MAX_LEN];
+    char resources[FMU_PATH_MAX_LEN];
     library_filename[0] = '\0';
+    resources[0] = '\0';
+    if (path_join(resources, FMU_PATH_MAX_LEN, directory, "resources", NULL)) {
+        LOGGER_ERROR("Path of the resources of '%s' is too long.", name);
+        return -1;
+    }
     switch(fmi_version) {
         case 2:
-           STRLCPY(fmu->resource_dir, "file:///", FMU_PATH_MAX_LEN);
-           fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU2_BINDIR, identifier, NULL);
+            /* FMI-2.0: fmuResourceLocation is a URI (RFC 3986) */
+            if (path_join(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU2_BINDIR, identifier, NULL) ||
+                path_to_uri(resources, fmu->resource_dir, FMU_PATH_MAX_LEN)) {
+                LOGGER_ERROR("Path of the files of '%s' is too long.", name);
+                return -1;
+            }
             break;
         case 3:
+            /* FMI-3.0: resourcePath is a file path with a trailing file separator, NULL without resources folder */
+            if (path_join(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU3_BINDIR, identifier, NULL)) {
+                LOGGER_ERROR("Path of the files of '%s' is too long.", name);
+                return -1;
+            }
             fmu->resource_dir[0] = '\0';
-            fs_make_path(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU3_BINDIR, identifier, NULL);
+            if (path_is_directory(resources) && path_join(fmu->resource_dir, FMU_PATH_MAX_LEN, resources, "", NULL)) {
+                LOGGER_ERROR("Path of the resources of '%s' is too long.", name);
+                return -1;
+            }
             break;
         default:
             LOGGER_ERROR("Unsupported FMI-%d version.", fmi_version);
             return -1;
     }
     STRLCAT(library_filename, FMU_BIN_SUFFIXE, FMU_PATH_MAX_LEN);
- 	fs_make_path(fmu->resource_dir, FMU_PATH_MAX_LEN, directory, "resources", NULL);
-    if (fmi_version == 3) {
-        /* FMI-3.0: resourcePath is a file path with a trailing file separator */
-#ifdef _WIN32
-        STRLCAT(fmu->resource_dir, "\\", FMU_PATH_MAX_LEN);
-#else
-        STRLCAT(fmu->resource_dir, "/", FMU_PATH_MAX_LEN);
-#endif
-    }
 
     fmu->library = library_load(logger, library_filename);
     if (!fmu->library)
@@ -1479,7 +1467,7 @@ fmu_status_t fmuInstantiateCoSimulation(fmu_t *fmu, const char *instanceName) {
         fmu->component = fmu->fmi_functions.version_3.fmi3InstantiateCoSimulation(
             instanceName,
             fmu->guid,
-            fmu->resource_dir,
+            fmu->resource_dir[0] ? fmu->resource_dir : NULL,
             fmi3False,  /* visible */
             fmu->container->logger.debug,
             (fmu->support_event)?fmi3True:fmi3False, /* eventModeUsed */
@@ -1513,7 +1501,7 @@ fmu_status_t fmuInstantiateModelExchange(fmu_t *fmu, const char *instanceName) {
         fmu->component = fmu->fmi_functions.version_3.fmi3InstantiateModelExchange(
             instanceName,
             fmu->guid,
-            fmu->resource_dir,
+            fmu->resource_dir[0] ? fmu->resource_dir : NULL,
             fmi3False,  /* visible */
             fmu->container->logger.debug,
             fmu,        /* fmi3InstanceEnvironment */

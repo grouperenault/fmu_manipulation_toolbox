@@ -31,6 +31,7 @@ set(CONTAINER_SOURCES
     hash.c      hash.h
     library.c   library.h
     logger.c    logger.h
+    path.c      path.h
     profile.c   profile.h
     solver.c    solver.h
     thread.c    thread.h
@@ -61,6 +62,7 @@ if(BUILD_TESTING)
         tests/test_main.c
         tests/test_config.c
         tests/test_configure.c
+        tests/test_path.c
         tests/test_logger.c
         tests/test_locale.c
         tests/test_malformed.c

@@ -31,8 +31,13 @@ of the container), its ports (`.ports`, `.nb_ports`, by value reference) and the
 Each module of the runtime prefixes its functions and its types with its name: `cache_` (`cache.c`: the values set by
 the importer and their synchronization with the embedded FMUs, see [DoStep FMI
 Sequence](dostep-fmi-sequence.md#values-set-by-the-importer)), `datalog_`, `fmu_`/`fmu` (embedded FMUs), `logger_`,
-`solver_`, `thread_`... `container_` is the container itself (`container.c`), whose FMI APIs are in `fmi2.c` and
-`fmi3.c`.
+`path_` (`path.c`: the paths of the file system and the `file` URIs of RFC 3986), `solver_`, `thread_`...
+`container_` is the container itself (`container.c`), whose FMI APIs are in `fmi2.c` and `fmi3.c`.
+
+The resource locations follow the FMI version of each embedded FMU: a `file` URI for FMI 2.0
+(`file:///C:/…/resources`, separators `/`, percent-encoded octets, `path_to_uri()`), a native path with a trailing
+separator for FMI 3.0, or `NULL` when the FMU has no `resources` folder. The resource location of the container
+itself, given by its importer, is decoded by `path_from_uri()`.
 
 ## Logger
 

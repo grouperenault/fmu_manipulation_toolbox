@@ -11,6 +11,7 @@
 #include "datalog.h"
 #include "logger.h"
 #include "fmu.h"
+#include "path.h"
 #include "solver.h"
 #include "version.h"
 
@@ -1516,8 +1517,10 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
                              int index, fmu_kind_t kind) {
     const bool is_me = (kind == FMU_KIND_ME);
     char directory[CONFIG_FILE_SZ];
-    const int directory_len = snprintf(directory, CONFIG_FILE_SZ, "%s/%02x", dirname, index);
-    if (directory_len < 0 || directory_len >= CONFIG_FILE_SZ) {
+    char subdirectory[8];
+    snprintf(subdirectory, sizeof(subdirectory), "%02x", index);
+    directory[0] = '\0';
+    if (path_join(directory, CONFIG_FILE_SZ, dirname, subdirectory, NULL)) {
         CONFIG_ERROR("Path of the directory of FMU#%d is too long.", index);
         return -1;
     }
@@ -2442,49 +2445,6 @@ static void container_stop_threads(container_t *container) {
 }
 
 
-/* Value of a single hexadecimal digit, or -1 if it is not one. */
-static int hex_digit(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
-}
-
-
-/*
- * Convert an FMI resource location URI into a native filesystem directory.
- *
- * Per the FMI 2.0 standard, fmuResourceLocation is a URI following RFC 3986:
- * the "file://" scheme is stripped, the leading '/' before a Windows drive
- * letter is removed, and percent-encoded octets (e.g. "%20" -> ' ') are decoded.
- * The result is written into dest (of size bytes, always NUL-terminated).
- */
-static void resource_location_to_path(const char *location, char *dest, size_t size) {
-    const char *src;
-    size_t i = 0;
-
-    if (strncmp(location, "file://", 7) == 0)
-        location += 7;
-
-#ifdef _WIN32
-    /* "file:///C:/..." -> drop the leading '/' before the drive letter. */
-    if (location[0] == '/')
-        location += 1;
-#endif
-
-    for (src = location; *src && i + 1 < size; ) {
-        int hi, lo;
-        if (src[0] == '%' && (hi = hex_digit(src[1])) >= 0 && (lo = hex_digit(src[2])) >= 0) {
-            dest[i++] = (char)((hi << 4) | lo);
-            src += 3;
-        } else {
-            dest[i++] = *src++;
-        }
-    }
-    dest[i] = '\0';
-}
-
-
 int container_configure(container_t* container, const char* resource_location) {
     const logger_t *logger = &container->logger;
     config_file_t file;
@@ -2503,7 +2463,10 @@ int container_configure(container_t* container, const char* resource_location) {
         LOGGER_ERROR("No resource location: the container needs its resources.");
         return -1;
     }
-    resource_location_to_path(resource_location, dirname, sizeof(dirname));
+    if (path_from_uri(resource_location, dirname, sizeof(dirname))) {
+        LOGGER_ERROR("Resource location is too long: '%s'.", resource_location);
+        return -1;
+    }
     if (config_file_open(&file, logger, dirname, "container.txt")) {
         LOGGER_ERROR("Cannot open '%s/container.txt': %s.", dirname, strerror(errno));
         return -1;
