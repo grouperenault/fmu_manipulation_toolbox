@@ -1,8 +1,6 @@
 # Common build settings of the native components (container, remoting).
-# Include it right after project():
-#     include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/fmutool.cmake)
-# Included once per build tree: when both components are built by the root
-# project, the root includes it and the subdirectories inherit its variables.
+# Included by the root project, right after project(): the subdirectories of
+# the components inherit its targets, variables and functions.
 include_guard(GLOBAL)
 
 set(FMUTOOL_CMAKE_DIR ${CMAKE_CURRENT_LIST_DIR})

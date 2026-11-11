@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.21)
+# Container runtime, built by the root project (CMakeLists.txt at the root of
+# the repository), which includes the common settings and CTest.
 project(container C)
-include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/fmutool.cmake)
 
 # -----------------------------------------------------------------------------
 # FMI sanity check: FMI 2.0 and 3.0 data types must share the same storage.
@@ -54,7 +54,6 @@ fmutool_native_target(container)
 # that the internal functions can be called (the shared library exports only
 # the FMI API). Run with: ctest --test-dir <build dir> -C <config>
 # -----------------------------------------------------------------------------
-include(CTest)
 if(BUILD_TESTING)
     add_executable(container_tests
         ${CONTAINER_SOURCES}

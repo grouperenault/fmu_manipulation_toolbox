@@ -1,16 +1,7 @@
-cmake_minimum_required(VERSION 3.21)
-
-# 32-bit Linux build. Set before project() so that the compiler checks, and
-# therefore FMI_PLATFORM, see a 32-bit target. (macOS: no 32-bit support,
-# Windows: use the -A Win32 generator option instead.) When built by the root
-# project, the root handles it.
-option(BUILD_32 "Build for a 32-bit Linux target" OFF)
-if(BUILD_32 AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    string(APPEND CMAKE_C_FLAGS " -m32")
-endif()
-
+# Remoting client and server, built by the root project (CMakeLists.txt at the
+# root of the repository), which includes the common settings and handles the
+# 32-bit builds (BUILD_32).
 project(remoting C)
-include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/fmutool.cmake)
 
 if(NOT WIN32)
     include(CheckFunctionExists)

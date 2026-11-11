@@ -146,9 +146,14 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 ## Native code
 
 - 🟢 **ADDED** a `CMakeLists.txt` at the root of the repository builds the container and the remoting code in one
-  build folder (`cmake -B build-native`), selected by the options `FMUTOOL_BUILD_CONTAINER` and
-  `FMUTOOL_BUILD_REMOTING`. The `container/` and `remoting/` projects can still be built on their own. See the
+  build folder, selected by the options `FMUTOOL_BUILD_CONTAINER` and `FMUTOOL_BUILD_REMOTING`. See the
   [Installation Guide](docs/installation.md).
+- 🟢 **ADDED** CMake presets (`CMakePresets.json`), one per platform (`win64`, `win32`, `linux64`, `linux32`,
+  `darwin64`) and `linux64-sanitize`: `cmake --workflow --preset <preset>` configures, builds and tests in
+  `build-native/<preset>`. The CI builds the native binaries through them, in one job per OS.
+- 🔵 **CHANGED** CMake 3.25 or higher is required.
+- 🔴 **BREAKING** the `container/` and `remoting/` CMake projects can no longer be built on their own: they are built
+  by the root project.
 - 🟠 **FIXED** remoting, Linux: `semtimedop()` was used without its prototype (an error with gcc 14 and later), the
   semaphores were removed even when they were not created, and a failure of `ftruncate()` or `getcwd()` was not
   detected. The remoting code compiles without warnings on Linux again.

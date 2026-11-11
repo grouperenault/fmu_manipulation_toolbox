@@ -11,7 +11,7 @@ change from one version of the runtime to the next).
 
 The FMUs come from `tests/data` (`compile/3.0/Feedthrough.fmu`, `containers/VanDerPol/VanDerPol.fmu`,
 `containers/mt/1.fmu`), copied into a
-temporary directory. Requires fmpy, and the container runtime built for the host (`cmake -B build -S container`).
+temporary directory. Requires fmpy, and the container runtime built for the host (`cmake --workflow --preset <platform>`).
 Not shipped, not run by the tests.
 """
 
