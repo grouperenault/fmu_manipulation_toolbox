@@ -1,9 +1,12 @@
+#ifndef _WIN32
+#   define _GNU_SOURCE  /* to access to semtimedop() if available. Must precede any #include */
+#endif
+
 #include "config.h"
 
 #include <stdlib.h>
 #include <string.h>
 #ifndef _WIN32
-#   define _GNU_SOURCE  /* to access to semtimedop() if available */
 #   include <errno.h>
 #   include <stdio.h>
 #   include <unistd.h>
@@ -79,14 +82,16 @@ static sem_handle_t communication_sem_join(const char *name) {
 
 
 static void communication_sem_free(sem_handle_t sem, const char *sem_name) {
-    if (sem)
+    if (sem != SEM_INVALID) {
 #ifdef _WIN32
-       CloseHandle(sem);
+        (void)sem_name; /* unused parameter */
+        CloseHandle(sem);
 #else
         SHM_LOG("communication_sem_free(%s)\n", sem_name);
         semctl(sem, 0, IPC_RMID); /* silently ignore error if any */
         unlink(sem_name);  /* silently ignore error if any */
 #endif
+    }
 
     return;
 } 
@@ -119,7 +124,12 @@ static shm_handle_t communication_shm_create(const char *shm_name, size_t memory
         shm_name,
         O_CREAT | O_EXCL | O_RDWR,
         0600);
-    ftruncate(map_file, memory_size);
+    if ((map_file != SHM_INVALID) && (ftruncate(map_file, (off_t)memory_size) < 0)) {
+        SHM_LOG("Cannot resize SHM `%s': %s\n", shm_name, strerror(errno));
+        close(map_file);
+        shm_unlink(shm_name);
+        map_file = SHM_INVALID;
+    }
 #endif
     SHM_LOG("SHM `%s' create. Notify server.\n", shm_name);
     

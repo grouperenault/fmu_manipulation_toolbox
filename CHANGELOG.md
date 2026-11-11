@@ -138,6 +138,9 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   build folder (`cmake -B build-native`), selected by the options `FMUTOOL_BUILD_CONTAINER` and
   `FMUTOOL_BUILD_REMOTING`. The `container/` and `remoting/` projects can still be built on their own. See the
   [Installation Guide](docs/installation.md).
+- 🟠 **FIXED** remoting, Linux: `semtimedop()` was used without its prototype (an error with gcc 14 and later), the
+  semaphores were removed even when they were not created, and a failure of `ftruncate()` or `getcwd()` was not
+  detected. The remoting code compiles without warnings on Linux again.
 
 ## Graphical User Interfaces
 
