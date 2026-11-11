@@ -31,6 +31,8 @@ pytestmark = [
 STOP_TIME = 3.0
 STEP_SIZE = 0.1
 CLOCKS = ("constant", "fixed", "tunable", "changing", "countdown")
+#: Every time-based clock of the FMU, the faulty ones included
+ALL_CLOCKS = CLOCKS + ("repeated", "forgetful", "silent", "unwritten", "invalid")
 
 
 def _periodic(first, interval, stop=STOP_TIME):
@@ -52,15 +54,33 @@ def _expected_ticks() -> dict[str, list[float]]:
     }
 
 
-def _build_fmu():
+def _declaring(source: str, destination: str, clocks):
+    """Copy of the FMU `source` whose modelDescription.xml declares, of its time-based clocks, only `clocks`.
+
+    The container schedules every time-based input clock that is not linked: the clocks out of a test, some of them
+    faulty on purpose, must not be declared."""
+    kept = {f"clk_{clock}" for clock in clocks}
+    with zipfile.ZipFile(source) as archive_in, zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive_out:
+        for item in archive_in.infolist():
+            data = archive_in.read(item)
+            if item.filename == "modelDescription.xml":
+                lines = data.decode("utf-8").splitlines(keepends=True)
+                data = "".join(line for line in lines
+                               if not ('<Clock name="clk_' in line and line.split('"')[1] not in kept)).encode("utf-8")
+            archive_out.writestr(item, data)
+
+
+def _build_fmu(clocks=ALL_CLOCKS):
+    """`a.fmu` owns the time-based clocks `clocks`; `b.fmu` has none, only the triggered clocks they drive."""
     with zipfile.ZipFile("no-binaries.fmu", "w", zipfile.ZIP_DEFLATED) as archive:
         archive.write("modelDescription.xml")
         for source in Path("sources").iterdir():
             archive.write(source)
     with FMU("no-binaries.fmu") as fmu:
         fmu.apply_operation(OperationCompileSources())
-        fmu.repack("a.fmu")
-    Path("b.fmu").write_bytes(Path("a.fmu").read_bytes())
+        fmu.repack("compiled.fmu")
+    _declaring("compiled.fmu", "a.fmu", clocks)
+    _declaring("compiled.fmu", "b.fmu", ())
 
 
 def _simulate(clocks=CLOCKS, logger=None, datalog=False):
@@ -81,7 +101,7 @@ def _simulate(clocks=CLOCKS, logger=None, datalog=False):
 
 @pytest.mark.parametrize("clock", CLOCKS)
 def test_ticks_of_one_clock(area_dir, clock):
-    _build_fmu()
+    _build_fmu([clock])
     result = _simulate([clock])
     expected = _expected_ticks()[clock]
 
@@ -94,7 +114,7 @@ def test_ticks_of_one_clock(area_dir, clock):
 def test_tick_announced_again_at_the_same_time_waits_for_a_step(area_dir):
     """A clock ticks at most once per time instant: the FMU may need a step to go on, so that ticking it again in the
     same Event Mode would never end (the FlexRay nodes of `fmi-ls-bus-examples` do so)."""
-    _build_fmu()
+    _build_fmu(["repeated"])
     result = _simulate(["repeated"])
     for fmu in ("a", "b"):
         assert result[f"{fmu}_count_repeated"][-1] == 2
@@ -103,7 +123,7 @@ def test_tick_announced_again_at_the_same_time_waits_for_a_step(area_dir):
 
 def test_announced_tick_is_kept_if_the_fmu_answers_not_yet_known(area_dir):
     """FMI 3.0 does not allow this answer about a tick already announced, but it must not lose this tick."""
-    _build_fmu()
+    _build_fmu(["forgetful"])
     result = _simulate(["forgetful"])
     for fmu in ("a", "b"):
         assert result[f"{fmu}_count_forgetful"][-1] == 1
@@ -118,7 +138,7 @@ def test_no_tick_without_a_valid_qualifier(area_dir, clock):
     def logger(*args):
         messages.append(args[-1].decode() if isinstance(args[-1], bytes) else str(args[-1]))
 
-    _build_fmu()
+    _build_fmu([clock])
     result = _simulate([clock], logger=logger)
     for fmu in ("a", "b"):
         assert result[f"{fmu}_count_{clock}"][-1] == 0
@@ -129,7 +149,7 @@ def test_new_interval_without_its_value_is_refused(area_dir):
     """A negative interval, here the one left by an FMU that does not write it, stops the simulation."""
     from fmpy.fmi1 import FMICallException
 
-    _build_fmu()
+    _build_fmu(["unwritten"])
     with pytest.raises(FMICallException):
         _simulate(["unwritten"])
 
@@ -137,7 +157,7 @@ def test_new_interval_without_its_value_is_refused(area_dir):
 def test_declared_interval_and_shift_with_a_decimal_comma(area_dir, decimal_comma_locale):
     """The interval and the shift declared by the modelDescription.xml are read from `container.txt` with a dot,
     whatever the numeric locale of the importer."""
-    _build_fmu()
+    _build_fmu(["constant"])
     result = _simulate(["constant"])
     assert locale.localeconv()["decimal_point"] == ","  # The locale of the importer is unchanged.
 
@@ -149,7 +169,7 @@ def test_declared_interval_and_shift_with_a_decimal_comma(area_dir, decimal_comm
 @pytest.mark.parametrize("clock", ["constant", "fixed", "tunable", "changing", "countdown"])
 def test_datalog_shows_each_tick_once(area_dir, clock):
     """A scheduled clock is active on one row of the datalog per tick, at the time of this tick."""
-    _build_fmu()
+    _build_fmu([clock])
     _simulate([clock], datalog=True)
     with open("ticks-datalog.csv", newline="") as file:
         ticks = [float(row["time"]) for row in csv.DictReader(file) if row[f"a.clk_{clock}"] == "1"]
@@ -157,7 +177,7 @@ def test_datalog_shows_each_tick_once(area_dir, clock):
 
 
 def test_ticks_of_all_the_clocks_together(area_dir):
-    _build_fmu()
+    _build_fmu(CLOCKS)
     result = _simulate()
     for clock, expected in _expected_ticks().items():
         for fmu in ("a", "b"):

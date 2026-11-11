@@ -642,6 +642,9 @@ class FMUContainer:
                     logger.info(f"AUTO PARAMETER: {cport} as {parameter_name}")
                     self.add_input(parameter_name, cport.fmu.name, cport.port.name)
                     auto_wired.add_parameter(parameter_name, cport.fmu.name, cport.port.name)
+                elif auto_input and cport.port.causality == 'input' and cport.port.type_name == "clock" \
+                        and cport.port.interval_variability in TIME_BASED_CLOCKS:
+                    logger.info(f"AUTO INPUT: {cport} is not exposed (a clock cannot be): the container schedules it.")
                 elif auto_input and cport.port.causality == 'input' and cport.port.is_clocked:
                     logger.warning(f"AUTO INPUT: {cport} is not exposed: clocks and clocked variables cannot be "
                                    f"exposed.")
@@ -693,6 +696,22 @@ class FMUContainer:
         logger.warning(f"Defaulting to step_size={DEFAULT_STEP_SIZE}")
         return DEFAULT_STEP_SIZE
 
+    def scheduled_clock_links(self) -> list[Link]:
+        """Links of the time-based input clocks that are neither linked nor exposed (a clock cannot be exposed).
+
+        Each one gets a link without source, like input clocks linked together: the container schedules it from its
+        interval and shift. Built again at each build, the rules are not modified.
+        """
+        links = []
+        for fmu in self.involved_fmu.values():
+            for port_name, fmu_port in fmu.ports.items():
+                if fmu_port.type_name == "clock" and fmu_port.causality == "input" \
+                        and fmu_port.interval_variability in TIME_BASED_CLOCKS:
+                    cport = ContainerPort(fmu, port_name)
+                    if cport not in self.rules:
+                        links.append(Link(cport))
+        return links
+
     def sanity_check(self, step_size: float | None):
         """Validate the container configuration before building.
 
@@ -719,6 +738,9 @@ class FMUContainer:
                     if cport.port.is_reset:
                         logger.warning(f"Reset of FMU '{fmu.name}' is neither linked nor exposed: "
                                        f"the FMU will never be reset.")
+                    elif cport.port.causality == 'input' and cport.port.type_name == "clock" \
+                            and cport.port.interval_variability in TIME_BASED_CLOCKS:
+                        logger.info(f"Input clock '{cport}' is not linked: the container schedules it.")
                     elif cport.port.causality == 'input':
                         logger.error(f"Input '{cport}' is not connected")
                     if cport.port.causality == 'output':
@@ -763,7 +785,8 @@ class FMUContainer:
         resources_directory = self.make_fmu_skeleton(base_directory)
 
         # Allocated again at each build: the rules are never modified by a build.
-        layout = ContainerLayout.allocate(self.links.values(), self.inputs, self.outputs,
+        links = [*self.links.values(), *self.scheduled_clock_links()]
+        layout = ContainerLayout.allocate(links, self.inputs, self.outputs,
                                           nb_profiling=len(self.involved_fmu) if profiling else 0,
                                           fmi_version=self.fmi_version)
 
@@ -920,7 +943,7 @@ class FMUContainer:
                 add_variable(port.xml(vr, fmi_version=self.fmi_version))
 
         nb_clocks = 0
-        for link in self.links.values():
+        for link in layout.links:
             if link.cport_from:
                 add_variable(link.cport_from.port.xml(layout.links[link], name=link.name, causality='local',
                                                       fmi_version=self.fmi_version))
@@ -1150,7 +1173,7 @@ class FMUContainer:
                 outputs_per_type[output_port.port.type_name].append((output_port_name, output_port))
 
         # Links
-        for link in self.links.values():
+        for link in layout.links:
             scheduled_clocks = []
 
             # FMU Outputs
@@ -1280,7 +1303,7 @@ class FMUContainer:
             conversion = layout.output_conversions.get(output_port_name)
             ports[conversion.type_name if conversion else output_port.port.type_name].append(
                 Port(layout.outputs[output_port_name], output_port_name))
-        for link in self.links.values():
+        for link in layout.links:
             if link.cport_from is None:
                 # LS-BUS allows connected input clocks. The column is named after the clock that ticks by itself, the one
                 # of the sender: `datalog2pcap` finds the clock of `<name>_Data` with this name.

@@ -649,3 +649,43 @@ def test_implicit_rules_leave_out_clocks_and_clocked_variables(node, caplog):
     assert not node.inputs and not node.outputs
     for port in ("CanChannel.Rx_Clock", "CanChannel.Rx_Data", "CanChannel.Tx_Clock", "CanChannel.Tx_Data"):
         assert f"{port} is not exposed" in caplog.text
+
+
+# --------------------------------------------------------------------------- #
+#                 Time-based input clocks neither linked nor exposed            #
+# --------------------------------------------------------------------------- #
+CLOCKED_DESCRIPTOR = """<fmiModelDescription fmiVersion="3.0" modelName="m" instantiationToken="{t}">
+  <CoSimulation modelIdentifier="m" hasEventMode="true"/>
+  <ModelVariables>
+    <Clock name="periodic" valueReference="1" causality="input" intervalVariability="constant" intervalDecimal="0.1"/>
+    <Clock name="triggered" valueReference="2" causality="input" intervalVariability="triggered"/>
+  </ModelVariables>
+</fmiModelDescription>"""
+
+
+@pytest.fixture
+def clocked(tmp_path) -> FMUContainer:
+    """A container embedding an FMU with a periodic and a triggered input clock."""
+    fmu = _fmu_of(tmp_path, CLOCKED_DESCRIPTOR)
+    container = FMUContainer("test", tmp_path)
+    container.get_fmu(fmu.name)
+    return container
+
+
+def test_an_unlinked_time_based_input_clock_is_scheduled(clocked):
+    links = clocked.scheduled_clock_links()
+    assert [(link.cport_from, [cport.port.name for cport in link.cport_to_list]) for link in links] \
+        == [(None, ["periodic"])]
+    assert not clocked.links                     # the rules are not modified
+
+
+def test_a_linked_time_based_input_clock_is_not_scheduled_again(clocked):
+    clocked.add_link("model.fmu", "periodic", "model.fmu", "triggered")
+    assert clocked.scheduled_clock_links() == []
+
+
+def test_sanity_check_tells_the_scheduled_clocks_apart(clocked, caplog):
+    with caplog.at_level(logging.INFO, logger="fmu_manipulation_toolbox"):
+        clocked.sanity_check(0.1)
+    assert "Input clock 'Port model.fmu/periodic' is not linked: the container schedules it." in caplog.text
+    assert "Input 'Port model.fmu/triggered' is not connected" in caplog.text

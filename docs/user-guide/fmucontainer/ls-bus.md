@@ -59,8 +59,8 @@ are parameters. When the terminals of a node and of a Bus Simulation are connect
 
 ## Clocks
 
-The container acts as the importer of the embedded FMUs: it schedules their time-based input clocks, and shortens its steps
-to reach their ticks.
+The container acts as the importer of the embedded FMUs: it schedules their time-based input clocks, linked or not, and
+shortens its steps to reach their ticks.
 
 | `intervalVariability` | Behaviour |
 |---|---|

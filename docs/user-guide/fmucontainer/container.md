@@ -55,6 +55,9 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
   Clocks and clocked variables (attribute `clocks`) are never exposed: the container has no clocked partition on its
   interface. Exposing one explicitly stops the build with an error; *auto_input*, *auto_output* and *auto_local* leave
   them out (a warning is issued for the inputs and the outputs). They can only be linked between embedded FMUs.
+  A time-based input clock (`intervalVariability` `constant`, `fixed`, `tunable`, `changing` or `countdown`) that is
+  not linked is scheduled by the container, from its interval and shift: its first tick is at the start time plus its
+  shift (FMI 3.0, 2.2.8.2). A `triggered` input clock that is not linked never ticks.
 
 Some of these parameters can be defined by Command Line Interface or by the input files.
 

@@ -30,6 +30,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟠 **FIXED** a clock or a clocked variable of an embedded FMU could be exposed on the container, explicitly or by
   `auto_input` / `auto_output` / `auto_local`: the container then accessed it outside the activation of its clock. It
   is now refused (explicit exposure) or left out with a warning (implicit rules).
+- 🟠 **FIXED** a time-based input clock of an embedded FMU that was not linked never ticked, and cannot be exposed:
+  the container schedules it now, like the linked ones.
 - 🟠 **FIXED** LS-BUS: the frames sent by a Bus Simulation on its time-based `Tx_Clock` never reached the nodes: the clock
   was reset before the delivery of the clocked inputs.
 - 🟠 **FIXED** LS-BUS: `Rx_Data` was set in the instant where `Tx_Data` was read. An FMU which evaluates its discrete states at this
