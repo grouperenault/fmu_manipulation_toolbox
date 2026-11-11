@@ -41,15 +41,15 @@ class ContainerPort:
     def __repr__(self):
         return f"Port {self.fmu.name}/{self.port.name}"
 
-    def check_not_clocked(self, role: str):
-        """Clocks and clocked variables cannot be exposed: the container has no clocked partition on its interface.
-
-        Raises:
-            FMUContainerError: If the port is a clock or a clocked variable.
-        """
+    def is_exposable(self, role: str) -> bool:
+        """Whether the port can be exposed as `role` (INPUT, OUTPUT) of the container. Clocks and clocked variables
+        cannot: the container has no clocked partition on its interface. Such a port is reported as an error and
+        left out, the build goes on."""
         if self.port.is_clocked:
-            raise FMUContainerError(f"Cannot use {self} as {role} of the container: clocks and clocked variables "
-                                    f"cannot be exposed.")
+            logger.error(f"Cannot use {self} as {role} of the container: clocks and clocked variables cannot be "
+                         f"exposed. It is not exposed.")
+            return False
+        return True
 
     def check_structural_parameter(self):
         """A structural parameter exposed on the container is set in Configuration Mode: it must be a scalar, and

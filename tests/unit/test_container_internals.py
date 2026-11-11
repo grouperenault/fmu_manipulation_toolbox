@@ -630,17 +630,19 @@ def node(tmp_path) -> FMUContainer:
 
 
 @pytest.mark.parametrize("port", ["CanChannel.Tx_Clock", "CanChannel.Tx_Data"], ids=["clock", "clocked"])
-def test_a_clock_or_a_clocked_variable_is_not_exposed_as_output(node, port):
-    with pytest.raises(FMUContainerError, match="clocks and clocked variables cannot be exposed"):
-        node.add_output("node1.fmu", port, "")
+def test_a_clock_or_a_clocked_variable_is_not_exposed_as_output(node, port, caplog):
+    with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
+        node.add_output("node1.fmu", port, "")      # reported, left out: the build goes on
     assert not node.outputs
+    assert "clocks and clocked variables cannot be exposed" in caplog.text
 
 
 @pytest.mark.parametrize("port", ["CanChannel.Rx_Clock", "CanChannel.Rx_Data"], ids=["clock", "clocked"])
-def test_a_clock_or_a_clocked_variable_is_not_exposed_as_input(node, port):
-    with pytest.raises(FMUContainerError, match="clocks and clocked variables cannot be exposed"):
+def test_a_clock_or_a_clocked_variable_is_not_exposed_as_input(node, port, caplog):
+    with caplog.at_level(logging.ERROR, logger="fmu_manipulation_toolbox"):
         node.add_input("", "node1.fmu", port)
     assert not node.inputs
+    assert "clocks and clocked variables cannot be exposed" in caplog.text
 
 
 def test_implicit_rules_leave_out_clocks_and_clocked_variables(node, caplog):

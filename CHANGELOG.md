@@ -29,7 +29,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   FMUs that check it, like the Reference-FMUs since v0.0.42, could not be instantiated.
 - 🟠 **FIXED** a clock or a clocked variable of an embedded FMU could be exposed on the container, explicitly or by
   `auto_input` / `auto_output` / `auto_local`: the container then accessed it outside the activation of its clock. It
-  is now refused (explicit exposure) or left out with a warning (implicit rules).
+  is now left out, reported as an error (explicit exposure: JSON, SSP, API) or a warning (implicit rules); the build
+  goes on.
 - 🟠 **FIXED** a time-based input clock of an embedded FMU that was not linked never ticked, and cannot be exposed:
   the container schedules it now, like the linked ones.
 - 🟠 **FIXED** an embedded FMU that asked to terminate the simulation made the container fail (in Event Mode), or was

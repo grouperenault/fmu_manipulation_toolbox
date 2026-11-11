@@ -304,7 +304,8 @@ class FMUContainer:
         if cport_to.port.causality not in ("input", "parameter", "structuralParameter"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_to}' as INPUT of the container but FMU causality is "
                                     f"'{cport_to.port.causality}'.")
-        cport_to.check_not_clocked("INPUT")
+        if not cport_to.is_exposable("INPUT"):
+            return
         if cport_to.port.causality == "structuralParameter":
             cport_to.check_structural_parameter()
 
@@ -345,7 +346,8 @@ class FMUContainer:
         if cport_from.port.causality not in ("output", "local"):  # check causality
             raise FMUContainerError(f"Tried to use '{cport_from}' as OUTPUT of the container but FMU causality is "
                                     f"'{cport_from.port.causality}'.")
-        cport_from.check_not_clocked("OUTPUT")
+        if not cport_from.is_exposable("OUTPUT"):
+            return
 
         if container_port_name in self.outputs:
             raise FMUContainerError(f"Duplicate OUTPUT {container_port_name} already connected to {cport_from}")
