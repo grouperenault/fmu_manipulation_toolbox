@@ -25,6 +25,9 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   its parameters (e.g. to start its XCP service).
 - 🟠 **FIXED** a value set by the importer of the container before its initialization was overwritten by the start
   value of the embedded FMU: it prevails now.
+- 🟠 **FIXED** runtime: the output arguments of `fmi3UpdateDiscreteStates` (and the `fmi2EventInfo` of
+  `fmi2NewDiscreteStates`) are initialized before the call: an FMU that does not set them could terminate the
+  simulation by chance (`terminateSimulation`), e.g. on Windows.
 - 🟠 **FIXED** an FMI 2.0 array aggregate (`name[1]`, `name[2]`, ...) was exchanged with consecutive value
   references from its first element: each element is now exchanged with its own value reference (links and start
   values), as an element may have any value reference (e.g. an alias). Exposed by an FMI 3.0 container, only its

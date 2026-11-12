@@ -1067,11 +1067,12 @@ fmu_status_t fmuSetClock(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, cons
    stored in the FMU and consumed later by container_bound_next_step(). */
 fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate) {
     const logger_t *logger = &fmu->container->logger;
-    fmi3Boolean terminateSimulation;
-    fmi3Boolean nominalsOfContinuousStatesChanged;
-    fmi3Boolean valuesOfContinuousStatesChanged;
-    fmi3Boolean nextEventTimeDefined;
-    fmi3Float64 nextEventTime;
+    /* Initialized: an FMU that does not set them (it should) must not terminate the simulation by chance. */
+    fmi3Boolean terminateSimulation = fmi3False;
+    fmi3Boolean nominalsOfContinuousStatesChanged = fmi3False;
+    fmi3Boolean valuesOfContinuousStatesChanged = fmi3False;
+    fmi3Boolean nextEventTimeDefined = fmi3False;
+    fmi3Float64 nextEventTime = 0.0;
     fmi3Status status;
 
     *discreteStatesNeedUpdate = false;
@@ -1082,7 +1083,7 @@ fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate)
 
     /* Only ME is supported in FMI-2.0, where the function is named differently. */
     if ((fmu->kind == FMU_KIND_ME) && (fmu->fmi_version == 2)) {
-        fmi2EventInfo info;
+        fmi2EventInfo info = { fmi2False, fmi2False, fmi2False, fmi2False, fmi2False, 0.0 };
         fmi2Status status2 = fmu->fmi_functions.version_2.fmi2NewDiscreteStates(fmu->component, &info);
 
         if (status2 != fmi2OK) {
