@@ -25,6 +25,10 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   its parameters (e.g. to start its XCP service).
 - 🟠 **FIXED** a value set by the importer of the container before its initialization was overwritten by the start
   value of the embedded FMU: it prevails now.
+- 🔵 **CHANGED** runtime: `fmi3GetIntervalDecimal` is no longer required when an embedded FMU is loaded, only by
+  the clocks whose schedule needs it (not periodic, or without interval in the `modelDescription.xml`): the
+  container is refused when it reads its clocks, with the FMU and the clock (FMI 3.0.1, 2.5: an importer should
+  not rely on the functions it does not need).
 - 🟠 **FIXED** runtime: the output arguments of `fmi3UpdateDiscreteStates` (and the `fmi2EventInfo` of
   `fmi2NewDiscreteStates`) are initialized before the call: an FMU that does not set them could terminate the
   simulation by chance (`terminateSimulation`), e.g. on Windows.

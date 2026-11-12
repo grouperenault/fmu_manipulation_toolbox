@@ -71,6 +71,13 @@ static inline bool container_clock_is_periodic(const container_clock_t *clock) {
 }
 
 
+/* The schedule reads the interval of a clock from its FMU (fmi3GetIntervalDecimal) unless it is periodic with an
+   interval declared by the modelDescription.xml. */
+static inline bool container_clock_needs_interval(const container_clock_t *clock) {
+    return !container_clock_is_periodic(clock) || (clock->declared_interval < 0.0);
+}
+
+
 static void container_clock_set_period(container_clock_t *clock, double origin, double period, unsigned long nb_ticks) {
     clock->origin = origin;
     clock->period = period;
@@ -2360,6 +2367,14 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
                 }
                 clock->local_vr = local_clock_index;
                 clock->fmu_id = fmu_id;
+                /* fmi3GetIntervalDecimal is optional when loading the FMU (FMI-3.0.1 2.5: an importer should not rely
+                   on functions it does not need): it is required here, by the clocks that need it. */
+                if (container_clock_needs_interval(clock) && (container->fmu[fmu_id].fmi_version == FMU_3) &&
+                    !container->fmu[fmu_id].fmi_functions.version_3.fmi3GetIntervalDecimal) {
+                    CONFIG_ERROR("Clock table: FMU '%s' does not export fmi3GetIntervalDecimal, needed by its %s clock "
+                                 "vr=%u.", container->fmu[fmu_id].name, kind, clock->fmu_vr);
+                    return -7;
+                }
                 pos += 1;
             }
         }

@@ -70,8 +70,14 @@ def _declaring(source: str, destination: str, clocks):
             archive_out.writestr(item, data)
 
 
-def _build_fmu(clocks=ALL_CLOCKS):
-    """`a.fmu` owns the time-based clocks `clocks`; `b.fmu` has none, only the triggered clocks they drive."""
+def _build_fmu(clocks=ALL_CLOCKS, interval_function=True):
+    """`a.fmu` owns the time-based clocks `clocks`; `b.fmu` has none, only the triggered clocks they drive.
+
+    Without `interval_function`, the FMUs do not export fmi3GetIntervalDecimal."""
+    if not interval_function:
+        model = Path("sources/model.c")
+        model.write_text(model.read_text().replace("fmi3Status fmi3GetIntervalDecimal(",
+                                                   "fmi3Status unexported_GetIntervalDecimal("))
     with zipfile.ZipFile("no-binaries.fmu", "w", zipfile.ZIP_DEFLATED) as archive:
         archive.write("modelDescription.xml")
         for source in Path("sources").iterdir():
@@ -152,6 +158,31 @@ def test_new_interval_without_its_value_is_refused(area_dir):
     _build_fmu(["unwritten"])
     with pytest.raises(FMICallException):
         _simulate(["unwritten"])
+
+
+def test_fmi3_get_interval_decimal_is_only_required_by_the_clocks_that_need_it(area_dir):
+    """FMI 3.0.1 (2.5): an importer should not rely on the functions it does not need. A clock whose interval is
+    declared by the modelDescription.xml does not need fmi3GetIntervalDecimal: its FMU may not export it."""
+    _build_fmu(["constant"], interval_function=False)
+    result = _simulate(["constant"])
+    expected = _expected_ticks()["constant"]
+    for fmu in ("a", "b"):
+        assert result[f"{fmu}_count_constant"][-1] == len(expected)
+
+
+def test_fmi3_get_interval_decimal_missing_for_a_clock_that_needs_it(area_dir):
+    """A tunable clock without declared interval needs fmi3GetIntervalDecimal: the container is refused when it is
+    loaded, with the reason."""
+    messages = []
+
+    def logger(*args):
+        messages.append(args[-1].decode() if isinstance(args[-1], bytes) else str(args[-1]))
+
+    _build_fmu(["tunable"], interval_function=False)
+    with pytest.raises(Exception):
+        _simulate(["tunable"], logger=logger)
+    assert any("does not export fmi3GetIntervalDecimal, needed by its tunable clock" in message
+               for message in messages), messages
 
 
 def test_declared_interval_and_shift_with_a_decimal_comma(area_dir, decimal_comma_locale):

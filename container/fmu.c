@@ -620,7 +620,7 @@ static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version, fmu_kind_t k
         OPT_MAP(fmi3GetAdjointDerivative);
         OPT_MAP(fmi3EnterConfigurationMode);
         OPT_MAP(fmi3ExitConfigurationMode);
-        REQ_MAP(fmi3GetIntervalDecimal);
+        OPT_MAP(fmi3GetIntervalDecimal);   /* required by the clocks that need it: see read_conf_clocks() */
         OPT_MAP(fmi3GetIntervalFraction);
         OPT_MAP(fmi3GetShiftDecimal);
         OPT_MAP(fmi3GetShiftFraction);
@@ -1661,6 +1661,10 @@ fmu_status_t fmuEnterStepMode(const fmu_t *fmu) {
 fmu_status_t fmuGetIntervalDecimal(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, 
                                    double *interval, int *qualifier) {
     const logger_t *logger = &fmu->container->logger;
+    if (! fmu->fmi_functions.version_3.fmi3GetIntervalDecimal) {
+        LOGGER_ERROR("FMU '%s' does not export fmi3GetIntervalDecimal.", fmu->name);
+        return FMU_STATUS_ERROR;
+    }
     fmi3Status status = fmu->fmi_functions.version_3.fmi3GetIntervalDecimal(fmu->component,
         vr, nvr, interval, (fmi3IntervalQualifier *)qualifier);
 
