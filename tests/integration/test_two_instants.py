@@ -62,3 +62,19 @@ def test_each_frame_sent_at_the_same_time_by_both_fmus_is_received(area_dir, ter
     assert result["b_sent"][-1] == frames
     assert result["a_received"][-1] == frames
     assert result["b_received"][-1] == frames
+
+
+def test_datalog_shows_the_frames_sent_when_leaving_the_initialization(area_dir):
+    """FMI-LS-BUS: the operations prepared in Initialization Mode are sent in the first Event Mode, at the start time.
+    The datalog has a row for this instant with the ticks of the clocks, as for each Event Mode."""
+    import csv
+
+    _build_fmu()
+    result = _simulate("triggered", datalog=True)
+    with open("pair-datalog.csv", newline="") as file:
+        rows = list(csv.DictReader(file))
+    for fmu in ("a", "b"):
+        column = f"{fmu}.triggered.Tx_Clock"
+        ticks = [float(row["time"]) for row in rows if row[column] == "1"]
+        assert ticks[0] == 0.0, column
+        assert len(ticks) == result[f"{fmu}_sent"][-1] == 11, column

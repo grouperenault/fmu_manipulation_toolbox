@@ -828,6 +828,9 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
     /* CS FMUs are in EventMode (or StepMode if support_event=0); ME FMUs are in
        EventMode: run one common event iteration before splitting the modes. */
     container_init_values(container);
+    /* As for each Event Mode: a row with the ticks of the clocks, e.g. the operations of FMI-LS-BUS prepared in
+       Initialization Mode and sent in this first Event Mode. */
+    datalog_log(container);
 
     /* The outputs were read just above. */
     status = container_close_instant(container);

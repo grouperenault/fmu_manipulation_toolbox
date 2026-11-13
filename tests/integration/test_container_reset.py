@@ -382,6 +382,9 @@ def test_reset_in_the_datalog(area_dir, source):
 
     with open("logged-datalog.csv", newline="") as file:
         rows = list(csv.DictReader(file))
+    # The first row: the outputs read when leaving the initialization, at the start time as the row that follows.
+    assert float(rows[0]["time"]) == float(rows[1]["time"]) == 0.0
+    rows = rows[1:]
     times = [float(row["time"]) for row in rows]
     repeated = [i for i in range(1, len(rows)) if times[i] == times[i - 1]]   # rows written before a reset
 

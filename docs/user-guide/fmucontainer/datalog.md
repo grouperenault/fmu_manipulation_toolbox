@@ -15,7 +15,10 @@ simulation, recorded at each container time step.
 ## CSV format
 
 - The first line holds the names of the columns: `time`, then one column per signal.
-- Each following line is one container time step. Real values are written with every significant digit (17 for
+- Each following line is one container time step; an Event Mode adds a row at the same time, with the ticks of the
+  clocks. The first two rows are at the start time: the first one has the values read when the embedded FMUs leave
+  their Initialization Mode, e.g. the FMI-LS-BUS operations they prepared in it and send in their first Event Mode.
+  Real values are written with every significant digit (17 for
   `Float64`, 9 for a `Float32`): the values read back from the file are exactly those of the simulation.
 - The file follows the locale of the simulation tool. With a decimal comma, the reals are written with a comma, and the
   columns are separated by a semicolon: `0,25;2,5`. Otherwise, reals are written with a dot, and columns are separated by
