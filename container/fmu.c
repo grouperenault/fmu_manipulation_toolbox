@@ -924,11 +924,6 @@ fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, siz
         LOGGER_ERROR("%s: fmuGetBinary not supported.", fmu->name);
         status = FMU_STATUS_ERROR;
     } else {
-        /* An FMU that does not write them gives an empty value, not an arbitrary address to copy. */
-        for (size_t i = 0; i < nvalues; i += 1) {
-            value[i] = NULL;
-            size[i] = 0;
-        }
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetBinary(fmu->component, vr, nvr, size, value, nvalues);
         if (status3 != fmi3OK) {
             LOGGER_ERROR("%s: fmuGetBinary status=%d", fmu->name, status3);

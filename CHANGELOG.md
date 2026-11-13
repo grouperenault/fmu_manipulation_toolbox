@@ -35,8 +35,6 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟠 **FIXED** runtime: `fmi3GetBinary` of the container put the sizes of an embedded FMU's binaries at the index of
   the value reference instead of the index of the values: read in one call after an array of binaries, a binary
   had a wrong size.
-- 🟠 **FIXED** runtime: the buffers of the `Binary` outputs are emptied before `fmi3GetBinary`: an FMU that does not
-  write them gave an arbitrary address to copy.
 - 🟠 **FIXED** runtime: the output arguments of `fmi3UpdateDiscreteStates` (and the `fmi2EventInfo` of
   `fmi2NewDiscreteStates`) are initialized before the call: an FMU that does not set them could terminate the
   simulation by chance (`terminateSimulation`), e.g. on Windows.
