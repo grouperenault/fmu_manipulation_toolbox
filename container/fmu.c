@@ -389,6 +389,10 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
         status = fmuGetClock(fmu, &fmu_vr, 1, &container->clocks.locals[local_vr]);
         if (status != FMU_STATUS_OK)
             return status;
+#ifdef DEBUG
+        LOGGER_DEBUG("[DEBUG] time=%e | fmu_get_clocked_outputs(fmu=%s): clock vr=%u is %s", fmu->container->time,
+                     fmu->name, fmu_vr, container->clocks.locals[local_vr] ? "active" : "inactive");
+#endif
     }
 
     /*
@@ -441,10 +445,20 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
                 const unsigned int fmu_vr = clocked_port->translations_list.translations[j].fmu_vr;
                 const unsigned int local_vr = clocked_port->translations_list.translations[j].vr;
                 const unsigned int dimension = clocked_port->translations_list.translations[j].dimension;
+#ifdef DEBUG
+                LOGGER_DEBUG("[DEBUG] time=%e | fmu_get_clocked_outputs(fmu=%s): fmi3GetBinary(vr=%u)",
+                             fmu->container->time, fmu->name, fmu_vr);
+#endif
                 status = fmuGetBinary(fmu, &fmu_vr, 1, container->binaries_size_tmp, container->binaries_tmp,
                                       dimension);
                 if (status != FMU_STATUS_OK)
                     return status;
+#ifdef DEBUG
+                for (unsigned int k = 0; k < dimension; k += 1)
+                    LOGGER_DEBUG("[DEBUG] time=%e | fmu_get_clocked_outputs(fmu=%s): binary vr=%u [%u]: %zu bytes at %p",
+                                 fmu->container->time, fmu->name, fmu_vr, k, container->binaries_size_tmp[k],
+                                 (const void *)container->binaries_tmp[k]);
+#endif
                 for (unsigned int k = 0; k < dimension; k += 1) {
                     if (fmu_binary_copy(&container->binaries.locals[local_vr + k], container->binaries_tmp[k],
                                         container->binaries_size_tmp[k])) {
@@ -910,6 +924,11 @@ fmu_status_t fmuGetBinary(const fmu_t *fmu, const fmu_vr_t vr[], size_t nvr, siz
         LOGGER_ERROR("%s: fmuGetBinary not supported.", fmu->name);
         status = FMU_STATUS_ERROR;
     } else {
+        /* An FMU that does not write them gives an empty value, not an arbitrary address to copy. */
+        for (size_t i = 0; i < nvalues; i += 1) {
+            value[i] = NULL;
+            size[i] = 0;
+        }
         fmi3Status status3 = fmu->fmi_functions.version_3.fmi3GetBinary(fmu->component, vr, nvr, size, value, nvalues);
         if (status3 != fmi3OK) {
             LOGGER_ERROR("%s: fmuGetBinary status=%d", fmu->name, status3);
