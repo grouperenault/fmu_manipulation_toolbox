@@ -32,6 +32,9 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 - 🟠 **FIXED** datalog: the ticks of the clocks when the embedded FMUs leave their Initialization Mode were not logged
   (e.g. the operations of FMI-LS-BUS prepared in Initialization Mode, sent in the first Event Mode): a first row at the
   start time has them.
+- 🟠 **FIXED** runtime: `fmi3GetBinary` of the container put the sizes of an embedded FMU's binaries at the index of
+  the value reference instead of the index of the values: read in one call after an array of binaries, a binary
+  had a wrong size.
 - 🟠 **FIXED** runtime: the buffers of the `Binary` outputs are emptied before `fmi3GetBinary`: an FMU that does not
   write them gave an arbitrary address to copy.
 - 🟠 **FIXED** runtime: the output arguments of `fmi3UpdateDiscreteStates` (and the `fmi2EventInfo` of

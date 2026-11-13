@@ -74,6 +74,7 @@ extern int test_xcp_configuration_mode(void);
 extern int test_xcp_without_configuration_mode(void);
 extern int test_xcp_fmi2_before_setup_experiment(void);
 extern int test_cache_read_after_write(void);
+extern int test_get_binary_array(void);
 extern int test_cache_refused_value(void);
 extern int test_cache_order_of_the_calls(void);
 extern int test_cache_structural_warning(void);

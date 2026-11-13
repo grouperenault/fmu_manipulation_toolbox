@@ -46,6 +46,7 @@ static const struct {
     { "xcp_without_configuration_mode", test_xcp_without_configuration_mode },
     { "xcp_fmi2_before_setup",          test_xcp_fmi2_before_setup_experiment },
     { "cache_read_after_write",         test_cache_read_after_write },
+    { "get_binary_array",               test_get_binary_array },
     { "cache_refused_value",            test_cache_refused_value },
     { "cache_order_of_the_calls",       test_cache_order_of_the_calls },
     { "cache_structural_warning",       test_cache_structural_warning },

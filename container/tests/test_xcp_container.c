@@ -4,6 +4,7 @@
 #include "fmi3Functions.h"
 
 #include "container.h"
+#include "fmu.h"
 #include "test.h"
 
 /*
@@ -240,5 +241,70 @@ int test_cache_structural_warning(void) {
                                                  "set address=0.0.0.0\n"
                                                  "set port=7002\n"
                                                  "start tcp 0.0.0.0:7002 at fmi3ExitConfigurationMode\n") == 0);
+    return 0;
+}
+
+
+/* fmi3GetBinary of the FMU of test_get_binary_array: vr 10 is an array of 2 binaries, vr 20 a binary. */
+static const fmi3Byte BINARY_DATA[] = { 1, 2, 3 };
+
+static fmi3Status fake_get_binary(fmi3Instance instance, const fmi3ValueReference vr[], size_t nvr, size_t valueSizes[],
+                                  fmi3Binary values[], size_t nValues) {
+    (void)instance;
+    if (nvr != 1)
+        return fmi3Error;
+    if ((vr[0] == 10) && (nValues == 2)) {
+        valueSizes[0] = 1; values[0] = BINARY_DATA;
+        valueSizes[1] = 2; values[1] = BINARY_DATA;
+        return fmi3OK;
+    }
+    if ((vr[0] == 20) && (nValues == 1)) {
+        valueSizes[0] = 3; values[0] = BINARY_DATA;
+        return fmi3OK;
+    }
+    return fmi3Error;
+}
+
+
+/* The importer reads an array of binaries and a binary in one call: each size goes with its value. */
+int test_get_binary_array(void) {
+    char path[4096];
+    static char original[65536];
+
+    snprintf(path, sizeof(path), "%s/xcp_fmi3/container.txt", TEST_FIXTURES_DIR);
+    FILE *file = fopen(path, "rt");
+    TEST_ASSERT(file != NULL);
+    const size_t length = fread(original, 1, sizeof(original) - 1, file);
+    fclose(file);
+    original[length] = '\0';
+
+    /* Two binary ports of the container (type 13): an array of 2 (FMU vr 10), then a binary (FMU vr 20). */
+    static const char *empty = "# binary\n0 0\n";
+    static const char *ports = "# binary\n2 2\n218103808 2 1 0 10\n218103809 1 1 0 20\n";
+    char *at = strstr(original, empty);
+    TEST_ASSERT(at != NULL);
+    static char modified[65536];
+    snprintf(modified, sizeof(modified), "%.*s%s%s", (int)(at - original), original, ports, at + strlen(empty));
+
+    snprintf(path, sizeof(path), "%s/xcp_fmi3", TEST_FIXTURES_DIR);
+    TEST_ASSERT_EQUAL_INT(0, test_write_file(path, "container.txt", modified));
+    fmi3Instance instance = instantiate_fmi3();
+    TEST_ASSERT_EQUAL_INT(0, test_write_file(path, "container.txt", original));
+    TEST_ASSERT(instance != NULL);
+
+    container_t *container = (container_t *)instance;
+    container->fmu[0].fmi_functions.version_3.fmi3GetBinary = fake_get_binary;
+
+    const fmi3ValueReference vrs[] = { 218103808, 218103809 };
+    size_t sizes[3] = { 99, 99, 99 };
+    fmi3Binary values[3] = { NULL, NULL, NULL };
+    const fmi3Status status = fmi3GetBinary(instance, vrs, 2, sizes, values, 3);
+    fmi3FreeInstance(instance);
+
+    TEST_ASSERT_EQUAL_INT(fmi3OK, status);
+    TEST_ASSERT_EQUAL_INT(1, sizes[0]);
+    TEST_ASSERT_EQUAL_INT(2, sizes[1]);
+    TEST_ASSERT_EQUAL_INT(3, sizes[2]);
+    TEST_ASSERT(values[2] == BINARY_DATA);
     return 0;
 }

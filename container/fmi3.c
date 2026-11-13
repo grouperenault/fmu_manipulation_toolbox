@@ -274,7 +274,8 @@ fmi3Status fmi3GetBinary(fmi3Instance instance,
                 return fmi3Error;
             const fmu_t *fmu = &container->fmu[fmu_id];
 
-            fmu_status_t status = fmuGetBinary(fmu, &fmu_vr, 1, &valueSizes[i], &values[value_index], port->dimension);
+            fmu_status_t status = fmuGetBinary(fmu, &fmu_vr, 1, &valueSizes[value_index], &values[value_index],
+                                              port->dimension);
 
             if (status != FMU_STATUS_OK) {
                 LOGGER_ERROR("Container: FMU '%s' failed to get binary vr=%d.", fmu->name, fmu_vr); 
