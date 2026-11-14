@@ -24,6 +24,10 @@ class IOReference:
         return f"{self.local_offset} {self.dim} {self.fmu_vr}"
 
 
+#: [type][fmu_name][clock_vr] -> [IOReference]
+IOReferences = defaultdict[str, defaultdict[str, defaultdict[int | None, list[IOReference]]]]
+
+
 class FMUIOList:
     """Tracks the I/O mapping between the container and its embedded FMUs.
 
@@ -44,12 +48,14 @@ class FMUIOList:
     def __init__(self, vr_table: ValueReferenceTable):
         self.vr_table = vr_table
         # [type][fmu][clock_vr] -> [IOReference]
-        self.inputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-        self.nb_clocked_inputs = defaultdict(lambda: defaultdict(lambda: 0))
+        self.inputs: IOReferences = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        self.nb_clocked_inputs: defaultdict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(lambda: 0))
         # [type][fmu][clock_vr] -> [IOReference]
-        self.outputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-        self.nb_clocked_outputs = defaultdict(lambda: defaultdict(lambda: 0))
-        self.start_values = defaultdict(lambda: defaultdict(list)) # [type][fmu] -> [(fmu_vr, dim, reset, value)]
+        self.outputs: IOReferences = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        self.nb_clocked_outputs: defaultdict[str, defaultdict[str, int]] = defaultdict(lambda: defaultdict(lambda: 0))
+        # [type][fmu] -> [(fmu_vr, dim, reset, value)]
+        self.start_values: defaultdict[str, defaultdict[str, list[tuple[int, int, int, str]]]] = \
+            defaultdict(lambda: defaultdict(list))
 
     def add_input(self, cport: ContainerPort, local_vr: int):
         """Register an input mapping for an embedded FMU port.
@@ -209,7 +215,7 @@ class InvolvedFMU:
             return self[fmu_name]
         return default
 
-    def write_txt(self, txt_file: IO, configured: set[str] = frozenset()) -> dict[str, int]:
+    def write_txt(self, txt_file: IO, configured: set[str] | frozenset[str] = frozenset()) -> dict[str, int]:
         """Write the declarations of the embedded FMUs. `configured`: names of the FMUs whose structural parameters
         are set by the container, in Configuration Mode (`<has_configuration_mode>`)."""
         print(f"{len(self.fmu_cs)} {len(self.fmu_me)}", file=txt_file)
@@ -270,6 +276,7 @@ class ClockList:
             vr (int): The local value reference of the clock.
         """
         port = cport.port
+        assert port.interval_variability is not None
         self.clocks_per_fmu[self.fmu_index[cport.fmu.name]].append(
             Clock(port.vr, vr, port.interval_variability, port.interval_decimal or "-1", port.shift_decimal or "-1"))
 

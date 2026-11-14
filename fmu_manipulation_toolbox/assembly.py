@@ -251,10 +251,11 @@ class AssemblyNode:
         stop_time (float | None): Stop time of the default experiment of the container, likewise.
     """
 
-    def __init__(self, name: str, step_size: float = None, mt=False, profiling=False, sequential=False,
+    def __init__(self, name: str, step_size: float | str | None = None, mt=False, profiling=False, sequential=False,
                  auto_link=True, auto_input=True, auto_output=True, auto_parameter=False, auto_local=False,
                  ts_multiplier=False, reset_ports=False):
         self.name = name
+        self.step_size: float | None
         if step_size:
             try:
                 self.step_size = float(step_size)
@@ -615,7 +616,7 @@ class Assembly:
         root (AssemblyNode | None): Root node of the assembly tree.
     """
 
-    def __init__(self, filename: str | Path = None, default_step_size=None, default_auto_link=True,
+    def __init__(self, filename: str | Path | None = None, default_step_size=None, default_auto_link=True,
                  default_auto_input=True, debug=False, default_sequential=False, default_auto_output=True,
                  default_mt=False, default_profiling=False, fmu_directory: Path = Path("."),
                  default_auto_parameter=False, default_auto_local=False, default_ts_multiplier=False,
@@ -642,7 +643,7 @@ class Assembly:
 
         if self.filename:
             self.input_pathname = fmu_directory / self.filename
-            self.description_pathname = self.input_pathname  # For inclusion in FMU
+            self.description_pathname: Path | None = self.input_pathname  # For inclusion in FMU
             self.read()
         else:
             self.description_pathname = None
@@ -943,7 +944,7 @@ class Assembly:
             return {}
 
     def _json_encode_node(self, node: AssemblyNode) -> dict[str, Any]:
-        json_node = dict()
+        json_node: dict[str, Any] = dict()
         json_node["name"] = node.name                      # 1
         json_node["mt"] = node.mt                          # 2
         json_node["profiling"] = node.profiling            # 3
@@ -1047,7 +1048,7 @@ class Assembly:
             self.write_json(dump_file)
 
     def get_flat_links(self) -> list[list[str]]:
-        links_list = []
+        links_list: list[list[str]] = []
 
         if self.root:
             self._get_flat_links_recursive(self.root, links_list)

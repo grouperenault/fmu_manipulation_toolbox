@@ -253,7 +253,7 @@ class EmbeddedFMU(OperationAbstract):
                        "canHandleVariableCommunicationStepSize")
 
     def __init__(self, filename, name: str | None = None):
-        self.fmu = FMU(filename)
+        self.fmu: FMU = FMU(filename)
         self.name = Path(name or filename).name
         self.id = Path(self.name).stem.lower()
         self.is_instance = self.name != Path(filename).name
@@ -262,16 +262,16 @@ class EmbeddedFMU(OperationAbstract):
         self.terminals = Terminals(self.fmu.tmp_directory)
         self.ls = LayeredStandard(self.fmu.tmp_directory)
 
-        self.step_size = None
-        self.start_time = None
-        self.stop_time = None
-        self.model_identifier = None
-        self.guid = None
-        self.fmi_version = None
+        self.step_size: float | None = None
+        self.start_time: float | None = None
+        self.stop_time: float | None = None
+        self.model_identifier: str | None = None
+        self.guid: str | None = None
+        self.fmi_version: int | None = None
         self.is_me = False
         self.number_of_continuous_states = 0
         self.number_of_event_indicators = 0
-        self.platforms = set()
+        self.platforms: set[str] = set()
         self.ports: dict[str, EmbeddedFMUPort] = {}
 
         self.has_event_mode = False

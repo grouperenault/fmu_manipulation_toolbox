@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from fractions import Fraction
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from ..model_description import ModelDescription
 from ..operations import FMUError
@@ -33,6 +33,8 @@ logger = logging.getLogger("fmu_manipulation_toolbox")
 
 # Step size of a container whose FMUs declare none.
 DEFAULT_STEP_SIZE = 0.1
+
+_PathT = TypeVar("_PathT", str, Path)
 
 
 def _exact(value: float) -> Fraction:
@@ -131,8 +133,8 @@ class FMUContainer:
         self.fmi_version = fmi_version
         self.reset_ports = reset_ports
 
-        self.start_time = None
-        self.stop_time = None
+        self.start_time: float | None = None
+        self.stop_time: float | None = None
 
         self.have_me = False
 
@@ -714,13 +716,13 @@ class FMUContainer:
                         links.append(Link(cport))
         return links
 
-    def sanity_check(self, step_size: float | None):
+    def sanity_check(self, step_size: float):
         """Validate the container configuration before building.
 
         Warns about step size mismatches and unconnected ports.
 
         Args:
-            step_size (float | None): The container's internal step size.
+            step_size (float): The container's internal step size.
         """
         for fmu in self.involved_fmu.values():
             if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
@@ -1178,8 +1180,8 @@ class FMUContainer:
                     reset_triggers[cport.fmu.name] = layout.reset_inputs[input_port_name]
 
         # Start values
-        for input_port, value in start_values.items():
-            fmu_io_list.add_start_value(input_port, value)
+        for cport, value in start_values.items():
+            fmu_io_list.add_start_value(cport, value)
 
         # Outputs; those exposed through a local variable (converted, FMI-2 array aggregate) are listed with the local
         # variables
@@ -1212,6 +1214,7 @@ class FMUContainer:
             for type_name in link.conversions:
                 local_per_type[type_name].append(LocalVariable(layout.converted[link][type_name], link.size))
             if link.conversions:
+                assert link.cport_from is not None
                 links_per_fmu[link.cport_from.fmu.name].append(link)
 
             # FMU Inputs
@@ -1303,10 +1306,11 @@ class FMUContainer:
             print(sum(len(link.conversions) for link in links_per_fmu[fmu.name]) +
                   len(output_conversions_per_fmu[fmu.name]), file=txt_file)
             for link in links_per_fmu[fmu.name]:
-                for type_name, conversion in link.conversions.items():
-                    print(f"{layout.links[link]} {layout.converted[link][type_name]} {conversion}", file=txt_file)
-            for vr_from, vr_to, conversion in output_conversions_per_fmu[fmu.name]:
-                print(f"{vr_from} {vr_to} {conversion}", file=txt_file)
+                for type_name, conversion_function in link.conversions.items():
+                    print(f"{layout.links[link]} {layout.converted[link][type_name]} {conversion_function}",
+                          file=txt_file)
+            for vr_from, vr_to, conversion_function in output_conversions_per_fmu[fmu.name]:
+                print(f"{vr_from} {vr_to} {conversion_function}", file=txt_file)
 
             print(f"# Reset trigger of {fmu.name}: <LOCAL_OFFSET>", file=txt_file)
             print(reset_triggers.get(fmu.name, -1), file=txt_file)
@@ -1357,7 +1361,7 @@ class FMUContainer:
                 print(f"{port.vr} {port.name}", file=datalog_file)
 
     @staticmethod
-    def long_path(path: str | Path) -> str:
+    def long_path(path: _PathT) -> _PathT | str:
         # https://stackoverflow.com/questions/14075465/copy-a-file-with-a-too-long-path-to-another-directory-in-python
         if os.name == 'nt':
             return "\\\\?\\" + os.path.abspath(str(path))

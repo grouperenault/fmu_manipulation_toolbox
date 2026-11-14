@@ -80,7 +80,7 @@ class FMUSplitter:
     def __init__(self, fmu_filename: str):
         self.fmu_filename = Path(fmu_filename)
         self.directory = self.fmu_filename.with_suffix(".dir")
-        self.zip = zipfile.ZipFile(self.fmu_filename)
+        self.zip: zipfile.ZipFile | None = zipfile.ZipFile(self.fmu_filename)
         self.filenames_list = self.zip.namelist()
         self.dir_set = self.get_dir_set()
 
@@ -112,6 +112,7 @@ class FMUSplitter:
         the FMU file does not exist): ``__del__`` must never raise."""
         if getattr(self, "zip", None) is not None:
             logger.debug("Closing zip file")
+            assert self.zip is not None
             self.zip.close()
             self.zip = None
 
@@ -155,6 +156,7 @@ class FMUSplitter:
     def extract_fmu(self, directory: str, filename: str):
         logger.debug(f"Extracting {directory} to {filename}")
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as fmu_file:
+            assert self.zip is not None
             for file in self.zip.namelist():
                 if file.startswith(directory) and len(file) > len(directory):
                     data = self.zip.read(file)
@@ -232,6 +234,8 @@ class FMUSplitterDescription:
         if fmu_filename == ".":
             self.fmi_version = fmi_version
         for port in model_description.iter_ports():
+            if port.fmi_type is None:
+                continue                            # no type element: not handled by the container
             fmi_type = enumeration_as_integer(port.fmi_type, fmi_version)  # as handled by the container
             container_type = FMI_TO_CONTAINER[fmi_version].get(fmi_type)
             if container_type is not None:
@@ -256,7 +260,7 @@ class FMUSplitterDescription:
         self._build_basename_map(fmu_filename)
 
     @property
-    def supported_fmi_types(self) -> tuple[str]:
+    def supported_fmi_types(self) -> tuple[str, ...]:
         if self.file_format == 0 or self.file_format == 1:
             return tuple(CONTAINER_TO_FMI[2].keys())
         elif self.file_format == 2:
@@ -265,7 +269,7 @@ class FMUSplitterDescription:
             return ALL_TYPES
 
     @property
-    def supported_fmi_types_start(self) -> tuple[str]:
+    def supported_fmi_types_start(self) -> tuple[str, ...]:
         if self.file_format == 0 or self.file_format == 1:
             return tuple(CONTAINER_TO_FMI[2].keys())
         elif self.file_format == 2:

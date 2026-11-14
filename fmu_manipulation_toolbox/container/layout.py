@@ -99,7 +99,7 @@ class ValueReferenceTable:
             if cport_to.port.type_name == "clock":
                 self.local_clock[(cport_to.fmu, cport_to.port.vr)] = vr
 
-        converted = {type_name: self.add_vr(type_name, local=True, port_size=link.cport_from.port.size())
+        converted = {type_name: self.add_vr(type_name, local=True, port_size=link.size)
                      for type_name in link.conversions}
         return vr, converted
 
@@ -112,6 +112,7 @@ class ValueReferenceTable:
         Returns:
             int: The local value reference of the clock.
         """
+        assert cport.port.clock is not None
         return self.local_clock[(cport.fmu, int(cport.port.clock))]
 
 
@@ -277,6 +278,7 @@ class ContainerLayout:
             own_copy = vr is None
             if own_copy:
                 vr = table.add_vr(target, local=True, port_size=cport.port.size())
+            assert vr is not None
             conversions[name] = by_port[cport] = OutputConversion(
                 cport, local, target, CONVERSION_FUNCTION[f"{type_name}/{target}"], vr, own_local, own_copy)
         return conversions

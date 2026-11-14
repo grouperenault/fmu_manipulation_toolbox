@@ -172,7 +172,7 @@ class Link:
 
     def __init__(self, cport_from: ContainerPort):
         self.name = cport_from.fmu.id + "." + cport_from.port.name  # strip .fmu suffix
-        self.cport_from = cport_from
+        self.cport_from: ContainerPort | None = cport_from
         self.cport_to_list: list[ContainerPort] = []
         self.size = cport_from.port.size()
         self.conversions: dict[str, str] = {}
@@ -229,6 +229,7 @@ class Link:
                 conversion is available.
         """
         try:
+            assert self.cport_from is not None
             conversion = f"{self.cport_from.port.type_name}/{cport_to.port.type_name}"
             return CONVERSION_FUNCTION[conversion]
         except KeyError:
