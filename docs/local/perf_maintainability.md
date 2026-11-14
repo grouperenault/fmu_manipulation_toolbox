@@ -1,6 +1,6 @@
 # Plan: conformity, performance and maintainability of the container runtime and the Python package
 
-**Created**: 14 November 2026 — **Status**: in progress (phases 1 and 2 done on 14 November 2026; phase 3
+**Created**: 14 November 2026 — **Status**: in progress (phases 1, 2 and 4 done on 14 November 2026; phase 3
 abandoned on 14 November 2026, D7) — **Branch**: `feature/perf-maintainability`, from `integration` — **Roadmap**:
 not listed
 
@@ -96,7 +96,14 @@ Taken on 14 November 2026 when writing the plan:
   types); Q6 **report only**: the `lint` job does not fail the CI (`continue-on-error`); Q7 no `pre-commit`. Found
   when applying `I` (step 4.2): ruff writes a wrapped import one name per line and cannot keep the aligned
   continuation of the code; accepted (18 imports in 15 files). `_helpers` and `conftest` are first-party for the
-  sorting.
+  sorting. The mypy errors on optional values (14 November 2026): the annotation corrected when it is wrong;
+  `assert x is not None` where None cannot occur by construction; a case where None (or a wrong type) can really
+  occur is **not fixed**, it is reported (§6), and its mypy error left. Three cases decided: `split.py` skips a port
+  without type element explicitly (same behaviour); `layout.py` uses `link.size`; `AssemblyNode(name: str)` kept
+  (the JSON nodes are named after their creation), its error left.
+- **D9 — Workflow of the phase 4** (14 November 2026): the long lines of `tests/` and the mypy errors of two groups
+  of files were fixed by sub-agents in parallel, on disjoint files, then reviewed; the full test suite ran after
+  each ruff commit, the tests related to the files after each mypy commit.
 
 ### Open points, to decide before the phase starts
 
@@ -390,14 +397,16 @@ Commit messages (one per commit):
 Lint: imports sorted and unused imports removed (ruff I, F401)
 Lint: pyupgrade fixes (ruff UP)
 Lint: bugbear fixes (ruff B)
+Lint: pycodestyle and pyflakes fixes (ruff E, F, W)
 Types: mypy on model_description, operations, checker
-Types: mypy on container, assembly, ssp
+Types: mypy on compiler, remoting, simulation, cli
+Types: mypy on container, assembly, ssp, split
 ```
 
 #### Step 4.3 — CI and documentation
 
-- `ci.yml`: the `lint` job (Q6); `CONTRIBUTING.md` and `docs/installation.md` (development): the commands;
-  `CHANGELOG.md` (Native code / development).
+- `ci.yml`: the `lint` job (Q6, report only: `continue-on-error`); `CONTRIBUTING.md` (section *Static checks*) and
+  `docs/installation.md` (the `lint` extra); `CHANGELOG.md` (Upstream, new section *Development*).
 
 Commit message:
 ```
@@ -509,6 +518,24 @@ Doc: datalog buffer and decimation
 - The embedded FMUs are extracted twice at build time (`FMU()` and `make_fmu_skeleton()`); the FMI schemas are
   loaded again at each check (`checker.py`, `OperationGenericCheck`).
 - `tests/_helpers`: the C tests cover neither the solver (event location, RK4) nor the cache in isolation.
+- Found by mypy (phase 4, D8): inputs that the FMI schemas forbid but that the package does not refuse, and that make
+  it fail or misbehave; their mypy errors are left (28 at the end of the phase):
+  - `compiler.py:310-359`: a `buildDescription.xml` without `modelIdentifier` builds a library named `None`; a
+    `<File>`, `<SourceFile>` or `<IncludeDirectory>` without `name` raises a `TypeError` (`Path / None`); a
+    `<PreprocessorDefinition>` or `<Library>` without `name` gives `-DNone` / `-lNone` (a crash with MSVC).
+  - `container/embedded.py:380`: an `fmiVersion` accepted by `ModelDescription` but neither `"2.0"` nor `"3.*"`
+    (e.g. `"2"`, `"3"`) leaves `fmi_version` None (`TypeError` in `EmbeddedFMUPort`); an FMI 2.0 variable without
+    type element raises a `KeyError`.
+  - `container/rules.py:203-205`: a link from an input clock to an input that is not a clock raises an
+    `AttributeError` instead of an `FMUContainerError`.
+  - `assembly.py:774-793`: `Assembly()` without a file, then `write("x.csv")`: `AttributeError` (`root` is None);
+    `json_encode` handles this case. `assembly.py:825`: `AssemblyNode(name: str)` built with `name=None` (D8).
+  - `ssp.py:480`: an FMU variable without `name` gives a `None` key (a crash in `get_close_matches` when a connector
+    is not found); `ssp.py:721`: an `<Item>` without `name` or `value` gives a `None` start value or a `TypeError`;
+    an `ssv:Parameter` without `name` crashes (untyped code, not reported by mypy).
+  - `cli/fmutool_agent.py:152`: under `python -OO` the docstrings are removed and `list-tools` crashes.
+- `assembly.py`: `_get_flat_links_recursive()` overwrites its parameters `left_candidates` and `right_candidates`
+  at once: the candidates given by the recursive call are never used (`#TODO` in the code).
 
 ---
 
@@ -567,3 +594,8 @@ code: `assignment` 49, `arg-type` 31, `union-attr` 18, `return-value` 10, `misc`
 `model_description.py` 3, `container/layout.py` 2, `cli/fmutool_agent.py` 2, `experiments.py` 1, `container/xcp.py` 1,
 `container/rules.py` 1. The bodies of the functions without annotations are not checked (`check_untyped_defs` off,
 the default: 92 notes). The whole package, `gui/` and `assistant/` included, gives 235 errors.
+
+End of the phase (14 November 2026): `ruff check fmu_manipulation_toolbox tests tools` gives **0** error (10
+`# noqa: E501` on strings that cannot be wrapped: Markdown and XML content); `mypy` gives **28** errors in 6 files
+(139 before), all left on purpose: the inputs of §6 that the package does not refuse, and `AssemblyNode(name)` (D8).
+The test suite: 2867 passed, 3 skipped, before and after the ruff fixes.

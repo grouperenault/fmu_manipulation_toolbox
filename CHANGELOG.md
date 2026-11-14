@@ -205,6 +205,12 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   semaphores were removed even when they were not created, and a failure of `ftruncate()` or `getcwd()` was not
   detected. The remoting code compiles without warnings on Linux again.
 
+## Development
+
+- 🟢 **ADDED** static checks of the Python sources: `ruff` (lint) and `mypy` (types, the package without the GUIs and
+  the AI Assistant), configured in `pyproject.toml` and installed by the new `lint` extra (included in `all`). The
+  `lint` job of the CI runs them and reports the errors without failing. See `CONTRIBUTING.md`.
+
 ## Graphical User Interfaces
 
 - 🔵 **CHANGED** FMU Tool: the buttons are disabled until an FMU is loaded, and **Save modified FMU as** until an

@@ -53,7 +53,7 @@ The tests run against the installed package. From the repository root, install i
 (pip ≥ 21.3):
 
 ```bash
-pip install -e ".[all]"       # full dev setup: GUI, MCP and test dependencies
+pip install -e ".[all]"       # full dev setup: GUI, MCP, test and lint dependencies
 # or, the test dependencies only:
 pip install -e ".[test]"      # pytest, pytest-qt, pytest-cov, fmpy, numpy, PySide6
 ```
@@ -128,6 +128,19 @@ the repository root, it prints a Markdown table:
 ```bash
 python tests/benchmarks/bench_manipulation.py [--variables 1000 10000 100000] [--repeat 3]
 ```
+
+## Static checks
+
+`ruff` (lint) and `mypy` (types) are configured in `pyproject.toml` and installed by the `lint` extra
+(`pip install -e ".[lint]"`, included in `all`). Run them from the repository root:
+
+```bash
+ruff check fmu_manipulation_toolbox tests tools
+mypy                          # the package, without gui/ and assistant/ (see [tool.mypy])
+```
+
+`ruff format` is not used: only the rules are checked (`E`, `F`, `W`, `I`, `UP`, `B`, lines of 120 characters).
+The `lint` job of the CI runs both on every pull request; it reports the errors but does not fail the CI.
 
 ## Packaging and releases
 
