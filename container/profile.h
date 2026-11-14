@@ -29,7 +29,6 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 struct logger_s;
-extern profile_tic_t profile_now(void);
 extern profile_t *profile_new(const struct logger_s *logger);
 extern void profile_free(profile_t *profile);
 extern void profile_tic(profile_t *profile);

@@ -109,8 +109,9 @@ The multi-thread mode (see [DoStep FMI Sequence](dostep-fmi-sequence.md#notes)) 
 of its warm-up (`container_dispatch()`), one per worker of the pool, and stops them in `container_free()`.
 `thread.c` gives the portable primitives: the threads, `thread_nb_cores()`, the barriers (`SYNCHRONIZATION_BARRIER`
 on Windows, `pthread_barrier_t` on Linux, a barrier on `dispatch_semaphore` on macOS, which has none) and a gate that
-holds the workers until they are all launched. The steps are timed by `profile_now()` (`profile.c`: a monotonic clock
-in ns, `QueryPerformanceCounter` or `CLOCK_MONOTONIC`), the clock of the profiling too.
+holds the workers until they are all launched. During the warm-up, the steps of each FMU are timed by its
+`profile_t warmup` (`profile_tic()` / `profile_toc()` of `profile.c`, as the profiling: a monotonic clock in ns,
+`QueryPerformanceCounter` or `CLOCK_MONOTONIC`), whose `total_elapsed` sums their durations.
 
 ## Sanitizers
 

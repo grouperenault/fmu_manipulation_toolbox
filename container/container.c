@@ -1103,10 +1103,11 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
     }
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t* fmu = container->cs_fmu[i];
-        const profile_tic_t start = container->mt_warmup ? profile_now() : 0;
+        if (container->mt_warmup)
+            profile_tic(&fmu->warmup);
         status = fmuDoStep(fmu, container->time, container->next_step);
         if (container->mt_warmup)
-            fmu->warmup_ns += profile_now() - start;
+            profile_toc(&fmu->warmup, container->time);     /* the duration of the steps adds up in total_elapsed */
         if (status != FMU_STATUS_OK) {
             LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
             return status;
@@ -2475,7 +2476,7 @@ static void container_stop_threads(container_t *container) {
 
 /* Heavy FMUs, the longest step first. */
 static int container_compare_warmup(const void *a, const void *b) {
-    const profile_tic_t ta = (*(fmu_t *const *)a)->warmup_ns, tb = (*(fmu_t *const *)b)->warmup_ns;
+    const double ta = (*(fmu_t *const *)a)->warmup.total_elapsed, tb = (*(fmu_t *const *)b)->warmup.total_elapsed;
     return (ta < tb) - (ta > tb);
 }
 
@@ -2488,7 +2489,7 @@ static int container_compare_warmup(const void *a, const void *b) {
  */
 static void container_dispatch(container_t *container) {
     const logger_t *logger = &container->logger;
-    const profile_tic_t threshold = (profile_tic_t)container->mt_threshold_us * 1000u * MT_WARMUP;  /* ns, all steps */
+    const double threshold = container->mt_threshold_us * 1e-6 * MT_WARMUP;      /* s, all the steps */
     fmu_t **heavy = malloc((container->nb_cs ? container->nb_cs : 1) * sizeof(*heavy));
     unsigned int nb_heavy = 0;
 
@@ -2502,7 +2503,7 @@ static void container_dispatch(container_t *container) {
 
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t *fmu = container->cs_fmu[i];
-        if (fmu->warmup_ns >= threshold)
+        if (fmu->warmup.total_elapsed >= threshold)
             heavy[nb_heavy++] = fmu;
         else
             container->light_fmu[container->nb_light++] = fmu;
@@ -2541,7 +2542,7 @@ static void container_dispatch(container_t *container) {
             if (container->workers[j].load < worker->load)
                 worker = &container->workers[j];
         worker->fmu[worker->nb_fmu++] = heavy[i];
-        worker->load += heavy[i]->warmup_ns / MT_WARMUP;
+        worker->load += heavy[i]->warmup.total_elapsed / MT_WARMUP;
     }
     free(heavy);
 
@@ -2557,7 +2558,7 @@ static void container_dispatch(container_t *container) {
     for (unsigned int i = 0; i < nb_workers; i += 1)
         for (unsigned int j = 0; j < container->workers[i].nb_fmu; j += 1)
             LOGGER_WARNING("FMU '%s' (step of %.1f us) on worker thread #%u.", container->workers[i].fmu[j]->name,
-                           container->workers[i].fmu[j]->warmup_ns / MT_WARMUP / 1000.0, i);
+                           container->workers[i].fmu[j]->warmup.total_elapsed / MT_WARMUP * 1e6, i);
 }
 
 

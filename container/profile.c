@@ -34,33 +34,39 @@ void profile_free(profile_t *profile) {
 }
 
 
-/* Monotonic clock, in ns: immune to the changes of the wall clock, resolution of the platform (QueryPerformanceCounter,
-   CLOCK_MONOTONIC). */
-profile_tic_t profile_now(void) {
+/* A monotonic clock in ns, immune to the changes of the wall clock: QueryPerformanceCounter (counter and frequency
+   divided apart, counter * 1e9 would overflow after a few days at 10 MHz), CLOCK_MONOTONIC. */
+void profile_tic(profile_t *profile) {
 #ifdef _WIN32
 	LARGE_INTEGER counter, frequency;
 	QueryPerformanceFrequency(&frequency);
 	QueryPerformanceCounter(&counter);
-	/* seconds and remainder apart: counter * 1e9 would overflow after a few days at 10 MHz */
 	const uint64_t ticks = (uint64_t)counter.QuadPart, hz = (uint64_t)frequency.QuadPart;
-	return (ticks / hz) * 1000000000u + (ticks % hz) * 1000000000u / hz;
+	profile->current_tic = (ticks / hz) * 1000000000u + (ticks % hz) * 1000000000u / hz;
 #else
 	struct timespec ts;
 	clock_gettime(CLOCK_MONOTONIC, &ts);
-	return (profile_tic_t)ts.tv_sec * 1000000000u + (profile_tic_t)ts.tv_nsec;
+	profile->current_tic = (profile_tic_t)ts.tv_sec * 1000000000u + (profile_tic_t)ts.tv_nsec;
 #endif
-}
-
-
-void profile_tic(profile_t *profile) {
-	profile->current_tic = profile_now();
 
 	return;
 }
 
 
 double profile_toc(profile_t *profile, double current_time) {
-	const profile_tic_t now = profile_now();
+	profile_tic_t now;
+
+#ifdef _WIN32
+	LARGE_INTEGER counter, frequency;
+	QueryPerformanceFrequency(&frequency);
+	QueryPerformanceCounter(&counter);
+	const uint64_t ticks = (uint64_t)counter.QuadPart, hz = (uint64_t)frequency.QuadPart;
+	now = (ticks / hz) * 1000000000u + (ticks % hz) * 1000000000u / hz;
+#else
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	now = (profile_tic_t)ts.tv_sec * 1000000000u + (profile_tic_t)ts.tv_nsec;
+#endif
 
     profile->total_elapsed += (double)(now - profile->current_tic) / 1e9; /* seconds */
 	if (profile->total_elapsed > 1e-3)

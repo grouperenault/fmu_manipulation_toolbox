@@ -418,7 +418,7 @@ typedef struct {
 	fmu_io_t					fmu_io;
 	
 	fmu_status_t		        status;     /* of the last fmuDoStep (multi-thread mode) */
-	profile_tic_t				warmup_ns;	/* time of fmuDoStep during the warm-up of the multi-thread mode */
+	profile_t					warmup;		/* fmuDoStep during the warm-up of the multi-thread mode */
 
     bool                        support_event;
     bool                        need_event_udpate;

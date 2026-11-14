@@ -8,7 +8,7 @@
 #include "test.h"
 
 /*
- * The clock of the profiling and of the measurement of the multi-thread mode: monotonic, in ns.
+ * The clock of the profiling and of the warm-up of the multi-thread mode: monotonic, in ns.
  */
 
 static void sleep_ms(unsigned int ms) {
@@ -22,18 +22,15 @@ static void sleep_ms(unsigned int ms) {
 
 
 int test_profile_monotonic_clock(void) {
-    profile_tic_t previous = profile_now();
-    for (int i = 0; i < 1000; i += 1) {
-        const profile_tic_t now = profile_now();
-        TEST_ASSERT(now >= previous);
-        previous = now;
-    }
+    profile_t profile = { 0, 0.0 };
 
-    const profile_tic_t before = profile_now();
-    sleep_ms(20);
-    const profile_tic_t elapsed = profile_now() - before;
-    TEST_ASSERT(elapsed >= 19000000u);          /* ns: a sleep may end a little early on some clocks */
-    TEST_ASSERT(elapsed < 2000000000u);         /* not in ms, nor in µs */
+    for (int i = 0; i < 1000; i += 1) {
+        const double before = profile.total_elapsed;
+        profile_tic(&profile);
+        profile_toc(&profile, 1.0);
+        TEST_ASSERT(profile.total_elapsed >= before);       /* never back */
+        TEST_ASSERT(profile.total_elapsed < 1.0);           /* not a wrapped negative duration */
+    }
 
     return 0;
 }

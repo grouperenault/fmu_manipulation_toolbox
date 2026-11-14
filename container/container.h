@@ -144,7 +144,7 @@ typedef struct container_worker_s {
 	thread_t					thread;
 	fmu_t						**fmu;
 	unsigned int				nb_fmu;
-	profile_tic_t				load;					/* ns: sum of the mean fmuDoStep of its FMUs */
+	double						load;					/* s: sum of the mean fmuDoStep of its FMUs */
 } container_worker_t;
 
 
