@@ -1,7 +1,8 @@
 # Plan: conformity, performance and maintainability of the container runtime and the Python package
 
-**Created**: 14 November 2026 — **Status**: in progress (phases 1 and 2 done, phase 3 started on 14 November
-2026) — **Branch**: `feature/perf-maintainability`, from `integration` — **Roadmap**: not listed
+**Created**: 14 November 2026 — **Status**: in progress (phases 1 and 2 done on 14 November 2026; phase 3
+abandoned on 14 November 2026, D7) — **Branch**: `feature/perf-maintainability`, from `integration` — **Roadmap**:
+not listed
 
 This plan comes from a review of the whole toolbox (14 November 2026, code reading, measurements of
 `docs/local/done/container_perf.md`). It gathers the actions retained from that review, in the order in which they
@@ -12,7 +13,7 @@ are done. The discrete real inputs of the Model-Exchange FMUs set in Continuous 
 |---|---|---|
 | 1 | `<InitialUnknowns>` / `<InitialUnknown>` of the container list the right outputs | FMI conformity |
 | 2 | One Model-Exchange part for the three step loops of the runtime | maintainability |
-| 3 | The getters of the container read the outputs of the embedded FMUs from the local variables | performance |
+| 3 | The getters of the container read the outputs of the embedded FMUs from the local variables — **abandoned** (D7) | performance |
 | 4 | `ruff` and `mypy` on the Python package | maintainability |
 | 5 | Hybrid multi-thread mode | performance |
 | 6 | Datalog: output buffer and decimation | performance |
@@ -50,8 +51,8 @@ microseconds.
 1. The `modelDescription.xml` of a container passes the semantic checker for its initial unknowns, and the checker
    catches the error on any FMU.
 2. A change of the Model-Exchange coupling is made once, for the three modes.
-3. A `fmi*Get*` of the importer on an output of the container costs a memory read, whatever the number of outputs,
-   and the datalog no longer calls the embedded FMUs.
+3. ~~A `fmi*Get*` of the importer on an output of the container costs a memory read, whatever the number of outputs,
+   and the datalog no longer calls the embedded FMUs.~~ Abandoned (D7).
 4. `ruff` and `mypy` pass on the package, in the CI.
 5. The multi-thread mode is never slower than the mono-thread mode, and the exchanges of a costly FMU (remoting,
    tool-generated FMUs) run in parallel.
@@ -82,6 +83,13 @@ Taken on 14 November 2026 when writing the plan:
   listed as initial unknown" exempts the `Clock` variables and the clocked variables (attribute `clocks`): they have
   no value in Initialization Mode, and neither the Reference FMUs (`Clocks`) nor the LS-BUS FMUs list them. The rule
   "an output with `initial="exact"` must not be listed" applies to every variable.
+- **D7 — Phase 3 abandoned** (14 November 2026, D2): implemented as described in 4.3 (steps 3.2 to 3.4, not
+  committed), then reverted: no measurable gain (§7), for a runtime made more complex (state of the container, stale
+  FMUs, pairing of the ports with the local variables, grouped reads) and value references of the container ports
+  that change. The gain would only show with FMUs whose FMI calls are costly, never measured (as D10 of
+  `container_perf.md`). The bench case F-outputs (step 3.1) is kept. The changes are kept in a local `git stash`
+  (`phase 3 of perf_maintainability (getters from locals), abandoned by D2`). Consequences: the datalog keeps reading
+  the outputs through the getters (phase 6); version 10 of `container.txt` is left to phase 5 (Q8).
 
 ### Open points, to decide before the phase starts
 
@@ -94,7 +102,7 @@ Taken on 14 November 2026 when writing the plan:
 | Q5 | 4 | Scope of `mypy` | `fmu_manipulation_toolbox` without `gui/` and `assistant/` at first (`exclude`), `ignore_missing_imports` for `fmpy`; `gui/` and `assistant/` in a later phase |
 | Q6 | 4 | The lint job of the CI blocks the merge, or only reports? | **Blocks**, once the baseline is at zero (step 4.2) |
 | Q7 | 4 | `pre-commit` hooks in the repository? | **No** for now: the CI job is enough, a hook is a developer choice |
-| Q8 | 5 | Threshold above which an FMU gets a thread, and where it is set | Default **50 µs** of mean `doStep` time over the first 20 internal steps, measured by the runtime; overridable at build time (`-mt-threshold <seconds>`, `container.txt` flags line, version 10 of Q3) |
+| Q8 | 5 | Threshold above which an FMU gets a thread, and where it is set | Default **50 µs** of mean `doStep` time over the first 20 internal steps, measured by the runtime; overridable at build time (`-mt-threshold <seconds>`, `container.txt` flags line, version 10) |
 | Q9 | 5 | Number of worker threads | `min(number of heavy FMUs, number of cores - 1)`, the main thread steps the light FMUs meanwhile; the current one-thread-per-FMU stays when the count is lower |
 | Q10 | 5 | The exchanges (`fmu_set_inputs()`, `fmu_get_outputs()`) of a heavy FMU run in its worker | **Yes**: it is the only gain for the FMUs whose FMI calls are costly (remoting, D10 of `container_perf.md`); needs per-FMU scratch buffers for the strings and binaries (`container->strings_tmp`, `binaries_tmp` are shared today) |
 | Q11 | 6 | Decimation: one row every N internal steps; are the event rows (`container_proceed_event()`) always written? | **Always written**: the datalog is a debugging tool, an event must not be missed; N applies to the rows of the regular steps |
@@ -136,29 +144,43 @@ FMI 2.0.5 §2.2.8 and FMI 3.0.2 §2.4.8: `<InitialUnknowns>` / `<InitialUnknown>
 
 ### 4.3 Phase 3 — Getters from the local variables
 
-- **Builder** (`make_fmu_txt()`, `layout.py`): every exposed output gets a local variable of its type (an output
-  that already feeds a link reuses the local variable of the link). The port line of the output becomes
-  `<VR> <DIM> 1 -1 <LOCAL_OFFSET>`; the output is added to the per-FMU Outputs section
-  (`<LOCAL_OFFSET> <DIM> <FMU_VR>`) if it is not there yet. `CONTAINER_TXT_VERSION` 10 in `types.py` and
-  `container.h` (Q3 A).
-- **Runtime**: no change of the getters for Step Mode: the port is a local one (`fmu_id < 0`), served from
-  `locals[]`, which `fmu_get_outputs()` fills after each step of the FMU. Q2 A: in Initialization Mode
-  (`CONTAINER_STATE_INITIALIZATION_MODE`), a getter on a port whose local variable is fed by an FMU output reads
-  through to the FMU, as today: the port keeps, besides its local link, the `<FMU_INDEX> <FMU_VR>` of its source
-  (format: `<VR> <DIM> 2 -1 <LOCAL_OFFSET> <FMU_INDEX> <FMU_VR>`, the getters using the first link in Step Mode and
-  the second in Initialization Mode). Verified: the local variables of every output are filled when the container
-  leaves its Initialization Mode (`container_exit_fmus_initialization()` and `container_init_values()` call
-  `fmu_get_outputs()` for each FMU, which now covers every exposed output) and after the reset of an FMU
-  (`container_reset_fmu()`), so the first getter of Step Mode reads a value of the FMU.
-- **Behaviour change**: a `fmi*Get*` of an output between two steps returns the value at the end of the last step
-  (FMI 2.0 §4.2.4, FMI 3.0 §4.2: the outputs of a Co-Simulation FMU are those of the current communication point),
-  no longer a value an FMU may compute lazily on `Get`. The traces of the probe FMU (`tests/data/probe/REF-*.csv`)
-  lose the `Get` calls made by the getters of the container: regenerated and reviewed.
-- **`fmusplit`** (`split.py`): version 10: an exposed output is a port linked to a local variable that an FMU
-  writes (its Outputs section); the FMU and the value reference come from there (or from the second link).
-- **Datalog**: unchanged in this phase; it benefits from the getters (no more FMI call per logged output).
-- Pending step: "the outputs read by the getters are those of T" (`dostep-fmi-sequence.md`) is now true by
-  construction.
+**Abandoned** (D7): implemented as below on 14 November 2026, then reverted; kept as a record. The design written
+before the phase is replaced.
+
+- **Builder** (`layout.py`, `make_fmu_txt()`): every exposed output (not converted, not an FMI-2 aggregate: those
+  already go through a local variable) gets a local variable of its type, the one of its link when the output also
+  feeds another FMU. The port line of the output is **unchanged** (`<VR> <DIM> 1 <FMU_INDEX> <FMU_VR>`); the output is
+  added to the Outputs section of its FMU (`<LOCAL_OFFSET> <DIM> <FMU_VR>`). `CONTAINER_TXT_VERSION` 10 (Q3 A).
+  The local variables are allocated **FMU by FMU** (in the order of `container.txt`, `fmu_order`): the values of the
+  links and the other outputs of the FMU first, its converted copies after, so that the local variables of the
+  outputs of an FMU are contiguous for each type; the local lines of the I/O table are written by value reference
+  with `layout.local_offset()` (the offset trick is gone). The value references of the container ports change.
+- **Runtime**: `container_link_output_locals()` pairs each port linked to an FMU with the entry of the Outputs
+  section of that FMU with the same value reference and dimension (`container_port_t.output_local`,
+  `CONTAINER_NO_LOCAL` otherwise). The getters (`fmi2.c`, `fmi3.c`, binaries included) read the local variable when
+  `CONTAINER_OUTPUTS_IN_LOCALS(state)` (Step, Event or Terminated state) and the FMU is not **stale**; otherwise they
+  synchronize the FMU and read it, as before (Q2 A, read-through in Initialization Mode).
+- **Stale FMU** (`fmu_t.outputs_stale`): set when the importer sets a value on a port linked to the FMU
+  (`cache_port_set()`), cleared by `fmu_get_outputs()` unless values still wait for the FMU in the cache
+  (`cache_fmu_has_values()`, a step was pending). The read-after-write semantics are kept: an FMU that computes its
+  outputs from the inputs set at the current communication point (direct feedthrough, e.g. `Feedthrough.fmu` of the
+  Reference FMUs, replayed by the LS-REF checker) gives the same values as before. Without this flag, the LS-REF
+  replay tests failed (`expected 5, simulated 4.0`).
+- **Grouped reads** (asked on 14 November 2026): `fmu_group_outputs()` sorts a copy of the Outputs list of each
+  numeric type by local variable and, when each entry starts where the previous one ends, keeps the FMU value
+  references in that order (`fmu_translation_list_t.grouped_vrs`, `grouped_offset`, `grouped_nvalues`): `GET_OUTPUT`
+  then makes **one FMI call per type**, straight into the local variables, no copy. On a failure, the outputs are
+  read one by one to report the failing variable (D6 of `container_perf.md`). Strings and binaries keep one call per
+  output (they are copied anyway). A list of one output is not grouped (same single call).
+- **`fmusplit`**: unchanged. An exposed output appears in the Outputs section as a writer without reader, which the
+  link reconstruction ignores; the round trip builder → `container.txt` → `fmusplit` → builder gives the same file
+  (`fmu_order` makes the allocation independent of the order of the links).
+- **Probe traces** (`tests/data/probe/REF-*.csv`): regenerated; the only changes are `fmi2Get*` rows (the exposed
+  outputs are now read after each step of the FMU, the read-through calls of the getters are gone), the other calls
+  are identical in every trace.
+- **Behaviour change**: a `fmi*Get*` on an output while no value was set on the FMU since its last step returns the
+  value at the end of that step without calling the FMU; an FMU that recomputes its outputs on `Get` without any new
+  input (none known) would not be seen.
 
 ### 4.4 Phase 4 — ruff and mypy
 
@@ -274,7 +296,9 @@ Commit message:
 Doc: the Model-Exchange part of the step loops
 ```
 
-### Phase 3 — Getters from the local variables (`perf/getters-from-locals`)
+### Phase 3 — Getters from the local variables (`perf/getters-from-locals`) — abandoned (D7)
+
+Step 3.1 is done (commit `29b616e`); steps 3.2 to 3.4 were implemented, not committed, then reverted (D7).
 
 #### Step 3.1 — Measurement before
 
@@ -484,3 +508,25 @@ Doc: datalog buffer and decimation
 ## 7. Measurements
 
 Filled during the phases (D2): host, method, A/B tables as in `container_perf.md` §7, baseline counts of phase 4.
+
+### Phase 3
+
+`python tools/bench_container.py F-outputs A-parallel E-same-type --runs 3` on macOS (Apple silicon), 14 November
+2026, time of the `doStep` loop in seconds (min / mean). Not an A/B in one session: the runtime before the phase reads
+`container.txt` version 9 only, so the two runs are a few minutes apart (the differences between sessions are 5 to
+10 %, `container_perf.md` §7). *Calls* is the number of FMI exchange calls of one internal step (per port / grouped,
+from `container.txt`).
+
+| Case | Before | After | Calls before | Calls after | Digest |
+|---|---|---|---|---|---|
+| F-outputs (100 outputs read at each communication step) | 1.026 / 1.033 | 0.999 / 1.018 | 190 / 38 | 195 / 39 | identical |
+| E-same-type (same container, one output read) | 0.604 / 0.617 | 0.604 / 0.620 | 190 / 38 | 191 / 39 | identical |
+| A-parallel | 0.784 / 0.825 | 0.823 / 0.837 | 507 / 468 | 508 / 469 | identical |
+
+Reading: the loop of F-outputs costs 0.4 s more than E-same-type for the 100 outputs read at each of the 40 000
+communication steps, and the phase removes less than 3 % of it: with fmpy, the time goes to the Python call of
+`getFloat64` with 100 value references, not to the 100 FMI calls into `1.fmu` that the getters made (a few tens of
+nanoseconds each, as `container_perf.md` D10 found). What the phase changes is the number of FMI calls into the
+embedded FMUs per communication step of F-outputs: 100 getter calls plus 95 link reads before, 20 grouped reads
+after (one per FMU and type). The gain shows with FMUs whose calls are costly (remoting, tool-generated FMUs), which
+this benchmark does not have. **Decision D2 applied** on 14 November 2026: the phase is reverted (D7).
