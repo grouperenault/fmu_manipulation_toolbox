@@ -2,11 +2,13 @@ site_name: FMU Manipulation Toolbox
 site_description: >-
   FMU Manipulation Toolbox is a python package which helps to analyze, modify or
   combine Functional Mock-up Units (FMUs) without recompilation.
-site_url: https://grouperenault.github.io/fmu_manipulation_toolbox
+# The documentation channel (stable from `main`, integration from `integration`) is selected by
+# the DOC_* environment variables; the defaults are the stable values.
+site_url: !ENV [DOC_SITE_URL, https://grouperenault.github.io/fmu_manipulation_toolbox]
 
 repo_name: grouperenault/fmu_manipulation_toolbox
 repo_url: https://github.com/grouperenault/fmu_manipulation_toolbox
-edit_uri: edit/main/docs/
+edit_uri: !ENV [DOC_EDIT_URI, edit/main/docs/]
 
 # Internal plans and audits (docs/local) are kept with the sources but not published.
 exclude_docs: |
@@ -69,6 +71,8 @@ theme:
     logo: material/package-variant-closed
 
 extra:
+  channel: !ENV [DOC_CHANNEL, stable]
+  stable_url: https://grouperenault.github.io/fmu_manipulation_toolbox/
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/grouperenault/fmu_manipulation_toolbox

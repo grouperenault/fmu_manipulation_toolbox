@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 
-{#- Announcement banner, dismissible (feature announce.dismiss). Remove this block to withdraw it. -#}
+{#- Announcement banner, dismissible (feature announce.dismiss). It depends on the documentation channel
+    (extra.channel, set by DOC_CHANNEL): the integration build always says it describes the development version. -#}
 {% block announce %}
-  🚀 FMU Manipulation Toolbox 2.0 is out — <a href="{{ 'whats-new/' | url }}">see what's new</a>
+  {% if config.extra.channel == "integration" %}
+    🚧 Development version (<code>integration</code> branch) — <a href="{{ config.extra.stable_url }}">see the stable documentation</a>
+  {% else %}
+    🚀 FMU Manipulation Toolbox 2.0 is out — <a href="{{ 'whats-new/' | url }}">see what's new</a>
+  {% endif %}
 {% endblock %}
