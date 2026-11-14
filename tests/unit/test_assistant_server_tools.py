@@ -238,7 +238,7 @@ def test_save_as_fmu_rejects_unsupported_fmi_versions(tmp_path, fmi_version):
             return await client.call_tool("save_as_fmu", {"path": str(tmp_path / "out.fmu"),
                                                           "fmi_version": fmi_version})
 
-    with pytest.raises(Exception):
+    with pytest.raises(ToolError):
         run(scenario())
     # The request must be rejected *before* reaching the backend.
     assert not any(call[0] == "save_as_fmu" for call in bridge.calls)

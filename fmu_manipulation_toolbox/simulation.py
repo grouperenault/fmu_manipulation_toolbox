@@ -482,7 +482,7 @@ class _Driver:
             vr = ctypes.c_uint32(port.vr)
             self._call(f"fmi3Get{function}", ctypes.byref(vr), ctypes.c_size_t(1), values,
                        ctypes.c_size_t(port.size))
-            for column, value in zip(port.columns, values):
+            for column, value in zip(port.columns, values, strict=True):
                 if c_type is ctypes.c_char_p:
                     result.columns[column].append((value or b"").decode("utf-8", "replace"))
                 else:

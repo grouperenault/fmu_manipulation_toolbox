@@ -445,7 +445,7 @@ class SourceCompiler:
             steps.append(f"Linking '{library.name}'.")
             commands = self.build_commands(configuration, toolchain, build_directory, library, compiler_options,
                                            linker_options, libraries)
-            for step, command in zip(steps, commands):
+            for step, command in zip(steps, commands, strict=True):
                 logger.info(step)
                 self._run(command, toolchain, build_directory, configuration.model_identifier)
             destination.parent.mkdir(parents=True, exist_ok=True)

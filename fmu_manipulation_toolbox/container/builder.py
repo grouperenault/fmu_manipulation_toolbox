@@ -178,7 +178,7 @@ class FMUContainer:
         try:
             fmu = EmbeddedFMU(self.fmu_directory / fmu_filename, name=fmu_name)
         except (FMUContainerError, FMUError) as e:
-            raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}")
+            raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}") from e
 
         if not fmu.fmi_version == self.fmi_version:
             logger.warning(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}.")
@@ -527,7 +527,7 @@ class FMUContainer:
                 else:
                     raise FMUContainerError(f"Start value cannot be set on {cport} of type '{cport.port.type_name}'.")
             except ValueError:
-                raise FMUContainerError(f"Start value is not conforming to {cport.port.type_name} format.")
+                raise FMUContainerError(f"Start value is not conforming to {cport.port.type_name} format.") from None
 
         # Format is different for string
         if cport.port.type_name == 'string':
@@ -937,7 +937,7 @@ class FMUContainer:
             add_variable(port.xml(vr_solver, fmi_version=self.fmi_version))
 
         if profiling:
-            for fmu, vr in zip(self.involved_fmu.values(), layout.profiling):
+            for fmu, vr in zip(self.involved_fmu.values(), layout.profiling, strict=True):
                 port = EmbeddedFMUPort("real64", {"valueReference": vr,
                                         "name": f"container.{fmu.id}.rt_ratio",
                                         "description": f"RT ratio for embedded FMU '{fmu.name}'"})
@@ -1372,7 +1372,7 @@ class FMUContainer:
         try:
             fmu = next(fmu_iter)
         except StopIteration:
-            raise FMUContainerError("No fmu declared in this container.")
+            raise FMUContainerError("No fmu declared in this container.") from None
 
         os_list = fmu.platforms
         logger.debug(f"FMU '{fmu.name}' OS support: {', '.join(fmu.platforms)}.")
@@ -1413,7 +1413,7 @@ class FMUContainer:
             try:
                 yield Platform(origin_bindirs[os_name], suffixes[os_name], target_bindirs[os_name])
             except KeyError:
-                raise FMUContainerError(f"OS '{os_name}' is not supported.")
+                raise FMUContainerError(f"OS '{os_name}' is not supported.") from None
 
     def make_fmu_skeleton(self, base_directory: Path) -> Path:
         logger.debug(f"Initialize directory '{base_directory}'")

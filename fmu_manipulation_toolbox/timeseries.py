@@ -117,7 +117,7 @@ def read_csv(filename: Path | str) -> TimeSeries:
         if series.times and time < series.times[-1]:
             raise TimeSeriesError(f"'{filename.name}' line {line}: time {time} before the previous one")
         series.times.append(time)
-        for name, value in zip(names, row[1:]):
+        for name, value in zip(names, row[1:], strict=True):
             series.columns[name].append(value.strip())
     return series
 
@@ -159,7 +159,7 @@ def compare(reference: TimeSeries, simulated: TimeSeries, name: str, rtol: float
     """
     result = Comparison(name)
     times, values = reference.times, reference.columns[name]
-    for i, (time, expected) in enumerate(zip(times, values)):
+    for i, (time, expected) in enumerate(zip(times, values, strict=False)):
         if i + 1 < len(times) and times[i + 1] == time:
             continue                                    # before an event: the value after it is compared
         actual = simulated.value(name, time, interpolation)

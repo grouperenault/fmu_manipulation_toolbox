@@ -42,7 +42,7 @@ def assert_identical_files(filename1: PathLike, filename2: PathLike) -> None:
         f"files {filename1} and {filename2} mismatch: "
         f"{len(lines1)} vs {len(lines2)} lines"
     )
-    for lineno, (lineA, lineB) in enumerate(zip(lines1, lines2), start=1):
+    for lineno, (lineA, lineB) in enumerate(zip(lines1, lines2, strict=True), start=1):
         assert lineA == lineB, (
             f"files {filename1} and {filename2} mismatch at line {lineno}:\n"
             f"{lineA}\n"
@@ -77,9 +77,9 @@ def assert_equivalent_csv(filename1: PathLike, filename2: PathLike, real_columns
         f"files {filename1} and {filename2} mismatch: {len(rows1)} vs {len(rows2)} rows"
     )
     reals = {index for index, name in enumerate(rows1[0]) if name in set(real_columns)}
-    for lineno, (row1, row2) in enumerate(zip(rows1[1:], rows2[1:]), start=2):
+    for lineno, (row1, row2) in enumerate(zip(rows1[1:], rows2[1:], strict=True), start=2):
         assert len(row1) == len(row2), f"files {filename1} and {filename2} mismatch at line {lineno}"
-        for index, (value1, value2) in enumerate(zip(row1, row2)):
+        for index, (value1, value2) in enumerate(zip(row1, row2, strict=True)):
             same = (math.isclose(float(value1), float(value2), rel_tol=rel_tol, abs_tol=rel_tol)
                     if index in reals else value1 == value2)
             assert same, (

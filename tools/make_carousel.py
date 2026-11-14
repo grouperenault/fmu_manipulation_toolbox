@@ -232,7 +232,7 @@ def cover(p, n, total):
     p.setFont(font(23, True))
     widths = [QFontMetricsF(p.font()).horizontalAdvance(c) + 44 for c in chips]
     x = (W - sum(widths) - 20 * (len(chips) - 1)) / 2
-    for chip, width in zip(chips, widths):
+    for chip, width in zip(chips, widths, strict=True):
         rect = QRectF(x, 1060, width, 58)
         path = QPainterPath()
         path.addRoundedRect(rect, 29, 29)

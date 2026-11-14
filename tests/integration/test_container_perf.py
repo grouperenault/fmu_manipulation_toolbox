@@ -70,7 +70,7 @@ def _chain(container: FMUContainer, source: str, names: list[str], ports: tuple[
     for port in ports:
         if port != "String":
             container.add_link(source, "x0", names[0], f"{port}_input")
-    for upstream, downstream in zip(names, names[1:]):
+    for upstream, downstream in zip(names, names[1:], strict=False):
         for port in ports:
             container.add_link(upstream, f"{port}_output", downstream, f"{port}_input")
     for port in ports:

@@ -75,7 +75,7 @@ def assert_simulation_log(filename: Path | str, step_size: float | None = None):
         f"(after the {header_lines}-line header): "
         f"{len(log_lines)} vs {len(ref_lines)} lines"
     )
-    for offset, (actual, expected) in enumerate(zip(log_lines, ref_lines)):
+    for offset, (actual, expected) in enumerate(zip(log_lines, ref_lines, strict=True)):
         lineno = header_lines + offset + 1
         assert actual == expected, (
             f"files {log_filename} and {ref_filename} mismatch at line {lineno} "

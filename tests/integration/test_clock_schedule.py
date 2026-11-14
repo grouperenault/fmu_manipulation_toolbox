@@ -179,7 +179,7 @@ def test_fmi3_get_interval_decimal_missing_for_a_clock_that_needs_it(area_dir):
         messages.append(args[-1].decode() if isinstance(args[-1], bytes) else str(args[-1]))
 
     _build_fmu(["tunable"], interval_function=False)
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="Failed to instantiate FMU"):    # fmpy raises a plain Exception
         _simulate(["tunable"], logger=logger)
     assert any("does not export fmi3GetIntervalDecimal, needed by its tunable clock" in message
                for message in messages), messages

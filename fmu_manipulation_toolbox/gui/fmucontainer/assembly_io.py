@@ -456,7 +456,7 @@ class AssemblyIOMixin:
         # Now, for each child container, if it has exposed output ports,
         # also expose them at this level (so they bubble up to root)
         for child in assembly_node.children.values():
-            for port, exposed_name in child.output_ports.items():
+            for _port, exposed_name in child.output_ports.items():
                 assembly_node.add_output(child.name, exposed_name, exposed_name)
                 logger.debug(f"PROPAGATE OUTPUT: {child.name}/{exposed_name} → {assembly_node.name}")
 
@@ -476,7 +476,7 @@ class AssemblyIOMixin:
         # Now, for each child container, if it has exposed input ports,
         # also expose them at this level (so they bubble up to root)
         for child in assembly_node.children.values():
-            for port, exposed_name in child.input_ports.items():
+            for _port, exposed_name in child.input_ports.items():
                 assembly_node.add_input(exposed_name, child.name, exposed_name)
                 logger.debug(f"PROPAGATE INPUT: {assembly_node.name} → {child.name}/{exposed_name}")
 

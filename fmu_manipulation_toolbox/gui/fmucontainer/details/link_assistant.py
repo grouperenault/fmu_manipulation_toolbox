@@ -386,7 +386,7 @@ class _PortCounters(QWidget):
         """*kind*: "outputs" or "inputs"; *used_text*: what a used port is, for the tooltip."""
         for label, symbol, count, tooltip in zip(
                 self._labels, ("Σ", "●", "○"), (total, used, total - used),
-                (f"Total number of {kind}", f"{kind.capitalize()} {used_text}", f"Free {kind}")):
+                (f"Total number of {kind}", f"{kind.capitalize()} {used_text}", f"Free {kind}"), strict=True):
             label.setText(f"{symbol}\u00a0{count}")
             label.setToolTip(tooltip)
 
@@ -1033,7 +1033,7 @@ class LinkAssistantDialog(QDialog):
         if len(outputs) == 1 and inputs:
             return [(outputs[0], input) for input in inputs]
         if outputs and len(outputs) == len(inputs):
-            return list(zip(outputs, inputs))
+            return list(zip(outputs, inputs, strict=True))
         return []
 
     def _update_preview(self):

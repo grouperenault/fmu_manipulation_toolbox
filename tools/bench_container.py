@@ -79,7 +79,7 @@ def many_ports(mode: str) -> tuple[list[str], dict]:
     for port in PORTS:
         if port != "String":
             container.add_link("VanDerPol.fmu", "x0", names[0], f"{port}_input")
-    for upstream, downstream in zip(names, names[1:]):
+    for upstream, downstream in zip(names, names[1:], strict=False):
         for port in PORTS:
             container.add_link(upstream, f"{port}_output", downstream, f"{port}_input")
     container.add_output(names[-1], "Float64_continuous_output", "y")
@@ -109,7 +109,7 @@ def me_coupled(solver: int):
         container.get_fmu("FeedthroughME.fmu", name=name)
     container.add_link("VanDerPolME.fmu", "x0", names[0], "Float64_continuous_input")
     container.add_link("VanDerPolME.fmu", "x1", names[0], "Float32_continuous_input")
-    for upstream, downstream in zip(names, names[1:]):
+    for upstream, downstream in zip(names, names[1:], strict=False):
         for port in ("Float64_continuous", "Float32_continuous"):
             container.add_link(upstream, f"{port}_output", downstream, f"{port}_input")
     container.add_output(names[-1], "Float64_continuous_output", "y")
@@ -143,7 +143,7 @@ def same_type_ports():
     names = ["1.fmu"] + [f"1-{i}.fmu" for i in range(1, INSTANCES)]
     for name in names:
         container.get_fmu("1.fmu", name=name)
-    for upstream, downstream in zip(names, names[1:]):
+    for upstream, downstream in zip(names, names[1:], strict=False):
         for k in range(5):
             container.add_link(upstream, f"y{k}", downstream, f"u{k}")
     container.add_output(names[-1], "y0", "y")
@@ -160,7 +160,7 @@ def many_outputs():
     outputs = []
     for name in names:
         container.get_fmu("1.fmu", name=name)
-    for upstream, downstream in zip(names, names[1:]):
+    for upstream, downstream in zip(names, names[1:], strict=False):
         for k in range(5):
             container.add_link(upstream, f"y{k}", downstream, f"u{k}")
     for name in names:

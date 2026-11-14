@@ -800,7 +800,7 @@ class Assembly:
             try:
                 data = json.load(file)
             except json.decoder.JSONDecodeError as e:
-                raise AssemblyError(f"Cannot read json: {e}")
+                raise AssemblyError(f"Cannot read json: {e}") from e
         self.root = self._json_decode_node(data)
         if not self.root.name:
             self.root.name = str(self.filename.with_suffix(".fmu").name)
@@ -883,7 +883,8 @@ class Assembly:
             try:
                 function(*line)
             except TypeError:
-                raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: {line}.")
+                raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: "
+                                    f"{line}.") from None
 
     def write_ssp(self, filename: str | Path, ssp_version: str = "2.0") -> Path:
         """Write the assembly as an SSP archive: `SystemStructure.ssd` and the embedded FMUs.
@@ -1051,7 +1052,7 @@ class Assembly:
 
         return links_list
 
-    def _get_flat_links_recursive(self, node: AssemblyNode, links_list, left_candidates = [], right_candidates = []):
+    def _get_flat_links_recursive(self, node: AssemblyNode, links_list, left_candidates=None, right_candidates=None):
         # internal links
         for connection in node.links:
             links_list.append([connection.from_port.fmu_name, connection.from_port.port_name,

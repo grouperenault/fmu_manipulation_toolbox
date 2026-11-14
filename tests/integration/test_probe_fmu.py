@@ -301,8 +301,8 @@ def _same_field(a: str, b: str) -> bool:
 
 def _assert_same_trace(rows: list[list[str]], references: list[list[str]], label: str):
     assert len(rows) == len(references), f"{label}: {len(rows)} lines instead of {len(references)}"
-    for number, (row, reference) in enumerate(zip(rows, references), start=1):
-        assert len(row) == len(reference) and all(_same_field(a, b) for a, b in zip(row, reference)), \
+    for number, (row, reference) in enumerate(zip(rows, references, strict=True), start=1):
+        assert len(row) == len(reference) and all(_same_field(a, b) for a, b in zip(row, reference, strict=True)), \
             f"{label}, line {number}: {row} instead of {reference}"
 
 

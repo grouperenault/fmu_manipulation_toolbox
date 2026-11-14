@@ -377,7 +377,7 @@ class FMUSplitterDescription:
         for fmi_type in self.supported_fmi_types:
             logger.debug(f"*** container port {fmi_type} ***")
             nb_port_variables = self.get_line(file).split(" ")[0]
-            for i in range(int(nb_port_variables)):
+            for _i in range(int(nb_port_variables)):
                 tokens = self.get_line(file).split(" ")
                 if len(tokens) == 3:
                     self.file_format = 0
@@ -417,7 +417,8 @@ class FMUSplitterDescription:
             try:
                 return self.local_to_vr[fmi_type][int(local) & 0xFFFFFF]
             except KeyError:
-                raise FMUSplitterError(f"Cannot get pivot for {fmi_type} local={int(local) & 0xFFFFFF} ({local})")
+                raise FMUSplitterError(f"Cannot get pivot for {fmi_type} local={int(local) & 0xFFFFFF} "
+                                       f"({local})") from None
         else:
             return int(local)
 
@@ -447,7 +448,7 @@ class FMUSplitterDescription:
                     nb_input = int(self.get_line(file))
                     logger.debug(f"INPUT of {fmu_filename} {fmi_type} : {nb_input}")
 
-                    for i in range(nb_input):
+                    for _i in range(nb_input):
                         if self.file_format >= 4:
                             local, _dim, vr = self.get_line(file).split(" ")
                         else:
@@ -458,7 +459,7 @@ class FMUSplitterDescription:
                     if self.file_format >= 3 and not fmi_type == "clock":
                         nb_input = self.get_nb(self.get_line(file))
                         logger.debug(f"INPUT of {fmu_filename} {fmi_type} : CLOCKED {nb_input}")
-                        for i in range(nb_input):
+                        for _i in range(nb_input):
                             if self.file_format >= 4:
                                 # Line format:
                                 #   <FMU_VR_CLOCK> <n> [<LOCAL_OFFSET> <DIM> <FMU_VR>] × n
@@ -482,7 +483,7 @@ class FMUSplitterDescription:
                     nb_start_as_string = self.get_line(file).split(" ")[0]
                     nb_start = int(nb_start_as_string)
                     logger.debug(f"nb start for {fmu_filename} {fmi_type} : {nb_start}")
-                    for i in range(nb_start):
+                    for _i in range(nb_start):
                         tokens = self.get_line(file).split(" ")
                         vr = int(tokens[0])
                         value = tokens[-1]
@@ -498,7 +499,7 @@ class FMUSplitterDescription:
                     nb_output = int(self.get_line(file))
                     logger.debug(f"OUTPUT of {fmu_filename} {fmi_type} : {nb_output}")
 
-                    for i in range(nb_output):
+                    for _i in range(nb_output):
                         if self.file_format >= 4:
                             local, _dim, vr = self.get_line(file).split(" ")
                         else:
@@ -509,7 +510,7 @@ class FMUSplitterDescription:
                         nb_output = self.get_nb(self.get_line(file))
                         logger.debug(f"OUTPUT {fmi_type} : CLOCKED {nb_output}")
 
-                        for i in range(nb_output):
+                        for _i in range(nb_output):
                             if self.file_format >= 4:
                                 # Line format:
                                 #   <FMU_VR_CLOCK> <n> [<LOCAL_OFFSET> <DIM> <FMU_VR>] × n
@@ -532,7 +533,7 @@ class FMUSplitterDescription:
                 #conversion
                 if self.file_format > 1:
                     nb_conversion = int(self.get_line(file))
-                    for i in range(nb_conversion):
+                    for _i in range(nb_conversion):
                         tokens = self.get_line(file).split(" ")
                         vr_from = tokens[0]
                         vr_to = tokens[1]
@@ -638,7 +639,7 @@ class FMUSplitterDescription:
         bmap: dict[str, dict[str, frozenset[str]]] = {}
         for fmi_type, vr_dict in self.vr_to_name[fmu_filename].items():
             type_map: dict[str, set[str]] = {}
-            for vr, info in vr_dict.items():
+            for _vr, info in vr_dict.items():
                 m = self._ARRAY_ELEM_RE.match(info["name"])
                 if m:
                     type_map.setdefault(m.group(1), set()).add(info["name"])

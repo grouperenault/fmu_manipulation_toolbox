@@ -35,7 +35,7 @@ class ContainerPort:
         try:
             self.port = fmu.ports[port_name]
         except KeyError:
-            raise FMUContainerError(f"Port '{fmu.name}/{port_name}' does not exist")
+            raise FMUContainerError(f"Port '{fmu.name}/{port_name}' does not exist") from None
 
     def __repr__(self):
         return f"Port {self.fmu.name}/{self.port.name}"

@@ -154,7 +154,7 @@ def test_a_session_gives_the_same_results_through_both(fmus, capsys):
     expected = _through_the_server(fmus)
     state = fmus / "state.json"
 
-    for (tool, arguments), wanted in zip(_scenario(fmus), expected):
+    for (tool, arguments), wanted in zip(_scenario(fmus), expected, strict=True):
         # `describe_port` takes the state when it is given: the port of an FMU of the assembly, by its name.
         with_state = tool in ASSEMBLY_TOOLS or tool == "describe_port"
         code, result = agent(capsys, tool, arguments, state if with_state else None, "--root", str(fmus))

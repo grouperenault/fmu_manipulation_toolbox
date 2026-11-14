@@ -108,7 +108,7 @@ class FMUIOList:
             tokens = str(value).split(' ')
             if len(tokens) == 1:
                 tokens = tokens * len(cport.port.vrs)
-            for vr, token in zip(cport.port.vrs, tokens):
+            for vr, token in zip(cport.port.vrs, tokens, strict=False):
                 self.start_values[cport.port.type_name][cport.fmu.name].append((vr, 1, reset, token))
         else:
             self.start_values[cport.port.type_name][cport.fmu.name].append(

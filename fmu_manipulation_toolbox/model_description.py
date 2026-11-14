@@ -357,7 +357,7 @@ class ModelDescription:
         try:
             major = int(fmi_version.split(".", 1)[0])
         except (AttributeError, ValueError):
-            raise ModelDescriptionError(f"Invalid fmiVersion '{fmi_version}'")
+            raise ModelDescriptionError(f"Invalid fmiVersion '{fmi_version}'") from None
         if major not in (2, 3):
             raise ModelDescriptionError(f"Unsupported fmiVersion '{fmi_version}': expected FMI 2.0 or 3.0")
         return major

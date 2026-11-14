@@ -117,7 +117,7 @@ class Terminal:
     def connect_sequence(self, other) -> list[tuple[str, str]]:
         links = []
         if len(self.members) == len(other.members):
-            for member, other_member in zip(self.members.values(), other.members.values()):
+            for member, other_member in zip(self.members.values(), other.members.values(), strict=True):
                 links.append((member, other_member))
         else:
             logger.error(f"SEQUENCE Terminal '{self.name}' does not exactly fit Terminal '{other.name}'")

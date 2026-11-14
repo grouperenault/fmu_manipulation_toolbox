@@ -140,7 +140,7 @@ class FMU:
         """
         self._check_open()
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as zout:
-            for root, dirs, files in os.walk(self.tmp_directory):
+            for root, _dirs, files in os.walk(self.tmp_directory):
                 for file in files:
                     zout.write(os.path.join(root, file),
                                os.path.relpath(os.path.join(root, file), self.tmp_directory))
@@ -499,7 +499,7 @@ class Manipulation:
         """`(dependency, dependencyKind)` pairs; the kind is `None` without `dependenciesKind`."""
         dependencies = attrs['dependencies'].split(' ')
         if 'dependenciesKind' in attrs:
-            return list(zip(dependencies, attrs['dependenciesKind'].split(' ')))
+            return list(zip(dependencies, attrs['dependenciesKind'].split(' '), strict=False))
         return [(dependency, None) for dependency in dependencies]
 
     @staticmethod
@@ -778,9 +778,9 @@ class OperationRenameFromCSV(OperationRename):
                 for row in reader:
                     translations[row[0]] = row[1]
         except FileNotFoundError:
-            raise OperationError(f"file '{csv_filename}' is not found")
+            raise OperationError(f"file '{csv_filename}' is not found") from None
         except IndexError:
-            raise OperationError(f"file '{csv_filename}' should contain two columns")
+            raise OperationError(f"file '{csv_filename}' should contain two columns") from None
         super().__init__(translations)
 
 

@@ -151,6 +151,10 @@ select = ["E", "F", "W", "I", "UP", "B"]
 # The helpers of the test suite (tests/ is on the path of pytest, see tests/pytest.ini).
 known-first-party = ["fmu_manipulation_toolbox", "_helpers", "conftest"]
 
+[tool.ruff.lint.flake8-bugbear]
+# The Qt idiom of the item models: `parent=QModelIndex()`, an invalid index never modified.
+extend-immutable-calls = ["PySide6.QtCore.QModelIndex"]
+
 [tool.mypy]
 python_version = "3.10"
 files = ["fmu_manipulation_toolbox"]
