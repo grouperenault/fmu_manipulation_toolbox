@@ -219,6 +219,9 @@ All operations are located in [`operations.py`](https://github.com/grouperenault
 | `OperationTrimUntil` | Trim variable names up to a given separator |
 
 > 📖 Full documentation is available on the [documentation website](https://grouperenault.github.io/fmu_manipulation_toolbox/).
+>
+> The documentation of the development version (`integration` branch) is published on the
+> [development documentation website](https://grouperenault.github.io/fmu_manipulation_toolbox/integration/).
 
 
 # 🏗️ Project Architecture
@@ -306,6 +309,16 @@ mkdocs serve
 ```
 
 Then open [http://127.0.0.1:8000](http://127.0.0.1:8000) in your browser.
+
+The documentation channel is selected by environment variables whose defaults are the stable values. The
+development documentation (published from the `integration` branch) is built with:
+
+```bash
+DOC_CHANNEL=integration \
+DOC_SITE_URL=https://grouperenault.github.io/fmu_manipulation_toolbox/integration/ \
+DOC_EDIT_URI=edit/integration/docs/ \
+mkdocs build
+```
 
 
 # 🤝 Contributing
