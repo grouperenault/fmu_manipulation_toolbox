@@ -136,6 +136,10 @@ A value refused by an FMU is reported by the call that synchronizes it (`fmi*DoS
   `fmu_io`.
 - In the **multi-thread parallel** mode, `fmi*DoStep` is executed concurrently on each FMU via
   per-FMU worker threads, synchronized through `mutex_container` / `mutex_fmu`.
+- The three modes (`container_do_one_step_sequential()`, `_parallel()`, `_parallel_mt()` of `container.c`)
+  differ by their Co-Simulation part only. The Model-Exchange part, `container_step_me()`, is common: once the
+  CS FMUs are stepped (so that their discrete outputs are fresh), the continuous inputs of the ME FMUs are set,
+  `solver_do_step()` integrates them together, and their outputs are read.
 - The EVENT MODE phase is entered only when at least one FMU has reported
   `need_event_update`, or when clocks are declared in `clocks_list`.
 - Inside the `more_event` loop, FMUs are updated with a **Gauss-Seidel sweep** in configuration

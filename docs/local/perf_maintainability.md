@@ -1,7 +1,7 @@
 # Plan: conformity, performance and maintainability of the container runtime and the Python package
 
-**Created**: 14 November 2026 — **Status**: in progress (phase 1 done, phase 2 started on 14 November 2026) —
-**Branch**: `feature/perf-maintainability`, from `integration` — **Roadmap**: not listed
+**Created**: 14 November 2026 — **Status**: in progress (phases 1 and 2 done, phase 3 started on 14 November
+2026) — **Branch**: `feature/perf-maintainability`, from `integration` — **Roadmap**: not listed
 
 This plan comes from a review of the whole toolbox (14 November 2026, code reading, measurements of
 `docs/local/done/container_perf.md`). It gathers the actions retained from that review, in the order in which they
