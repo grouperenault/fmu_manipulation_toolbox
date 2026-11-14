@@ -5,12 +5,11 @@ import zipfile
 
 import pytest
 
+from _helpers.assistant_bridge import FakeBridge, call_tool
 from fmu_manipulation_toolbox.assembly import Assembly, AssemblyError, AssemblyNode
 from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
 from fmu_manipulation_toolbox.assistant.paths import PathPolicy, PathValidationError
 from fmu_manipulation_toolbox.assistant.tools import Toolbox
-
-from _helpers.assistant_bridge import FakeBridge, call_tool
 
 pytestmark = [pytest.mark.unit]
 

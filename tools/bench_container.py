@@ -1,8 +1,8 @@
 """
 Benchmark of the container runtime: builds reference containers, simulates each one
-several times with fmpy, and prints for each case the time of the simulation loop (`doStep` only), the number of FMI calls of the input and
-output exchanges of one internal step (port by port, and grouped by type), and a digest of the results (they must not
-change from one version of the runtime to the next).
+several times with fmpy, and prints for each case the time of the simulation loop (`doStep` only), the number of FMI
+calls of the input and output exchanges of one internal step (port by port, and grouped by type), and a digest of the
+results (they must not change from one version of the runtime to the next).
 
     python tools/bench_container.py                    # every case
     python tools/bench_container.py --list             # their names
@@ -10,9 +10,8 @@ change from one version of the runtime to the next).
     python tools/bench_container.py --runs 10 --stop-time 2
 
 The FMUs come from `tests/data` (`compile/3.0/Feedthrough.fmu`, `containers/VanDerPol/VanDerPol.fmu`,
-`containers/mt/1.fmu`), copied into a
-temporary directory. Requires fmpy, and the container runtime built for the host (`cmake --workflow --preset <platform>`).
-Not shipped, not run by the tests.
+`containers/mt/1.fmu`), copied into a temporary directory. Requires fmpy, and the container runtime built for the host
+(`cmake --workflow --preset <platform>`). Not shipped, not run by the tests.
 """
 
 import argparse
@@ -32,7 +31,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from fmu_manipulation_toolbox.container import FMUContainer       # noqa: E402
+from fmu_manipulation_toolbox.container import FMUContainer  # noqa: E402
 
 DATA = ROOT / "tests" / "data"
 STEP_SIZE = 0.001                       # internal time step of the containers
@@ -70,7 +69,7 @@ def me_only(source: str, target: str):
             zout.writestr(item, data)
 
 
-def many_ports(mode: str) -> tuple[list[str], dict]:
+def many_ports(mode: str, datalog: bool = False) -> tuple[list[str], dict]:
     container = FMUContainer("bench", ".", fmi_version=3)
     container.get_fmu("VanDerPol.fmu")
     names = ["Feedthrough.fmu"] + [f"Feedthrough-{i}.fmu" for i in range(1, INSTANCES)]
@@ -79,16 +78,20 @@ def many_ports(mode: str) -> tuple[list[str], dict]:
     for port in PORTS:
         if port != "String":
             container.add_link("VanDerPol.fmu", "x0", names[0], f"{port}_input")
-    for upstream, downstream in zip(names, names[1:]):
+    for upstream, downstream in zip(names, names[1:], strict=False):
         for port in PORTS:
             container.add_link(upstream, f"{port}_output", downstream, f"{port}_input")
     container.add_output(names[-1], "Float64_continuous_output", "y")
-    container.make_fmu("bench.fmu", step_size=STEP_SIZE, mt=mode == "mt", sequential=mode == "sequential")
+    container.make_fmu("bench.fmu", step_size=STEP_SIZE, mt=mode == "mt", sequential=mode == "sequential",
+                       datalog=datalog)
     return ["y"], {}
 
 
 for _mode, _stop_time in (("parallel", 40.0), ("sequential", 45.0), ("mt", 16.0)):
     case(f"A-{_mode}", _stop_time)(lambda mode=_mode: many_ports(mode))
+
+#: A-parallel with the datalog: a row of the values of the links at each internal step (`bench-datalog.csv`).
+case("H-datalog", 20.0)(lambda: many_ports("parallel", datalog=True))
 
 
 @case("B-uncoupled", 1500.0)
@@ -109,7 +112,7 @@ def me_coupled(solver: int):
         container.get_fmu("FeedthroughME.fmu", name=name)
     container.add_link("VanDerPolME.fmu", "x0", names[0], "Float64_continuous_input")
     container.add_link("VanDerPolME.fmu", "x1", names[0], "Float32_continuous_input")
-    for upstream, downstream in zip(names, names[1:]):
+    for upstream, downstream in zip(names, names[1:], strict=False):
         for port in ("Float64_continuous", "Float32_continuous"):
             container.add_link(upstream, f"{port}_output", downstream, f"{port}_input")
     container.add_output(names[-1], "Float64_continuous_output", "y")
@@ -143,12 +146,86 @@ def same_type_ports():
     names = ["1.fmu"] + [f"1-{i}.fmu" for i in range(1, INSTANCES)]
     for name in names:
         container.get_fmu("1.fmu", name=name)
-    for upstream, downstream in zip(names, names[1:]):
+    for upstream, downstream in zip(names, names[1:], strict=False):
         for k in range(5):
             container.add_link(upstream, f"y{k}", downstream, f"u{k}")
     container.add_output(names[-1], "y0", "y")
     container.make_fmu("bench.fmu", step_size=STEP_SIZE)
     return ["y"], {}
+
+
+@case("F-outputs", 400.0)
+def many_outputs():
+    """Chained instances of `containers/mt/1.fmu`, as E-same-type, with the 5 outputs of every instance exposed
+    and read at each communication step (100 outputs): the cost of the getters of the container."""
+    container = FMUContainer("bench", ".", fmi_version=3)
+    names = ["1.fmu"] + [f"1-{i}.fmu" for i in range(1, INSTANCES)]
+    outputs = []
+    for name in names:
+        container.get_fmu("1.fmu", name=name)
+    for upstream, downstream in zip(names, names[1:], strict=False):
+        for k in range(5):
+            container.add_link(upstream, f"y{k}", downstream, f"u{k}")
+    for name in names:
+        for k in range(5):
+            outputs.append(f"{Path(name).stem}_y{k}")    # not the name of the local variable of the link
+            container.add_output(name, f"y{k}", outputs[-1])
+    container.make_fmu("bench.fmu", step_size=STEP_SIZE)
+    return outputs, {}
+
+
+#: Iterations of the loop added to `doStep` of `Slow.fmu`: about 100 µs on a laptop (Apple M4).
+SLOW_ITERATIONS = 50_000
+#: Instances of the light and of the slow Feedthrough in the cases G
+LIGHT_INSTANCES, SLOW_INSTANCES = 8, 4
+
+
+def slow_feedthrough():
+    """`Slow.fmu`: `Feedthrough.fmu` compiled for the host, its `fmi3DoStep` running a loop of `SLOW_ITERATIONS`
+    iterations first (a fixed amount of work, whatever the threads)."""
+    from fmu_manipulation_toolbox.compiler import OperationCompileSources
+    from fmu_manipulation_toolbox.operations import FMU
+
+    if Path("Slow.fmu").exists():
+        return
+    with zipfile.ZipFile("Feedthrough.fmu") as zin, zipfile.ZipFile("slow-sources.fmu", "w") as zout:
+        for item in zin.infolist():
+            if item.filename == "modelDescription.xml" or item.filename.startswith("sources/"):
+                data = zin.read(item.filename)
+                if item.filename == "sources/fmi3Functions.c":
+                    patched = data.replace(b"    BEGIN_FUNCTION(DoStep);\n",
+                                           b"    BEGIN_FUNCTION(DoStep);\n"
+                                           b"    { volatile double work = 0.0;\n"
+                                           b"      for (long i = 0; i < " + str(SLOW_ITERATIONS).encode() +
+                                           b"; i += 1) work += 1e-9; }\n", 1)
+                    if patched == data:
+                        raise RuntimeError("fmi3DoStep not found in the sources of Feedthrough.fmu")
+                    data = patched
+                zout.writestr(item, data)
+    with FMU("slow-sources.fmu") as fmu:
+        fmu.apply_operation(OperationCompileSources())
+        fmu.repack("Slow.fmu")
+
+
+def heavy_and_light(mode: str) -> tuple[list[str], dict]:
+    """A chain of light Feedthrough instances and of a few slow ones (`Slow.fmu`), on their `Float64` ports: the
+    case of the hybrid multi-thread mode, where only the slow FMUs are worth a thread."""
+    slow_feedthrough()
+    container = FMUContainer("bench", ".", fmi_version=3)
+    container.get_fmu("VanDerPol.fmu")
+    names = [f"Feedthrough-{i}.fmu" for i in range(LIGHT_INSTANCES)] + [f"Slow-{i}.fmu" for i in range(SLOW_INSTANCES)]
+    for name in names:
+        container.get_fmu(name.split("-")[0] + ".fmu", name=name)
+    container.add_link("VanDerPol.fmu", "x0", names[0], "Float64_continuous_input")
+    for upstream, downstream in zip(names, names[1:], strict=False):
+        container.add_link(upstream, "Float64_continuous_output", downstream, "Float64_continuous_input")
+    container.add_output(names[-1], "Float64_continuous_output", "y")
+    container.make_fmu("bench.fmu", step_size=STEP_SIZE, mt=mode == "mt")
+    return ["y"], {}
+
+
+for _mode, _stop_time in (("parallel", 2.5), ("mt", 2.5)):
+    case(f"G-{_mode}", _stop_time)(lambda mode=_mode: heavy_and_light(mode))
 
 
 def exchange_calls(txt: Path) -> tuple[int, int]:

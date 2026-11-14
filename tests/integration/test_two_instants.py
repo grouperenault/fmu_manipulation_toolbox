@@ -1,8 +1,8 @@
 """The exchange of LS-BUS operations between FMUs of a container, in two super-dense time instants.
 
 An FMU may evaluate its discrete states when its `Tx_Data` is read, and then refuse any input until
-`fmi3UpdateDiscreteStates`: the FMUs of SystemDesk do so. `tests/data/ls-bus-strict` is an FMU compiled for the host which
-behaves in this way: a call in the wrong order stops the simulation.
+`fmi3UpdateDiscreteStates`: the FMUs of SystemDesk do so. `tests/data/ls-bus-strict` is an FMU compiled for the host
+which behaves in this way: a call in the wrong order stops the simulation.
 """
 import json
 import zipfile

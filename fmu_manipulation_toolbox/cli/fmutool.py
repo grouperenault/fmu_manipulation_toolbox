@@ -4,17 +4,32 @@ import os
 import shlex
 import sys
 
-from .utils import setup_logger, close_logger, make_wide, ParagraphHelpFormatter, ExitCode, ErrorCounter
-from ..operations import (OperationSummary, OperationError, OperationRemoveRegexp,
-                          OperationRemoveSources, OperationTrimUntil, OperationKeepOnlyRegexp, OperationMergeTopLevel,
-                          OperationStripTopLevel, OperationRenameFromCSV, OperationSaveNamesToCSV, FMU, FMUError)
-from ..remoting import  (OperationAddFrontendWin32, OperationAddFrontendWin64, OperationAddRemotingWin32,
-                         OperationAddRemotingWin64)
 from ..checker import OperationLsRefCheck, get_checkers
-from ..model_description import ModelDescription
 from ..compiler import OperationCompileSources
-from ..version import __version__ as version
 from ..help import Help
+from ..model_description import ModelDescription
+from ..operations import (
+    FMU,
+    FMUError,
+    OperationError,
+    OperationKeepOnlyRegexp,
+    OperationMergeTopLevel,
+    OperationRemoveRegexp,
+    OperationRemoveSources,
+    OperationRenameFromCSV,
+    OperationSaveNamesToCSV,
+    OperationStripTopLevel,
+    OperationSummary,
+    OperationTrimUntil,
+)
+from ..remoting import (
+    OperationAddFrontendWin32,
+    OperationAddFrontendWin64,
+    OperationAddRemotingWin32,
+    OperationAddRemotingWin64,
+)
+from ..version import __version__ as version
+from .utils import ErrorCounter, ExitCode, ParagraphHelpFormatter, close_logger, make_wide, setup_logger
 
 
 def fmutool():
@@ -131,7 +146,7 @@ def fmutool():
             sys.exit(ExitCode.USAGE_ERROR)
 
     if cli_options.fmu_input == cli_options.fmu_output:
-        logger.fatal(f"'-input' and '-output' should point to different files.")
+        logger.fatal("'-input' and '-output' should point to different files.")
         close_logger(logger)
         sys.exit(ExitCode.USAGE_ERROR)
 
@@ -157,8 +172,7 @@ def fmutool():
     def operation_iterator():
         for op in cli_options.operations_list:
             if isinstance(op, list):
-                for sub_op in op:
-                    yield sub_op
+                yield from op
             else:
                 yield op
 
@@ -194,7 +208,7 @@ def fmutool():
                 logger.info(f"WRITING Output='{cli_options.fmu_output}'")
                 fmu.repack(cli_options.fmu_output)
             else:
-                logger.info(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
+                logger.info("INFO    Modified FMU is not saved. If necessary use '-output' option.")
         except (FMUError, OSError) as reason:
             logger.fatal(f"FATAL ERROR: {reason}")
             close_logger(logger)

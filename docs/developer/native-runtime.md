@@ -88,7 +88,8 @@ sources of the runtime are compiled again with the tests, so that the internal f
 - `test.h`: assertion macros (`TEST_ASSERT`, `TEST_ASSERT_EQUAL_INT`); a test is a function that returns 0 on
   success, registered in the table of `test_main.c`.
 - `stub_fmu.c`: an FMI 2.0 Co-Simulation FMU built with the tests. Its behaviour depends on the GUID given to
-  `fmi2Instantiate` (e.g. `{stub-fail-instantiate}`); each type has 16 variables, any other VR is an error.
+  `fmi2Instantiate` (e.g. `{stub-fail-instantiate}`, or `{stub-slow}`, whose steps last 2 ms); each type has 16
+  variables, any other VR is an error.
 - `stub_xcp_fmi2.c`, `stub_xcp_fmi3.c`: FMUs of FMI-LS-XCP (descriptors in `tests/data/ls-xcp` of the repository).
   Their XCP service only writes a journal, `<resources>/xcp.log`, of the configuration they receive and of when the
   service starts; the fixtures `xcp_fmi2` and `xcp_fmi3` (`tests/data/xcp/container_fmi<2|3>.txt`) check the
@@ -97,6 +98,20 @@ sources of the runtime are compiled again with the tests, so that the internal f
 - Fixtures: `tests/data/one_fmu/container.txt.in` is turned by CMake (`container_fixture()`) into
   `<build folder>/fixtures/<name>/container.txt`, with the stub FMU in `00/binaries/<platform>/`. The tests of
   malformed files (`test_malformed.c`) rewrite one line of the fixture `one_fmu` into the fixture `malformed`.
+  `tests/data/two_fmus/container.txt.in` (`two_fmus_fixture()`) embeds a light stub and a slow one in the
+  multi-thread mode, with a threshold that makes the slow one heavy (`mt_hybrid`), both (`mt_all_heavy`) or none
+  (`mt_no_heavy`): `test_threads_lifecycle.c` checks the warm-up, the dispatch of the FMUs to the workers and the stop
+  of the threads.
+
+## Threads
+
+The multi-thread mode (see [DoStep FMI Sequence](dostep-fmi-sequence.md#notes)) starts its worker threads at the end
+of its warm-up (`container_dispatch()`), one per worker of the pool, and stops them in `container_free()`.
+`thread.c` gives the portable primitives: the threads, `thread_nb_cores()`, the barriers (`SYNCHRONIZATION_BARRIER`
+on Windows, `pthread_barrier_t` on Linux, a barrier on `dispatch_semaphore` on macOS, which has none) and a gate that
+holds the workers until they are all launched. During the warm-up, the steps of each FMU are timed by its
+`profile_t warmup` (`profile_tic()` / `profile_toc()` of `profile.c`, as the profiling: a monotonic clock in ns,
+`QueryPerformanceCounter` or `CLOCK_MONOTONIC`), whose `total_elapsed` sums their durations.
 
 ## Sanitizers
 
@@ -105,3 +120,8 @@ UndefinedBehaviorSanitizer; any undefined behaviour aborts. The preset `linux64-
 instrumented runtime: `cmake --workflow --preset linux64-sanitize`. The CI job `sanitizers` (Linux) runs the C tests with
 the leak detection, then the integration tests with the instrumented `linux64` runtime, the ASan runtime being
 loaded first in Python (`LD_PRELOAD`).
+
+ThreadSanitizer has no preset: on Linux or macOS (Clang), configure a build folder with
+`-DCMAKE_C_FLAGS=-fsanitize=thread` and the same flag for the linker (`CMAKE_EXE_LINKER_FLAGS`,
+`CMAKE_SHARED_LINKER_FLAGS`, `CMAKE_MODULE_LINKER_FLAGS`), then build and run `container_tests` only (the target
+`container` would replace the runtime of the package).

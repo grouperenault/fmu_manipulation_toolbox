@@ -7,14 +7,12 @@ Runs in an isolated copy of
 import sys
 
 import pytest
-
 from fmpy.validation import validate_fmu
-
-from fmu_manipulation_toolbox.operations import FMU, OperationSummary
-from fmu_manipulation_toolbox.assembly import Assembly
 
 from _helpers.assertions import VOLATILE_XML_ATTRIBUTES, assert_equivalent_xml, assert_identical_files
 from _helpers.simulation import assert_simulation
+from fmu_manipulation_toolbox.assembly import Assembly
+from fmu_manipulation_toolbox.operations import FMU, OperationSummary
 
 pytestmark = [pytest.mark.integration, pytest.mark.area("array")]
 

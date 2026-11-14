@@ -12,7 +12,9 @@ custom checkers.
       can be `continuous`;
     - allowed values of `initial`, and presence or absence of a `start` value;
     - `derivative` attributes and `<ModelStructure>` entries refer to existing variables;
-    - `<Outputs>` / `<Output>` lists exactly the outputs; state derivatives have a `derivative` attribute.
+    - `<Outputs>` / `<Output>` lists exactly the outputs; state derivatives have a `derivative` attribute;
+    - `<InitialUnknowns>` / `<InitialUnknown>` lists the outputs with `initial="calculated"` or `"approx"` (clocks
+      and clocked variables excepted, as the Reference FMUs do), and no output with `initial="exact"`.
 - `OperationLsBusCheck` checks the rules of [FMI-LS-BUS](../fmucontainer/ls-bus.md), for an FMU that declares it.
 - `OperationLsXcpCheck` checks the rules of [FMI-LS-XCP](../fmucontainer/ls-xcp.md) 1.0.0, for an FMU that declares
   it (manifest `extra/org.fmi-standard.fmi-ls-xcp/fmi-ls-manifest.xml`):

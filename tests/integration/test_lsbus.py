@@ -9,11 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.assembly import Assembly
-from fmu_manipulation_toolbox.cli.datalog2pcap import DatalogConverter
-
 from _helpers.assertions import assert_equivalent_csv
 from _helpers.simulation import assert_simulation_log
+from fmu_manipulation_toolbox.assembly import Assembly
+from fmu_manipulation_toolbox.cli.datalog2pcap import DatalogConverter
 
 pytestmark = [
     pytest.mark.integration,
@@ -82,5 +81,6 @@ def test_ls_bus_capture_has_each_operation_once(area_dir):
 
     # And the operations prepared in Initialization Mode, sent in the first Event Mode: the two Configuration operations
     # (baud rate, arbitration lost behavior) of each node, which the nodes do not log.
-    assert converter.nb_operations == (log.count("Transmitting CAN frame") + log.count("Sending confirmation for CAN frame")
+    assert converter.nb_operations == (log.count("Transmitting CAN frame")
+                                       + log.count("Sending confirmation for CAN frame")
                                        + log.count("Sending CAN frame") + 2 * 2)

@@ -63,10 +63,26 @@ def test_conforming_descriptors_have_no_error(name, descriptor):
 def test_conforming_minimal_descriptors():
     assert semantic_errors(fmi2(sv("u", 1, '<Real start="0"/>', causality="input") +
                                 sv("y", 2, causality="output"),
-                                '<Outputs><Unknown index="2" dependencies="1"/></Outputs>')) == []
+                                '<Outputs><Unknown index="2" dependencies="1"/></Outputs>'
+                                '<InitialUnknowns><Unknown index="2" dependencies="1"/></InitialUnknowns>')) == []
     assert semantic_errors(fmi3('<Float64 name="u" valueReference="1" causality="input" start="0"/>'
                                 '<Float64 name="y" valueReference="2" causality="output"/>',
-                                '<Output valueReference="2" dependencies="1"/>')) == []
+                                '<Output valueReference="2" dependencies="1"/>'
+                                '<InitialUnknown valueReference="2" dependencies="1"/>')) == []
+
+
+def test_initial_unknowns_leave_out_the_exact_outputs_and_the_clocked_ones():
+    """An output with initial="exact" has a start value: it is not an initial unknown. Clocks and clocked variables
+    have no value in Initialization Mode: the Reference FMUs (Clocks) do not list them."""
+    assert semantic_errors(fmi2(sv("y", 1, '<Real start="0"/>', causality="output", initial="exact"),
+                                '<Outputs><Unknown index="1"/></Outputs>')) == []
+    assert semantic_errors(fmi3('<Float64 name="y" valueReference="1" causality="output" initial="exact" start="0"/>'
+                                '<Clock name="c" valueReference="2" causality="output" '
+                                'intervalVariability="triggered"/>'
+                                '<Int32 name="k" valueReference="3" causality="output" variability="discrete" '
+                                'clocks="2"/>',
+                                '<Output valueReference="1"/><Output valueReference="2"/>'
+                                '<Output valueReference="3"/>')) == []
 
 
 # --------------------------------------------------------------------------- #
@@ -123,6 +139,18 @@ def test_conforming_minimal_descriptors():
     (fmi2(sv("x", 1), '<Outputs><Unknown index="1"/></Outputs>'), "<Outputs> lists 'x', which is not an output"),
     (fmi3('<Float64 name="x" valueReference="1"/>', '<ContinuousStateDerivative valueReference="1"/>'),
      "<ContinuousStateDerivative> lists 'x', which has no derivative attribute"),
+    # initial unknowns
+    (fmi2(sv("y", 1, causality="output"), '<Outputs><Unknown index="1"/></Outputs>'),
+     "Output 'y' is not listed in <InitialUnknowns> (initial='calculated')"),
+    (fmi3('<Float64 name="y" valueReference="1" causality="output" initial="approx" start="0"/>',
+          '<Output valueReference="1"/>'),
+     "Output 'y' is not listed in <InitialUnknown> (initial='approx')"),
+    (fmi2(sv("y", 1, '<Real start="0"/>', causality="output", initial="exact"),
+          '<Outputs><Unknown index="1"/></Outputs><InitialUnknowns><Unknown index="1"/></InitialUnknowns>'),
+     "<InitialUnknowns> lists 'y', which has initial='exact'"),
+    (fmi3('<Float64 name="y" valueReference="1" causality="output" initial="exact" start="0"/>',
+          '<Output valueReference="1"/><InitialUnknown valueReference="1"/>'),
+     "<InitialUnknown> lists 'y', which has initial='exact'"),
     (fmi2(sv("y", 1, causality="output"), '<Outputs><Unknown index="1" dependencies="4"/></Outputs>'),
      "dependency '4' does not refer to a variable"),
     (fmi3('<Float64 name="u" valueReference="1" causality="input" start="0"/>'

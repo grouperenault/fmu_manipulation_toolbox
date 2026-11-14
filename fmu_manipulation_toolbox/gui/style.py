@@ -1,6 +1,5 @@
 import os
 
-
 # ─── OS-specific font sizes ───
 _FONT_SIZE_MAIN = "10pt" if os.name == 'nt' else "12pt"
 _FONT_TEXTBROWSER = "11pt \"Consolas\"" if os.name == 'nt' else "14pt \"Courier New\""
@@ -148,7 +147,7 @@ _COMMON_STYLE = """
         border: 1px solid #282830;
         border-top-left-radius: 5px;
         border-top-right-radius: 5px;
-    }} 
+    }}
     QTabBar::tab:selected, QTabBar::tab:hover {{
         background-color: #5f7850;
         margin-bottom:-1px;

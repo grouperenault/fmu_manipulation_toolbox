@@ -7,7 +7,6 @@ from .embedded import EmbeddedFMU
 from .errors import FMUContainerError
 from .types import CONVERSION_FUNCTION, is_lossy
 
-
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 LS_BUS_MIME_TYPE = re.compile(r'application/org\.fmi-standard\.fmi-ls-bus\.([\w-]+)(?:\s*;\s*version="([^"]*)")?',
@@ -36,7 +35,7 @@ class ContainerPort:
         try:
             self.port = fmu.ports[port_name]
         except KeyError:
-            raise FMUContainerError(f"Port '{fmu.name}/{port_name}' does not exist")
+            raise FMUContainerError(f"Port '{fmu.name}/{port_name}' does not exist") from None
 
     def __repr__(self):
         return f"Port {self.fmu.name}/{self.port.name}"
@@ -173,7 +172,7 @@ class Link:
 
     def __init__(self, cport_from: ContainerPort):
         self.name = cport_from.fmu.id + "." + cport_from.port.name  # strip .fmu suffix
-        self.cport_from = cport_from
+        self.cport_from: ContainerPort | None = cport_from
         self.cport_to_list: list[ContainerPort] = []
         self.size = cport_from.port.size()
         self.conversions: dict[str, str] = {}
@@ -230,6 +229,7 @@ class Link:
                 conversion is available.
         """
         try:
+            assert self.cport_from is not None
             conversion = f"{self.cport_from.port.type_name}/{cport_to.port.type_name}"
             return CONVERSION_FUNCTION[conversion]
         except KeyError:

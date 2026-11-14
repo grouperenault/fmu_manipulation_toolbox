@@ -114,7 +114,8 @@ def test_periodic_rx_clock_is_allowed(tmp_path):
 
 def test_tx_data_and_rx_data_of_different_mime_types(tmp_path):
     text = read_entry(NODE, MODEL).decode()
-    path = rewrite_fmu(NODE, tmp_path / "patched.fmu", replace={MODEL: text.replace(MIME, MIME.replace("beta.1", "rc.1"), 1).encode()})
+    path = rewrite_fmu(NODE, tmp_path / "patched.fmu",
+                       replace={MODEL: text.replace(MIME, MIME.replace("beta.1", "rc.1"), 1).encode()})
     assert any("different MIME types" in error for error in _errors(path))
 
 

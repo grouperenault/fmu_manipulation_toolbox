@@ -10,12 +10,11 @@ from pathlib import Path
 
 import pytest
 
+from _helpers.assertions import assert_identical_files
 from fmu_manipulation_toolbox.assembly import Assembly
-from fmu_manipulation_toolbox.cli.fmutool import fmutool
 from fmu_manipulation_toolbox.cli.fmucontainer import fmucontainer
 from fmu_manipulation_toolbox.cli.fmusplit import fmusplit
-
-from _helpers.assertions import assert_identical_files
+from fmu_manipulation_toolbox.cli.fmutool import fmutool
 
 pytestmark = [pytest.mark.integration]
 
@@ -44,6 +43,16 @@ def test_fmucontainer_reset_ports(area_dir):
     lines = Path("cli-bouncing/resources/container.txt").read_text().splitlines()
     for fmu in ("bb_position.fmu", "bb_velocity.fmu"):
         assert int(lines[lines.index(f"# Reset trigger of {fmu}: <LOCAL_OFFSET>") + 1]) >= 0
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_fmucontainer_mt_threshold(area_dir):
+    """`-mt-threshold`: the threshold of a heavy FMU, on the flags line of `container.txt`."""
+    sys.argv = ["fmucontainer", "-container", "cli-bouncing.csv", "-fmu-directory", ".", "-mt", "-mt-threshold",
+                "0.002", "-debug"]
+    fmucontainer()
+    lines = Path("cli-bouncing/resources/container.txt").read_text().splitlines()
+    assert lines[lines.index("# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD_US>") + 1] == "1 0 0 2000"
 
 
 @pytest.mark.area("containers/arch")
@@ -80,8 +89,9 @@ def test_fmutool_only_type_and_variability(area_dir):
 @pytest.mark.area("containers/arch")
 def test_fmucontainer_dump_ssp(area_dir):
     """The SSP dump has the whole routing and is read back into the same container."""
-    from fmu_manipulation_toolbox.ssp import validate_ssd
     import zipfile
+
+    from fmu_manipulation_toolbox.ssp import validate_ssd
 
     sys.argv = ["fmucontainer", "-fmu-directory", ".", "-container", "hierarchical.json", "-dump-ssp"]
     fmucontainer()

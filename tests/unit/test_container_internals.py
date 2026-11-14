@@ -15,9 +15,16 @@ from types import SimpleNamespace
 
 import pytest
 
+from fmu_manipulation_toolbox.container import (
+    ArrayAggregate,
+    ContainerLayout,
+    EmbeddedFMUPort,
+    FMUContainer,
+    FMUContainerError,
+    Link,
+    ValueReferenceTable,
+)
 from fmu_manipulation_toolbox.container import types as container_types
-from fmu_manipulation_toolbox.container import (ArrayAggregate, ContainerLayout, EmbeddedFMUPort, FMUContainer,
-                                                FMUContainerError, Link, ValueReferenceTable)
 
 pytestmark = [pytest.mark.unit]
 
@@ -383,7 +390,8 @@ def test_one_converted_copy_per_target_type(tmp_path):
     assert lines[boolean + 1:boolean + 3] == ["1 1", f"{converted} 1 1 -1 0"]
     assert lines[boolean + 3] == "# boolean1"
     table = lines.index("# Conversion table of a.fmu: <VR_FROM> <VR_TO> <CONVERSION>")
-    assert lines[table + 1:table + 3] == ["1", f"{layout.links[next(iter(container.links.values()))]} {converted} _F64_B"]
+    assert lines[table + 1:table + 3] == ["1",
+                                          f"{layout.links[next(iter(container.links.values()))]} {converted} _F64_B"]
     assert lines[table + 3:table + 5] == ["# Reset trigger of a.fmu: <LOCAL_OFFSET>", "-1"]
     assert lines[table + 5].startswith("# Inputs of b.fmu")
     # Both inputs read the same converted copy (local offset 0 of the booleans).
@@ -767,3 +775,8 @@ def test_fmi2_aggregate_exposed_through_a_local_variable(aggregates):
         [f"{output} 1 8", f"{output + 1} 1 10"]
     assert _section(lines, "# Inputs of a.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>") == \
         [f"{local_input} 1 7", f"{local_input + 1} 1 9"]
+
+
+def test_negative_mt_threshold_is_refused(tmp_path):
+    with pytest.raises(FMUContainerError, match="cannot be negative"):
+        FMUContainer("negative", tmp_path).make_fmu("negative.fmu", mt=True, mt_threshold=-1.0)

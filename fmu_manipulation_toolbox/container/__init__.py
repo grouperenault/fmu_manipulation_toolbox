@@ -13,7 +13,7 @@ from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import Clock, ClockList, FMUIOList, InvolvedFMU, IOReference, LocalVariable, Port
 
 __all__ = [
-    "ArrayAggregate", "AutoWired", "Clock", "ClockList", "ContainerInput", "ContainerLayout", "ContainerPort", "EmbeddedFMU",
-    "EmbeddedFMUPort", "FMUContainer", "FMUContainerError", "FMUIOList", "IOReference", "InvolvedFMU", "Link",
-    "LocalVariable", "Platform", "Port", "ValueReferenceTable",
+    "ArrayAggregate", "AutoWired", "Clock", "ClockList", "ContainerInput", "ContainerLayout", "ContainerPort",
+    "EmbeddedFMU", "EmbeddedFMUPort", "FMUContainer", "FMUContainerError", "FMUIOList", "IOReference", "InvolvedFMU",
+    "Link", "LocalVariable", "Platform", "Port", "ValueReferenceTable",
 ]

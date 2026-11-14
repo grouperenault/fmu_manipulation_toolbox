@@ -1,8 +1,8 @@
-# Version 9
+# Version 10
 # The string variable 0 of the stub is linked, through the local string 0, to its string variable 1; both are
 # exposed (string VR 201326592 and 201326593).
-# Container flags <MT> <Profiling> <Sequential>
-@MT@ 0 0
+# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD_US>
+@MT@ 0 0 @MT_THRESHOLD_US@
 # Internal time step in seconds
 0.1
 # NB of embedded FMU's

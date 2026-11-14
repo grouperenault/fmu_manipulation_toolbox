@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from ..assembly import Assembly, AssemblyError, AssemblyNode, instance_name
+from ..container.types import MT_THRESHOLD
 from ..operations import FMU, ModelVariable, OperationAbstract
 from ..terminals import Terminals
 from .bridge import SUPPORTED_FMI_VERSIONS
@@ -40,6 +41,7 @@ DEFAULT_OPTIONS: dict[str, Any] = {
     "auto_local": False,
     "ts_multiplier": False,
     "reset_ports": False,
+    "mt_threshold": MT_THRESHOLD,
 }
 
 #: Default name of the container being described.

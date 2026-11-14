@@ -6,23 +6,29 @@ Contains classes for displaying and editing container parameters.
 
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
-    QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout,
     QAbstractItemView,
+    QHeaderView,
+    QLabel,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
 )
 
+from fmu_manipulation_toolbox.container.types import MT_THRESHOLD
 from fmu_manipulation_toolbox.help import Help
 
 
 class ContainerParameters:
     def __init__(self, name: str, step_size="", mt=False, profiling=False, sequential=False, auto_link=True,
                  auto_input=True, auto_output=True, auto_parameter=False, auto_local=False, ts_multiplier=False,
-                 reset_ports=False, **_):
+                 reset_ports=False, mt_threshold=MT_THRESHOLD, **_):
         self.name = name
         self.parameters = {
             "step_size": step_size,
             "mt": mt,
+            "mt_threshold": mt_threshold,
             "profiling": profiling,
             "sequential": sequential,
             "auto_link": auto_link,

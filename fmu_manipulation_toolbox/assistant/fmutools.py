@@ -26,16 +26,24 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-from . import analysis
 from ..assembly import Assembly, AssemblyError
 from ..checker import get_checkers
 from ..model_description import ModelDescription, ModelVariable, default_variability, matches_type
-from ..terminals import Terminals
 from ..operations import (
-    FMU, OperationKeepOnlyRegexp, OperationMergeTopLevel, OperationRemoveRegexp,
-    OperationRemoveSources, OperationRename, OperationRenameFromCSV, OperationSaveNamesToCSV,
-    OperationStripTopLevel, OperationSummary, OperationTrimUntil,
+    FMU,
+    OperationKeepOnlyRegexp,
+    OperationMergeTopLevel,
+    OperationRemoveRegexp,
+    OperationRemoveSources,
+    OperationRename,
+    OperationRenameFromCSV,
+    OperationSaveNamesToCSV,
+    OperationStripTopLevel,
+    OperationSummary,
+    OperationTrimUntil,
 )
+from ..terminals import Terminals
+from . import analysis
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 

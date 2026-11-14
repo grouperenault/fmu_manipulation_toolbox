@@ -5,13 +5,12 @@ import re
 import struct
 import sys
 import zipfile
-
 from pathlib import Path
 from typing import IO
 
-from .utils import setup_logger, close_logger, make_wide
 from ..model_description import ModelDescription, ModelDescriptionError
 from ..version import __version__ as version
+from .utils import close_logger, make_wide, setup_logger
 
 logger = setup_logger()
 
@@ -82,7 +81,7 @@ class DatalogConverter:
 
     def open_csv(self):
         logger.debug(f"Loading '{self.csv_filename}'")
-        return open(self.csv_filename, "rt")
+        return open(self.csv_filename)
 
     def exported_pdu_header(self, bus_type: str) -> bytes:
         protocol = self.PROTOCOLS[bus_type].encode()
@@ -152,9 +151,10 @@ class DatalogConverter:
 
 def datalog2pcap():
     logger.info(f"FMUContainer version {version}")
-    logger.warning(f"Datalog2PCAP is still experimental.")
+    logger.warning("Datalog2PCAP is still experimental.")
 
-    parser = argparse.ArgumentParser(prog="datalog2pcap", description="Convert the LS-BUS datalog of a container to a PCAPNG file.",
+    parser = argparse.ArgumentParser(prog="datalog2pcap",
+                                     description="Convert the LS-BUS datalog of a container to a PCAPNG file.",
                                      formatter_class=make_wide(argparse.ArgumentDefaultsHelpFormatter),
                                      add_help=False,
                                      epilog="see: https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/"

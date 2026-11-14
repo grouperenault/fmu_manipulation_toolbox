@@ -203,7 +203,7 @@ Create `.vscode/mcp.json` at the root of your workspace:
 | `remove_link` | Disconnect an explicit link |
 | `expose_input` / `expose_output` | Surface a port on the container boundary |
 | `set_start_value` / `unset_start_value` | Set, or drop, a start value / parameter |
-| `set_container_options` | Set `step_size`, `mt`, `profiling`, `auto_*`, … |
+| `set_container_options` | Set `step_size`, `mt`, `mt_threshold`, `profiling`, `auto_*`, … |
 | `get_assembly_json` | Review the assembly; a large one comes one container, then one section, at a time |
 | `analyze_assembly` | Summarise the assembly, or lint it before building (see [Analysing an assembly](#analysing-an-assembly)) |
 | `save_assembly` | Write the assembly description: JSON or SSP, by the extension of the file |

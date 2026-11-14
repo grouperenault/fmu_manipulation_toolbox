@@ -14,10 +14,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from fmu_manipulation_toolbox.container import FMUContainer
-
 from _helpers.archive import read_entry, rewrite_fmu
 from _helpers.simulation import simulate
+from fmu_manipulation_toolbox.container import FMUContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.needs_fmpy, pytest.mark.needs_container,
               pytest.mark.area("containers/perf")]
@@ -71,7 +70,7 @@ def _chain(container: FMUContainer, source: str, names: list[str], ports: tuple[
     for port in ports:
         if port != "String":
             container.add_link(source, "x0", names[0], f"{port}_input")
-    for upstream, downstream in zip(names, names[1:]):
+    for upstream, downstream in zip(names, names[1:], strict=False):
         for port in ports:
             container.add_link(upstream, f"{port}_output", downstream, f"{port}_input")
     for port in ports:

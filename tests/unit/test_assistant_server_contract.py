@@ -18,11 +18,10 @@ pytestmark = [pytest.mark.unit]
 fastmcp = pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
 
 from fastmcp.exceptions import ToolError  # noqa: E402
-from fmu_manipulation_toolbox.assistant import AssemblyBridge, build_server  # noqa: E402
-from fmu_manipulation_toolbox.assistant.server import compact_schema, describe_argument_errors  # noqa: E402
 
 from _helpers.assistant_bridge import FakeBridge, call_tool, input_schema, inventory, resolve_ref, run  # noqa: E402
-
+from fmu_manipulation_toolbox.assistant import AssemblyBridge, build_server  # noqa: E402
+from fmu_manipulation_toolbox.assistant.server import compact_schema, describe_argument_errors  # noqa: E402
 
 #: Tool name -> ordered parameter names.
 EXPECTED_TOOLS = {
@@ -180,7 +179,7 @@ def _call_error(tool, arguments, tmp_path=None) -> str:
 @pytest.mark.parametrize("tool, arguments, expected", [
     ("set_container_options", {"options": {"stepsize": 1}},
      "unknown option 'stepsize' (allowed: auto_input, auto_link, auto_local, auto_output, auto_parameter, "
-     "mt, profiling, reset_ports, sequential, step_size, ts_multiplier)"),
+     "mt, mt_threshold, profiling, reset_ports, sequential, step_size, ts_multiplier)"),
     ("set_container_options", {"options": {"step_size": -1}},
      "'options.step_size': Input should be greater than 0 (got -1)"),
     ("save_as_fmu", {"path": "out.fmu", "fmi_version": 7}, "'fmi_version': Input should be 2 or 3 (got 7)"),
@@ -295,7 +294,7 @@ def test_container_options_advertise_their_keys():
     options = resolve_ref(schema, schema["properties"]["options"])
 
     assert set(options["properties"]) == {
-        "step_size", "mt", "profiling", "sequential", "auto_link", "auto_input",
+        "step_size", "mt", "mt_threshold", "profiling", "sequential", "auto_link", "auto_input",
         "auto_output", "auto_parameter", "auto_local", "ts_multiplier", "reset_ports",
     }
     assert options["additionalProperties"] is False
@@ -310,6 +309,11 @@ def test_container_options_only_forward_what_was_provided():
 
     assert ("set_container_options", {"step_size": 0.01}) in bridge.calls
     assert bridge.options["mt"] is False  # untouched
+
+
+def test_container_options_reject_a_negative_mt_threshold():
+    with pytest.raises(ToolError, match="mt_threshold"):
+        call_tool(FakeBridge(), "set_container_options", {"options": {"mt_threshold": -1e-3}})
 
 
 @pytest.mark.parametrize("step_size", [0, -1])

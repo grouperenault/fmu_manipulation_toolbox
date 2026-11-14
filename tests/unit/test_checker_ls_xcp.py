@@ -108,7 +108,8 @@ def test_definition(stub, definition, expected):
 def test_a2l_of_source_code_fmu(stub):
     source, version = stub
     a2l = read_entry(source, f"{XCP}/{A2L_PLATFORMS[version][0]}/ecu.a2l")
-    path = rewrite_fmu(source, source.with_name("source.fmu"), drop=tuple(f"{XCP}/{p}/" for p in A2L_PLATFORMS[version]),
+    path = rewrite_fmu(source, source.with_name("source.fmu"),
+                       drop=tuple(f"{XCP}/{p}/" for p in A2L_PLATFORMS[version]),
                        replace={f"{XCP}/ecu.a2l": a2l})
     assert _errors(path) == []
 

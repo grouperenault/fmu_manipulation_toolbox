@@ -1,8 +1,8 @@
 """LIN, FlexRay and Ethernet networks in a container: a Bus Simulation and two nodes exchange frames.
 
 `tests/data/ls-bus-demos` holds the demos of `fmi-ls-bus-examples` as sources, with their headers: FMI-LS-BUS 1.3.0-rc.1
-for LIN and Ethernet, and 1.1.0-alpha.1, whose API they use, for FlexRay. They are compiled for the host. The frames must
-reach the Bus Simulation, then the other node, and the sender must receive its confirmation.
+for LIN and Ethernet, and 1.1.0-alpha.1, whose API they use, for FlexRay. They are compiled for the host. The frames
+must reach the Bus Simulation, then the other node, and the sender must receive its confirmation.
 
 Only the first exchanges of FlexRay are checked: the startup of the demo does not go further in a container, and without
 a reference importer nothing tells yet whether the demo or the container is the cause.
@@ -53,7 +53,8 @@ def _simulate(config: dict, step_size: float, stop_time: float) -> str:
     return "\n".join(lines)
 
 
-@pytest.mark.parametrize("fmu", ["lin-node", "lin-bus", "ethernet-node", "ethernet-bus", "flexray-node1", "flexray-bus"])
+@pytest.mark.parametrize("fmu", ["lin-node", "lin-bus", "ethernet-node", "ethernet-bus", "flexray-node1",
+                                 "flexray-bus"])
 def test_demos_follow_ls_bus(area_dir, fmu):
     check = OperationLsBusCheck()
     with FMU(f"{fmu}.fmu") as fmu_file:

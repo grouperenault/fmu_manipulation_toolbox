@@ -15,21 +15,49 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
-    QDialog, QWidget, QLabel, QTabWidget, QSplitter, QVBoxLayout, QHBoxLayout, QGridLayout, QTableView,
-    QHeaderView, QAbstractItemView, QPushButton, QLineEdit, QCheckBox, QFrame, QStackedWidget, QMessageBox,
+    QAbstractItemView,
+    QCheckBox,
+    QDialog,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
     QSizePolicy,
+    QSplitter,
+    QStackedWidget,
+    QTableView,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
 from fmu_manipulation_toolbox.gui.helper import MenuSelector
 from fmu_manipulation_toolbox.gui.style import status_color
-from .link_matching import (
-    PortInfo, Status, Checks, Rule, AffixRule, RegexRule, SimilarityRule, RULE_KINDS, Suggestion, suggest,
-    staged_statuses, with_overlaps, OK, WARNING, ERROR,
-)
 
+from .link_matching import (
+    ERROR,
+    OK,
+    RULE_KINDS,
+    WARNING,
+    AffixRule,
+    Checks,
+    PortInfo,
+    RegexRule,
+    Rule,
+    SimilarityRule,
+    Status,
+    Suggestion,
+    staged_statuses,
+    suggest,
+    with_overlaps,
+)
 
 _STATUS_COLORS = {level: QColor(status_color[name]) for level, name in ((OK, "OK"), (WARNING, "WARNING"),
                                                                           (ERROR, "ERROR"))}
@@ -358,7 +386,7 @@ class _PortCounters(QWidget):
         """*kind*: "outputs" or "inputs"; *used_text*: what a used port is, for the tooltip."""
         for label, symbol, count, tooltip in zip(
                 self._labels, ("Σ", "●", "○"), (total, used, total - used),
-                (f"Total number of {kind}", f"{kind.capitalize()} {used_text}", f"Free {kind}")):
+                (f"Total number of {kind}", f"{kind.capitalize()} {used_text}", f"Free {kind}"), strict=True):
             label.setText(f"{symbol}\u00a0{count}")
             label.setToolTip(tooltip)
 
@@ -1005,7 +1033,7 @@ class LinkAssistantDialog(QDialog):
         if len(outputs) == 1 and inputs:
             return [(outputs[0], input) for input in inputs]
         if outputs and len(outputs) == len(inputs):
-            return list(zip(outputs, inputs))
+            return list(zip(outputs, inputs, strict=True))
         return []
 
     def _update_preview(self):

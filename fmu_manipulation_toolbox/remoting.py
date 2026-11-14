@@ -1,7 +1,7 @@
 import logging
 import shutil
-
 from pathlib import Path
+
 from .operations import OperationAbstract, OperationError
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -32,8 +32,8 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         OperationError: If the FMU is not FMI 2.0 or the source platform
             binaries are missing.
     """
-    bitness_from = None
-    bitness_to = None
+    bitness_from: str | None = None
+    bitness_to: str | None = None
 
     def __repr__(self):
         return f"Add '{self.bitness_to}' remoting on '{self.bitness_from}' FMU"
@@ -49,7 +49,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
 
     def fmi_attrs(self, attrs):
         if not attrs["fmiVersion"] == "2.0":
-            raise OperationError(f"Adding remoting is only available for FMI-2.0")
+            raise OperationError("Adding remoting is only available for FMI-2.0")
 
     def cosimulation_attrs(self, attrs):
         fmu_bin = {
@@ -105,7 +105,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
 
         logger.info(f"Remoting nb input port: {self.nb_input}")
         logger.info(f"Remoting nb output port: {self.nb_output}")
-        with open(target_dir/ "remoting_table.txt", "wt") as file:
+        with open(target_dir/ "remoting_table.txt", "w") as file:
             for fmi_type in ('Real', 'Integer', 'Boolean'):
                 print(len(self.vr[fmi_type]), file=file)
             for fmi_type in ('Real', 'Integer', 'Boolean'):

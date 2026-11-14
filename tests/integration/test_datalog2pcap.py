@@ -3,7 +3,6 @@
 The container gives the type of bus of the columns of the CSV. Reading the captures back here checks their structure;
 the dissection by the plugin itself is checked when Wireshark is installed.
 """
-import json
 import shutil
 import struct
 import subprocess

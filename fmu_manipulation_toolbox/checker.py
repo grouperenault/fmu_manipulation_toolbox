@@ -1,5 +1,4 @@
 import importlib.util
-from importlib.metadata import entry_points
 import inspect
 import logging
 import math
@@ -9,19 +8,35 @@ import tempfile
 import urllib.parse
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from importlib.metadata import entry_points
 from pathlib import Path
 
 import xmlschema
 
-from .experiments import (PARAMETERS_TYPE, TIME_SERIES_TYPE, Experiment, ExperimentSource, ExperimentsError,
-                          read_experiments, read_parameter_set)
-from .ls import (REF_EXPERIMENT_SUB_ROLES, REF_EXPERIMENTS_TYPE, XCP_ROLE_TYPES, XCP_ROLES, LayeredStandard,
-                 RefRelated, XcpInterface, a2l_tokens)
-from .simulation import SimulationError, SimulationUnavailable, SimulationUnsupported, replay
-from .timeseries import HOLD, LINEAR, TimeSeriesError, compare, read_csv
+from .experiments import (
+    PARAMETERS_TYPE,
+    TIME_SERIES_TYPE,
+    Experiment,
+    ExperimentsError,
+    ExperimentSource,
+    read_experiments,
+    read_parameter_set,
+)
+from .ls import (
+    REF_EXPERIMENT_SUB_ROLES,
+    REF_EXPERIMENTS_TYPE,
+    XCP_ROLE_TYPES,
+    XCP_ROLES,
+    LayeredStandard,
+    RefRelated,
+    XcpInterface,
+    a2l_tokens,
+)
 from .model_description import ModelDescription, ModelVariable
 from .operations import OperationAbstract
+from .simulation import SimulationError, SimulationUnavailable, SimulationUnsupported, replay
 from .terminals import CONFIGURATION_KIND, TRANSCEIVER_MEMBERS, TRANSCEIVER_RULE, Terminal, Terminals
+from .timeseries import HOLD, LINEAR, TimeSeriesError, compare, read_csv
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -55,7 +70,7 @@ class OperationGenericCheck(OperationAbstract):
         self.compliant_with_version = None
 
     def __repr__(self):
-        return f"FMU Generic Conformity Checks"
+        return "FMU Generic Conformity Checks"
 
     def fmi_attrs(self, attrs):
         """Validate the FMU descriptor against the appropriate FMI XSD schema.
@@ -94,7 +109,7 @@ class OperationGenericCheck(OperationAbstract):
         if self.compliant_with_version:
             logger.info(f"This FMU seems to be compliant with FMI-{self.compliant_with_version}.")
         else:
-            logger.error(f"This FMU does not validate with FMI standard.")
+            logger.error("This FMU does not validate with FMI standard.")
 
 
 class OperationSemanticCheck(OperationAbstract):
@@ -114,7 +129,11 @@ class OperationSemanticCheck(OperationAbstract):
       and their `dependencies`;
     - `<Outputs>` (FMI 2.0) / `<Output>` (FMI 3.0) lists exactly the variables
       with `causality="output"`; state derivatives have a `derivative`
-      attribute.
+      attribute;
+    - `<InitialUnknowns>` (FMI 2.0) / `<InitialUnknown>` (FMI 3.0) lists the
+      outputs with `initial="calculated"` or `"approx"` (clocks and clocked
+      variables excepted, as the Reference FMUs do) and no output with
+      `initial="exact"`.
 
     Attributes:
         errors (list[str]): Violations found.
@@ -256,18 +275,18 @@ class OperationSemanticCheck(OperationAbstract):
         names = [port.get("name") for port in ports]
         outputs = [index for index, port in enumerate(ports) if port.get("causality", "local") == "output"]
         derivatives = [index for index, port in enumerate(ports) if "derivative" in port]
-        listed_outputs, listed_derivatives = [], []
+        listed_outputs, listed_derivatives, listed_initial = [], [], []
 
         if md.fmi_version == 2:
             section = "FMI-2 §2.2.8"
 
-            def resolve(reference: str) -> int | None:
-                index = int(reference) - 1 if reference.isdigit() else -1
+            def resolve(reference: str | None) -> int | None:
+                index = int(reference) - 1 if reference is not None and reference.isdigit() else -1
                 return index if 0 <= index < len(ports) else None
 
-            for index in derivatives:
-                if resolve(ports[index].get("derivative")) is None:
-                    self.error(f"Variable '{names[index]}': derivative='{ports[index].get('derivative')}' "
+            for derivative in derivatives:
+                if resolve(ports[derivative].get("derivative")) is None:
+                    self.error(f"Variable '{names[derivative]}': derivative='{ports[derivative].get('derivative')}' "
                                f"is not a variable index (FMI-2 §2.2.7).")
             for kind, entry in md.model_structure_entries():
                 index = resolve(entry.get("index", ""))
@@ -279,17 +298,19 @@ class OperationSemanticCheck(OperationAbstract):
                     listed_outputs.append(index)
                 elif kind == "Derivatives":
                     listed_derivatives.append(index)
-            output_section, derivative_section = "<Outputs>", "<Derivatives>"
+                elif kind == "InitialUnknowns":
+                    listed_initial.append(index)
+            output_section, derivative_section, initial_section = "<Outputs>", "<Derivatives>", "<InitialUnknowns>"
         else:
             section = "FMI-3 §2.4.8"
             by_vr = {port.get("valueReference"): index for index, port in enumerate(ports)}
 
-            def resolve(reference: str) -> int | None:
+            def resolve(reference: str | None) -> int | None:
                 return by_vr.get(reference)
 
-            for index in derivatives:
-                if resolve(ports[index].get("derivative")) is None:
-                    self.error(f"Variable '{names[index]}': derivative='{ports[index].get('derivative')}' "
+            for derivative in derivatives:
+                if resolve(ports[derivative].get("derivative")) is None:
+                    self.error(f"Variable '{names[derivative]}': derivative='{ports[derivative].get('derivative')}' "
                                f"is not a valueReference (FMI-3 §2.4.7.5).")
             for kind, entry in md.model_structure_entries():
                 index = resolve(entry.get("valueReference"))
@@ -302,7 +323,10 @@ class OperationSemanticCheck(OperationAbstract):
                     listed_outputs.append(index)
                 elif kind == "ContinuousStateDerivative":
                     listed_derivatives.append(index)
+                elif kind == "InitialUnknown":
+                    listed_initial.append(index)
             output_section, derivative_section = "<Output>", "<ContinuousStateDerivative>"
+            initial_section = "<InitialUnknown>"
 
         for index in sorted(set(outputs) - set(listed_outputs)):
             self.error(f"Output '{names[index]}' is not listed in {output_section} ({section}).")
@@ -311,6 +335,30 @@ class OperationSemanticCheck(OperationAbstract):
         for index in sorted(set(listed_derivatives) - set(derivatives)):
             self.error(f"{derivative_section} lists '{names[index]}', which has no derivative attribute "
                        f"({section}).")
+        self.check_initial_unknowns(md.fmi_version, ports, outputs, listed_initial, initial_section, section)
+
+    def check_initial_unknowns(self, fmi_version: int, ports: list[ModelVariable], outputs: list[int],
+                               listed: list[int], initial_section: str, section: str):
+        """The initial unknowns are the outputs with `initial` `calculated` or `approx` (FMI-2 §2.2.8, FMI-3 §2.4.8),
+        the clocks and the clocked variables excepted (they have no value in Initialization Mode: the Reference FMUs
+        do not list them); an output with `initial="exact"` has a start value and is not an initial unknown.
+        The other entries (calculated parameters, states, derivatives) are not checked."""
+        table = self.INITIAL_2 if fmi_version == 2 else self.INITIAL_3
+        listed_set = set(listed)
+        for index in outputs:
+            port = ports[index]
+            if port.fmi_type is None:
+                continue
+            causality, variability = self.causality_variability(fmi_version, port)
+            initial = port.get("initial", None)
+            if initial is None:
+                initial = table.get((causality, variability), ("calculated",))[0]
+            name = port.get("name")
+            if initial == "exact":
+                if index in listed_set:
+                    self.error(f"{initial_section} lists '{name}', which has initial='exact' ({section}).")
+            elif index not in listed_set and port.fmi_type != "Clock" and "clocks" not in port:
+                self.error(f"Output '{name}' is not listed in {initial_section} (initial='{initial}') ({section}).")
 
     def check_dependencies(self, entry, resolve, what: str, section: str):
         dependencies = entry.get("dependencies", "").split()
@@ -489,6 +537,7 @@ class OperationLsBusCheck(OperationAbstract):
         elif port.causality != "input":
             self.error(f"Bus Terminal '{terminal.path}': a time-based Tx_Clock must be an input.")
         elif variability in (*self.PERIODIC_CLOCKS, *self.APERIODIC_CLOCKS):
+            assert self.model_description is not None
             interfaces = self.model_description.interfaces
             if "CoSimulation" in interfaces and \
                     interfaces["CoSimulation"].get("canHandleVariableCommunicationStepSize") != "true":
@@ -552,9 +601,9 @@ class OperationLsXcpCheck(OperationAbstract):
             self.error(f"Cannot parse the manifest of FMI-LS-XCP: {error}")
 
         if root is not None:
-            for error in xmlschema.XMLSchema(str(self.XSD)).iter_errors(str(manifest)):
-                self.error(f"Manifest of FMI-LS-XCP: {xsd_reason(error)}"
-                           + (f" (at {error.path})" if error.path else ""))
+            for problem in xmlschema.XMLSchema(str(self.XSD)).iter_errors(str(manifest)):
+                self.error(f"Manifest of FMI-LS-XCP: {xsd_reason(problem)}"
+                           + (f" (at {problem.path})" if problem.path else ""))
             ports = {port.get("name"): port for port in self.model_description.iter_ports()}
             used: dict[str, str] = {}
             for interface in root.iter("Interface"):
@@ -575,6 +624,7 @@ class OperationLsXcpCheck(OperationAbstract):
 
         types = interface.get("types")
         if types is not None:
+            assert self.model_description is not None
             missing = [name for name in types.split() if name not in self.model_description.interfaces]
             if missing:
                 logger.warning(f"{label}: applies to {', '.join(missing)}, which the FMU does not provide.")
@@ -623,6 +673,7 @@ class OperationLsXcpCheck(OperationAbstract):
 
     def check_variable(self, label: str, role: str, port: ModelVariable):
         name = port.get("name")
+        assert self.model_description is not None
         fmi_version = self.model_description.fmi_version
         types = XCP_ROLE_TYPES[XCP_ROLES[role]][fmi_version]
         if port.fmi_type not in types:
@@ -738,9 +789,10 @@ class OperationLsRefCheck(OperationAbstract):
         except ET.ParseError as error:
             self.error(f"Cannot parse the manifest of FMI-LS-REF: {error}")
         else:
-            for error in xmlschema.XMLSchema(str(self.MANIFEST_XSD)).iter_errors(str(manifest)):
-                message = f"Manifest of FMI-LS-REF: {xsd_reason(error)}" + (f" (at {error.path})" if error.path else "")
-                if "fmi-ls-description" in str(error.reason):
+            for problem in xmlschema.XMLSchema(str(self.MANIFEST_XSD)).iter_errors(str(manifest)):
+                message = (f"Manifest of FMI-LS-REF: {xsd_reason(problem)}"
+                           + (f" (at {problem.path})" if problem.path else ""))
+                if "fmi-ls-description" in str(problem.reason):
                     logger.warning(message)     # the Reference-FMUs have no description
                 else:
                     self.error(message)
@@ -780,8 +832,8 @@ class OperationLsRefCheck(OperationAbstract):
         except ExperimentsError as error:
             self.error(f"{label}: {error}.")
             return
-        for error in xmlschema.XMLSchema(str(self.EXPERIMENTS_XSD)).iter_errors(str(filename)):
-            self.error(f"{label}: {error.reason}" + (f" (at {error.path})" if error.path else ""))
+        for problem in xmlschema.XMLSchema(str(self.EXPERIMENTS_XSD)).iter_errors(str(filename)):
+            self.error(f"{label}: {problem.reason}" + (f" (at {problem.path})" if problem.path else ""))
         replayed = related.sub_role in self.REPLAYED_SUB_ROLES
         for experiment in experiments.experiments:
             outputs = self.check_experiment(f"{label}, experiment '{experiment.name}'", experiment, replayed, ports)
@@ -790,6 +842,7 @@ class OperationLsRefCheck(OperationAbstract):
 
     def check_result(self, label: str, related: RefRelated, directory: Path, ports: dict[str, ModelVariable]):
         """A result file, replayed with the `DefaultExperiment` of the FMU."""
+        assert related.path is not None
         path = directory / related.path
         try:
             series = read_csv(path)
@@ -808,6 +861,7 @@ class OperationLsRefCheck(OperationAbstract):
         if not outputs:
             logger.warning(f"{label}: no output to compare, it is not replayed.")
             return
+        assert self.model_description is not None
         default = self.model_description.default_experiment
         attributes = default.attrib if default is not None else {}
 
@@ -864,6 +918,7 @@ class OperationLsRefCheck(OperationAbstract):
                           ports: dict[str, ModelVariable]) -> list[str]:
         """Checks the stimuli or the references of an experiment; returns the names of their columns."""
         causality = "input" if kind == "stimuli" else "output"
+        assert source.path is not None
         try:
             series = read_csv(source.path)
         except TimeSeriesError as error:
@@ -884,6 +939,7 @@ class OperationLsRefCheck(OperationAbstract):
         return names
 
     def check_parameters(self, label: str, source: ExperimentSource, ports: dict[str, ModelVariable]):
+        assert source.path is not None
         try:
             parameters = read_parameter_set(source.path)
         except ExperimentsError as error:
@@ -903,6 +959,7 @@ class OperationLsRefCheck(OperationAbstract):
 
     def replay_experiments(self, ports: dict[str, ModelVariable]):
         """Replays the experiments on the FMU as it is now (repacked in a temporary directory)."""
+        assert self.fmu is not None
         with tempfile.TemporaryDirectory(prefix="fmutool-lsref-") as directory:
             fmu_filename = Path(directory) / Path(self.fmu.fmu_filename).name
             self.fmu.repack(str(fmu_filename))
@@ -918,10 +975,15 @@ class OperationLsRefCheck(OperationAbstract):
         label = f"Experiment '{experiment.name}' of '{ref_replay.related.source}'"
         logger.info(f"Simulating experiment '{experiment.name}' (rtol={self.rtol:g}, atol={self.atol:g}, "
                     f"timeout={self.timeout:g} s).")
+
+        def path(source: ExperimentSource) -> Path:
+            assert source.path is not None      # the files of a replayed experiment are found (check_experiment)
+            return source.path
+
         try:
-            references = read_csv(experiment.references.path) if experiment.references else None
-            stimuli = read_csv(experiment.stimuli.path) if experiment.stimuli else None
-            parameters = read_parameter_set(experiment.parameters.path) if experiment.parameters else None
+            references = read_csv(path(experiment.references)) if experiment.references else None
+            stimuli = read_csv(path(experiment.stimuli)) if experiment.stimuli else None
+            parameters = read_parameter_set(path(experiment.parameters)) if experiment.parameters else None
             simulated = replay(fmu_filename, experiment, ref_replay.outputs, stimuli, parameters, references,
                                timeout=self.timeout)
         except SimulationUnavailable:
@@ -1023,6 +1085,7 @@ def add_from_file(checker_filename: str):
         return
     try:
         checker_module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
         try:
             spec.loader.exec_module(checker_module)
         except (ImportError, SyntaxError) as error:
@@ -1030,7 +1093,7 @@ def add_from_file(checker_filename: str):
             return
 
         for checker_name, checker_class in inspect.getmembers(checker_module, inspect.isclass):
-            if OperationAbstract in checker_class.__bases__:
+            if OperationAbstract in checker_class.__bases__ and issubclass(checker_class, OperationAbstract):
                 _checkers_list.append(checker_class)
                 logger.info(f"Adding checker: {checker_filename}|{checker_name}")
 

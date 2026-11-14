@@ -5,10 +5,14 @@ Lists the reset ports of the (GUI-only) ConfigurationNode, and lets the user exp
 """
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
-    QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout,
     QAbstractItemView,
+    QHeaderView,
+    QLabel,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
 )
 
 

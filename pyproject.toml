@@ -67,7 +67,13 @@ test = [
     "fmpy >= 0.3.20",
     "numpy",
 ]
-all = ["fmu_manipulation_toolbox[gui,mcp,test]"]
+lint = [
+    # Static checks of the sources, configured in [tool.ruff] and [tool.mypy] below (see CONTRIBUTING.md).
+    "ruff >= 0.17",
+    "mypy >= 2.4",
+    "types-colorama",
+]
+all = ["fmu_manipulation_toolbox[gui,lint,mcp,test]"]
 
 [project.urls]
 Homepage = "https://github.com/grouperenault/fmu_manipulation_toolbox/"
@@ -133,3 +139,34 @@ fmu_manipulation_toolbox = [
 [tool.setuptools_scm]
 # Generated at build time (and by editable installs), read by fmu_manipulation_toolbox/version.py; not tracked by git.
 version_file = "fmu_manipulation_toolbox/_version.py"
+
+[tool.ruff]
+# The line length of the existing code. Lint only: `ruff format` is not applied to the existing code.
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+# The helpers of the test suite (tests/ is on the path of pytest, see tests/pytest.ini).
+known-first-party = ["fmu_manipulation_toolbox", "_helpers", "conftest"]
+
+[tool.ruff.lint.flake8-bugbear]
+# The Qt idiom of the item models: `parent=QModelIndex()`, an invalid index never modified.
+extend-immutable-calls = ["PySide6.QtCore.QModelIndex"]
+
+[tool.mypy]
+python_version = "3.10"
+files = ["fmu_manipulation_toolbox"]
+# The GUI and the assistant come in a later phase: neither checked nor followed through the imports of the other
+# modules (their errors would be reported otherwise).
+exclude = ['^fmu_manipulation_toolbox/(gui|assistant)/']
+
+[[tool.mypy.overrides]]
+module = ["fmu_manipulation_toolbox.gui.*", "fmu_manipulation_toolbox.assistant.*"]
+follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+# fmpy has neither types nor stubs.
+module = ["fmpy", "fmpy.*"]
+ignore_missing_imports = true

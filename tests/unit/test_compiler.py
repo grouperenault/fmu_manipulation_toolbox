@@ -6,13 +6,12 @@ Reference FMUs of `tests/data/compile`.
 
 The host platform is faked by patching `platform.system()` and `platform.machine()`.
 """
-import re
 import platform
+import re
 
 import pytest
 
 from _helpers.archive import rewrite_fmu
-
 from fmu_manipulation_toolbox import compiler
 from fmu_manipulation_toolbox.operations import FMU, OperationError
 
@@ -121,7 +120,7 @@ def test_build_configuration_of_the_host_platform(data_dir, tmp_path):
     <SourceFileSet><SourceFile name="cosimulation.c"/></SourceFileSet>
   </BuildConfiguration>
 </fmiBuildDescription>
-""".encode("utf-8")
+""".encode()
     fmu_filename = rewrite_fmu(data_dir / "compile" / "3.0" / "BouncingBall.fmu", tmp_path / "BouncingBall.fmu",
                                replace={"sources/buildDescription.xml": build_description})
 
@@ -207,7 +206,7 @@ def _custom_fmu(data_dir, tmp_path, source_file_set: str, libraries: str = ""):
     {libraries}
   </BuildConfiguration>
 </fmiBuildDescription>
-""".encode("utf-8")
+""".encode()
     return rewrite_fmu(data_dir / "compile" / "3.0" / "BouncingBall.fmu", tmp_path / "BouncingBall.fmu",
                        replace={"sources/buildDescription.xml": build_description,
                                 "sources/extra.cpp": b"", "sources/extra.c": b""})
@@ -233,7 +232,8 @@ def test_cxx_sources(data_dir, tmp_path, source_file_set):
 @pytest.mark.fmi3
 def test_compiler_options(data_dir, tmp_path, caplog):
     """D13: options are applied only for the compiler they are written for."""
-    fmu_filename = _custom_fmu(data_dir, tmp_path, '<SourceFileSet compiler="gcc" compilerOptions="-Wall -DX=&quot;a b&quot;">'
+    fmu_filename = _custom_fmu(data_dir, tmp_path, '<SourceFileSet compiler="gcc" '
+                                                   'compilerOptions="-Wall -DX=&quot;a b&quot;">'
                                                    '<SourceFile name="extra.c"/></SourceFileSet>')
     (with_options, without_options, _), _ = _commands(fmu_filename, GCC, tmp_path)
     assert {"-Wall", "-DX=a b"} <= set(with_options)

@@ -151,7 +151,8 @@ This installs the package in development mode (see [Step 4](#step-4-install-the-
 | `gui` | `PySide6`: graphical tools |
 | `mcp` | `fastmcp`, `uvicorn`: MCP server and AI Assistant |
 | `test` | `pytest`, `pytest-qt`, `pytest-cov`, `anybadge`, `fmpy`, `numpy`, `PySide6` |
-| `all` | `gui` + `mcp` + `test` |
+| `lint` | `ruff`, `mypy`, `types-colorama`: static checks of the sources (see `CONTRIBUTING.md`) |
+| `all` | `gui` + `lint` + `mcp` + `test` |
 
 The dependencies and their versions are declared in `pyproject.toml`.
 

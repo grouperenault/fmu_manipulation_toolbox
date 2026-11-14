@@ -12,10 +12,22 @@ from collections import deque
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal, QObject, QEvent, QUrl
+from PySide6.QtCore import QEvent, QObject, Qt, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QPixmap, QTextCharFormat, QTextCursor
-from PySide6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QPushButton,
-                               QSizePolicy, QStatusBar, QTextBrowser, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QSizePolicy,
+    QStatusBar,
+    QTextBrowser,
+    QVBoxLayout,
+    QWidget,
+)
 
 from fmu_manipulation_toolbox.gui.helper import LastDirectory, MenuSelector
 from fmu_manipulation_toolbox.gui.style import log_color
@@ -50,7 +62,8 @@ def save_log_text(parent, text: str):
         QMessageBox.critical(parent, "Save Logs", f"Cannot save logs: {e}")
 
 
-#: Owner window pinned by ``window_log_context``; ``_NOT_PINNED`` lets the handler use the window of the last user event.
+#: Owner window pinned by ``window_log_context``; ``_NOT_PINNED`` lets the handler use the window of the last user
+#: event.
 _NOT_PINNED = object()
 _pinned_owner: contextvars.ContextVar = contextvars.ContextVar("fmu_manipulation_toolbox_log_owner",
                                                                default=_NOT_PINNED)

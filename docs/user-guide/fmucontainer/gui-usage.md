@@ -631,7 +631,7 @@ When a container is selected in the tree view, the detail panel shows its config
 | Parameter | Type | Description |
 |---|---|---|
 | `step_size` | text | Fixed time step (in seconds) for the container's internal solver; when empty, deduced from the embedded FMUs (see [Step Size Column](#step-size-column)) |
-| `mt` | checkbox | Enable multi-threading (each FMU runs in its own thread) |
+| `mt` | checkbox | Enable multi-threading (the FMUs with a long step run on worker threads, see [Multi-Threading](container.md#multi-threading)) |
 | `profiling` | checkbox | Enable performance profiling of embedded FMUs |
 | `sequential` | checkbox | Force sequential execution order |
 | `auto_link` | checkbox | Automatically link ports with matching names and types |
@@ -639,6 +639,7 @@ When a container is selected in the tree view, the detail panel shows its config
 | `auto_output` | checkbox | Automatically expose unconnected output ports |
 | `auto_parameter` | checkbox | Automatically expose parameter ports |
 | `auto_local` | checkbox | Automatically expose local variables |
+| `mt_threshold` | number | Multi-threading: mean step, in seconds, from which an FMU gets a thread (`5e-05` by default, see [Multi-Threading](container.md#multi-threading)) |
 | `ts_multiplier` | checkbox | Add a `TS_MULTIPLIER` input for dynamic step size control |
 | `reset_ports` | checkbox | Add a reset input to each FMU of the container (see [Reset of Embedded FMUs](container-reset.md)) |
 

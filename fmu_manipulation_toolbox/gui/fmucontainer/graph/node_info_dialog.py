@@ -1,11 +1,16 @@
 """Dialog showing FMU node information with the option to select an alternative FMU file."""
 
 from PySide6.QtWidgets import (
-    QDialog, QLabel, QLineEdit, QPushButton,
-    QHBoxLayout, QVBoxLayout,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QVBoxLayout,
 )
 
 from fmu_manipulation_toolbox.gui.helper import LastDirectory
+
 from .node import NodeItem
 
 

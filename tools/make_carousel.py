@@ -18,9 +18,21 @@ import argparse
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QRectF, QPointF, QSizeF, QMarginsF
-from PySide6.QtGui import (QGuiApplication, QImage, QPainter, QColor, QFont, QPainterPath, QPdfWriter, QPageSize,
-                           QPageLayout, QLinearGradient, QPen, QFontMetricsF)
+from PySide6.QtCore import QMarginsF, QPointF, QRectF, QSizeF, Qt
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetricsF,
+    QGuiApplication,
+    QImage,
+    QLinearGradient,
+    QPageLayout,
+    QPageSize,
+    QPainter,
+    QPainterPath,
+    QPdfWriter,
+    QPen,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "fmu_manipulation_toolbox" / "resources"
@@ -220,7 +232,7 @@ def cover(p, n, total):
     p.setFont(font(23, True))
     widths = [QFontMetricsF(p.font()).horizontalAdvance(c) + 44 for c in chips]
     x = (W - sum(widths) - 20 * (len(chips) - 1)) / 2
-    for chip, width in zip(chips, widths):
+    for chip, width in zip(chips, widths, strict=True):
         rect = QRectF(x, 1060, width, 58)
         path = QPainterPath()
         path.addRoundedRect(rect, 29, 29)

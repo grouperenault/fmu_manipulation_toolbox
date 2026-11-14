@@ -14,10 +14,15 @@ import pytest
 
 from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
 from fmu_manipulation_toolbox.assistant.tools import TOOLS
-from fmu_manipulation_toolbox.version import __version__ as version
 from fmu_manipulation_toolbox.cli.fmutool_agent import (
-    ASSEMBLY_TOOLS, CHANGING_TOOLS, EXIT_TOOL_ERROR, EXIT_USAGE_ERROR, parameters, run,
+    ASSEMBLY_TOOLS,
+    CHANGING_TOOLS,
+    EXIT_TOOL_ERROR,
+    EXIT_USAGE_ERROR,
+    parameters,
+    run,
 )
+from fmu_manipulation_toolbox.version import __version__ as version
 
 pytestmark = [pytest.mark.unit]
 
@@ -51,7 +56,8 @@ def test_the_tool_lists_agree():
 
 def test_the_tools_and_their_parameters_are_those_of_the_server():
     pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
-    from _helpers.assistant_bridge import FakeBridge, input_schema, inventory, run as run_async
+    from _helpers.assistant_bridge import FakeBridge, input_schema, inventory
+    from _helpers.assistant_bridge import run as run_async
 
     tools, _ = run_async(inventory(FakeBridge()))
     published = {tool.name: input_schema(tool) for tool in tools}
@@ -128,6 +134,7 @@ def _scenario(directory):
 def _through_the_server(directory):
     pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
     import fastmcp
+
     from _helpers.assistant_bridge import run as run_async
     from fmu_manipulation_toolbox.assistant import PathPolicy, build_server
 
@@ -147,7 +154,7 @@ def test_a_session_gives_the_same_results_through_both(fmus, capsys):
     expected = _through_the_server(fmus)
     state = fmus / "state.json"
 
-    for (tool, arguments), wanted in zip(_scenario(fmus), expected):
+    for (tool, arguments), wanted in zip(_scenario(fmus), expected, strict=True):
         # `describe_port` takes the state when it is given: the port of an FMU of the assembly, by its name.
         with_state = tool in ASSEMBLY_TOOLS or tool == "describe_port"
         code, result = agent(capsys, tool, arguments, state if with_state else None, "--root", str(fmus))

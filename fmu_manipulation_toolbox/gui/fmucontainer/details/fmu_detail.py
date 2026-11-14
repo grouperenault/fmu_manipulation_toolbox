@@ -5,11 +5,18 @@ Contains classes for displaying and editing FMU node details (start values, outp
 """
 
 
-from PySide6.QtCore import Qt, Signal, QSortFilterProxyModel
-from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor
+from PySide6.QtCore import QSortFilterProxyModel, Qt, Signal
+from PySide6.QtGui import QColor, QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
-    QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout,
-    QStyledItemDelegate, QAbstractItemView, QTabWidget, QMenu,
+    QAbstractItemView,
+    QHeaderView,
+    QLabel,
+    QMenu,
+    QStyledItemDelegate,
+    QTableView,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem
@@ -67,7 +74,8 @@ class _CheckableSortProxy(QSortFilterProxyModel):
         left_data = self.sourceModel().itemFromIndex(left)
         right_data = self.sourceModel().itemFromIndex(right)
         if left_data and left_data.isCheckable():
-            return int(left_data.checkState() == Qt.CheckState.Checked) < int(right_data.checkState() == Qt.CheckState.Checked)
+            return (int(left_data.checkState() == Qt.CheckState.Checked) <
+                    int(right_data.checkState() == Qt.CheckState.Checked))
         return super().lessThan(left, right)
 
 

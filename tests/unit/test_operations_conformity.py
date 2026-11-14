@@ -12,9 +12,14 @@ from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.operations import (FMU, OperationError, OperationKeepOnlyRegexp,
-                                                 OperationMergeTopLevel, OperationRemoveRegexp,
-                                                 OperationStripTopLevel)
+from fmu_manipulation_toolbox.operations import (
+    FMU,
+    OperationError,
+    OperationKeepOnlyRegexp,
+    OperationMergeTopLevel,
+    OperationRemoveRegexp,
+    OperationStripTopLevel,
+)
 
 pytestmark = [pytest.mark.unit]
 
@@ -50,7 +55,7 @@ FMI2_ME = """<?xml version="1.0" encoding="UTF-8"?>
     <Derivatives><Unknown index="3" dependencies="2"/></Derivatives>
   </ModelStructure>
 </fmiModelDescription>
-"""
+"""  # noqa: E501
 
 FMI3_ME = """<?xml version="1.0" encoding="UTF-8"?>
 <fmiModelDescription fmiVersion="3.0" modelName="m" instantiationToken="{8c4e810f-3df3-4a00-8276-176fa3c9f000}">

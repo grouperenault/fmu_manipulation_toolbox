@@ -479,37 +479,6 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
 }
 
 
-static void *fmu_do_step_thread(fmu_t* fmu) {
-    container_t* container =fmu->container;
-    const logger_t *logger = &container->logger;
-
-    /* barriers_ready is set before the gate is opened: false if the threads could not all be started */
-    thread_gate_wait(&container->threads_gate);
-    if (!container->barriers_ready)
-        return NULL;
-
-    while (true) {
-        thread_barrier_wait(&container->barrier_start);   /* WAIT 1st SYNC */
-
-        fmu->status = FMU_STATUS_ERROR;
-
-        if (container->cancel)
-            break;
-
-        fmu->status = fmuDoStep(fmu, 
-                                container->time,
-                                container->next_step);
-        
-        if (fmu->status != FMU_STATUS_OK)
-            LOGGER_ERROR("Container: FMU '%s' failed doing step. %d", fmu->name, fmu->status);
-
-        thread_barrier_wait(&container->barrier_end);   /* WAIT 2nd SYNC */
-    }
-
-    return NULL;
-}
-
-
 static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version, fmu_kind_t kind){
     const logger_t *logger = &fmu->container->logger;
     int status = 0;
@@ -760,18 +729,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     else
         fmu->profile = NULL;
 
-    fmu->thread = NULL;
-
     return 0;
-}
-
-
-int fmu_launch_thread(fmu_t *fmu) {
-    const logger_t *logger = &fmu->container->logger;
-    LOGGER_DEBUG("FMU '%s' thread launched.", fmu->name);
-    fmu->thread = thread_new((thread_function_t)fmu_do_step_thread, fmu);
-
-    return fmu->thread ? 0 : -1;
 }
 
 
