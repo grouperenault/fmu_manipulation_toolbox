@@ -25,12 +25,7 @@ unchanged, and make the development documentation clearly identifiable.
 | 2 | Identification of the development docs | The `integration` build replaces the "2.0 is out" announcement with a banner "Development version (`integration` branch)" linking to the stable documentation |
 | 3 | Base branch of the work | `integration` (the workflow has to be on `integration` to trigger on its pushes). `main` gets the change at the next `integration` → `main` merge |
 | 4 | Strict build gate | The `integration` deployment needs the `mkdocs build --strict` job (`needs: build`). The `main` deployment keeps its current behaviour (not gated) |
-
-## Open question
-
-| # | Question | Proposal |
-|---|----------|----------|
-| 5 | `workflow_dispatch` on another branch | Today the `deploy` job runs for any manual run (`if: github.event_name != 'pull_request'`), so a manual run from a feature branch publishes that branch at the root of the site. Proposal: the stable deployment runs only for `refs/heads/main`, the development one only for `refs/heads/integration`; a manual run on another branch only builds |
+| 5 | Manual runs (`workflow_dispatch`) | Restricted by branch: the stable deployment runs only for `refs/heads/main`, the development one only for `refs/heads/integration`; a manual run on any other branch only builds (until now, a manual run from any branch published that branch at the root of the site) |
 
 ## Design
 
@@ -95,7 +90,8 @@ banner linking to the stable documentation.
 ### Step 2 — Deployment of both channels
 
 - `make_doc.yml`: trigger on pushes to `main` and `integration`; `deploy` replaced by `deploy-stable` and
-  `deploy-integration` as described above (conditions according to the answer to question 5).
+  `deploy-integration` as described above, restricted to `refs/heads/main` and
+  `refs/heads/integration` respectively (decision 5).
 - Check: `actionlint` if available, dry run of the `rsync` commands locally on a copy of `gh-pages`
   (stable run keeps `integration/`, integration run touches only `integration/`).
 
