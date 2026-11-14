@@ -39,9 +39,13 @@ Requires-Dist: pytest-cov>=7.0.0; extra == "test"
 Requires-Dist: anybadge>=1.16.0; extra == "test"
 Requires-Dist: fmpy>=0.3.20; extra == "test"
 Requires-Dist: numpy; extra == "test"
-Requires-Dist: fmu_manipulation_toolbox[gui,mcp,test]; extra == "all"
+Requires-Dist: ruff>=0.17; extra == "lint"
+Requires-Dist: mypy>=2.4; extra == "lint"
+Requires-Dist: types-colorama; extra == "lint"
+Requires-Dist: fmu_manipulation_toolbox[gui,lint,mcp,test]; extra == "all"
 Provides-Extra: mcp
 Provides-Extra: gui
 Provides-Extra: test
+Provides-Extra: lint
 Provides-Extra: all
 Description-Content-Type: text/markdown

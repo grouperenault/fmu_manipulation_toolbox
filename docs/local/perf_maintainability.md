@@ -90,6 +90,10 @@ Taken on 14 November 2026 when writing the plan:
   `container_perf.md`). The bench case F-outputs (step 3.1) is kept. The changes are kept in a local `git stash`
   (`phase 3 of perf_maintainability (getters from locals), abandoned by D2`). Consequences: the datalog keeps reading
   the outputs through the getters (phase 6); version 10 of `container.txt` is left to phase 5 (Q8).
+- **D8 — Decisions of the phase 4** (14 November 2026): Q4 as recommended (`E, F, W, I, UP, B`, 120, lint only);
+  Q5 as recommended, with `follow_imports = "skip"` on `gui/` and `assistant/` (otherwise mypy reports their errors
+  through the imports of the other modules) and `ignore_missing_imports` on `fmpy` only (the only package without
+  types); Q6 **report only**: the `lint` job does not fail the CI (`continue-on-error`); Q7 no `pre-commit`.
 
 ### Open points, to decide before the phase starts
 
@@ -190,7 +194,7 @@ before the phase is replaced.
   and by file, kept in this plan (§7); the rules whose fixes are mechanical (`I`, `UP`, unused imports) are applied
   with `--fix`, the others by hand, file by file, without changing a behaviour; a rule that does not fit the code is
   ignored with a reason in `pyproject.toml`.
-- CI: a `lint` job in `ci.yml` (Ubuntu, newest Python), before the test jobs, blocking (Q6).
+- CI: a `lint` job in `ci.yml` (Ubuntu, newest Python), in parallel with the test jobs, report only (Q6, D8).
 - `CONTRIBUTING.md`: how to run them.
 
 ### 4.5 Phase 5 — Hybrid multi-thread mode
@@ -530,3 +534,33 @@ nanoseconds each, as `container_perf.md` D10 found). What the phase changes is t
 embedded FMUs per communication step of F-outputs: 100 getter calls plus 95 link reads before, 20 grouped reads
 after (one per FMU and type). The gain shows with FMUs whose calls are costly (remoting, tool-generated FMUs), which
 this benchmark does not have. **Decision D2 applied** on 14 November 2026: the phase is reverted (D7).
+
+### Phase 4
+
+Baseline of step 4.1 (14 November 2026, macOS, Python 3.14, `ruff` 0.17.5, `mypy` 2.4.1), with the configuration of
+`pyproject.toml` (D8).
+
+`ruff check fmu_manipulation_toolbox tests tools`: **344** errors (package 170, `tests` 140, `tools` 16), 190 fixable
+with `--fix` (40 more with `--unsafe-fixes`).
+
+| Rule | Count | Fix | Rule | Count | Fix |
+|---|---|---|---|---|---|
+| I001 unsorted-imports | 148 | auto | B017 assert-raises-exception | 2 | hand |
+| E501 line-too-long | 76 | hand | W293 blank-line-with-whitespace | 2 | auto |
+| B905 zip-without-explicit-strict | 23 | hand | B023 function-uses-loop-variable | 2 | hand |
+| F541 f-string-missing-placeholders | 21 | auto | B006 mutable-argument-default | 2 | hand |
+| B904 raise-without-from-inside-except | 11 | hand | W291 trailing-whitespace | 2 | hand |
+| F405 undefined-local-with-import-star-usage | 11 | hand | F401 unused-import | 2 | auto |
+| B007 unused-loop-control-variable | 11 | hand | UP028 yield-in-for-loop | 2 | hand |
+| UP015 redundant-open-modes | 10 | auto | UP033 lru-cache-with-maxsize-none | 1 | auto |
+| B008 function-call-in-default-argument | 8 | hand | E713 not-in-test | 1 | auto |
+| UP012 unnecessary-encode-utf8 | 5 | auto | F403 undefined-local-with-import-star | 1 | hand |
+| E741 ambiguous-variable-name | 2 | hand | B018 useless-expression | 1 | hand |
+
+`mypy` (`fmu_manipulation_toolbox` without `gui/` and `assistant/`): **139** errors in 17 files (37 checked); by
+code: `assignment` 49, `arg-type` 31, `union-attr` 18, `return-value` 10, `misc` 10, `var-annotated` 9, `operator` 6,
+`index` 6. By file: `assembly.py` 26, `checker.py` 20, `ssp.py` 16, `compiler.py` 16, `split.py` 8, `remoting.py` 8,
+`container/embedded.py` 8, `simulation.py` 7, `operations.py` 7, `container/txt.py` 7, `container/builder.py` 6,
+`model_description.py` 3, `container/layout.py` 2, `cli/fmutool_agent.py` 2, `experiments.py` 1, `container/xcp.py` 1,
+`container/rules.py` 1. The bodies of the functions without annotations are not checked (`check_untyped_defs` off,
+the default: 92 notes). The whole package, `gui/` and `assistant/` included, gives 235 errors.
