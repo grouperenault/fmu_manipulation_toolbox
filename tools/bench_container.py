@@ -170,6 +170,60 @@ def many_outputs():
     return outputs, {}
 
 
+#: Iterations of the loop added to `doStep` of `Slow.fmu`: about 100 µs on a laptop (Apple M4).
+SLOW_ITERATIONS = 50_000
+#: Instances of the light and of the slow Feedthrough in the cases G
+LIGHT_INSTANCES, SLOW_INSTANCES = 8, 4
+
+
+def slow_feedthrough():
+    """`Slow.fmu`: `Feedthrough.fmu` compiled for the host, its `fmi3DoStep` running a loop of `SLOW_ITERATIONS`
+    iterations first (a fixed amount of work, whatever the threads)."""
+    from fmu_manipulation_toolbox.compiler import OperationCompileSources
+    from fmu_manipulation_toolbox.operations import FMU
+
+    if Path("Slow.fmu").exists():
+        return
+    with zipfile.ZipFile("Feedthrough.fmu") as zin, zipfile.ZipFile("slow-sources.fmu", "w") as zout:
+        for item in zin.infolist():
+            if item.filename == "modelDescription.xml" or item.filename.startswith("sources/"):
+                data = zin.read(item.filename)
+                if item.filename == "sources/fmi3Functions.c":
+                    patched = data.replace(b"    BEGIN_FUNCTION(DoStep);\n",
+                                           b"    BEGIN_FUNCTION(DoStep);\n"
+                                           b"    { volatile double work = 0.0;\n"
+                                           b"      for (long i = 0; i < " + str(SLOW_ITERATIONS).encode() +
+                                           b"; i += 1) work += 1e-9; }\n", 1)
+                    if patched == data:
+                        raise RuntimeError("fmi3DoStep not found in the sources of Feedthrough.fmu")
+                    data = patched
+                zout.writestr(item, data)
+    with FMU("slow-sources.fmu") as fmu:
+        fmu.apply_operation(OperationCompileSources())
+        fmu.repack("Slow.fmu")
+
+
+def heavy_and_light(mode: str) -> tuple[list[str], dict]:
+    """A chain of light Feedthrough instances and of a few slow ones (`Slow.fmu`), on their `Float64` ports: the
+    case of the hybrid multi-thread mode, where only the slow FMUs are worth a thread."""
+    slow_feedthrough()
+    container = FMUContainer("bench", ".", fmi_version=3)
+    container.get_fmu("VanDerPol.fmu")
+    names = [f"Feedthrough-{i}.fmu" for i in range(LIGHT_INSTANCES)] + [f"Slow-{i}.fmu" for i in range(SLOW_INSTANCES)]
+    for name in names:
+        container.get_fmu(name.split("-")[0] + ".fmu", name=name)
+    container.add_link("VanDerPol.fmu", "x0", names[0], "Float64_continuous_input")
+    for upstream, downstream in zip(names, names[1:], strict=False):
+        container.add_link(upstream, "Float64_continuous_output", downstream, "Float64_continuous_input")
+    container.add_output(names[-1], "Float64_continuous_output", "y")
+    container.make_fmu("bench.fmu", step_size=STEP_SIZE, mt=mode == "mt")
+    return ["y"], {}
+
+
+for _mode, _stop_time in (("parallel", 2.5), ("mt", 2.5)):
+    case(f"G-{_mode}", _stop_time)(lambda mode=_mode: heavy_and_light(mode))
+
+
 def exchange_calls(txt: Path) -> tuple[int, int]:
     """FMI calls of the input and output exchanges of every FMU for one internal step: port by port, and grouped
     by type (strings and binaries stay port by port), from the per-FMU sections of `container.txt`."""

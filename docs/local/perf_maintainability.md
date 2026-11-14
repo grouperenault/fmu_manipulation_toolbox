@@ -579,6 +579,22 @@ embedded FMUs per communication step of F-outputs: 100 getter calls plus 95 link
 after (one per FMU and type). The gain shows with FMUs whose calls are costly (remoting, tool-generated FMUs), which
 this benchmark does not have. **Decision D2 applied** on 14 November 2026: the phase is reverted (D7).
 
+### Phase 5
+
+`python tools/bench_container.py A-parallel A-mt G-parallel G-mt --runs 5`, 3 rounds, on macOS (Apple M4, 4
+performance and 6 efficiency cores, `hw.ncpu` 10), 14 November 2026; time of the `doStep` loop in seconds, best min
+and best mean of the rounds. G: 8 light `Feedthrough` and 4 `Slow.fmu` (`Feedthrough` with a loop of 50 000
+iterations in `fmi3DoStep`, about 100 µs) chained on their `Float64` ports, stop time 2.5 s (2 500 internal steps).
+The digests of a mode do not change between the rounds; G-parallel and G-mt give the same digest (A-mt has another
+stop time than A-parallel).
+
+| Case | Before (step 5.2) | After (step 5.4) |
+|---|---|---|
+| A-parallel | 0.769 / 0.784 | |
+| A-mt | 1.174 / 1.183 | |
+| G-parallel | 1.051 / 1.060 | |
+| G-mt | 0.394 / 0.399 | |
+
 ### Phase 4
 
 Baseline of step 4.1 (14 November 2026, macOS, Python 3.14, `ruff` 0.17.5, `mypy` 2.4.1), with the configuration of
