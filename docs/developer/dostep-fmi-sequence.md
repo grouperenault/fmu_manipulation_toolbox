@@ -136,7 +136,7 @@ A value refused by an FMU is reported by the call that synchronizes it (`fmi*DoS
   `fmu_io`.
 - In the **multi-thread** mode, the first `MT_WARMUP` (20) internal steps run as the mono-thread parallel mode
   (`container_do_one_step_warmup()`), timing `fmi*DoStep` of each CS FMU. Then `container_dispatch()` gives the
-  heavy FMUs (mean step at least `<MT_THRESHOLD>` of `container.txt`) to a pool of worker threads; at each step
+  heavy FMUs (mean step at least `<MT_THRESHOLD_US>` of `container.txt`) to a pool of worker threads; at each step
   (`container_do_one_step_hybrid()`), the main thread sets the inputs of every CS FMU, releases the workers
   (`barrier_start`), steps the light FMUs, waits for the workers (`barrier_end`) and gets the outputs of every CS
   FMU. Without heavy FMU, the mono-thread parallel mode goes on.

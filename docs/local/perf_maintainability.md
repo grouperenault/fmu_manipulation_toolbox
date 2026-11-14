@@ -16,7 +16,7 @@ are done. The discrete real inputs of the Model-Exchange FMUs set in Continuous 
 | 3 | The getters of the container read the outputs of the embedded FMUs from the local variables — **abandoned** (D7) | performance |
 | 4 | `ruff` and `mypy` on the Python package | maintainability |
 | 5 | Hybrid multi-thread mode | performance |
-| 6 | Datalog: output buffer and decimation | performance |
+| 6 | Datalog: output buffer | performance |
 
 Each phase ends with its tests, its documentation and a commit; the user documentation and `CHANGELOG.md` are
 updated at the end of each phase that changes a behaviour (1, 3, 5, 6).
@@ -56,7 +56,7 @@ microseconds.
 4. `ruff` and `mypy` pass on the package, in the CI.
 5. The multi-thread mode is never slower than the mono-thread mode, and the exchanges of a costly FMU (remoting,
    tool-generated FMUs) run in parallel.
-6. The datalog costs less and can be decimated.
+6. The datalog costs less (D11: no decimation).
 
 Non-goals: the discrete inputs of the ME FMUs (own plan); the performance of the ME solver (sub-step, RK4); the
 grouping of the FMI calls (abandoned, `container_perf.md` D10).
@@ -111,6 +111,11 @@ Taken on 14 November 2026 when writing the plan:
   semantics, and its gain (costly FMI calls) cannot be measured here (as D7). `mt_threshold` is exposed in the API,
   the JSON, the CLI, `fmusplit` and the SSP container options; not in the GUI nor the MCP assistant (later).
 
+- **D11 — Review of the phase 5 and decisions of the phase 6** (14 November 2026): the threshold is written in
+  `container.txt` in µs, an integer (`<MT_THRESHOLD_US>`), the API, the JSON and the CLI keeping seconds. Phase 6:
+  **no decimation** of the datalog (Q11 and Q12 dropped, nor `-datalog-every`); Q13: a buffer of 1 MiB
+  (`setvbuf`), flushed at the end of each `fmi*DoStep` of the container, so that a crash of the importer loses one
+  communication step at most.
 ### Open points, to decide before the phase starts
 
 | # | Phase | Question | Recommendation |
@@ -231,20 +236,19 @@ Decided on 14 November 2026 (D10); replaces the design written with the plan.
   stay on the main thread: a worker running `fmu_set_inputs()` and `fmu_get_outputs()` of its FMU would write local
   variables that another worker may still be reading (Q10).
 - **Synchronization**: `barrier_start` and `barrier_end` as today, sized `workers + 1`.
-- **Threshold** (Q8): `MT_THRESHOLD` seconds, default 50 µs. Flags line of `container.txt`:
-  `<MT> <Profiling> <Sequential> <MT_THRESHOLD>`, version 10. Exposed as `make_fmu(..., mt_threshold=...)`,
-  `AssemblyNode(mt_threshold=...)`, JSON `"mt_threshold"`, CLI `-mt-threshold <seconds>`, read back by `fmusplit` and
-  kept by the SSP container options (D10). A threshold of 0 makes every CS FMU heavy.
+- **Threshold** (Q8): default 50 µs, given in seconds by the API, the JSON and the CLI. Flags line of
+  `container.txt`: `<MT> <Profiling> <Sequential> <MT_THRESHOLD_US>`, version 10, in µs (an integer, D11). Exposed
+  as `make_fmu(..., mt_threshold=...)`, `AssemblyNode(mt_threshold=...)`, JSON `"mt_threshold"`, CLI
+  `-mt-threshold <seconds>`, read back by `fmusplit` and kept by the SSP container options (D10). A threshold of 0
+  makes every CS FMU heavy.
 - The mode is reported once at the end of the warm-up (`LOGGER_WARNING`, as the mode today), with the heavy FMUs and
   their worker.
 
 ### 4.6 Phase 6 — Datalog
 
-- `datalog_configure()`: `setvbuf()` (Q13); the file is flushed at `container_terminate()` and freed at
-  `container_free()` as today.
-- Decimation (Q11, Q12): `datalog->every` (default 1), `datalog->countdown`; `datalog_log()` of the regular steps
-  writes a row when the countdown reaches zero; the event rows and the first row (start time) are always written.
-- `make_datalog()`: the second line; `datalog_configure()` reads it if present.
+- `datalog_configure()`: `setvbuf()` of 1 MiB (Q13); the file is flushed at the end of each `fmi*DoStep` of the
+  container (a function `datalog_flush()`), and closed at `container_free()` as today.
+- No decimation (D11): `datalog.txt` and its options are unchanged.
 
 ---
 
@@ -491,31 +495,31 @@ Commit message:
 Bench: case H-datalog
 ```
 
-#### Step 6.2 — Buffer and decimation
+#### Step 6.2 — Output buffer
 
-- `datalog.c` / `datalog.h`: 4.6; `builder.py` (`make_datalog()`), `cli/fmucontainer.py`, `assembly.py` (JSON,
-  API), GUI (`gui/fmucontainer/details`: the configuration panel, next to **Enable Datalog**).
-- C tests (`test_datalog.c`): decimation 3 on 10 steps gives the rows 0, 3, 6, 9 plus the event rows; a reader
-  without the second line (datalog of a previous version) gets 1.
-- Python tests: `tests/integration/test_datalog.py`, `test_datalog2pcap.py` (the LS-BUS rows are event rows: all
-  kept), GUI test of the option.
+- `datalog.c` / `datalog.h`, `fmi2.c` / `fmi3.c` (the flush at the end of `fmi*DoStep`): 4.6.
+- C tests (`test_datalog.c`): the rows of a step are in the file once the step returns.
+- Python tests: `tests/integration/test_datalog.py`, `test_datalog2pcap.py`, the REF files unchanged.
 
 Commit message:
 ```
-Container datalog: output buffer and decimation (-datalog-every)
+Container datalog: 1 MiB output buffer, flushed at each communication step
 
-The datalog file gets a 1 MiB buffer, and an option writes one row every N
-internal steps; the rows of the events and the first row are always written.
+The rows of the datalog were written through the default buffer of the C
+library; they now go through a buffer of 1 MiB, flushed when the container
+returns from fmi*DoStep: a crash of the importer loses one communication
+step at most.
 ```
 
 #### Step 6.3 — Measurement after and documentation
 
-- A/B run (D2): H-datalog; results in §7.
-- `docs/user-guide/fmucontainer/datalog.md`, `container.md` (options table, JSON), `CHANGELOG.md` (ADDED).
+- A/B run (D2): H-datalog; results in §7. Reverted if no measurable gain (D2).
+- `docs/user-guide/fmucontainer/datalog.md` (the file is complete at the end of each communication step),
+  `docs/developer/native-runtime.md`, `CHANGELOG.md` (CHANGED).
 
 Commit message:
 ```
-Doc: datalog buffer and decimation
+Doc: datalog output buffer
 ```
 
 ---

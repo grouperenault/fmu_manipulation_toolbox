@@ -74,30 +74,30 @@ refused when the container is instantiated, with one of the errors:
 | 7 | 2.0b2 | Reset trigger of each embedded FMU (`container.<fmu>.reset`), after its conversion table; initialization order of the embedded FMUs, after their declarations |
 | 8 | 2.1 | Importer clocks: all the time-based clocks, with `<VARIABILITY> <INTERVAL> <SHIFT>` |
 | 9 | 2.1 | `<has_configuration_mode>` of each embedded FMU (CS and ME lines); start values `<RESET>=2` of the structural parameters, set in Configuration Mode (FMI-LS-XCP) |
-| 10 | 2.1 | `<MT_THRESHOLD>` on the flags line: the hybrid multi-thread mode |
+| 10 | 2.1 | `<MT_THRESHOLD_US>` on the flags line: the hybrid multi-thread mode |
 
 ---
 
 ## 2. Container Flags
 
 ```
-# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD>
-<MT> <Profiling> <Sequential> <MT_THRESHOLD>
+# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD_US>
+<MT> <Profiling> <Sequential> <MT_THRESHOLD_US>
 ```
 
-Three integer flags (0 or 1) and a real:
+Three integer flags (0 or 1) and an integer:
 
 | Flag | Meaning |
 |------|---------|
 | `MT` | Enable multi-threaded parallel execution of embedded FMUs |
 | `Profiling` | Enable profiling (RT ratio outputs per FMU) |
 | `Sequential` | Use sequential scheduling (each FMU computes one after another with immediate output propagation) |
-| `MT_THRESHOLD` | Seconds (`5e-05` by default): with `MT=1`, a Co-Simulation FMU whose mean `doStep` over the first `MT_WARMUP` (20) internal steps takes at least this duration is stepped by a worker thread |
+| `MT_THRESHOLD_US` | Microseconds (`50` by default; the API and the CLI give seconds, rounded to the µs): with `MT=1`, a Co-Simulation FMU whose mean `doStep` over the first `MT_WARMUP` (20) internal steps takes at least this duration is stepped by a worker thread |
 
 **Execution mode logic** (C runtime):
 - If `Sequential=1`: sequential mode (set inputs → doStep → get outputs per FMU, in order)
 - Else if `MT=1`: hybrid multi-thread mode. The first `MT_WARMUP` internal steps run as the single-thread parallel
-  mode, timing the `doStep` of each CS FMU; then the heavy FMUs (mean at least `MT_THRESHOLD`) are stepped by
+  mode, timing the `doStep` of each CS FMU; then the heavy FMUs (mean at least `MT_THRESHOLD_US`) are stepped by
   `min(heavy FMUs, cores - 1)` worker threads (longest first, to the least loaded worker), the light ones by the main
   thread meanwhile; the inputs and outputs are exchanged by the main thread, as in the single-thread parallel mode.
   Without heavy FMU, the single-thread parallel mode goes on.
@@ -107,7 +107,7 @@ Three integer flags (0 or 1) and a real:
 
 - **Version 0/1**: The MT flag and profiling flag were on separate lines.
 - **Version ≥ 2**: All three flags are on a single space-separated line.
-- **Version ≥ 10**: `<MT_THRESHOLD>` follows the three flags.
+- **Version ≥ 10**: `<MT_THRESHOLD_US>` follows the three flags.
 
 ---
 

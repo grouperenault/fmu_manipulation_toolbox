@@ -1139,9 +1139,9 @@ class FMUContainer:
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
                      layout: ContainerLayout, mt_threshold: float = MT_THRESHOLD):
         print(f"# Version {CONTAINER_TXT_VERSION}", file=txt_file)
-        print("# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD>", file=txt_file)
+        print("# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD_US>", file=txt_file)
         flags = [str(int(bool(flag))) for flag in (mt, profiling, sequential)]
-        print(" ".join(flags + [repr(float(mt_threshold))]), file=txt_file)
+        print(" ".join(flags + [str(round(mt_threshold * 1e6))]), file=txt_file)
 
         print("# Internal time step in seconds", file=txt_file)
         print(f"{step_size}", file=txt_file)

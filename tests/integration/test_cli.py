@@ -52,7 +52,7 @@ def test_fmucontainer_mt_threshold(area_dir):
                 "0.002", "-debug"]
     fmucontainer()
     lines = Path("cli-bouncing/resources/container.txt").read_text().splitlines()
-    assert lines[lines.index("# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD>") + 1] == "1 0 0 0.002"
+    assert lines[lines.index("# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD_US>") + 1] == "1 0 0 2000"
 
 
 @pytest.mark.area("containers/arch")

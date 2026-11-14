@@ -15,7 +15,7 @@ extern "C" {
 #define CONTAINER_TXT_VERSION		10
 
 /* Multi-thread mode: internal steps of the warm-up, run in the mono-thread parallel mode while the fmuDoStep of each
- * Co-Simulation FMU is timed; then the FMUs whose mean is at least the threshold (<MT_THRESHOLD> of container.txt) are
+ * Co-Simulation FMU is timed; then the FMUs whose mean is at least the threshold (<MT_THRESHOLD_US> of container.txt) are
  * stepped by worker threads. */
 #define MT_WARMUP					20
 
@@ -220,7 +220,7 @@ typedef struct container_s {
 	bool						need_event_update;
 
 	bool						mt;						/* true if FMUs are executed in parallel */
-	double						mt_threshold;			/* s: a CS FMU whose mean fmuDoStep is at least this is heavy */
+	unsigned long				mt_threshold_us;		/* us: a CS FMU whose mean fmuDoStep is at least this is heavy */
 	unsigned int				mt_warmup;				/* internal steps of the warm-up left (mt) */
 	bool						cancel;					/* set once to stop all FMU worker threads */
 

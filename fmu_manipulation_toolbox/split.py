@@ -298,8 +298,8 @@ class FMUSplitterDescription:
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = flags[1] == "1"
             self.config["sequential"] = flags[2] == "1"
-            if len(flags) >= 4 and float(flags[3]) != MT_THRESHOLD:    # format ≥ 10
-                self.config["mt_threshold"] = float(flags[3])
+            if len(flags) >= 4 and int(flags[3]) / 1e6 != MT_THRESHOLD:     # format ≥ 10, in µs
+                self.config["mt_threshold"] = int(flags[3]) / 1e6
             if self.file_format == 1:
                 self.file_format = 2
             logger.debug(f"File format: {self.file_format}")

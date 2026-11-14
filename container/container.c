@@ -1430,22 +1430,23 @@ static int read_version(config_file_t* file) {
 static int read_flags(container_t* container, config_file_t* file) {
     const logger_t *logger = &container->logger;
     int mt, sequential;
+    long threshold_us;
 
     CONFIG_GETLINE;
-    if (config_line_to_host_decimal_point(file) ||
-        sscanf(file->line, "%d %d %d %le", &mt, &container->profiling, &sequential, &container->mt_threshold) < 4 ||
-        container->mt_threshold < 0.0) {
-        CONFIG_ERROR("Cannot read container flags (<MT> <Profiling> <Sequential> <MT_THRESHOLD>).");
+    if (sscanf(file->line, "%d %d %d %ld", &mt, &container->profiling, &sequential, &threshold_us) < 4 ||
+        threshold_us < 0) {
+        CONFIG_ERROR("Cannot read container flags (<MT> <Profiling> <Sequential> <MT_THRESHOLD_US>).");
         return -1;
     }
+    container->mt_threshold_us = (unsigned long)threshold_us;
     
     if (sequential) {
         LOGGER_WARNING("Container use SEQUENTIAL mode.");
         container->do_step = container_do_one_step_sequential;
     } else {
         if (mt) {
-            LOGGER_WARNING("Container use PARALLEL mode with MULTI thread, for the FMUs whose step takes %g s or more "
-                           "(measured over the first %d steps).", container->mt_threshold, MT_WARMUP);
+            LOGGER_WARNING("Container use PARALLEL mode with MULTI thread, for the FMUs whose step takes %lu us or "
+                           "more (measured over the first %d steps).", container->mt_threshold_us, MT_WARMUP);
             container->do_step = container_do_one_step_warmup;
             container->mt_warmup = MT_WARMUP;
             container->mt = true;
@@ -2480,14 +2481,14 @@ static int container_compare_warmup(const void *a, const void *b) {
 
 
 /*
- * End of the warm-up of the multi-thread mode: the CS FMUs whose mean fmuDoStep is at least mt_threshold are heavy.
+ * End of the warm-up of the multi-thread mode: the CS FMUs whose mean fmuDoStep is at least mt_threshold_us are heavy.
  * They are given to min(heavy FMUs, cores - 1) workers, the longest first, each to the least loaded worker; the main
  * thread steps the light ones. Without heavy FMU, without a second core, or if the threads cannot be started, the
  * simulation goes on in the mono-thread parallel mode.
  */
 static void container_dispatch(container_t *container) {
     const logger_t *logger = &container->logger;
-    const profile_tic_t threshold = (profile_tic_t)(container->mt_threshold * 1e9 * MT_WARMUP);   /* sum of the steps */
+    const profile_tic_t threshold = (profile_tic_t)container->mt_threshold_us * 1000u * MT_WARMUP;  /* ns, all steps */
     fmu_t **heavy = malloc((container->nb_cs ? container->nb_cs : 1) * sizeof(*heavy));
     unsigned int nb_heavy = 0;
 
@@ -2838,7 +2839,7 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         container->need_event_update = false;
 
         container->mt = false;
-        container->mt_threshold = 0.0;
+        container->mt_threshold_us = 0;
         container->mt_warmup = 0;
         container->cancel = false;
         container->barriers_ready = false;

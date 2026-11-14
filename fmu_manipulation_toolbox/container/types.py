@@ -12,7 +12,7 @@ CONTAINER_TXT_VERSION = 10
 
 #: Multi-thread mode: an embedded Co-Simulation FMU whose mean `doStep` (measured by the runtime over the first
 #: internal steps) takes at least this duration, in seconds, is stepped by a worker thread; the others by the main
-#: thread. Written on the flags line of `container.txt`.
+#: thread. Written on the flags line of `container.txt` in microseconds (an integer).
 MT_THRESHOLD = 50e-6
 
 #: Container types, in the order of the sections of `container.txt`. The index of a type is also stored in the

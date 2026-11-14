@@ -119,7 +119,7 @@ if(BUILD_TESTING)
     set(TEST_FIXTURES_DIR "${CMAKE_CURRENT_BINARY_DIR}/fixtures")
     target_compile_definitions(container_tests PRIVATE TEST_FIXTURES_DIR="${TEST_FIXTURES_DIR}")
 
-    set(MT_THRESHOLD "5e-05")      # default of the builder
+    set(MT_THRESHOLD_US 50)        # default of the builder
 
     # container_fixture(<name> <guid> <mt>): container.txt with the stub FMU, given its GUID (which selects its
     # behaviour, see tests/stub_fmu.c) and the multi-thread flag.
@@ -141,13 +141,13 @@ if(BUILD_TESTING)
     container_fixture(mt_instantiate_fails  "{stub-fail-instantiate}"   1)
     container_fixture(one_fmu_terminate     "{stub-terminate}"          0)
 
-    # two_fmus_fixture(<name> <mt_threshold>): container.txt of the multi-thread mode with two stub FMUs, a light one
+    # two_fmus_fixture(<name> <mt_threshold_us>): container.txt of the multi-thread mode with two stub FMUs, a light one
     # ("{stub}", FMU#0) and a slow one ("{stub-slow}", FMU#1), given the threshold of a heavy FMU.
     function(two_fmus_fixture name threshold)
         set(GUID "{stub}")
         set(SLOW_GUID "{stub-slow}")
         set(MT 1)
-        set(MT_THRESHOLD "${threshold}")
+        set(MT_THRESHOLD_US "${threshold}")
         set(_dir "${TEST_FIXTURES_DIR}/${name}")
         configure_file(tests/data/two_fmus/container.txt.in "${_dir}/container.txt" @ONLY)
         foreach(_fmu 00 01)
@@ -158,9 +158,9 @@ if(BUILD_TESTING)
             )
         endforeach()
     endfunction()
-    two_fmus_fixture(mt_hybrid      "1e-3")     # the slow FMU only is heavy
-    two_fmus_fixture(mt_all_heavy   "0")        # every FMU is heavy
-    two_fmus_fixture(mt_no_heavy    "10")       # no FMU is heavy
+    two_fmus_fixture(mt_hybrid      1000)       # the slow FMU only is heavy
+    two_fmus_fixture(mt_all_heavy   0)          # every FMU is heavy
+    two_fmus_fixture(mt_no_heavy    10000000)   # no FMU is heavy
     container_fixture(malformed             "{stub}"                    0)  # container.txt rewritten by the tests
     container_fixture(one_fmu_strings       "{stub}"                    0)  # container.txt replaced below
     set(GUID "{stub}")
