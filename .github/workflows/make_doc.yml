@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - integration
   # Validate the documentation build on pull requests that touch the docs,
   # the mkdocs config, the theme overrides, the documented source package or this workflow.
   pull_request:
@@ -15,7 +16,7 @@ on:
       - ".github/workflows/make_doc.yml"
   workflow_dispatch:
 
-# Least-privilege default; the deploy job raises it to `contents: write`.
+# Least-privilege default; the deploy jobs raise it to `contents: write`.
 permissions:
   contents: read
 
@@ -26,10 +27,11 @@ concurrency:
 
 jobs:
   # Strict build surfaces broken links / missing nav pages. It is a *blocking*
-  # check on pull requests. On `main` it runs alongside `deploy` as a signal
-  # only (deploy is intentionally NOT gated on it yet to avoid any deployment
-  # regression; add `needs: build` to the deploy job once strict is confirmed
-  # green).
+  # check on pull requests and gates `deploy-integration`. On `main` it runs
+  # alongside `deploy-stable` as a signal only (the stable deployment is
+  # intentionally NOT gated on it yet to avoid any deployment regression; add
+  # `needs: build` to `deploy-stable` once strict is confirmed green).
+  # A manual run on a branch other than `main` or `integration` only builds.
   build:
     runs-on: ubuntu-latest
     steps:
@@ -49,15 +51,22 @@ jobs:
       # errors so they are caught before publishing.
       - run: mkdocs build --strict
 
-  deploy:
-    # Only publish for pushes to `main` (and manual runs), never on PRs.
-    # Deploy behaviour is unchanged from before this refactor (no `needs:`), so
-    # documentation keeps publishing exactly as it used to.
-    if: github.event_name != 'pull_request'
+  # The site is published to the `gh-pages` branch: the stable documentation
+  # (from `main`) at its root, the development documentation (from
+  # `integration`) in its `integration/` folder. Each deployment only replaces
+  # its own part of the branch, so `mkdocs gh-deploy --force` (which replaces
+  # the whole branch) is not used.
+  deploy-stable:
+    # Never on PRs, and manual runs only publish from `main`.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # Needs write access to push the built site to the `gh-pages` branch.
     permissions:
       contents: write
+    # Serialize the pushes of both deployments to `gh-pages`.
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v7
       - name: Configure Git Credentials
@@ -75,4 +84,65 @@ jobs:
           restore-keys: |
             mkdocs-material-
       - run: pip install mkdocs-material mkdocs-minify-plugin mkdocstrings-python
-      - run: mkdocs gh-deploy --force
+      - run: mkdocs build
+      # Replace the root of `gh-pages`, except the `integration/` folder.
+      # `.nojekyll` tells GitHub Pages to serve the files as they are.
+      - name: Publish to gh-pages
+        run: |
+          touch site/.nojekyll
+          git fetch --depth 1 origin gh-pages
+          git worktree add gh-pages FETCH_HEAD
+          rsync -a --delete --exclude /integration/ --exclude /.git site/ gh-pages/
+          cd gh-pages
+          git add -A
+          if git diff --cached --quiet; then echo "No change to publish"; exit 0; fi
+          git commit -q -m "Deployed ${GITHUB_SHA::7} (stable) with MkDocs version: $(mkdocs --version | cut -d' ' -f3)"
+          git push origin HEAD:gh-pages
+
+  deploy-integration:
+    # Publishes only once the strict build passed.
+    needs: build
+    # Never on PRs, and manual runs only publish from `integration`.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/integration'
+    runs-on: ubuntu-latest
+    # Needs write access to push the built site to the `gh-pages` branch.
+    permissions:
+      contents: write
+    # Serialize the pushes of both deployments to `gh-pages`.
+    concurrency:
+      group: gh-pages
+      cancel-in-progress: false
+    env:
+      DOC_CHANNEL: integration
+      DOC_SITE_URL: https://grouperenault.github.io/fmu_manipulation_toolbox/integration/
+      DOC_EDIT_URI: edit/integration/docs/
+    steps:
+      - uses: actions/checkout@v7
+      - name: Configure Git Credentials
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: 3.x
+      - run: echo "cache_id=$(date --utc '+%V')" >> $GITHUB_ENV
+      - uses: actions/cache@v6
+        with:
+          key: mkdocs-material-${{ env.cache_id }}
+          path: ~/.cache
+          restore-keys: |
+            mkdocs-material-
+      - run: pip install mkdocs-material mkdocs-minify-plugin mkdocstrings-python
+      - run: mkdocs build
+      # Replace the `integration/` folder of `gh-pages` only.
+      - name: Publish to gh-pages
+        run: |
+          git fetch --depth 1 origin gh-pages
+          git worktree add gh-pages FETCH_HEAD
+          mkdir -p gh-pages/integration
+          rsync -a --delete site/ gh-pages/integration/
+          cd gh-pages
+          git add -A
+          if git diff --cached --quiet; then echo "No change to publish"; exit 0; fi
+          git commit -q -m "Deployed ${GITHUB_SHA::7} (integration) with MkDocs version: $(mkdocs --version | cut -d' ' -f3)"
+          git push origin HEAD:gh-pages
