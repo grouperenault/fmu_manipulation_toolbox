@@ -32,8 +32,8 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         OperationError: If the FMU is not FMI 2.0 or the source platform
             binaries are missing.
     """
-    bitness_from = None
-    bitness_to = None
+    bitness_from: str | None = None
+    bitness_to: str | None = None
 
     def __repr__(self):
         return f"Add '{self.bitness_to}' remoting on '{self.bitness_from}' FMU"

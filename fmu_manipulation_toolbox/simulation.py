@@ -66,6 +66,7 @@ class _Port:
 
     @property
     def size(self) -> int:
+        assert self.shape is not None
         return math.prod(self.shape)
 
     @property
@@ -208,7 +209,7 @@ def _child(connection, arguments: tuple, level: int):
     logger.addHandler(recorder)
     logger.setLevel(level)
     try:
-        result = ("ok", _simulate(*arguments))
+        result: tuple[str, TimeSeries] | tuple[str, str, str] = ("ok", _simulate(*arguments))
     except SimulationError as error:
         result = ("error", type(error).__name__, str(error))
     except OSError as error:
@@ -367,6 +368,7 @@ class _Driver:
         continuous = variable.variability == "continuous" and variable.has_type(("Float64", "Float32"))
         dimensions = variable.dimensions
         shape = tuple(size for kind, size in dimensions) if all(kind == "start" for kind, _ in dimensions) else None
+        assert variable.fmi_type is not None
         return _Port(variable.get("name"), int(variable.get("valueReference")), variable.fmi_type,
                      LINEAR if continuous else HOLD, shape)
 
@@ -469,6 +471,7 @@ class _Driver:
     def _set_inputs(self, inputs: list[_Port], stimuli: TimeSeries | None, time: float):
         for port in inputs:
             c_type, function = self._types(port)
+            assert stimuli is not None
             value = self._c_value(c_type, stimuli.value(port.name, time, port.interpolation))
             vr = ctypes.c_uint32(port.vr)
             self._call(f"fmi3Set{function}", ctypes.byref(vr), ctypes.c_size_t(1), ctypes.byref(value),

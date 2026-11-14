@@ -254,6 +254,7 @@ def run(argv=None) -> int:
         bridge = load_state(state, options.name)
         result = getattr(Toolbox(bridge, policy), options.tool)(**arguments)
         if options.tool in CHANGING_TOOLS:
+            assert state is not None
             save_state(state, bridge)
         _print(result)
         return 0
