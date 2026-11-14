@@ -977,21 +977,33 @@ class FMUContainer:
             if variable is not None:
                 outputs.append((layout.outputs[output_port_name], variable))
 
+        # FMI-2 §2.2.8, FMI-3 §2.4.8: the initial unknowns are the outputs with initial="calculated" or "approx". An
+        # output that copies initial="exact" (and its start value) from its embedded FMU is not one.
+        initial_unknowns = [(vr, variable) for vr, variable in outputs if self._initial_of(variable) != "exact"]
         model_structure = ET.SubElement(root, "ModelStructure")
         if self.fmi_version == 2:
             # FMI-2 §2.2.8: <Unknown index> is the 1-based position of the variable in <ModelVariables>.
             positions = {id(variable): index for index, variable in enumerate(model_variables, start=1)}
-            if outputs:
-                for section in ("Outputs", "InitialUnknowns"):
+            for section, entries in (("Outputs", outputs), ("InitialUnknowns", initial_unknowns)):
+                if entries:
                     unknowns = ET.SubElement(model_structure, section)
-                    for _, variable in outputs:
+                    for _, variable in entries:
                         ET.SubElement(unknowns, "Unknown", {"index": str(positions[id(variable)])})
         else:
-            for tag in ("Output", "InitialUnknown"):
-                for output_vr, _ in outputs:
+            for tag, entries in (("Output", outputs), ("InitialUnknown", initial_unknowns)):
+                for output_vr, _ in entries:
                     ET.SubElement(model_structure, tag, {"valueReference": str(output_vr)})
 
         ModelDescription(root).save(xml_filename)
+
+    @staticmethod
+    def _initial_of(variable: ET.Element) -> str:
+        """The `initial` of a generated output, given or by default (FMI-2 §2.2.7, FMI-3 §2.4.7.4: `exact` for a
+        constant output, `calculated` otherwise)."""
+        initial = variable.get("initial")
+        if initial is None:
+            initial = "exact" if variable.get("variability") == "constant" else "calculated"
+        return initial
 
     @staticmethod
     def _link_graph(links, fmu_rank: dict[str, int]) -> dict[int, set[int]]:

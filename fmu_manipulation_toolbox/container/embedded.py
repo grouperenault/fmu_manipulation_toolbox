@@ -163,7 +163,8 @@ class EmbeddedFMUPort:
             "valueReference": vr,
             "causality": causality,
             "variability": variability,
-            "initial": self.initial,
+            # FMI-2 §2.2.7: an input has no `initial` (FMI-3 §2.4.7.4 allows `exact` only, its default).
+            "initial": None if fmi_version == 2 and causality == "input" else self.initial,
             "description": self.description,
         }
 
