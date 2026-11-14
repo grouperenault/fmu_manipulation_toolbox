@@ -1022,44 +1022,67 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
 }
 
 
-static fmu_status_t container_do_one_step_parallel_mt(container_t* container) {
+/*
+ * Multi-thread mode, after the warm-up: the workers step the heavy FMUs while the main thread steps the light ones.
+ * The exchanges stay on the main thread: all the inputs before the steps, all the outputs after (Jacobi). A worker
+ * getting the outputs of its FMU would write local variables that another one may still read.
+ */
+static fmu_status_t container_do_one_step_hybrid(container_t* container) {
     const logger_t *logger = &container->logger;
     fmu_status_t status = FMU_STATUS_OK;
 
     container->need_event_update = false;
 
-    /* Set inputs for CS FMUs (worker threads will do the doStep). */
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t* fmu = container->cs_fmu[i];
         status = fmu_set_inputs(fmu);
         if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed setting inputs. %d", fmu->name, fmu->status);
+            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", fmu->name);
             return status;
         }
     }
 
-    /* The CS FMUs are stepped by the worker threads, in parallel; the ME FMUs follow, on the main thread. */
-    thread_barrier_wait(&container->barrier_start); /* 1st SYNC point */
-    /*
-     * Each CS FMU worker thread will compute its step.
-     * The main thread waits for all workers.
-     */
-    thread_barrier_wait(&container->barrier_end); /* 2nd SYNC point */
+    thread_barrier_wait(&container->barrier_start);     /* the workers step the heavy FMUs */
+    for (unsigned int i = 0; i < container->nb_light; i += 1) {
+        fmu_t* fmu = container->light_fmu[i];
+        fmu->status = fmuDoStep(fmu, container->time, container->next_step);
+    }
+    thread_barrier_wait(&container->barrier_end);       /* every CS FMU has done its step */
 
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t* fmu = container->cs_fmu[i];
-        if (fmu->status != FMU_STATUS_OK)
-            return FMU_STATUS_ERROR;
+        if (fmu->status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
+            return fmu->status;
+        }
         container->need_event_update |= fmu->need_event_udpate;
-
-        status = fmu_get_outputs(fmu);
+    }
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        status = fmu_get_outputs(container->cs_fmu[i]);
         if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed getting outputs.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed get outputs.", container->cs_fmu[i]->name);
             return status;
         }
     }
 
     return container_step_me(container);
+}
+
+
+static fmu_status_t container_do_one_step_parallel(container_t* container);
+static void container_dispatch(container_t *container);
+
+/* Multi-thread mode, first MT_WARMUP internal steps: the mono-thread parallel mode, which times the steps of the CS
+   FMUs; the FMUs are then dispatched. */
+static fmu_status_t container_do_one_step_warmup(container_t *container) {
+    const fmu_status_t status = container_do_one_step_parallel(container);
+
+    if (status == FMU_STATUS_OK) {
+        container->mt_warmup -= 1;
+        if (container->mt_warmup == 0)
+            container_dispatch(container);
+    }
+    return status;
 }
 
 
@@ -1080,7 +1103,10 @@ static fmu_status_t container_do_one_step_parallel(container_t* container) {
     }
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t* fmu = container->cs_fmu[i];
+        const profile_tic_t start = container->mt_warmup ? profile_now() : 0;
         status = fmuDoStep(fmu, container->time, container->next_step);
+        if (container->mt_warmup)
+            fmu->warmup_ns += profile_now() - start;
         if (status != FMU_STATUS_OK) {
             LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
             return status;
@@ -1406,8 +1432,10 @@ static int read_flags(container_t* container, config_file_t* file) {
     int mt, sequential;
 
     CONFIG_GETLINE;
-    if (sscanf(file->line, "%d %d %d", &mt, &container->profiling, &sequential) < 3) {
-        CONFIG_ERROR("Cannot read container flags.");
+    if (config_line_to_host_decimal_point(file) ||
+        sscanf(file->line, "%d %d %d %le", &mt, &container->profiling, &sequential, &container->mt_threshold) < 4 ||
+        container->mt_threshold < 0.0) {
+        CONFIG_ERROR("Cannot read container flags (<MT> <Profiling> <Sequential> <MT_THRESHOLD>).");
         return -1;
     }
     
@@ -1416,8 +1444,10 @@ static int read_flags(container_t* container, config_file_t* file) {
         container->do_step = container_do_one_step_sequential;
     } else {
         if (mt) {
-            LOGGER_WARNING("Container use PARALLEL mode with MULTI thread");
-            container->do_step = container_do_one_step_parallel_mt;
+            LOGGER_WARNING("Container use PARALLEL mode with MULTI thread, for the FMUs whose step takes %g s or more "
+                           "(measured over the first %d steps).", container->mt_threshold, MT_WARMUP);
+            container->do_step = container_do_one_step_warmup;
+            container->mt_warmup = MT_WARMUP;
             container->mt = true;
         } else {
             LOGGER_WARNING("Container use PARALLEL mode with MONO thread.");
@@ -2340,14 +2370,40 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
 }
 
 
+static void *container_worker(container_worker_t *worker) {
+    container_t *container = worker->container;
+    const logger_t *logger = &container->logger;
+
+    /* barriers_ready is set before the gate is opened: false if the threads could not all be started */
+    thread_gate_wait(&container->threads_gate);
+    if (!container->barriers_ready)
+        return NULL;
+
+    while (true) {
+        thread_barrier_wait(&container->barrier_start);   /* WAIT 1st SYNC */
+        if (container->cancel)
+            break;
+
+        for (unsigned int i = 0; i < worker->nb_fmu; i += 1) {
+            fmu_t *fmu = worker->fmu[i];
+            fmu->status = fmuDoStep(fmu, container->time, container->next_step);
+            if (fmu->status != FMU_STATUS_OK)
+                LOGGER_ERROR("Container: FMU '%s' failed doing step. %d", fmu->name, fmu->status);
+        }
+
+        thread_barrier_wait(&container->barrier_end);     /* WAIT 2nd SYNC */
+    }
+
+    return NULL;
+}
+
+
 /*
  * The worker threads wait on threads_gate until every one of them is launched and the barriers are initialized
  * for them: when one cannot be launched, the gate is opened without barriers_ready and those already launched end.
  */
 static int container_start_threads(container_t *container) {
     const logger_t *logger = &container->logger;
-    if (!container->mt)
-        return 0;
 
     if (thread_gate_init(&container->threads_gate)) {
         LOGGER_ERROR("Cannot initialize the start of the threads.");
@@ -2356,9 +2412,10 @@ static int container_start_threads(container_t *container) {
     container->threads_gate_ready = true;
 
     int status = 0;
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        if (fmu_launch_thread(container->cs_fmu[i])) {
-            LOGGER_ERROR("Cannot launch FMU '%s' thread.", container->cs_fmu[i]->name);
+    for (unsigned int i = 0; i < container->nb_workers; i += 1) {
+        container->workers[i].thread = thread_new((thread_function_t)container_worker, &container->workers[i]);
+        if (!container->workers[i].thread) {
+            LOGGER_ERROR("Cannot launch worker thread #%u.", i);
             status = -2;
             break;
         }
@@ -2366,11 +2423,11 @@ static int container_start_threads(container_t *container) {
     }
 
     if (!status) {
-        LOGGER_DEBUG("Container barrier is configured with %u participants", container->nb_cs + 1);
-        if (thread_barrier_init(&container->barrier_start, container->nb_cs + 1)) {
+        LOGGER_DEBUG("Container barrier is configured with %u participants", container->nb_workers + 1);
+        if (thread_barrier_init(&container->barrier_start, container->nb_workers + 1)) {
             LOGGER_ERROR("Cannot initialize thread barrier.");
             status = -1;
-        } else if (thread_barrier_init(&container->barrier_end, container->nb_cs + 1)) {
+        } else if (thread_barrier_init(&container->barrier_end, container->nb_workers + 1)) {
             LOGGER_ERROR("Cannot initialize thread barrier.");
             thread_barrier_destroy(&container->barrier_start);
             status = -1;
@@ -2397,10 +2454,9 @@ static void container_stop_threads(container_t *container) {
     }
 
     for (unsigned int i = 0; i < container->nb_threads; i += 1) {
-        fmu_t *fmu = container->cs_fmu[i];
-        LOGGER_DEBUG("Waiting for FMU '%s' thread to finish.", fmu->name);
-        thread_join(fmu->thread);
-        fmu->thread = NULL;
+        LOGGER_DEBUG("Waiting for worker thread #%u to finish.", i);
+        thread_join(container->workers[i].thread);
+        container->workers[i].thread = NULL;
     }
     container->nb_threads = 0;
 
@@ -2413,6 +2469,94 @@ static void container_stop_threads(container_t *container) {
     container->threads_gate_ready = false;
 
     return;
+}
+
+
+/* Heavy FMUs, the longest step first. */
+static int container_compare_warmup(const void *a, const void *b) {
+    const profile_tic_t ta = (*(fmu_t *const *)a)->warmup_ns, tb = (*(fmu_t *const *)b)->warmup_ns;
+    return (ta < tb) - (ta > tb);
+}
+
+
+/*
+ * End of the warm-up of the multi-thread mode: the CS FMUs whose mean fmuDoStep is at least mt_threshold are heavy.
+ * They are given to min(heavy FMUs, cores - 1) workers, the longest first, each to the least loaded worker; the main
+ * thread steps the light ones. Without heavy FMU, without a second core, or if the threads cannot be started, the
+ * simulation goes on in the mono-thread parallel mode.
+ */
+static void container_dispatch(container_t *container) {
+    const logger_t *logger = &container->logger;
+    const profile_tic_t threshold = (profile_tic_t)(container->mt_threshold * 1e9 * MT_WARMUP);   /* sum of the steps */
+    fmu_t **heavy = malloc((container->nb_cs ? container->nb_cs : 1) * sizeof(*heavy));
+    unsigned int nb_heavy = 0;
+
+    container->do_step = container_do_one_step_parallel;
+    container->light_fmu = malloc((container->nb_cs ? container->nb_cs : 1) * sizeof(*container->light_fmu));
+    if (!heavy || !container->light_fmu) {
+        LOGGER_WARNING("Container use PARALLEL mode with MONO thread: cannot allocate the dispatch of the FMUs.");
+        free(heavy);
+        return;
+    }
+
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t *fmu = container->cs_fmu[i];
+        if (fmu->warmup_ns >= threshold)
+            heavy[nb_heavy++] = fmu;
+        else
+            container->light_fmu[container->nb_light++] = fmu;
+    }
+
+    const unsigned int nb_cores = thread_nb_cores();
+    const unsigned int nb_workers = nb_heavy < nb_cores - 1 ? nb_heavy : nb_cores - 1;
+    if (nb_workers == 0) {
+        LOGGER_WARNING("Container use PARALLEL mode with MONO thread: %s.",
+                       nb_heavy ? "the host has a single core" : "no FMU step takes the threshold");
+        free(heavy);
+        return;
+    }
+
+    container->workers = calloc(nb_workers, sizeof(*container->workers));
+    if (!container->workers) {
+        LOGGER_WARNING("Container use PARALLEL mode with MONO thread: cannot allocate the workers.");
+        free(heavy);
+        return;
+    }
+    container->nb_workers = nb_workers;
+    for (unsigned int i = 0; i < nb_workers; i += 1) {
+        container->workers[i].container = container;
+        container->workers[i].fmu = malloc(nb_heavy * sizeof(*container->workers[i].fmu));
+        if (!container->workers[i].fmu) {
+            LOGGER_WARNING("Container use PARALLEL mode with MONO thread: cannot allocate the workers.");
+            free(heavy);
+            return;
+        }
+    }
+
+    qsort(heavy, nb_heavy, sizeof(*heavy), container_compare_warmup);
+    for (unsigned int i = 0; i < nb_heavy; i += 1) {
+        container_worker_t *worker = &container->workers[0];
+        for (unsigned int j = 1; j < nb_workers; j += 1)
+            if (container->workers[j].load < worker->load)
+                worker = &container->workers[j];
+        worker->fmu[worker->nb_fmu++] = heavy[i];
+        worker->load += heavy[i]->warmup_ns / MT_WARMUP;
+    }
+    free(heavy);
+
+    if (container_start_threads(container)) {
+        container_stop_threads(container);
+        LOGGER_WARNING("Container use PARALLEL mode with MONO thread: cannot start the worker threads.");
+        return;
+    }
+
+    container->do_step = container_do_one_step_hybrid;
+    LOGGER_WARNING("Container use PARALLEL mode with MULTI thread: %u worker thread(s) for %u FMU(s), %u FMU(s) on "
+                   "the main thread.", nb_workers, nb_heavy, container->nb_light);
+    for (unsigned int i = 0; i < nb_workers; i += 1)
+        for (unsigned int j = 0; j < container->workers[i].nb_fmu; j += 1)
+            LOGGER_WARNING("FMU '%s' (step of %.1f us) on worker thread #%u.", container->workers[i].fmu[j]->name,
+                           container->workers[i].fmu[j]->warmup_ns / MT_WARMUP / 1000.0, i);
 }
 
 
@@ -2618,11 +2762,6 @@ int container_configure(container_t* container, const char* resource_location) {
         }
     }
 
-    if (container_start_threads(container)) {
-        LOGGER_ERROR("Cannot start threads.");
-        return -10;
-    }
-
     LOGGER_DEBUG("Container is configured.");
 
     return 0;
@@ -2699,10 +2838,16 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         container->need_event_update = false;
 
         container->mt = false;
+        container->mt_threshold = 0.0;
+        container->mt_warmup = 0;
         container->cancel = false;
         container->barriers_ready = false;
         container->threads_gate_ready = false;
+        container->workers = NULL;
+        container->nb_workers = 0;
         container->nb_threads = 0;
+        container->light_fmu = NULL;
+        container->nb_light = 0;
     }
     return container;
 }
@@ -2721,6 +2866,10 @@ void container_free(container_t *container) {
     }
 
     solver_free(container->solver);
+    for (unsigned int i = 0; i < container->nb_workers; i += 1)
+        free(container->workers[i].fmu);
+    free(container->workers);
+    free(container->light_fmu);
     free(container->cs_fmu);
     free(container->init_order);
 

@@ -12,7 +12,12 @@ extern "C" {
 
 /* Format version of container.txt: the only one read by the runtime. Must be equal to CONTAINER_TXT_VERSION of
  * fmu_manipulation_toolbox/container/types.py. */
-#define CONTAINER_TXT_VERSION		9
+#define CONTAINER_TXT_VERSION		10
+
+/* Multi-thread mode: internal steps of the warm-up, run in the mono-thread parallel mode while the fmuDoStep of each
+ * Co-Simulation FMU is timed; then the FMUs whose mean is at least the threshold (<MT_THRESHOLD> of container.txt) are
+ * stepped by worker threads. */
+#define MT_WARMUP					20
 
 /*----------------------------------------------------------------------------
                       C O N T A I N E R _ V R _ T
@@ -130,6 +135,20 @@ typedef enum {
 } container_state_t;
 
 /*----------------------------------------------------------------------------
+                    C O N T A I N E R _ W O R K E R _ T
+----------------------------------------------------------------------------*/
+
+/* A worker thread of the multi-thread mode: steps its heavy FMUs one after the other at each internal step. */
+typedef struct container_worker_s {
+	struct container_s			*container;
+	thread_t					thread;
+	fmu_t						**fmu;
+	unsigned int				nb_fmu;
+	profile_tic_t				load;					/* ns: sum of the mean fmuDoStep of its FMUs */
+} container_worker_t;
+
+
+/*----------------------------------------------------------------------------
                             C O N T A I N E R _ T
 ----------------------------------------------------------------------------*/
 
@@ -201,6 +220,8 @@ typedef struct container_s {
 	bool						need_event_update;
 
 	bool						mt;						/* true if FMUs are executed in parallel */
+	double						mt_threshold;			/* s: a CS FMU whose mean fmuDoStep is at least this is heavy */
+	unsigned int				mt_warmup;				/* internal steps of the warm-up left (mt) */
 	bool						cancel;					/* set once to stop all FMU worker threads */
 
 	thread_barrier_t			barrier_start;			/* used for parallel execution of FMUs */
@@ -208,7 +229,11 @@ typedef struct container_s {
 	bool						barriers_ready;			/* barrier_start and barrier_end are initialized */
 	thread_gate_t				threads_gate;			/* opened once every worker thread is launched */
 	bool						threads_gate_ready;		/* threads_gate is initialized */
-	unsigned int				nb_threads;				/* worker threads launched: cs_fmu[0 .. nb_threads-1] */
+	struct container_worker_s	*workers;				/* worker threads of the heavy FMUs (mt, after the warm-up) */
+	unsigned int				nb_workers;				/* allocated */
+	unsigned int				nb_threads;				/* launched: workers[0 .. nb_threads-1] */
+	fmu_t						**light_fmu;			/* CS FMUs stepped by the main thread while the workers run */
+	unsigned int				nb_light;
 
 	struct datalog_s			*datalog;
 

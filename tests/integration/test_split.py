@@ -128,3 +128,26 @@ def test_fmusplit_reset_ports(area_dir, fmi_version):
     Assembly("resettable.json", fmu_directory=out_dir, debug=True).make_fmu(fmi_version=fmi_version,
                                                                              filename="rebuilt.fmu")
     assert_identical_files("resettable/resources/container.txt", out_dir / "rebuilt/resources/container.txt")
+
+
+@pytest.mark.area("containers/bouncing_ball")
+@pytest.mark.parametrize("mt_threshold", [0.002, None])
+def test_fmusplit_mt_threshold(area_dir, mt_threshold):
+    """The threshold of the multithreaded mode comes back in the JSON when it is not the default, as the builder
+    writes it; the JSON rebuilds the same container."""
+    description = {"name": "threaded.fmu", "mt": True, "fmu": ["bb_position.fmu", "bb_velocity.fmu"],
+                   "link": [["bb_velocity.fmu", "velocity", "bb_position.fmu", "velocity"]]}
+    if mt_threshold is not None:
+        description["mt_threshold"] = mt_threshold
+    Path("threaded.json").write_text(json.dumps(description))
+    assembly = Assembly("threaded.json", debug=True)
+    assembly.make_fmu()
+    assembly.write_json("written.json")
+    assert json.loads(Path("written.json").read_text()).get("mt_threshold") == mt_threshold
+
+    out_dir = _run_fmusplit("threaded")
+    split = json.loads((out_dir / "threaded.json").read_text())
+    assert split.get("mt_threshold") == mt_threshold
+    Assembly("threaded.json", fmu_directory=out_dir, debug=True).make_fmu(filename="rebuilt.fmu")
+    assert_identical_files("threaded/resources/container.txt", out_dir / "rebuilt/resources/container.txt")
+

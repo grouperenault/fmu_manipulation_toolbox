@@ -775,3 +775,8 @@ def test_fmi2_aggregate_exposed_through_a_local_variable(aggregates):
         [f"{output} 1 8", f"{output + 1} 1 10"]
     assert _section(lines, "# Inputs of a.fmu - real64: <LOCAL_OFFSET> <DIM> <FMU_VR>") == \
         [f"{local_input} 1 7", f"{local_input + 1} 1 9"]
+
+
+def test_negative_mt_threshold_is_refused(tmp_path):
+    with pytest.raises(FMUContainerError, match="cannot be negative"):
+        FMUContainer("negative", tmp_path).make_fmu("negative.fmu", mt=True, mt_threshold=-1.0)

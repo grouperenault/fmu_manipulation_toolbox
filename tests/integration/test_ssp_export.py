@@ -179,6 +179,19 @@ def test_the_options_of_the_file_prevail_over_the_command_line(area_dir, caplog)
 
 
 @pytest.mark.area("containers/ssp")
+def test_the_threshold_of_the_multithreaded_mode_is_kept(area_dir):
+    """`mt_threshold` goes to the options annotation when it is not the default, and comes back from it."""
+    first = Assembly("bouncing.ssp")
+    first.root.mt_threshold = 0.002
+    first.write_ssp("threshold.ssp")
+    assert Assembly("threshold.ssp").root.mt_threshold == 0.002
+
+    Assembly("bouncing.ssp").write_ssp("default.ssp")
+    with zipfile.ZipFile("default.ssp") as ssp:
+        assert b"mtThreshold" not in ssp.read("SystemStructure.ssd")
+
+
+@pytest.mark.area("containers/ssp")
 def test_an_ssp_file_without_options_annotation_takes_the_command_line(area_dir):
     assert Assembly("bouncing.ssp", default_step_size=0.5).root.step_size == 0.5
 

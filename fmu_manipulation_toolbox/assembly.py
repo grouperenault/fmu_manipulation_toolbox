@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .container import FMUContainer
+from .container.types import MT_THRESHOLD
 from .textfiles import ENCODING, open_text
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -220,6 +221,8 @@ class AssemblyNode:
         step_size (float | None): Internal fixed time step in seconds, or `None` to deduce
             from embedded FMUs.
         mt (bool): Whether multithreaded mode is enabled.
+        mt_threshold (float): Multithreaded mode: the embedded FMUs whose mean step takes at least this duration, in
+            seconds, get a worker thread.
         profiling (bool): Whether profiling mode is enabled.
         sequential (bool): Whether sequential scheduling is used.
         auto_link (bool): Automatically link ports with matching names and types.
@@ -253,7 +256,7 @@ class AssemblyNode:
 
     def __init__(self, name: str, step_size: float | str | None = None, mt=False, profiling=False, sequential=False,
                  auto_link=True, auto_input=True, auto_output=True, auto_parameter=False, auto_local=False,
-                 ts_multiplier=False, reset_ports=False):
+                 ts_multiplier=False, reset_ports=False, mt_threshold: float = MT_THRESHOLD):
         self.name = name
         self.step_size: float | None
         if step_size:
@@ -265,6 +268,10 @@ class AssemblyNode:
         else:
             self.step_size = None
         self.mt = mt
+        try:
+            self.mt_threshold = float(mt_threshold)
+        except (TypeError, ValueError):
+            raise AssemblyError(f"Threshold of the multithreaded mode '{mt_threshold}' is not a number.") from None
         self.profiling = profiling
         self.sequential = sequential
         self.auto_link = auto_link
@@ -468,7 +475,8 @@ class AssemblyNode:
             filename = self.name
 
         container.make_fmu(filename, self.step_size, mt=self.mt, profiling=self.profiling, sequential=self.sequential,
-                           debug=debug, ts_multiplier=self.ts_multiplier, datalog=datalog)
+                           debug=debug, ts_multiplier=self.ts_multiplier, datalog=datalog,
+                           mt_threshold=self.mt_threshold)
 
         for node in self.children.values():
             logger.info(f"Deleting transient FMU Container '{node.name}'")
@@ -620,7 +628,7 @@ class Assembly:
                  default_auto_input=True, debug=False, default_sequential=False, default_auto_output=True,
                  default_mt=False, default_profiling=False, fmu_directory: Path = Path("."),
                  default_auto_parameter=False, default_auto_local=False, default_ts_multiplier=False,
-                 default_reset_ports=False):
+                 default_reset_ports=False, default_mt_threshold: float = MT_THRESHOLD):
         self.filename = Path(filename) if filename else None
         self.default_auto_input = default_auto_input
         self.debug = debug
@@ -630,6 +638,7 @@ class Assembly:
         self.default_auto_parameter = default_auto_parameter
         self.default_auto_local = default_auto_local
         self.default_mt = default_mt
+        self.default_mt_threshold = default_mt_threshold
         self.default_sequential = default_sequential
         self.default_profiling = default_profiling
         self.default_ts_multiplier = default_ts_multiplier
@@ -694,7 +703,7 @@ class Assembly:
                                  sequential=self.default_sequential, auto_input=self.default_auto_input,
                                  auto_output=self.default_auto_output, auto_parameter=self.default_auto_parameter,
                                  auto_local=self.default_auto_local, ts_multiplier=self.default_ts_multiplier,
-                                 reset_ports=self.default_reset_ports)
+                                 reset_ports=self.default_reset_ports, mt_threshold=self.default_mt_threshold)
 
         with open_text(self.input_pathname) as file:
             reader = csv.reader(file, delimiter=';')
@@ -821,16 +830,18 @@ class Assembly:
         step_size = data.get("step_size", self.default_step_size)                           # 7
         ts_multiplier = data.get("ts_multiplier", self.default_ts_multiplier)               # 7b
         reset_ports = data.get("reset_ports", self.default_reset_ports)                     # 7c
+        mt_threshold = data.get("mt_threshold", self.default_mt_threshold)                  # 7d
 
         node = AssemblyNode(name, step_size=step_size, auto_link=auto_link, mt=mt, profiling=profiling,
                             sequential=sequential,
                             auto_input=auto_input, auto_output=auto_output, auto_parameter=auto_parameter,
-                            auto_local=auto_local, ts_multiplier=ts_multiplier, reset_ports=reset_ports)
+                            auto_local=auto_local, ts_multiplier=ts_multiplier, reset_ports=reset_ports,
+                            mt_threshold=mt_threshold)
 
         paths = {}
         for key, value in data.items():
             if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling', 'sequential',
-                       'auto_parameter', 'auto_local', 'ts_multiplier', 'reset_ports'):
+                       'auto_parameter', 'auto_local', 'ts_multiplier', 'reset_ports', 'mt_threshold'):
                 continue  # Already read
 
             elif key == "container":  # 8
@@ -964,6 +975,9 @@ class Assembly:
         if node.reset_ports:
             json_node["reset_ports"] = node.reset_ports     # 7c
 
+        if node.mt_threshold != MT_THRESHOLD:
+            json_node["mt_threshold"] = node.mt_threshold   # 7d
+
         if node.children:
             json_node["container"] = [self._json_encode_node(child) for child in node.children.values()]  # 8
 
@@ -1025,7 +1039,8 @@ class Assembly:
                 validate_ssd(zin.read("SystemStructure.ssd"), "SystemStructure.ssd")
                 sdd = SSDParser(zin, extract_folder.name, step_size=self.default_step_size, auto_link=False,
                                 mt=self.default_mt, profiling=self.default_profiling,
-                                auto_input=False, auto_output=False, auto_parameter=False)
+                                auto_input=False, auto_output=False, auto_parameter=False,
+                                mt_threshold=self.default_mt_threshold)
                 self.root = sdd.parse("SystemStructure.ssd")
                 self.root.name = str(self.filename.with_suffix(".fmu"))
             else:

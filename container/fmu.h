@@ -415,11 +415,10 @@ typedef struct {
 
 	fmu_interface_t				fmi_functions;
 
-	thread_t			    	thread;
-
 	fmu_io_t					fmu_io;
 	
-	fmu_status_t		        status;
+	fmu_status_t		        status;     /* of the last fmuDoStep (multi-thread mode) */
+	profile_tic_t				warmup_ns;	/* time of fmuDoStep during the warm-up of the multi-thread mode */
 
     bool                        support_event;
     bool                        need_event_udpate;
@@ -487,7 +486,6 @@ extern int fmu_load_from_directory(struct container_s *container, int i,
                                    const char *identifier, const char *guid,
                                    fmu_version_t fmi_version, int support_event,
                                    fmu_kind_t kind);
-extern int fmu_launch_thread(fmu_t *fmu);
 extern void fmu_unload(fmu_t *fmu);
 
 /* Thin FMI-2/3 dispatchers for the Model Exchange primitives (used by

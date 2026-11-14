@@ -8,7 +8,12 @@ sections in the order of `ALL_TYPES`, and every value of `CONVERSION_FUNCTION` i
 
 #: Format version of `container.txt`, written in its `# Version <N>` header. The C runtime only reads this version
 #: (`CONTAINER_TXT_VERSION` of `container/container.h`, which must be equal).
-CONTAINER_TXT_VERSION = 9
+CONTAINER_TXT_VERSION = 10
+
+#: Multi-thread mode: an embedded Co-Simulation FMU whose mean `doStep` (measured by the runtime over the first
+#: internal steps) takes at least this duration, in seconds, is stepped by a worker thread; the others by the main
+#: thread. Written on the flags line of `container.txt`.
+MT_THRESHOLD = 50e-6
 
 #: Container types, in the order of the sections of `container.txt`. The index of a type is also stored in the
 #: upper byte of the value references of the container (see `ValueReferenceTable`).

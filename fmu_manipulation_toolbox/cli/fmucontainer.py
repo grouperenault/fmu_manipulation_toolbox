@@ -5,6 +5,7 @@ from pathlib import Path
 
 from ..assembly import Assembly, AssemblyError
 from ..container import FMUContainerError
+from ..container.types import MT_THRESHOLD
 from ..version import __version__ as version
 from .utils import ExitCode, close_logger, make_wide, setup_logger
 
@@ -64,6 +65,11 @@ def fmucontainer():
     parser.add_argument("-mt", action="store_true", dest="mt", default=False,
                         help="Enable Multi-Threaded mode for the generated container.")
 
+    parser.add_argument("-mt-threshold", action="store", dest="mt_threshold", type=float, default=MT_THRESHOLD,
+                        metavar="seconds",
+                        help="Multi-Threaded mode: the embedded fmu's whose mean step takes at least this duration get "
+                             "a thread, measured over the first steps.")
+
     parser.add_argument("-profile", action="store_true", dest="profiling", default=False,
                         help="Enable Profiling mode for the generated container.")
 
@@ -101,7 +107,7 @@ def fmucontainer():
                                 default_profiling=config.profiling, fmu_directory=fmu_directory, debug=config.debug,
                                 default_auto_parameter=config.auto_parameter,
                                 default_ts_multiplier=config.ts_multiplier,
-                                default_reset_ports=config.reset_ports)
+                                default_reset_ports=config.reset_ports, default_mt_threshold=config.mt_threshold)
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")
             close_logger(logger)

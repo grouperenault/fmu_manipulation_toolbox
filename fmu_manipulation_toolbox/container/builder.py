@@ -27,7 +27,7 @@ from .errors import FMUContainerError
 from .layout import ContainerLayout
 from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import ClockList, FMUIOList, InvolvedFMU, LocalVariable, Port
-from .types import ALL_TYPES, CONTAINER_TXT_VERSION, TIME_BASED_CLOCKS
+from .types import ALL_TYPES, CONTAINER_TXT_VERSION, MT_THRESHOLD, TIME_BASED_CLOCKS
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -751,7 +751,8 @@ class FMUContainer:
                         logger.warning(f"Output '{cport}' is not connected")
 
     def make_fmu(self, fmu_filename: str | Path, step_size: float | None = None, debug=False, mt=False,
-                 profiling=False, sequential=False, ts_multiplier=False, datalog=False):
+                 profiling=False, sequential=False, ts_multiplier=False, datalog=False,
+                 mt_threshold: float = MT_THRESHOLD):
         """Build the FMU Container archive.
 
         Generates the `modelDescription.xml`, the `container.txt` runtime
@@ -767,7 +768,11 @@ class FMUContainer:
             sequential (bool): Use sequential scheduling.
             ts_multiplier (bool): Add a `TS_MULTIPLIER` input port.
             datalog (bool): Generate a datalog configuration.
+            mt_threshold (float): Multithreaded mode: the embedded FMUs whose mean step takes at least this
+                duration, in seconds, get a worker thread (see `MT_THRESHOLD`).
         """
+        if mt_threshold < 0:
+            raise FMUContainerError(f"The threshold of the multithreaded mode cannot be negative: {mt_threshold}.")
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)
 
@@ -796,7 +801,7 @@ class FMUContainer:
 
         self.make_fmu_xml(base_directory / "modelDescription.xml", step_size, profiling, ts_multiplier, layout)
         with open(resources_directory / "container.txt", "w", encoding=ENCODING) as txt_file:
-            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential, layout)
+            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential, layout, mt_threshold=mt_threshold)
 
         if datalog:
             with open(resources_directory / "datalog.txt", "w", encoding=ENCODING) as datalog_file:
@@ -1132,11 +1137,11 @@ class FMUContainer:
                            f"but their intervals and shifts differ.")
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
-                     layout: ContainerLayout):
+                     layout: ContainerLayout, mt_threshold: float = MT_THRESHOLD):
         print(f"# Version {CONTAINER_TXT_VERSION}", file=txt_file)
-        print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
+        print("# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD>", file=txt_file)
         flags = [str(int(bool(flag))) for flag in (mt, profiling, sequential)]
-        print(" ".join(flags), file=txt_file)
+        print(" ".join(flags + [repr(float(mt_threshold))]), file=txt_file)
 
         print("# Internal time step in seconds", file=txt_file)
         print(f"{step_size}", file=txt_file)

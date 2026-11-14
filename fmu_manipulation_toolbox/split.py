@@ -11,6 +11,7 @@ from .container.types import (
     CONTAINER_TO_FMI,
     CONVERSION_FUNCTION,
     FMI_TO_CONTAINER,
+    MT_THRESHOLD,
     START_VALUE_TYPES,
     enumeration_as_integer,
 )
@@ -297,6 +298,8 @@ class FMUSplitterDescription:
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = flags[1] == "1"
             self.config["sequential"] = flags[2] == "1"
+            if len(flags) >= 4 and float(flags[3]) != MT_THRESHOLD:    # format ≥ 10
+                self.config["mt_threshold"] = float(flags[3])
             if self.file_format == 1:
                 self.file_format = 2
             logger.debug(f"File format: {self.file_format}")

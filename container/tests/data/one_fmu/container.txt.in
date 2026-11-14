@@ -1,6 +1,6 @@
-# Version 9
-# Container flags <MT> <Profiling> <Sequential>
-@MT@ 0 0
+# Version 10
+# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD>
+@MT@ 0 0 @MT_THRESHOLD@
 # Internal time step in seconds
 0.1
 # NB of embedded FMU's

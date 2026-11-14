@@ -1,4 +1,7 @@
 #include <stdlib.h>
+#ifndef _WIN32
+#   include <unistd.h>
+#endif
 
 #include "thread.h"
 
@@ -37,6 +40,18 @@ void thread_join(thread_t thread) {
 
 #endif
     }
+}
+
+
+unsigned int thread_nb_cores(void) {
+#ifdef _WIN32
+    SYSTEM_INFO info;
+    GetSystemInfo(&info);
+    const long nb = (long)info.dwNumberOfProcessors;
+#else
+    const long nb = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+    return nb > 0 ? (unsigned int)nb : 1;
 }
 
 

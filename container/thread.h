@@ -60,6 +60,8 @@ typedef void *(*thread_function_t)(void *);
 
 extern thread_t thread_new(thread_function_t function, void *data);
 extern void thread_join(thread_t thread);
+/* Number of logical processors of the host (at least 1). */
+extern unsigned int thread_nb_cores(void);
 
 /*
  * Portable N-way barrier. All `count` threads calling thread_barrier_wait()

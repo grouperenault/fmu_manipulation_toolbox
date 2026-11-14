@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .assembly import ArchitectureWire, AssemblyError, AssemblyNode, instance_name
+from .container.types import MT_THRESHOLD
 from .model_description import ModelDescription, ModelDescriptionError, ModelVariable
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -514,11 +515,12 @@ class SSDParser:
                 if attribute not in attrs:
                     continue
                 value = attrs[attribute]
-                if option == "step_size":
+                if option in ("step_size", "mt_threshold"):
                     try:
-                        node.step_size = float(value)
+                        setattr(node, option, float(value))
                     except ValueError:
-                        logger.warning(f"'{self.ssd_filename}': step size '{value}' of '{node.name}' is not a number.")
+                        logger.warning(f"'{self.ssd_filename}': {option.replace('_', ' ')} '{value}' of '{node.name}' "
+                                       f"is not a number.")
                 else:
                     setattr(node, option, value == "true")
             logger.info(f"'{self.ssd_filename}': options of '{node.name}' read from the SSP file (they prevail over "
@@ -801,7 +803,7 @@ CONTAINER_FORMAT_VERSION = "1"
 CONTAINER_OPTIONS = {"step_size": "stepSize", "mt": "mt", "profiling": "profiling", "sequential": "sequential",
                      "auto_link": "autoLink", "auto_input": "autoInput", "auto_output": "autoOutput",
                      "auto_parameter": "autoParameter", "auto_local": "autoLocal", "ts_multiplier": "tsMultiplier",
-                     "reset_ports": "resetPorts"}
+                     "reset_ports": "resetPorts", "mt_threshold": "mtThreshold"}
 
 #: SSP 1.0 knows the FMI 2.0 types only.
 SSP1_TYPES = {"Float32": "Real", "Float64": "Real", "Int8": "Integer", "UInt8": "Integer", "Int16": "Integer",
@@ -1149,6 +1151,9 @@ class SSPWriter:
                 value = False  # the routing is written resolved (E9)
             if option == "step_size":
                 if value is not None:
+                    attrs[attribute] = repr(float(value))
+            elif option == "mt_threshold":
+                if value != MT_THRESHOLD:       # written when it is not the default, as in the JSON
                     attrs[attribute] = repr(float(value))
             else:
                 attrs[attribute] = "true" if value else "false"

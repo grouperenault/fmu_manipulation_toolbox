@@ -45,6 +45,16 @@ def test_fmucontainer_reset_ports(area_dir):
         assert int(lines[lines.index(f"# Reset trigger of {fmu}: <LOCAL_OFFSET>") + 1]) >= 0
 
 
+@pytest.mark.area("containers/bouncing_ball")
+def test_fmucontainer_mt_threshold(area_dir):
+    """`-mt-threshold`: the threshold of a heavy FMU, on the flags line of `container.txt`."""
+    sys.argv = ["fmucontainer", "-container", "cli-bouncing.csv", "-fmu-directory", ".", "-mt", "-mt-threshold",
+                "0.002", "-debug"]
+    fmucontainer()
+    lines = Path("cli-bouncing/resources/container.txt").read_text().splitlines()
+    assert lines[lines.index("# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD>") + 1] == "1 0 0 0.002"
+
+
 @pytest.mark.area("containers/arch")
 def test_fmucontainer_json(area_dir):
     sys.argv = ["fmucontainer", "-fmu-directory", ".", "-container", "cli-flat.json", "-dump"]
