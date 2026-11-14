@@ -5,6 +5,7 @@
 
 #include "cache.h"
 #include "container.h"
+#include "datalog.h"
 #include "logger.h"
 
 /*
@@ -404,7 +405,9 @@ fmi2Status fmi2DoStep(fmi2Component c,
 
     ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_STEP_MODE);
 
-    if (container_do_step(container, currentCommunicationPoint, communicationStepSize) != FMU_STATUS_OK)
+    const fmu_status_t status = container_do_step(container, currentCommunicationPoint, communicationStepSize);
+    datalog_flush(container->datalog);                  /* the rows before an error too */
+    if (status != FMU_STATUS_OK)
         return fmi2Error;
 
     /* FMI-2.0: the importer gets fmi2Terminated and fmi2LastSuccessfulTime with fmi2GetBooleanStatus/RealStatus. */

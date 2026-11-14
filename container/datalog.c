@@ -236,6 +236,14 @@ datalog_t *datalog_new(const logger_t *logger, const char *dirname) {
 }
 
 
+/* The rows of a communication step are in the file once the container returns from fmi*DoStep: a crash of the
+   importer loses one step at most. */
+void datalog_flush(datalog_t *datalog) {
+    if (datalog && datalog->file)
+        fflush(datalog->file);
+}
+
+
 void datalog_free(datalog_t *datalog) {
     if (datalog) {
         if (datalog->file)

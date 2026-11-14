@@ -72,6 +72,7 @@ extern int test_malformed_datalog_txt(void);
 extern int test_start_value_refused(void);
 extern int test_start_value_array(void);
 extern int test_datalog_rows(void);
+extern int test_datalog_flushed_at_each_step(void);
 extern int test_datalog_decimal_comma(void);
 extern int test_stub_xcp_fmi2(void);
 extern int test_stub_xcp_fmi3(void);

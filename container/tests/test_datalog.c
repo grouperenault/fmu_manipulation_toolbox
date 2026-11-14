@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "fmi2Functions.h"
+
 #include "container.h"
 #include "datalog.h"
 #include "fmu.h"
@@ -116,6 +118,57 @@ int test_datalog_decimal_comma(void) {
 
     TEST_ASSERT(header_ok);
     TEST_ASSERT(row_ok);
+
+    return 0;
+}
+
+
+static void quiet_logger(fmi2ComponentEnvironment environment, fmi2String instanceName, fmi2Status status,
+                         fmi2String category, fmi2String message, ...) {
+    (void)environment; (void)instanceName; (void)status; (void)category; (void)message;
+}
+
+
+static int count_lines(const char *path) {
+    char *text = read_file(path);
+    int lines = 0;
+    if (text) {
+        for (const char *c = text; *c; c += 1)
+            lines += (*c == '\n');
+        free(text);
+    }
+    return lines;
+}
+
+
+/* The rows are in the file once the container returns from fmi2DoStep, before the end of the simulation. */
+int test_datalog_flushed_at_each_step(void) {
+    char *original = read_file(TEST_FIXTURES_DIR "/one_fmu/container.txt");
+    TEST_ASSERT(original != NULL);
+    const int written = test_write_file(DATALOG_DIR, "container.txt", original) ||
+                        test_write_file(DATALOG_DIR, "datalog.txt", datalog_txt);
+    free(original);
+    TEST_ASSERT_EQUAL_INT(0, written);
+
+    fmi2CallbackFunctions functions;
+    memset(&functions, 0, sizeof(functions));
+    functions.logger = quiet_logger;
+    fmi2Component c = fmi2Instantiate("datalog", fmi2CoSimulation, "{uuid}", "file://" DATALOG_DIR, &functions,
+                                      fmi2False, fmi2False);
+    TEST_ASSERT(c != NULL);
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetupExperiment(c, fmi2False, 0.0, 0.0, fmi2False, 1.0));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2EnterInitializationMode(c));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2ExitInitializationMode(c));
+
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2DoStep(c, 0.0, 0.1, fmi2True));
+    const int after_one = count_lines(DATALOG_DIR "/datalog.csv");
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2DoStep(c, 0.1, 0.1, fmi2True));
+    const int after_two = count_lines(DATALOG_DIR "/datalog.csv");
+    fmi2FreeInstance(c);
+    remove(DATALOG_DIR "/datalog.txt");
+
+    TEST_ASSERT(after_one >= 2);                /* the header and the rows of the first step, before the free */
+    TEST_ASSERT(after_two > after_one);
 
     return 0;
 }

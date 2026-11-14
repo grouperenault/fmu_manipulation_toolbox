@@ -44,6 +44,7 @@ static const struct {
     { "start_value_refused",            test_start_value_refused },
     { "start_value_array",              test_start_value_array },
     { "datalog_rows",                   test_datalog_rows },
+    { "datalog_flushed_at_each_step",   test_datalog_flushed_at_each_step },
     { "datalog_decimal_comma",          test_datalog_decimal_comma },
     { "stub_xcp_fmi2",                  test_stub_xcp_fmi2 },
     { "stub_xcp_fmi3",                  test_stub_xcp_fmi3 },
