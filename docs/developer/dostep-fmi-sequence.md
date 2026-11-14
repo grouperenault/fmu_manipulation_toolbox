@@ -134,9 +134,13 @@ A value refused by an FMU is reported by the call that synchronizes it (`fmi*DoS
 - `fmu_set_inputs` / `fmu_get_outputs` in the C runtime expand into a series of typed FMI calls
   (`fmi2SetReal`, `fmi3SetFloat64`, `fmi3SetBoolean`, …) according to the ports declared in
   `fmu_io`.
-- In the **multi-thread parallel** mode, `fmi*DoStep` is executed concurrently on each FMU via
-  per-FMU worker threads, synchronized through `mutex_container` / `mutex_fmu`.
-- The three modes (`container_do_one_step_sequential()`, `_parallel()`, `_parallel_mt()` of `container.c`)
+- In the **multi-thread** mode, the first `MT_WARMUP` (20) internal steps run as the mono-thread parallel mode
+  (`container_do_one_step_warmup()`), timing `fmi*DoStep` of each CS FMU. Then `container_dispatch()` gives the
+  heavy FMUs (mean step at least `<MT_THRESHOLD>` of `container.txt`) to a pool of worker threads; at each step
+  (`container_do_one_step_hybrid()`), the main thread sets the inputs of every CS FMU, releases the workers
+  (`barrier_start`), steps the light FMUs, waits for the workers (`barrier_end`) and gets the outputs of every CS
+  FMU. Without heavy FMU, the mono-thread parallel mode goes on.
+- The modes (`container_do_one_step_sequential()`, `_parallel()`, `_hybrid()` of `container.c`)
   differ by their Co-Simulation part only. The Model-Exchange part, `container_step_me()`, is common: once the
   CS FMUs are stepped (so that their discrete outputs are fresh), the continuous inputs of the ME FMUs are set,
   `solver_do_step()` integrates them together, and their outputs are read.

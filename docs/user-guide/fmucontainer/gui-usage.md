@@ -631,7 +631,7 @@ When a container is selected in the tree view, the detail panel shows its config
 | Parameter | Type | Description |
 |---|---|---|
 | `step_size` | text | Fixed time step (in seconds) for the container's internal solver; when empty, deduced from the embedded FMUs (see [Step Size Column](#step-size-column)) |
-| `mt` | checkbox | Enable multi-threading (each FMU runs in its own thread) |
+| `mt` | checkbox | Enable multi-threading (the FMUs with a long step run on worker threads, see [Multi-Threading](container.md#multi-threading)) |
 | `profiling` | checkbox | Enable performance profiling of embedded FMUs |
 | `sequential` | checkbox | Force sequential execution order |
 | `auto_link` | checkbox | Automatically link ports with matching names and types |

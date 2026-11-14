@@ -12,6 +12,17 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   FMI 3.0 §2.4.8): they now list the outputs with `initial="calculated"` or `"approx"` only.
 - 🟠 **FIXED** the inputs `container.ts_multiplier` and `container.solver` of an FMI 2.0 container had an `initial`
   attribute, which FMI 2.0 does not allow on an input (§2.2.7); an input of an FMI 2.0 container never has one.
+- 🔵 **CHANGED** runtime, multi-threaded mode (`-mt`): only the embedded Co-Simulation FMUs whose `doStep` is long
+  get a thread. The container measures their steps over the first 20 internal steps; those that take at least a
+  threshold (50 µs by default) are stepped by a pool of worker threads (at most one per core but one), the others by
+  the main thread meanwhile; without such an FMU, the mono-thread parallel mode goes on. The multi-threaded mode is no
+  longer slower than the mono-thread one on FMUs with short steps (3.8 times faster on the benchmark), and the
+  results are unchanged. `container.txt` is now in version 10.
+- 🟢 **ADDED** option `-mt-threshold <seconds>` of `fmucontainer` (`"mt_threshold"` of the JSON description, of the
+  SSP container options, `mt_threshold` of `make_fmu` and of the assembly API): the threshold of the
+  multi-threaded mode. See [Multi-Threading](docs/user-guide/fmucontainer/container.md#multi-threading).
+- 🔵 **CHANGED** runtime: the profiling (`container.<fmu>.rt_ratio`) reads a monotonic clock in nanoseconds instead
+  of the wall clock in milliseconds.
 - 🔵 **CHANGED** runtime: a value set on the container (`fmi*Set*`) goes to its cache, and the embedded FMU gets it
   when it needs it: before its next step, when it leaves its Initialization Mode, or when it is read. A value refused
   by an embedded FMU is reported by that call instead of `fmi*Set*`. The values set by the importer before the

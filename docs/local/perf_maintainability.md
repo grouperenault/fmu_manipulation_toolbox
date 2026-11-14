@@ -1,6 +1,6 @@
 # Plan: conformity, performance and maintainability of the container runtime and the Python package
 
-**Created**: 14 November 2026 — **Status**: in progress (phases 1, 2 and 4 done on 14 November 2026; phase 3
+**Created**: 14 November 2026 — **Status**: in progress (phases 1, 2, 4 and 5 done on 14 November 2026; phase 3
 abandoned on 14 November 2026, D7) — **Branch**: `feature/perf-maintainability`, from `integration` — **Roadmap**:
 not listed
 
@@ -590,10 +590,16 @@ stop time than A-parallel).
 
 | Case | Before (step 5.2) | After (step 5.4) |
 |---|---|---|
-| A-parallel | 0.769 / 0.784 | |
-| A-mt | 1.174 / 1.183 | |
-| G-parallel | 1.051 / 1.060 | |
-| G-mt | 0.394 / 0.399 | |
+| A-parallel | 0.769 / 0.784 | 0.773 / 0.790 |
+| A-mt | 1.174 / 1.183 | 0.307 / 0.315 |
+| G-parallel | 1.051 / 1.060 | 1.047 / 1.063 |
+| G-mt | 0.394 / 0.399 | 0.361 / 0.366 |
+
+Reading (step 5.4, same session, the runtime rebuilt): the digests are unchanged (D3). A-mt runs as A-parallel per
+simulated second (0.307 s for 16 s, 0.769 s for 40 s: 19.2 ms per simulated second), 3.8 times faster than before:
+its 20 light FMUs stay on the main thread, the threads are never started. G-mt is 8 % faster: 4 workers for the 4
+slow FMUs instead of one thread per CS FMU (12). The `mt` cases of the CI (`test_container_mt`) run on Windows only.
+The C tests pass under ThreadSanitizer (macOS, Clang), without report.
 
 ### Phase 4
 
