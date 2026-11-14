@@ -23,6 +23,9 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   multi-threaded mode. See [Multi-Threading](docs/user-guide/fmucontainer/container.md#multi-threading).
 - 🔵 **CHANGED** runtime: the profiling (`container.<fmu>.rt_ratio`) reads a monotonic clock in nanoseconds instead
   of the wall clock in milliseconds.
+- 🔵 **CHANGED** datalog: the file is flushed at the end of each communication step (`fmi*DoStep` of the container),
+  instead of when the container is freed: it can be read during the simulation, and a crash of the simulation tool
+  loses the current step at most.
 - 🔵 **CHANGED** runtime: a value set on the container (`fmi*Set*`) goes to its cache, and the embedded FMU gets it
   when it needs it: before its next step, when it leaves its Initialization Mode, or when it is read. A value refused
   by an embedded FMU is reported by that call instead of `fmi*Set*`. The values set by the importer before the

@@ -1,7 +1,7 @@
 # Plan: conformity, performance and maintainability of the container runtime and the Python package
 
-**Created**: 14 November 2026 — **Status**: in progress (phases 1, 2, 4 and 5 done on 14 November 2026; phase 3
-abandoned on 14 November 2026, D7) — **Branch**: `feature/perf-maintainability`, from `integration` — **Roadmap**:
+**Created**: 14 November 2026 — **Status**: done (14 November 2026): phases 1, 2, 4, 5 and 6 done; phase 3
+abandoned (D7) — **Branch**: `feature/perf-maintainability`, from `integration` — **Roadmap**:
 not listed
 
 This plan comes from a review of the whole toolbox (14 November 2026, code reading, measurements of
@@ -116,6 +116,10 @@ Taken on 14 November 2026 when writing the plan:
   **no decimation** of the datalog (Q11 and Q12 dropped, nor `-datalog-every`); Q13: a buffer of 1 MiB
   (`setvbuf`), flushed at the end of each `fmi*DoStep` of the container, so that a crash of the importer loses one
   communication step at most.
+- **D12 — End of the phase 6** (14 November 2026): the 1 MiB buffer gives 2.5 % on H-datalog (A/B, §7): only the
+  flush at each `fmi*DoStep` is kept, for the robustness (the file is readable during the simulation, a crash of the
+  importer loses one communication step at most), the default buffer of the C library stays.
+
 ### Open points, to decide before the phase starts
 
 | # | Phase | Question | Recommendation |
@@ -246,8 +250,8 @@ Decided on 14 November 2026 (D10); replaces the design written with the plan.
 
 ### 4.6 Phase 6 — Datalog
 
-- `datalog_configure()`: `setvbuf()` of 1 MiB (Q13); the file is flushed at the end of each `fmi*DoStep` of the
-  container (a function `datalog_flush()`), and closed at `container_free()` as today.
+- As implemented (D12): the file is flushed at the end of each `fmi*DoStep` of the container (`datalog_flush()`),
+  and closed at `container_free()` as before; no `setvbuf()`: the default buffer of the C library.
 - No decimation (D11): `datalog.txt` and its options are unchanged.
 
 ---
@@ -495,7 +499,7 @@ Commit message:
 Bench: case H-datalog
 ```
 
-#### Step 6.2 — Output buffer
+#### Step 6.2 — Flush at each communication step (D12)
 
 - `datalog.c` / `datalog.h`, `fmi2.c` / `fmi3.c` (the flush at the end of `fmi*DoStep`): 4.6.
 - C tests (`test_datalog.c`): the rows of a step are in the file once the step returns.
@@ -503,23 +507,23 @@ Bench: case H-datalog
 
 Commit message:
 ```
-Container datalog: 1 MiB output buffer, flushed at each communication step
+Container datalog: the file is flushed at each communication step
 
-The rows of the datalog were written through the default buffer of the C
-library; they now go through a buffer of 1 MiB, flushed when the container
-returns from fmi*DoStep: a crash of the importer loses one communication
-step at most.
+The rows of the datalog stayed in the buffer of the C library until the
+container was freed. The file is now flushed when the container returns from
+fmi*DoStep, also after an error: it can be read during the simulation, and a
+crash of the importer loses one communication step at most.
 ```
 
 #### Step 6.3 — Measurement after and documentation
 
-- A/B run (D2): H-datalog; results in §7. Reverted if no measurable gain (D2).
+- A/B run (D2): H-datalog; results in §7.
 - `docs/user-guide/fmucontainer/datalog.md` (the file is complete at the end of each communication step),
-  `docs/developer/native-runtime.md`, `CHANGELOG.md` (CHANGED).
+  `CHANGELOG.md` (CHANGED).
 
 Commit message:
 ```
-Doc: datalog output buffer
+Doc: the datalog is flushed at each communication step
 ```
 
 ---
@@ -649,5 +653,18 @@ for 40 s): the datalog costs about 22 µs per row.
 
 | Case | Before (step 6.1) | After (step 6.3) |
 |---|---|---|
-| A-parallel | 0.770 / 0.797 | |
-| H-datalog | 0.821 / 0.848 | |
+| A-parallel | 0.770 / 0.797 | 0.778 / 0.785 |
+| H-datalog | 0.821 / 0.848 | 0.816 / 0.829 |
+
+The "after" column is the 1 MiB buffer with the flush, measured first. A/B in one session (the runtime before the
+phase and the new one alternately, 3 rounds of 5 runs each, min / mean):
+
+| Round | Before | 1 MiB buffer + flush | Before | Flush only (kept, D12) |
+|---|---|---|---|---|
+| 1 | 0.850 / 0.884 | 0.828 / 0.842 | 0.847 / 0.857 | 0.878 / 0.896 |
+| 2 | 0.871 / 0.880 | 0.852 / 0.883 | 0.859 / 0.876 | 0.872 / 0.878 |
+| 3 | 0.849 / 0.855 | 0.833 / 0.841 | 0.873 / 0.890 | 0.874 / 0.909 |
+
+Reading: the buffer gives 2.5 % on H-datalog, 5 % of the cost of the datalog: the cost is the formatting of the values
+(`fprintf("%.17g")`) and their reading by the getters, not the writes (local SSD). The flush alone costs 0 to 4 %
+(2 000 flushes, one per communication step), within the noise of the rounds. Kept for the robustness (D12).
