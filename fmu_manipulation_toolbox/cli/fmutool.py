@@ -172,8 +172,7 @@ def fmutool():
     def operation_iterator():
         for op in cli_options.operations_list:
             if isinstance(op, list):
-                for sub_op in op:
-                    yield sub_op
+                yield from op
             else:
                 yield op
 

@@ -43,7 +43,7 @@ def test_non_utf8_file_is_read_with_a_warning(tmp_path, caplog):
 
 def test_open_text_keeps_line_endings_for_csv(tmp_path):
     path = tmp_path / "f.csv"
-    path.write_bytes('a;"x\r\ny"\r\nb;z\r\n'.encode("utf-8"))
+    path.write_bytes(b'a;"x\r\ny"\r\nb;z\r\n')
     assert list(csv.reader(open_text(path), delimiter=";")) == [["a", "x\r\ny"], ["b", "z"]]
 
 

@@ -120,7 +120,7 @@ def test_build_configuration_of_the_host_platform(data_dir, tmp_path):
     <SourceFileSet><SourceFile name="cosimulation.c"/></SourceFileSet>
   </BuildConfiguration>
 </fmiBuildDescription>
-""".encode("utf-8")
+""".encode()
     fmu_filename = rewrite_fmu(data_dir / "compile" / "3.0" / "BouncingBall.fmu", tmp_path / "BouncingBall.fmu",
                                replace={"sources/buildDescription.xml": build_description})
 
@@ -206,7 +206,7 @@ def _custom_fmu(data_dir, tmp_path, source_file_set: str, libraries: str = ""):
     {libraries}
   </BuildConfiguration>
 </fmiBuildDescription>
-""".encode("utf-8")
+""".encode()
     return rewrite_fmu(data_dir / "compile" / "3.0" / "BouncingBall.fmu", tmp_path / "BouncingBall.fmu",
                        replace={"sources/buildDescription.xml": build_description,
                                 "sources/extra.cpp": b"", "sources/extra.c": b""})

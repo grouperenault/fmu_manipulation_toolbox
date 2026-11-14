@@ -515,7 +515,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
                                                      default_name="log.txt")
         if filename:
             try:
-                with open(filename, "wt", encoding="utf-8") as file:
+                with open(filename, "w", encoding="utf-8") as file:
                     file.write(str(self.log_widget.toPlainText()))
             except Exception as e:
                 logger.error(f"{e}")

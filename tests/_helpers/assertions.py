@@ -23,7 +23,7 @@ def _read_lines(path: PathLike) -> list[str]:
     Trailing blank lines are dropped so that a missing/extra final newline is
     not reported as a mismatch.
     """
-    with open(path, mode="rt", newline=None) as f:
+    with open(path, newline=None) as f:
         lines = [line.strip() for line in f]
     while lines and lines[-1] == "":
         lines.pop()

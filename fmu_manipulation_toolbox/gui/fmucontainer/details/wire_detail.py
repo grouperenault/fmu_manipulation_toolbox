@@ -925,7 +925,7 @@ class WireDetailWidget(QWidget):
         if not path:
             return
         mappings = []
-        with open(path, "r", newline="", encoding="utf-8") as f:
+        with open(path, newline="", encoding="utf-8") as f:
             reader = csv.reader(f)
             header = next(reader, None)
             if not header or len(header) < 4:

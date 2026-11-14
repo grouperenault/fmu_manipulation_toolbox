@@ -792,11 +792,11 @@ class FMUContainer:
                                           fmi_version=self.fmi_version)
 
         self.make_fmu_xml(base_directory / "modelDescription.xml", step_size, profiling, ts_multiplier, layout)
-        with open(resources_directory / "container.txt", "wt", encoding=ENCODING) as txt_file:
+        with open(resources_directory / "container.txt", "w", encoding=ENCODING) as txt_file:
             self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential, layout)
 
         if datalog:
-            with open(resources_directory / "datalog.txt", "wt", encoding=ENCODING) as datalog_file:
+            with open(resources_directory / "datalog.txt", "w", encoding=ENCODING) as datalog_file:
                 self.make_datalog(datalog_file, layout)
 
         xcp.write_manifest(self, base_directory, list(self.get_platforms(verbose=False)))

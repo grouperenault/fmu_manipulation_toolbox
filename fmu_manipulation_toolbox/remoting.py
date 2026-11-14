@@ -105,7 +105,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
 
         logger.info(f"Remoting nb input port: {self.nb_input}")
         logger.info(f"Remoting nb output port: {self.nb_output}")
-        with open(target_dir/ "remoting_table.txt", "wt") as file:
+        with open(target_dir/ "remoting_table.txt", "w") as file:
             for fmi_type in ('Real', 'Integer', 'Boolean'):
                 print(len(self.vr[fmi_type]), file=file)
             for fmi_type in ('Real', 'Integer', 'Boolean'):

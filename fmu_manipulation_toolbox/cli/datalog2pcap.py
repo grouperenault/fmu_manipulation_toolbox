@@ -81,7 +81,7 @@ class DatalogConverter:
 
     def open_csv(self):
         logger.debug(f"Loading '{self.csv_filename}'")
-        return open(self.csv_filename, "rt")
+        return open(self.csv_filename)
 
     def exported_pdu_header(self, bus_type: str) -> bytes:
         protocol = self.PROTOCOLS[bus_type].encode()

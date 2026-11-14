@@ -55,7 +55,7 @@ def assert_simulation_log(filename: Path | str, step_size: float | None = None):
         filename = Path(filename)
 
     log_filename = filename.with_name("log-" + filename.with_suffix(".txt").name)
-    with open(log_filename, "wt") as log_file:
+    with open(log_filename, "w") as log_file:
         def fmu_log(*args):
             print(f"{args[-1].decode('utf-8')}", file=log_file)
 

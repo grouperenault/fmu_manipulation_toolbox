@@ -774,7 +774,7 @@ class Assembly:
             raise AssemblyError("This assembly embeds an FMU several times. Cannot export to CSV file: "
                                 "use the JSON format.")
 
-        with open(self.fmu_directory / filename, "wt", encoding=ENCODING) as outfile:
+        with open(self.fmu_directory / filename, "w", encoding=ENCODING) as outfile:
             outfile.write("rule;from_fmu;from_port;to_fmu;to_port\n")
             for fmu in self.root.fmu_names_list:
                 outfile.write(f"FMU;{fmu};;;\n")
@@ -924,7 +924,7 @@ class Assembly:
                 a built FMU).
         """
         output_pathname = self.fmu_directory / filename
-        with open(output_pathname, "wt", encoding=ENCODING) as file:
+        with open(output_pathname, "w", encoding=ENCODING) as file:
             data = self.json_encode()
             if basenames_only:
                 data = _basename_json(data)

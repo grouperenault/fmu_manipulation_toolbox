@@ -759,8 +759,7 @@ class FMUSplitterDescription:
     def _terminal_variable_names(term: Terminal) -> Iterator[str]:
         """Yield every leaf variable name reachable from ``term`` (direct
         members and members of sub-terminals, recursively)."""
-        for var in term.members.values():
-            yield var
+        yield from term.members.values()
         for sub in term.sub_terminals.values():
             yield from FMUSplitterDescription._terminal_variable_names(sub)
 
