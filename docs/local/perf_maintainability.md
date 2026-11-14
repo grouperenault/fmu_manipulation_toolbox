@@ -104,6 +104,12 @@ Taken on 14 November 2026 when writing the plan:
 - **D9 — Workflow of the phase 4** (14 November 2026): the long lines of `tests/` and the mypy errors of two groups
   of files were fixed by sub-agents in parallel, on disjoint files, then reviewed; the full test suite ran after
   each ruff commit, the tests related to the files after each mypy commit.
+- **D10 — Decisions of the phase 5** (14 November 2026): Q8 as recommended (50 µs, mean of 20 steps, `-mt-threshold`,
+  `container.txt` version 10); Q9 a **pool** of `min(heavy, cores - 1)` workers, the heavy FMUs assigned once, the
+  longest first; Q10 **`doStep` only** in the workers: the recommendation (the exchanges in the worker) races on the
+  local variables (a worker writing the outputs of its FMU while another reads its inputs) and breaks the Jacobi
+  semantics, and its gain (costly FMI calls) cannot be measured here (as D7). `mt_threshold` is exposed in the API,
+  the JSON, the CLI, `fmusplit` and the SSP container options; not in the GUI nor the MCP assistant (later).
 
 ### Open points, to decide before the phase starts
 
@@ -209,23 +215,28 @@ before the phase is replaced.
 
 ### 4.5 Phase 5 — Hybrid multi-thread mode
 
+Decided on 14 November 2026 (D10); replaces the design written with the plan.
+
 - **Prerequisite**: `profile.c` in nanoseconds (`clock_gettime(CLOCK_MONOTONIC)`, `QueryPerformanceCounter()`),
   used by the profiling output (unchanged values, better resolution) and by the measurement below.
 - **Measurement**: with `mt`, the first `MT_WARMUP` (20) internal steps run in the mono-thread parallel mode, the
-  time of each `fmuDoStep()` measured; then each CS FMU is **heavy** (mean above the threshold, Q8) or **light**.
-- **Scheduling** of an internal step: the heavy FMUs are stepped by the workers (Q9), the light ones by the main
-  thread meanwhile, then one synchronization. A worker runs `fmu_set_inputs()`, `fmuDoStep()`, `fmu_get_outputs()`
-  of its FMU (Q10): the cache sets of an FMU are its own (`cache_fmu_t`), the local variables it writes are its own
-  (its outputs and their conversions), the scratch buffers of the strings and binaries become per FMU. The importer
-  cannot call the container during `fmi*DoStep`, so no concurrent `fmi*Set*`.
-- **Synchronization**: one counter of running workers and a condition variable (or the Windows event), the main
-  thread spinning a few microseconds before blocking; `thread_barrier_*` kept for the stop of the threads or
-  removed if unused.
-- **No heavy FMU**: the step runs as the mono-thread parallel mode; the threads are stopped (or never started: the
-  threads are started after the warm-up).
-- Flags line of `container.txt`: `<MT> <Profiling> <Sequential> <MT_THRESHOLD>` (version 10, Q8); `-mt-threshold`
-  of the CLI, `mt_threshold` of the JSON and of the API.
-- The mode is reported once (`LOGGER_WARNING` as today) with the list of the heavy FMUs.
+  time of each `fmuDoStep()` of the CS FMUs measured; then each CS FMU is **heavy** (mean above the threshold, Q8) or
+  **light**.
+- **Workers** (Q9): `min(number of heavy FMUs, number of cores - 1)` threads, started at the end of the warm-up;
+  the heavy FMUs are assigned once, the longest first, each to the least loaded worker (LPT). No heavy FMU, or a
+  single core: no thread, the steps go on in the mono-thread parallel mode.
+- **Scheduling** of an internal step (Jacobi, as the parallel modes): the main thread sets the inputs of every CS FMU,
+  releases the workers, which run `fmuDoStep()` of their FMUs one after the other (Q10: `doStep` only), steps the
+  light FMUs meanwhile, waits for the workers, gets the outputs of every CS FMU, then runs the ME part. The exchanges
+  stay on the main thread: a worker running `fmu_set_inputs()` and `fmu_get_outputs()` of its FMU would write local
+  variables that another worker may still be reading (Q10).
+- **Synchronization**: `barrier_start` and `barrier_end` as today, sized `workers + 1`.
+- **Threshold** (Q8): `MT_THRESHOLD` seconds, default 50 µs. Flags line of `container.txt`:
+  `<MT> <Profiling> <Sequential> <MT_THRESHOLD>`, version 10. Exposed as `make_fmu(..., mt_threshold=...)`,
+  `AssemblyNode(mt_threshold=...)`, JSON `"mt_threshold"`, CLI `-mt-threshold <seconds>`, read back by `fmusplit` and
+  kept by the SSP container options (D10). A threshold of 0 makes every CS FMU heavy.
+- The mode is reported once at the end of the warm-up (`LOGGER_WARNING`, as the mode today), with the heavy FMUs and
+  their worker.
 
 ### 4.6 Phase 6 — Datalog
 
@@ -426,9 +437,10 @@ Container runtime: profiling with a monotonic clock in nanoseconds
 
 #### Step 5.2 — Measurement before
 
-- `tools/bench_container.py`: the `mt` cases (`A-mt`) and a new case **G-heavy** where one FMU of the chain is
-  slow (a stub FMU of `container/tests` built with a busy loop of a configurable duration, or `1.fmu` of
-  `tests/data/containers/mt` if it fits), with and without `mt`; results in §7.
+- `tools/bench_container.py`: the `mt` cases (`A-mt`) and a new case **G-heavy**: a chain of light `Feedthrough`
+  instances and a few slow ones, compiled at bench time from the sources of `compile/3.0/Feedthrough.fmu` with a
+  loop of a fixed number of iterations in `doStep` (a fixed amount of work, whatever the threads), with and without
+  `mt`; results in §7.
 
 Commit message:
 ```
@@ -437,21 +449,23 @@ Bench: case G-heavy, one slow FMU among light ones, mono and multi-thread
 
 #### Step 5.3 — Scheduling
 
-- `container.c`, `fmu.c`, `thread.c`, `cache.c` (per-FMU scratch buffers): 4.5; flags line of `container.txt`
-  (Q8), `builder.py`, `cli/fmucontainer.py`, `assembly.py` (JSON, API), `split.py`.
+- `container.c`, `container.h`, `fmu.c`, `fmu.h`: 4.5; flags line of `container.txt` (Q8, version 10),
+  `types.py`, `builder.py`, `cli/fmucontainer.py`, `assembly.py` (JSON, API), `split.py`, `ssp.py`.
 - C tests: `test_threads_lifecycle.c` (start after the warm-up, stop), a step with heavy and light FMUs, no heavy
   FMU; `linux64-sanitize`; a `linux64-tsan` preset (`-fsanitize=thread`, GCC/Clang) run by hand, in the CI if
   stable.
-- Python tests: `test_container.py` (mt), the REF files unchanged.
+- Python tests: `test_container.py` (mt), the `mt_threshold` option (JSON, CLI, `fmusplit`, SSP round trip); the
+  results unchanged (D3); the `REF-*` container files change by their version and flags lines only.
 
 Commit message:
 ```
 Container runtime: hybrid multi-thread mode
 
 With mt, the runtime measures the doStep of each Co-Simulation FMU over the
-first internal steps and gives a thread to the FMUs above a threshold only;
-the main thread steps the others meanwhile. A worker runs the exchanges of its
-FMU too. The threshold is set at build time (-mt-threshold).
+first internal steps; the FMUs above a threshold are stepped by a pool of
+worker threads (at most one per core but one), the main thread steps the
+others meanwhile. The threshold is set at build time (-mt-threshold,
+container.txt version 10).
 ```
 
 #### Step 5.4 — Measurement after and documentation
