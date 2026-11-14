@@ -265,10 +265,11 @@ class ModelVariable:
         FMI-3: `[<Float64>/... attributes]`, followed by one `{"start": value}`
         mapping per `<Start>` element (`String` and `Binary` variables).
         """
+        attrs: list[MutableMapping[str, str]] = [self.element.attrib]
         if self.fmi_version == 2:
             typed = self.typed_element
-            return [self.element.attrib] + ([typed.attrib] if typed is not None else [])
-        return [self.element.attrib] + [_StartValue(start) for start in self.element.findall("Start")]
+            return attrs + ([typed.attrib] if typed is not None else [])
+        return attrs + [_StartValue(start) for start in self.element.findall("Start")]
 
     @property
     def dimensions(self) -> list[tuple[str, int]]:
@@ -355,8 +356,8 @@ class ModelDescription:
     @staticmethod
     def _major_version(fmi_version: str | None) -> int:
         try:
-            major = int(fmi_version.split(".", 1)[0])
-        except (AttributeError, ValueError):
+            major = int(str(fmi_version).split(".", 1)[0])
+        except ValueError:
             raise ModelDescriptionError(f"Invalid fmiVersion '{fmi_version}'") from None
         if major not in (2, 3):
             raise ModelDescriptionError(f"Unsupported fmiVersion '{fmi_version}': expected FMI 2.0 or 3.0")
@@ -531,8 +532,8 @@ class ModelDescription:
             # Dimension given by a structural parameter: use its start value.
             parameter = ports.get(str(value))
             try:
-                size *= int(parameter.get("start"))
-            except (AttributeError, TypeError, ValueError):
+                size *= int(parameter.get("start", "") if parameter is not None else "")
+            except (TypeError, ValueError):
                 logger.warning(f"'{label}': <{section}> vr={vr} has a dimension given by structuralParameter "
                                f"vr={value} whose value cannot be resolved. Assuming 1 element.")
                 return 1

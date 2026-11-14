@@ -148,7 +148,7 @@ REF_EXPERIMENT_SUB_ROLES = ("smoke-test", "validation", "uncertainty-analysis")
 REF_EXPERIMENTS_TYPE = "application/x-ma-hs-experiments"
 
 
-def resolve_uri(uri: str, base: Path, root: Path) -> tuple[Path | None, str | None]:
+def resolve_uri(uri: str, base: Path | str, root: Path | str) -> tuple[Path | None, str | None]:
     """File designated by a relative URI of a layered standard, resolved against the directory `base`.
 
     The URI may hold dot segments, as long as the resolved path stays inside the extracted FMU `root`.
