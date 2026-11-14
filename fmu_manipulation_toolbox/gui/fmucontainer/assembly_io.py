@@ -80,6 +80,7 @@ class AssemblyIOMixin:
             name=assembly_node.name,
             step_size=assembly_node.step_size or "",
             mt=assembly_node.mt,
+            mt_threshold=assembly_node.mt_threshold,
             profiling=assembly_node.profiling,
             sequential=assembly_node.sequential,
             auto_link=assembly_node.auto_link,

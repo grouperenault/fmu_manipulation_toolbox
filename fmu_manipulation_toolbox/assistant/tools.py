@@ -38,7 +38,7 @@ MAX_DESCRIPTION_LENGTH = 80
 #: Container options and the type of their value (`None` leaves `step_size` to the toolbox).
 CONTAINER_OPTION_TYPES: dict[str, tuple[type, ...]] = {
     "step_size": (float, int, type(None)),
-    "mt": (bool,), "profiling": (bool,), "sequential": (bool,),
+    "mt": (bool,), "mt_threshold": (float, int), "profiling": (bool,), "sequential": (bool,),
     "auto_link": (bool,), "auto_input": (bool,), "auto_output": (bool,),
     "auto_parameter": (bool,), "auto_local": (bool,),
     "ts_multiplier": (bool,), "reset_ports": (bool,),
@@ -262,6 +262,8 @@ class Toolbox:
                                  f"got {value!r}.")
             if name == "step_size" and value is not None and value <= 0:
                 raise ValueError(f"Option 'step_size' must be positive, got {value}.")
+            if name == "mt_threshold" and value < 0:
+                raise ValueError(f"Option 'mt_threshold' cannot be negative, got {value}.")
         return self.bridge.set_container_options(dict(options))
 
     def get_assembly_json(self, node: str | None = None, section: AssemblySection | None = None,

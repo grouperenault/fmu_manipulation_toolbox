@@ -260,6 +260,12 @@ def test_options_reach_the_assembly(loaded):
     assembly = loaded.get_assembly_json()
     assert assembly["step_size"] == 0.02
     assert assembly["mt"] is True
+    assert "mt_threshold" not in assembly           # the default is not written
+
+
+def test_the_threshold_of_the_multithreaded_mode_reaches_the_assembly(loaded):
+    loaded.set_container_options({"mt": True, "mt_threshold": 0.002})
+    assert loaded.get_assembly_json()["mt_threshold"] == 0.002
 
 
 # --------------------------------------------------------------------------- #

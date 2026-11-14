@@ -109,7 +109,7 @@ Taken on 14 November 2026 when writing the plan:
   longest first; Q10 **`doStep` only** in the workers: the recommendation (the exchanges in the worker) races on the
   local variables (a worker writing the outputs of its FMU while another reads its inputs) and breaks the Jacobi
   semantics, and its gain (costly FMI calls) cannot be measured here (as D7). `mt_threshold` is exposed in the API,
-  the JSON, the CLI, `fmusplit` and the SSP container options; not in the GUI nor the MCP assistant (later).
+  the JSON, the CLI, `fmusplit` and the SSP container options; not in the GUI nor the MCP assistant (later: D13).
 
 - **D11 — Review of the phase 5 and decisions of the phase 6** (14 November 2026): the threshold is written in
   `container.txt` in µs, an integer (`<MT_THRESHOLD_US>`), the API, the JSON and the CLI keeping seconds. Phase 6:
@@ -119,6 +119,13 @@ Taken on 14 November 2026 when writing the plan:
 - **D12 — End of the phase 6** (14 November 2026): the 1 MiB buffer gives 2.5 % on H-datalog (A/B, §7): only the
   flush at each `fmi*DoStep` is kept, for the robustness (the file is readable during the simulation, a crash of the
   importer loses one communication step at most), the default buffer of the C library stays.
+- **D13 — After the plan** (14 November 2026): `mt_threshold` also in the options of a container of the GUI
+  (`ContainerParameters`, a number in the table of the detail panel) and of the MCP assistant (`ContainerOptions`,
+  `set_container_options`, the headless bridge, `fmutool-agent`); the budget of the definitions of the MCP tools raised
+  from 18 000 to 18 200 characters (18 136 with the option). Correction of D12: a datalog file is fully buffered by
+  the C library, written by blocks when its buffer is full (a `\n` does not flush a file, only a terminal); the
+  flush at each `fmi*DoStep` makes it complete at each communication step (the message of the commit of the step 6.2
+  says wrongly that the rows stayed in the buffer until the container was freed).
 
 ### Open points, to decide before the phase starts
 
@@ -509,10 +516,10 @@ Commit message:
 ```
 Container datalog: the file is flushed at each communication step
 
-The rows of the datalog stayed in the buffer of the C library until the
-container was freed. The file is now flushed when the container returns from
-fmi*DoStep, also after an error: it can be read during the simulation, and a
-crash of the importer loses one communication step at most.
+The rows of the datalog were written by blocks, when the buffer of the C
+library was full. The file is now flushed when the container returns from
+fmi*DoStep, also after an error: it is complete at each communication step,
+and a crash of the importer loses one communication step at most.
 ```
 
 #### Step 6.3 — Measurement after and documentation

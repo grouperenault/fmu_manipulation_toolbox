@@ -128,6 +128,8 @@ class Help:
         "-step_size": "Simulation step size for the container. This value (in seconds) determines the time increment\n"
                       "used during simulation.",
         "-mt": "Enable multi-threading for this container. Allows parallel execution if supported.",
+        "-mt_threshold": "Multi-threading: an FMU whose mean step takes at least this duration (in seconds,\n"
+                         "measured over the first 20 steps) gets a thread; the others run on the main thread.",
         "-profiling": "Enable profiling to collect performance metrics during simulation.\n"
                       "The container will expose as local variables (named 'container.rt_ratio_*') these metrics.",
         "-sequential": "Force sequential execution of FMUs in this container, disabling parallelism.\n"

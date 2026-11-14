@@ -19,8 +19,9 @@ from pathlib import Path
 LARGE_FMU_VARIABLES = 5000
 
 #: Budgets checked by the tests. The definitions were raised from 17 000 when `describe_port`, `rename_ports` and the
-#: filters by type and variability were added, after the descriptions were compacted (docs/local/agent_skills.md).
-DEFINITIONS_BUDGET = 18_000
+#: filters by type and variability were added, after the descriptions were compacted (docs/local/agent_skills.md);
+#: then to 18 200 for the container option `mt_threshold` (docs/local/done/perf_maintainability.md, D13).
+DEFINITIONS_BUDGET = 18_200
 RESULT_BUDGET = 12_000
 
 
