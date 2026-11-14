@@ -1,7 +1,7 @@
 # Plan: conformity, performance and maintainability of the container runtime and the Python package
 
-**Created**: 14 November 2026 — **Status**: draft, decisions pending — **Branch**: one branch per phase, from
-`integration` — **Roadmap**: not listed
+**Created**: 14 November 2026 — **Status**: in progress (phase 1 started on 14 November 2026) — **Branch**:
+`feature/perf-maintainability`, from `integration` — **Roadmap**: not listed
 
 This plan comes from a review of the whole toolbox (14 November 2026, code reading, measurements of
 `docs/local/done/container_perf.md`). It gathers the actions retained from that review, in the order in which they
@@ -73,8 +73,15 @@ Taken on 14 November 2026 when writing the plan:
   `container_perf.md` is the precedent).
 - **D3 — Results**: the results of the reference containers (`REF-*.txt` of `tests/data/containers`,
   `tests/integration/test_container_perf.py`) and the digests of the benchmark do not change in phases 2, 3, 5 and 6.
-- **D4 — One branch per phase**, from `integration`, merged before the next phase starts: `fix/initial-unknowns`,
-  `refactor/step-loops`, `perf/getters-from-locals`, `chore/ruff-mypy`, `perf/mt-hybrid`, `perf/datalog`.
+- **D4 — One branch for the whole plan** (decided on 14 November 2026, replacing one branch per phase):
+  `feature/perf-maintainability`, from `integration`, one commit per step; the phases follow one another on it.
+- **D5 — Decisions of the phases 1 to 3** (14 November 2026): Q1 keep `initial` and `start`; Q2 option A
+  (read-through in Initialization Mode); Q3 option A (`container.txt` version 10 written by the builder). Q4 to Q13
+  are asked before their phase starts.
+- **D6 — Clocked outputs** (14 November 2026): the rule "an output with `initial` `calculated` or `approx` must be
+  listed as initial unknown" exempts the `Clock` variables and the clocked variables (attribute `clocks`): they have
+  no value in Initialization Mode, and neither the Reference FMUs (`Clocks`) nor the LS-BUS FMUs list them. The rule
+  "an output with `initial="exact"` must not be listed" applies to every variable.
 
 ### Open points, to decide before the phase starts
 
@@ -110,9 +117,10 @@ FMI 2.0.5 §2.2.8 and FMI 3.0.2 §2.4.8: `<InitialUnknowns>` / `<InitialUnknown>
   calculated parameters; the profiling variables `container.<fmu>.rt_ratio` are `local` (no causality given to
   `EmbeddedFMUPort`), hence listed in neither section.
 - `OperationSemanticCheck.check_model_structure()`: new rule, both versions: an output with `initial` in
-  (`calculated`, `approx`) or absent must be listed as initial unknown; a listed variable must be an output (or a
-  `calculatedParameter`, or a state or derivative) with such an `initial`; an output with `initial="exact"` must not
-  be listed. The messages quote the section (`FMI-2 §2.2.8`, `FMI-3 §2.4.8`).
+  (`calculated`, `approx`), given or by default, must be listed as initial unknown, unless it is a `Clock` or a
+  clocked variable (D6); an output with `initial="exact"` must not be listed. The messages quote the section
+  (`FMI-2 §2.2.8`, `FMI-3 §2.4.8`). The other entries of the list (calculated parameters, states, derivatives) are
+  not checked: out of the scope.
 - Q1: an exposed output keeps the `initial` and `start` of the embedded variable.
 
 ### 4.2 Phase 2 — One Model-Exchange part
