@@ -227,7 +227,8 @@ def test_fmi2_type_definitions_are_not_variables():
     md = _reference("2.0/Feedthrough")
     assert md.root.find("TypeDefinitions") is not None
     variables = md.variables()
-    assert [v.tag for v in variables] == ["ScalarVariable"] * len(md.root.find("ModelVariables").findall("ScalarVariable"))
+    assert [v.tag for v in variables] == \
+        ["ScalarVariable"] * len(md.root.find("ModelVariables").findall("ScalarVariable"))
     assert all(port.fmi_type in ModelDescription.FMI2_VARIABLE_TYPES for port in md.iter_ports())
 
 

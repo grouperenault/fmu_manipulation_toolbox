@@ -43,9 +43,11 @@ class FMUIOList:
 
     def __init__(self, vr_table: ValueReferenceTable):
         self.vr_table = vr_table
-        self.inputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr] -> [IOReference]
+        # [type][fmu][clock_vr] -> [IOReference]
+        self.inputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
         self.nb_clocked_inputs = defaultdict(lambda: defaultdict(lambda: 0))
-        self.outputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))  # [type][fmu][clock_vr] -> [IOReference]
+        # [type][fmu][clock_vr] -> [IOReference]
+        self.outputs = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
         self.nb_clocked_outputs = defaultdict(lambda: defaultdict(lambda: 0))
         self.start_values = defaultdict(lambda: defaultdict(list)) # [type][fmu] -> [(fmu_vr, dim, reset, value)]
 

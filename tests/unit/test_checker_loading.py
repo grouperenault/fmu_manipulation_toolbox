@@ -19,7 +19,8 @@ from fmu_manipulation_toolbox.checker import (
     get_checkers,
 )
 
-BUILT_IN = [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck, OperationLsXcpCheck, OperationLsRefCheck]
+BUILT_IN = [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck, OperationLsXcpCheck,
+            OperationLsRefCheck]
 
 pytestmark = [pytest.mark.unit]
 

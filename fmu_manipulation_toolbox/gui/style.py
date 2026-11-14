@@ -147,7 +147,7 @@ _COMMON_STYLE = """
         border: 1px solid #282830;
         border-top-left-radius: 5px;
         border-top-right-radius: 5px;
-    }} 
+    }}
     QTabBar::tab:selected, QTabBar::tab:hover {{
         background-color: #5f7850;
         margin-bottom:-1px;

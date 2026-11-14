@@ -96,9 +96,11 @@ def fmucontainer():
         try:
             assembly = Assembly(filename, default_step_size=step_size, default_auto_link=config.auto_link,
                                 default_auto_input=config.auto_input, default_auto_output=config.auto_output,
-                                default_auto_local=config.auto_local, default_mt=config.mt, default_sequential=config.sequential,
+                                default_auto_local=config.auto_local, default_mt=config.mt,
+                                default_sequential=config.sequential,
                                 default_profiling=config.profiling, fmu_directory=fmu_directory, debug=config.debug,
-                                default_auto_parameter=config.auto_parameter, default_ts_multiplier=config.ts_multiplier,
+                                default_auto_parameter=config.auto_parameter,
+                                default_ts_multiplier=config.ts_multiplier,
                                 default_reset_ports=config.reset_ports)
         except FileNotFoundError as e:
             logger.fatal(f"Cannot read file: {e}")

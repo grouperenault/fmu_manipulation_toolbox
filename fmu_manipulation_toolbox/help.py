@@ -123,7 +123,7 @@ class Help:
         # GUI message
         "gui-apply-only": "Apply operation only on ports with specified causality. If selected, at least one causality "
         "should be selected.",
-        
+
         # Container message
         "-step_size": "Simulation step size for the container. This value (in seconds) determines the time increment\n"
                       "used during simulation.",

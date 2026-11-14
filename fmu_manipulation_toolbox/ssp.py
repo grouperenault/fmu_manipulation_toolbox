@@ -578,8 +578,8 @@ class SSDParser:
             if base == "component":
                 component_source = self._sources.get((id(self.node_stack[-1]), name)) if kind == "component" else None
                 if component_source is None:
-                    raise AssemblyError(f"'{self.ssd_filename}': the parameter source '{source}' of {owner} is relative "
-                                        f"to a component, but {owner} is not an FMU component.")
+                    raise AssemblyError(f"'{self.ssd_filename}': the parameter source '{source}' of {owner} is "
+                                        f"relative to a component, but {owner} is not an FMU component.")
                 with zipfile.ZipFile(BytesIO(self.zin.read(component_source))) as fmu:
                     content = fmu.read(str(path))
             else:
@@ -936,7 +936,8 @@ class SSPWriter:
                            connector(end_element, cport.port.name))
 
         # Architecture wires: synthetic connectors `aw.<peer>` (container.md#architecture-wires).
-        by_fmu = {fmu_name: elements[Path(fmu_name).name] for fmu_name in list(node.fmu_names_list) + list(node.children)}
+        by_fmu = {fmu_name: elements[Path(fmu_name).name]
+                  for fmu_name in list(node.fmu_names_list) + list(node.children)}
         for wire in node.architecture_wires:
             start, end = by_fmu.get(wire.start_fmu), by_fmu.get(wire.end_fmu)
             if start is None or end is None:

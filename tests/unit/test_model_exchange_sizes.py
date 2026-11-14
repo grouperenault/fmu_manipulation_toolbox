@@ -18,7 +18,8 @@ pytestmark = [pytest.mark.unit]
 
 
 def fmi2(structure: str = "", root_attrs: str = "") -> ModelDescription:
-    variables = "".join(f'<ScalarVariable name="v{i}" valueReference="{i}"><Real/></ScalarVariable>' for i in range(1, 4))
+    variables = "".join(f'<ScalarVariable name="v{i}" valueReference="{i}"><Real/></ScalarVariable>'
+                        for i in range(1, 4))
     return ModelDescription.load(f'<fmiModelDescription fmiVersion="2.0"{root_attrs}><ModelVariables>{variables}'
                                  f'</ModelVariables><ModelStructure>{structure}</ModelStructure>'
                                  f'</fmiModelDescription>'.encode())

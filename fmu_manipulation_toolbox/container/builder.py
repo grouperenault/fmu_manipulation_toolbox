@@ -510,7 +510,8 @@ class FMUContainer:
         # Check dimensions
         value_tokens = str(value).split(' ')
         if not len(value_tokens) == cport.port.size():
-            raise FMUContainerError(f"Start value missmatch for {cport.port.type_name} which is dimension {cport.port.size()}")
+            raise FMUContainerError(f"Start value missmatch for {cport.port.type_name} which is dimension "
+                                    f"{cport.port.size()}")
 
         # Check type
         for token in value_tokens:
@@ -1202,7 +1203,8 @@ class FMUContainer:
                 for cport_to in link.cport_to_list:
                     if cport_to.port.interval_variability in TIME_BASED_CLOCKS:
                         scheduled_clocks.append(cport_to)
-                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, vr={layout.links[link]})")
+                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' "
+                                    f"(clock={cport_to.port.vr}, vr={layout.links[link]})")
                         clock_list.append(cport_to, layout.links[link])
                 self.check_clocks_of_link(link, scheduled_clocks)
 
@@ -1286,8 +1288,8 @@ class FMUContainer:
                 print(f"{layout.inputs[input_port.name]} {input_port.size} {len(links)}", " ".join(links),
                       file=txt_file)
             for output_port_name, output_port in outputs_per_type[type_name]:
-                print(f"{layout.outputs[output_port_name]} {output_port.port.size()} 1 {fmu_rank[output_port.fmu.name]} "
-                      f"{output_port.port.vr}", file=txt_file)
+                print(f"{layout.outputs[output_port_name]} {output_port.port.size()} 1 "
+                      f"{fmu_rank[output_port.fmu.name]} {output_port.port.vr}", file=txt_file)
             offset_storage = 0
             for local_variable in local_per_type[type_name]:
                 print(f"{local_variable.vr} {local_variable.dimension} 1 -1 "
@@ -1339,8 +1341,8 @@ class FMUContainer:
                 Port(layout.outputs[output_port_name], output_port_name))
         for link in layout.links:
             if link.cport_from is None:
-                # LS-BUS allows connected input clocks. The column is named after the clock that ticks by itself, the one
-                # of the sender: `datalog2pcap` finds the clock of `<name>_Data` with this name.
+                # LS-BUS allows connected input clocks. The column is named after the clock that ticks by itself, the
+                # one of the sender: `datalog2pcap` finds the clock of `<name>_Data` with this name.
                 scheduled = [cport for cport in link.cport_to_list
                              if cport.port.interval_variability in TIME_BASED_CLOCKS]
                 name = f"{scheduled[0].fmu.id}.{scheduled[0].port.name}" if scheduled else link.name
@@ -1407,7 +1409,8 @@ class FMUContainer:
         elif os_list:
             logger.info(f"Container will be built for {', '.join(os_list)}.")
         else:
-            logger.critical("No common OS found for embedded FMU. Try to re-run with '-debug'. Container won't be runnable.")
+            logger.critical("No common OS found for embedded FMU. Try to re-run with '-debug'. "
+                            "Container won't be runnable.")
 
         for os_name in os_list:
             try:

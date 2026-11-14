@@ -151,7 +151,8 @@ class LastDirectory:
     @classmethod
     def get_save_file_name_and_filter(cls, parent=None, caption: str = "", filter: str = "",
                                       selected_filter: str = "", default_name: str = "") -> tuple[str, str]:
-        """`get_save_file_name`, the filter *selected_filter* preselected; returns the file name and the filter chosen."""
+        """`get_save_file_name`, the filter *selected_filter* preselected; returns the file name and the filter
+        chosen."""
         directory = cls.get()
         if default_name:
             directory = str(Path(directory) / default_name)

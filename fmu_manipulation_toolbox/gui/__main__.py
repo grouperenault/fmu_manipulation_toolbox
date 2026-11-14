@@ -61,7 +61,7 @@ class LauncherWindow(QWidget):
 
         # --- Logo / Title + Help ---
         top_bar = QHBoxLayout()
-        
+
         logo = QLabel()
         logo_pixmap = QPixmap(str(RESOURCES / "fmu_manipulation_toolbox.png"))
         if not logo_pixmap.isNull():

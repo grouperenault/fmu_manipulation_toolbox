@@ -29,7 +29,18 @@ from fmu_manipulation_toolbox.compiler import OperationCompileSources, Toolchain
 from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget, LastDirectory, get_fmu_icon_path
 from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogWidget, busy_cursor, window_log_context
 from fmu_manipulation_toolbox.help import Help
-from fmu_manipulation_toolbox.operations import *
+from fmu_manipulation_toolbox.operations import (
+    OperationError,
+    OperationKeepOnlyRegexp,
+    OperationMergeTopLevel,
+    OperationRemoveRegexp,
+    OperationRemoveSources,
+    OperationRenameFromCSV,
+    OperationSaveNamesToCSV,
+    OperationStripTopLevel,
+    OperationSummary,
+    OperationTrimUntil,
+)
 from fmu_manipulation_toolbox.remoting import (
     OperationAddFrontendWin32,
     OperationAddFrontendWin64,
@@ -330,7 +341,8 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             ("Check",                 '-check',              'info',    get_checkers(),
              {"alternative": ("Selected Check", self.selected_check)}),
             ("Save description.xml",  '-extract-descriptor', 'info',    None, {"func": self.save_descriptor}),
-            ("Save port names",       '-dump-csv',           'info',    OperationSaveNamesToCSV, {"prompt_file": "write"}),
+            ("Save port names",       '-dump-csv',           'info',    OperationSaveNamesToCSV,
+             {"prompt_file": "write"}),
             ("Compile sources",       '-compile-sources',    'info',    None,
              {"func": self.compile_sources,
               "alternative": ("Advanced Compile", partial(self.compile_sources, ask_first=True))}),
@@ -338,13 +350,18 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
             ("Add Win32 frontend",    '-add-frontend-win32', 'info',    OperationAddFrontendWin32, {"modifies": True}),
             ("Add Win64 remoting",    '-add-remoting-win64', 'info',    OperationAddRemotingWin64, {"modifies": True}),
             ("Add Win64 frontend",    '-add-frontend-win64', 'info',    OperationAddFrontendWin64, {"modifies": True}),
-            ("Rename ports from CSV", '-rename-from-csv',    'modify',  OperationRenameFromCSV, {"prompt_file": "read", "modifies": True}),
-            ("Trim Until",            '-trim-until',         'modify',  OperationTrimUntil, {"prompt": "Prefix", "modifies": True}),
+            ("Rename ports from CSV", '-rename-from-csv',    'modify',  OperationRenameFromCSV,
+             {"prompt_file": "read", "modifies": True}),
+            ("Trim Until",            '-trim-until',         'modify',  OperationTrimUntil,
+             {"prompt": "Prefix", "modifies": True}),
             ("Remove Toplevel",       '-remove-toplevel',    'modify',  OperationStripTopLevel, {"modifies": True}),
             ("Merge Toplevel",        '-merge-toplevel',     'modify',  OperationMergeTopLevel, {"modifies": True}),
-            ("Remove Regexp",         '-remove-regexp',      'removal', OperationRemoveRegexp, {"prompt": "regexp", "modifies": True}),
-            ("Keep only Regexp",      '-keep-only-regexp',   'removal', OperationKeepOnlyRegexp, {"prompt": "regexp", "modifies": True}),
-            ("Remove all",            '-remove-all',         'removal', OperationRemoveRegexp, {"arg": ".*", "modifies": True}),
+            ("Remove Regexp",         '-remove-regexp',      'removal', OperationRemoveRegexp,
+             {"prompt": "regexp", "modifies": True}),
+            ("Keep only Regexp",      '-keep-only-regexp',   'removal', OperationKeepOnlyRegexp,
+             {"prompt": "regexp", "modifies": True}),
+            ("Remove all",            '-remove-all',         'removal', OperationRemoveRegexp,
+             {"arg": ".*", "modifies": True}),
             ("Remove sources",        '-remove-sources',     'removal', OperationRemoveSources, {"modifies": True}),
         ]
 
@@ -660,7 +677,7 @@ Communicating with the FMU-developer and adapting the way the FMU is generated, 
 
         apply_on = self.filter_list.get()
         if apply_on:
-            self.log_widget.insertHtml(f"<i>Applied only for ports with  causality = " +
+            self.log_widget.insertHtml("<i>Applied only for ports with  causality = " +
                                        ", ".join(apply_on) + "</i><br>")
         logger.info('-' * 100)
         with busy_cursor():

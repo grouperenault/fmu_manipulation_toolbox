@@ -151,7 +151,7 @@ check the `unit` field of `list_fmu_ports` before wiring physical quantities.
 A container is a plain FMU, so it can be embedded into another container. It
 runs the embedded FMUs with a fixed internal step (`step_size`) and exposes
 only the ports you chose to expose.
-"""
+"""  # noqa: E501 -- a row of a Markdown table cannot be wrapped
 
 
 def container_options_reference(options: list[dict[str, Any]]) -> str:

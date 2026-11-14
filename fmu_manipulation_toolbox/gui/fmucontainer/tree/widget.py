@@ -263,7 +263,8 @@ class NodeTreeWidget(QWidget):
             child = parent.child(r, 0)
             if child is None:
                 continue
-            if not child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS) and child.data(_NodeTreeModel.ROLE_NODE_UID) == uid:
+            if (not child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+                    and child.data(_NodeTreeModel.ROLE_NODE_UID) == uid):
                 parent.removeRow(r)
                 return True
             if child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS) and self._remove_uid_from(child, uid):
@@ -276,7 +277,8 @@ class NodeTreeWidget(QWidget):
             child = parent.child(r, 0)
             if child is None:
                 continue
-            if not child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS) and child.data(_NodeTreeModel.ROLE_NODE_UID) == uid:
+            if (not child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+                    and child.data(_NodeTreeModel.ROLE_NODE_UID) == uid):
                 return child
             if child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS):
                 found = self._find_tree_item_by_uid(child, uid)

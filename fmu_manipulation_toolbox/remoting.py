@@ -49,7 +49,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
 
     def fmi_attrs(self, attrs):
         if not attrs["fmiVersion"] == "2.0":
-            raise OperationError(f"Adding remoting is only available for FMI-2.0")
+            raise OperationError("Adding remoting is only available for FMI-2.0")
 
     def cosimulation_attrs(self, attrs):
         fmu_bin = {

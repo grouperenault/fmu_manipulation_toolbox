@@ -146,7 +146,7 @@ def fmutool():
             sys.exit(ExitCode.USAGE_ERROR)
 
     if cli_options.fmu_input == cli_options.fmu_output:
-        logger.fatal(f"'-input' and '-output' should point to different files.")
+        logger.fatal("'-input' and '-output' should point to different files.")
         close_logger(logger)
         sys.exit(ExitCode.USAGE_ERROR)
 
@@ -208,7 +208,7 @@ def fmutool():
                 logger.info(f"WRITING Output='{cli_options.fmu_output}'")
                 fmu.repack(cli_options.fmu_output)
             else:
-                logger.info(f"INFO    Modified FMU is not saved. If necessary use '-output' option.")
+                logger.info("INFO    Modified FMU is not saved. If necessary use '-output' option.")
         except (FMUError, OSError) as reason:
             logger.fatal(f"FATAL ERROR: {reason}")
             close_logger(logger)

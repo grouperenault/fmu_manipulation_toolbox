@@ -66,7 +66,7 @@ OMSIMULATOR_SSD = f'''<?xml version="1.0" encoding="UTF-8"?>
     </ssd:Annotations>
   </ssd:DefaultExperiment>
 </ssd:SystemStructureDescription>
-'''
+'''  # noqa: E501
 
 ROOT_SSV = '''<?xml version="1.0" encoding="UTF-8"?>
 <ssv:ParameterSet xmlns:ssv="http://ssp-standard.org/SSP1/SystemStructureParameterValues" version="1.0" name="parameters">
@@ -74,7 +74,7 @@ ROOT_SSV = '''<?xml version="1.0" encoding="UTF-8"?>
     <ssv:Parameter name="ball.bb.g"><ssv:Real value="-1"/></ssv:Parameter>
   </ssv:Parameters>
 </ssv:ParameterSet>
-'''
+'''  # noqa: E501
 
 
 def _omsimulator_ssp(data_dir, directory):
@@ -173,7 +173,7 @@ MIC_SSD = f'''<?xml version='1.0' encoding='UTF-8'?>
     <mic:Assembly formatVersion="1"><mic:View zoom="1" centerX="0" centerY="0"/></mic:Assembly>
   </ssc:Annotation></ssd:Annotations>
 </ssd:SystemStructureDescription>
-'''
+'''  # noqa: E501
 
 
 @pytest.mark.needs_container
@@ -192,7 +192,8 @@ def test_a_mic_modeler_layout_is_still_read(data_dir, tmp_path, monkeypatch, cap
     root = assembly.root
 
     assert [str(link) for link in root.links] == [
-        "assembly.dir/resources/velocity/velocity.fmu/velocity -> assembly.dir/resources/position/position.fmu/velocity",
+        "assembly.dir/resources/velocity/velocity.fmu/velocity -> "
+        "assembly.dir/resources/position/position.fmu/velocity",
         "assembly.dir/resources/position/position.fmu/is_ground -> assembly.dir/resources/velocity/velocity.fmu/reset"]
     assert [(wire.orientation, wire.description) for wire in root.architecture_wires] == \
         [("bidirectional", "Speed and bounce")]

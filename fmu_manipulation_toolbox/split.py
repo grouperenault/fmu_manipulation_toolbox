@@ -116,7 +116,7 @@ class FMUSplitter:
             self.zip = None
 
     def split_fmu(self):
-        logger.info(f"Splitting...")
+        logger.info("Splitting...")
         config = self._split_fmu(fmu_filename=str(self.fmu_filename), relative_path="")
         config_filename = self.directory / self.fmu_filename.with_suffix(".json").name
         with open(config_filename, "w", encoding=ENCODING) as file:
@@ -274,7 +274,7 @@ class FMUSplitterDescription:
             return START_VALUE_TYPES
 
     def parse_txt_file_header(self, file, txt_filename):
-        logger.debug(f"*** HEADER ***")
+        logger.debug("*** HEADER ***")
         header = file.readline().decode('utf-8').strip()
         if "Version " in header:
             self.file_format = int(header[header.index("Version ")+8:])
@@ -340,7 +340,7 @@ class FMUSplitterDescription:
             _initialization_order = self.get_line(file)
 
         _nb_local_variables = self.get_line(file)
-        logger.debug(f"*** END OF HEADER ***")
+        logger.debug("*** END OF HEADER ***")
 
     def add_port(self, fmi_type: str, fmu_id: int, fmu_vr: int, container_vr: int, dim:int=1):
         if fmu_id >= 0:
@@ -740,7 +740,7 @@ class FMUSplitterDescription:
                 f"Aggregated {len(idx_list)} port-links into terminal "
                 f"connection: {key[0]}/{key[1]} ↔ {key[2]}/{key[3]}")
 
-        self.config["link"] = [l for i, l in enumerate(links) if i not in removed]
+        self.config["link"] = [link for i, link in enumerate(links) if i not in removed]
         self.config["link"].extend(added)
 
     def _terminal_variables(self) -> set[tuple[str, str]]:

@@ -620,7 +620,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
                 logger.info(f"DefaultExperiment updated"
                             f" (startTime={new_start}, stopTime={new_stop}).")
             if desc_changed:
-                logger.info(f"FMU description updated.")
+                logger.info("FMU description updated.")
 
         fmu.repack(filename)
         logger.info(f"FMU saved as '{filename}'.")

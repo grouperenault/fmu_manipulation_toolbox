@@ -35,7 +35,7 @@ DESCRIPTOR = """<?xml version="1.0" encoding="UTF-8"?>
   </ModelVariables>
   <ModelStructure><Outputs><Unknown index="2"/></Outputs></ModelStructure>
 </fmiModelDescription>
-"""
+"""  # noqa: E501
 
 
 def component(name, connectors="", extra="", attributes=""):
@@ -212,7 +212,8 @@ def test_units_are_otherwise_ignored(tmp_path, end, attributes):
 
 def test_the_units_of_an_exposed_port_are_checked(tmp_path):
     """A connection from a system connector to a component is a conversion too."""
-    system = '<ssd:Connectors><ssd:Connector name="x" kind="input"><ssc:Real unit="km"/></ssd:Connector></ssd:Connectors>'
+    system = ('<ssd:Connectors><ssd:Connector name="x" kind="input"><ssc:Real unit="km"/></ssd:Connector>'
+              '</ssd:Connectors>')
     connection = '<ssd:Connection startConnector="x" endElement="a" endConnector="u"/>'
 
     with pytest.raises(AssemblyError, match=r"connection x -> a\.u joins connectors of different units"):
@@ -224,7 +225,8 @@ def test_an_architecture_wire_is_not_checked(tmp_path):
     connectors = '<ssd:Connector name="aw.b" kind="output"/>'
     wire = link(start_connector="aw.b", end_connector="aw.a", content=(
         '<ssd:Annotations><ssc:Annotation type="fmu_manipulation_toolbox.architecture-wire">'
-        '<aw:Wire xmlns:aw="urn:fmu_manipulation_toolbox:architecture-wire:1" formatVersion="1" orientation="directed"/>'
+        '<aw:Wire xmlns:aw="urn:fmu_manipulation_toolbox:architecture-wire:1" formatVersion="1" '
+        'orientation="directed"/>'
         '</ssc:Annotation></ssd:Annotations>'))
 
     root = read(tmp_path, ssd(component("a", connectors=connectors) + component("b"), wire)).root
@@ -485,7 +487,7 @@ def test_an_enumeration_value_is_given_by_its_item(tmp_path):
   </ModelVariables>
   <ModelStructure><Outputs><Unknown index="2"/></Outputs></ModelStructure>
 </fmiModelDescription>
-"""
+"""  # noqa: E501
     files = {"resources/e.fmu": _fmu_bytes(tmp_path, descriptor)}
 
     root = read(tmp_path, ssd(component("e", extra=bindings(values(("gear", "Enumeration", "drive")))) +

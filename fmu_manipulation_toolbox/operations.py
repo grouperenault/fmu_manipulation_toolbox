@@ -866,7 +866,7 @@ class OperationSummary(OperationAbstract):
         self.number_of_event_indicators = 0
 
     def __repr__(self):
-        return f"FMU Summary"
+        return "FMU Summary"
 
     def fmi_attrs(self, attrs):
         logger.info(f"| fmu filename = {self.fmu.fmu_filename}")
@@ -878,30 +878,30 @@ class OperationSummary(OperationAbstract):
                 hash_md5.update(chunk)
         digest = hash_md5.hexdigest()
         logger.info(f"| MD5Sum = {digest}")
-        logger.info(f"|")
-        logger.info(f"| FMI properties: ")
+        logger.info("|")
+        logger.info("| FMI properties: ")
         for (k, v) in attrs.items():
             logger.info(f"|  - {k} = {v}")
-        logger.info(f"|")
+        logger.info("|")
 
     def cosimulation_attrs(self, attrs):
         logger.info("| Co-Simulation capabilities: ")
         for (k, v) in attrs.items():
             logger.info(f"|  - {k} = {v}")
-        logger.info(f"|")
+        logger.info("|")
 
     def modelexchange_attrs(self, attrs):
         self.has_model_exchange = True
         logger.info("| Model Exchange capabilities: ")
         for (k, v) in attrs.items():
             logger.info(f"|  - {k} = {v}")
-        logger.info(f"|")
+        logger.info("|")
 
     def experiment_attrs(self, attrs):
         logger.info("| Default Experiment values: ")
         for (k, v) in attrs.items():
             logger.info(f"|  - {k} = {v}")
-        logger.info(f"|")
+        logger.info("|")
 
     def port_attrs(self, fmu_port) -> int:
         causality = fmu_port.get("causality", "local")
@@ -922,7 +922,7 @@ class OperationSummary(OperationAbstract):
             pass  # no binaries
 
         if os.path.isdir(os.path.join(self.fmu.tmp_directory, "sources")):
-            logger.info(f"|  - RT (sources available)")
+            logger.info("|  - RT (sources available)")
 
         resource_dir = os.path.join(self.fmu.tmp_directory, "resources")
         if os.path.isdir(resource_dir):
@@ -972,7 +972,7 @@ class OperationRemoveSources(OperationAbstract):
     """
 
     def __repr__(self):
-        return f"Remove sources"
+        return "Remove sources"
 
     def closure(self):
         try:

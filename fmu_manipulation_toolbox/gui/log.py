@@ -62,7 +62,8 @@ def save_log_text(parent, text: str):
         QMessageBox.critical(parent, "Save Logs", f"Cannot save logs: {e}")
 
 
-#: Owner window pinned by ``window_log_context``; ``_NOT_PINNED`` lets the handler use the window of the last user event.
+#: Owner window pinned by ``window_log_context``; ``_NOT_PINNED`` lets the handler use the window of the last user
+#: event.
 _NOT_PINNED = object()
 _pinned_owner: contextvars.ContextVar = contextvars.ContextVar("fmu_manipulation_toolbox_log_owner",
                                                                default=_NOT_PINNED)

@@ -494,7 +494,8 @@ def test_one_sub_container_per_rate(probe_dir, compiled_probes):
     """S4c: each probe gets its own step size, and an input seen by a step is the value at its beginning."""
     directory = _run_container().run("S4c", probe_dir, compiled_probes)
     for name, step, nb in (("A", 0.01, 20), ("B", 0.02, 10), ("C", 0.05, 4)):
-        steps = [line for line in _trace(directory / f"{name}.csv") if line["function"] == "fmi2DoStep" and not line["name"]]
+        steps = [line for line in _trace(directory / f"{name}.csv")
+                 if line["function"] == "fmi2DoStep" and not line["name"]]
         assert len(steps) == nb and all(float(line["h"]) == pytest.approx(step) for line in steps), name
     seen = {float(line["time"]): float(line["value"]) for line in _trace(directory / "B.csv")
             if line["function"] == "fmi2DoStep" and line["name"] == "u_cont"}

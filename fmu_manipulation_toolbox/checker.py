@@ -70,7 +70,7 @@ class OperationGenericCheck(OperationAbstract):
         self.compliant_with_version = None
 
     def __repr__(self):
-        return f"FMU Generic Conformity Checks"
+        return "FMU Generic Conformity Checks"
 
     def fmi_attrs(self, attrs):
         """Validate the FMU descriptor against the appropriate FMI XSD schema.
@@ -109,7 +109,7 @@ class OperationGenericCheck(OperationAbstract):
         if self.compliant_with_version:
             logger.info(f"This FMU seems to be compliant with FMI-{self.compliant_with_version}.")
         else:
-            logger.error(f"This FMU does not validate with FMI standard.")
+            logger.error("This FMU does not validate with FMI standard.")
 
 
 class OperationSemanticCheck(OperationAbstract):

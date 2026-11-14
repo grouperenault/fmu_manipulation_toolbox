@@ -558,14 +558,16 @@ class AssemblyNode:
         for to_port, input_port_name in self.input_ports.items():
             if to_port.fmu_name == fmu_name:
                 if self.parent:
-                    connections.append(Connection(self.parent.get_final_from(Port(self.name, input_port_name)), to_port))
+                    connections.append(Connection(self.parent.get_final_from(Port(self.name, input_port_name)),
+                                                  to_port))
                 else:
                     connections.append(Connection(Port(self.name, input_port_name), to_port))
 
         for from_port, output_port_name in self.output_ports.items():
             if from_port.fmu_name == fmu_name:
                 if self.parent:
-                    connections.append(Connection(from_port, self.parent.get_final_to(Port(self.name, output_port_name))))
+                    connections.append(Connection(from_port,
+                                                  self.parent.get_final_to(Port(self.name, output_port_name))))
                 else:
                     connections.append(Connection(from_port, Port(self.name, output_port_name))) ###HERE
 
@@ -664,7 +666,7 @@ class Assembly:
             else:
                 raise AssemblyError(f"Not supported file format '{self.filename}")
         else:
-            raise AssemblyError(f"Filename should be specified for reading.")
+            raise AssemblyError("Filename should be specified for reading.")
 
     def write(self, filename: str):
         """Export the assembly to a file.

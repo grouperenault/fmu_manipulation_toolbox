@@ -77,7 +77,8 @@ def test_initial_unknowns_leave_out_the_exact_outputs_and_the_clocked_ones():
     assert semantic_errors(fmi2(sv("y", 1, '<Real start="0"/>', causality="output", initial="exact"),
                                 '<Outputs><Unknown index="1"/></Outputs>')) == []
     assert semantic_errors(fmi3('<Float64 name="y" valueReference="1" causality="output" initial="exact" start="0"/>'
-                                '<Clock name="c" valueReference="2" causality="output" intervalVariability="triggered"/>'
+                                '<Clock name="c" valueReference="2" causality="output" '
+                                'intervalVariability="triggered"/>'
                                 '<Int32 name="k" valueReference="3" causality="output" variability="discrete" '
                                 'clocks="2"/>',
                                 '<Output valueReference="1"/><Output valueReference="2"/>'

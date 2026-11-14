@@ -151,9 +151,10 @@ class DatalogConverter:
 
 def datalog2pcap():
     logger.info(f"FMUContainer version {version}")
-    logger.warning(f"Datalog2PCAP is still experimental.")
+    logger.warning("Datalog2PCAP is still experimental.")
 
-    parser = argparse.ArgumentParser(prog="datalog2pcap", description="Convert the LS-BUS datalog of a container to a PCAPNG file.",
+    parser = argparse.ArgumentParser(prog="datalog2pcap",
+                                     description="Convert the LS-BUS datalog of a container to a PCAPNG file.",
                                      formatter_class=make_wide(argparse.ArgumentDefaultsHelpFormatter),
                                      add_help=False,
                                      epilog="see: https://github.com/grouperenault/fmu_manipulation_toolbox/blob/main/"
