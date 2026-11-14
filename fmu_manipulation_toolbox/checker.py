@@ -114,7 +114,11 @@ class OperationSemanticCheck(OperationAbstract):
       and their `dependencies`;
     - `<Outputs>` (FMI 2.0) / `<Output>` (FMI 3.0) lists exactly the variables
       with `causality="output"`; state derivatives have a `derivative`
-      attribute.
+      attribute;
+    - `<InitialUnknowns>` (FMI 2.0) / `<InitialUnknown>` (FMI 3.0) lists the
+      outputs with `initial="calculated"` or `"approx"` (clocks and clocked
+      variables excepted, as the Reference FMUs do) and no output with
+      `initial="exact"`.
 
     Attributes:
         errors (list[str]): Violations found.
@@ -256,7 +260,7 @@ class OperationSemanticCheck(OperationAbstract):
         names = [port.get("name") for port in ports]
         outputs = [index for index, port in enumerate(ports) if port.get("causality", "local") == "output"]
         derivatives = [index for index, port in enumerate(ports) if "derivative" in port]
-        listed_outputs, listed_derivatives = [], []
+        listed_outputs, listed_derivatives, listed_initial = [], [], []
 
         if md.fmi_version == 2:
             section = "FMI-2 §2.2.8"
@@ -279,7 +283,9 @@ class OperationSemanticCheck(OperationAbstract):
                     listed_outputs.append(index)
                 elif kind == "Derivatives":
                     listed_derivatives.append(index)
-            output_section, derivative_section = "<Outputs>", "<Derivatives>"
+                elif kind == "InitialUnknowns":
+                    listed_initial.append(index)
+            output_section, derivative_section, initial_section = "<Outputs>", "<Derivatives>", "<InitialUnknowns>"
         else:
             section = "FMI-3 §2.4.8"
             by_vr = {port.get("valueReference"): index for index, port in enumerate(ports)}
@@ -302,7 +308,10 @@ class OperationSemanticCheck(OperationAbstract):
                     listed_outputs.append(index)
                 elif kind == "ContinuousStateDerivative":
                     listed_derivatives.append(index)
+                elif kind == "InitialUnknown":
+                    listed_initial.append(index)
             output_section, derivative_section = "<Output>", "<ContinuousStateDerivative>"
+            initial_section = "<InitialUnknown>"
 
         for index in sorted(set(outputs) - set(listed_outputs)):
             self.error(f"Output '{names[index]}' is not listed in {output_section} ({section}).")
@@ -311,6 +320,30 @@ class OperationSemanticCheck(OperationAbstract):
         for index in sorted(set(listed_derivatives) - set(derivatives)):
             self.error(f"{derivative_section} lists '{names[index]}', which has no derivative attribute "
                        f"({section}).")
+        self.check_initial_unknowns(md.fmi_version, ports, outputs, listed_initial, initial_section, section)
+
+    def check_initial_unknowns(self, fmi_version: int, ports: list[ModelVariable], outputs: list[int],
+                               listed: list[int], initial_section: str, section: str):
+        """The initial unknowns are the outputs with `initial` `calculated` or `approx` (FMI-2 §2.2.8, FMI-3 §2.4.8),
+        the clocks and the clocked variables excepted (they have no value in Initialization Mode: the Reference FMUs
+        do not list them); an output with `initial="exact"` has a start value and is not an initial unknown.
+        The other entries (calculated parameters, states, derivatives) are not checked."""
+        table = self.INITIAL_2 if fmi_version == 2 else self.INITIAL_3
+        listed = set(listed)
+        for index in outputs:
+            port = ports[index]
+            if port.fmi_type is None:
+                continue
+            causality, variability = self.causality_variability(fmi_version, port)
+            initial = port.get("initial", None)
+            if initial is None:
+                initial = table.get((causality, variability), ("calculated",))[0]
+            name = port.get("name")
+            if initial == "exact":
+                if index in listed:
+                    self.error(f"{initial_section} lists '{name}', which has initial='exact' ({section}).")
+            elif index not in listed and port.fmi_type != "Clock" and "clocks" not in port:
+                self.error(f"Output '{name}' is not listed in {initial_section} (initial='{initial}') ({section}).")
 
     def check_dependencies(self, entry, resolve, what: str, section: str):
         dependencies = entry.get("dependencies", "").split()
