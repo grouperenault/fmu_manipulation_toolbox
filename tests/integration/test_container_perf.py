@@ -14,10 +14,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from fmu_manipulation_toolbox.container import FMUContainer
-
 from _helpers.archive import read_entry, rewrite_fmu
 from _helpers.simulation import simulate
+from fmu_manipulation_toolbox.container import FMUContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.needs_fmpy, pytest.mark.needs_container,
               pytest.mark.area("containers/perf")]

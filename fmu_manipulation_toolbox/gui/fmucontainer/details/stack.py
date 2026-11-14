@@ -4,12 +4,12 @@ Detail panel stack for FMU container builder.
 Manages the switching between different detail panel types.
 """
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget
+from PySide6.QtWidgets import QStackedWidget, QVBoxLayout, QWidget
 
-from .wire_detail import WireDetailWidget
-from .fmu_detail import FMUDetailWidget
-from .container_detail import ContainerParameters, ContainerDetailWidget
 from .configuration_detail import ConfigurationDetailWidget
+from .container_detail import ContainerDetailWidget, ContainerParameters
+from .fmu_detail import FMUDetailWidget
+from .wire_detail import WireDetailWidget
 
 
 class DetailPanelStack(QWidget):

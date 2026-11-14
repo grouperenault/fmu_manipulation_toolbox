@@ -2,15 +2,20 @@ import json
 import logging
 import re
 import zipfile
-
-from typing import Any
 from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import Any
 
-from .container.types import (ALL_TYPES, CONTAINER_TO_FMI, CONVERSION_FUNCTION, FMI_TO_CONTAINER,
-                              START_VALUE_TYPES, enumeration_as_integer)
+from .container.types import (
+    ALL_TYPES,
+    CONTAINER_TO_FMI,
+    CONVERSION_FUNCTION,
+    FMI_TO_CONTAINER,
+    START_VALUE_TYPES,
+    enumeration_as_integer,
+)
 from .model_description import ModelDescription, ModelDescriptionError
-from .terminals import Terminals, Terminal
+from .terminals import Terminal, Terminals
 from .textfiles import ENCODING
 
 logger = logging.getLogger("fmu_manipulation_toolbox")

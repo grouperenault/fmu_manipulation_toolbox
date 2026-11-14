@@ -1,10 +1,8 @@
 import logging
 import xml.etree.ElementTree as ET
-
-from collections import Counter
+from collections import Counter, OrderedDict
 from collections.abc import Iterator
 from pathlib import Path
-from collections import OrderedDict
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 

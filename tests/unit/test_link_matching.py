@@ -8,9 +8,27 @@ import time
 import pytest
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details.link_matching import (
-    PortInfo, Checks, SameNameRule, AffixRule, RegexRule, SimilarityRule,
-    suggest, link_status, staged_statuses, normalize, with_overlaps, OK, WARNING, ERROR,
-    ALREADY_FED, SIZE_MISMATCH, INCOMPATIBLE_TYPE, LOSSY, UNIT_MISMATCH, SIMILAR_NAME, DUPLICATE_TARGET,
+    ALREADY_FED,
+    DUPLICATE_TARGET,
+    ERROR,
+    INCOMPATIBLE_TYPE,
+    LOSSY,
+    OK,
+    SIMILAR_NAME,
+    SIZE_MISMATCH,
+    UNIT_MISMATCH,
+    WARNING,
+    AffixRule,
+    Checks,
+    PortInfo,
+    RegexRule,
+    SameNameRule,
+    SimilarityRule,
+    link_status,
+    normalize,
+    staged_statuses,
+    suggest,
+    with_overlaps,
 )
 
 pytestmark = [pytest.mark.unit]

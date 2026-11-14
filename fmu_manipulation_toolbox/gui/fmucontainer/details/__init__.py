@@ -4,11 +4,11 @@ Re-exports all public classes so existing imports continue to work:
     from .details import ContainerParameters, DetailPanelStack, ...
 """
 
-from .container_detail import ContainerParameters, ContainerDetailWidget
 from .configuration_detail import ConfigurationDetailWidget
+from .container_detail import ContainerDetailWidget, ContainerParameters
 from .fmu_detail import FMUDetailWidget
-from .wire_detail import WireDetailWidget
 from .stack import DetailPanelStack
+from .wire_detail import WireDetailWidget
 
 __all__ = [
     "ContainerParameters",

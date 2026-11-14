@@ -198,6 +198,7 @@ def default_calls(directory: Path) -> dict[str, tuple[str, dict]]:
 async def measure(directory: Path) -> dict[str, str]:
     """Texts of the tool definitions and of the default calls, the large FMUs being in `directory`."""
     import fastmcp
+
     from fmu_manipulation_toolbox.assistant import PathPolicy, build_server
     from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
 
@@ -218,6 +219,7 @@ async def measure_assembly(assembly: dict, directory: Path) -> dict[str, str]:
     the GUI bridge does.
     """
     import fastmcp
+
     from fmu_manipulation_toolbox.assistant import build_server
     from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
 

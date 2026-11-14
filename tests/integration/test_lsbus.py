@@ -9,11 +9,10 @@ from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.assembly import Assembly
-from fmu_manipulation_toolbox.cli.datalog2pcap import DatalogConverter
-
 from _helpers.assertions import assert_equivalent_csv
 from _helpers.simulation import assert_simulation_log
+from fmu_manipulation_toolbox.assembly import Assembly
+from fmu_manipulation_toolbox.cli.datalog2pcap import DatalogConverter
 
 pytestmark = [
     pytest.mark.integration,

@@ -7,10 +7,9 @@ remoting binaries shipped under ``resources/``; it runs in an isolated copy of
 """
 import pytest
 
+from _helpers.simulation import assert_simulation
 from fmu_manipulation_toolbox.operations import FMU
 from fmu_manipulation_toolbox.remoting import OperationAddRemotingWin64
-
-from _helpers.simulation import assert_simulation
 
 pytestmark = [
     pytest.mark.integration,

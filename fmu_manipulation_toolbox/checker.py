@@ -1,5 +1,4 @@
 import importlib.util
-from importlib.metadata import entry_points
 import inspect
 import logging
 import math
@@ -9,19 +8,35 @@ import tempfile
 import urllib.parse
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from importlib.metadata import entry_points
 from pathlib import Path
 
 import xmlschema
 
-from .experiments import (PARAMETERS_TYPE, TIME_SERIES_TYPE, Experiment, ExperimentSource, ExperimentsError,
-                          read_experiments, read_parameter_set)
-from .ls import (REF_EXPERIMENT_SUB_ROLES, REF_EXPERIMENTS_TYPE, XCP_ROLE_TYPES, XCP_ROLES, LayeredStandard,
-                 RefRelated, XcpInterface, a2l_tokens)
-from .simulation import SimulationError, SimulationUnavailable, SimulationUnsupported, replay
-from .timeseries import HOLD, LINEAR, TimeSeriesError, compare, read_csv
+from .experiments import (
+    PARAMETERS_TYPE,
+    TIME_SERIES_TYPE,
+    Experiment,
+    ExperimentsError,
+    ExperimentSource,
+    read_experiments,
+    read_parameter_set,
+)
+from .ls import (
+    REF_EXPERIMENT_SUB_ROLES,
+    REF_EXPERIMENTS_TYPE,
+    XCP_ROLE_TYPES,
+    XCP_ROLES,
+    LayeredStandard,
+    RefRelated,
+    XcpInterface,
+    a2l_tokens,
+)
 from .model_description import ModelDescription, ModelVariable
 from .operations import OperationAbstract
+from .simulation import SimulationError, SimulationUnavailable, SimulationUnsupported, replay
 from .terminals import CONFIGURATION_KIND, TRANSCEIVER_MEMBERS, TRANSCEIVER_RULE, Terminal, Terminals
+from .timeseries import HOLD, LINEAR, TimeSeriesError, compare, read_csv
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 

@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-from PySide6.QtWidgets import QWidget, QVBoxLayout
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 
 from .node import NodeItem
-from .wire import WireItem
 from .scene import NodeGraphScene
 from .view import NodeGraphView
+from .wire import WireItem
 
 
 class NodeGraphWidget(QWidget):

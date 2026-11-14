@@ -7,9 +7,8 @@ import sys
 
 import pytest
 
-from fmu_manipulation_toolbox.assembly import Assembly
-
 from _helpers.simulation import assert_simulation
+from fmu_manipulation_toolbox.assembly import Assembly
 
 pytestmark = [pytest.mark.integration, pytest.mark.fmi2, pytest.mark.area("me")]
 

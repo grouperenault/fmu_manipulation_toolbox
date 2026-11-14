@@ -5,21 +5,37 @@ import re
 import shlex
 import sys
 import textwrap
-
-from PySide6.QtCore import Qt, QEvent
-from PySide6.QtWidgets import (QApplication, QWidget, QGridLayout, QLabel, QLineEdit, QPushButton,
-                               QInputDialog, QMenu, QDialog, QHBoxLayout, QVBoxLayout, QCheckBox)
-from PySide6.QtGui import QTextCursor, QAction
 from functools import partial
 
-from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget, LastDirectory, get_fmu_icon_path
-from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogWidget, busy_cursor, window_log_context
-from fmu_manipulation_toolbox.operations import *
-from fmu_manipulation_toolbox.remoting import (OperationAddRemotingWin32, OperationAddRemotingWin64, OperationAddFrontendWin32,
-                                               OperationAddFrontendWin64)
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QAction, QTextCursor
+from PySide6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QDialog,
+    QGridLayout,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QLineEdit,
+    QMenu,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
 from fmu_manipulation_toolbox.checker import OperationLsRefCheck, get_checkers
 from fmu_manipulation_toolbox.compiler import OperationCompileSources, Toolchain
+from fmu_manipulation_toolbox.gui.helper import Application, DropZoneWidget, LastDirectory, get_fmu_icon_path
+from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogWidget, busy_cursor, window_log_context
 from fmu_manipulation_toolbox.help import Help
+from fmu_manipulation_toolbox.operations import *
+from fmu_manipulation_toolbox.remoting import (
+    OperationAddFrontendWin32,
+    OperationAddFrontendWin64,
+    OperationAddRemotingWin32,
+    OperationAddRemotingWin64,
+)
 from fmu_manipulation_toolbox.version import __version__ as version
 
 logger = logging.getLogger("fmu_manipulation_toolbox")

@@ -11,10 +11,9 @@ from pathlib import Path
 
 import pytest
 
+from _helpers.assertions import assert_identical_files
 from fmu_manipulation_toolbox.assembly import Assembly
 from fmu_manipulation_toolbox.cli.fmusplit import fmusplit
-
-from _helpers.assertions import assert_identical_files
 
 pytestmark = [pytest.mark.integration, pytest.mark.area("split")]
 

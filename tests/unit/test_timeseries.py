@@ -3,8 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.timeseries import (HOLD, LINEAR, TimeSeries, TimeSeriesError, compare, read_csv,
-                                                 to_number)
+from fmu_manipulation_toolbox.timeseries import HOLD, LINEAR, TimeSeries, TimeSeriesError, compare, read_csv, to_number
 
 pytestmark = [pytest.mark.unit, pytest.mark.lsref]
 

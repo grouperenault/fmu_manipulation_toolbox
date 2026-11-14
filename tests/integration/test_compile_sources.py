@@ -14,7 +14,6 @@ import numpy as np
 import pytest
 
 from _helpers.archive import read_entry, rewrite_fmu
-
 from fmu_manipulation_toolbox import compiler
 from fmu_manipulation_toolbox.cli.fmutool import fmutool
 from fmu_manipulation_toolbox.operations import FMU, OperationError

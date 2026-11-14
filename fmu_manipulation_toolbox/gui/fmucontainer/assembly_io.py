@@ -12,13 +12,13 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
+from fmu_manipulation_toolbox.assembly import Assembly, AssemblyError, AssemblyNode
 from fmu_manipulation_toolbox.container import FMUContainerError
 from fmu_manipulation_toolbox.split import FMUSplitter
 
-from .graph import NodeItem, ConfigurationNode
-from .tree import _NodeTreeModel
 from .details import ContainerParameters
+from .graph import ConfigurationNode, NodeItem
+from .tree import _NodeTreeModel
 
 if TYPE_CHECKING:
     from .graph import NodeGraphWidget

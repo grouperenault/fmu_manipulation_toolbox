@@ -6,10 +6,14 @@ Contains classes for displaying and editing container parameters.
 
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtGui import QStandardItem, QStandardItemModel
 from PySide6.QtWidgets import (
-    QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout,
     QAbstractItemView,
+    QHeaderView,
+    QLabel,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
 )
 
 from fmu_manipulation_toolbox.help import Help

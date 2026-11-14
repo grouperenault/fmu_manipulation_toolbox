@@ -147,6 +147,10 @@ line-length = 120
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
 
+[tool.ruff.lint.isort]
+# The helpers of the test suite (tests/ is on the path of pytest, see tests/pytest.ini).
+known-first-party = ["fmu_manipulation_toolbox", "_helpers", "conftest"]
+
 [tool.mypy]
 python_version = "3.10"
 files = ["fmu_manipulation_toolbox"]

@@ -14,14 +14,21 @@ import random
 import sys
 
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget, QTableWidgetItem,
+    QHBoxLayout,
     QHeaderView,
+    QLabel,
+    QMainWindow,
+    QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
 from fmu_manipulation_toolbox.gui.helper import Application
+
 from .link_assistant import LinkAssistantDialog, WireSide
 from .link_matching import PortInfo
-
 
 SUBSYSTEMS = ("intake", "exhaust", "turbo", "injection", "cooling", "lube", "crank", "cam", "egr", "throttle",
               "fuel", "ignition", "knock", "lambda", "boost", "clutch", "gearbox", "alternator")

@@ -12,8 +12,15 @@ import pytest
 
 from fmu_manipulation_toolbox import model_description
 from fmu_manipulation_toolbox.checker import OperationGenericCheck
-from fmu_manipulation_toolbox.operations import (FMU, FMUError, OperationAbstract, OperationError,
-                                                 OperationSaveNamesToCSV, OperationStripTopLevel, OperationSummary)
+from fmu_manipulation_toolbox.operations import (
+    FMU,
+    FMUError,
+    OperationAbstract,
+    OperationError,
+    OperationSaveNamesToCSV,
+    OperationStripTopLevel,
+    OperationSummary,
+)
 
 pytestmark = [pytest.mark.unit]
 

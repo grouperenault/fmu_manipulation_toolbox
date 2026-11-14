@@ -18,11 +18,10 @@ pytestmark = [pytest.mark.unit]
 fastmcp = pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
 
 from fastmcp.exceptions import ToolError  # noqa: E402
-from fmu_manipulation_toolbox.assistant import AssemblyBridge, build_server  # noqa: E402
-from fmu_manipulation_toolbox.assistant.server import compact_schema, describe_argument_errors  # noqa: E402
 
 from _helpers.assistant_bridge import FakeBridge, call_tool, input_schema, inventory, resolve_ref, run  # noqa: E402
-
+from fmu_manipulation_toolbox.assistant import AssemblyBridge, build_server  # noqa: E402
+from fmu_manipulation_toolbox.assistant.server import compact_schema, describe_argument_errors  # noqa: E402
 
 #: Tool name -> ordered parameter names.
 EXPECTED_TOOLS = {

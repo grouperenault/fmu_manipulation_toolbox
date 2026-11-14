@@ -15,9 +15,16 @@ from types import SimpleNamespace
 
 import pytest
 
+from fmu_manipulation_toolbox.container import (
+    ArrayAggregate,
+    ContainerLayout,
+    EmbeddedFMUPort,
+    FMUContainer,
+    FMUContainerError,
+    Link,
+    ValueReferenceTable,
+)
 from fmu_manipulation_toolbox.container import types as container_types
-from fmu_manipulation_toolbox.container import (ArrayAggregate, ContainerLayout, EmbeddedFMUPort, FMUContainer,
-                                                FMUContainerError, Link, ValueReferenceTable)
 
 pytestmark = [pytest.mark.unit]
 

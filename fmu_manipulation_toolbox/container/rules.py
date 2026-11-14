@@ -7,7 +7,6 @@ from .embedded import EmbeddedFMU
 from .errors import FMUContainerError
 from .types import CONVERSION_FUNCTION, is_lossy
 
-
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 LS_BUS_MIME_TYPE = re.compile(r'application/org\.fmi-standard\.fmi-ls-bus\.([\w-]+)(?:\s*;\s*version="([^"]*)")?',

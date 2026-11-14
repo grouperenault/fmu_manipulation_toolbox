@@ -1,13 +1,12 @@
 import argparse
 import logging
 import sys
-
 from pathlib import Path
 
-from .utils import setup_logger, close_logger, make_wide, ExitCode
 from ..assembly import Assembly, AssemblyError
 from ..container import FMUContainerError
 from ..version import __version__ as version
+from .utils import ExitCode, close_logger, make_wide, setup_logger
 
 
 def fmucontainer():

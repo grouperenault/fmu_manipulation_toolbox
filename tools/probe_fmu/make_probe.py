@@ -11,8 +11,8 @@ Usage: python make_probe.py [-output DIRECTORY]   (default: the directory of thi
 import argparse
 import uuid
 import zipfile
-from xml.sax.saxutils import quoteattr
 from pathlib import Path
+from xml.sax.saxutils import quoteattr
 
 HERE = Path(__file__).parent
 

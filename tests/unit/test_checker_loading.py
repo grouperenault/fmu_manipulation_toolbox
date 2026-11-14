@@ -9,9 +9,15 @@ from types import SimpleNamespace
 import pytest
 
 from fmu_manipulation_toolbox import checker
-from fmu_manipulation_toolbox.checker import (OperationGenericCheck, OperationLsBusCheck, OperationLsRefCheck,
-                                              OperationLsXcpCheck, OperationSemanticCheck, add_from_file,
-                                              get_checkers)
+from fmu_manipulation_toolbox.checker import (
+    OperationGenericCheck,
+    OperationLsBusCheck,
+    OperationLsRefCheck,
+    OperationLsXcpCheck,
+    OperationSemanticCheck,
+    add_from_file,
+    get_checkers,
+)
 
 BUILT_IN = [OperationGenericCheck, OperationSemanticCheck, OperationLsBusCheck, OperationLsXcpCheck, OperationLsRefCheck]
 

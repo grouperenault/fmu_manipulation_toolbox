@@ -13,18 +13,27 @@ from pathlib import Path
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
-    QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
-    QPushButton, QCheckBox, QRadioButton, QButtonGroup, QFrame,
-    QMenu, QWidgetAction, QMainWindow, QMessageBox
+    QButtonGroup,
+    QCheckBox,
+    QFrame,
+    QHBoxLayout,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QRadioButton,
+    QSplitter,
+    QVBoxLayout,
+    QWidget,
+    QWidgetAction,
 )
 
-from fmu_manipulation_toolbox.gui.helper import Application, UnsavedChangesWindowMixin, LastDirectory
+from fmu_manipulation_toolbox.gui.helper import Application, LastDirectory, UnsavedChangesWindowMixin
 from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogStatusBar, RunTask, window_log_context
 
+from .assembly_io import AssemblyIOMixin
 from .graph import NodeGraphWidget, NodeItem
 from .tree import NodeTreePanel
-from .assembly_io import AssemblyIOMixin
-
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -195,6 +204,7 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         if checked:
             try:
                 from fmu_manipulation_toolbox.assistant import McpUnavailableError
+
                 from .mcp_bridge import McpServerController
             except ImportError as e:
                 self._ai_assistant_error(f"Cannot load MCP support: {e}")

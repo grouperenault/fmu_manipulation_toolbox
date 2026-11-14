@@ -22,10 +22,10 @@ This module has no dependency on the rest of the package.
 """
 import logging
 import xml.etree.ElementTree as ET
+from collections.abc import Iterator, MutableMapping
 from io import BytesIO
 from pathlib import Path
 from typing import IO
-from collections.abc import Iterator, MutableMapping
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 

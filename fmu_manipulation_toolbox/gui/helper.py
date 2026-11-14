@@ -1,14 +1,20 @@
 import logging
 import os
 from contextlib import contextmanager
-
-from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QPushButton, QMessageBox, QTableView, QHeaderView,
-                               QMenu)
-from PySide6.QtGui import QDesktopServices, QIcon, QAction
-from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl, QRect, QSize
-from PySide6.QtGui import QPixmap, QPainter, QColor, QImage, QGuiApplication
-
 from pathlib import Path
+
+from PySide6.QtCore import QDir, QPoint, QRect, QSize, Qt, QUrl, Signal
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QGuiApplication, QIcon, QImage, QPainter, QPixmap
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QHeaderView,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QTableView,
+)
 
 from fmu_manipulation_toolbox.gui.style import gui_style
 from fmu_manipulation_toolbox.operations import FMU

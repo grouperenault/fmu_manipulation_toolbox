@@ -18,9 +18,21 @@ import argparse
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QRectF, QPointF, QSizeF, QMarginsF
-from PySide6.QtGui import (QGuiApplication, QImage, QPainter, QColor, QFont, QPainterPath, QPdfWriter, QPageSize,
-                           QPageLayout, QLinearGradient, QPen, QFontMetricsF)
+from PySide6.QtCore import QMarginsF, QPointF, QRectF, QSizeF, Qt
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QFontMetricsF,
+    QGuiApplication,
+    QImage,
+    QLinearGradient,
+    QPageLayout,
+    QPageSize,
+    QPainter,
+    QPainterPath,
+    QPdfWriter,
+    QPen,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "fmu_manipulation_toolbox" / "resources"

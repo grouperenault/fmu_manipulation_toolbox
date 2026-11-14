@@ -2,11 +2,11 @@ import csv
 import json
 import logging
 import os
-from collections.abc import Iterable
-from typing import Any
-from pathlib import Path
 import uuid
 import zipfile
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any
 
 from .container import FMUContainer
 from .textfiles import ENCODING, open_text

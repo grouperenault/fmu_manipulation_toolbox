@@ -15,21 +15,49 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from PySide6.QtCore import Qt, Signal, QAbstractTableModel, QModelIndex, QSortFilterProxyModel, QTimer
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
-    QDialog, QWidget, QLabel, QTabWidget, QSplitter, QVBoxLayout, QHBoxLayout, QGridLayout, QTableView,
-    QHeaderView, QAbstractItemView, QPushButton, QLineEdit, QCheckBox, QFrame, QStackedWidget, QMessageBox,
+    QAbstractItemView,
+    QCheckBox,
+    QDialog,
+    QFrame,
+    QGridLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
     QSizePolicy,
+    QSplitter,
+    QStackedWidget,
+    QTableView,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
 from fmu_manipulation_toolbox.gui.helper import MenuSelector
 from fmu_manipulation_toolbox.gui.style import status_color
-from .link_matching import (
-    PortInfo, Status, Checks, Rule, AffixRule, RegexRule, SimilarityRule, RULE_KINDS, Suggestion, suggest,
-    staged_statuses, with_overlaps, OK, WARNING, ERROR,
-)
 
+from .link_matching import (
+    ERROR,
+    OK,
+    RULE_KINDS,
+    WARNING,
+    AffixRule,
+    Checks,
+    PortInfo,
+    RegexRule,
+    Rule,
+    SimilarityRule,
+    Status,
+    Suggestion,
+    staged_statuses,
+    suggest,
+    with_overlaps,
+)
 
 _STATUS_COLORS = {level: QColor(status_color[name]) for level, name in ((OK, "OK"), (WARNING, "WARNING"),
                                                                           (ERROR, "ERROR"))}

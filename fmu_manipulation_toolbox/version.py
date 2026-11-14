@@ -3,7 +3,8 @@ try:
     from fmu_manipulation_toolbox._version import version as __version__
 except ImportError:
     try:
-        from importlib.metadata import PackageNotFoundError, version as _distribution_version
+        from importlib.metadata import PackageNotFoundError
+        from importlib.metadata import version as _distribution_version
         __version__ = _distribution_version("fmu_manipulation_toolbox")
     except (ImportError, PackageNotFoundError):
         # Source tree that was neither built nor installed (e.g. the test suite).

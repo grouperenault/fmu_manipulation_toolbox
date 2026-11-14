@@ -12,9 +12,14 @@ from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.operations import (FMU, OperationError, OperationKeepOnlyRegexp,
-                                                 OperationMergeTopLevel, OperationRemoveRegexp,
-                                                 OperationStripTopLevel)
+from fmu_manipulation_toolbox.operations import (
+    FMU,
+    OperationError,
+    OperationKeepOnlyRegexp,
+    OperationMergeTopLevel,
+    OperationRemoveRegexp,
+    OperationStripTopLevel,
+)
 
 pytestmark = [pytest.mark.unit]
 

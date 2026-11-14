@@ -9,17 +9,16 @@ import zipfile
 
 import pytest
 
+from _helpers.assertions import assert_names_match_ref
 from fmu_manipulation_toolbox.operations import (
     FMU,
-    OperationStripTopLevel,
-    OperationRenameFromCSV,
+    OperationKeepOnlyRegexp,
     OperationRemoveRegexp,
     OperationRemoveSources,
-    OperationKeepOnlyRegexp,
+    OperationRenameFromCSV,
+    OperationStripTopLevel,
     OperationSummary,
 )
-
-from _helpers.assertions import assert_names_match_ref
 
 pytestmark = [pytest.mark.unit, pytest.mark.area("operations")]
 

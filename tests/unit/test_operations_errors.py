@@ -20,9 +20,9 @@ from fmu_manipulation_toolbox.operations import (
     FMUError,
     ModelVariable,
     OperationError,
+    OperationMergeTopLevel,
     OperationRenameFromCSV,
     OperationStripTopLevel,
-    OperationMergeTopLevel,
     OperationTrimUntil,
 )
 

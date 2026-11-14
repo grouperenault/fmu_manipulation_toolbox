@@ -9,10 +9,13 @@ try:
 
     _app = QApplication.instance() or QApplication([])
     from fmu_manipulation_toolbox.gui.fmucontainer.__main__ import MainWindow
-    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant import (
-        _CriterionEditor, StagedLink, A_TO_B)
+    from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant import A_TO_B, StagedLink, _CriterionEditor
     from fmu_manipulation_toolbox.gui.fmucontainer.details.link_matching import (
-        AffixRule, ALREADY_FED, LOSSY, SIZE_MISMATCH)
+        ALREADY_FED,
+        LOSSY,
+        SIZE_MISMATCH,
+        AffixRule,
+    )
     from fmu_manipulation_toolbox.gui.fmucontainer.details.wire_detail import wire_sides
 except Exception as exc:  # pragma: no cover - environment dependent
     pytest.skip(f"GUI dependencies not available: {exc}", allow_module_level=True)

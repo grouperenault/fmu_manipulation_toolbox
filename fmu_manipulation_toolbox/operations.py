@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import logging
 import os
 import re
@@ -7,7 +8,6 @@ import tempfile
 import weakref
 import xml.etree.ElementTree as ET
 import zipfile
-import hashlib
 
 from .model_description import ModelDescription, ModelDescriptionError, ModelVariable
 from .terminals import Terminals

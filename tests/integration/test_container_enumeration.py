@@ -5,10 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.container import FMUContainer
-
 from _helpers.archive import read_entry
 from _helpers.simulation import simulate
+from fmu_manipulation_toolbox.container import FMUContainer
 
 pytestmark = [pytest.mark.integration, pytest.mark.area("containers/enumeration")]
 

@@ -10,12 +10,21 @@ import pytest
 
 pytestmark = [pytest.mark.unit]
 
-from fmu_manipulation_toolbox.assistant.fmutools import (  # noqa: E402
-    CAUSALITIES, MAX_EXAMPLES, MAX_MESSAGE_GROUPS, OPERATIONS, _grouped, apply_operation, check_fmu, describe_port,
-    dump_ports_csv, rename_ports, select_ports, summarize_fmu,
-)
-
 from _helpers.mcp_budget import make_large_fmu  # noqa: E402
+from fmu_manipulation_toolbox.assistant.fmutools import (  # noqa: E402
+    CAUSALITIES,
+    MAX_EXAMPLES,
+    MAX_MESSAGE_GROUPS,
+    OPERATIONS,
+    _grouped,
+    apply_operation,
+    check_fmu,
+    describe_port,
+    dump_ports_csv,
+    rename_ports,
+    select_ports,
+    summarize_fmu,
+)
 
 
 @pytest.fixture

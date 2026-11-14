@@ -6,13 +6,12 @@ Reference FMUs of `tests/data/compile`.
 
 The host platform is faked by patching `platform.system()` and `platform.machine()`.
 """
-import re
 import platform
+import re
 
 import pytest
 
 from _helpers.archive import rewrite_fmu
-
 from fmu_manipulation_toolbox import compiler
 from fmu_manipulation_toolbox.operations import FMU, OperationError
 

@@ -7,12 +7,11 @@ from typing import Any
 
 from ..ls import LayeredStandard
 from ..model_description import ModelVariable
-from ..operations import FMU, OperationAbstract, FMUError
+from ..operations import FMU, FMUError, OperationAbstract
 from ..terminals import Terminals
 from .arrays import ArrayAggregate
 from .errors import FMUContainerError
 from .types import ALL_TYPES, CONTAINER_TO_FMI, FMI_TO_CONTAINER, enumeration_as_integer
-
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 

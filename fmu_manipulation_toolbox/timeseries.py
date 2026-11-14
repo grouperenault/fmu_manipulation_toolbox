@@ -7,7 +7,6 @@ instant. Two rows may have the same time: an event, the second row gives the val
 import bisect
 import csv
 import math
-
 from dataclasses import dataclass, field
 from pathlib import Path
 

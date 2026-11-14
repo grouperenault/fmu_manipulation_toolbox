@@ -1,6 +1,5 @@
 import os
 
-
 # ─── OS-specific font sizes ───
 _FONT_SIZE_MAIN = "10pt" if os.name == 'nt' else "12pt"
 _FONT_TEXTBROWSER = "11pt \"Consolas\"" if os.name == 'nt' else "14pt \"Courier New\""

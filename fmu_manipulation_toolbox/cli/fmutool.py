@@ -4,17 +4,32 @@ import os
 import shlex
 import sys
 
-from .utils import setup_logger, close_logger, make_wide, ParagraphHelpFormatter, ExitCode, ErrorCounter
-from ..operations import (OperationSummary, OperationError, OperationRemoveRegexp,
-                          OperationRemoveSources, OperationTrimUntil, OperationKeepOnlyRegexp, OperationMergeTopLevel,
-                          OperationStripTopLevel, OperationRenameFromCSV, OperationSaveNamesToCSV, FMU, FMUError)
-from ..remoting import  (OperationAddFrontendWin32, OperationAddFrontendWin64, OperationAddRemotingWin32,
-                         OperationAddRemotingWin64)
 from ..checker import OperationLsRefCheck, get_checkers
-from ..model_description import ModelDescription
 from ..compiler import OperationCompileSources
-from ..version import __version__ as version
 from ..help import Help
+from ..model_description import ModelDescription
+from ..operations import (
+    FMU,
+    FMUError,
+    OperationError,
+    OperationKeepOnlyRegexp,
+    OperationMergeTopLevel,
+    OperationRemoveRegexp,
+    OperationRemoveSources,
+    OperationRenameFromCSV,
+    OperationSaveNamesToCSV,
+    OperationStripTopLevel,
+    OperationSummary,
+    OperationTrimUntil,
+)
+from ..remoting import (
+    OperationAddFrontendWin32,
+    OperationAddFrontendWin64,
+    OperationAddRemotingWin32,
+    OperationAddRemotingWin64,
+)
+from ..version import __version__ as version
+from .utils import ErrorCounter, ExitCode, ParagraphHelpFormatter, close_logger, make_wide, setup_logger
 
 
 def fmutool():

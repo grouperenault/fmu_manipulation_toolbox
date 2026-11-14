@@ -9,12 +9,13 @@ reference file to generate.
 """
 import csv
 import functools
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 import xmlschema
 
+from _helpers.assertions import assert_equivalent_xml
 from fmu_manipulation_toolbox.checker import OperationGenericCheck
 from fmu_manipulation_toolbox.operations import (
     FMU,
@@ -30,8 +31,6 @@ from fmu_manipulation_toolbox.operations import (
     OperationSummary,
     OperationTrimUntil,
 )
-
-from _helpers.assertions import assert_equivalent_xml
 
 pytestmark = [pytest.mark.integration]
 

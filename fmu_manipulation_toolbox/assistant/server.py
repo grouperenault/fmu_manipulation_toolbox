@@ -19,8 +19,13 @@ from typing import Any, Literal
 from . import analysis
 from .bridge import AssemblyBridge
 from .knowledge import (
-    FMI_CONVENTIONS, USAGE_GUIDE, analyze_assembly_prompt, build_container_prompt,
-    container_options_reference, diagnose_assembly_prompt, inspect_fmu_prompt,
+    FMI_CONVENTIONS,
+    USAGE_GUIDE,
+    analyze_assembly_prompt,
+    build_container_prompt,
+    container_options_reference,
+    diagnose_assembly_prompt,
+    inspect_fmu_prompt,
 )
 from .paths import PathPolicy
 from .tools import Toolbox, is_actionable, ports_page
@@ -265,11 +270,14 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
         McpUnavailableError: If the optional ``fastmcp`` package is missing.
     """
     try:
-        from fastmcp import Context, FastMCP
-        from fastmcp.exceptions import ToolError, ValidationError as FastMcpValidationError
-        from fastmcp.server.middleware import Middleware
-        from pydantic import Field, ValidationError as PydanticValidationError
         from typing import Annotated
+
+        from fastmcp import Context, FastMCP
+        from fastmcp.exceptions import ToolError
+        from fastmcp.exceptions import ValidationError as FastMcpValidationError
+        from fastmcp.server.middleware import Middleware
+        from pydantic import Field
+        from pydantic import ValidationError as PydanticValidationError
     except ImportError as exc:  # pragma: no cover - optional dependency
         raise McpUnavailableError(
             "The 'fastmcp' package is required for the AI assistant "
@@ -280,8 +288,15 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     # which ships with fastmcp: importing this package must stay possible
     # without the optional `mcp` extra.
     from .models import (
-        DEFAULT_PORT_LIMIT, MAX_PORT_LIMIT, ContainerOptions, FmuPorts, FmuSummary, Link,
-        RemovalReport, StartValue, option_reference,
+        DEFAULT_PORT_LIMIT,
+        MAX_PORT_LIMIT,
+        ContainerOptions,
+        FmuPorts,
+        FmuSummary,
+        Link,
+        RemovalReport,
+        StartValue,
+        option_reference,
     )
 
     if policy is None:

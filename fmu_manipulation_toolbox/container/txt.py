@@ -10,7 +10,6 @@ from .layout import ValueReferenceTable
 from .rules import ContainerPort
 from .types import ALL_TYPES, START_VALUE_TYPES
 
-
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 

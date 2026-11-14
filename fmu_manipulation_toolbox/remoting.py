@@ -1,7 +1,7 @@
 import logging
 import shutil
-
 from pathlib import Path
+
 from .operations import OperationAbstract, OperationError
 
 logger = logging.getLogger("fmu_manipulation_toolbox")

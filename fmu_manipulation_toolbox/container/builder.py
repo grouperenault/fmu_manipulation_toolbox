@@ -21,14 +21,13 @@ from ..operations import FMUError
 from ..terminals import TerminalError
 from ..textfiles import ENCODING
 from ..version import __version__ as tool_version
+from . import xcp
 from .embedded import EmbeddedFMU, EmbeddedFMUPort
 from .errors import FMUContainerError
 from .layout import ContainerLayout
 from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import ClockList, FMUIOList, InvolvedFMU, LocalVariable, Port
 from .types import ALL_TYPES, CONTAINER_TXT_VERSION, TIME_BASED_CLOCKS
-from . import xcp
-
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 

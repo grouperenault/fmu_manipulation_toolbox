@@ -16,7 +16,9 @@ pytestmark = [pytest.mark.unit]
 from fmu_manipulation_toolbox.assembly import AssemblyError  # noqa: E402
 from fmu_manipulation_toolbox.assistant import AssemblyBridge  # noqa: E402
 from fmu_manipulation_toolbox.assistant.headless import (  # noqa: E402
-    DEFAULT_OPTIONS, HeadlessAssemblyBridge, describe_fmu,
+    DEFAULT_OPTIONS,
+    HeadlessAssemblyBridge,
+    describe_fmu,
 )
 
 

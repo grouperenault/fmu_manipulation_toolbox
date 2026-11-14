@@ -16,10 +16,9 @@ from pathlib import Path
 import pytest
 import xmlschema
 
+from _helpers.assertions import assert_equivalent_xml
 from fmu_manipulation_toolbox.model_description import ModelDescription, ModelDescriptionError, ModelVariable
 from fmu_manipulation_toolbox.operations import FMU, OperationAbstract
-
-from _helpers.assertions import assert_equivalent_xml
 
 pytestmark = [pytest.mark.unit]
 

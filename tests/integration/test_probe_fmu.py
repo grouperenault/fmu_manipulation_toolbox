@@ -6,8 +6,8 @@ during the initialization, and the internal steps of a container driven with a c
 multiple of its own. Each test runs in its own temporary directory.
 """
 import csv
-import logging
 import importlib.util
+import logging
 import time
 import zipfile
 from pathlib import Path
@@ -53,8 +53,12 @@ def _slave_callbacks():
     """Callbacks with a logger for an FMU2Slave: fmpy 0.3.32 otherwise calls the freed logger of the last simulation
     given one (see tests/_helpers/simulation.py)."""
     from fmpy.fmi1 import calloc, free
-    from fmpy.fmi2 import (fmi2CallbackAllocateMemoryTYPE, fmi2CallbackFreeMemoryTYPE, fmi2CallbackFunctions,
-                           fmi2CallbackLoggerTYPE)
+    from fmpy.fmi2 import (
+        fmi2CallbackAllocateMemoryTYPE,
+        fmi2CallbackFreeMemoryTYPE,
+        fmi2CallbackFunctions,
+        fmi2CallbackLoggerTYPE,
+    )
 
     callbacks = fmi2CallbackFunctions()
     callbacks.logger = fmi2CallbackLoggerTYPE(lambda *args: None)
@@ -153,7 +157,7 @@ def test_trace_of_a_simulation(probe_dir):
 @pytest.mark.needs_compiler
 def test_y_init_is_frozen_after_initialization(probe_dir):
     """`u_cont` changed after the initialization does not change `y_init`."""
-    from fmpy import read_model_description, extract
+    from fmpy import extract, read_model_description
     from fmpy.fmi2 import FMU2Slave
 
     filename = _compile("Probe10ms")
@@ -356,6 +360,7 @@ def _build_and_simulate(directory: Path, probes: Path, description: dict, fmi_ve
     """Build `description` as a container in `directory` (current directory) and simulate it; the messages."""
     import json
     import shutil
+
     from fmu_manipulation_toolbox.assembly import Assembly
 
     for probe in probes.glob("*-host.fmu"):
@@ -447,11 +452,13 @@ def test_propagation_loop(probe_dir, compiled_probes, caplog):
 def test_propagation_before_a_get_in_initialization_mode(probe_dir, compiled_probes):
     """An output of the container read by the importer in Initialization Mode is not propagated yet: the links are
     propagated when the container leaves its Initialization Mode."""
+    import json
     import shutil
+
     from fmpy import extract, read_model_description
     from fmpy.fmi2 import FMU2Slave
+
     from fmu_manipulation_toolbox.assembly import Assembly
-    import json
 
     for probe in compiled_probes.glob("*-host.fmu"):
         shutil.copy(probe, probe_dir)
@@ -500,8 +507,10 @@ def _drive(probe_dir, compiled_probes, communication_step: float,
     current time before each call. The inputs seen by the steps of the probe, and the outputs after each call."""
     import json
     import shutil
+
     from fmpy import extract, read_model_description
     from fmpy.fmi2 import FMU2Slave
+
     from fmu_manipulation_toolbox.assembly import Assembly
 
     shutil.copy(compiled_probes / "Probe20ms-host.fmu", probe_dir)

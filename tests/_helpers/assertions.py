@@ -9,8 +9,8 @@ import difflib
 import hashlib
 import math
 import xml.etree.ElementTree as ET
-from pathlib import Path
 from collections.abc import Iterable
+from pathlib import Path
 
 from fmu_manipulation_toolbox.operations import FMU, OperationSaveNamesToCSV
 

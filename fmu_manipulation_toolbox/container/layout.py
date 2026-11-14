@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from .rules import ContainerInput, ContainerPort, Link
 from .types import ALL_TYPES, CONTAINER_TO_FMI, CONVERSION_FUNCTION, OTHER_BOOLEAN
 
-
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 

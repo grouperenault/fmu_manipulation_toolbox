@@ -32,7 +32,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from fmu_manipulation_toolbox.container import FMUContainer       # noqa: E402
+from fmu_manipulation_toolbox.container import FMUContainer  # noqa: E402
 
 DATA = ROOT / "tests" / "data"
 STEP_SIZE = 0.001                       # internal time step of the containers

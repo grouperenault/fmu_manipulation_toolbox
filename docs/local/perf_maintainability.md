@@ -93,7 +93,10 @@ Taken on 14 November 2026 when writing the plan:
 - **D8 — Decisions of the phase 4** (14 November 2026): Q4 as recommended (`E, F, W, I, UP, B`, 120, lint only);
   Q5 as recommended, with `follow_imports = "skip"` on `gui/` and `assistant/` (otherwise mypy reports their errors
   through the imports of the other modules) and `ignore_missing_imports` on `fmpy` only (the only package without
-  types); Q6 **report only**: the `lint` job does not fail the CI (`continue-on-error`); Q7 no `pre-commit`.
+  types); Q6 **report only**: the `lint` job does not fail the CI (`continue-on-error`); Q7 no `pre-commit`. Found
+  when applying `I` (step 4.2): ruff writes a wrapped import one name per line and cannot keep the aligned
+  continuation of the code; accepted (18 imports in 15 files). `_helpers` and `conftest` are first-party for the
+  sorting.
 
 ### Open points, to decide before the phase starts
 

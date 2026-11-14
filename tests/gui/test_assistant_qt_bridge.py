@@ -66,7 +66,8 @@ def mcp_server(qapp, data_dir):
     """An MCP server bound to a live Container Builder window."""
     from fmu_manipulation_toolbox.gui.fmucontainer.__main__ import MainWindow
     from fmu_manipulation_toolbox.gui.fmucontainer.mcp_bridge import (
-        MainThreadInvoker, QtAssemblyBridge,
+        MainThreadInvoker,
+        QtAssemblyBridge,
     )
 
     window = MainWindow()

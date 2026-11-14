@@ -3,16 +3,23 @@
 import math
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QRectF, QPointF, QLineF
-from PySide6.QtGui import QPainter, QPen, QKeyEvent
+from PySide6.QtCore import QLineF, QPointF, QRectF, Qt
+from PySide6.QtGui import QKeyEvent, QPainter, QPen
 from PySide6.QtWidgets import (
-    QGraphicsView, QMenu, QMessageBox,
+    QGraphicsView,
+    QMenu,
+    QMessageBox,
 )
 
 from fmu_manipulation_toolbox.gui.helper import LastDirectory
+
 from .constants import (
-    COLOR_GRID_LIGHT, COLOR_GRID_DARK,
-    NODE_TITLE_HEIGHT, NODE_PORT_SPACING, GRID_SIZE, GRID_SQUARES,
+    COLOR_GRID_DARK,
+    COLOR_GRID_LIGHT,
+    GRID_SIZE,
+    GRID_SQUARES,
+    NODE_PORT_SPACING,
+    NODE_TITLE_HEIGHT,
 )
 from .node import NodeItem
 from .node_info_dialog import NodeInfoDialog

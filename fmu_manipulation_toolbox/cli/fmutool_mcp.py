@@ -16,14 +16,17 @@ import secrets
 import sys
 from pathlib import Path
 
-from .utils import close_logger, make_wide
 from ..assistant import DEFAULT_HOST, McpUnavailableError, build_server, resolve_port
 from ..assistant.auth import (
-    GENERATE, TOKEN_ENV_VAR, build_auth_middleware, resolve_token,
+    GENERATE,
+    TOKEN_ENV_VAR,
+    build_auth_middleware,
+    resolve_token,
 )
 from ..assistant.headless import DEFAULT_CONTAINER_NAME, HeadlessAssemblyBridge
 from ..assistant.paths import PathPolicy, PathValidationError
 from ..version import __version__ as version
+from .utils import close_logger, make_wide
 
 
 def _resolve_cli_token(requested: str | None) -> str | None:

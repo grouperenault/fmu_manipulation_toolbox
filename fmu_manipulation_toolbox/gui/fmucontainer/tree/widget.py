@@ -3,18 +3,18 @@ NodeTreeWidget: tree view and scene synchronization for FMU container builder.
 """
 
 import logging
-
-from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSize, QTimer
-from PySide6.QtGui import QStandardItem, QIcon
-from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog,
-                               QMenu, QAbstractItemView, QHeaderView)
 from pathlib import Path
+
+from PySide6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QIcon, QStandardItem
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QInputDialog, QMenu, QTreeView, QVBoxLayout, QWidget
 
 from fmu_manipulation_toolbox.container.builder import DEFAULT_STEP_SIZE, deduce_step_size
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
-from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, ConfigurationNode
+from fmu_manipulation_toolbox.gui.fmucontainer.graph import ConfigurationNode, NodeItem
 from fmu_manipulation_toolbox.gui.helper import LastDirectory
-from .model import _NodeTreeModel, TreeItemRoles
+
+from .model import TreeItemRoles, _NodeTreeModel
 from .sync import SelectionSynchronizer
 
 logger = logging.getLogger("fmu_manipulation_toolbox")

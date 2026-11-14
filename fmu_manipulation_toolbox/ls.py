@@ -3,7 +3,6 @@ import os
 import re
 import urllib.parse
 import xml.etree.ElementTree as ET
-
 from dataclasses import dataclass, field
 from pathlib import Path
 

@@ -16,7 +16,12 @@ pytestmark = [pytest.mark.unit]
 fastmcp = pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
 
 from _helpers.mcp_budget import (  # noqa: E402
-    DEFINITIONS_BUDGET, LARGE_FMU_VARIABLES, RESULT_BUDGET, make_large_assembly, make_large_fmu, measure,
+    DEFINITIONS_BUDGET,
+    LARGE_FMU_VARIABLES,
+    RESULT_BUDGET,
+    make_large_assembly,
+    make_large_fmu,
+    measure,
     measure_assembly,
 )
 

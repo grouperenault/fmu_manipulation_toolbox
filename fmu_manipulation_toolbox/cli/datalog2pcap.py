@@ -5,13 +5,12 @@ import re
 import struct
 import sys
 import zipfile
-
 from pathlib import Path
 from typing import IO
 
-from .utils import setup_logger, close_logger, make_wide
 from ..model_description import ModelDescription, ModelDescriptionError
 from ..version import __version__ as version
+from .utils import close_logger, make_wide, setup_logger
 
 logger = setup_logger()
 
