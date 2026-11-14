@@ -68,6 +68,7 @@ if(BUILD_TESTING)
         tests/test_malformed.c
         tests/test_datalog.c
         tests/test_thread.c
+        tests/test_profile.c
         tests/test_threads_lifecycle.c
         tests/test_stub_xcp.c
         tests/test_xcp_container.c

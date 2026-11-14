@@ -17,6 +17,8 @@ static const struct {
     { "config_crlf",        test_config_crlf },
     { "thread_barrier",                 test_thread_barrier },
     { "thread_barrier_consecutive",     test_thread_barrier_consecutive },
+    { "profile_monotonic_clock",        test_profile_monotonic_clock },
+    { "profile_toc",                    test_profile_toc },
     { "configure_empty",                test_configure_empty },
     { "local_strings",                  test_local_strings },
     { "terminate_simulation",           test_terminate_simulation },

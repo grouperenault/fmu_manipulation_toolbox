@@ -5,11 +5,13 @@
 extern "C" {
 #	endif
 
+#   include <stdint.h>
+
 /*-----------------------------------------------------------------------------
                           P R O F I L E _ T I C _T
 -----------------------------------------------------------------------------*/
 
-typedef unsigned int profile_tic_t;
+typedef uint64_t profile_tic_t;             /* ns of a monotonic clock */
 
 
 /*-----------------------------------------------------------------------------
@@ -17,7 +19,7 @@ typedef unsigned int profile_tic_t;
 -----------------------------------------------------------------------------*/
 
 typedef struct {
-    profile_tic_t   current_tic;            /* ms */
+    profile_tic_t   current_tic;            /* ns */
     double          total_elapsed;          /* s */
 } profile_t;
 
@@ -27,6 +29,7 @@ typedef struct {
 ----------------------------------------------------------------------------*/
 
 struct logger_s;
+extern profile_tic_t profile_now(void);
 extern profile_t *profile_new(const struct logger_s *logger);
 extern void profile_free(profile_t *profile);
 extern void profile_tic(profile_t *profile);
