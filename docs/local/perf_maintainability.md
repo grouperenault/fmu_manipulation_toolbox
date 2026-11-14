@@ -1,7 +1,7 @@
 # Plan: conformity, performance and maintainability of the container runtime and the Python package
 
-**Created**: 14 November 2026 — **Status**: in progress (phase 1 started on 14 November 2026) — **Branch**:
-`feature/perf-maintainability`, from `integration` — **Roadmap**: not listed
+**Created**: 14 November 2026 — **Status**: in progress (phase 1 done, phase 2 started on 14 November 2026) —
+**Branch**: `feature/perf-maintainability`, from `integration` — **Roadmap**: not listed
 
 This plan comes from a review of the whole toolbox (14 November 2026, code reading, measurements of
 `docs/local/done/container_perf.md`). It gathers the actions retained from that review, in the order in which they
@@ -122,6 +122,9 @@ FMI 2.0.5 §2.2.8 and FMI 3.0.2 §2.4.8: `<InitialUnknowns>` / `<InitialUnknown>
   (`FMI-2 §2.2.8`, `FMI-3 §2.4.8`). The other entries of the list (calculated parameters, states, derivatives) are
   not checked: out of the scope.
 - Q1: an exposed output keeps the `initial` and `start` of the embedded variable.
+- Found by running the checker on the generated descriptors (step 1.2): the inputs `container.ts_multiplier` and
+  `container.solver` of an FMI 2.0 container had `initial="exact"`, which FMI 2.0 does not allow on an input
+  (§2.2.7). Fixed in the same step: `EmbeddedFMUPort.xml()` writes no `initial` on an input of an FMI 2.0 container.
 
 ### 4.2 Phase 2 — One Model-Exchange part
 
