@@ -639,3 +639,15 @@ End of the phase (14 November 2026): `ruff check fmu_manipulation_toolbox tests 
 `# noqa: E501` on strings that cannot be wrapped: Markdown and XML content); `mypy` gives **28** errors in 6 files
 (139 before), all left on purpose: the inputs of §6 that the package does not refuse, and `AssemblyNode(name)` (D8).
 The test suite: 2867 passed, 3 skipped, before and after the ruff fixes.
+
+### Phase 6
+
+`python tools/bench_container.py A-parallel H-datalog --runs 5`, 3 rounds, same host as the phase 5, 14 November
+2026; best min / best mean in seconds. H-datalog: A-parallel with the datalog, stop time 20 s (20 000 rows of the
+values of the links in `bench-datalog.csv`). Without the datalog, the same 20 s take about 0.39 s (A-parallel: 0.77 s
+for 40 s): the datalog costs about 22 µs per row.
+
+| Case | Before (step 6.1) | After (step 6.3) |
+|---|---|---|
+| A-parallel | 0.770 / 0.797 | |
+| H-datalog | 0.821 / 0.848 | |

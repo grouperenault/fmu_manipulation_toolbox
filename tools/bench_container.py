@@ -69,7 +69,7 @@ def me_only(source: str, target: str):
             zout.writestr(item, data)
 
 
-def many_ports(mode: str) -> tuple[list[str], dict]:
+def many_ports(mode: str, datalog: bool = False) -> tuple[list[str], dict]:
     container = FMUContainer("bench", ".", fmi_version=3)
     container.get_fmu("VanDerPol.fmu")
     names = ["Feedthrough.fmu"] + [f"Feedthrough-{i}.fmu" for i in range(1, INSTANCES)]
@@ -82,12 +82,16 @@ def many_ports(mode: str) -> tuple[list[str], dict]:
         for port in PORTS:
             container.add_link(upstream, f"{port}_output", downstream, f"{port}_input")
     container.add_output(names[-1], "Float64_continuous_output", "y")
-    container.make_fmu("bench.fmu", step_size=STEP_SIZE, mt=mode == "mt", sequential=mode == "sequential")
+    container.make_fmu("bench.fmu", step_size=STEP_SIZE, mt=mode == "mt", sequential=mode == "sequential",
+                       datalog=datalog)
     return ["y"], {}
 
 
 for _mode, _stop_time in (("parallel", 40.0), ("sequential", 45.0), ("mt", 16.0)):
     case(f"A-{_mode}", _stop_time)(lambda mode=_mode: many_ports(mode))
+
+#: A-parallel with the datalog: a row of the values of the links at each internal step (`bench-datalog.csv`).
+case("H-datalog", 20.0)(lambda: many_ports("parallel", datalog=True))
 
 
 @case("B-uncoupled", 1500.0)
