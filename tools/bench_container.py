@@ -151,6 +151,26 @@ def same_type_ports():
     return ["y"], {}
 
 
+@case("F-outputs", 400.0)
+def many_outputs():
+    """Chained instances of `containers/mt/1.fmu`, as E-same-type, with the 5 outputs of every instance exposed
+    and read at each communication step (100 outputs): the cost of the getters of the container."""
+    container = FMUContainer("bench", ".", fmi_version=3)
+    names = ["1.fmu"] + [f"1-{i}.fmu" for i in range(1, INSTANCES)]
+    outputs = []
+    for name in names:
+        container.get_fmu("1.fmu", name=name)
+    for upstream, downstream in zip(names, names[1:]):
+        for k in range(5):
+            container.add_link(upstream, f"y{k}", downstream, f"u{k}")
+    for name in names:
+        for k in range(5):
+            outputs.append(f"{Path(name).stem}_y{k}")    # not the name of the local variable of the link
+            container.add_output(name, f"y{k}", outputs[-1])
+    container.make_fmu("bench.fmu", step_size=STEP_SIZE)
+    return outputs, {}
+
+
 def exchange_calls(txt: Path) -> tuple[int, int]:
     """FMI calls of the input and output exchanges of every FMU for one internal step: port by port, and grouped
     by type (strings and binaries stay port by port), from the per-FMU sections of `container.txt`."""
