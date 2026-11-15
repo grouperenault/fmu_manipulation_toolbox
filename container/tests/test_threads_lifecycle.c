@@ -2,6 +2,7 @@
 
 #include "fmi2Functions.h"
 
+#include "config.h"
 #include "container.h"
 #include "test.h"
 
@@ -16,7 +17,7 @@ static int configure_fixture(const char *name, int *status) {
 
     TEST_ASSERT(container != NULL);
     snprintf(location, sizeof(location), "file://%s/%s", TEST_FIXTURES_DIR, name);
-    *status = container_configure(container, location);
+    *status = config_container(container, location);
     container_free(container);  /* must not hang nor crash */
 
     return 0;

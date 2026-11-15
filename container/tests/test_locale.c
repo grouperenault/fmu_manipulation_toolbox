@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "config.h"
 #include "container.h"
 #include "datalog.h"
 #include "test.h"
@@ -31,7 +32,7 @@ static int check_c_locale(container_t *container, const char *host_locale) {
     char line[256];
 
     snprintf(location, sizeof(location), "file://%s/one_fmu_datalog", TEST_FIXTURES_DIR);
-    TEST_ASSERT_EQUAL_INT(0, container_configure(container, location));
+    TEST_ASSERT_EQUAL_INT(0, config_container(container, location));
 
     /* the locale of the host is unchanged */
     TEST_ASSERT(strcmp(setlocale(LC_NUMERIC, NULL), host_locale) == 0);
@@ -129,7 +130,7 @@ int test_locale_long_decimal_point(void) {
 
     snprintf(location, sizeof(location), "file://%s/one_fmu_datalog", TEST_FIXTURES_DIR);
     container_t *container = container_new("locale", "{uuid}", 2);
-    const int configured = container ? container_configure(container, location) : 0;
+    const int configured = container ? config_container(container, location) : 0;
     if (container)
         container_free(container);
 

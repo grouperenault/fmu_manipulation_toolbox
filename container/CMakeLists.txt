@@ -21,6 +21,7 @@ endif()
 # -----------------------------------------------------------------------------
 set(CONTAINER_SOURCES
     cache.c     cache.h
+    config.c    config.h
     file.c      file.h
     container.c container.h
     convert.c   convert.h
