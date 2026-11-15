@@ -34,6 +34,7 @@ static const struct {
     { "mt_warmup_then_hybrid",          test_mt_warmup_then_hybrid },
     { "mt_all_heavy",                   test_mt_all_heavy },
     { "mt_no_heavy",                    test_mt_no_heavy },
+    { "mt_dispatch_kept_after_reset",   test_mt_dispatch_kept_after_reset },
     { "logger_two_instances",           test_logger_two_instances },
     { "logger_fmi3_null_callback",      test_logger_fmi3_null_callback },
     { "instantiate_invalid_arguments",  test_instantiate_invalid_arguments },

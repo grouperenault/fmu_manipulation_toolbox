@@ -62,6 +62,7 @@ extern int test_configure_mt_instantiate_fails(void);
 extern int test_mt_warmup_then_hybrid(void);
 extern int test_mt_all_heavy(void);
 extern int test_mt_no_heavy(void);
+extern int test_mt_dispatch_kept_after_reset(void);
 extern int test_logger_two_instances(void);
 extern int test_logger_fmi3_null_callback(void);
 extern int test_instantiate_invalid_arguments(void);

@@ -886,7 +886,8 @@ fmu_status_t container_terminate(container_t* container) {
 ----------------------------------------------------------------------------*/
 
 /* fmi2Reset / fmi3Reset of the container: every embedded FMU is reset, and the container goes back to its state
-   right after its instantiation. The datalog goes on in the same file. */
+   right after its instantiation. The datalog goes on in the same file. In the multi-thread mode, the dispatch of the
+   FMUs decided at the end of the warm-up is kept, with its worker threads: no new warm-up. */
 fmu_status_t container_reset(container_t* container) {
     const logger_t *logger = &container->logger;
     for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -1338,7 +1339,7 @@ static fmu_status_t container_do_one_step_hybrid(container_t* container) {
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t* fmu = container->cs_fmu[i];
         if (fmu->status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed doStep (status %d).", fmu->name, fmu->status);
             return fmu->status;
         }
         container->need_event_update |= fmu->need_event_udpate;
@@ -1360,7 +1361,6 @@ static fmu_status_t container_do_one_step_hybrid(container_t* container) {
  */
 static void *container_worker(container_worker_t *worker) {
     container_t *container = worker->container;
-    const logger_t *logger = &container->logger;
 
     /* barriers_ready is set before the gate is opened: false if the threads could not all be started */
     thread_gate_wait(&container->threads_gate);
@@ -1374,9 +1374,7 @@ static void *container_worker(container_worker_t *worker) {
 
         for (unsigned int i = 0; i < worker->nb_fmu; i += 1) {
             fmu_t *fmu = worker->fmu[i];
-            fmu->status = fmuDoStep(fmu, container->time, container->next_step);
-            if (fmu->status != FMU_STATUS_OK)
-                LOGGER_ERROR("Container: FMU '%s' failed doing step. %d", fmu->name, fmu->status);
+            fmu->status = fmuDoStep(fmu, container->time, container->next_step);   /* logged by the main thread */
         }
 
         thread_barrier_wait(&container->barrier_end);     /* WAIT 2nd SYNC */
