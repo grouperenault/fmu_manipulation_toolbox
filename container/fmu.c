@@ -1,7 +1,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "config.h" /* for STRLCAT/STRLCPY */
+#include "file.h" /* for STRLCAT/STRLCPY */
 #include "convert.h"
 #include "cache.h"
 #include "container.h"

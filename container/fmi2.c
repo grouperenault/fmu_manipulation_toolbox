@@ -4,6 +4,7 @@
 #include "fmi2Functions.h"
 
 #include "cache.h"
+#include "config.h"
 #include "container.h"
 #include "datalog.h"
 #include "logger.h"
@@ -95,7 +96,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 
     LOGGER_DEBUG("Container model loading...");
 
-    if (container_configure(container, fmuResourceLocation)) {
+    if (config_container(container, fmuResourceLocation)) {
         LOGGER_ERROR("Cannot read container configuration.");
         container_free(container);
         return NULL;

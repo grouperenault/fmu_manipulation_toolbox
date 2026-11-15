@@ -5,6 +5,7 @@
 
 #include "fmi2Functions.h"
 
+#include "config.h"
 #include "container.h"
 #include "datalog.h"
 #include "fmu.h"
@@ -44,7 +45,7 @@ int test_datalog_rows(void) {
 
     container_t *container = container_new("datalog", "{uuid}", 2);
     TEST_ASSERT(container != NULL);
-    TEST_ASSERT_EQUAL_INT(0, container_configure(container, "file://" DATALOG_DIR));
+    TEST_ASSERT_EQUAL_INT(0, config_container(container, "file://" DATALOG_DIR));
     TEST_ASSERT(container->datalog != NULL);
 
     const fmu_vr_t vr = 0;          /* container VR 2 is the real 0 of the FMU */
@@ -97,7 +98,7 @@ int test_datalog_decimal_comma(void) {
     }
 
     container_t *container = container_new("datalog", "{uuid}", 2);
-    const int configured = container ? container_configure(container, "file://" DATALOG_DIR) : 1;
+    const int configured = container ? config_container(container, "file://" DATALOG_DIR) : 1;
     if (container) {
         if (configured == 0) {
             container->time = 0.25;

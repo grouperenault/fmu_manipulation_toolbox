@@ -4,6 +4,7 @@
 #include "fmi3Functions.h"
 
 #include "cache.h"
+#include "config.h"
 #include "container.h"
 #include "datalog.h"
 #include "logger.h"
@@ -90,7 +91,7 @@ fmi3Instance fmi3InstantiateCoSimulation(
 
     LOGGER_DEBUG("Container model loading...");
 
-    if (container_configure(container, resourcePath)) {
+    if (config_container(container, resourcePath)) {
         LOGGER_ERROR("Cannot read container configuration.");
         container_free(container);
         return NULL;

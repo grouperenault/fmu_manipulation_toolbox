@@ -39,10 +39,10 @@ typedef int (*test_function_t)(void);
 #endif
 
 /* Tests of each module, registered in test_main.c */
-extern int test_config_lines(void);
-extern int test_config_long_line(void);
-extern int test_config_version(void);
-extern int test_config_crlf(void);
+extern int test_file_lines(void);
+extern int test_file_long_line(void);
+extern int test_file_version(void);
+extern int test_file_crlf(void);
 extern int test_thread_barrier(void);
 extern int test_thread_barrier_consecutive(void);
 extern int test_profile_monotonic_clock(void);

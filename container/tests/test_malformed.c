@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "config.h"
 #include "container.h"
 #include "test.h"
 
@@ -100,7 +101,7 @@ static int configure_malformed(void) {
     container_t *container = container_new("malformed", "{uuid}", 2);
     if (!container)
         return -100;
-    const int status = container_configure(container, "file://" MALFORMED_DIR);
+    const int status = config_container(container, "file://" MALFORMED_DIR);
     container_free(container);
     return status;
 }
@@ -142,7 +143,7 @@ int test_malformed_datalog_txt(void) {
 
     container_t *container = container_new("malformed", "{uuid}", 2);
     TEST_ASSERT(container != NULL);
-    const int status = container_configure(container, "file://" MALFORMED_DIR);
+    const int status = config_container(container, "file://" MALFORMED_DIR);
     const int has_datalog = container->datalog != NULL;
     container_free(container);
     remove(MALFORMED_DIR "/datalog.txt");
@@ -161,7 +162,7 @@ static int setup_with_start_value(const char *original, const char *line, fmu_st
     TEST_ASSERT_EQUAL_INT(0, write_case(original, &c));
     container_t *container = container_new("start", "{uuid}", 2);
     TEST_ASSERT(container != NULL);
-    TEST_ASSERT_EQUAL_INT(0, container_configure(container, "file://" MALFORMED_DIR));
+    TEST_ASSERT_EQUAL_INT(0, config_container(container, "file://" MALFORMED_DIR));
     *status = container_setup_experiment(container, false, 0.0, 0.0, false, 0.0);
     container_free(container);
 
@@ -196,7 +197,7 @@ int test_start_value_array(void) {
 
     container_t *container = container_new("array", "{uuid}", 2);
     TEST_ASSERT(container != NULL);
-    TEST_ASSERT_EQUAL_INT(0, container_configure(container, "file://" MALFORMED_DIR));
+    TEST_ASSERT_EQUAL_INT(0, config_container(container, "file://" MALFORMED_DIR));
     const fmu_start_reals64_t *start = &container->fmu[0].fmu_io.start_reals64;
     const int nb = (int)start->nb;
     const unsigned int dimension = nb ? start->start_values[0].dimension : 0;

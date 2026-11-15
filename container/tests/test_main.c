@@ -11,10 +11,10 @@ static const struct {
     const char          *name;
     test_function_t     function;
 } tests[] = {
-    { "config_lines",       test_config_lines },
-    { "config_long_line",   test_config_long_line },
-    { "config_version",     test_config_version },
-    { "config_crlf",        test_config_crlf },
+    { "file_lines",         test_file_lines },
+    { "file_long_line",     test_file_long_line },
+    { "file_version",       test_file_version },
+    { "file_crlf",          test_file_crlf },
     { "thread_barrier",                 test_thread_barrier },
     { "thread_barrier_consecutive",     test_thread_barrier_consecutive },
     { "profile_monotonic_clock",        test_profile_monotonic_clock },

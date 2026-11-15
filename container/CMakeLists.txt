@@ -22,6 +22,7 @@ endif()
 set(CONTAINER_SOURCES
     cache.c     cache.h
     config.c    config.h
+    file.c      file.h
     container.c container.h
     convert.c   convert.h
     datalog.c   datalog.h
@@ -60,7 +61,7 @@ if(BUILD_TESTING)
         ${CONTAINER_SOURCES}
         tests/test.h
         tests/test_main.c
-        tests/test_config.c
+        tests/test_file.c
         tests/test_configure.c
         tests/test_path.c
         tests/test_logger.c
