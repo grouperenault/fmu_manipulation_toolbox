@@ -218,6 +218,22 @@ static void container_clocks_deactivate(container_t *container) {
 }
 
 
+/* Every local clock inactive: the clocks read during an event iteration are delivered. */
+static void container_clocks_clear(container_t *container) {
+    for (unsigned long i = 0; i < container->clocks.nb_locals; i += 1)
+        container->clocks.locals[i] = false;
+}
+
+
+static bool container_clocks_are_active(const container_t *container) {
+    for (unsigned long i = 0; i < container->clocks.nb_locals; i += 1) {
+        if (container->clocks.locals[i])
+            return true;
+    }
+    return false;
+}
+
+
 void container_clocks_logged(container_t *container) {
     container_clocks_deactivate(container);
     for(unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1)
@@ -404,7 +420,16 @@ static void container_bound_next_step(container_t *container) {
 }
 
 
-/* `delivered`: the clocks and the clocked inputs already reached the FMUs in this instant. */
+/*
+ * Event iteration. `delivered`: the clocks and the clocked inputs already reached the FMUs in this instant.
+ *
+ * The values go from an FMU to the next ones within a pass (Gauss-Seidel sweep in configuration order): each FMU is
+ * driven Set inputs -> fmi3UpdateDiscreteStates -> Get outputs (FMI-3.0), so the outputs read back reflect its
+ * updated discrete states. The clocks go from a pass to the next one: an output clock that ticks in a pass (e.g. in
+ * fmi3UpdateDiscreteStates, in reaction to an input clock) makes another pass, which starts by delivering it, with
+ * the inputs it clocks, to all the FMUs, whatever their order. The local clocks are then cleared: none stays active
+ * after the iteration.
+ */
 static fmu_status_t container_update_discrete_state(container_t *container, bool delivered) {
     const logger_t *logger = &container->logger;
     bool more_event;
@@ -415,27 +440,27 @@ static fmu_status_t container_update_discrete_state(container_t *container, bool
     LOGGER_DEBUG("[DEBUG] time=%e | container_update_discrete_state()", container->time);
 #endif
     for (iter = 0; iter < CONTAINER_MAX_EVENT_ITER; iter += 1) {
-        /* Gauss-Seidel sweep in configuration order, so a value produced by FMU i
-           reaches FMU i+1 within the same pass. Per FMI-3.0, each FMU is driven
-           Set inputs -> fmi3UpdateDiscreteStates -> Get outputs, so the outputs
-           read back reflect the freshly updated discrete state. */
         more_event = false;
 
         /* The previous pass read the outputs: this one needs a new instant for its inputs. */
         if ((iter > 0) && (container_close_instant(container) != FMU_STATUS_OK))
             return FMU_STATUS_ERROR;
 
+        /* The clocks read by the previous pass (or before the iteration), with the inputs they clock. */
+        if ((iter > 0) || !delivered) {
+            for (int i = 0; i < container->nb_fmu; i += 1) {
+                if ((fmu_set_clocks(&container->fmu[i]) != FMU_STATUS_OK) ||
+                    (fmu_set_clocked_inputs(&container->fmu[i]) != FMU_STATUS_OK))
+                    return FMU_STATUS_ERROR;
+            }
+        }
+        container_clocks_clear(container);
+
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t *fmu = &container->fmu[i];
             bool fmu_more_event = false;
 
-            if (!(delivered && (iter == 0)) && (fmu_set_clocks(fmu) != FMU_STATUS_OK))
-                return FMU_STATUS_ERROR;
-
             if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-
-            if (!(delivered && (iter == 0)) && (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK))
                 return FMU_STATUS_ERROR;
 
             /* Closing the super-dense time instant; a further iteration opens a new one. */
@@ -453,7 +478,7 @@ static fmu_status_t container_update_discrete_state(container_t *container, bool
 
         datalog_log(container);
 
-        if (!more_event)
+        if (!more_event && !container_clocks_are_active(container))
             break;
     }
 
@@ -461,13 +486,6 @@ static fmu_status_t container_update_discrete_state(container_t *container, bool
         LOGGER_ERROR("Container: event iteration did not converge after %d steps.", CONTAINER_MAX_EVENT_ITER);
         return FMU_STATUS_ERROR;
     }
-
-    /* All clock have been transmitted by now
-       The following code is not necessary but could be used if paranoid
-
-    for(unsigned long i=0; i < container->clocks.nb_locals; i += 1)
-        container->clocks.locals[i] = false;
-    */
 
     container_bound_next_step(container);
 

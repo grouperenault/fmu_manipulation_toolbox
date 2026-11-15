@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="3.0" modelName="ClockRelay" instantiationToken="{clock-relay}">
+  <CoSimulation modelIdentifier="ClockRelay" hasEventMode="true" canHandleVariableCommunicationStepSize="true"/>
+  <DefaultExperiment startTime="0" stopTime="1" stepSize="0.1"/>
+  <ModelVariables>
+    <Float64 name="time" valueReference="0" causality="independent" variability="continuous"/>
+    <Clock name="tx" valueReference="1" causality="output" intervalVariability="triggered"/>
+    <Clock name="rx" valueReference="2" causality="input" intervalVariability="triggered"/>
+    <Float64 name="rx_count" valueReference="3" causality="output" variability="discrete" initial="calculated"/>
+    <Float64 name="tx_count" valueReference="4" causality="output" variability="discrete" initial="calculated"/>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="1"/>
+    <Output valueReference="3"/>
+    <Output valueReference="4"/>
+    <InitialUnknown valueReference="3"/>
+    <InitialUnknown valueReference="4"/>
+  </ModelStructure>
+</fmiModelDescription>

@@ -48,6 +48,12 @@ Non-goals: the other modules (`config.c`; `fmu.c` apart from the renamed field).
   after `fmi*Reset` (no new warm-up), and documented; Q5 the reset of an FMU logged by `LOGGER_DEBUG("Reset FMU '%s'
   at time=%e.")`; Q6 `is_close()` becomes `container_is_close()` returning `bool`, `need_event_udpate` becomes
   `need_event_update`. Q7 is decided after the test of the step 4.
+- **D3 — Clocks of the event iteration** (Q7, 15 November 2026): the test of the step 4 (`clock-relay`: source ->
+  relay -> sink, the relay ticking its output clock in `fmi3UpdateDiscreteStates()`) lost the tick of the relay in 3
+  cases out of 4: with the sink after the relay (the tick, read in a pass, was erased by the read of the next pass
+  before the sink got it), and with the sink before it when the relay does not ask for another update. Fixed: the
+  clocks read in a pass make another pass, which delivers them (with the inputs they clock) to all the FMUs before
+  any update, then clears the local clocks.
 
 ---
 
@@ -111,7 +117,17 @@ Container runtime: cleanup of container.c (dead code, names, debug messages)
 - Then Q7: a fix (e.g. one more pass when an output clock ticked, the output clocks reset at the end of the
   iteration) or the comment corrected; the commented code of 5 removed in both cases.
 
-Commit message: written once Q7 is decided.
+Commit message:
+```
+Container runtime: a clock ticked in the event iteration reaches all its receivers
+
+A clock ticked by an embedded FMU in fmi3UpdateDiscreteStates() (e.g. a relay
+of a clock it receives) was lost when its receiver came after it in the order
+of the container, or before it without another update of the discrete states.
+The clocks read in a pass of the event iteration now make another pass, which
+delivers them, with the inputs they clock, to all the FMUs before any update;
+no local clock stays active after the iteration. Test FMU clock-relay.
+```
 
 ### Step 5 — Documentation
 
