@@ -6,7 +6,7 @@
 #include <string.h>
 
 #include "cache.h"
-#include "config.h"
+#include "file.h"
 #include "container.h"
 #include "datalog.h"
 #include "logger.h"
@@ -1375,10 +1375,10 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
 ----------------------------------------------------------------------------*/
 
 #define CONFIG_ERROR(message, ...)                                          \
-    config_file_error(file, __LINE__, message __VA_OPT__(,) __VA_ARGS__) 
+    file_error(file, __LINE__, message __VA_OPT__(,) __VA_ARGS__) 
 
 #define CONFIG_GETLINE                                                      \
-    if (get_line(file)) {                                                   \
+    if (file_get_line(file)) {                                                   \
         CONFIG_ERROR("Cannot read config data.");                           \
         return -1;                                                          \
     }
@@ -1394,10 +1394,10 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
 /*
  * # Version 7
  */
-static int read_version(config_file_t* file) {
+static int read_version(file_t* file) {
     int version;
 
-    if (config_file_version(file, &version)) {
+    if (file_version(file, &version)) {
         CONFIG_ERROR("container.txt has no format version header: the container was built by an incompatible "
                      "version of FMU Manipulation Toolbox.");
         return -1;
@@ -1418,7 +1418,7 @@ static int read_version(config_file_t* file) {
  * # Container flags <MT> <Profiling> <Sequential>
  * 1 0 0 
  */
-static int read_flags(container_t* container, config_file_t* file) {
+static int read_flags(container_t* container, file_t* file) {
     const logger_t *logger = &container->logger;
     int mt, sequential;
     long threshold_us;
@@ -1458,10 +1458,10 @@ static int read_flags(container_t* container, config_file_t* file) {
  * # Internal time step in seconds
  * .001
  */
-static int read_conf_time_step(container_t* container, config_file_t* file) {
+static int read_conf_time_step(container_t* container, file_t* file) {
     const logger_t *logger = &container->logger;
     CONFIG_GETLINE;
-    if (config_line_to_host_decimal_point(file) || sscanf(file->line, "%le", &container->time_step) < 1) {
+    if (file_line_to_host_decimal_point(file) || sscanf(file->line, "%le", &container->time_step) < 1) {
         CONFIG_ERROR("Cannot read time_step.");
         return -1;
     }
@@ -1498,14 +1498,14 @@ static int read_conf_time_step(container_t* container, config_file_t* file) {
 
 /* Returns -1 when the FMU could not be loaded (caller drops the whole array),
    -2 on a config syntax error. */
-static int read_conf_one_fmu(container_t *container, const char *dirname, config_file_t *file,
+static int read_conf_one_fmu(container_t *container, const char *dirname, file_t *file,
                              int index, fmu_kind_t kind) {
     const bool is_me = (kind == FMU_KIND_ME);
-    char directory[CONFIG_FILE_SZ];
+    char directory[FILE_SZ];
     char subdirectory[8];
     snprintf(subdirectory, sizeof(subdirectory), "%02x", index);
     directory[0] = '\0';
-    if (path_join(directory, CONFIG_FILE_SZ, dirname, subdirectory, NULL)) {
+    if (path_join(directory, FILE_SZ, dirname, subdirectory, NULL)) {
         CONFIG_ERROR("Path of the directory of FMU#%d is too long.", index);
         return -1;
     }
@@ -1554,20 +1554,20 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
         return -2;
     }
 
-    if (get_line(file)) {
+    if (file_get_line(file)) {
         CONFIG_ERROR("Cannot read config data.");
         free(name);
         return -1;
     }
     char *identifier = strdup(file->line);
 
-    if (get_line(file)) {
+    if (file_get_line(file)) {
         CONFIG_ERROR("Cannot read config data.");
         free(identifier);
         free(name);
         return -1;
     }
-    char *guid = strdup(file->line); /* saved because next get_line would overwrite file->line */
+    char *guid = strdup(file->line); /* saved because next file_get_line would overwrite file->line */
     if (!identifier || !guid) {
         CONFIG_ERROR("Virtual memory exhaust. (FMU identifier)");
         free(guid);
@@ -1612,7 +1612,7 @@ static int read_conf_one_fmu(container_t *container, const char *dirname, config
  * # Initialization order of the embedded FMU's
  * <index> <index> ...      (every index of fmu[] once)
  */
-static int read_conf_init_order(container_t *container, config_file_t *file) {
+static int read_conf_init_order(container_t *container, file_t *file) {
     CONFIG_GETLINE;
     CONFIG_ALLOC(container->init_order, container->nb_fmu > 0 ? container->nb_fmu : 1);
 
@@ -1637,7 +1637,7 @@ static int read_conf_init_order(container_t *container, config_file_t *file) {
 }
 
 
-static int read_conf_fmu(container_t *container, const char *dirname, config_file_t* file) {
+static int read_conf_fmu(container_t *container, const char *dirname, file_t* file) {
     const logger_t *logger = &container->logger;
     int nb_cs, nb_me;
 
@@ -1674,7 +1674,7 @@ static int read_conf_fmu(container_t *container, const char *dirname, config_fil
  * # NB local variables: real64, real32, integer8, uinteger8, integer16, uinteger16, integer32, uinteger32, integer64, uinteger64, boolean, boolean1, string, binary, clock
  * 3 0 0 0 0 0 1 0 0 0 0 0 0 0 0
  */
-static int read_conf_local(container_t* container, config_file_t* file) {
+static int read_conf_local(container_t* container, file_t* file) {
     CONFIG_GETLINE;
     if (sscanf(file->line, "%lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
         &container->reals64.nb_locals,
@@ -1751,7 +1751,7 @@ static int read_conf_local(container_t* container, config_file_t* file) {
  * # String
  * 0 0
  */
-static int read_conf_io(container_t* container, config_file_t* file) {
+static int read_conf_io(container_t* container, file_t* file) {
     unsigned long nb_links;
 
 #define READ_CONF_IO(variable, fmi_type, c_type)                                                                \
@@ -1930,7 +1930,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
 
 
 
-static int read_conf_fmu_io_in(const container_t *container, fmu_io_t* fmu_io, config_file_t* file) {
+static int read_conf_fmu_io_in(const container_t *container, fmu_io_t* fmu_io, file_t* file) {
     unsigned long nb_clocked;
 
 #define READER_FMU_IN(variable, fmi_type, c_type)   \
@@ -1948,7 +1948,7 @@ static int read_conf_fmu_io_in(const container_t *container, fmu_io_t* fmu_io, c
 }
 
 
-static int read_conf_fmu_io_out(const container_t *container, fmu_io_t* fmu_io, config_file_t* file) {
+static int read_conf_fmu_io_out(const container_t *container, fmu_io_t* fmu_io, file_t* file) {
     unsigned long nb_clocked;
 
 #define READER_FMU_OUT(variable, fmi_type, c_type)   \
@@ -1967,7 +1967,7 @@ static int read_conf_fmu_io_out(const container_t *container, fmu_io_t* fmu_io, 
 #undef READER_FMU_IO
 
 
-static int read_conf_fmu_start_values_booleans1(fmu_io_t* fmu_io, config_file_t* file) {
+static int read_conf_fmu_start_values_booleans1(fmu_io_t* fmu_io, file_t* file) {
     unsigned long nb;
     unsigned long pos = 0;
 
@@ -2024,7 +2024,7 @@ static int read_conf_fmu_start_values_booleans1(fmu_io_t* fmu_io, config_file_t*
 }
 
 
-static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* file) {
+static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, file_t* file) {
     unsigned long nb;
     unsigned long pos = 0;
     
@@ -2080,7 +2080,7 @@ static int read_conf_fmu_start_values_strings(fmu_io_t* fmu_io, config_file_t* f
  * # Start values of bb_velocity.fmu - Real: <FMU_VR> <DIM> <RESET> <VALUE> [, <VALUE>]
  * 0
  */
-static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
+static int read_conf_fmu_start_values(fmu_io_t* fmu_io, file_t* file) {
     int status;
     unsigned long nb;
     unsigned long pos;
@@ -2106,7 +2106,7 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
             unsigned int dimension;                                                                 \
                                                                                                     \
             CONFIG_GETLINE;                                                                         \
-            if (config_line_to_host_decimal_point(file)) {                                          \
+            if (file_line_to_host_decimal_point(file)) {                                          \
                 CONFIG_ERROR("Cannot read %luth start value.", i);                                  \
                 return -5;                                                                          \
             }                                                                                       \
@@ -2167,7 +2167,7 @@ static int read_conf_fmu_start_values(fmu_io_t* fmu_io, config_file_t* file) {
 #undef READER_FMU_START_VALUE
 
 
-static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
+static int read_conf_fmu_conversion(fmu_t *fmu, file_t* file) {
     unsigned long nb;
 
     CONFIG_GETLINE;
@@ -2216,7 +2216,7 @@ static int read_conf_fmu_conversion(fmu_t *fmu, config_file_t* file) {
  * # Reset trigger of bb_velocity.fmu: <LOCAL_OFFSET>
  * -1
  */
-static int read_conf_fmu_reset_trigger(fmu_t *fmu, config_file_t *file) {
+static int read_conf_fmu_reset_trigger(fmu_t *fmu, file_t *file) {
     const container_t *container = fmu->container;
 
     CONFIG_GETLINE;
@@ -2238,7 +2238,7 @@ static int read_conf_fmu_reset_trigger(fmu_t *fmu, config_file_t *file) {
 }
 
 
-static int read_conf_fmu_io(fmu_t* fmu, config_file_t* file) {
+static int read_conf_fmu_io(fmu_t* fmu, file_t* file) {
 
     if (read_conf_fmu_io_in(fmu->container, &fmu->fmu_io, file))
         return -1;
@@ -2282,7 +2282,7 @@ static int clock_kind_from_name(const char *name, container_clock_kind_t *kind) 
 }
 
 
-static int read_conf_clocks(container_t *container, config_file_t *file) {
+static int read_conf_clocks(container_t *container, file_t *file) {
     CONFIG_GETLINE;
     if (sscanf(file->line, "%lu %lu", &container->clocks_list.nb_fmu, &container->clocks_list.nb_local_clocks) < 2) {
         CONFIG_ERROR("Cannot get size of clocks defintions table.");
@@ -2299,7 +2299,7 @@ static int read_conf_clocks(container_t *container, config_file_t *file) {
             int offset;
 
             CONFIG_GETLINE;
-            if (config_line_to_host_decimal_point(file)) {
+            if (file_line_to_host_decimal_point(file)) {
                 CONFIG_ERROR("Cannot interpret %luth clock table entries.", i);
                 return -5;
             }
@@ -2554,8 +2554,8 @@ static void container_dispatch(container_t *container) {
 
 int container_configure(container_t* container, const char* resource_location) {
     const logger_t *logger = &container->logger;
-    config_file_t file;
-    char dirname[CONFIG_FILE_SZ];
+    file_t file;
+    char dirname[FILE_SZ];
 
     LOGGER_WARNING("FMUContainer '" VERSION_TAG "'");
 
@@ -2574,45 +2574,45 @@ int container_configure(container_t* container, const char* resource_location) {
         LOGGER_ERROR("Resource location is too long: '%s'.", resource_location);
         return -1;
     }
-    if (config_file_open(&file, logger, dirname, "container.txt")) {
+    if (file_open(&file, logger, dirname, "container.txt")) {
         LOGGER_ERROR("Cannot open '%s/container.txt': %s.", dirname, strerror(errno));
         return -1;
     }
 
     if (read_version(&file)) {
-        config_file_close(&file);
+        file_close(&file);
         return -2;
     }
 
     if (read_flags(container, &file)) {
-        config_file_close(&file);
+        file_close(&file);
         return -2;
     }
 
     if (read_conf_time_step(container, &file)) {
-        config_file_close(&file);
+        file_close(&file);
         return -3;
     }
 
     if (read_conf_fmu(container, dirname, &file)) {
-        config_file_close(&file);
+        file_close(&file);
         return -4;
     }
 
     if (read_conf_init_order(container, &file)) {
-        config_file_close(&file);
+        file_close(&file);
         LOGGER_ERROR("Cannot read the initialization order.");
         return -4;
     }
 
     if (read_conf_local(container, &file)) {
-        config_file_close(&file);
+        file_close(&file);
         LOGGER_ERROR("Cannot allocate local variables.");
         return -5;
     }
 
     if (read_conf_io(container, &file)) {
-        config_file_close(&file);
+        file_close(&file);
         LOGGER_ERROR("Cannot read translation table.");
         return -6;
     }
@@ -2629,7 +2629,7 @@ int container_configure(container_t* container, const char* resource_location) {
 
     for (int i = 0; i < container->nb_fmu; i += 1) {
         if (read_conf_fmu_io(&container->fmu[i], &file)) {
-            config_file_close(&file);
+            file_close(&file);
             LOGGER_ERROR("Cannot read I/O table for FMU#%d", i);
             return -7;
         }
@@ -2672,19 +2672,19 @@ int container_configure(container_t* container, const char* resource_location) {
     /* The cache of the values set by the importer, once the ports and the start values are read */
     container->cache = cache_new(container);
     if (!container->cache) {
-        config_file_close(&file);
+        file_close(&file);
         return -12;
     }
 
     if (read_conf_clocks(container, &file)) {
-        config_file_close(&file);
+        file_close(&file);
         LOGGER_ERROR("Cannot read the clocks of the importer.");
         return -11;
     }
     if (container->clocks_list.nb_fmu)
         LOGGER_DEBUG("Container will tick for clocks from %lu FMUs", container->clocks_list.nb_fmu);
 
-    config_file_close(&file);
+    file_close(&file);
 
     LOGGER_DEBUG("Instanciate embedded FMUs...");
     for (int i = 0; i < container->nb_fmu; i += 1) {

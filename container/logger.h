@@ -5,7 +5,7 @@
 extern "C" {
 #	endif
 
-#include "config.h"
+#include "file.h"
 #include "fmu.h"
 
 #define LOGGER_LEVEL_DEBUG      0   /* fmi2OK or fmi3OK */

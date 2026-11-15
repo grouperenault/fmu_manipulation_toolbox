@@ -86,14 +86,14 @@ int test_locale_line_to_host_decimal_point(void) {
         return 0;
     }
 
-    config_file_t file;
+    file_t file;
     char line[] = "12 3 countdown 2.5 0.1\t0.10000000000000001 -1.5e-3 6.02E+23";
     double value[5];
 
     memset(&file, 0, sizeof(file));
     file.line = line;
     file.line_size = sizeof(line);
-    TEST_ASSERT_EQUAL_INT(0, config_line_to_host_decimal_point(&file));
+    TEST_ASSERT_EQUAL_INT(0, file_line_to_host_decimal_point(&file));
     TEST_ASSERT(strcmp(line, "12 3 countdown 2,5 0,1\t0,10000000000000001 -1,5e-3 6,02E+23") == 0);
     TEST_ASSERT_EQUAL_INT(5, sscanf(line + strlen("12 3 countdown "), "%lf %lf %lf %lf %lf", &value[0], &value[1],
                                     &value[2], &value[3], &value[4]));
@@ -119,13 +119,13 @@ int test_locale_long_decimal_point(void) {
 
     char location[4096];
     char line[] = "2.5";
-    config_file_t file;
+    file_t file;
 
     /* refused by the conversion itself, the line left as it is: a start value would be misread without any error */
     memset(&file, 0, sizeof(file));
     file.line = line;
     file.line_size = sizeof(line);
-    const int converted = config_line_to_host_decimal_point(&file);
+    const int converted = file_line_to_host_decimal_point(&file);
 
     snprintf(location, sizeof(location), "file://%s/one_fmu_datalog", TEST_FIXTURES_DIR);
     container_t *container = container_new("locale", "{uuid}", 2);
