@@ -198,4 +198,5 @@ The [AI Assistant](ai-assistant.md) warns about `mt` enabled on a container and 
 - The inputs and the outputs of the FMUs are exchanged by the main thread: an FMU whose exchanges are slow (many
   ports, a remote FMU) does not get them in parallel.
 - `-mt` needs at least two embedded FMUs; with `-sequential`, it is ignored.
-- The dispatch is decided once, at the end of the warm-up, and kept until the end of the simulation.
+- The dispatch is decided once, at the end of the warm-up, and kept until the end of the simulation, also after a
+  reset of the container (`fmi2Reset` / `fmi3Reset`): there is no new warm-up.

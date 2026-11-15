@@ -18,46 +18,18 @@
  * configuration.
  */
 
-/*----------------------------------------------------------------------------
-                        E V E N T   M O D E
-----------------------------------------------------------------------------*/
+
 /* Safety net against a non-converging event iteration. */
 #define CONTAINER_MAX_EVENT_ITER    100
 
-fmu_status_t container_enter_event_mode(container_t *container) {
-#ifdef DEBUG
-    const logger_t *logger = &container->logger;
-#endif
-#ifdef DEBUG
-    LOGGER_DEBUG("[DEBUG] time=%e| Container entering in EVENT mode", container->time);
-#endif
-    for (int i = 0; i < container->nb_fmu; i += 1) {
-        if (fmuEnterEventMode(&container->fmu[i]) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-    }
-    return FMU_STATUS_OK;
-}
-
-
-fmu_status_t container_enter_step_mode(container_t *container) {
-#ifdef DEBUG
-    const logger_t *logger = &container->logger;
-#endif
-#ifdef DEBUG
-    LOGGER_DEBUG("[DEBUG] time=%e: Container entering in STEP mode", container->time);
-#endif
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        if (fmuEnterStepMode(container->cs_fmu[i]) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-    }
-    return FMU_STATUS_OK;
-}
-
-
-static inline int is_close (const container_t *container, double r1, double r2) {
+static inline bool container_is_close(const container_t *container, double r1, double r2) {
     return fabs(r1-r2) < container->tolerance;
 }
 
+
+/*----------------------------------------------------------------------------
+                              C L O C K S
+----------------------------------------------------------------------------*/
 
 static inline bool container_clock_is_periodic(const container_clock_t *clock) {
     return clock->kind == CONTAINER_CLOCK_CONSTANT || clock->kind == CONTAINER_CLOCK_FIXED ||
@@ -194,7 +166,7 @@ static inline bool container_clock_is_due(const container_clock_t *clock, double
 /* A clock ticks at most once per time instant: an FMU that announces a new tick right after the current one may wait
    for a step to go on, so that ticking it again in this Event Mode would never end. */
 static inline bool container_clock_has_ticked_now(const container_t *container, const container_clock_t *clock) {
-    return clock->has_ticked && is_close(container, clock->last_tick, container->time);
+    return clock->has_ticked && container_is_close(container, clock->last_tick, container->time);
 }
 
 
@@ -226,8 +198,8 @@ static fmu_status_t container_set_next_event_time(container_t *container) {
 }
 
 
-/* The scheduled clocks are reset as soon as their inputs are delivered: for the datalog, show the ones that ticked since
-   its last row. */
+/* The scheduled clocks are reset as soon as their inputs are delivered: for the datalog, show the ones that ticked
+   since its last row. */
 void container_clocks_activate_ticked(container_t *container) {
     for(unsigned long i = 0; i < container->clocks_list.nb_local_clocks; i += 1) {
         if (container->clocks_list.clocks[i].tick_to_log)
@@ -243,6 +215,22 @@ static void container_clocks_deactivate(container_t *container) {
     }
 
     return;
+}
+
+
+/* Every local clock inactive: the clocks read during an event iteration are delivered. */
+static void container_clocks_clear(container_t *container) {
+    for (unsigned long i = 0; i < container->clocks.nb_locals; i += 1)
+        container->clocks.locals[i] = false;
+}
+
+
+static bool container_clocks_are_active(const container_t *container) {
+    for (unsigned long i = 0; i < container->clocks.nb_locals; i += 1) {
+        if (container->clocks.locals[i])
+            return true;
+    }
+    return false;
 }
 
 
@@ -265,9 +253,39 @@ static bool container_clocks_are_due(const container_t *container) {
 }
 
 
+/*----------------------------------------------------------------------------
+                        E V E N T   M O D E
+----------------------------------------------------------------------------*/
+
+fmu_status_t container_enter_event_mode(container_t *container) {
+#ifdef DEBUG
+    const logger_t *logger = &container->logger;
+    LOGGER_DEBUG("[DEBUG] time=%e| Container entering in EVENT mode", container->time);
+#endif
+    for (int i = 0; i < container->nb_fmu; i += 1) {
+        if (fmuEnterEventMode(&container->fmu[i]) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
+    }
+    return FMU_STATUS_OK;
+}
+
+
+fmu_status_t container_enter_step_mode(container_t *container) {
+#ifdef DEBUG
+    const logger_t *logger = &container->logger;
+    LOGGER_DEBUG("[DEBUG] time=%e: Container entering in STEP mode", container->time);
+#endif
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        if (fmuEnterStepMode(container->cs_fmu[i]) != FMU_STATUS_OK)
+                return FMU_STATUS_ERROR;
+    }
+    return FMU_STATUS_OK;
+}
+
+
 /* An FMU may evaluate its discrete states when its outputs are read, and then refuse any input until
-   fmi3UpdateDiscreteStates(): outputs and inputs are exchanged in two super-dense time instants. The event iteration which
-   follows calls the update again, and tells if another one is needed. */
+   fmi3UpdateDiscreteStates(): outputs and inputs are exchanged in two super-dense time instants. The event iteration
+   which follows calls the update again, and tells if another one is needed. */
 static fmu_status_t container_close_instant(container_t *container) {
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         bool more_event;
@@ -279,7 +297,8 @@ static fmu_status_t container_close_instant(container_t *container) {
 }
 
 
-/* The event iteration reads the output clocks again: the clocks and the inputs they clock reach all the FMUs before it. */
+/* The event iteration reads the output clocks again: the clocks and the inputs they clock reach all the FMUs before
+   it. */
 static fmu_status_t container_deliver_clocked_inputs(container_t *container) {
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t *fmu = container->cs_fmu[i];
@@ -401,7 +420,16 @@ static void container_bound_next_step(container_t *container) {
 }
 
 
-/* `delivered`: the clocks and the clocked inputs already reached the FMUs in this instant. */
+/*
+ * Event iteration. `delivered`: the clocks and the clocked inputs already reached the FMUs in this instant.
+ *
+ * The values go from an FMU to the next ones within a pass (Gauss-Seidel sweep in configuration order): each FMU is
+ * driven Set inputs -> fmi3UpdateDiscreteStates -> Get outputs (FMI-3.0), so the outputs read back reflect its
+ * updated discrete states. The clocks go from a pass to the next one: an output clock that ticks in a pass (e.g. in
+ * fmi3UpdateDiscreteStates, in reaction to an input clock) makes another pass, which starts by delivering it, with
+ * the inputs it clocks, to all the FMUs, whatever their order. The local clocks are then cleared: none stays active
+ * after the iteration.
+ */
 static fmu_status_t container_update_discrete_state(container_t *container, bool delivered) {
     const logger_t *logger = &container->logger;
     bool more_event;
@@ -412,27 +440,27 @@ static fmu_status_t container_update_discrete_state(container_t *container, bool
     LOGGER_DEBUG("[DEBUG] time=%e | container_update_discrete_state()", container->time);
 #endif
     for (iter = 0; iter < CONTAINER_MAX_EVENT_ITER; iter += 1) {
-        /* Gauss-Seidel sweep in configuration order, so a value produced by FMU i
-           reaches FMU i+1 within the same pass. Per FMI-3.0, each FMU is driven
-           Set inputs -> fmi3UpdateDiscreteStates -> Get outputs, so the outputs
-           read back reflect the freshly updated discrete state. */
         more_event = false;
 
         /* The previous pass read the outputs: this one needs a new instant for its inputs. */
         if ((iter > 0) && (container_close_instant(container) != FMU_STATUS_OK))
             return FMU_STATUS_ERROR;
 
+        /* The clocks read by the previous pass (or before the iteration), with the inputs they clock. */
+        if ((iter > 0) || !delivered) {
+            for (int i = 0; i < container->nb_fmu; i += 1) {
+                if ((fmu_set_clocks(&container->fmu[i]) != FMU_STATUS_OK) ||
+                    (fmu_set_clocked_inputs(&container->fmu[i]) != FMU_STATUS_OK))
+                    return FMU_STATUS_ERROR;
+            }
+        }
+        container_clocks_clear(container);
+
         for (int i = 0; i < container->nb_fmu; i += 1) {
             fmu_t *fmu = &container->fmu[i];
             bool fmu_more_event = false;
 
-            if (!(delivered && (iter == 0)) && (fmu_set_clocks(fmu) != FMU_STATUS_OK))
-                return FMU_STATUS_ERROR;
-
             if (fmu_set_inputs(fmu) != FMU_STATUS_OK)
-                return FMU_STATUS_ERROR;
-
-            if (!(delivered && (iter == 0)) && (fmu_set_clocked_inputs(fmu) != FMU_STATUS_OK))
                 return FMU_STATUS_ERROR;
 
             /* Closing the super-dense time instant; a further iteration opens a new one. */
@@ -450,7 +478,7 @@ static fmu_status_t container_update_discrete_state(container_t *container, bool
 
         datalog_log(container);
 
-        if (!more_event)
+        if (!more_event && !container_clocks_are_active(container))
             break;
     }
 
@@ -458,13 +486,6 @@ static fmu_status_t container_update_discrete_state(container_t *container, bool
         LOGGER_ERROR("Container: event iteration did not converge after %d steps.", CONTAINER_MAX_EVENT_ITER);
         return FMU_STATUS_ERROR;
     }
-
-    /* All clock have been transmitted by now
-       The following code is not necessary but could be used if paranoid
-
-    for(unsigned long i=0; i < container->clocks.nb_locals; i += 1)
-        container->clocks.locals[i] = false;
-    */
 
     container_bound_next_step(container);
 
@@ -589,10 +610,7 @@ static fmu_status_t container_set_fmu_start_values(const fmu_t *fmu, start_value
 
 static fmu_status_t container_set_start_values(container_t* container, start_values_phase_t phase) {
     const logger_t *logger = &container->logger;
-    if (phase == START_VALUES_EARLY)
-        LOGGER_DEBUG("Setting start values...");
-    else
-        LOGGER_DEBUG("Re-setting some start values...");
+    LOGGER_DEBUG("Re-setting some start values...");
     for (int i = 0; i < container->nb_fmu; i += 1)
         if (container_set_fmu_start_values(&container->fmu[i], phase) != FMU_STATUS_OK)
             return FMU_STATUS_ERROR;
@@ -692,7 +710,7 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
     if (toleranceDefined)
         container->tolerance = tolerance;
     container->start_time = startTime;
-    container->stop_time_defined = 0; /* stopTime can cause rounding issues. Disbale it.*/
+    container->stop_time_defined = false; /* stopTime can cause rounding issues: disable it. */
     container->stop_time = stopTime;
     container->time = container->start_time;
 
@@ -713,11 +731,11 @@ fmu_status_t container_setup_experiment(container_t* container, bool toleranceDe
 
 /*
  * Exit of the Initialization Mode of the embedded FMUs, with the propagation of their links, as Simulink does: in
- * the initialization order (topological order of the links, written by the builder), each FMU gets its linked inputs from the local variables, leaves its
- * Initialization Mode, then its outputs are read into the local variables for the FMUs after it. No output is read
- * in Initialization Mode (some FMUs compute them only when they leave it). An ME FMU is in Event Mode after its exit:
- * its outputs are read after its own event iteration, never before its first update of the discrete states.
- * In a loop of links, the first FMU of the loop gets the values the loop has before the propagation (the builder
+ * the initialization order (topological order of the links, written by the builder), each FMU gets its linked inputs
+ * from the local variables, leaves its Initialization Mode, then its outputs are read into the local variables for the
+ * FMUs after it. No output is read in Initialization Mode (some FMUs compute them only when they leave it). An ME FMU
+ * is in Event Mode after its exit: its outputs are read after its own event iteration, never before its first update
+ * of the discrete states. In a loop of links, the first FMU of the loop gets the values the loop has before the propagation (the builder
  * warns). Clocks and clocked variables are not propagated.
  */
 static fmu_status_t container_exit_fmus_initialization(container_t* container) {
@@ -777,7 +795,8 @@ fmu_status_t container_enter_initialization_mode(container_t* container) {
 }
 
 
-static void container_init_values(container_t* container) {
+static fmu_status_t container_init_values(container_t* container) {
+    const logger_t *logger = &container->logger;
     for (int i = 0; i < container->nb_fmu; i += 1) {
         /* Do NOT read ME FMU outputs here: they are still in the initial
            EventMode and the first fmi2NewDiscreteStates() has not been called
@@ -788,10 +807,14 @@ static void container_init_values(container_t* container) {
            and after solver_leave_event_mode(). */
         if (container->fmu[i].kind == FMU_KIND_ME)
             continue;
-        fmu_get_outputs(&container->fmu[i]);
-        fmu_get_clocked_outputs(&container->fmu[i]);
+        if ((fmu_get_outputs(&container->fmu[i]) != FMU_STATUS_OK) ||
+            (fmu_get_clocked_outputs(&container->fmu[i]) != FMU_STATUS_OK)) {
+            LOGGER_ERROR("Container: FMU '%s' failed to give its outputs at the end of the initialization.",
+                         container->fmu[i].name);
+            return FMU_STATUS_ERROR;
+        }
     }
-    return;
+    return FMU_STATUS_OK;
 }
 
 fmu_status_t container_exit_initialization_mode(container_t* container) {
@@ -801,7 +824,7 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
     /* Resolve ME FMU pointers and allocate the solver's flat state buffers. */
     if (solver_configure(container->solver)) {
         LOGGER_ERROR("Cannot build ME solver.");
-        return -9;
+        return FMU_STATUS_ERROR;
     }
 
     status = container_clocks_init_schedule(container);
@@ -814,7 +837,9 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
 
     /* CS FMUs are in EventMode (or StepMode if support_event=0); ME FMUs are in
        EventMode: run one common event iteration before splitting the modes. */
-    container_init_values(container);
+    status = container_init_values(container);
+    if (status != FMU_STATUS_OK)
+        return status;
     /* As for each Event Mode: a row with the ticks of the clocks, e.g. the operations of FMI-LS-BUS prepared in
        Initialization Mode and sent in this first Event Mode. */
     datalog_log(container);
@@ -873,7 +898,8 @@ fmu_status_t container_terminate(container_t* container) {
 ----------------------------------------------------------------------------*/
 
 /* fmi2Reset / fmi3Reset of the container: every embedded FMU is reset, and the container goes back to its state
-   right after its instantiation. The datalog goes on in the same file. */
+   right after its instantiation. The datalog goes on in the same file. In the multi-thread mode, the dispatch of the
+   FMUs decided at the end of the warm-up is kept, with its worker threads: no new warm-up. */
 fmu_status_t container_reset(container_t* container) {
     const logger_t *logger = &container->logger;
     for (int i = 0; i < container->nb_fmu; i += 1) {
@@ -883,7 +909,7 @@ fmu_status_t container_reset(container_t* container) {
             LOGGER_ERROR("Container: FMU '%s' failed to reset.", fmu->name);
             return FMU_STATUS_ERROR;
         }
-        fmu->need_event_udpate = false;
+        fmu->need_event_update = false;
         fmu->have_next_event_time = false;
         fmu->reset_pending = false;
         fmu->in_configuration_mode = false;
@@ -967,7 +993,7 @@ static fmu_status_t container_reset_fmu(container_t *container, int fmu_id) {
     const logger_t *logger = &container->logger;
     fmu_t *fmu = &container->fmu[fmu_id];
 
-    LOGGER_DEBUG("[DEBUG] time=%e | Reset FMU '%s'", container->time, fmu->name);
+    LOGGER_DEBUG("Reset FMU '%s' at time=%e.", fmu->name, container->time);
 
     if (container_fmu_has_scheduled_clocks(container, fmu_id)) {
         LOGGER_ERROR("Container: FMU '%s' cannot be reset: the reset of an FMU with scheduled clocks is "
@@ -1137,12 +1163,10 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
             return status;
         }
 
-        /* COMPUTATION */
-
         status = fmuDoStep(fmu, container->time, container->next_step);
         if (status != FMU_STATUS_OK)
             return status;
-        container->need_event_update |= fmu->need_event_udpate;
+        container->need_event_update |= fmu->need_event_update;
 
         status = fmu_get_outputs(fmu);
         if (status != FMU_STATUS_OK) {
@@ -1154,6 +1178,146 @@ static fmu_status_t container_do_one_step_sequential(container_t *container) {
     return container_step_me(container);
 }
 
+
+static fmu_status_t container_do_one_step_parallel(container_t* container) {
+    const logger_t *logger = &container->logger;
+    fmu_status_t status = FMU_STATUS_OK;
+
+    container->need_event_update = false;
+
+    /* CS FMUs first: all the inputs, then all the steps, then all the outputs (Jacobi). */
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        status = fmu_set_inputs(container->cs_fmu[i]);
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", container->cs_fmu[i]->name);
+            return status;
+        }
+    }
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t* fmu = container->cs_fmu[i];
+        if (container->mt_warmup)
+            profile_tic(&fmu->warmup);
+        status = fmuDoStep(fmu, container->time, container->next_step);
+        if (container->mt_warmup)
+            profile_toc(&fmu->warmup, container->time);     /* the duration of the steps adds up in total_elapsed */
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
+            return status;
+        }
+        container->need_event_update |= fmu->need_event_update;
+    }
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        status = fmu_get_outputs(container->cs_fmu[i]);
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed get outputs.", container->cs_fmu[i]->name);
+            return status;
+        }
+    }
+
+    return container_step_me(container);
+}
+
+
+fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
+    const logger_t *logger = &container->logger;
+#ifdef DEBUG
+    LOGGER_DEBUG("[DEBUG] time=%e | container_do_step(%e, %e)", container->time, currentCommunicationPoint,
+                 communicationStepSize);
+#endif
+    fmu_status_t status = FMU_STATUS_OK;
+    const double end_time = currentCommunicationPoint + communicationStepSize;
+
+    if (container->terminate_requested) {
+        LOGGER_ERROR("The simulation has been terminated at time=%e: no further step.", container->reals64.locals[0]);
+        return FMU_STATUS_ERROR;
+    }
+
+    /*
+     * Internal steps of the container (time_step x TS_MULTIPLIER, the multiplier read at the beginning of each
+     * step) that end before end_time. A step that does not fit (communication step not a multiple of the internal
+     * step) stays pending: it is done by the call that reaches its end, with the inputs of its beginning (the values
+     * set by the importer meanwhile are deferred); its outputs are held until then, as an FMU of fixed step.
+     */
+    while (true) {
+        container->time = container->start_time + container->time_step * container->nb_steps;
+        int ts_multiplier = container->integers32.locals[0];
+        if (ts_multiplier < 1)
+            ts_multiplier = 1;
+        const double ts = container->time_step * ts_multiplier;
+        const double target_time = container->time + ts;
+
+        if (target_time > end_time + container->tolerance)
+            break;
+
+#ifdef DEBUG
+        LOGGER_DEBUG("[DEBUG] time=%e | container internal step ts=%e (end_time=%e)", container->time, ts, end_time);
+#endif
+        while(! container_is_close(container, container->time, target_time)) {
+            /* RESET of embedded FMUs */
+            status = container_reset_fmus(container);
+            if (status != FMU_STATUS_OK) {
+                LOGGER_ERROR("Container cannot reset FMUs (time=%e)", container->time);
+                return status;
+            }
+
+            /* STEP MODE */
+            if (container->time + container->next_step > target_time) {
+                container->next_step = target_time - container->time;
+            }
+#ifdef DEBUG
+            LOGGER_DEBUG("[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
+#endif
+            status = container->do_step(container);
+            if (status != FMU_STATUS_OK) {
+                LOGGER_ERROR("Container cannot Do Step (time=%e)", container->time);
+                return status;
+            }
+            container_clear_reset_triggers(container);
+            container->time += container->next_step;
+
+            /* EVENT MODE */
+            status = container_handle_events(container);
+            if ( status != FMU_STATUS_OK) {
+                LOGGER_ERROR("Container cannot Handle Events (time=%e)", container->time);
+                return status;
+            }
+
+            if (container->terminate_requested) {
+                /* The importer gets the time reached: the rest of the communication step is not done. */
+                LOGGER_WARNING("Container terminates the simulation at time=%e.", container->time);
+                container->reals64.locals[0] = container->time;
+                return FMU_STATUS_OK;
+            }
+        }
+        container->nb_steps += ts_multiplier;
+
+        /* The pending step is done: the values deferred meanwhile are for the next steps. */
+        if (container->step_pending) {
+            container->step_pending = false;
+            status = cache_end_pending_step(container);
+            if (status != FMU_STATUS_OK)
+                return status;
+        }
+    }
+
+    container->time = container->start_time + container->time_step * container->nb_steps;
+    if (!container->step_pending && end_time - container->time > container->tolerance) {
+        /* A step becomes pending: it uses the values set until now, those set meanwhile are deferred. */
+        status = cache_sync_fmus(container);
+        if (status != FMU_STATUS_OK)
+            return status;
+        container->step_pending = true;
+    }
+
+    container->reals64.locals[0] = end_time;
+    
+    return status;
+}
+
+
+/*----------------------------------------------------------------------------
+                        M U L T I - T H R E A D
+----------------------------------------------------------------------------*/
 
 /*
  * Multi-thread mode, after the warm-up: the workers step the heavy FMUs while the main thread steps the light ones.
@@ -1185,10 +1349,10 @@ static fmu_status_t container_do_one_step_hybrid(container_t* container) {
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         fmu_t* fmu = container->cs_fmu[i];
         if (fmu->status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
+            LOGGER_ERROR("Container: FMU '%s' failed doStep (status %d).", fmu->name, fmu->status);
             return fmu->status;
         }
-        container->need_event_update |= fmu->need_event_udpate;
+        container->need_event_update |= fmu->need_event_update;
     }
     for (unsigned int i = 0; i < container->nb_cs; i += 1) {
         status = fmu_get_outputs(container->cs_fmu[i]);
@@ -1202,49 +1366,11 @@ static fmu_status_t container_do_one_step_hybrid(container_t* container) {
 }
 
 
-static fmu_status_t container_do_one_step_parallel(container_t* container) {
-    const logger_t *logger = &container->logger;
-    fmu_status_t status = FMU_STATUS_OK;
-
-    /* STEP MODE */
-    container->need_event_update = false;
-
-    /* CS FMUs first: all the inputs, then all the steps, then all the outputs (Jacobi). */
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        status = fmu_set_inputs(container->cs_fmu[i]);
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", container->cs_fmu[i]->name);
-            return status;
-        }
-    }
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        fmu_t* fmu = container->cs_fmu[i];
-        if (container->mt_warmup)
-            profile_tic(&fmu->warmup);
-        status = fmuDoStep(fmu, container->time, container->next_step);
-        if (container->mt_warmup)
-            profile_toc(&fmu->warmup, container->time);     /* the duration of the steps adds up in total_elapsed */
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
-            return status;
-        }
-        container->need_event_update |= fmu->need_event_udpate;
-    }
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        status = fmu_get_outputs(container->cs_fmu[i]);
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed get outputs.", container->cs_fmu[i]->name);
-            return status;
-        }
-    }
-
-    return container_step_me(container);
-}
-
-
+/*
+ * Worker thread function: each worker executes the FMU steps assigned to it.
+ */
 static void *container_worker(container_worker_t *worker) {
     container_t *container = worker->container;
-    const logger_t *logger = &container->logger;
 
     /* barriers_ready is set before the gate is opened: false if the threads could not all be started */
     thread_gate_wait(&container->threads_gate);
@@ -1258,9 +1384,7 @@ static void *container_worker(container_worker_t *worker) {
 
         for (unsigned int i = 0; i < worker->nb_fmu; i += 1) {
             fmu_t *fmu = worker->fmu[i];
-            fmu->status = fmuDoStep(fmu, container->time, container->next_step);
-            if (fmu->status != FMU_STATUS_OK)
-                LOGGER_ERROR("Container: FMU '%s' failed doing step. %d", fmu->name, fmu->status);
+            fmu->status = fmuDoStep(fmu, container->time, container->next_step);   /* logged by the main thread */
         }
 
         thread_barrier_wait(&container->barrier_end);     /* WAIT 2nd SYNC */
@@ -1314,6 +1438,9 @@ static int container_start_threads(container_t *container) {
 }
 
 
+/*
+ * Stop all worker threads and clean up associated resources.
+ */
 static void container_stop_threads(container_t *container) {
     const logger_t *logger = &container->logger;
     if (!container->threads_gate_ready)
@@ -1394,6 +1521,7 @@ static void container_dispatch(container_t *container) {
         free(heavy);
         return;
     }
+    
     container->nb_workers = nb_workers;
     for (unsigned int i = 0; i < nb_workers; i += 1) {
         container->workers[i].container = container;
@@ -1442,102 +1570,6 @@ static fmu_status_t container_do_one_step_warmup(container_t *container) {
         if (container->mt_warmup == 0)
             container_dispatch(container);
     }
-    return status;
-}
-
-
-fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
-    const logger_t *logger = &container->logger;
-#ifdef DEBUG
-    LOGGER_DEBUG("[DEBUG] time=%e | container_do_step(%e, %e)", container->time, currentCommunicationPoint, communicationStepSize);
-#endif
-    fmu_status_t status = FMU_STATUS_OK;
-    const double end_time = currentCommunicationPoint + communicationStepSize;
-
-    if (container->terminate_requested) {
-        LOGGER_ERROR("The simulation has been terminated at time=%e: no further step.", container->reals64.locals[0]);
-        return FMU_STATUS_ERROR;
-    }
-
-    /*
-     * Internal steps of the container (time_step x TS_MULTIPLIER, the multiplier read at the beginning of each
-     * step) that end before end_time. A step that does not fit (communication step not a multiple of the internal
-     * step) stays pending: it is done by the call that reaches its end, with the inputs of its beginning (the values
-     * set by the importer meanwhile are deferred); its outputs are held until then, as an FMU of fixed step.
-     */
-    while (true) {
-        container->time = container->start_time + container->time_step * container->nb_steps;
-        int ts_multiplier = container->integers32.locals[0];
-        if (ts_multiplier < 1)
-            ts_multiplier = 1;
-        const double ts = container->time_step * ts_multiplier;
-        const double target_time = container->time + ts;
-
-        if (target_time > end_time + container->tolerance)
-            break;
-
-#ifdef DEBUG
-        LOGGER_DEBUG("[DEBUG] time=%e | container internal step ts=%e (end_time=%e)", container->time, ts, end_time);
-#endif
-        while(! is_close(container, container->time, target_time)) {
-            /* RESET of embedded FMUs */
-            status = container_reset_fmus(container);
-            if (status != FMU_STATUS_OK) {
-                LOGGER_ERROR("Container cannot reset FMUs (time=%e)", container->time);
-                return status;
-            }
-
-            /* STEP MODE */
-            if (container->time + container->next_step > target_time) {
-                container->next_step = target_time - container->time;
-            }
-#ifdef DEBUG
-            LOGGER_DEBUG("[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
-#endif
-            status = container->do_step(container);
-            if (status != FMU_STATUS_OK) {
-                LOGGER_ERROR("Container cannot Do Step (time=%e)", container->time);
-                return status;
-            }
-            container_clear_reset_triggers(container);
-            container->time += container->next_step;
-
-            /* EVENT MODE */
-            status = container_handle_events(container);
-            if ( status != FMU_STATUS_OK) {
-                LOGGER_ERROR("Container cannot Handle Events (time=%e)", container->time);
-                return status;
-            }
-
-            if (container->terminate_requested) {
-                /* The importer gets the time reached: the rest of the communication step is not done. */
-                LOGGER_WARNING("Container terminates the simulation at time=%e.", container->time);
-                container->reals64.locals[0] = container->time;
-                return FMU_STATUS_OK;
-            }
-        }
-        container->nb_steps += ts_multiplier;
-
-        /* The pending step is done: the values deferred meanwhile are for the next steps. */
-        if (container->step_pending) {
-            container->step_pending = false;
-            status = cache_end_pending_step(container);
-            if (status != FMU_STATUS_OK)
-                return status;
-        }
-    }
-
-    container->time = container->start_time + container->time_step * container->nb_steps;
-    if (!container->step_pending && end_time - container->time > container->tolerance) {
-        /* A step becomes pending: it uses the values set until now, those set meanwhile are deferred. */
-        status = cache_sync_fmus(container);
-        if (status != FMU_STATUS_OK)
-            return status;
-        container->step_pending = true;
-    }
-
-    container->reals64.locals[0] = end_time;
-    
     return status;
 }
 
@@ -1682,7 +1714,7 @@ void container_free(container_t *container) {
     for (unsigned long i = 0; i < container->strings.nb_locals && container->strings.locals; i += 1)
         free(container->strings.locals[i].data);
     FREE(strings, String, fmu_string_t)
-    for (unsigned long i = 0; i < container->binaries.nb_locals; i += 1)
+    for (unsigned long i = 0; i < container->binaries.nb_locals && container->binaries.locals; i += 1)
         free(container->binaries.locals[i].data);
     FREE(binaries, Binary, fmu_binary_t)
     FREE(clocks, Clock, bool)

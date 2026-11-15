@@ -725,7 +725,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     }
 
     fmu->support_event = support_event;
-    fmu->need_event_udpate = false;
+    fmu->need_event_update = false;
 
     if (container->profiling)
         fmu->profile = profile_new(logger);
@@ -1302,7 +1302,7 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
     const logger_t *logger = &fmu->container->logger;
     fmu_status_t status = FMU_STATUS_ERROR;
 
-    fmu->need_event_udpate = false;
+    fmu->need_event_update = false;
 
     if (fmu->profile)
         profile_tic(fmu->profile);
@@ -1333,7 +1333,7 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
                                                           currentCommunicationPoint,
                                                           communicationStepSize,
                                                           fmi3True, /* noSetFMUStatePriorToCurrentPoint */
-                                                          &fmu->need_event_udpate, 
+                                                          &fmu->need_event_update, 
                                                           &terminateSimulation, 
                                                           &earlyReturn, 
                                                           &lastSuccessfulTime);

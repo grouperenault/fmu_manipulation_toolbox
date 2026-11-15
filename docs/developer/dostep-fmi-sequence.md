@@ -55,16 +55,17 @@ sequenceDiagram
     C->>F2: fmi*GetClock <br/>(output clocks)
     C->>F2: fmi*GetReal/Int/Bool <br/>(clocked outputs)
 
-    loop Do While more_event
+    loop Do While more_event or an output clock ticked
+        Note over C, F2: From the 2nd pass: the clocks read by the previous pass,<br/>with their clocked inputs, to all the FMUs
+        C->>F1: fmi*SetClock(vr, true) + clocked inputs
+        C->>F2: fmi*SetClock(vr, true) + clocked inputs
         Note over C, F2: Gauss-Seidel sweep in configuration order<br/>(Set inputs → UpdateDiscreteStates → Get outputs per FMU)
-        C->>F1: fmi*SetClock(vr, true) <br/>(activated clocks)
-        C->>F1: fmi*SetReal/Int/Bool <br/>(inputs + clocked inputs)
+        C->>F1: fmi*SetReal/Int/Bool <br/>(inputs)
         C->>F1: fmi*UpdateDiscreteStates()
         F1-->>C: nextEventTime, more_event
         C->>F1: fmi*GetReal/Int/Bool + fmi*GetClock <br/>(outputs + clocked outputs)
 
-        C->>F2: fmi*SetClock(vr, true) <br/>(activated clocks)
-        C->>F2: fmi*SetReal/Int/Bool <br/>(inputs + clocked inputs)
+        C->>F2: fmi*SetReal/Int/Bool <br/>(inputs)
         C->>F2: fmi*UpdateDiscreteStates()
         F2-->>C: nextEventTime, more_event
         C->>F2: fmi*GetReal/Int/Bool + fmi*GetClock <br/>(outputs + clocked outputs)

@@ -125,3 +125,15 @@ int test_terminate_simulation(void) {
 
     return 0;
 }
+
+
+/* A configuration that fails before the allocation of the local binaries leaves their count without them. */
+int test_free_without_local_binaries(void) {
+    container_t *container = container_new("binaries", "{uuid}", 3);
+    TEST_ASSERT(container != NULL);
+    container->binaries.nb_locals = 3;
+    container->strings.nb_locals = 2;
+    container_free(container);                      /* must not crash */
+
+    return 0;
+}

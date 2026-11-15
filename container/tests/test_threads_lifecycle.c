@@ -157,3 +157,26 @@ int test_mt_no_heavy(void) {
 
     return 0;
 }
+
+
+/* fmi2Reset keeps the dispatch of the FMUs and its workers: the simulation goes on with them, without a new warm-up. */
+int test_mt_dispatch_kept_after_reset(void) {
+    fmi2CallbackFunctions functions;
+
+    fmi2Component c = simulate("mt_hybrid", MT_WARMUP + 2, &functions);
+    TEST_ASSERT(c != NULL);
+    const container_t *container = (const container_t *)c;
+    const unsigned int nb_threads = container->nb_threads;
+
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2Reset(c));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2SetupExperiment(c, fmi2False, 0.0, 0.0, fmi2False, 100.0));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2EnterInitializationMode(c));
+    TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2ExitInitializationMode(c));
+    for (int i = 0; i < 5; i += 1)
+        TEST_ASSERT_EQUAL_INT(fmi2OK, fmi2DoStep(c, 0.1 * i, 0.1, fmi2True));
+    TEST_ASSERT_EQUAL_INT(0, container->mt_warmup);
+    TEST_ASSERT_EQUAL_INT(nb_threads, container->nb_threads);
+    fmi2FreeInstance(c);
+
+    return 0;
+}
