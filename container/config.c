@@ -148,7 +148,7 @@ static int config_read_one_fmu(container_t *container, const char *dirname, file
                              int index, fmu_kind_t kind) {
     const bool is_me = (kind == FMU_KIND_ME);
     char directory[FILE_SZ];
-    char subdirectory[8];
+    char subdirectory[9];
     snprintf(subdirectory, sizeof(subdirectory), "%02x", index);
     directory[0] = '\0';
     if (path_join(directory, FILE_SZ, dirname, subdirectory, NULL)) {
