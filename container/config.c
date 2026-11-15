@@ -342,12 +342,12 @@ static int config_read_local(container_t* container, file_t* file) {
         return -1;
     }
 
-#define ALLOC(variable, fmi_type, c_type)                                                       \
-    if (container-> variable .nb_locals) {                                                     \
-        CONFIG_ALLOC(container-> variable .locals, container-> variable .nb_locals);                   \
-        for(unsigned long i=0; i < container-> variable .nb_locals; i += 1)                    \
-            container-> variable .locals [i] = (c_type)0;                                               \
-    } else                                                                                      \
+#define ALLOC(variable, fmi_type, c_type)                                            \
+    if (container-> variable .nb_locals) {                                           \
+        CONFIG_ALLOC(container-> variable .locals, container-> variable .nb_locals); \
+        for(unsigned long i=0; i < container-> variable .nb_locals; i += 1)          \
+            container-> variable .locals [i] = (c_type)0;                            \
+    } else                                                                           \
         container-> variable .locals = NULL;
     
     FOR_ALL_NUMERIC_TYPES(ALLOC)
@@ -519,59 +519,59 @@ static int config_read_io(container_t* container, file_t* file) {
         }                                                                                                            \
     }
 
-#define READER_FMU_CLOCKED_IO(type, causality)                                                                      \
-    fmu_io->clocked_ ## type . causality = NULL;                                                                    \
-                                                                                                                    \
-    CONFIG_GETLINE;                                                                                                 \
-    if (sscanf(file->line, "%lu %lu",                                                                               \
-               &fmu_io->clocked_ ## type .nb_ ## causality,                                                         \
-               &nb_clocked) < 2) {                                                                                  \
-        CONFIG_ERROR("Cannot read FMU clocked I/O for '" #type "' (" #causality ").");                              \
-        return -2;                                                                                                  \
-    }                                                                                                               \
-                                                                                                                    \
-    if (fmu_io->clocked_ ## type .nb_ ## causality > 0) {                                                           \
-        CONFIG_ALLOC(fmu_io->clocked_ ## type .causality, fmu_io->clocked_ ## type .nb_ ## causality);              \
-                                                                                                                    \
-        for(unsigned long i = 0; i < fmu_io->clocked_ ## type .nb_ ## causality; i += 1) {                          \
-            int offset = 0;                                                                                         \
-                                                                                                                    \
-            CONFIG_GETLINE;                                                                                         \
-            if (sscanf(file->line, "%u %lu%n",                                                                      \
-                &fmu_io->clocked_ ## type . causality [i].clock_vr,                                                 \
-                &fmu_io->clocked_ ## type . causality [i].translations_list.nb, &offset) < 2) {                     \
-                CONFIG_ERROR("Cannot read FMU %luth clocked I/O for '" #type "' (" #causality ").", i);             \
-                return -5;                                                                                          \
-            }                                                                                                       \
-            fmu_io->clocked_ ## type . causality [i].clock_vr &= 0xFFFFFF;                                          \
-            if (fmu_io->clocked_ ## type . causality [i].clock_vr >= container->clocks.nb_locals) {                 \
-                CONFIG_ERROR("FMU %luth clocked I/O for '" #type "' (" #causality "): clock %u is out of range.", i,\
-                             fmu_io->clocked_ ## type . causality [i].clock_vr);                                    \
-                return -5;                                                                                          \
-            }                                                                                                       \
-            CONFIG_ALLOC(fmu_io->clocked_ ## type . causality [i].translations_list.translations,                   \
-                         fmu_io->clocked_ ## type . causality [i].translations_list.nb);                            \
-            for(unsigned long j = 0; j < fmu_io->clocked_ ## type . causality [i].translations_list.nb; j += 1) {   \
-                int read = 0;                                                                                       \
-                if (sscanf(file->line + offset, "%u %u %u%n",                                                       \
-                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr,                 \
-                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].dimension,          \
-                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].fmu_vr,             \
-                    &read) < 3) {                                                                                   \
-                    CONFIG_ERROR("Cannot interpret FMU %luth clocked I/O for '" #type "' (" #causality ").", i);    \
-                    return -5;                                                                                      \
-                }                                                                                                   \
-                offset += read;                                                                                     \
-                fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr &= 0xFFFFFF;          \
-                if (fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr                   \
-                    + fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].dimension          \
-                    > container-> type .nb_locals) {                                                                \
-                    CONFIG_ERROR("FMU %luth clocked I/O for '" #type "' (" #causality "): local variable is out of "\
-                                 "range.", i);                                                                      \
-                    return -5;                                                                                      \
-                }                                                                                                   \
-            }                                                                                                       \
-        }                                                                                                           \
+#define READER_FMU_CLOCKED_IO(type, causality)                                                                       \
+    fmu_io->clocked_ ## type . causality = NULL;                                                                     \
+                                                                                                                     \
+    CONFIG_GETLINE;                                                                                                  \
+    if (sscanf(file->line, "%lu %lu",                                                                                \
+               &fmu_io->clocked_ ## type .nb_ ## causality,                                                          \
+               &nb_clocked) < 2) {                                                                                   \
+        CONFIG_ERROR("Cannot read FMU clocked I/O for '" #type "' (" #causality ").");                               \
+        return -2;                                                                                                   \
+    }                                                                                                                \
+                                                                                                                     \
+    if (fmu_io->clocked_ ## type .nb_ ## causality > 0) {                                                            \
+        CONFIG_ALLOC(fmu_io->clocked_ ## type .causality, fmu_io->clocked_ ## type .nb_ ## causality);               \
+                                                                                                                     \
+        for(unsigned long i = 0; i < fmu_io->clocked_ ## type .nb_ ## causality; i += 1) {                           \
+            int offset = 0;                                                                                          \
+                                                                                                                     \
+            CONFIG_GETLINE;                                                                                          \
+            if (sscanf(file->line, "%u %lu%n",                                                                       \
+                &fmu_io->clocked_ ## type . causality [i].clock_vr,                                                  \
+                &fmu_io->clocked_ ## type . causality [i].translations_list.nb, &offset) < 2) {                      \
+                CONFIG_ERROR("Cannot read FMU %luth clocked I/O for '" #type "' (" #causality ").", i);              \
+                return -5;                                                                                           \
+            }                                                                                                        \
+            fmu_io->clocked_ ## type . causality [i].clock_vr &= 0xFFFFFF;                                           \
+            if (fmu_io->clocked_ ## type . causality [i].clock_vr >= container->clocks.nb_locals) {                  \
+                CONFIG_ERROR("FMU %luth clocked I/O for '" #type "' (" #causality "): clock %u is out of range.", i, \
+                             fmu_io->clocked_ ## type . causality [i].clock_vr);                                     \
+                return -5;                                                                                           \
+            }                                                                                                        \
+            CONFIG_ALLOC(fmu_io->clocked_ ## type . causality [i].translations_list.translations,                    \
+                         fmu_io->clocked_ ## type . causality [i].translations_list.nb);                             \
+            for(unsigned long j = 0; j < fmu_io->clocked_ ## type . causality [i].translations_list.nb; j += 1) {    \
+                int read = 0;                                                                                        \
+                if (sscanf(file->line + offset, "%u %u %u%n",                                                        \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr,                  \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].dimension,           \
+                    &fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].fmu_vr,              \
+                    &read) < 3) {                                                                                    \
+                    CONFIG_ERROR("Cannot interpret FMU %luth clocked I/O for '" #type "' (" #causality ").", i);     \
+                    return -5;                                                                                       \
+                }                                                                                                    \
+                offset += read;                                                                                      \
+                fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr &= 0xFFFFFF;           \
+                if (fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr                    \
+                    + fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].dimension           \
+                    > container-> type .nb_locals) {                                                                 \
+                    CONFIG_ERROR("FMU %luth clocked I/O for '" #type "' (" #causality "): local variable is out of " \
+                                 "range.", i);                                                                       \
+                    return -5;                                                                                       \
+                }                                                                                                    \
+            }                                                                                                        \
+        }                                                                                                            \
     }
 
 
@@ -752,7 +752,7 @@ static int config_read_fmu_start_values(fmu_io_t* fmu_io, file_t* file) {
             unsigned int dimension;                                                                 \
                                                                                                     \
             CONFIG_GETLINE;                                                                         \
-            if (file_line_to_host_decimal_point(file)) {                                          \
+            if (file_line_to_host_decimal_point(file)) {                                            \
                 CONFIG_ERROR("Cannot read %luth start value.", i);                                  \
                 return -5;                                                                          \
             }                                                                                       \
