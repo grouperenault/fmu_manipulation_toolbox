@@ -1,6 +1,6 @@
 # Plan: fixes and cleanup from the review of container.c
 
-**Created**: 15 November 2026 — **Status**: proposed — **Branch**: `container-review`, from `feature/perf-maintainability` (`d79cbb7`) — **Roadmap**: not listed
+**Created**: 15 November 2026 — **Status**: in progress — **Branch**: `container-review`, from `feature/perf-maintainability` (`d79cbb7`) — **Roadmap**: not listed
 
 A review of `container/container.c` (15 November 2026, after its functions were grouped by themes) found three
 defects, two points of the multi-thread mode, and cleanups. This plan fixes them, and investigates a doubt on the
@@ -43,16 +43,11 @@ Non-goals: the other modules (`config.c`; `fmu.c` apart from the renamed field).
 
 - **D1 — Branch** (15 November 2026): `container-review`; the reordering of `container.c` (step 0) is committed on it.
 
-### Open points
-
-| # | Question | Recommendation |
-|---|---|---|
-| Q2 | 3: a failure to read the outputs at the end of the initialization | **An error** of `fmi*ExitInitializationMode` (today: ignored), as everywhere else |
-| Q3 | 7: which message is kept | The one of the main thread (`container_do_one_step_hybrid()`), with the status of the FMU; the worker logs nothing |
-| Q4 | 8: after `fmi*Reset` | **A new warm-up**: the threads stopped, the warm-up times reset, the mode back to `container_do_one_step_warmup()` (the dispatch is that of a new simulation); alternative: keep the dispatch and document it |
-| Q5 | 9: the message of `container_reset_fmu()` | A runtime debug message (`LOGGER_DEBUG`, shown with the debug logging of the importer) without the `[DEBUG] time=%e \|` prefix of the compile-time ones: `"Reset FMU '%s' at time=%e."` |
-| Q6 | 10: renames | `is_close()` becomes `container_is_close()` returning `bool`; `need_event_udpate` becomes `need_event_update` |
-| Q7 | 13: if the stale tick or a lost tick is confirmed | Decided after the test of step 4 |
+- **D2 — Decisions** (15 November 2026): Q2 a failure to read the outputs at the end of the initialization is an
+  error; Q3 the main thread logs the failed step of a heavy FMU, the worker logs nothing; Q4 **the dispatch is kept**
+  after `fmi*Reset` (no new warm-up), and documented; Q5 the reset of an FMU logged by `LOGGER_DEBUG("Reset FMU '%s'
+  at time=%e.")`; Q6 `is_close()` becomes `container_is_close()` returning `bool`, `need_event_udpate` becomes
+  `need_event_update`. Q7 is decided after the test of the step 4.
 
 ---
 
@@ -92,12 +87,12 @@ an FMU at the end of the initialization is an error.
 ### Step 2 — Multi-thread mode (7, 8)
 
 - `container_worker()` logs nothing (Q3).
-- `container_reset()`: Q4. C test (`test_threads_lifecycle.c`): after `fmi2Reset`, the warm-up starts again and the
-  dispatch is done again.
+- `container_reset()`: the dispatch kept (Q4), said in a comment. C test (`test_threads_lifecycle.c`): after
+  `fmi2Reset`, the simulation goes on with the same workers.
 
 Commit message:
 ```
-Container runtime: the multi-thread mode after a reset, and its errors logged once
+Container runtime: the failed step of a heavy FMU logged once, by the main thread
 ```
 
 ### Step 3 — Cleanup (4, 6, 9, 10, 11, 12)
@@ -121,7 +116,7 @@ Commit message: written once Q7 is decided.
 ### Step 5 — Documentation
 
 - `docs/developer/native-runtime.md` (the multi-thread mode after a reset),
-  `docs/user-guide/fmucontainer/multi-threading.md` (Q4), `CHANGELOG.md` (FIXED: 1, 3; CHANGED: 8; 13 if fixed).
+  `docs/user-guide/fmucontainer/multi-threading.md` (the dispatch kept after a reset, Q4), `CHANGELOG.md` (FIXED: 1, 3; 13 if fixed).
 
 Commit message:
 ```
