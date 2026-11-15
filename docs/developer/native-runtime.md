@@ -109,7 +109,9 @@ sources of the runtime are compiled again with the tests, so that the internal f
 ## Threads
 
 The multi-thread mode (see [DoStep FMI Sequence](dostep-fmi-sequence.md#notes)) starts its worker threads at the end
-of its warm-up (`container_dispatch()`), one per worker of the pool, and stops them in `container_free()`.
+of its warm-up (`container_dispatch()`), one per worker of the pool, and stops them in `container_free()`; a reset of
+the container (`container_reset()`) keeps them, with the dispatch of the FMUs. A worker logs nothing: the main thread
+logs the failed steps, so that the logger of the importer is only called from the thread of its calls.
 `thread.c` gives the portable primitives: the threads, `thread_nb_cores()`, the barriers (`SYNCHRONIZATION_BARRIER`
 on Windows, `pthread_barrier_t` on Linux, a barrier on `dispatch_semaphore` on macOS, which has none) and a gate that
 holds the workers until they are all launched. During the warm-up, the steps of each FMU are timed by its

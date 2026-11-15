@@ -7,6 +7,13 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🟠 **FIXED** runtime: a clock ticked by an embedded FMU of FMI 3.0 during the event iteration (in
+  `fmi3UpdateDiscreteStates`, e.g. an FMU that relays a clock it receives) was lost when the FMU it is linked to came
+  after it in the order of the container, or before it without another update of the discrete states: it now
+  reaches all of them.
+- 🟠 **FIXED** runtime: a failure to read the outputs of an embedded FMU at the end of the initialization is reported
+  by `fmi*ExitInitializationMode`, instead of being ignored; the container no longer crashes when it is freed after
+  an allocation failure of its local binaries.
 - 🟠 **FIXED** `<InitialUnknowns>` (FMI 2.0) and `<InitialUnknown>` (FMI 3.0) of the container listed every output,
   including the ones that copy `initial="exact"` and a start value from their embedded FMU (FMI 2.0 §2.2.8,
   FMI 3.0 §2.4.8): they now list the outputs with `initial="calculated"` or `"approx"` only.

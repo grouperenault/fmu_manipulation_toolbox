@@ -1,6 +1,6 @@
 # Plan: fixes and cleanup from the review of container.c
 
-**Created**: 15 November 2026 — **Status**: in progress — **Branch**: `container-review`, from `feature/perf-maintainability` (`d79cbb7`) — **Roadmap**: not listed
+**Created**: 15 November 2026 — **Status**: done (15 November 2026) — **Branch**: `container-review`, from `feature/perf-maintainability` (`d79cbb7`) — **Roadmap**: not listed
 
 A review of `container/container.c` (15 November 2026, after its functions were grouped by themes) found three
 defects, two points of the multi-thread mode, and cleanups. This plan fixes them, and investigates a doubt on the
@@ -132,7 +132,8 @@ no local clock stays active after the iteration. Test FMU clock-relay.
 ### Step 5 — Documentation
 
 - `docs/developer/native-runtime.md` (the multi-thread mode after a reset),
-  `docs/user-guide/fmucontainer/multi-threading.md` (the dispatch kept after a reset, Q4), `CHANGELOG.md` (FIXED: 1, 3; 13 if fixed).
+  `docs/user-guide/fmucontainer/multi-threading.md` (the dispatch kept after a reset, Q4),
+  `docs/developer/dostep-fmi-sequence.md` (the event iteration, D3), `CHANGELOG.md` (FIXED: 1, 3, 13).
 
 Commit message:
 ```
