@@ -783,7 +783,8 @@ fmu_status_t container_enter_initialization_mode(container_t* container) {
 }
 
 
-static void container_init_values(container_t* container) {
+static fmu_status_t container_init_values(container_t* container) {
+    const logger_t *logger = &container->logger;
     for (int i = 0; i < container->nb_fmu; i += 1) {
         /* Do NOT read ME FMU outputs here: they are still in the initial
            EventMode and the first fmi2NewDiscreteStates() has not been called
@@ -794,10 +795,14 @@ static void container_init_values(container_t* container) {
            and after solver_leave_event_mode(). */
         if (container->fmu[i].kind == FMU_KIND_ME)
             continue;
-        fmu_get_outputs(&container->fmu[i]);
-        fmu_get_clocked_outputs(&container->fmu[i]);
+        if ((fmu_get_outputs(&container->fmu[i]) != FMU_STATUS_OK) ||
+            (fmu_get_clocked_outputs(&container->fmu[i]) != FMU_STATUS_OK)) {
+            LOGGER_ERROR("Container: FMU '%s' failed to give its outputs at the end of the initialization.",
+                         container->fmu[i].name);
+            return FMU_STATUS_ERROR;
+        }
     }
-    return;
+    return FMU_STATUS_OK;
 }
 
 fmu_status_t container_exit_initialization_mode(container_t* container) {
@@ -807,7 +812,7 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
     /* Resolve ME FMU pointers and allocate the solver's flat state buffers. */
     if (solver_configure(container->solver)) {
         LOGGER_ERROR("Cannot build ME solver.");
-        return -9;
+        return FMU_STATUS_ERROR;
     }
 
     status = container_clocks_init_schedule(container);
@@ -820,7 +825,9 @@ fmu_status_t container_exit_initialization_mode(container_t* container) {
 
     /* CS FMUs are in EventMode (or StepMode if support_event=0); ME FMUs are in
        EventMode: run one common event iteration before splitting the modes. */
-    container_init_values(container);
+    status = container_init_values(container);
+    if (status != FMU_STATUS_OK)
+        return status;
     /* As for each Event Mode: a row with the ticks of the clocks, e.g. the operations of FMI-LS-BUS prepared in
        Initialization Mode and sent in this first Event Mode. */
     datalog_log(container);
@@ -1699,7 +1706,7 @@ void container_free(container_t *container) {
     for (unsigned long i = 0; i < container->strings.nb_locals && container->strings.locals; i += 1)
         free(container->strings.locals[i].data);
     FREE(strings, String, fmu_string_t)
-    for (unsigned long i = 0; i < container->binaries.nb_locals; i += 1)
+    for (unsigned long i = 0; i < container->binaries.nb_locals && container->binaries.locals; i += 1)
         free(container->binaries.locals[i].data);
     FREE(binaries, Binary, fmu_binary_t)
     FREE(clocks, Clock, bool)

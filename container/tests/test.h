@@ -50,6 +50,7 @@ extern int test_profile_toc(void);
 extern int test_configure_empty(void);
 extern int test_local_strings(void);
 extern int test_terminate_simulation(void);
+extern int test_free_without_local_binaries(void);
 extern int test_path_from_uri(void);
 extern int test_path_to_uri(void);
 extern int test_path_join(void);

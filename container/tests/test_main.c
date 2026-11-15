@@ -22,6 +22,7 @@ static const struct {
     { "configure_empty",                test_configure_empty },
     { "local_strings",                  test_local_strings },
     { "terminate_simulation",           test_terminate_simulation },
+    { "free_without_local_binaries",    test_free_without_local_binaries },
     { "path_from_uri",                  test_path_from_uri },
     { "path_to_uri",                    test_path_to_uri },
     { "path_join",                      test_path_join },
