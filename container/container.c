@@ -18,12 +18,11 @@
  * configuration.
  */
 
-/* Safety net against a non-converging event iteration. */
-#define CONTAINER_MAX_EVENT_ITER    100
-
 /*----------------------------------------------------------------------------
                         E V E N T   M O D E
 ----------------------------------------------------------------------------*/
+/* Safety net against a non-converging event iteration. */
+#define CONTAINER_MAX_EVENT_ITER    100
 
 fmu_status_t container_enter_event_mode(container_t *container) {
 #ifdef DEBUG
@@ -869,6 +868,10 @@ fmu_status_t container_terminate(container_t* container) {
 }
 
 
+/*----------------------------------------------------------------------------
+                           R E S E T
+----------------------------------------------------------------------------*/
+
 /* fmi2Reset / fmi3Reset of the container: every embedded FMU is reset, and the container goes back to its state
    right after its instantiation. The datalog goes on in the same file. */
 fmu_status_t container_reset(container_t* container) {
@@ -930,193 +933,6 @@ fmu_status_t container_reset(container_t* container) {
     return FMU_STATUS_OK;
 }
 
-
-/*----------------------------------------------------------------------------
-                                D O   S T E P
-----------------------------------------------------------------------------*/
-
-/*
- * Model-Exchange part of an internal step, common to the three modes. It runs once the CS FMUs are stepped, so
- * that their discrete outputs are fresh when the ME solver runs (a discrete level coupled into an ME reset is
- * applied on a single clean edge).
- *
- * Only the continuous (real) inputs are pushed to the ME FMUs before the collective integration: discrete inputs
- * (e.g. a bounce "reset" flag) must not be set in Continuous Time Mode, that corrupts the target FMU's edge
- * detection (FMI-2.0 2.1.3). They are exchanged in Event Mode by solver_event_iteration() /
- * container_update_discrete_state(). The ME FMUs are then advanced together, so that their couplings stay
- * consistent within the step, and their outputs are read.
- */
-static fmu_status_t container_step_me(container_t *container) {
-    const logger_t *logger = &container->logger;
-    fmu_status_t status = FMU_STATUS_OK;
-
-    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
-        fmu_t *fmu = container->solver->me[i].fmu;
-        status = fmu_set_continuous_inputs(fmu);
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", fmu->name);
-            return status;
-        }
-    }
-
-    status = solver_do_step(container->solver, container->time, container->next_step);
-    if (status != FMU_STATUS_OK)
-        return status;
-
-    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
-        fmu_t *fmu = container->solver->me[i].fmu;
-        status = fmu_get_outputs(fmu);
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed getting outputs.", fmu->name);
-            return status;
-        }
-    }
-
-    return status;
-}
-
-
-static fmu_status_t container_do_one_step_sequential(container_t *container) {
-    const logger_t *logger = &container->logger;
-    fmu_status_t status = FMU_STATUS_OK;
-
-    container->need_event_update = false;
-
-    /* CS FMUs first: set inputs -> doStep -> get outputs, one FMU after the other (Gauss-Seidel). */
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        fmu_t *fmu = container->cs_fmu[i];
-
-        status = fmu_set_inputs(fmu);
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", fmu->name);
-            return status;
-        }
-
-        /* COMPUTATION */
-
-        status = fmuDoStep(fmu, container->time, container->next_step);
-        if (status != FMU_STATUS_OK)
-            return status;
-        container->need_event_update |= fmu->need_event_udpate;
-
-        status = fmu_get_outputs(fmu);
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed getting outputs.", fmu->name);
-            return status;
-        }
-    }
-
-    return container_step_me(container);
-}
-
-
-/*
- * Multi-thread mode, after the warm-up: the workers step the heavy FMUs while the main thread steps the light ones.
- * The exchanges stay on the main thread: all the inputs before the steps, all the outputs after (Jacobi). A worker
- * getting the outputs of its FMU would write local variables that another one may still read.
- */
-static fmu_status_t container_do_one_step_hybrid(container_t* container) {
-    const logger_t *logger = &container->logger;
-    fmu_status_t status = FMU_STATUS_OK;
-
-    container->need_event_update = false;
-
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        fmu_t* fmu = container->cs_fmu[i];
-        status = fmu_set_inputs(fmu);
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", fmu->name);
-            return status;
-        }
-    }
-
-    thread_barrier_wait(&container->barrier_start);     /* the workers step the heavy FMUs */
-    for (unsigned int i = 0; i < container->nb_light; i += 1) {
-        fmu_t* fmu = container->light_fmu[i];
-        fmu->status = fmuDoStep(fmu, container->time, container->next_step);
-    }
-    thread_barrier_wait(&container->barrier_end);       /* every CS FMU has done its step */
-
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        fmu_t* fmu = container->cs_fmu[i];
-        if (fmu->status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
-            return fmu->status;
-        }
-        container->need_event_update |= fmu->need_event_udpate;
-    }
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        status = fmu_get_outputs(container->cs_fmu[i]);
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed get outputs.", container->cs_fmu[i]->name);
-            return status;
-        }
-    }
-
-    return container_step_me(container);
-}
-
-
-static fmu_status_t container_do_one_step_parallel(container_t* container);
-static void container_dispatch(container_t *container);
-
-/* Multi-thread mode, first MT_WARMUP internal steps: the mono-thread parallel mode, which times the steps of the CS
-   FMUs; the FMUs are then dispatched. */
-static fmu_status_t container_do_one_step_warmup(container_t *container) {
-    const fmu_status_t status = container_do_one_step_parallel(container);
-
-    if (status == FMU_STATUS_OK) {
-        container->mt_warmup -= 1;
-        if (container->mt_warmup == 0)
-            container_dispatch(container);
-    }
-    return status;
-}
-
-
-static fmu_status_t container_do_one_step_parallel(container_t* container) {
-    const logger_t *logger = &container->logger;
-    fmu_status_t status = FMU_STATUS_OK;
-
-    /* STEP MODE */
-    container->need_event_update = false;
-
-    /* CS FMUs first: all the inputs, then all the steps, then all the outputs (Jacobi). */
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        status = fmu_set_inputs(container->cs_fmu[i]);
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", container->cs_fmu[i]->name);
-            return status;
-        }
-    }
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        fmu_t* fmu = container->cs_fmu[i];
-        if (container->mt_warmup)
-            profile_tic(&fmu->warmup);
-        status = fmuDoStep(fmu, container->time, container->next_step);
-        if (container->mt_warmup)
-            profile_toc(&fmu->warmup, container->time);     /* the duration of the steps adds up in total_elapsed */
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
-            return status;
-        }
-        container->need_event_update |= fmu->need_event_udpate;
-    }
-    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
-        status = fmu_get_outputs(container->cs_fmu[i]);
-        if (status != FMU_STATUS_OK) {
-            LOGGER_ERROR("Container: FMU '%s' failed get outputs.", container->cs_fmu[i]->name);
-            return status;
-        }
-    }
-
-    return container_step_me(container);
-}
-
-
-/*----------------------------------------------------------------------------
-                         F M U   R E S E T
-----------------------------------------------------------------------------*/
 
 static bool container_reset_requested(const container_t *container, const fmu_t *fmu) {
     if (fmu->reset_trigger < 0)
@@ -1260,124 +1076,169 @@ static void container_clear_reset_triggers(container_t *container) {
 }
 
 
+/*----------------------------------------------------------------------------
+                                D O   S T E P
+----------------------------------------------------------------------------*/
 
-
-fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
+/*
+ * Model-Exchange part of an internal step, common to the three modes. It runs once the CS FMUs are stepped, so
+ * that their discrete outputs are fresh when the ME solver runs (a discrete level coupled into an ME reset is
+ * applied on a single clean edge).
+ *
+ * Only the continuous (real) inputs are pushed to the ME FMUs before the collective integration: discrete inputs
+ * (e.g. a bounce "reset" flag) must not be set in Continuous Time Mode, that corrupts the target FMU's edge
+ * detection (FMI-2.0 2.1.3). They are exchanged in Event Mode by solver_event_iteration() /
+ * container_update_discrete_state(). The ME FMUs are then advanced together, so that their couplings stay
+ * consistent within the step, and their outputs are read.
+ */
+static fmu_status_t container_step_me(container_t *container) {
     const logger_t *logger = &container->logger;
-#ifdef DEBUG
-    LOGGER_DEBUG("[DEBUG] time=%e | container_do_step(%e, %e)", container->time, currentCommunicationPoint, communicationStepSize);
-#endif
     fmu_status_t status = FMU_STATUS_OK;
-    const double end_time = currentCommunicationPoint + communicationStepSize;
 
-    if (container->terminate_requested) {
-        LOGGER_ERROR("The simulation has been terminated at time=%e: no further step.", container->reals64.locals[0]);
-        return FMU_STATUS_ERROR;
-    }
-
-    /*
-     * Internal steps of the container (time_step x TS_MULTIPLIER, the multiplier read at the beginning of each
-     * step) that end before end_time. A step that does not fit (communication step not a multiple of the internal
-     * step) stays pending: it is done by the call that reaches its end, with the inputs of its beginning (the values
-     * set by the importer meanwhile are deferred); its outputs are held until then, as an FMU of fixed step.
-     */
-    while (true) {
-        container->time = container->start_time + container->time_step * container->nb_steps;
-        int ts_multiplier = container->integers32.locals[0];
-        if (ts_multiplier < 1)
-            ts_multiplier = 1;
-        const double ts = container->time_step * ts_multiplier;
-        const double target_time = container->time + ts;
-
-        if (target_time > end_time + container->tolerance)
-            break;
-
-#ifdef DEBUG
-        LOGGER_DEBUG("[DEBUG] time=%e | container internal step ts=%e (end_time=%e)", container->time, ts, end_time);
-#endif
-        while(! is_close(container, container->time, target_time)) {
-            /* RESET of embedded FMUs */
-            status = container_reset_fmus(container);
-            if (status != FMU_STATUS_OK) {
-                LOGGER_ERROR("Container cannot reset FMUs (time=%e)", container->time);
-                return status;
-            }
-
-            /* STEP MODE */
-            if (container->time + container->next_step > target_time) {
-                container->next_step = target_time - container->time;
-            }
-#ifdef DEBUG
-            LOGGER_DEBUG("[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
-#endif
-            status = container->do_step(container);
-            if (status != FMU_STATUS_OK) {
-                LOGGER_ERROR("Container cannot Do Step (time=%e)", container->time);
-                return status;
-            }
-            container_clear_reset_triggers(container);
-            container->time += container->next_step;
-
-            /* EVENT MODE */
-            status = container_handle_events(container);
-            if ( status != FMU_STATUS_OK) {
-                LOGGER_ERROR("Container cannot Handle Events (time=%e)", container->time);
-                return status;
-            }
-
-            if (container->terminate_requested) {
-                /* The importer gets the time reached: the rest of the communication step is not done. */
-                LOGGER_WARNING("Container terminates the simulation at time=%e.", container->time);
-                container->reals64.locals[0] = container->time;
-                return FMU_STATUS_OK;
-            }
-        }
-        container->nb_steps += ts_multiplier;
-
-        /* The pending step is done: the values deferred meanwhile are for the next steps. */
-        if (container->step_pending) {
-            container->step_pending = false;
-            status = cache_end_pending_step(container);
-            if (status != FMU_STATUS_OK)
-                return status;
-        }
-    }
-
-    container->time = container->start_time + container->time_step * container->nb_steps;
-    if (!container->step_pending && end_time - container->time > container->tolerance) {
-        /* A step becomes pending: it uses the values set until now, those set meanwhile are deferred. */
-        status = cache_sync_fmus(container);
-        if (status != FMU_STATUS_OK)
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
+        status = fmu_set_continuous_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", fmu->name);
             return status;
-        container->step_pending = true;
+        }
     }
 
-    container->reals64.locals[0] = end_time;
-    
+    status = solver_do_step(container->solver, container->time, container->next_step);
+    if (status != FMU_STATUS_OK)
+        return status;
+
+    for (size_t i = 0; i < container->solver->nb_me; i += 1) {
+        fmu_t *fmu = container->solver->me[i].fmu;
+        status = fmu_get_outputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed getting outputs.", fmu->name);
+            return status;
+        }
+    }
+
     return status;
 }
 
 
-/*
- * The step of the container, given the flags of container.txt: sequential, parallel in the main thread, or parallel
- * with worker threads for the heavy FMUs after a warm-up of MT_WARMUP steps (mt_threshold_us is read before).
- */
-void container_set_mode(container_t *container, bool sequential, bool mt) {
+static fmu_status_t container_do_one_step_sequential(container_t *container) {
     const logger_t *logger = &container->logger;
+    fmu_status_t status = FMU_STATUS_OK;
 
-    if (sequential) {
-        LOGGER_WARNING("Container use SEQUENTIAL mode.");
-        container->do_step = container_do_one_step_sequential;
-    } else if (mt) {
-        LOGGER_WARNING("Container use PARALLEL mode with MULTI thread, for the FMUs whose step takes %lu us or "
-                       "more (measured over the first %d steps).", container->mt_threshold_us, MT_WARMUP);
-        container->do_step = container_do_one_step_warmup;
-        container->mt_warmup = MT_WARMUP;
-        container->mt = true;
-    } else {
-        LOGGER_WARNING("Container use PARALLEL mode with MONO thread.");
-        container->do_step = container_do_one_step_parallel;
+    container->need_event_update = false;
+
+    /* CS FMUs first: set inputs -> doStep -> get outputs, one FMU after the other (Gauss-Seidel). */
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t *fmu = container->cs_fmu[i];
+
+        status = fmu_set_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", fmu->name);
+            return status;
+        }
+
+        /* COMPUTATION */
+
+        status = fmuDoStep(fmu, container->time, container->next_step);
+        if (status != FMU_STATUS_OK)
+            return status;
+        container->need_event_update |= fmu->need_event_udpate;
+
+        status = fmu_get_outputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed getting outputs.", fmu->name);
+            return status;
+        }
     }
+
+    return container_step_me(container);
+}
+
+
+/*
+ * Multi-thread mode, after the warm-up: the workers step the heavy FMUs while the main thread steps the light ones.
+ * The exchanges stay on the main thread: all the inputs before the steps, all the outputs after (Jacobi). A worker
+ * getting the outputs of its FMU would write local variables that another one may still read.
+ */
+static fmu_status_t container_do_one_step_hybrid(container_t* container) {
+    const logger_t *logger = &container->logger;
+    fmu_status_t status = FMU_STATUS_OK;
+
+    container->need_event_update = false;
+
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t* fmu = container->cs_fmu[i];
+        status = fmu_set_inputs(fmu);
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", fmu->name);
+            return status;
+        }
+    }
+
+    thread_barrier_wait(&container->barrier_start);     /* the workers step the heavy FMUs */
+    for (unsigned int i = 0; i < container->nb_light; i += 1) {
+        fmu_t* fmu = container->light_fmu[i];
+        fmu->status = fmuDoStep(fmu, container->time, container->next_step);
+    }
+    thread_barrier_wait(&container->barrier_end);       /* every CS FMU has done its step */
+
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t* fmu = container->cs_fmu[i];
+        if (fmu->status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
+            return fmu->status;
+        }
+        container->need_event_update |= fmu->need_event_udpate;
+    }
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        status = fmu_get_outputs(container->cs_fmu[i]);
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed get outputs.", container->cs_fmu[i]->name);
+            return status;
+        }
+    }
+
+    return container_step_me(container);
+}
+
+
+static fmu_status_t container_do_one_step_parallel(container_t* container) {
+    const logger_t *logger = &container->logger;
+    fmu_status_t status = FMU_STATUS_OK;
+
+    /* STEP MODE */
+    container->need_event_update = false;
+
+    /* CS FMUs first: all the inputs, then all the steps, then all the outputs (Jacobi). */
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        status = fmu_set_inputs(container->cs_fmu[i]);
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed set inputs.", container->cs_fmu[i]->name);
+            return status;
+        }
+    }
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        fmu_t* fmu = container->cs_fmu[i];
+        if (container->mt_warmup)
+            profile_tic(&fmu->warmup);
+        status = fmuDoStep(fmu, container->time, container->next_step);
+        if (container->mt_warmup)
+            profile_toc(&fmu->warmup, container->time);     /* the duration of the steps adds up in total_elapsed */
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed doStep.", fmu->name);
+            return status;
+        }
+        container->need_event_update |= fmu->need_event_udpate;
+    }
+    for (unsigned int i = 0; i < container->nb_cs; i += 1) {
+        status = fmu_get_outputs(container->cs_fmu[i]);
+        if (status != FMU_STATUS_OK) {
+            LOGGER_ERROR("Container: FMU '%s' failed get outputs.", container->cs_fmu[i]->name);
+            return status;
+        }
+    }
+
+    return container_step_me(container);
 }
 
 
@@ -1571,6 +1432,139 @@ static void container_dispatch(container_t *container) {
 }
 
 
+/* Multi-thread mode, first MT_WARMUP internal steps: the mono-thread parallel mode, which times the steps of the CS
+   FMUs; the FMUs are then dispatched. */
+static fmu_status_t container_do_one_step_warmup(container_t *container) {
+    const fmu_status_t status = container_do_one_step_parallel(container);
+
+    if (status == FMU_STATUS_OK) {
+        container->mt_warmup -= 1;
+        if (container->mt_warmup == 0)
+            container_dispatch(container);
+    }
+    return status;
+}
+
+
+fmu_status_t container_do_step(container_t* container, double currentCommunicationPoint, double communicationStepSize) {
+    const logger_t *logger = &container->logger;
+#ifdef DEBUG
+    LOGGER_DEBUG("[DEBUG] time=%e | container_do_step(%e, %e)", container->time, currentCommunicationPoint, communicationStepSize);
+#endif
+    fmu_status_t status = FMU_STATUS_OK;
+    const double end_time = currentCommunicationPoint + communicationStepSize;
+
+    if (container->terminate_requested) {
+        LOGGER_ERROR("The simulation has been terminated at time=%e: no further step.", container->reals64.locals[0]);
+        return FMU_STATUS_ERROR;
+    }
+
+    /*
+     * Internal steps of the container (time_step x TS_MULTIPLIER, the multiplier read at the beginning of each
+     * step) that end before end_time. A step that does not fit (communication step not a multiple of the internal
+     * step) stays pending: it is done by the call that reaches its end, with the inputs of its beginning (the values
+     * set by the importer meanwhile are deferred); its outputs are held until then, as an FMU of fixed step.
+     */
+    while (true) {
+        container->time = container->start_time + container->time_step * container->nb_steps;
+        int ts_multiplier = container->integers32.locals[0];
+        if (ts_multiplier < 1)
+            ts_multiplier = 1;
+        const double ts = container->time_step * ts_multiplier;
+        const double target_time = container->time + ts;
+
+        if (target_time > end_time + container->tolerance)
+            break;
+
+#ifdef DEBUG
+        LOGGER_DEBUG("[DEBUG] time=%e | container internal step ts=%e (end_time=%e)", container->time, ts, end_time);
+#endif
+        while(! is_close(container, container->time, target_time)) {
+            /* RESET of embedded FMUs */
+            status = container_reset_fmus(container);
+            if (status != FMU_STATUS_OK) {
+                LOGGER_ERROR("Container cannot reset FMUs (time=%e)", container->time);
+                return status;
+            }
+
+            /* STEP MODE */
+            if (container->time + container->next_step > target_time) {
+                container->next_step = target_time - container->time;
+            }
+#ifdef DEBUG
+            LOGGER_DEBUG("[DEBUG] time=%e | do_step ts=%e", container->time, container->next_step);
+#endif
+            status = container->do_step(container);
+            if (status != FMU_STATUS_OK) {
+                LOGGER_ERROR("Container cannot Do Step (time=%e)", container->time);
+                return status;
+            }
+            container_clear_reset_triggers(container);
+            container->time += container->next_step;
+
+            /* EVENT MODE */
+            status = container_handle_events(container);
+            if ( status != FMU_STATUS_OK) {
+                LOGGER_ERROR("Container cannot Handle Events (time=%e)", container->time);
+                return status;
+            }
+
+            if (container->terminate_requested) {
+                /* The importer gets the time reached: the rest of the communication step is not done. */
+                LOGGER_WARNING("Container terminates the simulation at time=%e.", container->time);
+                container->reals64.locals[0] = container->time;
+                return FMU_STATUS_OK;
+            }
+        }
+        container->nb_steps += ts_multiplier;
+
+        /* The pending step is done: the values deferred meanwhile are for the next steps. */
+        if (container->step_pending) {
+            container->step_pending = false;
+            status = cache_end_pending_step(container);
+            if (status != FMU_STATUS_OK)
+                return status;
+        }
+    }
+
+    container->time = container->start_time + container->time_step * container->nb_steps;
+    if (!container->step_pending && end_time - container->time > container->tolerance) {
+        /* A step becomes pending: it uses the values set until now, those set meanwhile are deferred. */
+        status = cache_sync_fmus(container);
+        if (status != FMU_STATUS_OK)
+            return status;
+        container->step_pending = true;
+    }
+
+    container->reals64.locals[0] = end_time;
+    
+    return status;
+}
+
+
+/*
+ * The step of the container, given the flags of container.txt: sequential, parallel in the main thread, or parallel
+ * with worker threads for the heavy FMUs after a warm-up of MT_WARMUP steps (mt_threshold_us is read before).
+ */
+void container_set_mode(container_t *container, bool sequential, bool mt) {
+    const logger_t *logger = &container->logger;
+
+    if (sequential) {
+        LOGGER_WARNING("Container use SEQUENTIAL mode.");
+        container->do_step = container_do_one_step_sequential;
+    } else if (mt) {
+        LOGGER_WARNING("Container use PARALLEL mode with MULTI thread, for the FMUs whose step takes %lu us or "
+                       "more (measured over the first %d steps).", container->mt_threshold_us, MT_WARMUP);
+        container->do_step = container_do_one_step_warmup;
+        container->mt_warmup = MT_WARMUP;
+        container->mt = true;
+    } else {
+        LOGGER_WARNING("Container use PARALLEL mode with MONO thread.");
+        container->do_step = container_do_one_step_parallel;
+    }
+}
+
+
 /*----------------------------------------------------------------------------
              C O N S T R U C T O R   /   D E S T R U C T O R
 ----------------------------------------------------------------------------*/
@@ -1610,11 +1604,11 @@ container_t *container_new(const char *instance_name, const char *fmu_uuid, int 
         container->cs_fmu = NULL;
         container->solver = NULL;
 
-#define INIT(variable, fmi_type, c_type)        \
-        container-> variable .nb_locals = 0;   \
-        container-> variable .locals = NULL;            \
+#define INIT(variable, fmi_type, c_type)      \
+        container-> variable .nb_locals = 0;  \
+        container-> variable .locals = NULL;  \
         container-> variable .nb_ports = 0;   \
-        container-> variable .links = NULL;      \
+        container-> variable .links = NULL;   \
         container-> variable .ports = NULL;
 
         FOR_ALL_NUMERIC_TYPES(INIT)
