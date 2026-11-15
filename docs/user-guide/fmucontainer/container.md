@@ -709,20 +709,10 @@ Notes and limitations:
 
 
 # Multi-Threading
-The multi-threaded mode (`-mt`, `"mt": true`) runs the steps of the embedded Co-Simulation FMU's in parallel. A thread
-is worth it only for an FMU whose `doStep()` is long: for a short one, the synchronization costs more than the step.
-
-1. During the first 20 internal steps, the container runs in the mono-thread parallel mode and measures the
-   `doStep()` of each Co-Simulation FMU.
-2. Then the FMU's whose mean step takes at least the threshold (`-mt-threshold`, `"mt_threshold"`, 50 µs by
-   default) are **heavy**. They are given to worker threads, at most one per core but one, the longest first, each to
-   the least loaded thread. The other FMU's are stepped by the main thread while the workers run.
-3. Without heavy FMU (or on a single core), the simulation goes on in the mono-thread parallel mode.
-
-The mode and the heavy FMU's are logged once, at the end of the 20 steps. The inputs of all the FMU's are set before
-the steps and their outputs read after them, by the main thread: the results are those of the parallel mode. A
-threshold of `0` gives a thread to every Co-Simulation FMU (within the number of cores). The Model-Exchange FMU's are
-always integrated by the main thread.
+The multi-threaded mode (`-mt`, `"mt": true`) steps the embedded Co-Simulation FMU's whose step is long (at least
+`-mt-threshold`, 50 µs by default, measured over the first 20 internal steps) on worker threads, the others on the main
+thread; the results are those of the parallel mode. See [Multi-Threading](multi-threading.md): when it helps, when it
+does not, the choice of the threshold and the nested containers.
 
 # Profiling 
 If enabled through `profiling` flag, each call to `DoStep` of each FMU is monitored. The elapsed time

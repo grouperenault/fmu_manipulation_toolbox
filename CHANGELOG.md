@@ -20,7 +20,7 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   results are unchanged. `container.txt` is now in version 10.
 - 🟢 **ADDED** option `-mt-threshold <seconds>` of `fmucontainer` (`"mt_threshold"` of the JSON description, of the
   SSP container options, of the container options of the GUI and of the AI Assistant, `mt_threshold` of `make_fmu`
-  and of the assembly API): the threshold of the multi-threaded mode. See [Multi-Threading](docs/user-guide/fmucontainer/container.md#multi-threading).
+  and of the assembly API): the threshold of the multi-threaded mode. See [Multi-Threading](docs/user-guide/fmucontainer/multi-threading.md).
 - 🔵 **CHANGED** runtime: the profiling (`container.<fmu>.rt_ratio`) reads a monotonic clock in nanoseconds instead
   of the wall clock in milliseconds.
 - 🔵 **CHANGED** datalog: the file is flushed at the end of each communication step (`fmi*DoStep` of the container),
