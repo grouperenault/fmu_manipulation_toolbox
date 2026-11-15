@@ -421,7 +421,7 @@ typedef struct {
 	profile_t					warmup;		/* fmuDoStep during the warm-up of the multi-thread mode */
 
     bool                        support_event;
-    bool                        need_event_udpate;
+    bool                        need_event_update;
 
     /* FMI-3.0 FMU with structural parameters set by the container (<has_configuration_mode> of container.txt):
        they are set in Configuration Mode only, once after each instantiation or reset. */
