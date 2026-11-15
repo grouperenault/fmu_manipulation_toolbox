@@ -1,6 +1,6 @@
 # Plan: the reading of container.txt and the configuration of the container in config.c
 
-**Created**: 15 November 2026 — **Status**: in progress — **Branch**: `config-refactor`, from `feature/perf-maintainability`
+**Created**: 15 November 2026 — **Status**: done (15 November 2026) — **Branch**: `config-refactor`, from `feature/perf-maintainability`
 (`88036b9`) — **Roadmap**: not listed
 
 `container/container.c` has 2 900 lines: about 1 400 of them read `container.txt` and configure the container, the
@@ -54,6 +54,10 @@ Taken on 15 November 2026:
   (its test written again: a light duplication), which stays in `container.c` for the runtime.
 - **D8 — Tests** (Q4): `tests/test_config.c` (the line reader) becomes `tests/test_file.c`, the tests `file_*`; the
   tests of the configuration keep their files and call `config_container()`.
+- **D9 — Step mode** (found at the step 2): the reader of the flags selected the step function of the container
+  (`container->do_step`), whose candidates are static in `container.c`. `container.c` gets one public function,
+  `container_set_mode(container, sequential, mt)`, which sets it (and the warm-up of the multi-thread mode) and logs
+  the mode; `config_read_flags()` calls it.
 
 ---
 
@@ -119,6 +123,8 @@ Doc: the modules file and config of the container runtime
 ---
 
 ## 6. Found during the work (not in the scope)
+
+- Result: `container.c` 2 898 → 1 714 lines, `config.c` 1 218 lines, `file.c` 156 lines.
 
 ---
 
