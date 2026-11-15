@@ -14,13 +14,15 @@ pytestmark = [pytest.mark.unit]
 fastmcp = pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
 
 from fastmcp.exceptions import ToolError  # noqa: E402
+
+from _helpers.assistant_bridge import FakeBridge, call_tool, fmu_file, input_schema, inventory, run  # noqa: E402
 from fmu_manipulation_toolbox.assistant import PathPolicy, PathValidationError, build_server  # noqa: E402
 from fmu_manipulation_toolbox.assistant.bridge import SUPPORTED_FMI_VERSIONS  # noqa: E402
 from fmu_manipulation_toolbox.assistant.models import (  # noqa: E402
-    DEFAULT_PORT_LIMIT, MAX_DESCRIPTION_LENGTH, MAX_PORT_LIMIT,
+    DEFAULT_PORT_LIMIT,
+    MAX_DESCRIPTION_LENGTH,
+    MAX_PORT_LIMIT,
 )
-
-from _helpers.assistant_bridge import FakeBridge, call_tool, fmu_file, input_schema, inventory, run  # noqa: E402
 
 
 # --------------------------------------------------------------------------- #
@@ -236,7 +238,7 @@ def test_save_as_fmu_rejects_unsupported_fmi_versions(tmp_path, fmi_version):
             return await client.call_tool("save_as_fmu", {"path": str(tmp_path / "out.fmu"),
                                                           "fmi_version": fmi_version})
 
-    with pytest.raises(Exception):
+    with pytest.raises(ToolError):
         run(scenario())
     # The request must be rejected *before* reaching the backend.
     assert not any(call[0] == "save_as_fmu" for call in bridge.calls)
@@ -316,8 +318,8 @@ def test_analyze_assembly_summarises_and_lints(data_dir):
 
 def test_analyze_assembly_lints_the_ports_with_the_builder(tmp_path):
     """Through the headless bridge (flat assembly): a wired assembly passes the builder."""
-    from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
     from _helpers.mcp_budget import make_fmu
+    from fmu_manipulation_toolbox.assistant.headless import HeadlessAssemblyBridge
 
     make_fmu(tmp_path / "a.fmu", outputs=["y"])
     make_fmu(tmp_path / "b.fmu", inputs=["y", "free"], outputs=["z"])

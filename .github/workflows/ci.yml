@@ -31,6 +31,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Static checks of the Python sources, configured in pyproject.toml: report only, the steps never fail the job (the
+  # errors show in its log and as annotations of the pull request).
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v7
+    - name: Set up Python ${{ env.NEWEST_PYTHON }}
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ env.NEWEST_PYTHON }}
+        cache: pip
+        cache-dependency-path: pyproject.toml
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # mcp: the modules checked by mypy import fastmcp, uvicorn and starlette (gui/ is not checked: no PySide6).
+        pip install -e ".[lint,mcp]"
+    - name: ruff
+      continue-on-error: true
+      run: ruff check --output-format=github fmu_manipulation_toolbox tests tools
+    - name: mypy
+      continue-on-error: true
+      run: mypy
+
   # Build the native binaries (remoting + container) through the reusable
   # workflow: one job per OS, running the workflow presets of CMakePresets.json
   # for every platform of this OS, and uploading one artifact.

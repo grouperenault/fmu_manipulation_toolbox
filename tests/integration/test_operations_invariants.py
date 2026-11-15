@@ -9,12 +9,13 @@ reference file to generate.
 """
 import csv
 import functools
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 import xmlschema
 
+from _helpers.assertions import assert_equivalent_xml
 from fmu_manipulation_toolbox.checker import OperationGenericCheck
 from fmu_manipulation_toolbox.operations import (
     FMU,
@@ -30,8 +31,6 @@ from fmu_manipulation_toolbox.operations import (
     OperationSummary,
     OperationTrimUntil,
 )
-
-from _helpers.assertions import assert_equivalent_xml
 
 pytestmark = [pytest.mark.integration]
 
@@ -105,7 +104,7 @@ def test_read_only_operation(fmu_path, case, tmp_path):
 # --------------------------------------------------------------------------- #
 #                              XSD validity                                    #
 # --------------------------------------------------------------------------- #
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _schema(fmi_version: str) -> xmlschema.XMLSchema:
     return xmlschema.XMLSchema(str(XSD_DIR / f"fmi-{fmi_version}" / f"fmi{fmi_version[0]}ModelDescription.xsd"))
 

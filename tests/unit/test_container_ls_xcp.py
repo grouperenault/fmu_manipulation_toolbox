@@ -3,11 +3,10 @@
 The stub FMUs of `tests/data/ls-xcp` (descriptor, manifest and A2L files, without binaries) are enough to build the
 container: the runtime is checked by the native tests (`container/tests/test_xcp_container.c`).
 """
-from pathlib import Path
-
 import logging
 import xml.etree.ElementTree as ET
 import zipfile
+from pathlib import Path
 
 import pytest
 
@@ -257,6 +256,7 @@ def test_read_only_role_is_not_exposed(xcp_dir, caplog):
 def test_ssp_round_trip(xcp_dir):
     """The exposed variables are rules of the assembly: the SSP export keeps them, as structural parameters."""
     import json
+
     from fmu_manipulation_toolbox.assembly import Assembly
 
     Path("xcp.json").write_text(json.dumps({"name": "xcp.fmu", "fmu": ["stub_xcp_fmi3.fmu"], "auto_input": False}))

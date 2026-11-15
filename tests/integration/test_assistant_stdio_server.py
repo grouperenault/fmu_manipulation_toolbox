@@ -16,9 +16,10 @@ pytestmark = [pytest.mark.integration]
 
 fastmcp = pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
 
+import os  # noqa: E402
+
 from fastmcp.client.transports import StdioTransport  # noqa: E402
 
-import os  # noqa: E402
 from fmu_manipulation_toolbox.assistant.paths import ROOT_ENV_VAR  # noqa: E402
 
 #: Repository root, so the subprocess can import the package from the checkout.

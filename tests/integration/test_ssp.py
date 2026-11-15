@@ -11,9 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.assembly import Assembly, AssemblyError
-
 from _helpers.assertions import assert_identical_files
+from fmu_manipulation_toolbox.assembly import Assembly, AssemblyError
 
 pytestmark = [pytest.mark.integration, pytest.mark.area("containers/ssp")]
 

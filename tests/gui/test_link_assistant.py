@@ -11,10 +11,19 @@ try:
 
     _app = QApplication.instance() or QApplication([])
     from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant import (
-        LinkAssistantDialog, _CriterionEditor, StagedLink, A_TO_B)
+        A_TO_B,
+        LinkAssistantDialog,
+        StagedLink,
+        _CriterionEditor,
+    )
     from fmu_manipulation_toolbox.gui.fmucontainer.details.link_assistant_demo import generate
     from fmu_manipulation_toolbox.gui.fmucontainer.details.link_matching import (
-        AffixRule, RegexRule, SimilarityRule, ERROR, WARNING)
+        ERROR,
+        WARNING,
+        AffixRule,
+        RegexRule,
+        SimilarityRule,
+    )
 except Exception as exc:  # pragma: no cover - environment dependent
     pytest.skip(f"GUI dependencies not available: {exc}", allow_module_level=True)
 

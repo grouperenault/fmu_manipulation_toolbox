@@ -3,20 +3,30 @@
 import uuid
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QPointF, QRectF
-from PySide6.QtGui import QPainter, QPainterPath, QPen, QBrush, QColor, QFontMetrics, QPixmap, QImage
-from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsTextItem, QGraphicsItem, QStyleOptionGraphicsItem
+from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtGui import QBrush, QColor, QFontMetrics, QImage, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsRectItem, QGraphicsTextItem, QStyleOptionGraphicsItem
 
+from fmu_manipulation_toolbox.container import ArrayAggregate
+from fmu_manipulation_toolbox.gui.helper import crop_transparent_border, get_fmu_icon_path, load_scaled_pixmap
 from fmu_manipulation_toolbox.operations import FMU, ModelVariable, OperationAbstract
 from fmu_manipulation_toolbox.terminals import Terminals
-from fmu_manipulation_toolbox.container import ArrayAggregate
-from fmu_manipulation_toolbox.gui.helper import load_scaled_pixmap, crop_transparent_border, get_fmu_icon_path
 
 from .constants import (
-    NODE_MIN_WIDTH, NODE_TITLE_HEIGHT, NODE_PORT_SPACING, NODE_CORNER_RADIUS,
-    NODE_ICON_SIZE, NODE_ICON_MARGIN,
-    COLOR_NODE_BG, COLOR_NODE_TITLE_BG, COLOR_NODE_BORDER, COLOR_NODE_SELECTED,
-    COLOR_TEXT, FONT_TITLE, COLOR_NODE_SIGNAL_TITLE_BG, COLOR_NODE_ME_TITLE_BG
+    COLOR_NODE_BG,
+    COLOR_NODE_BORDER,
+    COLOR_NODE_ME_TITLE_BG,
+    COLOR_NODE_SELECTED,
+    COLOR_NODE_SIGNAL_TITLE_BG,
+    COLOR_NODE_TITLE_BG,
+    COLOR_TEXT,
+    FONT_TITLE,
+    NODE_CORNER_RADIUS,
+    NODE_ICON_MARGIN,
+    NODE_ICON_SIZE,
+    NODE_MIN_WIDTH,
+    NODE_PORT_SPACING,
+    NODE_TITLE_HEIGHT,
 )
 
 

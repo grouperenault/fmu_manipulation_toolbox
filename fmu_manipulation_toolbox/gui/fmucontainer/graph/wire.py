@@ -2,17 +2,25 @@
 
 import math
 
-from PySide6.QtCore import Qt, QPointF
-from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QPainterPath, QPainterPathStroker
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPainterPathStroker, QPen
 from PySide6.QtWidgets import (
-    QGraphicsPathItem, QGraphicsEllipseItem, QGraphicsItem,
+    QGraphicsEllipseItem,
+    QGraphicsItem,
+    QGraphicsPathItem,
     QGraphicsSceneMouseEvent,
 )
 
 from .constants import (
-    COLOR_WIRE, COLOR_WIRE_SELECTED, COLOR_WIRE_DRAGGING,
-    COLOR_BACKGROUND, ARROW_SIZE, WAYPOINT_RADIUS,
-    COLOR_WIRE_HIGHLIGHT, HIGHLIGHT_ARROW_SIZE, COLOR_WIRE_INVALID,
+    ARROW_SIZE,
+    COLOR_BACKGROUND,
+    COLOR_WIRE,
+    COLOR_WIRE_DRAGGING,
+    COLOR_WIRE_HIGHLIGHT,
+    COLOR_WIRE_INVALID,
+    COLOR_WIRE_SELECTED,
+    HIGHLIGHT_ARROW_SIZE,
+    WAYPOINT_RADIUS,
     WIRE_ARCHITECTURE_PEN_STYLE,
 )
 from .node import NodeItem

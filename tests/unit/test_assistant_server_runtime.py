@@ -16,11 +16,16 @@ pytestmark = [pytest.mark.unit]
 
 fastmcp = pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
 
-from fmu_manipulation_toolbox.assistant import (  # noqa: E402
-    DEFAULT_PORT, DEFAULT_TIMEOUT, PORT_ENV_VAR, TIMEOUT_ENV_VAR, build_server, resolve_port, resolve_timeout,
-)
-
 from _helpers.assistant_bridge import FakeBridge, input_schema, inventory, read_resource, resolve_ref, run  # noqa: E402
+from fmu_manipulation_toolbox.assistant import (  # noqa: E402
+    DEFAULT_PORT,
+    DEFAULT_TIMEOUT,
+    PORT_ENV_VAR,
+    TIMEOUT_ENV_VAR,
+    build_server,
+    resolve_port,
+    resolve_timeout,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -75,6 +80,7 @@ TOOL_VERBS = ("list_", "add_", "remove_", "expose_", "set_", "unset_", "get_", "
 def test_the_know_how_only_names_existing_tools():
     """A prompt or the guide naming a tool that does not exist (renamed, removed) would send the model after it."""
     import re
+
     from fmu_manipulation_toolbox.assistant import knowledge
 
     tools, _ = run(inventory(FakeBridge()))

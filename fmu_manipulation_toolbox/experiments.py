@@ -4,7 +4,6 @@ An experiment file (`<Experiments>`) holds transient experiments: start and stop
 files of their parameters (SSV), stimuli and references (time series), given by URIs relative to the experiment file.
 """
 import xml.etree.ElementTree as ET
-
 from dataclasses import dataclass, field
 from pathlib import Path
 

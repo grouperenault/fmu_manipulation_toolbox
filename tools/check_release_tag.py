@@ -30,7 +30,7 @@ class TagError(ValueError):
 
 def tag_version(tag: str) -> Version:
     """The version a tag publishes, once checked (prefix, PEP 440, normalized form, no `.devN` but `.dev0`)."""
-    if not tag[:1] in ("V", "v"):
+    if tag[:1] not in ("V", "v"):
         raise TagError(f"'{tag}' does not start with 'V': release tags are 'V<version>', e.g. 'V2.1a1'.")
     text = tag[1:]
     try:

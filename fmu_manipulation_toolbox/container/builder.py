@@ -14,26 +14,27 @@ from dataclasses import dataclass
 from datetime import datetime
 from fractions import Fraction
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 from ..model_description import ModelDescription
 from ..operations import FMUError
 from ..terminals import TerminalError
 from ..textfiles import ENCODING
 from ..version import __version__ as tool_version
+from . import xcp
 from .embedded import EmbeddedFMU, EmbeddedFMUPort
 from .errors import FMUContainerError
 from .layout import ContainerLayout
 from .rules import AutoWired, ContainerInput, ContainerPort, Link
 from .txt import ClockList, FMUIOList, InvolvedFMU, LocalVariable, Port
-from .types import ALL_TYPES, CONTAINER_TXT_VERSION, TIME_BASED_CLOCKS
-from . import xcp
-
+from .types import ALL_TYPES, CONTAINER_TXT_VERSION, MT_THRESHOLD, TIME_BASED_CLOCKS
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 # Step size of a container whose FMUs declare none.
 DEFAULT_STEP_SIZE = 0.1
+
+_PathT = TypeVar("_PathT", str, Path)
 
 
 def _exact(value: float) -> Fraction:
@@ -132,8 +133,8 @@ class FMUContainer:
         self.fmi_version = fmi_version
         self.reset_ports = reset_ports
 
-        self.start_time = None
-        self.stop_time = None
+        self.start_time: float | None = None
+        self.stop_time: float | None = None
 
         self.have_me = False
 
@@ -179,7 +180,7 @@ class FMUContainer:
         try:
             fmu = EmbeddedFMU(self.fmu_directory / fmu_filename, name=fmu_name)
         except (FMUContainerError, FMUError) as e:
-            raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}")
+            raise FMUContainerError(f"Cannot load '{fmu_filename}': {e}") from e
 
         if not fmu.fmi_version == self.fmi_version:
             logger.warning(f"Try to embed FMU-{fmu.fmi_version} into container FMI-{self.fmi_version}.")
@@ -511,7 +512,8 @@ class FMUContainer:
         # Check dimensions
         value_tokens = str(value).split(' ')
         if not len(value_tokens) == cport.port.size():
-            raise FMUContainerError(f"Start value missmatch for {cport.port.type_name} which is dimension {cport.port.size()}")
+            raise FMUContainerError(f"Start value missmatch for {cport.port.type_name} which is dimension "
+                                    f"{cport.port.size()}")
 
         # Check type
         for token in value_tokens:
@@ -528,7 +530,7 @@ class FMUContainer:
                 else:
                     raise FMUContainerError(f"Start value cannot be set on {cport} of type '{cport.port.type_name}'.")
             except ValueError:
-                raise FMUContainerError(f"Start value is not conforming to {cport.port.type_name} format.")
+                raise FMUContainerError(f"Start value is not conforming to {cport.port.type_name} format.") from None
 
         # Format is different for string
         if cport.port.type_name == 'string':
@@ -714,13 +716,13 @@ class FMUContainer:
                         links.append(Link(cport))
         return links
 
-    def sanity_check(self, step_size: float | None):
+    def sanity_check(self, step_size: float):
         """Validate the container configuration before building.
 
         Warns about step size mismatches and unconnected ports.
 
         Args:
-            step_size (float | None): The container's internal step size.
+            step_size (float): The container's internal step size.
         """
         for fmu in self.involved_fmu.values():
             if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
@@ -749,7 +751,8 @@ class FMUContainer:
                         logger.warning(f"Output '{cport}' is not connected")
 
     def make_fmu(self, fmu_filename: str | Path, step_size: float | None = None, debug=False, mt=False,
-                 profiling=False, sequential=False, ts_multiplier=False, datalog=False):
+                 profiling=False, sequential=False, ts_multiplier=False, datalog=False,
+                 mt_threshold: float = MT_THRESHOLD):
         """Build the FMU Container archive.
 
         Generates the `modelDescription.xml`, the `container.txt` runtime
@@ -765,7 +768,11 @@ class FMUContainer:
             sequential (bool): Use sequential scheduling.
             ts_multiplier (bool): Add a `TS_MULTIPLIER` input port.
             datalog (bool): Generate a datalog configuration.
+            mt_threshold (float): Multithreaded mode: the embedded FMUs whose mean step takes at least this
+                duration, in seconds, get a worker thread (see `MT_THRESHOLD`).
         """
+        if mt_threshold < 0:
+            raise FMUContainerError(f"The threshold of the multithreaded mode cannot be negative: {mt_threshold}.")
         if isinstance(fmu_filename, str):
             fmu_filename = Path(fmu_filename)
 
@@ -793,11 +800,11 @@ class FMUContainer:
                                           fmi_version=self.fmi_version)
 
         self.make_fmu_xml(base_directory / "modelDescription.xml", step_size, profiling, ts_multiplier, layout)
-        with open(resources_directory / "container.txt", "wt", encoding=ENCODING) as txt_file:
-            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential, layout)
+        with open(resources_directory / "container.txt", "w", encoding=ENCODING) as txt_file:
+            self.make_fmu_txt(txt_file, step_size, mt, profiling, sequential, layout, mt_threshold=mt_threshold)
 
         if datalog:
-            with open(resources_directory / "datalog.txt", "wt", encoding=ENCODING) as datalog_file:
+            with open(resources_directory / "datalog.txt", "w", encoding=ENCODING) as datalog_file:
                 self.make_datalog(datalog_file, layout)
 
         xcp.write_manifest(self, base_directory, list(self.get_platforms(verbose=False)))
@@ -938,7 +945,7 @@ class FMUContainer:
             add_variable(port.xml(vr_solver, fmi_version=self.fmi_version))
 
         if profiling:
-            for fmu, vr in zip(self.involved_fmu.values(), layout.profiling):
+            for fmu, vr in zip(self.involved_fmu.values(), layout.profiling, strict=True):
                 port = EmbeddedFMUPort("real64", {"valueReference": vr,
                                         "name": f"container.{fmu.id}.rt_ratio",
                                         "description": f"RT ratio for embedded FMU '{fmu.name}'"})
@@ -977,21 +984,33 @@ class FMUContainer:
             if variable is not None:
                 outputs.append((layout.outputs[output_port_name], variable))
 
+        # FMI-2 §2.2.8, FMI-3 §2.4.8: the initial unknowns are the outputs with initial="calculated" or "approx". An
+        # output that copies initial="exact" (and its start value) from its embedded FMU is not one.
+        initial_unknowns = [(vr, variable) for vr, variable in outputs if self._initial_of(variable) != "exact"]
         model_structure = ET.SubElement(root, "ModelStructure")
         if self.fmi_version == 2:
             # FMI-2 §2.2.8: <Unknown index> is the 1-based position of the variable in <ModelVariables>.
             positions = {id(variable): index for index, variable in enumerate(model_variables, start=1)}
-            if outputs:
-                for section in ("Outputs", "InitialUnknowns"):
+            for section, entries in (("Outputs", outputs), ("InitialUnknowns", initial_unknowns)):
+                if entries:
                     unknowns = ET.SubElement(model_structure, section)
-                    for _, variable in outputs:
+                    for _, variable in entries:
                         ET.SubElement(unknowns, "Unknown", {"index": str(positions[id(variable)])})
         else:
-            for tag in ("Output", "InitialUnknown"):
-                for output_vr, _ in outputs:
+            for tag, entries in (("Output", outputs), ("InitialUnknown", initial_unknowns)):
+                for output_vr, _ in entries:
                     ET.SubElement(model_structure, tag, {"valueReference": str(output_vr)})
 
         ModelDescription(root).save(xml_filename)
+
+    @staticmethod
+    def _initial_of(variable: ET.Element) -> str:
+        """The `initial` of a generated output, given or by default (FMI-2 §2.2.7, FMI-3 §2.4.7.4: `exact` for a
+        constant output, `calculated` otherwise)."""
+        initial = variable.get("initial")
+        if initial is None:
+            initial = "exact" if variable.get("variability") == "constant" else "calculated"
+        return initial
 
     @staticmethod
     def _link_graph(links, fmu_rank: dict[str, int]) -> dict[int, set[int]]:
@@ -1118,11 +1137,11 @@ class FMUContainer:
                            f"but their intervals and shifts differ.")
 
     def make_fmu_txt(self, txt_file, step_size: float, mt: bool, profiling: bool, sequential: bool,
-                     layout: ContainerLayout):
+                     layout: ContainerLayout, mt_threshold: float = MT_THRESHOLD):
         print(f"# Version {CONTAINER_TXT_VERSION}", file=txt_file)
-        print("# Container flags <MT> <Profiling> <Sequential>", file=txt_file)
+        print("# Container flags <MT> <Profiling> <Sequential> <MT_THRESHOLD_US>", file=txt_file)
         flags = [str(int(bool(flag))) for flag in (mt, profiling, sequential)]
-        print(" ".join(flags), file=txt_file)
+        print(" ".join(flags + [str(round(mt_threshold * 1e6))]), file=txt_file)
 
         print("# Internal time step in seconds", file=txt_file)
         print(f"{step_size}", file=txt_file)
@@ -1166,8 +1185,8 @@ class FMUContainer:
                     reset_triggers[cport.fmu.name] = layout.reset_inputs[input_port_name]
 
         # Start values
-        for input_port, value in start_values.items():
-            fmu_io_list.add_start_value(input_port, value)
+        for cport, value in start_values.items():
+            fmu_io_list.add_start_value(cport, value)
 
         # Outputs; those exposed through a local variable (converted, FMI-2 array aggregate) are listed with the local
         # variables
@@ -1191,7 +1210,8 @@ class FMUContainer:
                 for cport_to in link.cport_to_list:
                     if cport_to.port.interval_variability in TIME_BASED_CLOCKS:
                         scheduled_clocks.append(cport_to)
-                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' (clock={cport_to.port.vr}, vr={layout.links[link]})")
+                        logger.info(f"LS-BUS: importer scheduling for '{cport_to.fmu.name}' '{cport_to.port.name}' "
+                                    f"(clock={cport_to.port.vr}, vr={layout.links[link]})")
                         clock_list.append(cport_to, layout.links[link])
                 self.check_clocks_of_link(link, scheduled_clocks)
 
@@ -1199,6 +1219,7 @@ class FMUContainer:
             for type_name in link.conversions:
                 local_per_type[type_name].append(LocalVariable(layout.converted[link][type_name], link.size))
             if link.conversions:
+                assert link.cport_from is not None
                 links_per_fmu[link.cport_from.fmu.name].append(link)
 
             # FMU Inputs
@@ -1275,8 +1296,8 @@ class FMUContainer:
                 print(f"{layout.inputs[input_port.name]} {input_port.size} {len(links)}", " ".join(links),
                       file=txt_file)
             for output_port_name, output_port in outputs_per_type[type_name]:
-                print(f"{layout.outputs[output_port_name]} {output_port.port.size()} 1 {fmu_rank[output_port.fmu.name]} "
-                      f"{output_port.port.vr}", file=txt_file)
+                print(f"{layout.outputs[output_port_name]} {output_port.port.size()} 1 "
+                      f"{fmu_rank[output_port.fmu.name]} {output_port.port.vr}", file=txt_file)
             offset_storage = 0
             for local_variable in local_per_type[type_name]:
                 print(f"{local_variable.vr} {local_variable.dimension} 1 -1 "
@@ -1290,10 +1311,11 @@ class FMUContainer:
             print(sum(len(link.conversions) for link in links_per_fmu[fmu.name]) +
                   len(output_conversions_per_fmu[fmu.name]), file=txt_file)
             for link in links_per_fmu[fmu.name]:
-                for type_name, conversion in link.conversions.items():
-                    print(f"{layout.links[link]} {layout.converted[link][type_name]} {conversion}", file=txt_file)
-            for vr_from, vr_to, conversion in output_conversions_per_fmu[fmu.name]:
-                print(f"{vr_from} {vr_to} {conversion}", file=txt_file)
+                for type_name, conversion_function in link.conversions.items():
+                    print(f"{layout.links[link]} {layout.converted[link][type_name]} {conversion_function}",
+                          file=txt_file)
+            for vr_from, vr_to, conversion_function in output_conversions_per_fmu[fmu.name]:
+                print(f"{vr_from} {vr_to} {conversion_function}", file=txt_file)
 
             print(f"# Reset trigger of {fmu.name}: <LOCAL_OFFSET>", file=txt_file)
             print(reset_triggers.get(fmu.name, -1), file=txt_file)
@@ -1328,8 +1350,8 @@ class FMUContainer:
                 Port(layout.outputs[output_port_name], output_port_name))
         for link in layout.links:
             if link.cport_from is None:
-                # LS-BUS allows connected input clocks. The column is named after the clock that ticks by itself, the one
-                # of the sender: `datalog2pcap` finds the clock of `<name>_Data` with this name.
+                # LS-BUS allows connected input clocks. The column is named after the clock that ticks by itself, the
+                # one of the sender: `datalog2pcap` finds the clock of `<name>_Data` with this name.
                 scheduled = [cport for cport in link.cport_to_list
                              if cport.port.interval_variability in TIME_BASED_CLOCKS]
                 name = f"{scheduled[0].fmu.id}.{scheduled[0].port.name}" if scheduled else link.name
@@ -1344,7 +1366,7 @@ class FMUContainer:
                 print(f"{port.vr} {port.name}", file=datalog_file)
 
     @staticmethod
-    def long_path(path: str | Path) -> str:
+    def long_path(path: _PathT) -> _PathT | str:
         # https://stackoverflow.com/questions/14075465/copy-a-file-with-a-too-long-path-to-another-directory-in-python
         if os.name == 'nt':
             return "\\\\?\\" + os.path.abspath(str(path))
@@ -1361,7 +1383,7 @@ class FMUContainer:
         try:
             fmu = next(fmu_iter)
         except StopIteration:
-            raise FMUContainerError("No fmu declared in this container.")
+            raise FMUContainerError("No fmu declared in this container.") from None
 
         os_list = fmu.platforms
         logger.debug(f"FMU '{fmu.name}' OS support: {', '.join(fmu.platforms)}.")
@@ -1396,13 +1418,14 @@ class FMUContainer:
         elif os_list:
             logger.info(f"Container will be built for {', '.join(os_list)}.")
         else:
-            logger.critical("No common OS found for embedded FMU. Try to re-run with '-debug'. Container won't be runnable.")
+            logger.critical("No common OS found for embedded FMU. Try to re-run with '-debug'. "
+                            "Container won't be runnable.")
 
         for os_name in os_list:
             try:
                 yield Platform(origin_bindirs[os_name], suffixes[os_name], target_bindirs[os_name])
             except KeyError:
-                raise FMUContainerError(f"OS '{os_name}' is not supported.")
+                raise FMUContainerError(f"OS '{os_name}' is not supported.") from None
 
     def make_fmu_skeleton(self, base_directory: Path) -> Path:
         logger.debug(f"Initialize directory '{base_directory}'")

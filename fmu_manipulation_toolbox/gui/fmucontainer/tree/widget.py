@@ -3,18 +3,18 @@ NodeTreeWidget: tree view and scene synchronization for FMU container builder.
 """
 
 import logging
-
-from PySide6.QtCore import Qt, Signal, QItemSelectionModel, QSize, QTimer
-from PySide6.QtGui import QStandardItem, QIcon
-from PySide6.QtWidgets import (QWidget, QTreeView, QVBoxLayout, QInputDialog,
-                               QMenu, QAbstractItemView, QHeaderView)
 from pathlib import Path
+
+from PySide6.QtCore import QItemSelectionModel, QSize, Qt, QTimer, Signal
+from PySide6.QtGui import QIcon, QStandardItem
+from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QInputDialog, QMenu, QTreeView, QVBoxLayout, QWidget
 
 from fmu_manipulation_toolbox.container.builder import DEFAULT_STEP_SIZE, deduce_step_size
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
-from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, ConfigurationNode
+from fmu_manipulation_toolbox.gui.fmucontainer.graph import ConfigurationNode, NodeItem
 from fmu_manipulation_toolbox.gui.helper import LastDirectory
-from .model import _NodeTreeModel, TreeItemRoles
+
+from .model import TreeItemRoles, _NodeTreeModel
 from .sync import SelectionSynchronizer
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -263,7 +263,8 @@ class NodeTreeWidget(QWidget):
             child = parent.child(r, 0)
             if child is None:
                 continue
-            if not child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS) and child.data(_NodeTreeModel.ROLE_NODE_UID) == uid:
+            if (not child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+                    and child.data(_NodeTreeModel.ROLE_NODE_UID) == uid):
                 parent.removeRow(r)
                 return True
             if child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS) and self._remove_uid_from(child, uid):
@@ -276,7 +277,8 @@ class NodeTreeWidget(QWidget):
             child = parent.child(r, 0)
             if child is None:
                 continue
-            if not child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS) and child.data(_NodeTreeModel.ROLE_NODE_UID) == uid:
+            if (not child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
+                    and child.data(_NodeTreeModel.ROLE_NODE_UID) == uid):
                 return child
             if child.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS):
                 found = self._find_tree_item_by_uid(child, uid)

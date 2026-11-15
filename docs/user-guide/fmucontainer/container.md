@@ -24,7 +24,8 @@ The `fmucontainer` command creates a FMU, named Container, from a description fi
   step of the built-in solver. When it is not given, it is deduced from the embedded FMU's (see
   [Default time step](#default-time-step)).
 - optional features
-  - *multi-threading*: each embedded FMU will use its own thread to parallelize `doStep()` operation.  
+  - *multi-threading*: the embedded FMU's whose `doStep()` is long enough are stepped by worker threads, in
+    parallel (see [Multi-Threading](#multi-threading)).
   - *profiling*: performance indicators can be calculated by the container to help to identify the bottlenecks among 
     the embedded FMU's.
   - *reset_ports*: each embedded FMU gets a `container.reset` input; when it is true, the container resets the FMU
@@ -168,7 +169,8 @@ The `fmucontainer` command supports the following options:
 | `-container filename[:step_size]`   | *(required)*   | Description file for the container (`.csv`, `.json`, or `.ssp`). The optional `:step_size` suffix sets the internal time step (in seconds) when using `.json`or `.ssp`. Can be specified multiple times to build several containers. |
 | `-fmu-directory path`               | `.`            | Directory containing the source FMUs and used to generate the containers.                                                                                                                                                            |
 | `-fmi {2\|3}`                       | `2`            | FMI version for the container interface. Only `2` or `3` is supported.                                                                                                                                                               |
-| `-mt`                               | off            | Enable multi-threaded mode: each embedded FMU runs in its own thread.                                                                                                                                                                |
+| `-mt`                               | off            | Enable multi-threaded mode: the embedded FMUs whose step is long enough run on worker threads. See [Multi-Threading](#multi-threading).                                                                                             |
+| `-mt-threshold seconds`             | `5e-05`        | Multi-threaded mode: an embedded FMU gets a thread when its mean `doStep()` takes at least this duration, measured over the first 20 steps.                                                                                       |
 | `-sequential`                       | off            | Use sequential mode to schedule embedded FMUs.                                                                                                                                                                                       |
 | `-profile`                          | off            | Enable profiling mode to monitor `doStep()` performance of each embedded FMU.                                                                                                                                                        |
 | `-vr`                               | off            | Add a `TS_MULTIPLIER` input port to the container, allowing dynamic control of the step size.                                                                                                                                        |
@@ -235,6 +237,10 @@ Note: the optional `:0.1` suffix means the timestep should be `0.1` second.
 ```
 fmucontainer -container container.json
 ```
+
+The options of a container are keys of its JSON object: `step_size`, `mt`, `profiling`, `sequential`, `auto_link`,
+`auto_input`, `auto_output`, `auto_parameter`, `auto_local`, `ts_multiplier`, `reset_ports`, and `mt_threshold`
+(seconds, see [Multi-Threading](#multi-threading)), written by `-dump` only when it is not the default.
 
 ### Embedding the same FMU several times
 
@@ -527,7 +533,7 @@ The following methods define the container topology:
 | `drop_port(fmu_name, port_name)` | Explicitly ignore an output port |
 | `add_start_value(fmu_name, port_name, value)` | Set a start value for a port of an embedded FMU |
 | `add_implicit_rule(auto_input, auto_output, auto_link, auto_parameter, auto_local)` | Automatically wire unconnected ports |
-| `make_fmu(filename, step_size, mt, profiling, sequential, ts_multiplier, datalog)` | Build the container FMU |
+| `make_fmu(filename, step_size, mt, profiling, sequential, ts_multiplier, datalog, mt_threshold)` | Build the container FMU |
 
 The `make_fmu` method accepts the following parameters:
 
@@ -536,6 +542,7 @@ The `make_fmu` method accepts the following parameters:
 | `fmu_filename` | *(required)* | Output filename for the container |
 | `step_size` | `None` | Internal time step in seconds (deduced from embedded FMUs if not set) |
 | `mt` | `False` | Enable multi-threading |
+| `mt_threshold` | `5e-05` | Multi-threading: mean duration of `doStep()`, in seconds, from which an embedded FMU gets a thread |
 | `sequential` | `False` | Use sequential scheduling |
 | `profiling` | `False` | Enable profiling |
 | `ts_multiplier` | `False` | Add `TS_MULTIPLIER` input for dynamic step size control |
@@ -702,11 +709,10 @@ Notes and limitations:
 
 
 # Multi-Threading
-If enabled through `MT` flag, each FMU will be run using its own thread which
-1. fetch its inputs from container buffer which is shared with all FMUs.
-2. process `DoStep()`
-
-Synchronization uses a mutex.
+The multi-threaded mode (`-mt`, `"mt": true`) steps the embedded Co-Simulation FMU's whose step is long (at least
+`-mt-threshold`, 50 µs by default, measured over the first 20 internal steps) on worker threads, the others on the main
+thread; the results are those of the parallel mode. See [Multi-Threading](multi-threading.md): when it helps, when it
+does not, the choice of the threshold and the nested containers.
 
 # Profiling 
 If enabled through `profiling` flag, each call to `DoStep` of each FMU is monitored. The elapsed time

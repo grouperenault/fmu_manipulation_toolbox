@@ -11,9 +11,12 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
-from fmu_manipulation_toolbox.container.types import (FMI_TO_CONTAINER, CONVERSION_FUNCTION, enumeration_as_integer,
-                                                      is_lossy)
-
+from fmu_manipulation_toolbox.container.types import (
+    CONVERSION_FUNCTION,
+    FMI_TO_CONTAINER,
+    enumeration_as_integer,
+    is_lossy,
+)
 
 _SEPARATORS = re.compile(r"[._\-\[\]\s]+")
 

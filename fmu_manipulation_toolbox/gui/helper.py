@@ -1,14 +1,20 @@
 import logging
 import os
 from contextlib import contextmanager
-
-from PySide6.QtWidgets import (QApplication, QFileDialog, QLabel, QPushButton, QMessageBox, QTableView, QHeaderView,
-                               QMenu)
-from PySide6.QtGui import QDesktopServices, QIcon, QAction
-from PySide6.QtCore import Qt, Signal, QPoint, QDir, QUrl, QRect, QSize
-from PySide6.QtGui import QPixmap, QPainter, QColor, QImage, QGuiApplication
-
 from pathlib import Path
+
+from PySide6.QtCore import QDir, QPoint, QRect, QSize, Qt, QUrl, Signal
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QGuiApplication, QIcon, QImage, QPainter, QPixmap
+from PySide6.QtWidgets import (
+    QApplication,
+    QFileDialog,
+    QHeaderView,
+    QLabel,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QTableView,
+)
 
 from fmu_manipulation_toolbox.gui.style import gui_style
 from fmu_manipulation_toolbox.operations import FMU
@@ -145,7 +151,8 @@ class LastDirectory:
     @classmethod
     def get_save_file_name_and_filter(cls, parent=None, caption: str = "", filter: str = "",
                                       selected_filter: str = "", default_name: str = "") -> tuple[str, str]:
-        """`get_save_file_name`, the filter *selected_filter* preselected; returns the file name and the filter chosen."""
+        """`get_save_file_name`, the filter *selected_filter* preselected; returns the file name and the filter
+        chosen."""
         directory = cls.get()
         if default_name:
             directory = str(Path(directory) / default_name)

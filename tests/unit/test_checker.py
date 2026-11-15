@@ -5,8 +5,8 @@ Runs in an isolated copy of
 """
 import pytest
 
-from fmu_manipulation_toolbox.operations import FMU
 from fmu_manipulation_toolbox.checker import OperationGenericCheck
+from fmu_manipulation_toolbox.operations import FMU
 
 pytestmark = [pytest.mark.unit, pytest.mark.area("operations")]
 

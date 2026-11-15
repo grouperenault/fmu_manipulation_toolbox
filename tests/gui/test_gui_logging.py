@@ -18,8 +18,14 @@ try:
 
     _app = QApplication.instance() or QApplication([])
     from fmu_manipulation_toolbox.gui.helper import LastDirectory
-    from fmu_manipulation_toolbox.gui.log import (GuiLogHandler, LogStatusBar, LogWidget, LogWindow, RunTask,
-                                                  busy_cursor, window_log_context)
+    from fmu_manipulation_toolbox.gui.log import (
+        GuiLogHandler,
+        LogStatusBar,
+        LogWindow,
+        RunTask,
+        busy_cursor,
+        window_log_context,
+    )
     from fmu_manipulation_toolbox.gui.style import log_color
 except Exception as exc:  # pragma: no cover - environment dependent
     pytest.skip(f"GUI dependencies not available: {exc}", allow_module_level=True)

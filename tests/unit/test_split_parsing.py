@@ -15,8 +15,8 @@ import pytest
 from fmu_manipulation_toolbox.container.types import ALL_TYPES, START_VALUE_TYPES
 from fmu_manipulation_toolbox.split import (
     FMUSplitter,
-    FMUSplitterError,
     FMUSplitterDescription,
+    FMUSplitterError,
 )
 from fmu_manipulation_toolbox.terminals import Terminals
 

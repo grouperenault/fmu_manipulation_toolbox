@@ -9,8 +9,13 @@ from _helpers.ls_ref import DATA_DIR, ls_ref_fmu, reference_fmu
 from fmu_manipulation_toolbox.container import FMUContainer
 from fmu_manipulation_toolbox.experiments import Experiment, Parameter, read_parameter_set
 from fmu_manipulation_toolbox.model_description import ModelDescription
-from fmu_manipulation_toolbox.simulation import (SimulationError, SimulationUnavailable, SimulationUnsupported,
-                                                 experiment_times, replay)
+from fmu_manipulation_toolbox.simulation import (
+    SimulationError,
+    SimulationUnavailable,
+    SimulationUnsupported,
+    experiment_times,
+    replay,
+)
 from fmu_manipulation_toolbox.timeseries import TimeSeries, compare, read_csv
 
 pytestmark = [pytest.mark.integration, pytest.mark.lsref, pytest.mark.needs_compiler]

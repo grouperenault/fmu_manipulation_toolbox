@@ -2,13 +2,15 @@
 NodeTreePanel: composite panel combining tree view and detail panels.
 """
 import logging
+
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QStandardItem
-from PySide6.QtWidgets import QWidget, QTreeView, QVBoxLayout, QSplitter
+from PySide6.QtWidgets import QSplitter, QTreeView, QVBoxLayout, QWidget
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import DetailPanelStack
-from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem, ConfigurationNode
-from .model import _NodeTreeModel, TreeItemRoles
+from fmu_manipulation_toolbox.gui.fmucontainer.graph import ConfigurationNode, NodeItem, WireItem
+
+from .model import TreeItemRoles, _NodeTreeModel
 from .widget import NodeTreeWidget
 
 logger = logging.getLogger("fmu_manipulation_toolbox")

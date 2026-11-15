@@ -175,7 +175,8 @@ def compare_instance(instance: str, left: Trace, right: Trace, names: tuple[str,
                               ("`fmi2SetupExperiment`", "fmi2Instantiate", "fmi2EnterInitializationMode"),
                               ("Initialization Mode", "fmi2EnterInitializationMode", "fmi2ExitInitializationMode")):
         if title == "`fmi2SetupExperiment`":
-            setup = [[call for call in trace.calls if call.function == "fmi2SetupExperiment"] for trace in (left, right)]
+            setup = [[call for call in trace.calls if call.function == "fmi2SetupExperiment"]
+                     for trace in (left, right)]
             between = [trace.phase("fmi2SetupExperiment", "fmi2EnterInitializationMode") for trace in (left, right)]
             lines.append(f"| `fmi2SetupExperiment` | {calls_text(setup[0])} | {calls_text(setup[1])} |")
             lines.append(f"| Between `fmi2SetupExperiment` and `fmi2EnterInitializationMode` | "

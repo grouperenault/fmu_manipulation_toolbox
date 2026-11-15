@@ -1,5 +1,10 @@
 #include <stdlib.h>
 #include <string.h>
+#ifdef _WIN32
+#   include <windows.h>
+#else
+#   include <time.h>
+#endif
 
 #include "fmi2Functions.h"
 
@@ -8,12 +13,14 @@
  *   - "{stub}":                    every call succeeds;
  *   - "{stub-fail-instantiate}":   fmi2Instantiate returns NULL;
  *   - "{stub-terminate}":          asks to terminate the simulation in the step that reaches STUB_TERMINATE_TIME:
- *                                  fmi2DoStep returns fmi2Discard, fmi2Terminated is then true.
+ *                                  fmi2DoStep returns fmi2Discard, fmi2Terminated is then true;
+ *   - "{stub-slow}":               each fmi2DoStep lasts STUB_SLOW_STEP_MS (a heavy FMU of the multi-thread mode).
  * Each type has STUB_NB_VARIABLES variables (VR 0 to STUB_NB_VARIABLES-1); any other VR is an error.
  */
 
 #define STUB_NB_VARIABLES   16
 #define STUB_TERMINATE_TIME 0.25
+#define STUB_SLOW_STEP_MS   2
 
 typedef struct {
     fmi2Real                reals[STUB_NB_VARIABLES];
@@ -21,6 +28,7 @@ typedef struct {
     fmi2Boolean             booleans[STUB_NB_VARIABLES];
     char                    *strings[STUB_NB_VARIABLES];
     fmi2Boolean             terminate;      /* "{stub-terminate}" */
+    fmi2Boolean             slow;           /* "{stub-slow}" */
     fmi2Boolean             terminated;
 } stub_t;
 
@@ -59,8 +67,10 @@ fmi2Component fmi2Instantiate(fmi2String instanceName, fmi2Type fmuType, fmi2Str
         return NULL;
 
     stub_t *stub = calloc(1, sizeof(*stub));
-    if (stub)
+    if (stub) {
         stub->terminate = (strcmp(fmuGUID, "{stub-terminate}") == 0);
+        stub->slow = (strcmp(fmuGUID, "{stub-slow}") == 0);
+    }
     return stub;
 }
 
@@ -171,6 +181,14 @@ fmi2Status fmi2DoStep(fmi2Component c, fmi2Real currentCommunicationPoint, fmi2R
     (void)noSetFMUStatePriorToCurrentPoint;
     stub_t *stub = (stub_t *)c;
 
+    if (stub->slow) {
+#ifdef _WIN32
+        Sleep(STUB_SLOW_STEP_MS);
+#else
+        const struct timespec duration = { 0, STUB_SLOW_STEP_MS * 1000000L };
+        nanosleep(&duration, NULL);
+#endif
+    }
     if (stub->terminate && (currentCommunicationPoint + communicationStepSize >= STUB_TERMINATE_TIME)) {
         stub->terminated = fmi2True;
         return fmi2Discard;

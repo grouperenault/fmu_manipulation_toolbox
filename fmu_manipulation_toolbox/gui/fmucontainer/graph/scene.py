@@ -1,17 +1,16 @@
 """NodeGraphScene — manages nodes and wires in the graph."""
 
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 
-from PySide6.QtCore import Qt, QPointF, Signal
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsSceneMouseEvent
+from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QBrush
-
+from PySide6.QtWidgets import QGraphicsScene, QGraphicsSceneMouseEvent
 
 from fmu_manipulation_toolbox.assembly import instance_name
 
-from .constants import NODE_TITLE_HEIGHT, COLOR_BACKGROUND
-from .node import NodeItem, ConfigurationNode
+from .constants import COLOR_BACKGROUND, NODE_TITLE_HEIGHT
+from .node import ConfigurationNode, NodeItem
 from .wire import WireItem, _DragWireItem
 
 

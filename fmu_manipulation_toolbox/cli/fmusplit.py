@@ -2,9 +2,9 @@ import argparse
 import logging
 import sys
 
-from .utils import setup_logger, close_logger, make_wide, ExitCode
 from ..split import FMUSplitter, FMUSplitterError
 from ..version import __version__ as version
+from .utils import ExitCode, close_logger, make_wide, setup_logger
 
 
 def fmusplit():

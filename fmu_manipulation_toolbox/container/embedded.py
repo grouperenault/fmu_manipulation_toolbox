@@ -7,12 +7,11 @@ from typing import Any
 
 from ..ls import LayeredStandard
 from ..model_description import ModelVariable
-from ..operations import FMU, OperationAbstract, FMUError
+from ..operations import FMU, FMUError, OperationAbstract
 from ..terminals import Terminals
 from .arrays import ArrayAggregate
 from .errors import FMUContainerError
 from .types import ALL_TYPES, CONTAINER_TO_FMI, FMI_TO_CONTAINER, enumeration_as_integer
-
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -163,7 +162,8 @@ class EmbeddedFMUPort:
             "valueReference": vr,
             "causality": causality,
             "variability": variability,
-            "initial": self.initial,
+            # FMI-2 §2.2.7: an input has no `initial` (FMI-3 §2.4.7.4 allows `exact` only, its default).
+            "initial": None if fmi_version == 2 and causality == "input" else self.initial,
             "description": self.description,
         }
 
@@ -253,7 +253,7 @@ class EmbeddedFMU(OperationAbstract):
                        "canHandleVariableCommunicationStepSize")
 
     def __init__(self, filename, name: str | None = None):
-        self.fmu = FMU(filename)
+        self.fmu: FMU = FMU(filename)
         self.name = Path(name or filename).name
         self.id = Path(self.name).stem.lower()
         self.is_instance = self.name != Path(filename).name
@@ -262,16 +262,16 @@ class EmbeddedFMU(OperationAbstract):
         self.terminals = Terminals(self.fmu.tmp_directory)
         self.ls = LayeredStandard(self.fmu.tmp_directory)
 
-        self.step_size = None
-        self.start_time = None
-        self.stop_time = None
-        self.model_identifier = None
-        self.guid = None
-        self.fmi_version = None
+        self.step_size: float | None = None
+        self.start_time: float | None = None
+        self.stop_time: float | None = None
+        self.model_identifier: str | None = None
+        self.guid: str | None = None
+        self.fmi_version: int | None = None
         self.is_me = False
         self.number_of_continuous_states = 0
         self.number_of_event_indicators = 0
-        self.platforms = set()
+        self.platforms: set[str] = set()
         self.ports: dict[str, EmbeddedFMUPort] = {}
 
         self.has_event_mode = False
@@ -286,7 +286,8 @@ class EmbeddedFMU(OperationAbstract):
         if self.model_identifier is None:
             raise FMUContainerError(f"FMU '{self.name}' does not implement Co-Simulation mode.")
         if self.guid is None:
-            raise FMUContainerError(f"FMU '{self.name}' has no {'guid' if self.fmi_version == 2 else 'instantiationToken'}.")
+            raise FMUContainerError(f"FMU '{self.name}' has no "
+                                    f"{'guid' if self.fmi_version == 2 else 'instantiationToken'}.")
 
         if self.fmi_version == 2:
             self._detect_array_aggregates()

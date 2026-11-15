@@ -4,7 +4,9 @@
 #include "fmi3Functions.h"
 
 #include "cache.h"
+#include "config.h"
 #include "container.h"
+#include "datalog.h"
 #include "logger.h"
 
 /*
@@ -89,7 +91,7 @@ fmi3Instance fmi3InstantiateCoSimulation(
 
     LOGGER_DEBUG("Container model loading...");
 
-    if (container_configure(container, resourcePath)) {
+    if (config_container(container, resourcePath)) {
         LOGGER_ERROR("Cannot read container configuration.");
         container_free(container);
         return NULL;
@@ -872,7 +874,9 @@ fmi3Status fmi3DoStep(fmi3Instance instance,
 
     ASSERT_CONTAINER_STATE(container, CONTAINER_STATE_STEP_MODE);
 
-    if (container_do_step(container, currentCommunicationPoint, communicationStepSize) != FMU_STATUS_OK)
+    const fmu_status_t status = container_do_step(container, currentCommunicationPoint, communicationStepSize);
+    datalog_flush(container->datalog);                  /* the rows before an error too */
+    if (status != FMU_STATUS_OK)
         return fmi3Error;
 
     *lastSuccessfulTime = container->reals64.locals[0];

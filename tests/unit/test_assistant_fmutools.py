@@ -10,12 +10,21 @@ import pytest
 
 pytestmark = [pytest.mark.unit]
 
-from fmu_manipulation_toolbox.assistant.fmutools import (  # noqa: E402
-    CAUSALITIES, MAX_EXAMPLES, MAX_MESSAGE_GROUPS, OPERATIONS, _grouped, apply_operation, check_fmu, describe_port,
-    dump_ports_csv, rename_ports, select_ports, summarize_fmu,
-)
-
 from _helpers.mcp_budget import make_large_fmu  # noqa: E402
+from fmu_manipulation_toolbox.assistant.fmutools import (  # noqa: E402
+    CAUSALITIES,
+    MAX_EXAMPLES,
+    MAX_MESSAGE_GROUPS,
+    OPERATIONS,
+    _grouped,
+    apply_operation,
+    check_fmu,
+    describe_port,
+    dump_ports_csv,
+    rename_ports,
+    select_ports,
+    summarize_fmu,
+)
 
 
 @pytest.fixture
@@ -355,7 +364,7 @@ FMI2_ALIASES = """<?xml version="1.0" encoding="UTF-8"?>
   </ModelVariables>
   <ModelStructure><Outputs><Unknown index="2"/><Unknown index="3"/></Outputs></ModelStructure>
 </fmiModelDescription>
-"""
+"""  # noqa: E501
 
 FMI3_ARRAY = """<?xml version="1.0" encoding="UTF-8"?>
 <fmiModelDescription fmiVersion="3.0" modelName="m" instantiationToken="{8c4e810f-3df3-4a00-8276-176fa3c9f000}">

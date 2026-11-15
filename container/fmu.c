@@ -1,7 +1,7 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "config.h" /* for STRLCAT/STRLCPY */
+#include "file.h" /* for STRLCAT/STRLCPY */
 #include "convert.h"
 #include "cache.h"
 #include "container.h"
@@ -18,24 +18,24 @@
 
 /* Shared per-type IO translation loops. Defined at file scope so the plain and
    the continuous-only exchange functions share one implementation. */
-#define SET_INPUT(variable, fmi_type, c_type)                                                       \
-    for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                               \
-        const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                 \
-        const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr;                     \
-        const unsigned int dimension = fmu_io->variable .in.translations[i].dimension;              \
+#define SET_INPUT(variable, fmi_type, c_type)                                                               \
+    for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                                       \
+        const unsigned int fmu_vr    = fmu_io-> variable .in.translations[i].fmu_vr;                        \
+        const unsigned int local_vr  = fmu_io-> variable .in.translations[i].vr;                            \
+        const unsigned int dimension = fmu_io-> variable .in.translations[i].dimension;                     \
         status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
-        if (status != FMU_STATUS_OK)                                                                \
-            return status;                                                                          \
+        if (status != FMU_STATUS_OK)                                                                        \
+            return status;                                                                                  \
     }
 
-#define GET_OUTPUT(variable, fmi_type, c_type)                                                      \
-    for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) {                                     \
-        const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr;                      \
-        const fmu_vr_t local_vr = fmu_io-> variable .out.translations[i].vr;                        \
-        const unsigned int dimension = fmu_io-> variable .out.translations[i].dimension;            \
+#define GET_OUTPUT(variable, fmi_type, c_type)                                                              \
+    for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) {                                             \
+        const fmu_vr_t fmu_vr        = fmu_io-> variable .out.translations[i].fmu_vr;                       \
+        const fmu_vr_t local_vr      = fmu_io-> variable .out.translations[i].vr;                           \
+        const unsigned int dimension = fmu_io-> variable .out.translations[i].dimension;                    \
         status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
-        if (status != FMU_STATUS_OK)                                                                \
-            return status;                                                                          \
+        if (status != FMU_STATUS_OK)                                                                        \
+            return status;                                                                                  \
     }
 
 
@@ -49,6 +49,7 @@ int fmu_string_copy(fmu_string_t *string, const char *value) {
         string->max_size = size;
     }
     memcpy(string->data, value, size);
+
     return 0;
 }
 
@@ -64,6 +65,7 @@ int fmu_binary_copy(fmu_binary_t *binary, const uint8_t *data, size_t size) {
     if (size > 0)
         memcpy(binary->data, data, size);
     binary->size = size;
+
     return 0;
 }
 
@@ -196,7 +198,8 @@ fmu_status_t fmu_set_clocks_after_outputs(const fmu_t* fmu) {
     for (unsigned long i = 0; i < fmu_io->clocks.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
-        if (container->clocks.locals[local_vr] && (!fmu_clock_is_scheduled(container, local_vr) || fmu_clock_has_inputs(fmu, local_vr))) {
+        if (container->clocks.locals[local_vr] && (!fmu_clock_is_scheduled(container, local_vr) ||
+            fmu_clock_has_inputs(fmu, local_vr))) {
             fmu_status_t status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks.locals[local_vr]);
             if (status != FMU_STATUS_OK)
                 return status;
@@ -479,37 +482,6 @@ fmu_status_t fmu_get_clocked_outputs(const fmu_t* fmu) {
 }
 
 
-static void *fmu_do_step_thread(fmu_t* fmu) {
-    container_t* container =fmu->container;
-    const logger_t *logger = &container->logger;
-
-    /* barriers_ready is set before the gate is opened: false if the threads could not all be started */
-    thread_gate_wait(&container->threads_gate);
-    if (!container->barriers_ready)
-        return NULL;
-
-    while (true) {
-        thread_barrier_wait(&container->barrier_start);   /* WAIT 1st SYNC */
-
-        fmu->status = FMU_STATUS_ERROR;
-
-        if (container->cancel)
-            break;
-
-        fmu->status = fmuDoStep(fmu, 
-                                container->time,
-                                container->next_step);
-        
-        if (fmu->status != FMU_STATUS_OK)
-            LOGGER_ERROR("Container: FMU '%s' failed doing step. %d", fmu->name, fmu->status);
-
-        thread_barrier_wait(&container->barrier_end);   /* WAIT 2nd SYNC */
-    }
-
-    return NULL;
-}
-
-
 static int fmu_map_functions(fmu_t *fmu, fmu_version_t fmi_version, fmu_kind_t kind){
     const logger_t *logger = &fmu->container->logger;
     int status = 0;
@@ -753,25 +725,14 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     }
 
     fmu->support_event = support_event;
-    fmu->need_event_udpate = false;
+    fmu->need_event_update = false;
 
     if (container->profiling)
         fmu->profile = profile_new(logger);
     else
         fmu->profile = NULL;
 
-    fmu->thread = NULL;
-
     return 0;
-}
-
-
-int fmu_launch_thread(fmu_t *fmu) {
-    const logger_t *logger = &fmu->container->logger;
-    LOGGER_DEBUG("FMU '%s' thread launched.", fmu->name);
-    fmu->thread = thread_new((thread_function_t)fmu_do_step_thread, fmu);
-
-    return fmu->thread ? 0 : -1;
 }
 
 
@@ -1341,7 +1302,7 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
     const logger_t *logger = &fmu->container->logger;
     fmu_status_t status = FMU_STATUS_ERROR;
 
-    fmu->need_event_udpate = false;
+    fmu->need_event_update = false;
 
     if (fmu->profile)
         profile_tic(fmu->profile);
@@ -1372,7 +1333,7 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
                                                           currentCommunicationPoint,
                                                           communicationStepSize,
                                                           fmi3True, /* noSetFMUStatePriorToCurrentPoint */
-                                                          &fmu->need_event_udpate, 
+                                                          &fmu->need_event_update, 
                                                           &terminateSimulation, 
                                                           &earlyReturn, 
                                                           &lastSuccessfulTime);

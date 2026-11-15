@@ -11,12 +11,20 @@ import pytest
 
 pytestmark = [pytest.mark.unit]
 
-from fmu_manipulation_toolbox.assistant.analysis import (  # noqa: E402
-    MAX_EXAMPLES, MAX_GROUPS, MAX_RESULT_SIZE, RULES, SECTIONS, assembly_page, find_container, fmu_name,
-    lint_assembly, port_prefix, summarize_assembly,
-)
-
 from _helpers.mcp_budget import make_large_assembly  # noqa: E402
+from fmu_manipulation_toolbox.assistant.analysis import (  # noqa: E402
+    MAX_EXAMPLES,
+    MAX_GROUPS,
+    MAX_RESULT_SIZE,
+    RULES,
+    SECTIONS,
+    assembly_page,
+    find_container,
+    fmu_name,
+    lint_assembly,
+    port_prefix,
+    summarize_assembly,
+)
 
 
 def _arch(data_dir, name):

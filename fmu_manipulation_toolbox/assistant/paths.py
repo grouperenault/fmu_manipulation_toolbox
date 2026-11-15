@@ -18,8 +18,8 @@ agent that should not roam the whole filesystem.
 """
 
 import os
-from pathlib import Path
 from collections.abc import Sequence
+from pathlib import Path
 
 #: Environment variable restricting the assistant to a directory tree.
 ROOT_ENV_VAR = "FMUCONTAINER_MCP_ROOT"

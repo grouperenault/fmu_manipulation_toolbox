@@ -55,9 +55,9 @@ def compile_probes(directory: Path) -> Path:
 
 
 def run(scenario: str, output: Path, probes: Path) -> Path:
+    import numpy as np
     from fmpy import read_model_description
     from fmpy.simulation import simulate_fmu
-    import numpy as np
 
     from fmu_manipulation_toolbox.assembly import Assembly
 

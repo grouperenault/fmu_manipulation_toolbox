@@ -35,6 +35,10 @@ class ContainerOptions(BaseModel):
         default=None,
         description="Run the embedded FMUs in parallel threads.",
     )
+    mt_threshold: float | None = Field(
+        default=None, ge=0,
+        description="With `mt`: seconds of mean step from which an FMU gets a thread (5e-05).",
+    )
     profiling: bool | None = Field(
         default=None,
         description="Expose the real-time ratio of each embedded FMU during "

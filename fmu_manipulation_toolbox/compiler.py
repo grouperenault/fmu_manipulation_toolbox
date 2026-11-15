@@ -126,7 +126,7 @@ class Toolchain:
         return ".obj" if self.family == "msvc" else ".o"
 
     def compile_command(self, source_file: Path | str, object_file: Path, cxx: bool,
-                        include_directories: list[Path | str],
+                        include_directories: Sequence[Path | str],
                         definitions: dict[str, str | None], options: list[str]) -> list[str]:
         """Command line compiling `source_file` into `object_file`."""
         compiler = self.cxx_compiler if cxx else self.c_compiler
@@ -375,7 +375,7 @@ class SourceCompiler:
         compiler options after its definitions and options, the libraries after its libraries.
         """
         commands = []
-        object_files = []
+        object_files: list[Path] = []
         has_cxx = False
         for source_file_set in configuration.source_file_sets:
             include_directories = [self._display(directory) for directory in
@@ -438,14 +438,14 @@ class SourceCompiler:
                               ("libraries", libraries)):
             if values:
                 logger.info(f"Additional {label}: '{' '.join(values)}'.")
-        with tempfile.TemporaryDirectory() as build_directory:
-            build_directory = Path(build_directory)
+        with tempfile.TemporaryDirectory() as tmp_directory:
+            build_directory = Path(tmp_directory)
             library = build_directory / destination.name
             steps = [f"Compiling '{self._display(path)}'." for path in configuration.source_files]
             steps.append(f"Linking '{library.name}'.")
             commands = self.build_commands(configuration, toolchain, build_directory, library, compiler_options,
                                            linker_options, libraries)
-            for step, command in zip(steps, commands):
+            for step, command in zip(steps, commands, strict=True):
                 logger.info(step)
                 self._run(command, toolchain, build_directory, configuration.model_identifier)
             destination.parent.mkdir(parents=True, exist_ok=True)

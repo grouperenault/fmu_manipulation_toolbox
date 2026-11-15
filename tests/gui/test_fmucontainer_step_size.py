@@ -11,7 +11,7 @@ pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
 try:
-    from PySide6.QtCore import Qt, QItemSelectionModel
+    from PySide6.QtCore import QItemSelectionModel, Qt
     from PySide6.QtWidgets import QApplication
 
     _app = QApplication.instance() or QApplication([])

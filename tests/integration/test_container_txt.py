@@ -7,10 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from _helpers.archive import read_entry, rewrite_fmu
 from fmu_manipulation_toolbox.container import FMUContainer
 from fmu_manipulation_toolbox.container.types import CONTAINER_TXT_VERSION
-
-from _helpers.archive import read_entry, rewrite_fmu
 
 pytestmark = [pytest.mark.integration, pytest.mark.needs_fmpy, pytest.mark.needs_container,
               pytest.mark.needs_compiler, pytest.mark.area("compile")]

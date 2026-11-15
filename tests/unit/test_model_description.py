@@ -16,10 +16,9 @@ from pathlib import Path
 import pytest
 import xmlschema
 
+from _helpers.assertions import assert_equivalent_xml
 from fmu_manipulation_toolbox.model_description import ModelDescription, ModelDescriptionError, ModelVariable
 from fmu_manipulation_toolbox.operations import FMU, OperationAbstract
-
-from _helpers.assertions import assert_equivalent_xml
 
 pytestmark = [pytest.mark.unit]
 
@@ -97,7 +96,7 @@ EDGE_CASES: dict[str, bytes] = {
         b"<fmiModelDescription", b"<!-- before the root -->\n<fmiModelDescription") + b"<!-- after the root -->\n",
     "namespaces": fmi3(variable='<Annotations><Annotation type="com.example"><v:Data xmlns:v="urn:vendor" v:k="1">'
                                 'text</v:Data></Annotation></Annotations>'),
-    "non-ascii": fmi2().replace(b'description="input"', 'description="débit µ ≤ 1"'.encode("utf-8")),
+    "non-ascii": fmi2().replace(b'description="input"', 'description="débit µ ≤ 1"'.encode()),
 }
 
 ALL_DESCRIPTORS: dict[str, bytes] = {**DESCRIPTORS, **{f"edge/{k}": v for k, v in EDGE_CASES.items()}}
@@ -159,7 +158,7 @@ def test_non_utf8_input_is_saved_in_utf8():
     latin1 = fmi2().replace(b'encoding="UTF-8"', b'encoding="ISO-8859-1"').replace(
         b'description="input"', 'description="débit"'.encode("latin-1"))
     saved = ModelDescription.load(latin1).to_bytes()
-    assert 'description="débit"'.encode("utf-8") in saved
+    assert 'description="débit"'.encode() in saved
     assert ET.fromstring(saved).find("ModelVariables")[0].get("description") == "débit"
 
 
@@ -228,7 +227,8 @@ def test_fmi2_type_definitions_are_not_variables():
     md = _reference("2.0/Feedthrough")
     assert md.root.find("TypeDefinitions") is not None
     variables = md.variables()
-    assert [v.tag for v in variables] == ["ScalarVariable"] * len(md.root.find("ModelVariables").findall("ScalarVariable"))
+    assert [v.tag for v in variables] == \
+        ["ScalarVariable"] * len(md.root.find("ModelVariables").findall("ScalarVariable"))
     assert all(port.fmi_type in ModelDescription.FMI2_VARIABLE_TYPES for port in md.iter_ports())
 
 

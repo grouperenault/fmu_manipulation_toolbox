@@ -9,9 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.operations import FMU, OperationAbstract, OperationRemoveSources
-
 from _helpers.assertions import assert_equivalent_xml
+from fmu_manipulation_toolbox.operations import FMU, OperationAbstract, OperationRemoveSources
 
 pytestmark = [pytest.mark.unit]
 

@@ -16,9 +16,9 @@ try:
     from PySide6.QtWidgets import QApplication
 
     _app = QApplication.instance() or QApplication([])
-    from fmu_manipulation_toolbox.gui.fmutool.__main__ import MainWindow as FMUToolWindow
-    from fmu_manipulation_toolbox.gui.fmueditor.__main__ import MainWindow as FMUEditorWindow
     from fmu_manipulation_toolbox.gui.fmucontainer.__main__ import MainWindow as FMUContainerWindow
+    from fmu_manipulation_toolbox.gui.fmueditor.__main__ import MainWindow as FMUEditorWindow
+    from fmu_manipulation_toolbox.gui.fmutool.__main__ import MainWindow as FMUToolWindow
 except Exception as exc:  # pragma: no cover - environment dependent
     pytest.skip(f"GUI dependencies not available: {exc}", allow_module_level=True)
 
@@ -131,6 +131,7 @@ def _links(log_widget) -> list[tuple[str, str]]:
 
 def test_fmutool_summary_links_the_temporary_directory(qtbot, bouncing_ball, monkeypatch):
     from PySide6.QtCore import QUrl
+
     import fmu_manipulation_toolbox.gui.log as gui_log
     window = FMUToolWindow()
     qtbot.addWidget(window)
@@ -319,6 +320,7 @@ def test_fmutool_check_selection_dialog_invalid(qtbot, key, text, message):
 def test_fmutool_busy_cursor_during_operation(qtbot, bouncing_ball):
     """The wait cursor is shown while an operation runs, and restored afterwards, also when it fails."""
     from PySide6.QtCore import Qt
+
     from fmu_manipulation_toolbox.operations import OperationAbstract, OperationError
 
     class Probe(OperationAbstract):
@@ -383,6 +385,7 @@ def needs_foo_fmu(data_dir, tmp_path):
 
 def _host_binary(window):
     from pathlib import Path
+
     from fmu_manipulation_toolbox.compiler import SourceCompiler
     return (Path(window.dropped_fmu.fmu.tmp_directory) / "binaries" / SourceCompiler.host_platform(3) /
             f"BouncingBall{SourceCompiler.library_suffix()}")
@@ -468,6 +471,7 @@ def test_fmutool_compile_no_dialog_without_sources(qtbot, fake_compile_dialog, d
 
 def test_fmutool_compile_options_dialog_before_compilation(qtbot):
     from PySide6.QtWidgets import QLabel, QPushButton
+
     from fmu_manipulation_toolbox.gui.fmutool.__main__ import CompileOptionsDialog
     dialog = CompileOptionsDialog({}, None, failed=False)
     qtbot.addWidget(dialog)
@@ -528,6 +532,7 @@ def test_fmutool_debug_mode_shows_debug_records(qtbot, debug):
 def test_fmutool_windows_keep_their_own_log(qtbot, bouncing_ball):
     """With two FMU Tool windows, an operation is only logged in the window that runs it."""
     import logging
+
     from fmu_manipulation_toolbox.operations import OperationAbstract
 
     class Probe(OperationAbstract):
@@ -572,6 +577,7 @@ def test_fmueditor_no_unsaved_changes_initially(qtbot, bouncing_ball):
 
 def test_fmueditor_status_bar_shows_the_log_and_opens_the_log_window(qtbot):
     import logging
+
     from PySide6.QtCore import Qt
     window = FMUEditorWindow()
     qtbot.addWidget(window)
@@ -628,6 +634,7 @@ def test_fmucontainer_verbose_mode_drives_the_shared_logger(qtbot, capsys):
 
 def test_fmucontainer_status_bar_shows_the_log_and_opens_the_log_window(qtbot):
     import logging
+
     from PySide6.QtCore import Qt
     logger = logging.getLogger("fmu_manipulation_toolbox")
     window = FMUContainerWindow()
@@ -646,6 +653,7 @@ def test_fmucontainer_status_bar_shows_the_log_and_opens_the_log_window(qtbot):
 def test_fmutool_compile_options_dialog_names_the_compiler(qtbot):
     """MSVC is found with its full path: the dialog names the executable only."""
     from PySide6.QtWidgets import QLabel
+
     from fmu_manipulation_toolbox.compiler import Toolchain
     from fmu_manipulation_toolbox.gui.fmutool.__main__ import CompileOptionsDialog
     cl = r"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.40\bin\Hostx64\x64\cl.exe"
@@ -659,6 +667,7 @@ def test_fmutool_compile_options_dialog_names_the_compiler(qtbot):
 def test_status_bars_of_two_windows_are_independent(qtbot):
     """A record belongs to the window of the last user event: the other window does not show it."""
     import logging
+
     from PySide6.QtCore import Qt
     logger = logging.getLogger("fmu_manipulation_toolbox")
     editor, builder = FMUEditorWindow(), FMUContainerWindow()
@@ -678,6 +687,7 @@ def test_status_bars_of_two_windows_are_independent(qtbot):
 
 def test_verbose_mode_is_specific_to_its_window(qtbot, capsys):
     import logging
+
     from fmu_manipulation_toolbox.gui.log import GuiLogHandler, window_log_context
     logger = logging.getLogger("fmu_manipulation_toolbox")
     verbose, quiet = FMUContainerWindow(), FMUContainerWindow()

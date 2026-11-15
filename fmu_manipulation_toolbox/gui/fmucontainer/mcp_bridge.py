@@ -21,22 +21,28 @@ returns the result to the calling worker thread.
 
 import logging
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from collections.abc import Callable
 
 from PySide6.QtCore import QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import QWidget
 
 from fmu_manipulation_toolbox.assistant import (
-    BUILD_TIMEOUT_FACTOR, DEFAULT_HOST, PORT_ENV_VAR, TIMEOUT_ENV_VAR, build_server,
-    resolve_port, resolve_timeout,
+    BUILD_TIMEOUT_FACTOR,
+    DEFAULT_HOST,
+    PORT_ENV_VAR,
+    TIMEOUT_ENV_VAR,
+    build_server,
+    resolve_port,
+    resolve_timeout,
 )
 from fmu_manipulation_toolbox.assistant.auth import (
-    TOKEN_ENV_VAR, build_auth_middleware, resolve_token,
+    TOKEN_ENV_VAR,
+    build_auth_middleware,
+    resolve_token,
 )
 from fmu_manipulation_toolbox.assistant.bridge import SUPPORTED_FMI_VERSIONS
-
 from fmu_manipulation_toolbox.gui.log import GuiLogHandler, window_log_context
 
 from .details import ContainerParameters

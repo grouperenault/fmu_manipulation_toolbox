@@ -14,7 +14,10 @@ pytestmark = [pytest.mark.unit]
 fastmcp = pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
 
 from fmu_manipulation_toolbox.assistant.auth import (  # noqa: E402
-    GENERATE, TOKEN_ENV_VAR, build_auth_middleware, resolve_token,
+    GENERATE,
+    TOKEN_ENV_VAR,
+    build_auth_middleware,
+    resolve_token,
 )
 
 

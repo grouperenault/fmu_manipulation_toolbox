@@ -10,11 +10,10 @@ from pathlib import Path
 
 import pytest
 
+from _helpers.assertions import assert_file_exist, assert_identical_files
+from _helpers.simulation import assert_simulation
 from fmu_manipulation_toolbox.assembly import Assembly
 from fmu_manipulation_toolbox.cli.datalog2pcap import datalog2pcap
-
-from _helpers.assertions import assert_identical_files, assert_file_exist
-from _helpers.simulation import assert_simulation
 
 pytestmark = [pytest.mark.integration]
 

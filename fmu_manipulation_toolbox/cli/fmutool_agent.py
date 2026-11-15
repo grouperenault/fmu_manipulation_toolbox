@@ -31,11 +31,11 @@ import typing
 from pathlib import Path
 from typing import Any, Literal
 
-from .utils import make_wide
 from ..assistant.headless import DEFAULT_CONTAINER_NAME, HeadlessAssemblyBridge
 from ..assistant.paths import PathPolicy, PathValidationError
 from ..assistant.tools import TOOLS, Toolbox, is_actionable
 from ..version import __version__ as version
+from .utils import make_wide
 
 #: Tools working on the assembly: they need `--state`.
 ASSEMBLY_TOOLS = frozenset({
@@ -254,6 +254,7 @@ def run(argv=None) -> int:
         bridge = load_state(state, options.name)
         result = getattr(Toolbox(bridge, policy), options.tool)(**arguments)
         if options.tool in CHANGING_TOOLS:
+            assert state is not None
             save_state(state, bridge)
         _print(result)
         return 0

@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import logging
 import os
 import re
@@ -7,7 +8,6 @@ import tempfile
 import weakref
 import xml.etree.ElementTree as ET
 import zipfile
-import hashlib
 
 from .model_description import ModelDescription, ModelDescriptionError, ModelVariable
 from .terminals import Terminals
@@ -140,7 +140,7 @@ class FMU:
         """
         self._check_open()
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as zout:
-            for root, dirs, files in os.walk(self.tmp_directory):
+            for root, _dirs, files in os.walk(self.tmp_directory):
                 for file in files:
                     zout.write(os.path.join(root, file),
                                os.path.relpath(os.path.join(root, file), self.tmp_directory))
@@ -225,8 +225,8 @@ class Manipulation:
         model_description (ModelDescription | None): The descriptor tree, once loaded.
         port_translation (list[int | None]): Maps original port indices (0-based)
             to new 1-based indices, or `None` for removed ports.
-        port_names_list (list[str]): Original names of all encountered ports.
-        port_removed_vr (set[str]): Value references of removed ports.
+        port_names_list (list[str | None]): Original names of all encountered ports.
+        port_removed_vr (set[str | None]): Value references of removed ports.
     """
 
     def __init__(self, operation, fmu):
@@ -239,8 +239,8 @@ class Manipulation:
 
         self.current_port_number: int = 0
         self.port_translation: list[int | None] = []
-        self.port_names_list: list[str] = []
-        self.port_removed_vr: set[str] = set()
+        self.port_names_list: list[str | None] = []
+        self.port_removed_vr: set[str | None] = set()
 
         self.operation.set_fmu(fmu)
 
@@ -344,7 +344,7 @@ class Manipulation:
 
     # ------------------------------------------------------- Conformity checks
     @staticmethod
-    def all_names(md: ModelDescription) -> list[str]:
+    def all_names(md: ModelDescription) -> list[str | None]:
         """Names of variables and FMI 3.0 aliases, which must all be unique."""
         names = [variable.get("name") for variable in md.variables()]
         if md.fmi_version == 3:
@@ -352,7 +352,7 @@ class Manipulation:
         return names
 
     @classmethod
-    def duplicate_names(cls, md: ModelDescription) -> set[str]:
+    def duplicate_names(cls, md: ModelDescription) -> set[str | None]:
         seen, duplicates = set(), set()
         for name in cls.all_names(md):
             if name in seen:
@@ -423,7 +423,9 @@ class Manipulation:
             return  # nothing removed
         for variable in md.variables():
             typed = ModelVariable(variable, 2).typed_element
-            derivative = typed.get("derivative") if typed is not None else None
+            if typed is None:
+                continue
+            derivative = typed.get("derivative")
             if derivative and derivative.isdigit() and 0 < int(derivative) <= len(self.port_translation):
                 typed.set("derivative", str(self.port_translation[int(derivative) - 1]))
 
@@ -448,9 +450,9 @@ class Manipulation:
                     structure.remove(section)
         else:
             skipped = []
-            for section, entry in md.model_structure_entries():
+            for section_name, entry in md.model_structure_entries():
                 try:
-                    self.handle_structure(section, entry.attrib)
+                    self.handle_structure(section_name, entry.attrib)
                 except ManipulationSkipTag:
                     skipped.append(entry)
             self.remove_children(structure, skipped)
@@ -499,7 +501,7 @@ class Manipulation:
         """`(dependency, dependencyKind)` pairs; the kind is `None` without `dependenciesKind`."""
         dependencies = attrs['dependencies'].split(' ')
         if 'dependenciesKind' in attrs:
-            return list(zip(dependencies, attrs['dependenciesKind'].split(' ')))
+            return list(zip(dependencies, attrs['dependenciesKind'].split(' '), strict=False))
         return [(dependency, None) for dependency in dependencies]
 
     @staticmethod
@@ -507,8 +509,8 @@ class Manipulation:
         """Write back filtered `dependencies` (and `dependenciesKind`), or drop them if empty."""
         if kept:
             attrs['dependencies'] = " ".join(dependency for dependency, _ in kept)
-            if 'dependenciesKind' in attrs:
-                attrs['dependenciesKind'] = " ".join(kind for _, kind in kept)
+            if 'dependenciesKind' in attrs:     # then every dependency has a kind (dependency_pairs)
+                attrs['dependenciesKind'] = " ".join(kind for _, kind in kept if kind is not None)
         else:
             attrs.pop('dependencies')
             attrs.pop('dependenciesKind', None)
@@ -544,7 +546,7 @@ class OperationAbstract:
             which is always safe.
     """
 
-    fmu: FMU = None
+    fmu: FMU | None = None
     model_description: ModelDescription | None = None
     read_only: bool = False
 
@@ -778,9 +780,9 @@ class OperationRenameFromCSV(OperationRename):
                 for row in reader:
                     translations[row[0]] = row[1]
         except FileNotFoundError:
-            raise OperationError(f"file '{csv_filename}' is not found")
+            raise OperationError(f"file '{csv_filename}' is not found") from None
         except IndexError:
-            raise OperationError(f"file '{csv_filename}' should contain two columns")
+            raise OperationError(f"file '{csv_filename}' should contain two columns") from None
         super().__init__(translations)
 
 
@@ -866,7 +868,7 @@ class OperationSummary(OperationAbstract):
         self.number_of_event_indicators = 0
 
     def __repr__(self):
-        return f"FMU Summary"
+        return "FMU Summary"
 
     def fmi_attrs(self, attrs):
         logger.info(f"| fmu filename = {self.fmu.fmu_filename}")
@@ -878,30 +880,30 @@ class OperationSummary(OperationAbstract):
                 hash_md5.update(chunk)
         digest = hash_md5.hexdigest()
         logger.info(f"| MD5Sum = {digest}")
-        logger.info(f"|")
-        logger.info(f"| FMI properties: ")
+        logger.info("|")
+        logger.info("| FMI properties: ")
         for (k, v) in attrs.items():
             logger.info(f"|  - {k} = {v}")
-        logger.info(f"|")
+        logger.info("|")
 
     def cosimulation_attrs(self, attrs):
         logger.info("| Co-Simulation capabilities: ")
         for (k, v) in attrs.items():
             logger.info(f"|  - {k} = {v}")
-        logger.info(f"|")
+        logger.info("|")
 
     def modelexchange_attrs(self, attrs):
         self.has_model_exchange = True
         logger.info("| Model Exchange capabilities: ")
         for (k, v) in attrs.items():
             logger.info(f"|  - {k} = {v}")
-        logger.info(f"|")
+        logger.info("|")
 
     def experiment_attrs(self, attrs):
         logger.info("| Default Experiment values: ")
         for (k, v) in attrs.items():
             logger.info(f"|  - {k} = {v}")
-        logger.info(f"|")
+        logger.info("|")
 
     def port_attrs(self, fmu_port) -> int:
         causality = fmu_port.get("causality", "local")
@@ -922,7 +924,7 @@ class OperationSummary(OperationAbstract):
             pass  # no binaries
 
         if os.path.isdir(os.path.join(self.fmu.tmp_directory, "sources")):
-            logger.info(f"|  - RT (sources available)")
+            logger.info("|  - RT (sources available)")
 
         resource_dir = os.path.join(self.fmu.tmp_directory, "resources")
         if os.path.isdir(resource_dir):
@@ -972,7 +974,7 @@ class OperationRemoveSources(OperationAbstract):
     """
 
     def __repr__(self):
-        return f"Remove sources"
+        return "Remove sources"
 
     def closure(self):
         try:

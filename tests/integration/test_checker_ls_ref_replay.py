@@ -85,8 +85,8 @@ def test_reference_that_differs(fmus, tmp_path, caplog):
     path = _patched(fmus("3.0", "Feedthrough"), tmp_path / "Feedthrough.fmu", f"{REF}/ref.csv", "1.5,5,5,true",
                     "1.5,5.1,5,false")
     errors = _check(path, caplog).errors
-    assert "Experiment 'Stimuli' of 'experiments.xml': output 'Float64_continuous_output' differs from the references " \
-           "at t=1.5: expected 5.1, simulated 5.0 (maximal error 0.1 at t=1.5)." in errors
+    assert "Experiment 'Stimuli' of 'experiments.xml': output 'Float64_continuous_output' differs from the " \
+           "references at t=1.5: expected 5.1, simulated 5.0 (maximal error 0.1 at t=1.5)." in errors
     assert "Experiment 'Stimuli' of 'experiments.xml': output 'Boolean_output' differs from the references at t=1.5: " \
            "expected false, simulated true (maximal error 1 at t=1.5)." in errors
 

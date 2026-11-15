@@ -6,7 +6,6 @@ import re
 from collections import defaultdict
 from collections.abc import Iterable
 
-
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
 

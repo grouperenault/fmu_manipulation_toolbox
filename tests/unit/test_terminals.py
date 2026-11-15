@@ -9,7 +9,6 @@ link is emitted), as well as the XML parser's tolerance to malformed input.
 """
 import io
 import logging
-
 from pathlib import Path
 
 import pytest

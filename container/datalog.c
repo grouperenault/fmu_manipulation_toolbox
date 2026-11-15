@@ -6,7 +6,7 @@
 
 #include "fmi3Functions.h"
 
-#include "config.h"
+#include "file.h"
 #include "datalog.h"
 #include "container.h"
 
@@ -139,12 +139,12 @@ static datalog_t *datalog_init(void) {
 }
 
 
-int datalog_configure(config_file_t *config, datalog_t *datalog) {
+int datalog_configure(file_t *config, datalog_t *datalog) {
     const logger_t *logger = config->logger;
 
    LOGGER_WARNING("Container enable DATALOG.");
 
-    if (get_line(config)) {
+    if (file_get_line(config)) {
         LOGGER_ERROR("Cannot determine datalog file name");
         return -1;
     }
@@ -158,7 +158,7 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
 
 
 #define READ(variable, fmi_type, c_type)                                                                         \
-    if (get_line(config)) {                                                                                      \
+    if (file_get_line(config)) {                                                                                      \
         LOGGER_ERROR("Cannot determine datalog for " #variable);                                                 \
         return -3;   /* the datalog is freed by datalog_new() */                                                 \
     }                                                                                                            \
@@ -175,7 +175,7 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
         }                                                                                                        \
         for(unsigned long i=0; i < datalog->nb_ ## variable; i += 1) {                                           \
             int offset = 0;                                                                                      \
-            if (get_line(config)) {                                                                              \
+            if (file_get_line(config)) {                                                                              \
                 LOGGER_ERROR("Cannot get definition of " #variable);                                             \
                 return -6;                                                                                       \
             }                                                                                                    \
@@ -207,15 +207,15 @@ int datalog_configure(config_file_t *config, datalog_t *datalog) {
 
 
 datalog_t *datalog_new(const logger_t *logger, const char *dirname) {
-    config_file_t config;
+    file_t config;
 
-    if (config_file_open(&config, logger, dirname, "datalog.txt"))
+    if (file_open(&config, logger, dirname, "datalog.txt"))
         return NULL;
 
     datalog_t *datalog = datalog_init();
     if (!datalog) {
         LOGGER_ERROR("Cannot allocate datalog memory.");
-        config_file_close(&config);
+        file_close(&config);
         return NULL;
     }
 
@@ -224,15 +224,23 @@ datalog_t *datalog_new(const logger_t *logger, const char *dirname) {
 
     if (datalog_configure(&config, datalog)) {
         datalog_free(datalog);
-        config_file_close(&config);
+        file_close(&config);
         return NULL;
     }
 
-    config_file_close(&config);
+    file_close(&config);
 
     return datalog;
 
 #undef READ
+}
+
+
+/* The rows of a communication step are in the file once the container returns from fmi*DoStep: a crash of the
+   importer loses one step at most. */
+void datalog_flush(datalog_t *datalog) {
+    if (datalog && datalog->file)
+        fflush(datalog->file);
 }
 
 

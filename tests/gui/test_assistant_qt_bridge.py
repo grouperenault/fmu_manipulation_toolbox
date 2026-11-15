@@ -66,7 +66,8 @@ def mcp_server(qapp, data_dir):
     """An MCP server bound to a live Container Builder window."""
     from fmu_manipulation_toolbox.gui.fmucontainer.__main__ import MainWindow
     from fmu_manipulation_toolbox.gui.fmucontainer.mcp_bridge import (
-        MainThreadInvoker, QtAssemblyBridge,
+        MainThreadInvoker,
+        QtAssemblyBridge,
     )
 
     window = MainWindow()
@@ -453,7 +454,8 @@ def test_import_assembly_replaces_the_canvas_and_save_assembly_writes_ssp(mcp_se
 
     async def scenario():
         async with fastmcp.Client(server) as client:
-            await client.call_tool("add_fmu", {"path": str(data_dir / "containers" / "bouncing_ball" / "bb_position.fmu")})
+            await client.call_tool("add_fmu",
+                                   {"path": str(data_dir / "containers" / "bouncing_ball" / "bb_position.fmu")})
             with pytest.raises(Exception, match="replace=True"):
                 await client.call_tool("import_assembly", {"path": str(source)})
 

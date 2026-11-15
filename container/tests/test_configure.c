@@ -3,18 +3,19 @@
 
 #include "fmi2Functions.h"
 
+#include "config.h"
 #include "container.h"
 #include "test.h"
 
 /*
- * Configuration of a container from its container.txt (container_configure).
+ * Configuration of a container from its container.txt (config_container).
  */
 
 int test_configure_empty(void) {
     container_t *container = container_new("empty", "{uuid}", 2);
 
     TEST_ASSERT(container != NULL);
-    TEST_ASSERT_EQUAL_INT(0, container_configure(container, "file://" TEST_DATA_DIR "/empty"));
+    TEST_ASSERT_EQUAL_INT(0, config_container(container, "file://" TEST_DATA_DIR "/empty"));
     TEST_ASSERT_EQUAL_INT(0, container->nb_fmu);
     TEST_ASSERT_EQUAL_INT(1, container->reals64.nb_locals);
     TEST_ASSERT_EQUAL_INT(2, container->integers32.nb_locals);
@@ -34,7 +35,7 @@ int test_container_new_null(void) {
     container_t *container = container_new("name", "{uuid}", 2);
     TEST_ASSERT(container != NULL);
     TEST_ASSERT(container->logger.callback.logger_fmi2 == NULL);   /* every member starts at zero */
-    TEST_ASSERT(container_configure(container, NULL) != 0);        /* no resources */
+    TEST_ASSERT(config_container(container, NULL) != 0);        /* no resources */
     container_free(container);
 
     return 0;
@@ -121,6 +122,18 @@ int test_terminate_simulation(void) {
 
     TEST_ASSERT_EQUAL_INT(fmi2Error, fmi2DoStep(container, 0.3, 0.1, fmi2True));    /* no further step */
     fmi2FreeInstance(container);
+
+    return 0;
+}
+
+
+/* A configuration that fails before the allocation of the local binaries leaves their count without them. */
+int test_free_without_local_binaries(void) {
+    container_t *container = container_new("binaries", "{uuid}", 3);
+    TEST_ASSERT(container != NULL);
+    container->binaries.nb_locals = 3;
+    container->strings.nb_locals = 2;
+    container_free(container);                      /* must not crash */
 
     return 0;
 }

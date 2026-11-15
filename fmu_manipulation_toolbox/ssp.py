@@ -15,6 +15,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 from .assembly import ArchitectureWire, AssemblyError, AssemblyNode, instance_name
+from .container.types import MT_THRESHOLD
 from .model_description import ModelDescription, ModelDescriptionError, ModelVariable
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -48,9 +49,9 @@ def validate_ssd(content: bytes, label: str) -> int:
     except (UnicodeDecodeError, xmlschema.XMLSchemaException, ET.ParseError) as error:
         logger.warning(f"'{label}' cannot be validated against the SSP schema: {error}")
         return 1
-    for error in errors[:MAX_SSD_VALIDATION_WARNINGS]:
-        where = f" (at {error.path})" if error.path else ""
-        logger.warning(f"'{label}' is not valid against the SSP schema{where}: {error.reason}")
+    for validation_error in errors[:MAX_SSD_VALIDATION_WARNINGS]:
+        where = f" (at {validation_error.path})" if validation_error.path else ""
+        logger.warning(f"'{label}' is not valid against the SSP schema{where}: {validation_error.reason}")
     if len(errors) > MAX_SSD_VALIDATION_WARNINGS:
         logger.warning(f"'{label}': {len(errors) - MAX_SSD_VALIDATION_WARNINGS} more validation error(s).")
     return len(errors)
@@ -140,12 +141,12 @@ class SSDParser:
         self.ignored_components: set[str] = set()
         self.node_attrs = kwargs
         self.connectors: dict[tuple[int, str | None], dict[str, SSDConnector]] = {}
-        self.units: dict[str, dict[str, str]] = {}
+        self.units: dict[str | None, dict[str, str]] = {}
         self.ssd_filename = ""
         self._sources: dict[tuple[int, str], str] = {}  # (system, component) => source in the archive
         self._variables: dict[str, dict[str, str]] = {}  # source => variable name => causality
         self._used_connectors: set[tuple[int, str]] = set()  # (system, connector) of the system used
-        self._fmus: dict[str, tuple[ModelDescription, dict[str, ModelVariable]]] = {}  # source => description
+        self._fmus: dict[str, tuple[ModelDescription, dict[str | None, ModelVariable]]] = {}  # source => description
         # Structure kept for the parameter bindings, resolved once the whole file is read.
         self._depth: dict[int, int] = {}  # system => depth (root: 0)
         self._elements: dict[int, dict[str, tuple[str, Any]]] = {}  # system => element => (kind, details)
@@ -480,7 +481,7 @@ class SSDParser:
             self._variables[source] = {name: variable.causality for name, variable in variables.items()}
         return self._variables[source]
 
-    def _fmu_description(self, element: str, source: str) -> tuple[ModelDescription, dict[str, ModelVariable]]:
+    def _fmu_description(self, element: str, source: str) -> tuple[ModelDescription, dict[str | None, ModelVariable]]:
         """Description of the FMU `source` of the archive, and its variables by name (FMI 3.0 aliases included)."""
         if source not in self._fmus:
             try:
@@ -514,11 +515,12 @@ class SSDParser:
                 if attribute not in attrs:
                     continue
                 value = attrs[attribute]
-                if option == "step_size":
+                if option in ("step_size", "mt_threshold"):
                     try:
-                        node.step_size = float(value)
+                        setattr(node, option, float(value))
                     except ValueError:
-                        logger.warning(f"'{self.ssd_filename}': step size '{value}' of '{node.name}' is not a number.")
+                        logger.warning(f"'{self.ssd_filename}': {option.replace('_', ' ')} '{value}' of '{node.name}' "
+                                       f"is not a number.")
                 else:
                     setattr(node, option, value == "true")
             logger.info(f"'{self.ssd_filename}': options of '{node.name}' read from the SSP file (they prevail over "
@@ -578,8 +580,8 @@ class SSDParser:
             if base == "component":
                 component_source = self._sources.get((id(self.node_stack[-1]), name)) if kind == "component" else None
                 if component_source is None:
-                    raise AssemblyError(f"'{self.ssd_filename}': the parameter source '{source}' of {owner} is relative "
-                                        f"to a component, but {owner} is not an FMU component.")
+                    raise AssemblyError(f"'{self.ssd_filename}': the parameter source '{source}' of {owner} is "
+                                        f"relative to a component, but {owner} is not an FMU component.")
                 with zipfile.ZipFile(BytesIO(self.zin.read(component_source))) as fmu:
                     content = fmu.read(str(path))
             else:
@@ -594,7 +596,7 @@ class SSDParser:
                                 f"well-formed XML: {error}") from error
         return self._parameter_values(root, f"'{source}'")
 
-    def _parameter_values(self, element: ET.Element, label: str) -> list[tuple[str, str, str, str | None]]:
+    def _parameter_values(self, element: ET.Element, label: str) -> list[tuple[str | None, str, str, str | None]]:
         """(name, value type, value, unit) of each parameter of the `ssv:ParameterSet` found in `element` (itself
         or a descendant). The units it defines are added to `units`."""
         ssv, ssc = f"{{{self.SSV_NAMESPACE}}}", f"{{{self.SSC_NAMESPACE}}}"
@@ -645,6 +647,7 @@ class SSDParser:
         kind, details = self._elements.get(id(node), {}).get(component, (None, None))
         if kind != "component":
             return [] if kind == "ignored" else None
+        assert details is not None
         node, fmu_name, source = details
         _, variables = self._fmu_description(component, source)
         return [(node, fmu_name, source, name)] if name in variables else None
@@ -653,7 +656,7 @@ class SSDParser:
         """Variables of the FMUs that `name` designates in the system `node`: one of its connectors, followed
         through its connections, or `element.name` (D16)."""
         if name in self.connectors.get((id(node), None), {}):
-            found = []
+            found: list[tuple[AssemblyNode, str, str, str]] = []
             for attrs in self._system_connections.get(id(node), []):
                 if 'startElement' in attrs or attrs['startConnector'] != name:
                     continue
@@ -714,8 +717,9 @@ class SSDParser:
         definition = self._declared_type(md, port)
         return definition.get(attribute) if definition is not None else None
 
-    def _enumeration_items(self, md: ModelDescription, port: ModelVariable) -> dict[str, str]:
-        definition = self._declared_type(md, port)
+    @staticmethod
+    def _enumeration_items(md: ModelDescription, port: ModelVariable) -> dict[str, str]:
+        definition = SSDParser._declared_type(md, port)
         return {item.get("name"): item.get("value") for item in definition.iter("Item")} if definition is not None \
             else {}
 
@@ -799,7 +803,7 @@ CONTAINER_FORMAT_VERSION = "1"
 CONTAINER_OPTIONS = {"step_size": "stepSize", "mt": "mt", "profiling": "profiling", "sequential": "sequential",
                      "auto_link": "autoLink", "auto_input": "autoInput", "auto_output": "autoOutput",
                      "auto_parameter": "autoParameter", "auto_local": "autoLocal", "ts_multiplier": "tsMultiplier",
-                     "reset_ports": "resetPorts"}
+                     "reset_ports": "resetPorts", "mt_threshold": "mtThreshold"}
 
 #: SSP 1.0 knows the FMI 2.0 types only.
 SSP1_TYPES = {"Float32": "Real", "Float64": "Real", "Int8": "Integer", "UInt8": "Integer", "Int16": "Integer",
@@ -834,7 +838,7 @@ class SSPWriter:
         self.ssp_version = ssp_version
         self.fmu_directory = Path(assembly.fmu_directory)
         self._sources: dict[Path, str] = {}  # FMU file => member of the archive
-        self._descriptions: dict[Path, tuple[ModelDescription, dict[str, ModelVariable]]] = {}
+        self._descriptions: dict[Path, tuple[ModelDescription, dict[str | None, ModelVariable]]] = {}
 
     # ----------------------------------------------------------------------------------------------------- write
     def write(self, filename: str | Path) -> Path:
@@ -936,18 +940,19 @@ class SSPWriter:
                            connector(end_element, cport.port.name))
 
         # Architecture wires: synthetic connectors `aw.<peer>` (container.md#architecture-wires).
-        by_fmu = {fmu_name: elements[Path(fmu_name).name] for fmu_name in list(node.fmu_names_list) + list(node.children)}
+        by_fmu = {fmu_name: elements[Path(fmu_name).name]
+                  for fmu_name in list(node.fmu_names_list) + list(node.children)}
         for wire in node.architecture_wires:
-            start, end = by_fmu.get(wire.start_fmu), by_fmu.get(wire.end_fmu)
-            if start is None or end is None:
+            wire_start, wire_end = by_fmu.get(wire.start_fmu), by_fmu.get(wire.end_fmu)
+            if wire_start is None or wire_end is None:
                 continue
             directed = wire.orientation == "directed"
-            connectors[start][f"aw.{end}"] = ET.Element(f"{ssd}Connector", {"name": f"aw.{end}", "kind":
-                                                       "output" if directed else "unspecified"})
-            connectors[end][f"aw.{start}"] = ET.Element(f"{ssd}Connector", {"name": f"aw.{start}", "kind":
-                                                       "input" if directed else "unspecified"})
-            attrs = {"startElement": start, "startConnector": f"aw.{end}", "endElement": end,
-                     "endConnector": f"aw.{start}"}
+            connectors[wire_start][f"aw.{wire_end}"] = ET.Element(f"{ssd}Connector", {"name": f"aw.{wire_end}",
+                                                                  "kind": "output" if directed else "unspecified"})
+            connectors[wire_end][f"aw.{wire_start}"] = ET.Element(f"{ssd}Connector", {"name": f"aw.{wire_start}",
+                                                                  "kind": "input" if directed else "unspecified"})
+            attrs = {"startElement": wire_start, "startConnector": f"aw.{wire_end}", "endElement": wire_end,
+                     "endConnector": f"aw.{wire_start}"}
             if wire.description:
                 attrs["description"] = wire.description
             wire_connection = ET.Element(f"{ssd}Connection", attrs)
@@ -1045,7 +1050,7 @@ class SSPWriter:
         return 3 if 3 in versions else 2
 
     # ------------------------------------------------------------------------------------------------ connectors
-    def _description(self, path: Path) -> tuple[ModelDescription, dict[str, ModelVariable]]:
+    def _description(self, path: Path) -> tuple[ModelDescription, dict[str | None, ModelVariable]]:
         if path not in self._descriptions:
             with zipfile.ZipFile(path) as fmu:
                 md = ModelDescription.load(fmu.read("modelDescription.xml"))
@@ -1086,8 +1091,9 @@ class SSPWriter:
 
     def _system_connector(self, name: str, inner: ET.Element, kind: str) -> ET.Element:
         """A connector of the system, of the type of the connector it is connected to."""
-        if inner.get("kind") in ("parameter", "structuralParameter") and kind == "input":
-            kind = inner.get("kind")
+        inner_kind = inner.get("kind")
+        if inner_kind in ("parameter", "structuralParameter") and kind == "input":
+            kind = inner_kind
         element = ET.Element(f"{{{SSDParser.SSD_NAMESPACE}}}Connector", {"name": name, "kind": kind})
         for child in inner:
             element.append(ET.Element(child.tag, dict(child.attrib)))
@@ -1114,8 +1120,9 @@ class SSPWriter:
             value_type = self._type(variable.fmi_type if variable is not None else None) or "String"
             value = "true" if value is True else "false" if value is False else str(value)
             if value_type == "Enumeration":
+                assert variable is not None
                 items = {item_value: item for item, item_value in
-                         SSDParser._enumeration_items(SSDParser, md, variable).items()}
+                         SSDParser._enumeration_items(md, variable).items()}
                 if value in items:
                     value = items[value]
                 else:
@@ -1144,6 +1151,9 @@ class SSPWriter:
                 value = False  # the routing is written resolved (E9)
             if option == "step_size":
                 if value is not None:
+                    attrs[attribute] = repr(float(value))
+            elif option == "mt_threshold":
+                if value != MT_THRESHOLD:       # written when it is not the default, as in the JSON
                     attrs[attribute] = repr(float(value))
             else:
                 attrs[attribute] = "true" if value else "false"

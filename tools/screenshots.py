@@ -23,11 +23,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from PySide6.QtCore import Qt, QPoint, QRect, QItemSelectionModel    # noqa: E402
-from PySide6.QtGui import QPainter, QPixmap, QContextMenuEvent, QFontMetrics  # noqa: E402
-from PySide6.QtWidgets import QWidget, QMenu, QLineEdit, QPushButton  # noqa: E402
+from PySide6.QtCore import QItemSelectionModel, QPoint, QRect, Qt  # noqa: E402
+from PySide6.QtGui import QContextMenuEvent, QFontMetrics, QPainter, QPixmap  # noqa: E402
+from PySide6.QtWidgets import QLineEdit, QMenu, QPushButton, QWidget  # noqa: E402
 
-from fmu_manipulation_toolbox.gui.helper import Application           # noqa: E402
+from fmu_manipulation_toolbox.gui.helper import Application  # noqa: E402
 
 DOCS = ROOT / "docs"
 DATA = ROOT / "tests" / "data"
@@ -205,6 +205,7 @@ def fmutool_check():
 def fmutool_compile():
     """`Compile sources` on the FMI 3.0 Reference FMU `BouncingBall` copied without its binaries."""
     import zipfile
+
     from fmu_manipulation_toolbox.gui.fmutool.__main__ import MainWindow
     source = DATA / "compile" / "3.0" / "BouncingBall.fmu"
     target = WORK / "BouncingBall.fmu"
@@ -229,6 +230,7 @@ def fmutool_compile():
 def fmutool_compile_options():
     """The dialog of `Compile sources` after a failure: `model.c` of `BouncingBall` needs `FOO`."""
     import zipfile
+
     from fmu_manipulation_toolbox.gui.fmutool import __main__ as fmutool_gui
     source = DATA / "compile" / "3.0" / "BouncingBall.fmu"
     target = WORK / "BouncingBall.fmu"

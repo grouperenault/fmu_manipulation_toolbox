@@ -9,19 +9,32 @@ import sys
 from enum import Enum
 from typing import Any
 
-from PySide6.QtCore import Qt, QAbstractTableModel, QModelIndex, QSortFilterProxyModel
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QColor, QFont, QPen
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QSortFilterProxyModel, Qt
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
-    QMainWindow, QTableView, QHeaderView, QPushButton,
-    QVBoxLayout, QHBoxLayout, QWidget, QLabel,
-    QLineEdit, QGridLayout, QPlainTextEdit, QSizePolicy,
+    QGridLayout,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QMainWindow,
+    QPlainTextEdit,
+    QPushButton,
+    QSizePolicy,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
 )
 
-from fmu_manipulation_toolbox.operations import FMU, ModelVariable, OperationAbstract
-from fmu_manipulation_toolbox.gui.helper import (Application, DropZoneWidget, UnsavedChangesWindowMixin, LastDirectory,
-                                                 get_fmu_icon_path)
+from fmu_manipulation_toolbox.gui.helper import (
+    Application,
+    DropZoneWidget,
+    LastDirectory,
+    UnsavedChangesWindowMixin,
+    get_fmu_icon_path,
+)
 from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogStatusBar
-
+from fmu_manipulation_toolbox.operations import FMU, ModelVariable, OperationAbstract
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -607,7 +620,7 @@ class MainWindow(UnsavedChangesWindowMixin, QMainWindow):
                 logger.info(f"DefaultExperiment updated"
                             f" (startTime={new_start}, stopTime={new_stop}).")
             if desc_changed:
-                logger.info(f"FMU description updated.")
+                logger.info("FMU description updated.")
 
         fmu.repack(filename)
         logger.info(f"FMU saved as '{filename}'.")

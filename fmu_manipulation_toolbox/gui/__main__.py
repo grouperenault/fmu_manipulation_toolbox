@@ -10,17 +10,21 @@ Home window with 3 square buttons to launch:
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QDir, QSize
+from PySide6.QtCore import QDir, QSize, Qt
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
-    QApplication, QWidget, QLabel,
-    QPushButton, QToolButton, QVBoxLayout, QHBoxLayout,
+    QApplication,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
 
-from fmu_manipulation_toolbox.gui.style import gui_style
 from fmu_manipulation_toolbox.gui.helper import HelpWidget
+from fmu_manipulation_toolbox.gui.style import gui_style
 from fmu_manipulation_toolbox.version import __version__ as version
-
 
 RESOURCES = Path(__file__).parent / ".." / "resources"
 
@@ -57,7 +61,7 @@ class LauncherWindow(QWidget):
 
         # --- Logo / Title + Help ---
         top_bar = QHBoxLayout()
-        
+
         logo = QLabel()
         logo_pixmap = QPixmap(str(RESOURCES / "fmu_manipulation_toolbox.png"))
         if not logo_pixmap.isNull():

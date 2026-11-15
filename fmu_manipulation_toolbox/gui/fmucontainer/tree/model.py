@@ -6,7 +6,7 @@ Contains _NodeTreeModel and TreeItemRoles.
 
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QStandardItemModel, QStandardItem
+from PySide6.QtGui import QStandardItem, QStandardItemModel
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
 

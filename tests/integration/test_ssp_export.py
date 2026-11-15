@@ -41,8 +41,8 @@ def _shape(node: AssemblyNode) -> dict:
     return {
         "fmus": [name(fmu) for fmu in node.fmu_names_list],
         "files": sorted((name(fmu), Path(path).name) for fmu, path in node.fmu_paths.items()),
-        "links": sorted(f"{name(l.from_port.fmu_name)}/{l.from_port.port_name} -> "
-                        f"{name(l.to_port.fmu_name)}/{l.to_port.port_name}" for l in node.links),
+        "links": sorted(f"{name(link.from_port.fmu_name)}/{link.from_port.port_name} -> "
+                        f"{name(link.to_port.fmu_name)}/{link.to_port.port_name}" for link in node.links),
         "inputs": sorted((source, name(port.fmu_name), port.port_name) for port, source in node.input_ports.items()),
         "outputs": sorted((name(port.fmu_name), port.port_name, target) for port, target in node.output_ports.items()),
         "start": sorted((name(port.fmu_name), port.port_name, value) for port, value in node.start_values.items()),
@@ -131,7 +131,8 @@ def _enriched(ssd: str) -> str:
                       '</ssd:ParameterBindings>\n            </ssd:Component>\n        </ssd:Elements>',
                       f'<ssv:Parameters>{value}</ssv:Parameters>\n                            </ssv:ParameterSet>\n'
                       f'                        </ssd:ParameterValues>\n                    </ssd:ParameterBinding>\n'
-                      f'                </ssd:ParameterBindings>\n            </ssd:Component>\n        </ssd:Elements>')
+                      f'                </ssd:ParameterBindings>\n            </ssd:Component>\n'
+                      f'        </ssd:Elements>')
     return ssd.replace("</ssd:System>", '</ssd:System><ssd:DefaultExperiment startTime="0" stopTime="4"/>', 1)
 
 
@@ -175,6 +176,19 @@ def test_the_options_of_the_file_prevail_over_the_command_line(area_dir, caplog)
     assert (second.root.step_size, second.root.mt) == (0.02, False)
     # The system keeps the name of the assembly it was written from.
     assert "options of 'bouncing.fmu' read from the SSP file (they prevail over the command line)" in caplog.text
+
+
+@pytest.mark.area("containers/ssp")
+def test_the_threshold_of_the_multithreaded_mode_is_kept(area_dir):
+    """`mt_threshold` goes to the options annotation when it is not the default, and comes back from it."""
+    first = Assembly("bouncing.ssp")
+    first.root.mt_threshold = 0.002
+    first.write_ssp("threshold.ssp")
+    assert Assembly("threshold.ssp").root.mt_threshold == 0.002
+
+    Assembly("bouncing.ssp").write_ssp("default.ssp")
+    with zipfile.ZipFile("default.ssp") as ssp:
+        assert b"mtThreshold" not in ssp.read("SystemStructure.ssd")
 
 
 @pytest.mark.area("containers/ssp")
@@ -240,7 +254,7 @@ def test_connected_ports_of_different_units_suppress_the_conversion(tmp_path):
   </ModelVariables>
   <ModelStructure>{'<Outputs><Unknown index="1"/></Outputs>' if causality == 'output' else ''}</ModelStructure>
 </fmiModelDescription>
-"""
+"""  # noqa: E501
         with zipfile.ZipFile(tmp_path / f"{name}.fmu", "w") as archive:
             archive.writestr("modelDescription.xml", descriptor)
 

@@ -16,7 +16,12 @@ pytestmark = [pytest.mark.unit]
 fastmcp = pytest.importorskip("fastmcp", reason="the optional `mcp` extra is not installed")
 
 from _helpers.mcp_budget import (  # noqa: E402
-    DEFINITIONS_BUDGET, LARGE_FMU_VARIABLES, RESULT_BUDGET, make_large_assembly, make_large_fmu, measure,
+    DEFINITIONS_BUDGET,
+    LARGE_FMU_VARIABLES,
+    RESULT_BUDGET,
+    make_large_assembly,
+    make_large_fmu,
+    measure,
     measure_assembly,
 )
 
@@ -68,7 +73,7 @@ def test_the_large_assembly_is_consistent(tmp_path):
         for child in node.get("container", []):
             ports[child["name"]] = exposed[child["name"]]
 
-        def check(fmu, port, causality):
+        def check(fmu, port, causality, node=node, ports=ports):
             assert port in ports[Path(fmu).name][causality], f"{node['name']}: {fmu}/{port}"
 
         for _, fmu, port in node.get("input", []):

@@ -2,6 +2,7 @@ import argparse
 import logging
 import sys
 from enum import IntEnum
+
 from colorama import Fore, Style, init
 
 

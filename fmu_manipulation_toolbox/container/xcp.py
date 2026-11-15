@@ -125,7 +125,7 @@ def services(container: "FMUContainer") -> list[XcpService]:
                     continue                                    # protocol not used by the service
                 if _value(container, roles.get("Enable")) in ("false", "0"):
                     continue
-                port = _value(container, roles.get("Port"))
+                port: str | int | None = _value(container, roles.get("Port"))
                 if port is None and protocol in a2l:
                     port = a2l[protocol].port
                 result.append(XcpService(fmu, interface, protocol, int(port) if port is not None else None))

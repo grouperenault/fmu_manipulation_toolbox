@@ -10,11 +10,10 @@ from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.assembly import Assembly
-from fmu_manipulation_toolbox.container import FMUContainer
-
 from _helpers.archive import read_entry, rewrite_fmu
 from _helpers.simulation import simulate
+from fmu_manipulation_toolbox.assembly import Assembly
+from fmu_manipulation_toolbox.container import FMUContainer
 
 pytestmark = [pytest.mark.integration]
 

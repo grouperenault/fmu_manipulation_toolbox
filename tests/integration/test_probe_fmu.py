@@ -6,8 +6,8 @@ during the initialization, and the internal steps of a container driven with a c
 multiple of its own. Each test runs in its own temporary directory.
 """
 import csv
-import logging
 import importlib.util
+import logging
 import time
 import zipfile
 from pathlib import Path
@@ -53,8 +53,12 @@ def _slave_callbacks():
     """Callbacks with a logger for an FMU2Slave: fmpy 0.3.32 otherwise calls the freed logger of the last simulation
     given one (see tests/_helpers/simulation.py)."""
     from fmpy.fmi1 import calloc, free
-    from fmpy.fmi2 import (fmi2CallbackAllocateMemoryTYPE, fmi2CallbackFreeMemoryTYPE, fmi2CallbackFunctions,
-                           fmi2CallbackLoggerTYPE)
+    from fmpy.fmi2 import (
+        fmi2CallbackAllocateMemoryTYPE,
+        fmi2CallbackFreeMemoryTYPE,
+        fmi2CallbackFunctions,
+        fmi2CallbackLoggerTYPE,
+    )
 
     callbacks = fmi2CallbackFunctions()
     callbacks.logger = fmi2CallbackLoggerTYPE(lambda *args: None)
@@ -153,7 +157,7 @@ def test_trace_of_a_simulation(probe_dir):
 @pytest.mark.needs_compiler
 def test_y_init_is_frozen_after_initialization(probe_dir):
     """`u_cont` changed after the initialization does not change `y_init`."""
-    from fmpy import read_model_description, extract
+    from fmpy import extract, read_model_description
     from fmpy.fmi2 import FMU2Slave
 
     filename = _compile("Probe10ms")
@@ -297,8 +301,8 @@ def _same_field(a: str, b: str) -> bool:
 
 def _assert_same_trace(rows: list[list[str]], references: list[list[str]], label: str):
     assert len(rows) == len(references), f"{label}: {len(rows)} lines instead of {len(references)}"
-    for number, (row, reference) in enumerate(zip(rows, references), start=1):
-        assert len(row) == len(reference) and all(_same_field(a, b) for a, b in zip(row, reference)), \
+    for number, (row, reference) in enumerate(zip(rows, references, strict=True), start=1):
+        assert len(row) == len(reference) and all(_same_field(a, b) for a, b in zip(row, reference, strict=True)), \
             f"{label}, line {number}: {row} instead of {reference}"
 
 
@@ -356,6 +360,7 @@ def _build_and_simulate(directory: Path, probes: Path, description: dict, fmi_ve
     """Build `description` as a container in `directory` (current directory) and simulate it; the messages."""
     import json
     import shutil
+
     from fmu_manipulation_toolbox.assembly import Assembly
 
     for probe in probes.glob("*-host.fmu"):
@@ -447,11 +452,13 @@ def test_propagation_loop(probe_dir, compiled_probes, caplog):
 def test_propagation_before_a_get_in_initialization_mode(probe_dir, compiled_probes):
     """An output of the container read by the importer in Initialization Mode is not propagated yet: the links are
     propagated when the container leaves its Initialization Mode."""
+    import json
     import shutil
+
     from fmpy import extract, read_model_description
     from fmpy.fmi2 import FMU2Slave
+
     from fmu_manipulation_toolbox.assembly import Assembly
-    import json
 
     for probe in compiled_probes.glob("*-host.fmu"):
         shutil.copy(probe, probe_dir)
@@ -487,7 +494,8 @@ def test_one_sub_container_per_rate(probe_dir, compiled_probes):
     """S4c: each probe gets its own step size, and an input seen by a step is the value at its beginning."""
     directory = _run_container().run("S4c", probe_dir, compiled_probes)
     for name, step, nb in (("A", 0.01, 20), ("B", 0.02, 10), ("C", 0.05, 4)):
-        steps = [line for line in _trace(directory / f"{name}.csv") if line["function"] == "fmi2DoStep" and not line["name"]]
+        steps = [line for line in _trace(directory / f"{name}.csv")
+                 if line["function"] == "fmi2DoStep" and not line["name"]]
         assert len(steps) == nb and all(float(line["h"]) == pytest.approx(step) for line in steps), name
     seen = {float(line["time"]): float(line["value"]) for line in _trace(directory / "B.csv")
             if line["function"] == "fmi2DoStep" and line["name"] == "u_cont"}
@@ -500,8 +508,10 @@ def _drive(probe_dir, compiled_probes, communication_step: float,
     current time before each call. The inputs seen by the steps of the probe, and the outputs after each call."""
     import json
     import shutil
+
     from fmpy import extract, read_model_description
     from fmpy.fmi2 import FMU2Slave
+
     from fmu_manipulation_toolbox.assembly import Assembly
 
     shutil.copy(compiled_probes / "Probe20ms-host.fmu", probe_dir)

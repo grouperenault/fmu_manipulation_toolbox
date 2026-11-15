@@ -13,11 +13,10 @@ from pathlib import Path
 
 import pytest
 
-from fmu_manipulation_toolbox.assembly import Assembly
-from fmu_manipulation_toolbox.container import FMUContainer
-
 from _helpers.assertions import VOLATILE_XML_ATTRIBUTES, assert_equivalent_xml, assert_identical_files
 from _helpers.simulation import assert_simulation, simulate
+from fmu_manipulation_toolbox.assembly import Assembly
+from fmu_manipulation_toolbox.container import FMUContainer
 
 pytestmark = [pytest.mark.integration]
 

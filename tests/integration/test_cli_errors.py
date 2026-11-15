@@ -17,9 +17,9 @@ import sys
 
 import pytest
 
-from fmu_manipulation_toolbox.cli.fmutool import fmutool
 from fmu_manipulation_toolbox.cli.fmucontainer import fmucontainer
 from fmu_manipulation_toolbox.cli.fmusplit import fmusplit
+from fmu_manipulation_toolbox.cli.fmutool import fmutool
 from fmu_manipulation_toolbox.cli.utils import ExitCode
 
 pytestmark = [pytest.mark.integration]

@@ -7,16 +7,39 @@ Contains classes for displaying and editing wire connection mappings.
 import csv
 from collections.abc import Iterable
 
-from PySide6.QtCore import Qt, Signal, QModelIndex, QSortFilterProxyModel
-from PySide6.QtGui import QStandardItemModel, QStandardItem, QColor, QTextDocument, QTextCursor, QTextCharFormat, QTextFormat, QFont
+from PySide6.QtCore import QModelIndex, QSortFilterProxyModel, Qt, Signal
+from PySide6.QtGui import (
+    QColor,
+    QFont,
+    QStandardItem,
+    QStandardItemModel,
+    QTextCharFormat,
+    QTextCursor,
+    QTextDocument,
+    QTextFormat,
+)
 from PySide6.QtWidgets import (
-    QWidget, QTableView, QLabel, QHeaderView, QVBoxLayout, QHBoxLayout,
-    QStyledItemDelegate, QAbstractItemView, QPushButton, QDialog, QLineEdit,
-    QFrame, QListWidget, QListWidgetItem, QTabWidget, QMessageBox,
+    QAbstractItemView,
+    QDialog,
+    QFrame,
+    QHBoxLayout,
+    QHeaderView,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QStyledItemDelegate,
+    QTableView,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
 
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import NodeItem, WireItem
-from fmu_manipulation_toolbox.gui.helper import unlock_column_resize, LastDirectory
+from fmu_manipulation_toolbox.gui.helper import LastDirectory, unlock_column_resize
+
 from .link_assistant import LinkAssistantDialog, WireSide
 from .link_matching import PortInfo, with_overlaps
 
@@ -902,7 +925,7 @@ class WireDetailWidget(QWidget):
         if not path:
             return
         mappings = []
-        with open(path, "r", newline="", encoding="utf-8") as f:
+        with open(path, newline="", encoding="utf-8") as f:
             reader = csv.reader(f)
             header = next(reader, None)
             if not header or len(header) < 4:

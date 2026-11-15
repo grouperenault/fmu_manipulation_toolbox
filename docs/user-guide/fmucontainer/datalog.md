@@ -10,7 +10,9 @@ You can enable datalog in two ways:
 
 When enabled, a CSV file is automatically generated.
 The file name is derived from the FMU container’s name and contains the values of all signals exchanged during the 
-simulation, recorded at each container time step.
+simulation, recorded at each container time step. The file is up to date at the end of each communication step
+(each `fmi2DoStep` / `fmi3DoStep` of the container): it can be read during the simulation, and a crash of the
+simulation tool loses the current step at most.
 
 ## CSV format
 

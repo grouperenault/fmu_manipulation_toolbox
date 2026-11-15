@@ -12,8 +12,15 @@ import pytest
 
 from fmu_manipulation_toolbox import model_description
 from fmu_manipulation_toolbox.checker import OperationGenericCheck
-from fmu_manipulation_toolbox.operations import (FMU, FMUError, OperationAbstract, OperationError,
-                                                 OperationSaveNamesToCSV, OperationStripTopLevel, OperationSummary)
+from fmu_manipulation_toolbox.operations import (
+    FMU,
+    FMUError,
+    OperationAbstract,
+    OperationError,
+    OperationSaveNamesToCSV,
+    OperationStripTopLevel,
+    OperationSummary,
+)
 
 pytestmark = [pytest.mark.unit]
 
@@ -109,4 +116,4 @@ def test_refused_operation_does_not_leave_a_half_modified_tree(fmu):
 def test_model_description_of_closed_fmu_raises(fmu):
     fmu.close()
     with pytest.raises(FMUError, match="is closed"):
-        fmu.model_description
+        _ = fmu.model_description

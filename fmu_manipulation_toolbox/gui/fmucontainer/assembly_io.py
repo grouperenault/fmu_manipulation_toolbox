@@ -12,13 +12,13 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from fmu_manipulation_toolbox.assembly import Assembly, AssemblyNode, AssemblyError
+from fmu_manipulation_toolbox.assembly import Assembly, AssemblyError, AssemblyNode
 from fmu_manipulation_toolbox.container import FMUContainerError
 from fmu_manipulation_toolbox.split import FMUSplitter
 
-from .graph import NodeItem, ConfigurationNode
-from .tree import _NodeTreeModel
 from .details import ContainerParameters
+from .graph import ConfigurationNode, NodeItem
+from .tree import _NodeTreeModel
 
 if TYPE_CHECKING:
     from .graph import NodeGraphWidget
@@ -80,6 +80,7 @@ class AssemblyIOMixin:
             name=assembly_node.name,
             step_size=assembly_node.step_size or "",
             mt=assembly_node.mt,
+            mt_threshold=assembly_node.mt_threshold,
             profiling=assembly_node.profiling,
             sequential=assembly_node.sequential,
             auto_link=assembly_node.auto_link,
@@ -456,7 +457,7 @@ class AssemblyIOMixin:
         # Now, for each child container, if it has exposed output ports,
         # also expose them at this level (so they bubble up to root)
         for child in assembly_node.children.values():
-            for port, exposed_name in child.output_ports.items():
+            for _port, exposed_name in child.output_ports.items():
                 assembly_node.add_output(child.name, exposed_name, exposed_name)
                 logger.debug(f"PROPAGATE OUTPUT: {child.name}/{exposed_name} → {assembly_node.name}")
 
@@ -476,7 +477,7 @@ class AssemblyIOMixin:
         # Now, for each child container, if it has exposed input ports,
         # also expose them at this level (so they bubble up to root)
         for child in assembly_node.children.values():
-            for port, exposed_name in child.input_ports.items():
+            for _port, exposed_name in child.input_ports.items():
                 assembly_node.add_input(exposed_name, child.name, exposed_name)
                 logger.debug(f"PROPAGATE INPUT: {assembly_node.name} → {child.name}/{exposed_name}")
 

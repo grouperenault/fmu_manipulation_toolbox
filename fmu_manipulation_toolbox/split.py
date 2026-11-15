@@ -2,15 +2,21 @@ import json
 import logging
 import re
 import zipfile
-
-from typing import Any
 from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import Any
 
-from .container.types import (ALL_TYPES, CONTAINER_TO_FMI, CONVERSION_FUNCTION, FMI_TO_CONTAINER,
-                              START_VALUE_TYPES, enumeration_as_integer)
+from .container.types import (
+    ALL_TYPES,
+    CONTAINER_TO_FMI,
+    CONVERSION_FUNCTION,
+    FMI_TO_CONTAINER,
+    MT_THRESHOLD,
+    START_VALUE_TYPES,
+    enumeration_as_integer,
+)
 from .model_description import ModelDescription, ModelDescriptionError
-from .terminals import Terminals, Terminal
+from .terminals import Terminal, Terminals
 from .textfiles import ENCODING
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -75,7 +81,7 @@ class FMUSplitter:
     def __init__(self, fmu_filename: str):
         self.fmu_filename = Path(fmu_filename)
         self.directory = self.fmu_filename.with_suffix(".dir")
-        self.zip = zipfile.ZipFile(self.fmu_filename)
+        self.zip: zipfile.ZipFile | None = zipfile.ZipFile(self.fmu_filename)
         self.filenames_list = self.zip.namelist()
         self.dir_set = self.get_dir_set()
 
@@ -107,11 +113,12 @@ class FMUSplitter:
         the FMU file does not exist): ``__del__`` must never raise."""
         if getattr(self, "zip", None) is not None:
             logger.debug("Closing zip file")
+            assert self.zip is not None
             self.zip.close()
             self.zip = None
 
     def split_fmu(self):
-        logger.info(f"Splitting...")
+        logger.info("Splitting...")
         config = self._split_fmu(fmu_filename=str(self.fmu_filename), relative_path="")
         config_filename = self.directory / self.fmu_filename.with_suffix(".json").name
         with open(config_filename, "w", encoding=ENCODING) as file:
@@ -150,6 +157,7 @@ class FMUSplitter:
     def extract_fmu(self, directory: str, filename: str):
         logger.debug(f"Extracting {directory} to {filename}")
         with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as fmu_file:
+            assert self.zip is not None
             for file in self.zip.namelist():
                 if file.startswith(directory) and len(file) > len(directory):
                     data = self.zip.read(file)
@@ -227,6 +235,8 @@ class FMUSplitterDescription:
         if fmu_filename == ".":
             self.fmi_version = fmi_version
         for port in model_description.iter_ports():
+            if port.fmi_type is None:
+                continue                            # no type element: not handled by the container
             fmi_type = enumeration_as_integer(port.fmi_type, fmi_version)  # as handled by the container
             container_type = FMI_TO_CONTAINER[fmi_version].get(fmi_type)
             if container_type is not None:
@@ -251,7 +261,7 @@ class FMUSplitterDescription:
         self._build_basename_map(fmu_filename)
 
     @property
-    def supported_fmi_types(self) -> tuple[str]:
+    def supported_fmi_types(self) -> tuple[str, ...]:
         if self.file_format == 0 or self.file_format == 1:
             return tuple(CONTAINER_TO_FMI[2].keys())
         elif self.file_format == 2:
@@ -260,7 +270,7 @@ class FMUSplitterDescription:
             return ALL_TYPES
 
     @property
-    def supported_fmi_types_start(self) -> tuple[str]:
+    def supported_fmi_types_start(self) -> tuple[str, ...]:
         if self.file_format == 0 or self.file_format == 1:
             return tuple(CONTAINER_TO_FMI[2].keys())
         elif self.file_format == 2:
@@ -269,7 +279,7 @@ class FMUSplitterDescription:
             return START_VALUE_TYPES
 
     def parse_txt_file_header(self, file, txt_filename):
-        logger.debug(f"*** HEADER ***")
+        logger.debug("*** HEADER ***")
         header = file.readline().decode('utf-8').strip()
         if "Version " in header:
             self.file_format = int(header[header.index("Version ")+8:])
@@ -288,6 +298,8 @@ class FMUSplitterDescription:
             self.config["mt"] = flags[0] == "1"
             self.config["profiling"] = flags[1] == "1"
             self.config["sequential"] = flags[2] == "1"
+            if len(flags) >= 4 and int(flags[3]) / 1e6 != MT_THRESHOLD:     # format ≥ 10, in µs
+                self.config["mt_threshold"] = int(flags[3]) / 1e6
             if self.file_format == 1:
                 self.file_format = 2
             logger.debug(f"File format: {self.file_format}")
@@ -335,7 +347,7 @@ class FMUSplitterDescription:
             _initialization_order = self.get_line(file)
 
         _nb_local_variables = self.get_line(file)
-        logger.debug(f"*** END OF HEADER ***")
+        logger.debug("*** END OF HEADER ***")
 
     def add_port(self, fmi_type: str, fmu_id: int, fmu_vr: int, container_vr: int, dim:int=1):
         if fmu_id >= 0:
@@ -372,7 +384,7 @@ class FMUSplitterDescription:
         for fmi_type in self.supported_fmi_types:
             logger.debug(f"*** container port {fmi_type} ***")
             nb_port_variables = self.get_line(file).split(" ")[0]
-            for i in range(int(nb_port_variables)):
+            for _i in range(int(nb_port_variables)):
                 tokens = self.get_line(file).split(" ")
                 if len(tokens) == 3:
                     self.file_format = 0
@@ -412,7 +424,8 @@ class FMUSplitterDescription:
             try:
                 return self.local_to_vr[fmi_type][int(local) & 0xFFFFFF]
             except KeyError:
-                raise FMUSplitterError(f"Cannot get pivot for {fmi_type} local={int(local) & 0xFFFFFF} ({local})")
+                raise FMUSplitterError(f"Cannot get pivot for {fmi_type} local={int(local) & 0xFFFFFF} "
+                                       f"({local})") from None
         else:
             return int(local)
 
@@ -442,7 +455,7 @@ class FMUSplitterDescription:
                     nb_input = int(self.get_line(file))
                     logger.debug(f"INPUT of {fmu_filename} {fmi_type} : {nb_input}")
 
-                    for i in range(nb_input):
+                    for _i in range(nb_input):
                         if self.file_format >= 4:
                             local, _dim, vr = self.get_line(file).split(" ")
                         else:
@@ -453,7 +466,7 @@ class FMUSplitterDescription:
                     if self.file_format >= 3 and not fmi_type == "clock":
                         nb_input = self.get_nb(self.get_line(file))
                         logger.debug(f"INPUT of {fmu_filename} {fmi_type} : CLOCKED {nb_input}")
-                        for i in range(nb_input):
+                        for _i in range(nb_input):
                             if self.file_format >= 4:
                                 # Line format:
                                 #   <FMU_VR_CLOCK> <n> [<LOCAL_OFFSET> <DIM> <FMU_VR>] × n
@@ -477,7 +490,7 @@ class FMUSplitterDescription:
                     nb_start_as_string = self.get_line(file).split(" ")[0]
                     nb_start = int(nb_start_as_string)
                     logger.debug(f"nb start for {fmu_filename} {fmi_type} : {nb_start}")
-                    for i in range(nb_start):
+                    for _i in range(nb_start):
                         tokens = self.get_line(file).split(" ")
                         vr = int(tokens[0])
                         value = tokens[-1]
@@ -493,7 +506,7 @@ class FMUSplitterDescription:
                     nb_output = int(self.get_line(file))
                     logger.debug(f"OUTPUT of {fmu_filename} {fmi_type} : {nb_output}")
 
-                    for i in range(nb_output):
+                    for _i in range(nb_output):
                         if self.file_format >= 4:
                             local, _dim, vr = self.get_line(file).split(" ")
                         else:
@@ -504,7 +517,7 @@ class FMUSplitterDescription:
                         nb_output = self.get_nb(self.get_line(file))
                         logger.debug(f"OUTPUT {fmi_type} : CLOCKED {nb_output}")
 
-                        for i in range(nb_output):
+                        for _i in range(nb_output):
                             if self.file_format >= 4:
                                 # Line format:
                                 #   <FMU_VR_CLOCK> <n> [<LOCAL_OFFSET> <DIM> <FMU_VR>] × n
@@ -527,7 +540,7 @@ class FMUSplitterDescription:
                 #conversion
                 if self.file_format > 1:
                     nb_conversion = int(self.get_line(file))
-                    for i in range(nb_conversion):
+                    for _i in range(nb_conversion):
                         tokens = self.get_line(file).split(" ")
                         vr_from = tokens[0]
                         vr_to = tokens[1]
@@ -633,7 +646,7 @@ class FMUSplitterDescription:
         bmap: dict[str, dict[str, frozenset[str]]] = {}
         for fmi_type, vr_dict in self.vr_to_name[fmu_filename].items():
             type_map: dict[str, set[str]] = {}
-            for vr, info in vr_dict.items():
+            for _vr, info in vr_dict.items():
                 m = self._ARRAY_ELEM_RE.match(info["name"])
                 if m:
                     type_map.setdefault(m.group(1), set()).add(info["name"])
@@ -734,7 +747,7 @@ class FMUSplitterDescription:
                 f"Aggregated {len(idx_list)} port-links into terminal "
                 f"connection: {key[0]}/{key[1]} ↔ {key[2]}/{key[3]}")
 
-        self.config["link"] = [l for i, l in enumerate(links) if i not in removed]
+        self.config["link"] = [link for i, link in enumerate(links) if i not in removed]
         self.config["link"].extend(added)
 
     def _terminal_variables(self) -> set[tuple[str, str]]:
@@ -754,8 +767,7 @@ class FMUSplitterDescription:
     def _terminal_variable_names(term: Terminal) -> Iterator[str]:
         """Yield every leaf variable name reachable from ``term`` (direct
         members and members of sub-terminals, recursively)."""
-        for var in term.members.values():
-            yield var
+        yield from term.members.values()
         for sub in term.sub_terminals.values():
             yield from FMUSplitterDescription._terminal_variable_names(sub)
 

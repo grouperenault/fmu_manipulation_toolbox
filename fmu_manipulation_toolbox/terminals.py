@@ -1,10 +1,8 @@
 import logging
 import xml.etree.ElementTree as ET
-
-from collections import Counter
+from collections import Counter, OrderedDict
 from collections.abc import Iterator
 from pathlib import Path
-from collections import OrderedDict
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
 
@@ -119,7 +117,7 @@ class Terminal:
     def connect_sequence(self, other) -> list[tuple[str, str]]:
         links = []
         if len(self.members) == len(other.members):
-            for member, other_member in zip(self.members.values(), other.members.values()):
+            for member, other_member in zip(self.members.values(), other.members.values(), strict=True):
                 links.append((member, other_member))
         else:
             logger.error(f"SEQUENCE Terminal '{self.name}' does not exactly fit Terminal '{other.name}'")

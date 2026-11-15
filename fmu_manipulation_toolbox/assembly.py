@@ -2,13 +2,14 @@ import csv
 import json
 import logging
 import os
-from collections.abc import Iterable
-from typing import Any
-from pathlib import Path
 import uuid
 import zipfile
+from collections.abc import Iterable
+from pathlib import Path
+from typing import Any
 
 from .container import FMUContainer
+from .container.types import MT_THRESHOLD
 from .textfiles import ENCODING, open_text
 
 logger = logging.getLogger("fmu_manipulation_toolbox")
@@ -220,6 +221,8 @@ class AssemblyNode:
         step_size (float | None): Internal fixed time step in seconds, or `None` to deduce
             from embedded FMUs.
         mt (bool): Whether multithreaded mode is enabled.
+        mt_threshold (float): Multithreaded mode: the embedded FMUs whose mean step takes at least this duration, in
+            seconds, get a worker thread.
         profiling (bool): Whether profiling mode is enabled.
         sequential (bool): Whether sequential scheduling is used.
         auto_link (bool): Automatically link ports with matching names and types.
@@ -251,10 +254,11 @@ class AssemblyNode:
         stop_time (float | None): Stop time of the default experiment of the container, likewise.
     """
 
-    def __init__(self, name: str, step_size: float = None, mt=False, profiling=False, sequential=False,
+    def __init__(self, name: str, step_size: float | str | None = None, mt=False, profiling=False, sequential=False,
                  auto_link=True, auto_input=True, auto_output=True, auto_parameter=False, auto_local=False,
-                 ts_multiplier=False, reset_ports=False):
+                 ts_multiplier=False, reset_ports=False, mt_threshold: float = MT_THRESHOLD):
         self.name = name
+        self.step_size: float | None
         if step_size:
             try:
                 self.step_size = float(step_size)
@@ -264,6 +268,10 @@ class AssemblyNode:
         else:
             self.step_size = None
         self.mt = mt
+        try:
+            self.mt_threshold = float(mt_threshold)
+        except (TypeError, ValueError):
+            raise AssemblyError(f"Threshold of the multithreaded mode '{mt_threshold}' is not a number.") from None
         self.profiling = profiling
         self.sequential = sequential
         self.auto_link = auto_link
@@ -467,7 +475,8 @@ class AssemblyNode:
             filename = self.name
 
         container.make_fmu(filename, self.step_size, mt=self.mt, profiling=self.profiling, sequential=self.sequential,
-                           debug=debug, ts_multiplier=self.ts_multiplier, datalog=datalog)
+                           debug=debug, ts_multiplier=self.ts_multiplier, datalog=datalog,
+                           mt_threshold=self.mt_threshold)
 
         for node in self.children.values():
             logger.info(f"Deleting transient FMU Container '{node.name}'")
@@ -558,14 +567,16 @@ class AssemblyNode:
         for to_port, input_port_name in self.input_ports.items():
             if to_port.fmu_name == fmu_name:
                 if self.parent:
-                    connections.append(Connection(self.parent.get_final_from(Port(self.name, input_port_name)), to_port))
+                    connections.append(Connection(self.parent.get_final_from(Port(self.name, input_port_name)),
+                                                  to_port))
                 else:
                     connections.append(Connection(Port(self.name, input_port_name), to_port))
 
         for from_port, output_port_name in self.output_ports.items():
             if from_port.fmu_name == fmu_name:
                 if self.parent:
-                    connections.append(Connection(from_port, self.parent.get_final_to(Port(self.name, output_port_name))))
+                    connections.append(Connection(from_port,
+                                                  self.parent.get_final_to(Port(self.name, output_port_name))))
                 else:
                     connections.append(Connection(from_port, Port(self.name, output_port_name))) ###HERE
 
@@ -613,11 +624,11 @@ class Assembly:
         root (AssemblyNode | None): Root node of the assembly tree.
     """
 
-    def __init__(self, filename: str | Path = None, default_step_size=None, default_auto_link=True,
+    def __init__(self, filename: str | Path | None = None, default_step_size=None, default_auto_link=True,
                  default_auto_input=True, debug=False, default_sequential=False, default_auto_output=True,
                  default_mt=False, default_profiling=False, fmu_directory: Path = Path("."),
                  default_auto_parameter=False, default_auto_local=False, default_ts_multiplier=False,
-                 default_reset_ports=False):
+                 default_reset_ports=False, default_mt_threshold: float = MT_THRESHOLD):
         self.filename = Path(filename) if filename else None
         self.default_auto_input = default_auto_input
         self.debug = debug
@@ -627,6 +638,7 @@ class Assembly:
         self.default_auto_parameter = default_auto_parameter
         self.default_auto_local = default_auto_local
         self.default_mt = default_mt
+        self.default_mt_threshold = default_mt_threshold
         self.default_sequential = default_sequential
         self.default_profiling = default_profiling
         self.default_ts_multiplier = default_ts_multiplier
@@ -640,7 +652,7 @@ class Assembly:
 
         if self.filename:
             self.input_pathname = fmu_directory / self.filename
-            self.description_pathname = self.input_pathname  # For inclusion in FMU
+            self.description_pathname: Path | None = self.input_pathname  # For inclusion in FMU
             self.read()
         else:
             self.description_pathname = None
@@ -664,7 +676,7 @@ class Assembly:
             else:
                 raise AssemblyError(f"Not supported file format '{self.filename}")
         else:
-            raise AssemblyError(f"Filename should be specified for reading.")
+            raise AssemblyError("Filename should be specified for reading.")
 
     def write(self, filename: str):
         """Export the assembly to a file.
@@ -691,7 +703,7 @@ class Assembly:
                                  sequential=self.default_sequential, auto_input=self.default_auto_input,
                                  auto_output=self.default_auto_output, auto_parameter=self.default_auto_parameter,
                                  auto_local=self.default_auto_local, ts_multiplier=self.default_ts_multiplier,
-                                 reset_ports=self.default_reset_ports)
+                                 reset_ports=self.default_reset_ports, mt_threshold=self.default_mt_threshold)
 
         with open_text(self.input_pathname) as file:
             reader = csv.reader(file, delimiter=';')
@@ -774,7 +786,7 @@ class Assembly:
             raise AssemblyError("This assembly embeds an FMU several times. Cannot export to CSV file: "
                                 "use the JSON format.")
 
-        with open(self.fmu_directory / filename, "wt", encoding=ENCODING) as outfile:
+        with open(self.fmu_directory / filename, "w", encoding=ENCODING) as outfile:
             outfile.write("rule;from_fmu;from_port;to_fmu;to_port\n")
             for fmu in self.root.fmu_names_list:
                 outfile.write(f"FMU;{fmu};;;\n")
@@ -800,7 +812,7 @@ class Assembly:
             try:
                 data = json.load(file)
             except json.decoder.JSONDecodeError as e:
-                raise AssemblyError(f"Cannot read json: {e}")
+                raise AssemblyError(f"Cannot read json: {e}") from e
         self.root = self._json_decode_node(data)
         if not self.root.name:
             self.root.name = str(self.filename.with_suffix(".fmu").name)
@@ -818,16 +830,18 @@ class Assembly:
         step_size = data.get("step_size", self.default_step_size)                           # 7
         ts_multiplier = data.get("ts_multiplier", self.default_ts_multiplier)               # 7b
         reset_ports = data.get("reset_ports", self.default_reset_ports)                     # 7c
+        mt_threshold = data.get("mt_threshold", self.default_mt_threshold)                  # 7d
 
         node = AssemblyNode(name, step_size=step_size, auto_link=auto_link, mt=mt, profiling=profiling,
                             sequential=sequential,
                             auto_input=auto_input, auto_output=auto_output, auto_parameter=auto_parameter,
-                            auto_local=auto_local, ts_multiplier=ts_multiplier, reset_ports=reset_ports)
+                            auto_local=auto_local, ts_multiplier=ts_multiplier, reset_ports=reset_ports,
+                            mt_threshold=mt_threshold)
 
         paths = {}
         for key, value in data.items():
             if key in ('name', 'step_size', 'auto_link', 'auto_input', 'auto_output', 'mt', 'profiling', 'sequential',
-                       'auto_parameter', 'auto_local', 'ts_multiplier', 'reset_ports'):
+                       'auto_parameter', 'auto_local', 'ts_multiplier', 'reset_ports', 'mt_threshold'):
                 continue  # Already read
 
             elif key == "container":  # 8
@@ -883,7 +897,8 @@ class Assembly:
             try:
                 function(*line)
             except TypeError:
-                raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: {line}.")
+                raise AssemblyError(f"JSON: '{keyword}' value does not contain right number of fields: "
+                                    f"{line}.") from None
 
     def write_ssp(self, filename: str | Path, ssp_version: str = "2.0") -> Path:
         """Write the assembly as an SSP archive: `SystemStructure.ssd` and the embedded FMUs.
@@ -924,7 +939,7 @@ class Assembly:
                 a built FMU).
         """
         output_pathname = self.fmu_directory / filename
-        with open(output_pathname, "wt", encoding=ENCODING) as file:
+        with open(output_pathname, "w", encoding=ENCODING) as file:
             data = self.json_encode()
             if basenames_only:
                 data = _basename_json(data)
@@ -940,7 +955,7 @@ class Assembly:
             return {}
 
     def _json_encode_node(self, node: AssemblyNode) -> dict[str, Any]:
-        json_node = dict()
+        json_node: dict[str, Any] = dict()
         json_node["name"] = node.name                      # 1
         json_node["mt"] = node.mt                          # 2
         json_node["profiling"] = node.profiling            # 3
@@ -959,6 +974,9 @@ class Assembly:
 
         if node.reset_ports:
             json_node["reset_ports"] = node.reset_ports     # 7c
+
+        if node.mt_threshold != MT_THRESHOLD:
+            json_node["mt_threshold"] = node.mt_threshold   # 7d
 
         if node.children:
             json_node["container"] = [self._json_encode_node(child) for child in node.children.values()]  # 8
@@ -1021,7 +1039,8 @@ class Assembly:
                 validate_ssd(zin.read("SystemStructure.ssd"), "SystemStructure.ssd")
                 sdd = SSDParser(zin, extract_folder.name, step_size=self.default_step_size, auto_link=False,
                                 mt=self.default_mt, profiling=self.default_profiling,
-                                auto_input=False, auto_output=False, auto_parameter=False)
+                                auto_input=False, auto_output=False, auto_parameter=False,
+                                mt_threshold=self.default_mt_threshold)
                 self.root = sdd.parse("SystemStructure.ssd")
                 self.root.name = str(self.filename.with_suffix(".fmu"))
             else:
@@ -1044,14 +1063,14 @@ class Assembly:
             self.write_json(dump_file)
 
     def get_flat_links(self) -> list[list[str]]:
-        links_list = []
+        links_list: list[list[str]] = []
 
         if self.root:
             self._get_flat_links_recursive(self.root, links_list)
 
         return links_list
 
-    def _get_flat_links_recursive(self, node: AssemblyNode, links_list, left_candidates = [], right_candidates = []):
+    def _get_flat_links_recursive(self, node: AssemblyNode, links_list, left_candidates=None, right_candidates=None):
         # internal links
         for connection in node.links:
             links_list.append([connection.from_port.fmu_name, connection.from_port.port_name,
