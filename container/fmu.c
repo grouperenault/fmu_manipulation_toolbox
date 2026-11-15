@@ -18,24 +18,24 @@
 
 /* Shared per-type IO translation loops. Defined at file scope so the plain and
    the continuous-only exchange functions share one implementation. */
-#define SET_INPUT(variable, fmi_type, c_type)                                                       \
-    for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                               \
-        const unsigned int fmu_vr = fmu_io->   variable .in.translations[i].fmu_vr;                 \
-        const unsigned int local_vr = fmu_io-> variable .in.translations[i].vr;                     \
-        const unsigned int dimension = fmu_io->variable .in.translations[i].dimension;              \
+#define SET_INPUT(variable, fmi_type, c_type)                                                               \
+    for (unsigned long i = 0; i < fmu_io-> variable .in.nb; i += 1) {                                       \
+        const unsigned int fmu_vr    = fmu_io-> variable .in.translations[i].fmu_vr;                        \
+        const unsigned int local_vr  = fmu_io-> variable .in.translations[i].vr;                            \
+        const unsigned int dimension = fmu_io-> variable .in.translations[i].dimension;                     \
         status = fmuSet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
-        if (status != FMU_STATUS_OK)                                                                \
-            return status;                                                                          \
+        if (status != FMU_STATUS_OK)                                                                        \
+            return status;                                                                                  \
     }
 
-#define GET_OUTPUT(variable, fmi_type, c_type)                                                      \
-    for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) {                                     \
-        const fmu_vr_t fmu_vr = fmu_io-> variable .out.translations[i].fmu_vr;                      \
-        const fmu_vr_t local_vr = fmu_io-> variable .out.translations[i].vr;                        \
-        const unsigned int dimension = fmu_io-> variable .out.translations[i].dimension;            \
+#define GET_OUTPUT(variable, fmi_type, c_type)                                                              \
+    for (size_t i = 0; i < fmu_io-> variable .out.nb; i += 1) {                                             \
+        const fmu_vr_t fmu_vr        = fmu_io-> variable .out.translations[i].fmu_vr;                       \
+        const fmu_vr_t local_vr      = fmu_io-> variable .out.translations[i].vr;                           \
+        const unsigned int dimension = fmu_io-> variable .out.translations[i].dimension;                    \
         status = fmuGet ## fmi_type (fmu, &fmu_vr, 1, &container-> variable .locals [local_vr], dimension); \
-        if (status != FMU_STATUS_OK)                                                                \
-            return status;                                                                          \
+        if (status != FMU_STATUS_OK)                                                                        \
+            return status;                                                                                  \
     }
 
 
@@ -49,6 +49,7 @@ int fmu_string_copy(fmu_string_t *string, const char *value) {
         string->max_size = size;
     }
     memcpy(string->data, value, size);
+
     return 0;
 }
 
@@ -64,6 +65,7 @@ int fmu_binary_copy(fmu_binary_t *binary, const uint8_t *data, size_t size) {
     if (size > 0)
         memcpy(binary->data, data, size);
     binary->size = size;
+
     return 0;
 }
 
@@ -196,7 +198,8 @@ fmu_status_t fmu_set_clocks_after_outputs(const fmu_t* fmu) {
     for (unsigned long i = 0; i < fmu_io->clocks.in.nb; i += 1) {
         const unsigned int fmu_vr = fmu_io->clocks.in.translations[i].fmu_vr;
         const unsigned int local_vr = fmu_io->clocks.in.translations[i].vr;
-        if (container->clocks.locals[local_vr] && (!fmu_clock_is_scheduled(container, local_vr) || fmu_clock_has_inputs(fmu, local_vr))) {
+        if (container->clocks.locals[local_vr] && (!fmu_clock_is_scheduled(container, local_vr) ||
+            fmu_clock_has_inputs(fmu, local_vr))) {
             fmu_status_t status = fmuSetClock(fmu, &fmu_vr, 1, &container->clocks.locals[local_vr]);
             if (status != FMU_STATUS_OK)
                 return status;

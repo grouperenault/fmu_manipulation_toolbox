@@ -1371,16 +1371,6 @@ fmu_status_t container_do_step(container_t* container, double currentCommunicati
 
 
 /*----------------------------------------------------------------------------
-                    I M P O R T E R   V A L U E S   C A C H E
-----------------------------------------------------------------------------*/
-
-/* Values set by the importer on the ports forwarded to embedded FMUs: they are set again after the reset of an
-   FMU. Returns 0, or -1 if a value cannot be stored. */
-
-
-
-
-/*----------------------------------------------------------------------------
                  R E A D   C O N F I G U R A T I O N
 ----------------------------------------------------------------------------*/
 
@@ -1766,16 +1756,16 @@ static int read_conf_io(container_t* container, config_file_t* file) {
 
 #define READ_CONF_IO(variable, fmi_type, c_type)                                                                \
     CONFIG_GETLINE;                                                                                             \
-    if (sscanf(file->line, "%lu %lu", &container-> variable .nb_ports, &nb_links) < 2) {                      \
+    if (sscanf(file->line, "%lu %lu", &container-> variable .nb_ports, &nb_links) < 2) {                        \
         CONFIG_ERROR("Cannot read container I/O " #variable ".");                                               \
         return -1;                                                                                              \
     }                                                                                                           \
-    if (container-> variable .nb_ports > 0) {                                                                 \
-        CONFIG_ALLOC(container-> variable .links, nb_links);                                                     \
-        CONFIG_ALLOC(container-> variable .ports, container-> variable .nb_ports);                           \
+    if (container-> variable .nb_ports > 0) {                                                                   \
+        CONFIG_ALLOC(container-> variable .links, nb_links);                                                    \
+        CONFIG_ALLOC(container-> variable .ports, container-> variable .nb_ports);                              \
                                                                                                                 \
         unsigned long vr_counter = 0;                                                                           \
-        for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                               \
+        for (unsigned long i = 0; i < container-> variable .nb_ports; i += 1) {                                 \
             container_port_t port = { 0 };    /* its cache is set by cache_new() */                             \
             fmu_vr_t vr;                                                                                        \
             int offset;                                                                                         \
@@ -1785,7 +1775,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                 CONFIG_ERROR("Cannot read container I/O " #variable " %luth details.", i);                      \
                 return -1;                                                                                      \
             }                                                                                                   \
-            port.links = &container-> variable .links [vr_counter];                                              \
+            port.links = &container-> variable .links [vr_counter];                                             \
             for(unsigned long j=0; j < port.nb; j += 1) {                                                       \
                 int read;                                                                                       \
                 long fmu_id;                                                                                    \
@@ -1800,7 +1790,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                     return -1;                                                                                  \
                 }                                                                                               \
                 if (fmu_id < 0) {   /* local (-1) or profiling (-2) variable: the values from fmu_vr */         \
-                    if (fmu_id < -2 || fmu_vr + port.dimension > container-> variable .nb_locals) {            \
+                    if (fmu_id < -2 || fmu_vr + port.dimension > container-> variable .nb_locals) {             \
                         CONFIG_ERROR("Container I/O " #variable ": local variable %u (dimension %lu) is out of "\
                                      "range.", fmu_vr, port.dimension);                                         \
                         return -8;                                                                              \
@@ -1809,24 +1799,24 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                     CONFIG_ERROR("Container I/O " #variable ": FMU index %ld is out of range.", fmu_id);        \
                     return -8;                                                                                  \
                 }                                                                                               \
-                container-> variable .links [vr_counter].fmu_id = (unsigned long)fmu_id;                         \
-                container-> variable .links [vr_counter].fmu_vr = fmu_vr;                                        \
-                container-> variable .links [vr_counter].cache.in_set = false;                                   \
-                container-> variable .links [vr_counter].cache.start_reset = -1;                                 \
+                container-> variable .links [vr_counter].fmu_id = (unsigned long)fmu_id;                        \
+                container-> variable .links [vr_counter].fmu_vr = fmu_vr;                                       \
+                container-> variable .links [vr_counter].cache.in_set = false;                                  \
+                container-> variable .links [vr_counter].cache.start_reset = -1;                                \
                 offset += read;                                                                                 \
                 vr_counter += 1;                                                                                \
             }                                                                                                   \
             vr &= 0xFFFFFF;                                                                                     \
-            if (vr < container-> variable .nb_ports)                                                          \
-                container-> variable .ports[vr] = port;                                                        \
+            if (vr < container-> variable .nb_ports)                                                            \
+                container-> variable .ports[vr] = port;                                                         \
             else {                                                                                              \
                 CONFIG_ERROR("Container I/O " #variable ": port %u is out of range.", vr);                      \
                 return -8;                                                                                      \
             }                                                                                                   \
         }                                                                                                       \
     } else {                                                                                                    \
-        container-> variable .links = NULL;                                                                      \
-        container-> variable .ports = NULL;                                                                    \
+        container-> variable .links = NULL;                                                                     \
+        container-> variable .ports = NULL;                                                                     \
     }
 
     FOR_ALL_NUMERIC_TYPES(READ_CONF_IO)
@@ -1852,35 +1842,35 @@ static int read_conf_io(container_t* container, config_file_t* file) {
  * 1
  * 1 2 1
  */
-#define READER_FMU_IO(type, causality)                                                              \
-    fmu_io-> type . causality .translations = NULL;                                                 \
-                                                                                                    \
-    CONFIG_GETLINE;                                                                                 \
-    if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) {                            \
-        CONFIG_ERROR("Cannot read FMU I/O number'" #type "' (" #causality ").");                    \
-        return -2;                                                                                  \
-    }                                                                                               \
-                                                                                                    \
-    if (fmu_io-> type . causality .nb > 0) {                                                        \
-        CONFIG_ALLOC(fmu_io-> type . causality .translations, fmu_io-> type . causality .nb);       \
-                                                                                                    \
-        for(unsigned long i = 0; i < fmu_io-> type . causality .nb; i += 1) {                       \
-            CONFIG_GETLINE;                                                                         \
-            if (sscanf(file->line, "%u %u %u",                                                      \
-                &fmu_io-> type . causality .translations[i].vr,                                     \
-                &fmu_io-> type . causality .translations[i].dimension,                              \
-                &fmu_io-> type . causality .translations[i].fmu_vr) < 3) {                          \
-                CONFIG_ERROR("Cannot read FMU %luth I/O for '" #type "' (" #causality ").", i);     \
-                return -5;                                                                          \
-            }                                                                                       \
-            fmu_io-> type . causality .translations[i].vr &= 0xFFFFFF;                              \
+#define READER_FMU_IO(type, causality)                                                                               \
+    fmu_io-> type . causality .translations = NULL;                                                                  \
+                                                                                                                     \
+    CONFIG_GETLINE;                                                                                                  \
+    if (sscanf(file->line, "%lu", &fmu_io-> type . causality .nb) < 1) {                                             \
+        CONFIG_ERROR("Cannot read FMU I/O number'" #type "' (" #causality ").");                                     \
+        return -2;                                                                                                   \
+    }                                                                                                                \
+                                                                                                                     \
+    if (fmu_io-> type . causality .nb > 0) {                                                                         \
+        CONFIG_ALLOC(fmu_io-> type . causality .translations, fmu_io-> type . causality .nb);                        \
+                                                                                                                     \
+        for(unsigned long i = 0; i < fmu_io-> type . causality .nb; i += 1) {                                        \
+            CONFIG_GETLINE;                                                                                          \
+            if (sscanf(file->line, "%u %u %u",                                                                       \
+                &fmu_io-> type . causality .translations[i].vr,                                                      \
+                &fmu_io-> type . causality .translations[i].dimension,                                               \
+                &fmu_io-> type . causality .translations[i].fmu_vr) < 3) {                                           \
+                CONFIG_ERROR("Cannot read FMU %luth I/O for '" #type "' (" #causality ").", i);                      \
+                return -5;                                                                                           \
+            }                                                                                                        \
+            fmu_io-> type . causality .translations[i].vr &= 0xFFFFFF;                                               \
             if (fmu_io-> type . causality .translations[i].vr + fmu_io-> type . causality .translations[i].dimension \
-                > container-> type .nb_locals) {                                                   \
-                CONFIG_ERROR("FMU %luth I/O for '" #type "' (" #causality "): local variable %u is out of range.", \
-                             i, fmu_io-> type . causality .translations[i].vr);                     \
-                return -5;                                                                          \
-            }                                                                                       \
-        }                                                                                           \
+                > container-> type .nb_locals) {                                                                     \
+                CONFIG_ERROR("FMU %luth I/O for '" #type "' (" #causality "): local variable %u is out of range.",   \
+                             i, fmu_io-> type . causality .translations[i].vr);                                      \
+                return -5;                                                                                           \
+            }                                                                                                        \
+        }                                                                                                            \
     }
 
 #define READER_FMU_CLOCKED_IO(type, causality)                                                                      \
@@ -1908,7 +1898,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                 return -5;                                                                                          \
             }                                                                                                       \
             fmu_io->clocked_ ## type . causality [i].clock_vr &= 0xFFFFFF;                                          \
-            if (fmu_io->clocked_ ## type . causality [i].clock_vr >= container->clocks.nb_locals) {                  \
+            if (fmu_io->clocked_ ## type . causality [i].clock_vr >= container->clocks.nb_locals) {                 \
                 CONFIG_ERROR("FMU %luth clocked I/O for '" #type "' (" #causality "): clock %u is out of range.", i,\
                              fmu_io->clocked_ ## type . causality [i].clock_vr);                                    \
                 return -5;                                                                                          \
@@ -1929,7 +1919,7 @@ static int read_conf_io(container_t* container, config_file_t* file) {
                 fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr &= 0xFFFFFF;          \
                 if (fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].vr                   \
                     + fmu_io->clocked_ ## type . causality [i].translations_list.translations[j].dimension          \
-                    > container-> type .nb_locals) {                                                               \
+                    > container-> type .nb_locals) {                                                                \
                     CONFIG_ERROR("FMU %luth clocked I/O for '" #type "' (" #causality "): local variable is out of "\
                                  "range.", i);                                                                      \
                     return -5;                                                                                      \
