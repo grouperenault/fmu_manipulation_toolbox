@@ -27,6 +27,11 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   results are unchanged. `container.txt` is now in version 10.
 - 🟢 **ADDED** an FMI 3.0 container declares its time step in the `fixedInternalStepSize` attribute of
   `<CoSimulation>`, also with the `TS_MULTIPLIER` input (its internal steps stay on the grid of the time step).
+- 🔵 **CHANGED** the step size of an embedded FMI 3.0 FMU is its `fixedInternalStepSize`, else the `stepSize` of its
+  `<DefaultExperiment>`; an FMU with a `fixedInternalStepSize` imposes its step on the container (least common
+  multiple), even when it can handle a variable communication step size. An FMI 3.0 sub-container thus imposes its
+  step on its parent. The GUI tree shows the same step sizes, in italics for the FMUs whose step does not constrain
+  the container. The FMI-LS-REF replay without `stepSize` keeps the `stepSize` of the `DefaultExperiment` of the FMU.
 - 🟢 **ADDED** option `-mt-threshold <seconds>` of `fmucontainer` (`"mt_threshold"` of the JSON description, of the
   SSP container options, of the container options of the GUI and of the AI Assistant, `mt_threshold` of `make_fmu`
   and of the assembly API): the threshold of the multi-threaded mode. See [Multi-Threading](docs/user-guide/fmucontainer/multi-threading.md).

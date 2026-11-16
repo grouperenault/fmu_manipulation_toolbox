@@ -226,7 +226,9 @@ class EmbeddedFMU(OperationAbstract):
             times, or another file with an already used filename.
         terminals (Terminals): FMI Terminals defined by this FMU.
         ls (LayeredStandard): LS-BUS layered standard information.
-        step_size (float | None): Preferred step size in seconds, or `None`.
+        step_size (float | None): Step size in seconds: the `fixedInternalStepSize` of an FMI 3.0 FMU, else the
+            `stepSize` of its `<DefaultExperiment>`, or `None`.
+        fixed_internal_step_size (bool): Whether `step_size` is the `fixedInternalStepSize` of an FMI 3.0 FMU.
         start_time (float | None): Default experiment start time.
         stop_time (float | None): Default experiment stop time.
         model_identifier (str | None): Co-simulation model identifier.
@@ -263,6 +265,7 @@ class EmbeddedFMU(OperationAbstract):
         self.ls = LayeredStandard(self.fmu.tmp_directory)
 
         self.step_size: float | None = None
+        self.fixed_internal_step_size = False
         self.start_time: float | None = None
         self.stop_time: float | None = None
         self.model_identifier: str | None = None
@@ -358,7 +361,20 @@ class EmbeddedFMU(OperationAbstract):
             self.has_event_mode = True
         for capability in self.capability_list:
             self.capabilities[capability] = attrs.get(capability, "false")
+        if self.fmi_version == 3 and "fixedInternalStepSize" in attrs:
+            try:
+                self.step_size = float(attrs["fixedInternalStepSize"])
+                self.fixed_internal_step_size = True
+            except ValueError:
+                logger.warning(f"FMU '{self.name}' declares an invalid fixedInternalStepSize "
+                               f"('{attrs['fixedInternalStepSize']}'): ignored.")
         logger.debug(f"FMU '{self.name}' is embedded in Co-Simulation mode.")
+
+    @property
+    def imposes_step_size(self) -> bool:
+        """Whether the container step must be a multiple of `step_size`: the FMU has a fixed internal step
+        (FMI 3.0), or cannot handle a variable communication step size."""
+        return self.fixed_internal_step_size or self.capabilities["canHandleVariableCommunicationStepSize"] == "false"
 
     def modelexchange_attrs(self, attrs):
         self.is_me = True
@@ -368,10 +384,14 @@ class EmbeddedFMU(OperationAbstract):
         logger.debug(f"FMU '{self.name}' provides Model-Exchange mode.")
 
     def experiment_attrs(self, attrs: dict[str, str]):
-        try:
-            self.step_size = float(attrs['stepSize'])
-        except KeyError:
-            logger.warning(f"FMU '{self.name}' does not specify preferred step size")
+        if self.fixed_internal_step_size:
+            logger.debug(f"FMU '{self.name}': fixedInternalStepSize={self.step_size}s takes precedence over "
+                         f"stepSize={attrs.get('stepSize')}.")
+        else:
+            try:
+                self.step_size = float(attrs['stepSize'])
+            except KeyError:
+                logger.warning(f"FMU '{self.name}' does not specify preferred step size")
         self.start_time = float(attrs.get("startTime", 0.0))
         self.stop_time = float(attrs.get("stopTime", self.start_time + 1.0))
 

@@ -168,7 +168,8 @@ def _simulate(directory: Path, fmu_filename: Path, experiment: Experiment, outpu
     fmus.mkdir()
     shutil.copy(fmu_filename, fmus / fmu_filename.name)
     step_size = _build_container(fmus, fmu_filename.name, experiment, outputs, stimuli, parameters,
-                                 directory / f"{IDENTIFIER}.fmu")
+                                 directory / f"{IDENTIFIER}.fmu",
+                                 _time(model_description.default_experiment, "stepSize"))
     extracted = directory / "container"
     with zipfile.ZipFile(directory / f"{IDENTIFIER}.fmu") as archive:
         archive.extractall(extracted)
@@ -301,9 +302,14 @@ def _quiet_builder():
 
 
 def _build_container(fmus: Path, fmu_name: str, experiment: Experiment, outputs: list[str],
-                     stimuli: TimeSeries | None, parameters: list[Parameter], destination: Path) -> float:
-    """Builds the temporary container; returns its step size."""
+                     stimuli: TimeSeries | None, parameters: list[Parameter], destination: Path,
+                     default_step_size: float | None) -> float:
+    """Builds the temporary container; returns its step size: the one of the experiment, else `default_step_size`
+    (the `stepSize` of the `DefaultExperiment` of the FMU, its communication step), else the one deduced by the
+    builder."""
     step_size = experiment.step_size
+    if step_size is None and default_step_size is not None and default_step_size > 0:
+        step_size = default_step_size
     try:
         with _quiet_builder():
             container = FMUContainer(IDENTIFIER, fmus, fmi_version=3)

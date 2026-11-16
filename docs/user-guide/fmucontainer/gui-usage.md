@@ -182,10 +182,13 @@ After renaming a container, the **Container Details** panel is refreshed immedia
 The second column of the tree view shows the step size of each item, in seconds. It is informative: it cannot be
 edited.
 
-- **FMU**: the step size declared by the FMU (`stepSize` of its `DefaultExperiment`); empty if the FMU declares none.
+- **FMU**: the step size declared by the FMU: the `fixedInternalStepSize` of an FMI 3.0 FMU, else the `stepSize` of
+  its `DefaultExperiment`; empty if the FMU declares none. It is shown in *italics* when the FMU can handle a variable
+  communication step size without a `fixedInternalStepSize`: its step then does not constrain the container.
 - **Container**: its `step_size` parameter (see [Container Details](#container-details)). When `step_size` is
   empty, the column shows, in *italics*, the step size deduced when the container is built: the least common
-  multiple of the step sizes of the FMUs that cannot handle a variable step size or, if all of them can, the
+  multiple of the step sizes of the FMUs that impose their step (a `fixedInternalStepSize`, or no variable step
+  size) or, if none does, the
   largest step size; 0.1 s if no FMU declares a step size. A sub-container counts as an FMU that can handle a
   variable step size.
 

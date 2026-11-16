@@ -93,7 +93,8 @@ or a simulation that does not end within **60 s** (`-ref-timeout`) fails this ex
 code of the process), the check and the other experiments go on.
 
 - **Times**: those of the experiment, else those of the `DefaultExperiment` of the FMU, else the first and last
-  instants of the references. Without `stepSize`, the step size is deduced from the FMU as `fmucontainer` does. The
+  instants of the references. Without `stepSize`, the step size is the `stepSize` of the `DefaultExperiment` of the
+  FMU, else it is deduced from the FMU as `fmucontainer` does. The
   `tolerance` of the experiment is not used.
 - **Stimuli** are interpolated at each communication point: linearly for the continuous real inputs, previous value
   for the others. The outputs are recorded at each communication point, after the stimuli of this instant.

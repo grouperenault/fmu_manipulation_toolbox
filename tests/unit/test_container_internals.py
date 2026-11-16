@@ -18,6 +18,7 @@ import pytest
 from fmu_manipulation_toolbox.container import (
     ArrayAggregate,
     ContainerLayout,
+    EmbeddedFMU,
     EmbeddedFMUPort,
     FMUContainer,
     FMUContainerError,
@@ -163,11 +164,12 @@ def test_array_aggregate_does_not_hide_an_existing_port():
 #                                  Step size                                    #
 # --------------------------------------------------------------------------- #
 def _container_with(tmp_path, *fmus) -> FMUContainer:
-    """A container whose embedded FMUs are only described by their step size and capability."""
+    """A container whose embedded FMUs are only described by their step size and capability, and optionally whether
+    this step size is a `fixedInternalStepSize` (FMI 3.0)."""
     container = FMUContainer("test", tmp_path)
-    for i, (step_size, variable) in enumerate(fmus):
+    for i, (step_size, variable, *fixed) in enumerate(fmus):
         container.involved_fmu[f"{i}.fmu"] = SimpleNamespace(
-            name=f"{i}.fmu", is_me=False, step_size=step_size,
+            name=f"{i}.fmu", is_me=False, step_size=step_size, imposes_step_size=bool(fixed and fixed[0]) or not variable,
             capabilities={"canHandleVariableCommunicationStepSize": "true" if variable else "false"})
     return container
 
@@ -180,7 +182,10 @@ def _container_with(tmp_path, *fmus) -> FMUContainer:
     ([(None, True), (None, True)], 0.1),           # no step size at all: default
     ([(0.2, False), (0.3, False)], 0.6),           # exact least common multiple, no float rounding
     ([(0.1, False), (0.3, False), (None, False)], 0.3),
-], ids=["variable", "fixed", "fixed-lcm", "mixed", "none", "exact-lcm", "exact-without-step"])
+    ([(0.2, True, True), (0.3, True, True)], 0.6),  # fixedInternalStepSize: imposed even with variable steps
+    ([(0.1, True, True), (0.5, True)], 0.1),
+], ids=["variable", "fixed", "fixed-lcm", "mixed", "none", "exact-lcm", "exact-without-step",
+        "fixed-internal", "fixed-internal-mixed"])
 def test_default_step_size(tmp_path, fmus, expected):
     assert _container_with(tmp_path, *fmus).default_step_size() == pytest.approx(expected)
 
@@ -192,6 +197,37 @@ def test_default_step_size_ignores_fmus_without_step_size(tmp_path):
 @pytest.mark.parametrize("step_size", [0.3, 2.0])
 def test_default_step_size_is_exact(tmp_path, step_size):
     assert _container_with(tmp_path, (step_size, False)).default_step_size() == pytest.approx(step_size)
+
+
+def _embedded_fmu(fmi_version: int, cosimulation: dict[str, str], experiment: dict[str, str]) -> EmbeddedFMU:
+    """An `EmbeddedFMU` fed with the callbacks of the walk of a `modelDescription.xml`, in the order of the XSD."""
+    fmu = EmbeddedFMU.__new__(EmbeddedFMU)
+    fmu.name = "m.fmu"
+    fmu.step_size = None
+    fmu.fixed_internal_step_size = False
+    fmu.has_event_mode = False
+    fmu.capabilities = {}
+    fmu.fmi_attrs({"fmiVersion": f"{fmi_version}.0", "guid": "g", "instantiationToken": "g"})
+    fmu.cosimulation_attrs({"modelIdentifier": "m", **cosimulation})
+    fmu.experiment_attrs(experiment)
+    return fmu
+
+
+@pytest.mark.parametrize("fmi_version, cosimulation, experiment, step_size, imposed", [
+    (3, {"fixedInternalStepSize": "0.2", "canHandleVariableCommunicationStepSize": "true"}, {"stepSize": "0.5"},
+     0.2, True),                                                                   # precedence over stepSize
+    (3, {"fixedInternalStepSize": "0.2"}, {}, 0.2, True),                          # without stepSize
+    (3, {"canHandleVariableCommunicationStepSize": "true"}, {"stepSize": "0.5"}, 0.5, False),
+    (3, {}, {"stepSize": "0.5"}, 0.5, True),                                       # no variable step size
+    (3, {"fixedInternalStepSize": "x", "canHandleVariableCommunicationStepSize": "true"}, {"stepSize": "0.5"},
+     0.5, False),                                                                  # invalid: ignored
+    (2, {"fixedInternalStepSize": "0.2", "canHandleVariableCommunicationStepSize": "true"}, {"stepSize": "0.5"},
+     0.5, False),                                                                  # not an FMI 2.0 attribute
+], ids=["precedence", "alone", "variable", "fixed", "invalid", "fmi2"])
+def test_step_size_of_an_embedded_fmu(fmi_version, cosimulation, experiment, step_size, imposed):
+    fmu = _embedded_fmu(fmi_version, cosimulation, experiment)
+    assert fmu.step_size == pytest.approx(step_size)
+    assert fmu.imposes_step_size is imposed
 
 
 def test_sanity_check_accepts_a_multiple_step_size(tmp_path, caplog):

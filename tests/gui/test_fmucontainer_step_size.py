@@ -1,9 +1,11 @@
 """Step size column of the tree of the Container Builder GUI.
 
-The second column shows, read-only, the step size of each FMU, and of each container: its `step_size` parameter, or
-when empty the step size the builder deduces from its content (in italics).
+The second column shows, read-only, the step size of each FMU (in italics when it handles a variable communication step
+and does not constrain its container), and of each container: its `step_size` parameter, or when empty the step size
+the builder deduces from its content (in italics).
 """
 import shutil
+import zipfile
 
 import pytest
 
@@ -111,6 +113,59 @@ def test_sub_container_step_size(window, ball):
     _set_step_size(window, sub, "0.5")
     assert _cell(window, sub).text() == "0.5 s"
     assert _cell(window, root).text() == "0.001 s"
+
+
+def _patched_fmu(source, destination, replacements: dict[str, str]):
+    """Copy of the FMU *source* whose `modelDescription.xml` has *replacements* applied."""
+    with zipfile.ZipFile(source) as original, zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as patched:
+        for entry in original.infolist():
+            data = original.read(entry)
+            if entry.filename == "modelDescription.xml":
+                text = data.decode("utf-8")
+                for old, new in replacements.items():
+                    assert old in text
+                    text = text.replace(old, new)
+                data = text.encode("utf-8")
+            patched.writestr(entry, data)
+    return destination
+
+
+def test_variable_step_size_fmu(window, data_dir, tmp_path):
+    """An FMU that handles a variable communication step shows its step in italics, and does not constrain the step of
+    its container when another FMU imposes its own."""
+    variable = _patched_fmu(data_dir / "containers" / "bouncing_ball" / "velocity_cs2_multiple.fmu",
+                            tmp_path / "variable.fmu", {'canHandleVariableCommunicationStepSize="false"':
+                                                         'canHandleVariableCommunicationStepSize="true"'})
+    shutil.copy(data_dir / "containers" / "bouncing_ball" / "bb_position.fmu", tmp_path / "bb_position.fmu")
+    scene = window._graph.scene
+    root = window._tree.root
+
+    node = scene.add_node(variable)
+    assert _cell(window, _item(window, node)).text() == "0.1 s"
+    assert _cell(window, _item(window, node)).font().italic()
+    assert _cell(window, root).text() == "0.1 s"
+
+    scene.add_node(tmp_path / "bb_position.fmu")
+    assert _cell(window, root).text() == "0.001 s"          # imposed by bb_position.fmu only
+
+
+def test_fixed_internal_step_size_fmu(window, data_dir, tmp_path):
+    """The fixedInternalStepSize of an FMI 3.0 FMU takes precedence over its stepSize, and constrains the step of its
+    container even when it handles a variable communication step."""
+    fixed = _patched_fmu(data_dir / "containers" / "bouncing_ball" / "velocity_cs3_multiple.fmu",
+                         tmp_path / "fixed.fmu", {'canHandleVariableCommunicationStepSize="false"':
+                                                  'canHandleVariableCommunicationStepSize="true"',
+                                                  'fixedInternalStepSize="0.1"': 'fixedInternalStepSize="0.25"'})
+    shutil.copy(data_dir / "containers" / "bouncing_ball" / "velocity_cs2_multiple.fmu", tmp_path / "v2.fmu")
+    scene = window._graph.scene
+    root = window._tree.root
+
+    node = scene.add_node(fixed)
+    assert _cell(window, _item(window, node)).text() == "0.25 s"
+    assert not _cell(window, _item(window, node)).font().italic()
+
+    scene.add_node(tmp_path / "v2.fmu")
+    assert _cell(window, root).text() == "0.5 s"            # lcm(0.25, 0.1)
 
 
 def test_step_size_cells_are_read_only(window, ball):

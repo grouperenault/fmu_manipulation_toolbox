@@ -392,8 +392,12 @@ class NodeTreeWidget(QWidget):
                 self._set_step_size_cell(item, None, deduced=False, tooltip="")
                 return None, True
             step_size = self._parse_step_size(node.fmu_step_size)
-            self._set_step_size_cell(item, step_size, deduced=False, tooltip="Step size of the FMU")
-            return step_size, node.fmu_variable_step_size
+            if node.fmu_imposes_step_size:
+                self._set_step_size_cell(item, step_size, deduced=False, tooltip="Step size of the FMU")
+            else:
+                self._set_step_size_cell(item, step_size, deduced=True,
+                                         tooltip="Step size of the FMU, which handles a variable communication step")
+            return step_size, not node.fmu_imposes_step_size
 
         content = []
         for r in range(item.rowCount()):

@@ -71,12 +71,14 @@ To rebuild as a container an assembly of FMUs made in Simulink, see
 
 ## Default time step
 
-When no time step is given, the container deduces it from the `stepSize` of the embedded FMU's
-(`<DefaultExperiment>` of their `modelDescription.xml`):
+When no time step is given, the container deduces it from the step size of the embedded FMU's: the
+`fixedInternalStepSize` of `<CoSimulation>` for an FMI 3.0 FMU, else the `stepSize` of `<DefaultExperiment>` of
+their `modelDescription.xml`:
 
-- the FMU's which cannot handle a variable communication step size impose their step: the container step is
-  their **least common multiple**, computed exactly (`0.1` and `0.25` give `0.5`, `0.2` and `0.3` give `0.6`);
-- if all FMU's handle a variable step size, the container step is the largest of their step sizes;
+- the FMU's which declare a `fixedInternalStepSize` (FMI 3.0) or cannot handle a variable communication step size
+  impose their step: the container step is their **least common multiple**, computed exactly (`0.1` and `0.25`
+  give `0.5`, `0.2` and `0.3` give `0.6`);
+- if no FMU imposes its step, the container step is the largest of their step sizes;
 - FMU's without `stepSize` are ignored; if none declares one, the step is `0.1` second.
 
 When the time step is given, a warning is reported for each FMU with a fixed step that does not divide it.
@@ -95,7 +97,8 @@ parent at 0.01 s and a sub-container at 0.02 s — the container behaves like an
   every communication step.
 
 An FMI 3.0 container declares its time step in the `fixedInternalStepSize` attribute of `<CoSimulation>`, even
-with the `TS_MULTIPLIER` input: the internal steps then stay on the grid of the time step.
+with the `TS_MULTIPLIER` input: the internal steps then stay on the grid of the time step. An FMI 3.0 sub-container
+thus imposes its step on its parent (see [Default time step](#default-time-step)).
 
 This makes it possible to gather FMU's of different rates in sub-containers of different steps, the parent at the
 fastest rate (see [One sub-container per sample time](../../examples/simulink-to-container.md#one-sub-container-per-sample-time)).

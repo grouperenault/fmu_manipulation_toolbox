@@ -678,8 +678,8 @@ class FMUContainer:
         """Compute the default step size from embedded FMUs.
 
         The step size is the least common multiple of the step sizes of the FMUs that
-        cannot handle variable step sizes, computed exactly (`0.1` and `0.25` give
-        `0.5`). If all FMUs support variable steps, returns the largest step size.
+        impose their step (`fixedInternalStepSize` of FMI 3.0, or no variable step size),
+        computed exactly (`0.1` and `0.25` give `0.5`). Otherwise, returns the largest step size.
         FMUs without step size are ignored; without any step size, the default is 0.1 s.
 
         Returns:
@@ -692,7 +692,7 @@ class FMUContainer:
                 del step_sizes[name]
 
         step_size = deduce_step_size([
-            (step_sizes[fmu.name], fmu.capabilities["canHandleVariableCommunicationStepSize"] != "false")
+            (step_sizes[fmu.name], not fmu.imposes_step_size)
             for fmu in self.involved_fmu.values() if fmu.name in step_sizes])
         if step_size is not None:
             return step_size
@@ -725,7 +725,7 @@ class FMUContainer:
             step_size (float): The container's internal step size.
         """
         for fmu in self.involved_fmu.values():
-            if fmu.step_size and fmu.capabilities["canHandleVariableCommunicationStepSize"] == "false":
+            if fmu.step_size and fmu.imposes_step_size:
                 ts_ratio = _exact(step_size) / _exact(fmu.step_size)   # exact: 0.3 / 0.1 is 3
                 logger.debug(f"container step_size: {step_size} = {fmu.step_size} x {float(ts_ratio)} for {fmu.name}")
                 if ts_ratio < 1:

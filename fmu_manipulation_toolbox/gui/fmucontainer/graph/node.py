@@ -80,6 +80,8 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_step_size: str | None = None
         # Whether the FMU can handle a variable communication step size (Co-Simulation takes precedence).
         self.fmu_variable_step_size: bool = False
+        # Whether fmu_step_size is the fixedInternalStepSize of an FMI 3.0 FMU (it takes precedence over stepSize).
+        self.fmu_fixed_internal_step_size: bool = False
         self.fmu_generator: str = ""
         self.fmu_fmi_version: int | None = None
         # FMI kind advertised by the FMU descriptor.
@@ -238,11 +240,20 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
             self.fmu_fmi_version = 3
 
     def experiment_attrs(self, attrs):
-        self.fmu_step_size = attrs.get("stepSize", "")
+        if not self.fmu_fixed_internal_step_size:
+            self.fmu_step_size = attrs.get("stepSize", "")
 
     def cosimulation_attrs(self, attrs):
         self.fmu_is_cosimulation = True
         self.fmu_variable_step_size = attrs.get("canHandleVariableCommunicationStepSize", "false") == "true"
+        if self.fmu_fmi_version == 3 and "fixedInternalStepSize" in attrs:
+            self.fmu_step_size = attrs["fixedInternalStepSize"]
+            self.fmu_fixed_internal_step_size = True
+
+    @property
+    def fmu_imposes_step_size(self) -> bool:
+        """Whether the step of the FMU constrains the step of its container (see `EmbeddedFMU.imposes_step_size`)."""
+        return self.fmu_fixed_internal_step_size or not self.fmu_variable_step_size
 
     def modelexchange_attrs(self, attrs):
         self.fmu_is_model_exchange = True
@@ -436,6 +447,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_array_aggregate_elements.clear()
         self.fmu_step_size = None
         self.fmu_variable_step_size = False
+        self.fmu_fixed_internal_step_size = False
         self.fmu_generator = ""
         self.fmu_fmi_version = None
         self.fmu_is_model_exchange = False
