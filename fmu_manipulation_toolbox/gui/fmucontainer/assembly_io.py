@@ -609,8 +609,10 @@ class AssemblyIOMixin:
         path_by_name: dict[str, str] = {node.name: _reference(node) for node in self._graph.scene.fmu_nodes()}
 
         for wire in self._graph.scene.wires():
-            is_cfg_a = isinstance(wire.node_a, ConfigurationNode)
-            is_cfg_b = isinstance(wire.node_b, ConfigurationNode)
+            # The ConfigurationNode may be either end of the wire: the direction of a link is the one of its
+            # mapping (tab A → B or B → A), not the one of the wire.
+            cfg_node = next((node for node in (wire.node_a, wire.node_b) if isinstance(node, ConfigurationNode)),
+                            None)
             for link in wire.mappings:
                 if len(link) == 4:
                     fmu_from_name, port_from, fmu_to_name, port_to = link
@@ -631,11 +633,11 @@ class AssemblyIOMixin:
                 # exist on the built container.
                 # A reset port drives the reserved `container.reset` input of its FMU, or sub-container, in the
                 # same way.
-                if is_cfg_b and fmu_to_name == ConfigurationNode.TITLE:
-                    if not wire.node_b.port_active(port_to):
+                if cfg_node and fmu_to_name == ConfigurationNode.TITLE:
+                    if not cfg_node.port_active(port_to):
                         logger.debug(f"SKIP inactive configuration link: {fmu_from_name}/{port_from} -> {port_to}")
                         continue
-                    if wire.node_b.is_reset_port(port_to):
+                    if cfg_node.is_reset_port(port_to):
                         fmu_to_name = ConfigurationNode.fmu_name_from_reset_port(port_to)
                         fmu_to_path = path_by_name.get(fmu_to_name, fmu_to_name)   # a sub-container keeps its name
                         port_to = ConfigurationNode.RESET_RUNTIME_PORT_NAME
@@ -643,11 +645,11 @@ class AssemblyIOMixin:
                         fmu_to_path = ConfigurationNode.container_name_from_port(port_to)
                         port_to = ConfigurationNode.RUNTIME_PORT_NAME
                     fmu_from_path = path_by_name[fmu_from_name]
-                elif is_cfg_a and fmu_from_name == ConfigurationNode.TITLE:
-                    if not wire.node_a.port_active(port_from):
+                elif cfg_node and fmu_from_name == ConfigurationNode.TITLE:
+                    if not cfg_node.port_active(port_from):
                         logger.debug(f"SKIP inactive configuration link: {port_from} -> {fmu_to_name}/{port_to}")
                         continue
-                    if wire.node_a.is_reset_port(port_from):
+                    if cfg_node.is_reset_port(port_from):
                         fmu_from_name = ConfigurationNode.fmu_name_from_reset_port(port_from)
                         fmu_from_path = path_by_name.get(fmu_from_name, fmu_from_name)
                         port_from = ConfigurationNode.RESET_RUNTIME_PORT_NAME

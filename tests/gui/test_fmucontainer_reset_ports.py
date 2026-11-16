@@ -115,6 +115,24 @@ def test_a_wired_reset_port_is_exported_as_a_link(window, ball, tmp_path):
     assert "link" not in json.loads((tmp_path / "unchecked.json").read_text())
 
 
+def test_a_reset_link_of_a_wire_starting_on_the_configuration_node(window, ball, tmp_path):
+    """The configuration node is end A of the wire: the link FMU → reset port is in the tab B → A."""
+    scene = window._graph.scene
+    position = scene.add_node(ball / "bb_position.fmu")
+    scene.add_node(ball / "bb_velocity.fmu")
+    _set_reset_ports(window, window._tree.root, True)
+    configuration = _configuration(window)
+    wire = scene.add_wire(configuration, position)
+    wire.mappings = [(position.name, "is_ground", configuration.name, configuration.reset_port_name("bb_velocity.fmu"))]
+    if window._tree.wire_detail._wire is not None:
+        window._tree.wire_detail._load_from_wire()
+
+    window.save_as_json(tmp_path / "reset.json")
+    written = json.loads((tmp_path / "reset.json").read_text())
+    assert [[_base(link[0]), link[1], _base(link[2]), link[3]] for link in written["link"]] == [
+        ["bb_position.fmu", "is_ground", "bb_velocity.fmu", "container.reset"]]
+
+
 def test_an_exposed_reset_port_is_exported_as_an_input(window, ball, tmp_path):
     scene = window._graph.scene
     scene.add_node(ball / "bb_position.fmu")
