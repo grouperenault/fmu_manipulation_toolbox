@@ -65,7 +65,11 @@ _COMMON_STYLE = """
         right: 6px;
     }}
     QToolTip {{
-        color: black
+        background-color: #282830;
+        color: #dddddd;
+        border: 1px solid #b5bab9;
+        border-radius: 3px;
+        padding: 3px 5px;
     }}
     QLabel.dropped_fmu {{
         background-color: #b5bab9
