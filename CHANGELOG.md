@@ -25,6 +25,8 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
   the main thread meanwhile; without such an FMU, the mono-thread parallel mode goes on. The multi-threaded mode is no
   longer slower than the mono-thread one on FMUs with short steps (3.8 times faster on the benchmark), and the
   results are unchanged. `container.txt` is now in version 10.
+- 🟢 **ADDED** an FMI 3.0 container declares its time step in the `fixedInternalStepSize` attribute of
+  `<CoSimulation>`, also with the `TS_MULTIPLIER` input (its internal steps stay on the grid of the time step).
 - 🟢 **ADDED** option `-mt-threshold <seconds>` of `fmucontainer` (`"mt_threshold"` of the JSON description, of the
   SSP container options, of the container options of the GUI and of the AI Assistant, `mt_threshold` of `make_fmu`
   and of the assembly API): the threshold of the multi-threaded mode. See [Multi-Threading](docs/user-guide/fmucontainer/multi-threading.md).

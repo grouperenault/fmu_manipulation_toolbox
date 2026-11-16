@@ -94,6 +94,9 @@ parent at 0.01 s and a sub-container at 0.02 s — the container behaves like an
 - the internal step is made by the call of the importer that reaches its end, and the container is at the end of
   every communication step.
 
+An FMI 3.0 container declares its time step in the `fixedInternalStepSize` attribute of `<CoSimulation>`, even
+with the `TS_MULTIPLIER` input: the internal steps then stay on the grid of the time step.
+
 This makes it possible to gather FMU's of different rates in sub-containers of different steps, the parent at the
 fastest rate (see [One sub-container per sample time](../../examples/simulink-to-container.md#one-sub-container-per-sample-time)).
 

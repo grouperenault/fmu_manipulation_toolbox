@@ -880,6 +880,7 @@ class FMUContainer:
             cosimulation = {
                 "modelIdentifier": self.identifier,
                 "canHandleVariableCommunicationStepSize": "true",
+                "fixedInternalStepSize": str(step_size),    # TS_MULTIPLIER keeps the steps on this grid
                 "canBeInstantiatedOnlyOncePerProcess": capabilities['canBeInstantiatedOnlyOncePerProcess'],
                 "canNotUseMemoryManagementFunctions": "true",
                 "canGetAndSetFMUState": "false",
