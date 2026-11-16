@@ -572,8 +572,11 @@ class _UvicornThread(QThread):
                     if self.started:
                         thread.ready.emit()
 
+            # `log_config=None`: the default configuration of uvicorn writes on sys.stdout/sys.stderr, which are
+            # None in a GUI started without a console (Windows `gui-scripts`, pythonw), and fails with "Unable to
+            # configure formatter 'default'". `log_level` still applies to the loggers of uvicorn.
             config = uvicorn.Config(self._app, host=self._host, port=self._port,
-                                    log_level="warning", lifespan="on")
+                                    log_level="warning", log_config=None, lifespan="on")
             self._server = _Server(config)
             # uvicorn.Server.run() creates and manages its own asyncio loop.
             self._server.run()

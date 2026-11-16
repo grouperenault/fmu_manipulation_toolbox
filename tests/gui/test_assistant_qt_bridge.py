@@ -372,6 +372,28 @@ def test_the_server_is_announced_only_once_it_listens(qapp):
         assert thread.wait(5000)
 
 
+def test_the_server_starts_without_a_console(qapp, monkeypatch):
+    """A GUI started without a console (Windows `gui-scripts`, pythonw) has no
+    sys.stdout/sys.stderr: the default logging configuration of uvicorn failed
+    with "Unable to configure formatter 'default'"."""
+    import sys
+
+    async def app(scope, receive, send):
+        if scope["type"] == "lifespan":
+            while (await receive())["type"] != "lifespan.shutdown":
+                await send({"type": "lifespan.startup.complete"})
+            await send({"type": "lifespan.shutdown.complete"})
+
+    monkeypatch.setattr(sys, "stdout", None)
+    monkeypatch.setattr(sys, "stderr", None)
+    thread, events = _run_server_thread(app, _free_port())
+    try:
+        assert events == [("ready", ())]
+    finally:
+        thread.stop()
+        assert thread.wait(5000)
+
+
 def test_a_server_that_cannot_start_is_reported(qapp):
     """uvicorn calls sys.exit() when the server cannot start: the GUI must hear
     of it instead of announcing a server that does not exist."""
