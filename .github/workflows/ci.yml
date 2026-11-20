@@ -110,21 +110,21 @@ jobs:
         # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
         python-version: ["3.10", "3.14"]
     steps:
-    - uses: actions/checkout@v5
-    - uses: actions/download-artifact@v7
+    - uses: actions/checkout@v7
+    - uses: actions/download-artifact@v8
       with:
         name: remoting-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: remoting-win32
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: container-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
         # Reuse the downloaded wheels (PySide6, fmpy...) between runs; the key follows the declared dependencies.
@@ -174,41 +174,41 @@ jobs:
         # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
         python-version: ["3.10", "3.14"]
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
       with:
         # The package version comes from the git tags (setuptools-scm): the whole history is needed, a shallow clone
         # would give a wrong version.
         fetch-depth: 0
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: remoting-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: remoting-win32
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win32/
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: remoting-linux32
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux32/
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: remoting-linux64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: container-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: container-linux64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: container-darwin64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
         # Reuse the downloaded wheels (PySide6, fmpy...) between runs; the key follows the declared dependencies.
@@ -251,7 +251,7 @@ jobs:
         python tools/dist_inventory.py --dist dist --check tests/data/packaging
     - name: Archive Artifacts
       if: matrix.python-version == env.NEWEST_PYTHON
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: package
         path: ${{ github.workspace }}/dist
@@ -263,18 +263,18 @@ jobs:
     needs: [build-native]
     runs-on: ubuntu-24.04
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v7
       with:
         fetch-depth: 0
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: remoting-linux64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/linux64/
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: container-win64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/win64/
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: container-darwin64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
@@ -289,7 +289,7 @@ jobs:
         UBSAN_OPTIONS: "print_stacktrace=1"
       run: ctest --test-dir ${{ github.workspace }}/build-sanitize --output-on-failure
     - name: Set up Python ${{ env.NEWEST_PYTHON }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ env.NEWEST_PYTHON }}
         cache: pip
@@ -319,13 +319,13 @@ jobs:
         # Oldest supported and newest Python (the latter is NEWEST_PYTHON).
         python-version: ["3.10", "3.14"]
     steps:
-    - uses: actions/checkout@v5
-    - uses: actions/download-artifact@v7
+    - uses: actions/checkout@v7
+    - uses: actions/download-artifact@v8
       with:
         name: container-darwin64
         path: ${{ github.workspace }}/fmu_manipulation_toolbox/resources/darwin64/
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
         # Reuse the downloaded wheels (PySide6, fmpy...) between runs; the key follows the declared dependencies.
@@ -361,11 +361,11 @@ jobs:
         python-version: ["3.10", "3.14"]
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/download-artifact@v7
+    - uses: actions/download-artifact@v8
       with:
         name: package
         path: dist
-    - uses: actions/setup-python@v6
+    - uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install the built wheel
