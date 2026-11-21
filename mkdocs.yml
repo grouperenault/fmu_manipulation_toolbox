@@ -145,7 +145,8 @@ markdown_extensions:
 nav:
   - Getting Started:
     - Overview: index.md
-    - What's new in 2.0: whats-new.md
+    - What's new in 2.1: whats-new.md
+    - What's new in 2.0: whats-new-2.0.md
     - Installation: installation.md
     - Quick Start: tutorials/getting-started.md
   - User Guide:

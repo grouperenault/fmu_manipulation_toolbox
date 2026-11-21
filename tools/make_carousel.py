@@ -1,15 +1,16 @@
 """
-Carousel announcing the FMU Manipulation Toolbox 2.0: 1080 x 1350 slides (4:5), written into one directory as
+Carousel announcing a version of the FMU Manipulation Toolbox (VERSION below): 1080 x 1350 slides (4:5), written into
+one directory as
 
 - one PDF, the format of a LinkedIn "document" post;
 - PNG files, a preview of the pages;
-- WebP files, the slides shown on the page "What's new in 2.0" of the documentation (`docs/assets/release-2.0/`).
+- WebP files, the slides shown on the page "What's new" of the documentation (`docs/assets/release-<VERSION>/`).
 
     python tools/make_carousel.py --out DIR               # every slide: PDF, PNG and WebP files
     python tools/make_carousel.py --linkedin --out DIR    # the short selection of the LinkedIn post: PDF and PNG files
 
-Texts and slides are in SLIDES below, the short selection in LINKEDIN_SLIDES; the images come from the documentation
-and the resources of the package.
+Texts and slides are in SLIDES below, the short selection in LINKEDIN_SLIDES; the images come from the resources of
+the package. The slides of the previous versions are in the history of this file.
 Requires PySide6 (with the `webp` image format plugin of Qt, shipped with the PySide6 wheels), and segno for the QR
 code of the LinkedIn selection.
 """
@@ -38,6 +39,7 @@ ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "fmu_manipulation_toolbox" / "resources"
 DOC = ROOT / "docs"
 DOC_URL = "https://grouperenault.github.io/fmu_manipulation_toolbox/"
+VERSION = "2.1"
 
 W, H = 1080, 1350
 MARGIN = 80
@@ -224,11 +226,11 @@ def cover(p, n, total):
     p.drawImage(QRectF((W - 300) / 2, 150, 300, 300), icon)
     logo = image(RES / "fmu_manipulation_toolbox.png")
     p.drawImage(QRectF((W - 860) / 2, 500, 860, 860 * logo.height() / logo.width()), logo)
-    text(p, QRectF(MARGIN, 700, W - 2 * MARGIN, 120), "Version 2.0", 104, LIGHT["blue"], bold=True,
+    text(p, QRectF(MARGIN, 700, W - 2 * MARGIN, 120), f"Version {VERSION}", 104, LIGHT["blue"], bold=True,
          align=Qt.AlignmentFlag.AlignHCenter)
     text(p, QRectF(MARGIN + 40, 850, W - 2 * MARGIN - 80, 200),
          "The open-source toolbox to analyse, modify and combine FMUs", 38, TEXT, align=Qt.AlignmentFlag.AlignHCenter)
-    chips = ("FMI-2 & FMI-3", "Python 3.10 – 3.14", "Windows · Linux · macOS")
+    chips = ("FMI 2.0 & 3.0", "SSP 1.0 & 2.0", "LS-BUS · LS-XCP · LS-REF")
     p.setFont(font(23, True))
     widths = [QFontMetricsF(p.font()).horizontalAdvance(c) + 44 for c in chips]
     x = (W - sum(widths) - 20 * (len(chips) - 1)) / 2
@@ -257,174 +259,185 @@ def tools(p, n, total):
         text(p, QRectF(MARGIN + 190, y + 72, W - 2 * MARGIN - 190, 120), what, 28, MUTED)
         y += 200
     y += 10
-    bullets(p, y, ["CLI: fmutool, fmucontainer, fmusplit", "Python API for your own scripts and checkers"],
-            LIGHT["blue"], size=30, spacing=18)
+    bullets(p, y, ["CLI: fmutool, fmucontainer, fmusplit, datalog2pcap", "Python API for your own scripts and checkers",
+                   "MCP server, fmutool-agent and agent skills"], LIGHT["blue"], size=30, spacing=18)
 
 
-def ai(p, n, total):
+def dashed_frame(p: QPainter, rect: QRectF, color: QColor, label: str):
+    """The frame of a container, with its name."""
+    path = QPainterPath()
+    path.addRoundedRect(rect, 30, 30)
+    p.setPen(QPen(color, 4, Qt.PenStyle.DashLine))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPath(path)
+    text(p, QRectF(rect.x() + 30, rect.y() + 24, 600, 50), label, 30, color, bold=True, family=MONO)
+
+
+def both_ways(p: QPainter, x: float, top: float, bottom: float, color: QColor):
+    """A vertical exchange: an arrow down and an arrow up, side by side."""
+    for dx, start, end in ((-14, top, bottom), (14, bottom, top)):
+        direction = 1 if end > start else -1
+        p.setPen(QPen(color, 4))
+        p.drawLine(QPointF(x + dx, start), QPointF(x + dx, end - direction * 16))
+        head = QPainterPath()
+        head.moveTo(x + dx, end)
+        head.lineTo(x + dx - 11, end - direction * 22)
+        head.lineTo(x + dx + 11, end - direction * 22)
+        head.closeSubpath()
+        p.fillPath(head, color)
+
+
+def ls_bus(p, n, total):
     background(p, PURPLE, n, total)
-    y = title_block(p, 110, "NEW · AI ASSISTANT", PURPLE, "Let an AI agent build your containers",
-                    "An MCP server (Model Context Protocol) exposes the toolbox to GitHub Copilot, Claude, "
-                    "VS Code, local models...")
-    y = bubble(p, QRectF(MARGIN + 120, y, W - 2 * MARGIN - 120, 0),
-               "Add bb_position.fmu and bb_velocity.fmu, link the ports of same name, and save the container.",
-               BLUE, "YOU", TEXT) + 26
-    y = bubble(p, QRectF(MARGIN, y, W - 2 * MARGIN - 120, 0),
-               "Done: 2 FMUs, 1 link (velocity). Saved as bouncing.fmu. Note: the input reset of "
-               "bb_velocity.fmu is not fed.",
-               PANEL, "AGENT", LIGHT["purple"]) + 50
-    bullets(p, y, ["Drives the live Container Builder canvas",
-                   "Standalone server: fmutool-mcp, no GUI needed",
-                   "Inspects, checks and lints assemblies"], LIGHT["purple"], size=31, spacing=16)
-
-
-def model_exchange(p, n, total):
-    background(p, GREEN, n, total)
-    y = title_block(p, 110, "NEW · CONTAINERS", GREEN, "Model-Exchange FMUs inside containers",
-                    "An embedded fixed-step solver advances them together, with their state and time events.")
-    outer = QRectF(MARGIN, y + 10, W - 2 * MARGIN, 470)
-    path = QPainterPath()
-    path.addRoundedRect(outer, 30, 30)
-    p.setPen(QPen(LIGHT["green"], 4, Qt.PenStyle.DashLine))
-    p.setBrush(Qt.BrushStyle.NoBrush)
-    p.drawPath(path)
-    text(p, QRectF(outer.x() + 30, outer.y() + 24, 600, 50), "container.fmu", 30, LIGHT["green"], bold=True,
-         family=MONO)
-    third = (outer.width() - 4 * 30) / 3
-    top = outer.y() + 100
-    box(p, QRectF(outer.x() + 30, top, third, 150), "CS FMU", "Co-Simulation", BLUE)
-    box(p, QRectF(outer.x() + 60 + third, top, third, 150), "ME FMU", "Model-Exchange", GREEN)
-    box(p, QRectF(outer.x() + 90 + 2 * third, top, third, 150), "ME FMU", "Model-Exchange", GREEN)
-    box(p, QRectF(outer.x() + 60 + third, top + 200, 2 * third + 30, 130), "Embedded solver",
-        "forward Euler · RK4", PANEL)
-    y = outer.bottom() + 50
-    bullets(p, y, ["Mix Co-Simulation and Model-Exchange FMUs", "Events stay consistent across FMUs"],
-            LIGHT["green"], size=31, spacing=16)
-
-
-def link_assistant(p, n, total):
-    background(p, ORANGE, n, total)
-    y = title_block(p, 110, "NEW · CONTAINER BUILDER", ORANGE, "Hundreds of ports? Link them by rule",
-                    "Same name, prefix / suffix, regular expression, similar names: review the proposals, "
-                    "then apply.")
-    img = image(DOC / "user-guide/fmucontainer/link-assistant-rules.png")
-    screenshot(p, img, QRectF(MARGIN - 30, y, W - 2 * MARGIN + 60, H - y - 200),
-               QRectF(0, img.height() * 0.065, img.width() * 0.9, img.height() * 0.645))
-
-
-def instances(p, n, total):
-    background(p, ORANGE, n, total)
-    y = title_block(p, 110, "NEW · CONTAINERS", ORANGE, "The same FMU, several times",
-                    "Each instance has its own name and its own extraction: model.fmu, model-1.fmu...")
-    img = image(DOC / "user-guide/fmucontainer/fmucontainer-instances.png")
-    screenshot(p, img, QRectF(MARGIN - 30, y, W - 2 * MARGIN + 60, H - y - 200),
-               QRectF(img.width() * 0.02, img.height() * 0.13, img.width() * 0.44, img.height() * 0.66))
-
-
-def reset(p, n, total):
-    background(p, GREEN, n, total)
-    y = title_block(p, 110, "NEW · CONTAINERS", GREEN, "Reset an embedded FMU during the simulation",
-                    "A link to its container.reset input, or the importer through container.controller.reset: "
-                    "the FMU starts again at the current time.")
-    outer = QRectF(MARGIN, y + 10, W - 2 * MARGIN, 330)
-    path = QPainterPath()
-    path.addRoundedRect(outer, 30, 30)
-    p.setPen(QPen(LIGHT["green"], 4, Qt.PenStyle.DashLine))
-    p.setBrush(Qt.BrushStyle.NoBrush)
-    p.drawPath(path)
-    text(p, QRectF(outer.x() + 30, outer.y() + 24, 600, 50), "container.fmu", 30, LIGHT["green"], bold=True,
-         family=MONO)
-    top = outer.y() + 120
-    source = QRectF(outer.x() + 30, top, 300, 150)
-    target = QRectF(outer.right() - 330, top, 300, 150)
-    box(p, source, "supervisor", "any FMU", BLUE)
-    box(p, target, "controller", "starts again", GREEN)
-    # The link, from an output of the supervisor to the reset input of the controller.
-    middle = top + 75
-    start, end = source.right() + 16, target.left() - 16
-    arrow(p, start, end, middle, LIGHT["green"])
-    text(p, QRectF(start, middle - 56, end - start, 40), "restart", 24, MUTED, align=Qt.AlignmentFlag.AlignHCenter,
-         family=MONO)
-    text(p, QRectF(start - 20, middle + 16, end - start + 40, 40), "container.reset", 22, LIGHT["green"],
-         align=Qt.AlignmentFlag.AlignHCenter, family=MONO)
-    y = outer.bottom() + 50
-    bullets(p, y, ["From another FMU, or exposed to the importer",
-                   "Co-Simulation, Model-Exchange, sub-containers",
-                   "fmi2Reset / fmi3Reset of the container too"], LIGHT["green"], size=31, spacing=16)
-
-
-def simulink(p, n, total):
-    background(p, BLUE, n, total)
-    y = title_block(p, 110, "NEW · CONTAINERS", BLUE, "From Simulink to an FMU Container",
-                    "Initialized as Simulink does: each FMU starts with the values of the FMUs it depends on.")
-    outer = QRectF(MARGIN, y + 10, W - 2 * MARGIN, 330)
-    path = QPainterPath()
-    path.addRoundedRect(outer, 30, 30)
-    p.setPen(QPen(LIGHT["blue"], 4, Qt.PenStyle.DashLine))
-    p.setBrush(Qt.BrushStyle.NoBrush)
-    p.drawPath(path)
-    text(p, QRectF(outer.x() + 30, outer.y() + 24, 600, 50), "container.fmu", 30, LIGHT["blue"], bold=True,
-         family=MONO)
-    # A chain of links A -> B -> C, initialized in the order of the links.
-    gap = 60
+    y = title_block(p, 110, "NEW · FMI-LS-BUS", PURPLE, "A whole network in one FMU",
+                    "CAN, LIN, FlexRay and Ethernet: the nodes and the Bus Simulation simulated together in a "
+                    "container.")
+    outer = QRectF(MARGIN, y + 10, W - 2 * MARGIN, 450)
+    dashed_frame(p, outer, LIGHT["purple"], "network.fmu")
+    gap = 40
     width = (outer.width() - 2 * 30 - 2 * gap) / 3
-    top = outer.y() + 120
-    for rank, (name, order) in enumerate((("A", "initialized 1st"), ("B", "initialized 2nd"),
-                                          ("C", "initialized 3rd"))):
+    top = outer.y() + 100
+    for rank in range(3):
         left = outer.x() + 30 + rank * (width + gap)
-        box(p, QRectF(left, top, width, 150), name, order, BLUE)
-        if rank:
-            arrow(p, left - gap + 8, left - 8, top + 75, LIGHT["blue"])
+        box(p, QRectF(left, top, width, 130), f"Node {rank + 1}", "ECU model", BLUE)
+        both_ways(p, left + width / 2, top + 138, top + 222, LIGHT["purple"])
+    box(p, QRectF(outer.x() + 30, top + 230, outer.width() - 60, 110), "Bus Simulation",
+        "CAN · LIN · FlexRay · Ethernet", PURPLE)
     y = outer.bottom() + 50
-    bullets(p, y, ["The links are propagated at the initialization",
-                   "Same delays as Simulink with the default scheduling",
-                   "Migration guide: concepts, worked example"], LIGHT["blue"], size=31, spacing=16)
+    bullets(p, y, ["Up to FMI-LS-BUS 1.3.0-rc.1, every time-based clock",
+                   "Datalog → PCAPNG for the Wireshark plugin",
+                   "fmutool -check applies the LS-BUS rules"], LIGHT["purple"], size=31, spacing=16)
 
 
-def compile_sources(p, n, total):
+def ls_xcp(p, n, total):
+    background(p, PURPLE, n, total)
+    y = title_block(p, 110, "NEW · FMI-LS-XCP", PURPLE, "Measure and calibrate inside a container",
+                    "The XCP services of the embedded FMUs are forwarded: your MCD tool connects to each of them.")
+    top = y + 10
+    tool = QRectF(MARGIN, top + 140, 260, 170)
+    box(p, tool, "MCD tool", "XCP master", PANEL)
+    outer = QRectF(MARGIN + 380, top, W - 2 * MARGIN - 380, 450)
+    dashed_frame(p, outer, LIGHT["purple"], "container.fmu")
+    for rank, (name, port) in enumerate((("engine.fmu", "XCP :5555 · A2L"), ("gearbox.fmu", "XCP :5556 · A2L"))):
+        rect = QRectF(outer.x() + 30, outer.y() + 100 + rank * 170, outer.width() - 60, 140)
+        box(p, rect, name, port, BLUE)
+        middle = rect.y() + 70
+        p.setPen(QPen(LIGHT["purple"], 4))
+        p.drawLine(QPointF(tool.right() + 10, tool.center().y()), QPointF(tool.right() + 60, middle))
+        arrow(p, tool.right() + 60, rect.left() - 10, middle, LIGHT["purple"])
+    y = outer.bottom() + 50
+    bullets(p, y, ["Manifest and A2L files provided by the container",
+                   "Configuration exposed as <fmu id>.<variable>",
+                   "fmutool -check validates manifest, A2L and roles"], LIGHT["purple"], size=31, spacing=16)
+
+
+def ls_ref(p, n, total):
     background(p, GREEN, n, total)
-    y = title_block(p, 110, "NEW · FMU TOOL", GREEN, "No binary for your platform? Compile the sources",
-                    "The C sources embedded in the FMU are built with your compiler: one click, or "
-                    "fmutool -compile-sources.")
-    img = image(DOC / "user-guide/fmutool/fmutool-compile.png")
-    # The grid of buttons, then the log of the compilation.
-    y = screenshot(p, img, QRectF(MARGIN - 30, y, W - 2 * MARGIN + 60, 400),
-                   QRectF(img.width() * 0.134, img.height() * 0.055, img.width() * 0.861, img.height() * 0.19)) + 40
-    y = screenshot(p, img, QRectF(MARGIN - 30, y, W - 2 * MARGIN + 60, 400),
-                   QRectF(0, img.height() * 0.765, img.width() * 0.46, img.height() * 0.165)) + 50
-    bullets(p, y, ["FMI-2 and FMI-3, C and C++",
-                   "Visual Studio, gcc or clang: Windows, Linux, macOS",
-                   "Extra options if the compiler asks for them"], LIGHT["green"], size=30, spacing=14)
+    y = title_block(p, 110, "NEW · FMI-LS-REF", GREEN, "Check the results, not only the XML",
+                    "fmutool -check replays the experiments shipped in the FMU and compares its outputs with the "
+                    "references.")
+    plot = QRectF(MARGIN, y + 10, W - 2 * MARGIN, 330)
+    path = QPainterPath()
+    path.addRoundedRect(plot, 22, 22)
+    p.fillPath(path, PANEL)
+    # A damped oscillation: the reference as a line, the replay as dots on it.
+    import math
+    left, right = plot.x() + 50, plot.right() - 50
+    middle, amplitude = plot.y() + plot.height() / 2 + 10, plot.height() * 0.36
+
+    def value(t):
+        return middle - amplitude * math.exp(-2.2 * t) * math.cos(14 * t)
+    curve = QPainterPath()
+    for i in range(201):
+        t = i / 200
+        point = QPointF(left + t * (right - left), value(t))
+        curve.moveTo(point) if i == 0 else curve.lineTo(point)
+    p.setPen(QPen(MUTED, 4))
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPath(curve)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(LIGHT["green"])
+    for i in range(0, 41):
+        t = i / 40
+        p.drawEllipse(QPointF(left + t * (right - left), value(t)), 7, 7)
+    text(p, QRectF(plot.right() - 330, plot.y() + 20, 300, 40), "— reference", 24, MUTED,
+         align=Qt.AlignmentFlag.AlignRight)
+    text(p, QRectF(plot.right() - 330, plot.y() + 56, 300, 40), "●  replay", 24, LIGHT["green"],
+         align=Qt.AlignmentFlag.AlignRight)
+    y = code(p, QRectF(MARGIN, plot.bottom() + 36, W - 2 * MARGIN, 140),
+             [("fmutool -input model.fmu -check", "each experiment replayed in its own process")]) + 46
+    bullets(p, y, ["rtol 1e-3, atol 1e-6 by default: -ref-rtol, -ref-atol",
+                   "The result files of the Reference FMUs too"], LIGHT["green"], size=30, spacing=14)
 
 
-def robust(p, n, total):
-    background(p, RED, n, total)
-    y = title_block(p, 110, "UNDER THE HOOD", RED, "Safer edits, stricter checks")
-    items = (("In-place edits", "modelDescription.xml is edited, not re-generated: annotations, aliases and "
-                                "comments are kept."),
-             ("FMI semantic checker", "the rules of FMI-2 and FMI-3 that the XSD cannot express."),
-             ("Refused, not broken", "an operation that would break the FMI standard leaves the FMU unchanged."),
-             ("Ready for CI", "fmutool -check exits with status 7 on error."),
-             ("Strict containers", "unknown ports and inputs fed twice stop the build."))
-    for title, what in items:
-        p.fillRect(QRectF(MARGIN, y + 6, 8, 96), LIGHT["red"])
-        text(p, QRectF(MARGIN + 34, y, W - 2 * MARGIN - 34, 60), title, 36, bold=True)
-        y += 52
-        y += text(p, QRectF(MARGIN + 34, y, W - 2 * MARGIN - 34, 200), what, 28, MUTED) + 40
+def ssp(p, n, total):
+    background(p, ORANGE, n, total)
+    y = title_block(p, 110, "NOW STABLE · SSP", ORANGE, "SSP in, SSP out",
+                    "Read and write SSP 2.0 and 1.0 systems: the file comes back as the same container.")
+    top = y + 30
+    width = (W - 2 * MARGIN - 2 * 90) / 3
+    ssd = QRectF(MARGIN, top, width, 170)
+    assembly = QRectF(MARGIN + width + 90, top, width, 170)
+    fmu = QRectF(MARGIN + 2 * (width + 90), top, width, 170)
+    box(p, ssd, "system.ssp", "SSP 1.0 or 2.0", ORANGE)
+    box(p, assembly, "Assembly", "GUI, CLI, API", PANEL)
+    box(p, fmu, "container", "FMU 2.0 or 3.0", GREEN)
+    arrow(p, ssd.right() + 10, assembly.left() - 10, top + 55, LIGHT["orange"])
+    arrow(p, assembly.left() - 10, ssd.right() + 10, top + 115, LIGHT["orange"])
+    arrow(p, assembly.right() + 10, fmu.left() - 10, top + 85, LIGHT["green"])
+    text(p, QRectF(ssd.right(), top + 6, 90, 40), "read", 20, MUTED, align=Qt.AlignmentFlag.AlignHCenter)
+    text(p, QRectF(ssd.right(), top + 126, 90, 40), "write", 20, MUTED, align=Qt.AlignmentFlag.AlignHCenter)
+    text(p, QRectF(assembly.right(), top + 104, 90, 40), "build", 20, MUTED, align=Qt.AlignmentFlag.AlignHCenter)
+    y = top + 250
+    bullets(p, y, ["Parameter bindings, geometry, units, start and stop times",
+                   "Validated against the SSP 2.0.1 schema",
+                   "What the container cannot honour is refused, never ignored",
+                   "Architecture wires: sketch the dependencies before the ports exist"],
+            LIGHT["orange"], size=31, spacing=22)
+
+
+def skills(p, n, total):
+    background(p, PURPLE, n, total)
+    y = title_block(p, 110, "NEW · AI AGENTS", PURPLE, "Agent skills for Claude Code",
+                    "Three skills drive the toolbox: fmu-inspect, fmu-edit and fmu-container.")
+    y = code(p, QRectF(MARGIN, y, W - 2 * MARGIN, 2 * 98 + 40), [
+        ("/plugin marketplace add grouperenault/fmutool", "the repository is a plugin marketplace"),
+        ("/plugin install fmutool@fmutool", "the skills, ready to use"),
+    ]) + 40
+    y = bubble(p, QRectF(MARGIN + 120, y, W - 2 * MARGIN - 120, 0),
+               "Remove the fixed parameters of model.fmu, then rename its outputs from names.csv.",
+               BLUE, "YOU", TEXT) + 26
+    bubble(p, QRectF(MARGIN, y, W - 2 * MARGIN - 120, 0),
+           "Done: model-clean.fmu written, and checked. Two names of the CSV file are not in the FMU.",
+           PANEL, "AGENT", LIGHT["purple"])
+
+
+def agent_cli(p, n, total):
+    background(p, PURPLE, n, total)
+    y = title_block(p, 110, "NEW · AI AGENTS", PURPLE, "Any agent that runs commands",
+                    "fmutool-agent: the tools of the MCP server as a JSON command line. No MCP client needed.")
+    y = code(p, QRectF(MARGIN, y, W - 2 * MARGIN, 3 * 98 + 40), [
+        ("fmutool-agent list-tools", "the tools, and the version of the toolbox"),
+        ("fmutool-agent describe_port --args '{…}'", "same arguments, same results as the MCP server"),
+        ("fmutool-agent save_as_fmu --state a.json", "the assembly is kept between calls"),
+    ]) + 60
+    bullets(p, y, ["Assembly files in the AI Assistant: JSON, CSV and SSP",
+                   "New tools: describe_port, inspect_ssp",
+                   "Filters by type and variability"], LIGHT["purple"], size=31, spacing=16)
 
 
 def install(p, n, total):
     background(p, BLUE, n, total)
     y = title_block(p, 110, "PACKAGING", BLUE, "Install only what you need",
-                    "Python 3.10 to 3.14. The command line no longer needs the GUI toolkit.")
+                    "Python 3.10 to 3.14, on Windows, Linux and macOS.")
     code(p, QRectF(MARGIN, y, W - 2 * MARGIN, 4 * 98 + 40), [
-        ("pip install fmu-manipulation-toolbox", "command line + Python API"),
+        ("pip install fmu-manipulation-toolbox", "command line, Python API, fmutool-agent"),
         ('pip install "fmu-manipulation-toolbox[gui]"', "+ graphical interfaces"),
-        ('pip install "fmu-manipulation-toolbox[mcp]"', "+ AI Assistant"),
+        ('pip install "fmu-manipulation-toolbox[mcp]"', "+ AI Assistant (MCP server)"),
         ('pip install "fmu-manipulation-toolbox[all]"', "everything"),
     ])
     bullets(p, y + 4 * 98 + 100, ["Wheels include the native binaries (container, remoting)",
-                                  "Source distribution with the C sources, built with CMake"],
+                                  f"The agent skills need {VERSION} or later"],
             LIGHT["blue"], size=30, spacing=18)
 
 
@@ -432,7 +445,7 @@ def get_it(p, n, total):
     background(p, GREEN, n, total)
     icon = image(RES / "icon.png")
     p.drawImage(QRectF((W - 240) / 2, 150, 240, 240), icon)
-    text(p, QRectF(MARGIN, 440, W - 2 * MARGIN, 200), "Try 2.0 and tell us what you think", 60, bold=True,
+    text(p, QRectF(MARGIN, 440, W - 2 * MARGIN, 200), f"Try {VERSION} and tell us what you think", 60, bold=True,
          align=Qt.AlignmentFlag.AlignHCenter)
     y = 640
     for label, value in (("Source code", "github.com/grouperenault/fmu_manipulation_toolbox"),
@@ -451,7 +464,7 @@ def get_it_qr(p, n, total):
     background(p, GREEN, n, total)
     icon = image(RES / "icon.png")
     p.drawImage(QRectF((W - 180) / 2, 110, 180, 180), icon)
-    text(p, QRectF(MARGIN, 330, W - 2 * MARGIN, 200), "Try 2.0 and tell us what you think", 60, bold=True,
+    text(p, QRectF(MARGIN, 330, W - 2 * MARGIN, 200), f"Try {VERSION} and tell us what you think", 60, bold=True,
          align=Qt.AlignmentFlag.AlignHCenter)
     text(p, QRectF(MARGIN, 520, W - 2 * MARGIN, 50), "Scan for the documentation", 30, MUTED,
          align=Qt.AlignmentFlag.AlignHCenter)
@@ -463,14 +476,14 @@ def get_it_qr(p, n, total):
          TEXT, align=Qt.AlignmentFlag.AlignHCenter)
 
 
-SLIDES = (cover, tools, ai, model_exchange, link_assistant, instances, reset, simulink, compile_sources, robust,
-          install, get_it)
+SLIDES = (cover, tools, ls_bus, ls_xcp, ls_ref, ssp, skills, agent_cli, install, get_it)
 # A LinkedIn carousel is read in a few swipes: one new feature per slide, between the cover and the call to action.
-LINKEDIN_SLIDES = (cover, ai, model_exchange, link_assistant, reset, compile_sources, get_it_qr)
+LINKEDIN_SLIDES = (cover, ls_bus, ls_xcp, ls_ref, ssp, skills, get_it_qr)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Make the carousel announcing the FMU Manipulation Toolbox 2.0.")
+    parser = argparse.ArgumentParser(
+        description=f"Make the carousel announcing the FMU Manipulation Toolbox {VERSION}.")
     parser.add_argument("--out", required=True, type=Path, metavar="DIR",
                         help="directory receiving the PDF, the PNG and the WebP files")
     parser.add_argument("--linkedin", action="store_true",
@@ -481,11 +494,11 @@ def main():
     slides = LINKEDIN_SLIDES if args.linkedin else SLIDES
 
     app = QGuiApplication(sys.argv[:1])
-    pdf = QPdfWriter(str(out / "carousel-fmu-manipulation-toolbox-2.0.pdf"))
+    pdf = QPdfWriter(str(out / f"carousel-fmu-manipulation-toolbox-{VERSION}.pdf"))
     pdf.setResolution(72)
     pdf.setPageLayout(QPageLayout(QPageSize(QSizeF(W, H), QPageSize.Unit.Point), QPageLayout.Orientation.Portrait,
                                   QMarginsF(0, 0, 0, 0)))
-    pdf.setTitle("FMU Manipulation Toolbox 2.0")
+    pdf.setTitle(f"FMU Manipulation Toolbox {VERSION}")
     pdf_painter = QPainter(pdf)
     pdf_painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
     for number, slide in enumerate(slides, start=1):
