@@ -41,7 +41,7 @@ def fmucontainer():
 
     parser.add_argument("-simulink", action="store", dest="simulink", default=None, metavar="FILE.m",
                         help="Also export the container as a MATLAB script FILE.m that builds the Simulink model "
-                             "FILE_model.slx with FMU blocks (the FMUs stay in place).")
+                             "FILE_model.slx with FMU blocks (the FMUs stay in place). Alpha stage.")
 
     parser.add_argument("-fmi", action="store", dest="fmi_version", required=False, default="2",
                         help="Define version of FMI to be used for container interface."

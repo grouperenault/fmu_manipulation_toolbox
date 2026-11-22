@@ -1,4 +1,4 @@
-"""MATLAB script of the Simulink export (step 2 of `docs/local/simulink_export.md`)."""
+"""MATLAB script of the Simulink export (step 2 of `docs/local/done/simulink_export.md`)."""
 from pathlib import Path
 
 import pytest

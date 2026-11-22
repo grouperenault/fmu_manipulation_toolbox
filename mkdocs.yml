@@ -178,6 +178,7 @@ nav:
       - Model description: API/model_description.md
       - Operations: API/operations.md
       - Remoting: API/remoting.md
+      - Simulink: API/simulink.md
       - SSP: API/ssp.md
   - Examples:
       - Common Use Cases: examples/examples.md

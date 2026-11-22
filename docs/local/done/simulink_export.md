@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 38 taken (22 November 2026), steps 1 to 6 done — **Branch**: `feature/simulink-export`,
+**Status**: done (22 November 2026), decisions 1 to 39 — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context
@@ -200,6 +200,10 @@ points of 2026-10-17, with the results of the importer comparison study
     size to the `Inport`, `Outport`, `Constant`, `Terminator` and `UnitDelay` blocks, around their center (workaround
     of MATLAB Answers 2032409); they are also created at their default size. The FMU blocks keep the size of the
     layout.
+
+39. **Alpha stage** (from the user, at step 7): each export logs the warning "The Simulink export is at the alpha
+    stage: check the generated model."; the documentation (a warning box), the CHANGELOG, the help of `-simulink`
+    and the filter of **Save** ("MATLAB script for Simulink, alpha (*.m)") say so.
 
 ### Closed open points (2026-10-17)
 

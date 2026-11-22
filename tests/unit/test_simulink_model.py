@@ -1,4 +1,4 @@
-"""Analysis of an assembly for the Simulink export (step 1 of `docs/local/simulink_export.md`)."""
+"""Analysis of an assembly for the Simulink export (step 1 of `docs/local/done/simulink_export.md`)."""
 import logging
 from pathlib import Path
 

@@ -1,5 +1,6 @@
 """Export of an assembly as a MATLAB script building its Simulink model (step 3 of
-`docs/local/simulink_export.md`)."""
+`docs/local/done/simulink_export.md`)."""
+import logging
 import shutil
 
 import pytest
@@ -17,6 +18,13 @@ def test_script_is_written_next_to_the_fmus(area_dir):
     assert text.startswith("function model = ball()\n")
     assert "model = 'ball_model';" in text                          # the model does not shadow the function
     assert "addpath(here);" in text                                 # the FMUs are next to the script
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_alpha_stage_is_told(area_dir, caplog):
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        Assembly("bouncing.csv").make_simulink("model.m")
+    assert "The Simulink export is at the alpha stage: check the generated model." in caplog.messages
 
 
 @pytest.mark.area("containers/bouncing_ball")

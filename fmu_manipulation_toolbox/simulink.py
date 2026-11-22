@@ -3,7 +3,7 @@
 The export produces a MATLAB script that builds a Simulink model with native FMU blocks (library *Simulink Extras /
 FMU Import*). This module first analyses the assembly into an intermediate model: systems (the root and one subsystem
 per sub-container), blocks and lines with their port indices, in pure Python, so that it can be tested without
-MATLAB. See `docs/local/simulink_export.md` (decisions 1 to 26).
+MATLAB. See `docs/local/done/simulink_export.md` (decisions 1 to 38).
 """
 import logging
 import math
@@ -220,7 +220,7 @@ class _Endpoint:
 
 
 class SimulinkExporter:
-    """Analyse an assembly into a `SimulinkModel` (step 1 of `docs/local/simulink_export.md`).
+    """Analyse an assembly into a `SimulinkModel` (step 1 of `docs/local/done/simulink_export.md`).
 
     Args:
         assembly (Assembly): The assembly; its FMUs are read from `assembly.fmu_directory`.
@@ -271,6 +271,7 @@ class SimulinkExporter:
             AssemblyError: If the name of the script is not a valid MATLAB identifier, if an FMU cannot be designated
                 relatively to the script (another drive), or if the assembly cannot be exported (see `analyse`).
         """
+        logger.warning("The Simulink export is at the alpha stage: check the generated model.")
         filename = Path(filename)
         if filename.suffix.lower() != ".m":
             filename = filename.with_name(filename.name + ".m")
