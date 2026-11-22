@@ -74,7 +74,7 @@ void datalog_log(container_t *container) {
         LOG3(uintegers32, UInt32, "%" PRIu32);
         LOG3(integers64, Int64, "%" PRId64);
         LOG3(uintegers64, UInt64, "%" PRIu64);
-        LOG2(booleans, Boolean, "%d");          /* FMI 2.0 call */
+        LOG2(booleans, Boolean, "%d");          /* FMI-2 call */
         LOG3(booleans1, Boolean, "%d");
         if (datalog->nb_strings > 0) {
             fmi3GetString(container, datalog->vr_strings, datalog->nb_strings, datalog->values_strings,

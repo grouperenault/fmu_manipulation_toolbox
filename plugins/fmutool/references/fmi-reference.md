@@ -18,8 +18,8 @@ A link always goes **output → input**. Linking anything else is rejected.
 start value on a `constant` is at best ignored.
 
 ## Types
-FMI 2.0 uses `Real`, `Integer`, `Boolean`, `String`, `Enumeration`.
-FMI 3.0 splits reals and integers by width: `Float32`/`Float64`,
+FMI-2 uses `Real`, `Integer`, `Boolean`, `String`, `Enumeration`.
+FMI-3 splits reals and integers by width: `Float32`/`Float64`,
 `Int8`...`UInt64`, plus `Boolean`, `String`, `Binary`, `Clock`.
 
 The container converts between numeric types when a link requires it, but the

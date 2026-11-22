@@ -80,7 +80,7 @@ class NodeItem(QGraphicsRectItem, OperationAbstract):
         self.fmu_step_size: str | None = None
         # Whether the FMU can handle a variable communication step size (Co-Simulation takes precedence).
         self.fmu_variable_step_size: bool = False
-        # Whether fmu_step_size is the fixedInternalStepSize of an FMI 3.0 FMU (it takes precedence over stepSize).
+        # Whether fmu_step_size is the fixedInternalStepSize of an FMI-3 FMU (it takes precedence over stepSize).
         self.fmu_fixed_internal_step_size: bool = False
         self.fmu_generator: str = ""
         self.fmu_fmi_version: int | None = None

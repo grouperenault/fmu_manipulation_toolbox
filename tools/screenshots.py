@@ -203,7 +203,7 @@ def fmutool_check():
 
 @shot("fmutool-compile", "user-guide/fmutool/fmutool-compile.png")
 def fmutool_compile():
-    """`Compile sources` on the FMI 3.0 Reference FMU `BouncingBall` copied without its binaries."""
+    """`Compile sources` on the FMI-3 Reference FMU `BouncingBall` copied without its binaries."""
     import zipfile
 
     from fmu_manipulation_toolbox.gui.fmutool.__main__ import MainWindow

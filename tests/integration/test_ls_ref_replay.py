@@ -74,17 +74,17 @@ def test_stimuli(fmus):
 
 
 def test_stimuli_of_fmi2(fmus):
-    """The FMI-3.0 container sets the numbers of an FMI-2.0 FMU, not its booleans (they cannot be exposed)."""
+    """The FMI-3 container sets the numbers of an FMI-2 FMU, not its booleans (they cannot be exposed)."""
     stimuli = read_csv(LS_REF / "feedthrough" / "in.csv")
     experiment = Experiment("Stimuli", start_time=0, stop_time=2, step_size=0.1)
-    with pytest.raises(SimulationUnsupported, match="the stimulus of the FMI-2.0 boolean 'Boolean_input'"):
+    with pytest.raises(SimulationUnsupported, match="the stimulus of the FMI-2 boolean 'Boolean_input'"):
         replay(fmus("2.0", "Feedthrough"), experiment, ["Float64_continuous_output"], stimuli=stimuli)
     del stimuli.columns["Boolean_input"]
     simulated = replay(fmus("2.0", "Feedthrough"), experiment, ["Float64_continuous_output", "Int32_output",
                                                                "Boolean_output"], stimuli=stimuli)
     _assert_matches(read_csv(LS_REF / "feedthrough" / "ref.csv"), simulated, ["Float64_continuous_output",
                                                                               "Int32_output"])
-    assert simulated.columns["Boolean_output"] == [False] * 21        # an FMI-2.0 boolean output, exposed
+    assert simulated.columns["Boolean_output"] == [False] * 21        # an FMI-2 boolean output, exposed
 
 
 @pytest.mark.parametrize("first, second, columns", [
@@ -92,11 +92,11 @@ def test_stimuli_of_fmi2(fmus):
     ("m[1,1]", "m[1,2]", ["m[1,1]", "m[1,2]"]),
 ], ids=["vector", "matrix"])
 def test_array_output(fmus, tmp_path, first, second, columns):
-    """An array output gives one column per element, named as by FMI 3.0: the two real outputs of the FMI-2.0
+    """An array output gives one column per element, named as by FMI-3: the two real outputs of the FMI-2
     Feedthrough, renamed as the elements of an array (value references 8 and 10), are aggregated by the container into
     one array output.
 
-    The container exposes an FMI-2.0 aggregate through a local variable, updated after each step: an element fed
+    The container exposes an FMI-2 aggregate through a local variable, updated after each step: an element fed
     through follows its input one step later than the scalar output, read once the inputs are set."""
     path = fmus("2.0", "Feedthrough")
     text = read_entry(path, "modelDescription.xml").decode()

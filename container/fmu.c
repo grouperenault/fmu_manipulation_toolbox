@@ -13,7 +13,7 @@
 //#define DEBUG
 
 /*
- * FMI-importer supporting FMI-2.0 and FMI-3.0. FMUs are handled through fmu_t pointers.
+ * FMI-importer supporting FMI-2 and FMI-3. FMUs are handled through fmu_t pointers.
  */
 
 /* Shared per-type IO translation loops. Defined at file scope so the plain and
@@ -337,7 +337,7 @@ fmu_status_t fmu_get_outputs(const fmu_t* fmu) {
 
 /*
  * Continuous Time Mode variants: exchange ONLY the continuous (real) couplings.
- * Per FMI-2.0 2.1.3, discrete variables (booleans/integers) may only be set/get
+ * Per FMI-2 §2.1.3, discrete variables (booleans/integers) may only be set/get
  * in Event or Initialization Mode; exchanging them in Continuous Time Mode is
  * illegal and corrupts the target FMU (e.g. a bounce "reset" edge detector).
  */
@@ -690,7 +690,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
     }
     switch(fmi_version) {
         case 2:
-            /* FMI-2.0: fmuResourceLocation is a URI (RFC 3986) */
+            /* FMI-2: fmuResourceLocation is a URI (RFC 3986) */
             if (path_join(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU2_BINDIR, identifier, NULL) ||
                 path_to_uri(resources, fmu->resource_dir, FMU_PATH_MAX_LEN)) {
                 LOGGER_ERROR("Path of the files of '%s' is too long.", name);
@@ -698,7 +698,7 @@ int fmu_load_from_directory(container_t *container, int i, const char *directory
             }
             break;
         case 3:
-            /* FMI-3.0: resourcePath is a file path with a trailing file separator, NULL without resources folder */
+            /* FMI-3: resourcePath is a file path with a trailing file separator, NULL without resources folder */
             if (path_join(library_filename, FMU_PATH_MAX_LEN, directory, "binaries", FMU3_BINDIR, identifier, NULL)) {
                 LOGGER_ERROR("Path of the files of '%s' is too long.", name);
                 return -1;
@@ -1056,7 +1056,7 @@ fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate)
     if ((fmu->kind == FMU_KIND_CS) && (! fmu->support_event))
         return FMU_STATUS_OK;
 
-    /* Only ME is supported in FMI-2.0, where the function is named differently. */
+    /* Only ME is supported in FMI-2, where the function is named differently. */
     if ((fmu->kind == FMU_KIND_ME) && (fmu->fmi_version == 2)) {
         fmi2EventInfo info = { fmi2False, fmi2False, fmi2False, fmi2False, fmi2False, 0.0 };
         fmi2Status status2 = fmu->fmi_functions.version_2.fmi2NewDiscreteStates(fmu->component, &info);
@@ -1116,7 +1116,7 @@ fmu_status_t fmuUpdateDiscreteStates(fmu_t *fmu, bool *discreteStatesNeedUpdate)
                        M O D E L   E X C H A N G E
 ----------------------------------------------------------------------------*/
 
-/* Thin FMI-2/3 dispatchers used by the ME solver in solver.c. */
+/* Thin FMI-2/FMI-3 dispatchers used by the ME solver in solver.c. */
 
 fmu_status_t fmuSetTime(fmu_t *fmu, double t) {
     const logger_t *logger = &fmu->container->logger;
@@ -1316,7 +1316,7 @@ fmu_status_t fmuDoStep(fmu_t *fmu,
         if ((status2 == fmi2OK) || (status2 == fmi2Warning))
             status = FMU_STATUS_OK;
         else if (status2 == fmi2Discard) {
-            /* FMI-2.0: an FMU that asks to terminate the simulation discards its step and tells it by fmi2Terminated. */
+            /* FMI-2: an FMU that asks to terminate the simulation discards its step and tells it by fmi2Terminated. */
             fmi2Boolean terminated = fmi2False;
             if ((fmuGetBooleanStatus(fmu, fmi2Terminated, &terminated) == FMU_STATUS_OK) && terminated) {
                 LOGGER_WARNING("FMU '%s' requested to end the simulation.", fmu->name);
@@ -1410,7 +1410,7 @@ fmu_status_t fmuSetupExperiment(const fmu_t *fmu, double start_time) {
         if ((status2 == fmi2OK) || (status2 == fmi2Warning))
             status = FMU_STATUS_OK;
     } else {
-        /* No such API in FMI-3.0 */
+        /* No such API in FMI-3 */
         status = FMU_STATUS_OK;
     }
 

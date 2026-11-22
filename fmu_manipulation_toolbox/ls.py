@@ -19,7 +19,7 @@ XCP_ROLES = {
     "XCPServiceUDPListenAddress": "String",
 }
 
-#: FMI types of the variable of each kind of role (`XCP_ROLES`), for FMI 2.0 and FMI 3.0.
+#: FMI types of the variable of each kind of role (`XCP_ROLES`), for FMI-2 and FMI-3.
 XCP_ROLE_TYPES = {
     "Boolean": {2: ("Boolean",), 3: ("Boolean",)},
     "Port": {2: ("Integer",), 3: ("UInt16",)},

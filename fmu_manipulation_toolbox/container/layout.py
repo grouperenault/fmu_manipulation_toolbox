@@ -140,7 +140,7 @@ class OutputConversion:
     Attributes:
         cport (ContainerPort): The embedded port.
         local (int): Value reference of the local variable of the value of the FMU.
-        type_name (str): Container type of the output (`boolean1` in an FMI-3.0 container, `boolean` in FMI 2.0).
+        type_name (str): Container type of the output (`boolean1` in an FMI-3 container, `boolean` in FMI-2).
         conversion (str): Conversion function of the runtime (`B_B1`, `B1_B`).
         vr (int): Value reference of the converted local variable, and of the container output.
         own_local (bool): `local` is allocated for the output (the port has no link).

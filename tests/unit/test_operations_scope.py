@@ -2,7 +2,7 @@
 
 An operation is applied to every port, or only to the ports of some
 causalities (`apply_on`, the `-only-*` options of `fmutool`). The FMUs are
-hand-built, FMI 2.0 and FMI 3.0, with ports of every type and variability
+hand-built, FMI-2 and FMI-3, with ports of every type and variability
 that the filters have to tell apart.
 """
 import zipfile

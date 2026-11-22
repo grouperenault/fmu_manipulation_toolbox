@@ -460,7 +460,7 @@ def fake_compile_dialog(monkeypatch):
 
 @pytest.fixture
 def needs_foo_fmu(data_dir, tmp_path):
-    """FMI 3.0 Reference FMU without binaries, whose `model.c` only compiles with `FOO` defined."""
+    """FMI-3 Reference FMU without binaries, whose `model.c` only compiles with `FOO` defined."""
     from _helpers.archive import read_entry, rewrite_fmu
     source = data_dir / "compile" / "3.0" / "BouncingBall.fmu"
     model = read_entry(source, "sources/model.c")

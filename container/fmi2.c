@@ -10,7 +10,7 @@
 #include "logger.h"
 
 /*
- * FMI-2.0 implementation
+ * FMI-2 implementation
  */
 
 /*----------------------------------------------------------------------------
@@ -112,7 +112,7 @@ fmi2Component fmi2Instantiate(fmi2String instanceName,
 void fmi2FreeInstance(fmi2Component c) {
     container_t* container = (container_t*)c;
     if (!container)
-        return;     /* FMI-2.0: the call is ignored */
+        return;     /* FMI-2: the call is ignored */
     const logger_t *logger = &container->logger;
 
     LOGGER_DEBUG("Releasing the container instance '%s'.", container->instance_name);
@@ -411,7 +411,7 @@ fmi2Status fmi2DoStep(fmi2Component c,
     if (status != FMU_STATUS_OK)
         return fmi2Error;
 
-    /* FMI-2.0: the importer gets fmi2Terminated and fmi2LastSuccessfulTime with fmi2GetBooleanStatus/RealStatus. */
+    /* FMI-2: the importer gets fmi2Terminated and fmi2LastSuccessfulTime with fmi2GetBooleanStatus/RealStatus. */
     if (container->terminate_requested)
         return fmi2Discard;
 

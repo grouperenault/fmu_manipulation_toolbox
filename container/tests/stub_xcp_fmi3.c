@@ -5,7 +5,7 @@
 #include "stub_xcp.h"
 
 /*
- * FMI 3.0 Co-Simulation FMU of FMI-LS-XCP used by the native tests (descriptor:
+ * FMI-3 Co-Simulation FMU of FMI-LS-XCP used by the native tests (descriptor:
  * tests/data/ls-xcp/stub_xcp_fmi3/modelDescription.xml). The XCP configuration variables are fixed structural
  * parameters: they can only be set in Configuration Mode, any other set is refused (fmi3Error) and journaled. The
  * service starts in fmi3ExitConfigurationMode, or in fmi3EnterInitializationMode at the latest.

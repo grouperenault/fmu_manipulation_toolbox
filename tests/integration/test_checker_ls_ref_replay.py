@@ -66,11 +66,11 @@ def test_stimuli(fmus, caplog):
 
 
 def test_boolean_stimulus_of_fmi2(fmus, caplog):
-    """The FMI-3.0 container cannot set an FMI-2.0 boolean input: the experiment is not replayed (warning)."""
+    """The FMI-3 container cannot set an FMI-2 boolean input: the experiment is not replayed (warning)."""
     check = _check(fmus("2.0", "Feedthrough"), caplog)
     assert check.errors == []
-    assert "Experiment 'Stimuli' of 'experiments.xml': not replayed: the stimulus of the FMI-2.0 boolean " \
-           "'Boolean_input' cannot be set through the FMI-3.0 container." in caplog.text
+    assert "Experiment 'Stimuli' of 'experiments.xml': not replayed: the stimulus of the FMI-2 boolean " \
+           "'Boolean_input' cannot be set through the FMI-3 container." in caplog.text
 
 
 @pytest.mark.parametrize("version", VERSIONS)
@@ -184,7 +184,7 @@ FAULT_EXPERIMENTS = """<?xml version="1.0" encoding="UTF-8"?>
 
 
 def _faulty_fmu(tmp_path, value: int):
-    """Feedthrough FMI 3.0 that crashes (13) or never returns (14) when its `Int32_input` reaches `value` (at t=1),
+    """Feedthrough FMI-3 that crashes (13) or never returns (14) when its `Int32_input` reaches `value` (at t=1),
     in the first of two experiments."""
     model = read_entry(DATA_DIR / "compile" / "3.0" / "Feedthrough.fmu", "sources/model.c").decode()
     assert "Status calculateValues(ModelInstance *comp) {\n" in model

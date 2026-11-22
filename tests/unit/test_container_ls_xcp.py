@@ -140,7 +140,7 @@ def test_fmi2_container(xcp_dir, caplog):
     container.add_start_value("stub_xcp_fmi3.fmu", "XCP.TCP.Port", "6000")
     with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
         container.add_implicit_rule(auto_input=False, auto_output=False, auto_link=False)
-    # FMI-3.0 UInt16 and Boolean: no such type in an FMI-2.0 container
+    # FMI-3 UInt16 and Boolean: no such type in an FMI-2 container
     assert "container would expose it as uinteger16, FMI-LS-XCP needs Integer" in caplog.text
     assert "container would expose it as boolean1, FMI-LS-XCP needs Boolean" in caplog.text
     lines = _container_txt(container)

@@ -4,7 +4,7 @@ The coupling sweep of the Model-Exchange solver must not change the results: the
 before this change, on macOS (Apple silicon). The embedded FMUs run their own binaries on each platform (compiler,
 libm, fused multiply-add), so the comparison allows a tolerance far above the rounding differences between platforms
 (a few units of the last digit) and far below any change of behaviour; the results are identical bit for bit on one
-machine (see `tools/bench_container.py`). `Feedthrough.fmu` (FMI 3.0) and `VanDerPol.fmu` have binaries for every
+machine (see `tools/bench_container.py`). `Feedthrough.fmu` (FMI-3) and `VanDerPol.fmu` have binaries for every
 platform; the FMI-2 `Feedthrough.fmu` is compiled for the host.
 """
 import re
@@ -92,7 +92,7 @@ def test_many_ports(fmus, mode):
 
 @pytest.mark.needs_compiler
 def test_many_ports_fmi2(fmus):
-    """Case A with the FMI-2 Feedthrough, compiled for the host (point 1, FMI 2.0 calls)."""
+    """Case A with the FMI-2 Feedthrough, compiled for the host (point 1, FMI-2 calls)."""
     from fmu_manipulation_toolbox.compiler import OperationCompileSources
     from fmu_manipulation_toolbox.operations import FMU
 

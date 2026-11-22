@@ -1,7 +1,7 @@
-"""The ticks of the time-based clocks of FMI 3.0, scheduled by a container (`intervalVariability` constant, fixed,
+"""The ticks of the time-based clocks of FMI-3, scheduled by a container (`intervalVariability` constant, fixed,
 tunable, changing and countdown).
 
-`tests/data/clock-ticks` is an FMU compiled for the host. It refuses what FMI 3.0 forbids to an importer, so that a
+`tests/data/clock-ticks` is an FMU compiled for the host. It refuses what FMI-3 forbids to an importer, so that a
 wrong call stops the simulation. It counts the ticks of its clocks and sums their times: `a.fmu` owns the time-based
 clocks, each of them drives the triggered clock of `b.fmu`.
 """
@@ -128,7 +128,7 @@ def test_tick_announced_again_at_the_same_time_waits_for_a_step(area_dir):
 
 
 def test_announced_tick_is_kept_if_the_fmu_answers_not_yet_known(area_dir):
-    """FMI 3.0 does not allow this answer about a tick already announced, but it must not lose this tick."""
+    """FMI-3 does not allow this answer about a tick already announced, but it must not lose this tick."""
     _build_fmu(["forgetful"])
     result = _simulate(["forgetful"])
     for fmu in ("a", "b"):
@@ -161,7 +161,7 @@ def test_new_interval_without_its_value_is_refused(area_dir):
 
 
 def test_fmi3_get_interval_decimal_is_only_required_by_the_clocks_that_need_it(area_dir):
-    """FMI 3.0.1 (2.5): an importer should not rely on the functions it does not need. A clock whose interval is
+    """FMI-3.0.1 (2.5): an importer should not rely on the functions it does not need. A clock whose interval is
     declared by the modelDescription.xml does not need fmi3GetIntervalDecimal: its FMU may not export it."""
     _build_fmu(["constant"], interval_function=False)
     result = _simulate(["constant"])

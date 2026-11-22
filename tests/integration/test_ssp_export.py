@@ -229,7 +229,7 @@ def test_instances_of_one_fmu_share_one_file(data_dir, tmp_path):
 
 
 def test_the_fmi3_types_in_ssp_2_and_ssp_1(data_dir, tmp_path):
-    """E4: SSP 2.0 by default, the FMI 3.0 types exact; SSP 1.0 writes them as FMI 2.0 types."""
+    """E4: SSP 2.0 by default, the FMI-3 types exact; SSP 1.0 writes them as FMI-2 types."""
     assembly = _bouncing_node(data_dir, tmp_path)
     assembly.write_ssp(tmp_path / "v2.ssp")
     assembly.write_ssp(tmp_path / "v1.ssp", ssp_version="1.0")

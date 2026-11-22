@@ -101,7 +101,7 @@ def test_compilation_failure(area_dir, caplog):
 
 
 def _needs_foo(destination: str):
-    """FMI 3.0 Reference FMU without binaries, whose `model.c` only compiles with `FOO` defined."""
+    """FMI-3 Reference FMU without binaries, whose `model.c` only compiles with `FOO` defined."""
     model = read_entry(_reference(3), "sources/model.c")
     rewrite_fmu(_reference(3), destination, drop=("binaries/",),
                 replace={"sources/model.c": b'#ifndef FOO\n#error "FOO is not defined"\n#endif\n' + model})

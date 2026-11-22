@@ -10,7 +10,7 @@
 #include "logger.h"
 
 /*
- * FMI-3.0 implementation
+ * FMI-3 implementation
  */
 
 /*----------------------------------------------------------------------------
@@ -107,7 +107,7 @@ fmi3Instance fmi3InstantiateCoSimulation(
 void fmi3FreeInstance(fmi3Instance instance) {
     container_t* container = (container_t*)instance;
     if (!container)
-        return;     /* FMI-3.0: the call is ignored */
+        return;     /* FMI-3: the call is ignored */
     const logger_t *logger = &container->logger;
 
     LOGGER_DEBUG("Freeing the container instance '%s'.", container->instance_name);

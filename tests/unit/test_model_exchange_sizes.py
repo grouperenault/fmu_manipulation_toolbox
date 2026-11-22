@@ -31,7 +31,7 @@ def fmi3(variables: str, structure: str) -> ModelDescription:
 
 
 # --------------------------------------------------------------------------- #
-#                                   FMI 2.0                                     #
+#                                   FMI-2                                     #
 # --------------------------------------------------------------------------- #
 def test_fmi2_event_indicators_read_from_root_attribute():
     assert fmi2(root_attrs=' numberOfEventIndicators="3"').model_exchange_sizes() == (0, 3)
@@ -50,7 +50,7 @@ def test_fmi2_derivatives_count_as_continuous_states():
 
 
 # --------------------------------------------------------------------------- #
-#                           FMI 3.0 — nominal sizing                            #
+#                           FMI-3 — nominal sizing                            #
 # --------------------------------------------------------------------------- #
 def test_fmi3_scalar_derivative_counts_as_one():
     md = fmi3('<Float64 name="x" valueReference="5"/>', '<ContinuousStateDerivative valueReference="5"/>')
@@ -79,7 +79,7 @@ def test_fmi3_event_indicator_array_counts_elements():
 
 
 # --------------------------------------------------------------------------- #
-#                      FMI 3.0 — defensive fallbacks (warn, assume 1)           #
+#                      FMI-3 — defensive fallbacks (warn, assume 1)           #
 # --------------------------------------------------------------------------- #
 def test_fmi3_missing_value_reference_assumes_one_and_warns(caplog):
     md = fmi3("", "<EventIndicator/>")

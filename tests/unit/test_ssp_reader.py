@@ -18,7 +18,7 @@ NAMESPACES = ('xmlns:ssd="http://ssp-standard.org/SSP1/SystemStructureDescriptio
               'xmlns:ssv="http://ssp-standard.org/SSP1/SystemStructureParameterValues" '
               'xmlns:ssm="http://ssp-standard.org/SSP1/SystemStructureParameterMapping"')
 
-#: FMI 2.0 descriptor of the FMUs of the tests: inputs `u` (unit m) and `v`, output `y` (unit m), parameters
+#: FMI-2 descriptor of the FMUs of the tests: inputs `u` (unit m) and `v`, output `y` (unit m), parameters
 #: `k`, `n`, `b`; constant `c`.
 DESCRIPTOR = """<?xml version="1.0" encoding="UTF-8"?>
 <fmiModelDescription fmiVersion="2.0" modelName="{name}" guid="{{{name}}}">

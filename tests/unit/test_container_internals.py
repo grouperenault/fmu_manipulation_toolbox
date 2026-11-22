@@ -165,7 +165,7 @@ def test_array_aggregate_does_not_hide_an_existing_port():
 # --------------------------------------------------------------------------- #
 def _container_with(tmp_path, *fmus) -> FMUContainer:
     """A container whose embedded FMUs are only described by their step size and capability, and optionally whether
-    this step size is a `fixedInternalStepSize` (FMI 3.0)."""
+    this step size is a `fixedInternalStepSize` (FMI-3)."""
     container = FMUContainer("test", tmp_path)
     for i, (step_size, variable, *fixed) in enumerate(fmus):
         container.involved_fmu[f"{i}.fmu"] = SimpleNamespace(
@@ -222,7 +222,7 @@ def _embedded_fmu(fmi_version: int, cosimulation: dict[str, str], experiment: di
     (3, {"fixedInternalStepSize": "x", "canHandleVariableCommunicationStepSize": "true"}, {"stepSize": "0.5"},
      0.5, False),                                                                  # invalid: ignored
     (2, {"fixedInternalStepSize": "0.2", "canHandleVariableCommunicationStepSize": "true"}, {"stepSize": "0.5"},
-     0.5, False),                                                                  # not an FMI 2.0 attribute
+     0.5, False),                                                                  # not an FMI-2 attribute
 ], ids=["precedence", "alone", "variable", "fixed", "invalid", "fmi2"])
 def test_step_size_of_an_embedded_fmu(fmi_version, cosimulation, experiment, step_size, imposed):
     fmu = _embedded_fmu(fmi_version, cosimulation, experiment)
@@ -756,7 +756,7 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 
 @pytest.fixture
 def aggregates(tmp_path) -> Path:
-    """Two FMI-2.0 FMUs whose real ports are the elements of arrays with value references that are not consecutive:
+    """Two FMI-2 FMUs whose real ports are the elements of arrays with value references that are not consecutive:
     `u[1]` (7), `u[2]` (9), `y[1]` (8), `y[2]` (10) (the Feedthrough of the Reference-FMUs, renamed)."""
     source = DATA_DIR / "compile" / "2.0" / "Feedthrough.fmu"
     with zipfile.ZipFile(source) as archive:
@@ -808,7 +808,7 @@ def test_fmi2_aggregate_start_value_of_each_element(aggregates):
 
 
 def test_fmi2_aggregate_exposed_through_a_local_variable(aggregates):
-    """The runtime exchanges a port of an FMI-2.0 FMU as one scalar: an exposed aggregate is a local variable of the
+    """The runtime exchanges a port of an FMI-2 FMU as one scalar: an exposed aggregate is a local variable of the
     container, whose elements are exchanged one by one with the FMU."""
     container = FMUContainer("c", aggregates, fmi_version=3)
     container.get_fmu("a.fmu")

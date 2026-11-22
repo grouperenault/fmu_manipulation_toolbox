@@ -9,7 +9,7 @@
 #include "fmi2Functions.h"
 
 /*
- * FMI 2.0 Co-Simulation FMU used by the native tests. Its behaviour is chosen by the GUID given to fmi2Instantiate:
+ * FMI-2 Co-Simulation FMU used by the native tests. Its behaviour is chosen by the GUID given to fmi2Instantiate:
  *   - "{stub}":                    every call succeeds;
  *   - "{stub-fail-instantiate}":   fmi2Instantiate returns NULL;
  *   - "{stub-terminate}":          asks to terminate the simulation in the step that reaches STUB_TERMINATE_TIME:

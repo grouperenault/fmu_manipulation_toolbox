@@ -150,7 +150,7 @@ def test_variable_step_size_fmu(window, data_dir, tmp_path):
 
 
 def test_fixed_internal_step_size_fmu(window, data_dir, tmp_path):
-    """The fixedInternalStepSize of an FMI 3.0 FMU takes precedence over its stepSize, and constrains the step of its
+    """The fixedInternalStepSize of an FMI-3 FMU takes precedence over its stepSize, and constrains the step of its
     container even when it handles a variable communication step."""
     fixed = _patched_fmu(data_dir / "containers" / "bouncing_ball" / "velocity_cs3_multiple.fmu",
                          tmp_path / "fixed.fmu", {'canHandleVariableCommunicationStepSize="false"':

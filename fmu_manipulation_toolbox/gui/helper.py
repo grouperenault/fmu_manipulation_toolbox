@@ -81,8 +81,8 @@ def get_fmu_icon_path(fmu: FMU, fmi_version: int | None) -> Path | None:
     """Return the path to the FMU model icon inside its extraction directory.
 
     The icon location depends on the FMI version:
-      - FMI 3.0: `terminalsAndIcons/icon.png`
-      - FMI 2.0 (or unknown): `model.png` at the FMU root
+      - FMI-3: `terminalsAndIcons/icon.png`
+      - FMI-2 (or unknown): `model.png` at the FMU root
 
     Args:
         fmu: The loaded FMU (uses its `tmp_directory`).

@@ -5,7 +5,7 @@
 #include "stub_xcp.h"
 
 /*
- * FMI 2.0 Co-Simulation FMU of FMI-LS-XCP used by the native tests (descriptor:
+ * FMI-2 Co-Simulation FMU of FMI-LS-XCP used by the native tests (descriptor:
  * tests/data/ls-xcp/stub_xcp_fmi2/modelDescription.xml). The XCP configuration variables are fixed parameters: they
  * can be set until the service starts, in fmi2SetupExperiment; a later set is refused (fmi2Error) and journaled.
  */

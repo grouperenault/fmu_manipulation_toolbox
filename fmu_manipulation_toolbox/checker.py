@@ -50,7 +50,7 @@ class OperationGenericCheck(OperationAbstract):
     """Check FMU compliance against the FMI standard XSD schema.
 
     Validates the `modelDescription.xml` file of an FMU against the official
-    XSD schema for FMI 2.0 or 3.0. Reports validation errors via the logger
+    XSD schema for FMI-2 or FMI-3. Reports validation errors via the logger
     and indicates whether the FMU is compliant.
 
     This checker is always included by default in the checkers list.
@@ -115,22 +115,22 @@ class OperationGenericCheck(OperationAbstract):
 class OperationSemanticCheck(OperationAbstract):
     """Check the rules of the FMI standard that the XSD schema cannot express.
 
-    Rules are those of FMI 2.0.5 (§2.2.7, §2.2.8) and FMI 3.0.2 (§2.4,
+    Rules are those of FMI-2.0.5 (§2.2.7, §2.2.8) and FMI-3.0.2 (§2.4,
     §2.4.7, §2.4.8). Each violation is logged as an error and kept in
     `errors`:
 
-    - variable names (and FMI 3.0 alias names) are unique;
-    - FMI 3.0 value references are unique;
+    - variable names (and FMI-3 alias names) are unique;
+    - FMI-3 value references are unique;
     - allowed combinations of `causality` and `variability`; only `Real`
-      (FMI 2.0) or `Float32`/`Float64` (FMI 3.0) variables are continuous;
+      (FMI-2) or `Float32`/`Float64` (FMI-3) variables are continuous;
     - allowed values of `initial` for each combination;
     - presence or absence of a `start` value;
     - references between variables: `derivative`, `<ModelStructure>` entries
       and their `dependencies`;
-    - `<Outputs>` (FMI 2.0) / `<Output>` (FMI 3.0) lists exactly the variables
+    - `<Outputs>` (FMI-2) / `<Output>` (FMI-3) lists exactly the variables
       with `causality="output"`; state derivatives have a `derivative`
       attribute;
-    - `<InitialUnknowns>` (FMI 2.0) / `<InitialUnknown>` (FMI 3.0) lists the
+    - `<InitialUnknowns>` (FMI-2) / `<InitialUnknown>` (FMI-3) lists the
       outputs with `initial="calculated"` or `"approx"` (clocks and clocked
       variables excepted, as the Reference FMUs do) and no output with
       `initial="exact"`.
@@ -141,7 +141,7 @@ class OperationSemanticCheck(OperationAbstract):
 
     read_only = True
 
-    # Allowed variabilities per causality (FMI 2.0 §2.2.7 and FMI 3.0 §2.4.7.4 tables).
+    # Allowed variabilities per causality (FMI-2 §2.2.7 and FMI-3 §2.4.7.4 tables).
     VARIABILITIES = {
         "structuralParameter": ("fixed", "tunable"),
         "parameter": ("fixed", "tunable"),
@@ -555,7 +555,7 @@ class OperationLsXcpCheck(OperationAbstract):
       code (in the directory of the manifest) or for at least one platform; an A2L file must not use `/include`;
     - an `Interface` has `containsXCPService` or `supportsDirectMemoryAccess`;
     - each `Variable` refers to an existing scalar variable, of the type of its role, declared as a fixed
-      `structuralParameter` (FMI 3.0), a fixed `parameter`, a `constant` output or a fixed or tunable
+      `structuralParameter` (FMI-3), a fixed `parameter`, a `constant` output or a fixed or tunable
       `calculatedParameter`; a variable in one entry only, a role once per `Interface`.
 
     Warnings: an `Interface` restricted to interface types the FMU does not provide, roles in an `Interface`
@@ -730,7 +730,7 @@ class OperationLsRefCheck(OperationAbstract):
     file), an experiment file of another type, a stimuli, references or parameters file of a type other than CSV or
     SSV, a file of an `uncertainty-analysis` experiment not found, a column of a result file that is not an output or
     is a binary, a binary of the references (ignored), the container runtime or the binary of the FMU not available for
-    the host platform (no replay), a stimulus on a boolean input of an FMI-2.0 FMU (experiment not replayed).
+    the host platform (no replay), a stimulus on a boolean input of an FMI-2 FMU (experiment not replayed).
 
     Args:
         rtol (float): Relative tolerance of the comparison with the references (`RTOL` by default), `>= 0`.

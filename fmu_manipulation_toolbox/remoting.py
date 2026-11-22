@@ -13,7 +13,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
     a 32-bit FMU can be called from a 64-bit host (or vice versa), or
     a front-end proxy can be added for same-bitness isolation.
 
-    This operation is only supported for FMI 2.0 FMUs on Windows.
+    This operation is only supported for FMI-2 FMUs on Windows.
 
     Subclasses must set `bitness_from` and `bitness_to` to define the
     remoting direction.
@@ -29,7 +29,7 @@ class OperationAddRemotingWinAbstract(OperationAbstract):
         nb_output (int): Number of output, local, and other ports.
 
     Raises:
-        OperationError: If the FMU is not FMI 2.0 or the source platform
+        OperationError: If the FMU is not FMI-2 or the source platform
             binaries are missing.
     """
     bitness_from: str | None = None

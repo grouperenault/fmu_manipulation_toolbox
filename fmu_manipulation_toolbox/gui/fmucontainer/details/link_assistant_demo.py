@@ -58,7 +58,7 @@ def _signals(count: int, rng: random.Random) -> list[tuple[str, str, str]]:
 
 
 def generate(ports: int = 400, seed: int = 1) -> tuple[WireSide, WireSide, list[tuple]]:
-    """Two fictitious FMUs: A (`engine.fmu`, FMI 2) and B (`ecu.fmu`, FMI 3), and the existing links of the wire."""
+    """Two fictitious FMUs: A (`engine.fmu`, FMI-2) and B (`ecu.fmu`, FMI-3), and the existing links of the wire."""
     rng = random.Random(seed)
     a: list[PortInfo] = []
     b: list[PortInfo] = []
@@ -116,7 +116,7 @@ def generate(ports: int = 400, seed: int = 1) -> tuple[WireSide, WireSide, list[
         short = ABBREVIATIONS.get(quantity, quantity[:-1])
         in_b(f"chassis.{subsystem}_{short}", unit, f"{quantity} of the {subsystem} (chassis)")
 
-    # Arrays: A is FMI 2, its arrays are aggregates of scalar ports; B is FMI 3.
+    # Arrays: A is FMI-2, its arrays are aggregates of scalar ports; B is FMI-3.
     out_a("wheel.speed", "rad/s", "Array aggregate of 4 scalar ports (wheel.speed[1], ...)", size=4)
     in_b("wheel_speed", "rad/s", "speed of the 4 wheels", size=4)
     out_a("wheel.torque", "N.m", "Array aggregate of 4 scalar ports (wheel.torque[1], ...)", size=4)

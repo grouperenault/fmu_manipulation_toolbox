@@ -118,7 +118,7 @@ class Port(BaseModel):
     """One variable of an FMU, as declared in ``modelDescription.xml``."""
 
     name: str = Field(description="Port name, to be used as-is in the other tools.")
-    type: str = Field(description="FMI type, e.g. 'Real' (FMI 2) or 'Float64' (FMI 3).")
+    type: str = Field(description="FMI type, e.g. 'Real' (FMI-2) or 'Float64' (FMI-3).")
     causality: str = Field(
         description="'input', 'output', 'parameter', 'local', 'independent' or "
                     "'calculatedParameter'. Only 'output' ports can start a "

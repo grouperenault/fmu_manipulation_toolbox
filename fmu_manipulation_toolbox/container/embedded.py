@@ -113,8 +113,8 @@ class EmbeddedFMUPort:
             type_name: str | None = None) -> ET.Element | None:
         """Generate the XML element for this port in `modelDescription.xml`.
 
-        Produces a `<ScalarVariable>` element (FMI 2.0) or a typed element
-        like `<Float64>` (FMI 3.0). Attribute values are escaped when the
+        Produces a `<ScalarVariable>` element (FMI-2) or a typed element
+        like `<Float64>` (FMI-3). Attribute values are escaped when the
         document is written.
 
         Args:
@@ -194,7 +194,7 @@ class EmbeddedFMUPort:
         return ET.Element(tag, {key: str(value) for key, value in attrs.items() if value is not None})
 
 
-#: OS of the platform directories (`binaries/<platform>`, FMI 2.0 and FMI 3.0 names) supported by the container.
+#: OS of the platform directories (`binaries/<platform>`, FMI-2 and FMI-3 names) supported by the container.
 PLATFORM_OS = {
     "win64": "Windows",
     "linux64": "Linux",
@@ -226,17 +226,17 @@ class EmbeddedFMU(OperationAbstract):
             times, or another file with an already used filename.
         terminals (Terminals): FMI Terminals defined by this FMU.
         ls (LayeredStandard): LS-BUS layered standard information.
-        step_size (float | None): Step size in seconds: the `fixedInternalStepSize` of an FMI 3.0 FMU, else the
+        step_size (float | None): Step size in seconds: the `fixedInternalStepSize` of an FMI-3 FMU, else the
             `stepSize` of its `<DefaultExperiment>`, or `None`.
-        fixed_internal_step_size (bool): Whether `step_size` is the `fixedInternalStepSize` of an FMI 3.0 FMU.
+        fixed_internal_step_size (bool): Whether `step_size` is the `fixedInternalStepSize` of an FMI-3 FMU.
         start_time (float | None): Default experiment start time.
         stop_time (float | None): Default experiment stop time.
         model_identifier (str | None): Co-simulation model identifier.
-        guid (str | None): GUID (FMI 2.0) or instantiation token (FMI 3.0).
+        guid (str | None): GUID (FMI-2) or instantiation token (FMI-3).
         fmi_version (int | None): FMI version (`2` or `3`).
         platforms (set[str]): Supported operating systems (e.g. `{"Windows", "Linux"}`).
         ports (dict[str, EmbeddedFMUPort]): Ports of the FMU, keyed by name.
-        has_event_mode (bool): Whether the FMU supports event mode (FMI 3.0).
+        has_event_mode (bool): Whether the FMU supports event mode (FMI-3).
         capabilities (dict[str, str]): FMI capability flags and their values.
         is_me (bool): Whether the FMU is embedded in Model-Exchange mode.
             Co-Simulation takes precedence when both modes are provided.
@@ -373,7 +373,7 @@ class EmbeddedFMU(OperationAbstract):
     @property
     def imposes_step_size(self) -> bool:
         """Whether the container step must be a multiple of `step_size`: the FMU has a fixed internal step
-        (FMI 3.0), or cannot handle a variable communication step size."""
+        (FMI-3), or cannot handle a variable communication step size."""
         return self.fixed_internal_step_size or self.capabilities["canHandleVariableCommunicationStepSize"] == "false"
 
     def modelexchange_attrs(self, attrs):

@@ -312,7 +312,7 @@ def test_container_with_instances_simulates(area_dir):
 # --------------------------------------------------------------------------- #
 @pytest.mark.area("ls-bus")
 def test_every_embedded_fmu_gets_a_resources_folder(area_dir):
-    """An FMU without resources folder gets an empty one: FMI 3.0 would give it a NULL resourcePath, which some FMUs
+    """An FMU without resources folder gets an empty one: FMI-3 would give it a NULL resourcePath, which some FMUs
     do not expect (strdup(resourcePath))."""
     import zipfile
     container = FMUContainer("node", Path("."), fmi_version=3)

@@ -68,7 +68,7 @@ static fmu_status_t container_clock_get_interval(const container_t *container, c
 }
 
 
-/* Schedule known at the end of the Initialization Mode (FMI-3.0 2.2.8): the interval and the shift declared by the
+/* Schedule known at the end of the Initialization Mode (FMI-3 §2.2.8): the interval and the shift declared by the
    modelDescription.xml are used as they are, the others are read from the FMU. */
 static fmu_status_t container_clocks_init_schedule(container_t *container) {
     const logger_t *logger = &container->logger;
@@ -114,7 +114,7 @@ static fmu_status_t container_clocks_init_schedule(container_t *container) {
 
 
 /* In Event Mode, read what the FMUs may have changed in the schedule. A new interval is relative to the current
-   time (FMI-3.0 2.2.8), fmi3IntervalUnchanged keeps the known tick. fmi3IntervalNotYetKnown only happens when no tick
+   time (FMI-3 §2.2.8), fmi3IntervalUnchanged keeps the known tick. fmi3IntervalNotYetKnown only happens when no tick
    is known: if an FMU answers it about a tick it has announced, this tick is kept. */
 static fmu_status_t container_clocks_read_schedule(container_t *container) {
     const logger_t *logger = &container->logger;
@@ -128,7 +128,7 @@ static fmu_status_t container_clocks_read_schedule(container_t *container) {
 
         clock->ticked = false;
 
-        /* FMI-3.0: fmi3GetInterval of a changing clock is only allowed if it ticked. */
+        /* FMI-3: fmi3GetInterval of a changing clock is only allowed if it ticked. */
         if (!tunable && (clock->kind != CONTAINER_CLOCK_COUNTDOWN) &&
             !((clock->kind == CONTAINER_CLOCK_CHANGING) && ticked))
             continue;
@@ -424,7 +424,7 @@ static void container_bound_next_step(container_t *container) {
  * Event iteration. `delivered`: the clocks and the clocked inputs already reached the FMUs in this instant.
  *
  * The values go from an FMU to the next ones within a pass (Gauss-Seidel sweep in configuration order): each FMU is
- * driven Set inputs -> fmi3UpdateDiscreteStates -> Get outputs (FMI-3.0), so the outputs read back reflect its
+ * driven Set inputs -> fmi3UpdateDiscreteStates -> Get outputs (FMI-3), so the outputs read back reflect its
  * updated discrete states. The clocks go from a pass to the next one: an output clock that ticks in a pass (e.g. in
  * fmi3UpdateDiscreteStates, in reaction to an input clock) makes another pass, which starts by delivering it, with
  * the inputs it clocks, to all the FMUs, whatever their order. The local clocks are then cleared: none stays active
@@ -521,7 +521,7 @@ static fmu_status_t container_handle_events(container_t *container) {
     fmu_status_t status;
 
     /* Event Mode is only required when an FMU reported eventHandlingNeeded or
-       when a clock may tick (FMI-3.0 4.2.1). */
+       when a clock may tick (FMI-3 §4.2.1). */
     if (!container->need_event_update && (container->clocks_list.nb_local_clocks == 0)) {
         container->next_step = container_nominal_step(container);
         datalog_log(container);
@@ -651,7 +651,7 @@ static fmu_status_t container_exit_fmu_configuration(container_t *container, int
 
 
 /* Configuration of an FMU with structural parameters that its importer did not configure (fmi3EnterConfigurationMode
-   of the container): FMI-2.0 container, or FMI-3.0 importer that does not use the Configuration Mode. */
+   of the container): FMI-2 container, or FMI-3 importer that does not use the Configuration Mode. */
 static fmu_status_t container_configure_fmu(container_t *container, int fmu_id) {
     const fmu_t *fmu = &container->fmu[fmu_id];
 
@@ -801,7 +801,7 @@ static fmu_status_t container_init_values(container_t* container) {
         /* Do NOT read ME FMU outputs here: they are still in the initial
            EventMode and the first fmi2NewDiscreteStates() has not been called
            yet. Reading outputs before that first event iteration makes some
-           FMI 2.0 ME FMUs (e.g. Simulink generated) reset their continuous
+           FMI-2 ME FMUs (e.g. Simulink generated) reset their continuous
            states to 0 on the next NewDiscreteStates() call. ME outputs are
            read after the event iteration (in container_update_discrete_state)
            and after solver_leave_event_mode(). */
@@ -1113,7 +1113,7 @@ static void container_clear_reset_triggers(container_t *container) {
  *
  * Only the continuous (real) inputs are pushed to the ME FMUs before the collective integration: discrete inputs
  * (e.g. a bounce "reset" flag) must not be set in Continuous Time Mode, that corrupts the target FMU's edge
- * detection (FMI-2.0 2.1.3). They are exchanged in Event Mode by solver_event_iteration() /
+ * detection (FMI-2 §2.1.3). They are exchanged in Event Mode by solver_event_iteration() /
  * container_update_discrete_state(). The ME FMUs are then advanced together, so that their couplings stay
  * consistent within the step, and their outputs are read.
  */

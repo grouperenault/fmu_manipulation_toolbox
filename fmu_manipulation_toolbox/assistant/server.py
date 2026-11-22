@@ -342,7 +342,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
     PatternFilter = Annotated[str | None, Field(
         description="Only the names matching this regex, e.g. '^engine_'.")]
     TypeFilter = Annotated[list[str] | None, Field(
-        description="Only these types, e.g. ['Real'] (on FMI 3: Float32, Float64).")]
+        description="Only these types, e.g. ['Real'] (on FMI-3: Float32, Float64).")]
     VariabilityFilter = Annotated[list[str] | None, Field(
         description="Only these variabilities, e.g. ['tunable'].")]
     # The single-FMU tools that write never modify their source.
@@ -605,7 +605,7 @@ def build_server(bridge: AssemblyBridge, name: str = "fmutool",
             description="Destination file, must end with '.fmu'.")],
         fmi_version: Annotated[Literal[2, 3], Field(
             description="FMI version of the *container* interface: 2 for "
-                        "FMI 2.0, 3 for FMI 3.0.")] = 2,
+                        "FMI-2, 3 for FMI-3.")] = 2,
         datalog: Annotated[bool, Field(
             description="Record the inputs/outputs of every embedded FMU to a "
                         "CSV log at each step.")] = False,

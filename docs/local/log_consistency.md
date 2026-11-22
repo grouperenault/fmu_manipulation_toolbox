@@ -1,6 +1,6 @@
 # Plan: consistent log messages
 
-**Created**: 13 October 2026 — **Status**: steps 1 to 5 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
+**Created**: 13 October 2026 — **Status**: steps 1 to 6 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
 the start of their step — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
 consistency" — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
@@ -154,11 +154,16 @@ Taken on 22 November 2026, at the start of step 5:
   period), an exception documented in the convention.
 - **D21 — Two commits for step 5**: 5a (Python package), 5b (C runtime).
 
+Taken on 22 November 2026, at the start of step 6:
+
+- **D7 — Precise versions**: `FMI-2.0.4`, `FMI-3.0.2` (the full number of the revision, with a hyphen).
+- **D22 — Scope of step 6**: the Python package, the C runtime, `tools/` and `tests/`; not the files copied from the
+  standard (`resources/fmi*/`, FMI headers) nor the third-party data (`tests/data/`).
+
 ### To be decided at the start of the step concerned
 
 | # | Question | Step |
 |---|---|---|
-| D7 | Precise versions (`FMI 2.0.4`, `FMI 3.0.2`): `FMI-2.0.4`, kept as they are, or another form | 6 |
 | D8 | `CHANGELOG.md`: the entries of the released versions are rewritten with `FMI-2` / `FMI-3`, or only the new entries follow D4 | 7 |
 
 ---
@@ -238,6 +243,14 @@ remoting runtimes: log messages aligned with the conventions` (5b)
 
 - `FMI-2` / `FMI-3` in the comments, docstrings and help texts of the package (and of the C runtime, D9), D7 for
   the precise versions; not in the files copied from the standard.
+
+- Done: 199 lines in 79 files (`FMI 2.0`, `FMI-2.0`, `FMI 2` → `FMI-2`; `FMI 2.0 and 3.0` → `FMI-2 and FMI-3`;
+  sections `FMI-2 2.1.3` → `FMI-2 §2.1.3`). Kept: the description of FMI-LS-XCP in its manifest
+  (`container/xcp.py`), fixed by the XSD of the standard. Also: the probe FMUs (`tools/probe_fmu/Probe*.fmu`)
+  generated again (a comment of `probe.c`), the lines of `fmi://conventions` copied in the reference of the agent
+  skills (`plugins/fmutool/references/fmi-reference.md`, checked by `test_agent_skills.py`).
+- Found during step 6: four messages of `config.c` were missing from the commit of step 5b (`c6e0e48`), while the
+  reference logs had been generated with them; fixed by `92220d8`.
 
 Commit message: `Code: FMI-2 and FMI-3 as the spelling of the standard`
 

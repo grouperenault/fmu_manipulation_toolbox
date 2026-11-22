@@ -117,8 +117,8 @@ def test_exposed_input_is_fed(window, ball):
 
 def test_array_sizes(window, data_dir):
     scene = window._graph.scene
-    arrays = scene.add_node(data_dir / "array" / "scalar2array-3.fmu")       # FMI 3 arrays
-    aggregates = scene.add_node(data_dir / "array" / "array2scalar-2.fmu")   # FMI 2 aggregates
+    arrays = scene.add_node(data_dir / "array" / "scalar2array-3.fmu")       # FMI-3 arrays
+    aggregates = scene.add_node(data_dir / "array" / "array2scalar-2.fmu")   # FMI-2 aggregates
     wire = scene.add_wire(arrays, aggregates)
     side_a, side_b = wire_sides(wire)
     sizes_a = {port.name: port.size for port in side_a.ports if port.causality == "output"}

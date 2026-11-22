@@ -63,7 +63,7 @@ OPERATIONS = {
 #: Causalities an operation can be restricted to.
 CAUSALITIES = ("input", "output", "parameter", "local")
 
-#: Types a port filter accepts: the FMI 2.0 names (which also select their FMI 3.0 family) and the FMI 3.0 ones.
+#: Types a port filter accepts: the FMI-2 names (which also select their FMI-3 family) and the FMI-3 ones.
 TYPES = tuple(dict.fromkeys(ModelDescription.FMI2_VARIABLE_TYPES + ModelDescription.FMI3_VARIABLE_TYPES))
 
 #: Variabilities a port filter accepts.
@@ -89,7 +89,7 @@ def select_ports(ports: list[dict[str, Any]], fmi_version: int | None, causality
                  types: list[str] | None = None, variabilities: list[str] | None = None) -> list[dict[str, Any]]:
     """The ports of a description (`describe_fmu`, the bridges) that every filter set accepts.
 
-    Same rules as `FMU.apply_operation`: FMI 2.0 type names select their FMI
+    Same rules as `FMU.apply_operation`: FMI-2 type names select their FMI
     3.0 family, an undeclared variability is the default of the standard.
     """
     # Any causality can be listed (`independent`, `calculatedParameter`...): only the other filters are checked.
@@ -185,7 +185,7 @@ def summarize_fmu(path: Path) -> dict[str, Any]:
     return summary
 
 
-#: Aliases listed by `describe_port`: an FMI 2.0 FMU may share one value reference between many variables.
+#: Aliases listed by `describe_port`: an FMI-2 FMU may share one value reference between many variables.
 MAX_ALIASES = 20
 
 
@@ -202,10 +202,10 @@ def describe_port(path: Path, port: str) -> dict[str, Any]:
     Returns:
         A mapping with ``fmu``, ``fmi_version``, ``name``, ``type``,
         ``causality`` and ``variability`` (the defaults of the standard when not
-        declared), ``attributes`` (every attribute as declared, FMI 2.0
+        declared), ``attributes`` (every attribute as declared, FMI-2
         ``<ScalarVariable>`` and type element merged, and the ``<Start>`` values
-        of FMI 3.0 ``String`` and ``Binary`` variables under ``start``), and
-        when they apply: ``dimensions`` (FMI 3.0 arrays), ``declared_type``
+        of FMI-3 ``String`` and ``Binary`` variables under ``start``), and
+        when they apply: ``dimensions`` (FMI-3 arrays), ``declared_type``
         (name, attributes and enumeration items of the type definition, and
         ``inherited``: the attributes the port takes from it), ``aliases`` (the
         first :data:`MAX_ALIASES`, with ``aliases_total`` beyond) and ``terminals``

@@ -133,7 +133,7 @@ void file_error(file_t *file, unsigned int code_line_number, const char *message
 
 /*
  * The configuration files use a decimal dot, whereas scanf() uses the decimal point of the locale of the host, which an
- * FMU must not change (FMI 3.0, 2.2.1): the text is converted on its way to it.
+ * FMU must not change (FMI-3 §2.2.1): the text is converted on its way to it.
  */
 
 /* Before scanf() on a line of numbers. scanf() may not read a decimal point of several bytes (macOS): such a locale is

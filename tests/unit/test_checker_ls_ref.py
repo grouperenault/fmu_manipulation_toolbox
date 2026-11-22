@@ -1,6 +1,6 @@
 """Static rules of FMI-LS-REF (`OperationLsRefCheck`).
 
-`Feedthrough.fmu` of `tests/data/compile` (FMI 2.0 and 3.0), without its own `extra/`, gets an LS-REF manifest, an
+`Feedthrough.fmu` of `tests/data/compile` (FMI-2 and FMI-3), without its own `extra/`, gets an LS-REF manifest, an
 experiment file and the files it refers to, following the standard: one rule is broken in each test by a change of
 these files. The FMUs have no binary: the experiments are not replayed (warning), see
 `tests/integration/test_checker_ls_ref_replay.py` for the replay.
@@ -221,7 +221,7 @@ def test_bad_parameter_set(tmp_path):
 @pytest.mark.parametrize("model", ["BouncingBall", "Feedthrough"])
 def test_reference_fmus(tmp_path, version, model, caplog):
     """The Reference-FMUs give the output of their default experiment (role `result`), without description of the
-    manifest; the FMI-2.0 Feedthrough has columns of variables it does not have (those of FMI 3.0)."""
+    manifest; the FMI-2 Feedthrough has columns of variables it does not have (those of FMI-3)."""
     check = _check(rewrite_fmu(DATA_DIR / "compile" / version / f"{model}.fmu", tmp_path / f"{model}.fmu",
                                drop=("binaries/",)))
     assert check.errors == []

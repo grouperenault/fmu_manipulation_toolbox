@@ -30,7 +30,7 @@ typedef union {
 /* Logger of one instance of the container: the callback given by its importer. */
 typedef struct logger_s {
     fmu_version_t               version;        /* 0 until logger_init(): messages printed on stdout */
-    logger_function_t           callback;       /* may be NULL (FMI-3.0): no message is sent */
+    logger_function_t           callback;       /* may be NULL (FMI-3): no message is sent */
     void                        *environment;
     const char                  *instance_name;
     int                         debug;

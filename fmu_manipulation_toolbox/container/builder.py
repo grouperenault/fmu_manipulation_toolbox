@@ -690,7 +690,7 @@ class FMUContainer:
         """Compute the default step size from embedded FMUs.
 
         The step size is the least common multiple of the step sizes of the FMUs that
-        impose their step (`fixedInternalStepSize` of FMI 3.0, or no variable step size),
+        impose their step (`fixedInternalStepSize` of FMI-3, or no variable step size),
         computed exactly (`0.1` and `0.25` give `0.5`). Otherwise, returns the largest step size.
         FMUs without step size are ignored; without any step size, the default is 0.1 s.
 
@@ -832,7 +832,7 @@ class FMUContainer:
         """Build the container `modelDescription.xml` and write it (UTF-8, see `ModelDescription.save`).
 
         The document is built as an ElementTree, so that names and descriptions
-        coming from the embedded FMUs are escaped. FMI 2.0 `<Unknown index>`
+        coming from the embedded FMUs are escaped. FMI-2 `<Unknown index>`
         entries are computed from the actual position of the output variables.
         The value references come from `layout`.
         """
@@ -1460,8 +1460,8 @@ class FMUContainer:
             self.copyfile(self.description_pathname, documentation_directory)
 
         # Model icon location depends on the FMI version:
-        #   - FMI 3.0: terminalsAndIcons/icon.png
-        #   - FMI 2.0: model.png at the FMU root
+        #   - FMI-3: terminalsAndIcons/icon.png
+        #   - FMI-2: model.png at the FMU root
         if self.fmi_version == 3:
             terminals_and_icons_directory = base_directory / "terminalsAndIcons"
             terminals_and_icons_directory.mkdir(exist_ok=True)
@@ -1481,7 +1481,7 @@ class FMUContainer:
         for i, fmu in enumerate(self.involved_fmu.values()):
             with zipfile.ZipFile(fmu.fmu.fmu_filename) as zin:
                 zin.extractall(self.long_path(resources_directory / f"{i:02x}"))
-            # FMI 3.0 gives a NULL resourcePath to an FMU without resources folder (2.3.1), which some FMUs do not
+            # FMI-3 gives a NULL resourcePath to an FMU without resources folder (2.3.1), which some FMUs do not
             # expect (strdup(resourcePath)): every embedded FMU gets one, empty when it has none.
             os.makedirs(self.long_path(resources_directory / f"{i:02x}" / "resources"), exist_ok=True)
 

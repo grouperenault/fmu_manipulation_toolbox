@@ -6,7 +6,7 @@ structure, and writes it back. Operations modify the tree **in place**, so
 everything they do not touch (annotations, aliases, comments, namespaces,
 type definitions, ...) is preserved, and escaping is done by the serializer.
 
-Conformity with FMI 2.0.5 and FMI 3.0.2 (fmi-standard.org):
+Conformity with FMI-2.0.5 and FMI-3.0.2 (fmi-standard.org):
 
 - The file is written in UTF-8 and starts with the XML declaration, as required
   by both standards (FMI-2 §2.2, FMI-3 §2.4: "The first line of an XML file
@@ -38,7 +38,7 @@ XML_DECLARATION = b'<?xml version="1.0" encoding="UTF-8"?>\n'
 
 
 class ModelDescriptionError(Exception):
-    """Raised when a `modelDescription.xml` cannot be loaded or is not an FMI 2.0/3.0 descriptor."""
+    """Raised when a `modelDescription.xml` cannot be loaded or is not an FMI-2/FMI-3 descriptor."""
 
 
 class _TreeBuilder(ET.TreeBuilder):
@@ -199,8 +199,8 @@ class ModelVariable:
     This is the object given to
     [OperationAbstract.port_attrs][fmu_manipulation_toolbox.operations.OperationAbstract.port_attrs]
     for each variable. It gives dict-like access to the attributes of every
-    level (`[]`, `get()`, `in`): for FMI 2.0, the `<ScalarVariable>` attributes
-    and those of its type element (e.g. `<Real>`); for FMI 3.0, the attributes
+    level (`[]`, `get()`, `in`): for FMI-2, the `<ScalarVariable>` attributes
+    and those of its type element (e.g. `<Real>`); for FMI-3, the attributes
     of the variable element and the values of its `<Start>` elements (`String`
     and `Binary` variables), under the key `start`. It reads and writes the tree
     directly: `attrs_list` holds the `attrib` dictionaries of the underlying
@@ -370,7 +370,7 @@ class ModelDescription:
 
         Raises:
             ModelDescriptionError: If the document is not well-formed or is not
-                an FMI 2.0/3.0 model description.
+                an FMI-2/FMI-3 model description.
         """
         builder = _TreeBuilder()
         parser = ET.XMLParser(target=builder)
@@ -484,15 +484,15 @@ class ModelDescription:
     def model_exchange_sizes(self, label: str = "") -> tuple[int, int]:
         """Number of continuous states (`nx`) and of event indicators (`nz`).
 
-        - FMI 2.0: `nx` is the number of `<Unknown>` entries of `<Derivatives>`
+        - FMI-2: `nx` is the number of `<Unknown>` entries of `<Derivatives>`
           (FMI-2 variables are scalar), `nz` the `numberOfEventIndicators`
           attribute of `<fmiModelDescription>`.
-        - FMI 3.0: `nx` and `nz` count the elements of the variables listed by
+        - FMI-3: `nx` and `nz` count the elements of the variables listed by
           `<ContinuousStateDerivative>` and `<EventIndicator>`: an array counts
           for its number of elements, its dimensions being given by
           `<Dimension start>` or by the start value of a structural parameter.
 
-        An FMI 3.0 entry whose size cannot be resolved counts for one element,
+        An FMI-3 entry whose size cannot be resolved counts for one element,
         with a warning.
 
         Args:
@@ -515,7 +515,7 @@ class ModelDescription:
 
     @staticmethod
     def _size_of(section: str, vr: str | None, ports: dict[str, "ModelVariable"], label: str) -> int:
-        """Number of elements of the FMI 3.0 variable `vr` (1 if it cannot be resolved)."""
+        """Number of elements of the FMI-3 variable `vr` (1 if it cannot be resolved)."""
         if vr is None:
             logger.warning(f"'{label}': <{section}> without valueReference. Assuming 1 element.")
             return 1

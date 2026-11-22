@@ -10,9 +10,9 @@
 /*
  * Configuration of the embedded FMUs of FMI-LS-XCP by the container (fixtures xcp_fmi2 and xcp_fmi3, stub FMUs of
  * stub_xcp_fmi<2|3>.c): the journal of the stub shows what it receives and when its XCP service starts.
- *   - FMI 3.0: structural parameters, set in Configuration Mode only (start values <RESET>=2, then the values set on
+ *   - FMI-3: structural parameters, set in Configuration Mode only (start values <RESET>=2, then the values set on
  *     the container), with or without the Configuration Mode of the container;
- *   - FMI 2.0: parameters, set before fmi2SetupExperiment where the service starts.
+ *   - FMI-2: parameters, set before fmi2SetupExperiment where the service starts.
  */
 
 #define PORT_VR_FMI3        83886080    /* uinteger16 of the container, linked to XCP.TCP.Port */
@@ -108,7 +108,7 @@ static fmi2Component instantiate_fmi2(fmi2CallbackFunctions *functions) {
 }
 
 
-/* FMI 2.0: a value set on the container goes to its cache only; before fmi2SetupExperiment, the FMU gets its start
+/* FMI-2: a value set on the container goes to its cache only; before fmi2SetupExperiment, the FMU gets its start
    values, then the values set on the container, which prevail. */
 int test_xcp_fmi2_before_setup_experiment(void) {
     fmi2CallbackFunctions functions;

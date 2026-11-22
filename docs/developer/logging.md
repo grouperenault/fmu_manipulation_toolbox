@@ -66,7 +66,8 @@ The records of level `ERROR` and above are counted by `ErrorCounter` (`cli/utils
 
 ## Spelling of the standard
 
-- `FMI-2` and `FMI-3`, also before a section of the standard: `FMI-3 §2.4.7`.
+- `FMI-2` and `FMI-3`, also before a section of the standard: `FMI-3 §2.4.7`. A precise revision keeps its full
+  number: `FMI-2.0.5`, `FMI-3.0.2`.
 - The layered standards keep their name: `FMI-LS-BUS`, `FMI-LS-XCP`, `FMI-LS-REF`.
 - The same spelling is used in the comments, the docstrings and the documentation. The files copied from the
   standard (`resources/fmi*/`, FMI headers) are not changed.

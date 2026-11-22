@@ -90,7 +90,7 @@ class SSDParser:
             by (id of its system node, element name, `None` for the system itself), then by connector name.
         units (dict[str, dict[str, str]]): `ssc:Unit` definitions: the attributes of their `ssc:BaseUnit`.
 
-    Each connection is checked against the FMUs it joins: the connector is a variable of the FMU (or an FMI 3.0
+    Each connection is checked against the FMUs it joins: the connector is a variable of the FMU (or an FMI-3
     alias), of a causality that fits its end (an output starts a link or an exposed output, an input ends a link,
     an input or a parameter is exposed as an input of the container). Not checked: architecture wires, whose
     connectors are not variables, the components without `source` (ignored) and the sub-systems (no FMU).
@@ -119,7 +119,7 @@ class SSDParser:
     #: Connection transformations (SSP 1.0 §5.3.6): the container cannot apply them.
     TRANSFORMATIONS = ("LinearTransformation", "BooleanMappingTransformation", "IntegerMappingTransformation",
                        "EnumerationMappingTransformation")
-    #: Type elements of a connector: SSP 1.0, and the FMI 3.0 types of SSP 2.0.
+    #: Type elements of a connector: SSP 1.0, and the FMI-3 types of SSP 2.0.
     CONNECTOR_TYPES = ("Real", "Integer", "Boolean", "String", "Enumeration", "Binary", "Clock", "Float32",
                        "Float64", "Int8", "UInt8", "Int16", "UInt16", "Int32", "UInt32", "Int64", "UInt64")
     #: Causalities a connector may have, by its role in a connection.
@@ -475,14 +475,14 @@ class SSDParser:
                                 f"not {' or '.join(f'an {c}' if c[0] in 'aeiou' else f'a {c}' for c in causalities)}.")
 
     def _fmu_variables(self, element: str, source: str) -> dict[str, str]:
-        """Causality of each variable (and FMI 3.0 alias) of the FMU `source` of the archive."""
+        """Causality of each variable (and FMI-3 alias) of the FMU `source` of the archive."""
         if source not in self._variables:
             _, variables = self._fmu_description(element, source)
             self._variables[source] = {name: variable.causality for name, variable in variables.items()}
         return self._variables[source]
 
     def _fmu_description(self, element: str, source: str) -> tuple[ModelDescription, dict[str | None, ModelVariable]]:
-        """Description of the FMU `source` of the archive, and its variables by name (FMI 3.0 aliases included)."""
+        """Description of the FMU `source` of the archive, and its variables by name (FMI-3 aliases included)."""
         if source not in self._fmus:
             try:
                 with zipfile.ZipFile(BytesIO(self.zin.read(source))) as fmu:
@@ -704,7 +704,7 @@ class SSDParser:
 
     @staticmethod
     def _declared_type(md: ModelDescription, port: ModelVariable) -> ET.Element | None:
-        """The type definition of `port` (`<SimpleType>` child for FMI 2.0, `<…Type>` for FMI 3.0)."""
+        """The type definition of `port` (`<SimpleType>` child for FMI-2, `<…Type>` for FMI-3)."""
         name, definitions = port.get("declaredType"), md.root.find("TypeDefinitions")
         if not name or definitions is None:
             return None
@@ -805,7 +805,7 @@ CONTAINER_OPTIONS = {"step_size": "stepSize", "mt": "mt", "profiling": "profilin
                      "auto_parameter": "autoParameter", "auto_local": "autoLocal", "ts_multiplier": "tsMultiplier",
                      "reset_ports": "resetPorts", "mt_threshold": "mtThreshold"}
 
-#: SSP 1.0 knows the FMI 2.0 types only.
+#: SSP 1.0 knows the FMI-2 types only.
 SSP1_TYPES = {"Float32": "Real", "Float64": "Real", "Int8": "Integer", "UInt8": "Integer", "Int16": "Integer",
               "UInt16": "Integer", "Int32": "Integer", "UInt32": "Integer", "Int64": "Integer", "UInt64": "Integer"}
 
@@ -826,7 +826,7 @@ class SSPWriter:
 
     Args:
         assembly (Assembly): The assembly to write; its FMUs must be readable from its `fmu_directory`.
-        ssp_version (str): `"2.0"` (default) or `"1.0"`, which writes the FMI 3.0 types as FMI 2.0 ones.
+        ssp_version (str): `"2.0"` (default) or `"1.0"`, which writes the FMI-3 types as FMI-2 ones.
     """
 
     def __init__(self, assembly, ssp_version: str = "2.0"):
@@ -1043,7 +1043,7 @@ class SSPWriter:
         return interface
 
     def _fmi_version(self, node) -> int:
-        """FMI version of the interface of a sub-container: 3 when one of its FMUs is FMI 3.0 (its types)."""
+        """FMI version of the interface of a sub-container: 3 when one of its FMUs is FMI-3 (its types)."""
         versions = {self._description(self.fmu_directory / node.fmu_path(name))[0].fmi_version
                     for name in node.fmu_names_list}
         versions |= {self._fmi_version(child) for child in node.children.values()}

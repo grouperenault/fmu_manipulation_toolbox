@@ -195,7 +195,7 @@ static int config_read_one_fmu(container_t *container, const char *dirname, file
         }
     }
     if (has_configuration_mode && fmi_version != 3) {
-        CONFIG_ERROR("FMU '%s': only an FMI-3.0 FMU has a Configuration Mode.", name);
+        CONFIG_ERROR("FMU '%s': only an FMI-3 FMU has a Configuration Mode.", name);
         free(name);
         return -2;
     }

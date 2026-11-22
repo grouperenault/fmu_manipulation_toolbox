@@ -15,7 +15,7 @@
  * derivatives, state events and time events stay consistent across the
  * coupled set. State buffers (x, dx, x_save, z, z_prev) are flat and
  * concatenated over all ME FMUs; each solver->me[i] holds the offset of its
- * slice. Thin FMI-2/3 dispatchers (fmuSetTime, fmuGetContinuousStateDerivatives,
+ * slice. Thin FMI-2/FMI-3 dispatchers (fmuSetTime, fmuGetContinuousStateDerivatives,
  * ...) live in fmu.c and are stateless.
  */
 
@@ -302,13 +302,13 @@ void solver_free(solver_t *solver) {
 /* Refresh the ME<->ME coupling at the current operating point: one Gauss-Seidel
    sweep in registration order, so an output produced by me[i] reaches me[i+1]
    within the same sweep. Required before every evaluation of the right-hand
-   side and of the event indicators (FMI-3.0 2.2.11), otherwise the coupled
+   side and of the event indicators (FMI-3 §2.2.11), otherwise the coupled
    FMUs are evaluated with stale inputs. Only the couplings found by
    solver_find_couplings() are refreshed: the other continuous inputs are
    constant during the step, and nothing is done without coupling.
 
    Continuous Time Mode only: exchange the continuous (real) couplings, never the
-   discrete ones. Per FMI-2.0 2.1.3, discrete variables may only be set/get in
+   discrete ones. Per FMI-2 §2.1.3, discrete variables may only be set/get in
    Event or Initialization Mode; touching a discrete boolean/integer input here
    (e.g. a bounce "reset" flag) corrupts the target FMU's edge detection. The
    discrete couplings are exchanged by solver_event_iteration() in Event Mode. */
@@ -348,7 +348,7 @@ static fmu_status_t solver_propagate(solver_t *solver) {
                    E V E N T   I T E R A T I O N
 ----------------------------------------------------------------------------*/
 
-/* Collective event iteration (FMI-3.0 2.2.11): every ME FMU must already be in
+/* Collective event iteration (FMI-3 §2.2.11): every ME FMU must already be in
    Event Mode. Gauss-Seidel sweep in registration order (Set inputs ->
    fmi*UpdateDiscreteStates -> Get outputs per FMU), so a discrete output
    produced by me[i] reaches me[i+1] within the same pass and the outputs read
@@ -430,7 +430,7 @@ fmu_status_t solver_leave_event_mode_fmu(solver_t *solver, unsigned long fmu_idx
                 S T A T E - E V E N T   D E T E C T I O N
 ----------------------------------------------------------------------------*/
 
-/* Return true if any pair (a[i], b[i]) changes domain, as defined in FMI-3.0
+/* Return true if any pair (a[i], b[i]) changes domain, as defined in FMI-3
    3.1.1: z > 0 <-> z <= 0. */
 static bool solver_sign_changed(const double *a, const double *b, size_t n) {
     for (size_t i = 0; i < n; i += 1) {
