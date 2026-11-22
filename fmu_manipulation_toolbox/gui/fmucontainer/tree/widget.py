@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QAbstractItemView, QHeaderView, QInputDialog, QMen
 from fmu_manipulation_toolbox.container.builder import DEFAULT_STEP_SIZE, deduce_step_size
 from fmu_manipulation_toolbox.gui.fmucontainer.details import ContainerParameters
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import ConfigurationNode, NodeItem
-from fmu_manipulation_toolbox.gui.helper import LastDirectory
+from fmu_manipulation_toolbox.gui.helper import LastDirectory, exception_message
 
 from .model import TreeItemRoles, _NodeTreeModel
 from .sync import SelectionSynchronizer
@@ -199,7 +199,7 @@ class NodeTreeWidget(QWidget):
         old_name = container_parameters.name
         # Keep data model in sync with the visible name.
         container_parameters.name = fixed
-        logger.debug(f"Container renamed: {fixed}")
+        logger.debug(f"Container renamed '{fixed}'.")
 
         # Keep the ConfigurationNode's port (if any) in sync with the new name.
         # It is GUI/graph-only: it has no TreeView row of its own to rename.
@@ -504,7 +504,7 @@ class NodeTreeWidget(QWidget):
 
         except Exception as e:
             try:
-                logger.error(f"Error during scene selection sync: {e}")
+                logger.debug(f"Cannot sync the scene selection: {exception_message(e)}.")
             except (OSError, ValueError):
                 # stdio may be closed at interpreter shutdown; the error
                 # would otherwise mask the benign (RuntimeError) cause.
@@ -531,7 +531,7 @@ class NodeTreeWidget(QWidget):
 
             # Validate single selection (should always be ≤1 due to SingleSelection mode)
             if len(selected_rows) > 1:
-                logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
+                logger.debug(f"{len(selected_rows)} tree selections detected, at most 1 expected.")
                 return
 
             if not selected_rows:

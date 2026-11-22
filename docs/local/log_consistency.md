@@ -1,6 +1,6 @@
 # Plan: consistent log messages
 
-**Created**: 13 October 2026 — **Status**: steps 1 to 3 and 4a done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
+**Created**: 13 October 2026 — **Status**: steps 1 to 4 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
 the start of their step — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
 consistency" — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
@@ -197,8 +197,10 @@ Commit message: `Operations, remoting and checkers: log messages aligned with th
   `fmucontainer` and `fmusplit` (`logger.fatal` replaced by `logger.critical`). `ContainerPort` gives its name
   between quotes (`Port 'a.fmu/y'`, `label`: `'a.fmu/y'`). By D3, two `CRITICAL` of the builder become `ERROR`, the
   container being produced: no common OS for the embedded FMUs, library of the runtime not found.
-- 4b: FMU Container Builder (`gui/fmucontainer/`: `__main__.py`, `assembly_io.py`, `mcp_bridge.py`, `tree/`), with
-  `exception_message()` (step 2) for the exceptions.
+- 4b done: FMU Container Builder (`gui/fmucontainer/`: `__main__.py`, `assembly_io.py`, `mcp_bridge.py`, `tree/`)
+  and `RunTask` (`gui/log.py`), with `exception_message()` (step 2) for the exceptions. A failure of the MCP server
+  was logged twice (by the controller, then by the window): it is logged once, by the window, as `CRITICAL` (the AI
+  Assistant is not enabled), like a file that cannot be opened. `❌ … failed.` ends with a period.
 
 Commit messages: `Container tools: log messages aligned with the conventions` (4a), `FMU Container Builder: log
 messages aligned with the conventions` (4b)

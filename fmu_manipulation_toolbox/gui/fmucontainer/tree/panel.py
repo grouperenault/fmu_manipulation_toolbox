@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QSplitter, QTreeView, QVBoxLayout, QWidget
 
 from fmu_manipulation_toolbox.gui.fmucontainer.details import DetailPanelStack
 from fmu_manipulation_toolbox.gui.fmucontainer.graph import ConfigurationNode, NodeItem, WireItem
+from fmu_manipulation_toolbox.gui.helper import exception_message
 
 from .model import TreeItemRoles, _NodeTreeModel
 from .widget import NodeTreeWidget
@@ -101,16 +102,16 @@ class NodeTreePanel(QWidget):
         try:
             self._detail_panel.sync_edits()
         except RuntimeError:
-            logger.debug("Detail panel sync failed during shutdown")
+            logger.debug("Detail panel sync failed during shutdown.")
         self._tree_widget.on_scene_selection_changed()
         try:
             selected = self._graph.scene.selectedItems()
         except RuntimeError:
-            logger.warning("Scene already deleted during selection change")
+            logger.debug("Scene already deleted during the selection change.")
             self._detail_panel.show_empty()
             return
         if len(selected) > 1:
-            logger.warning(f"Multiple scene selections detected ({len(selected)}), expected max 1")
+            logger.debug(f"{len(selected)} scene selections detected, at most 1 expected.")
             return
         if not selected:
             self._detail_panel.show_empty()
@@ -127,7 +128,7 @@ class NodeTreePanel(QWidget):
         if isinstance(scene_item, WireItem):
             self._detail_panel.show_wire(scene_item)
             return
-        logger.debug(f"Unknown selection type: {type(scene_item)}")
+        logger.debug(f"Unknown selection type '{type(scene_item).__name__}'.")
         self._detail_panel.show_empty()
 
     def _on_tree_selection_changed(self, _selected, _deselected):
@@ -136,11 +137,11 @@ class NodeTreePanel(QWidget):
         try:
             selected_rows = self._tree_widget.selected_name_indexes()
         except RuntimeError as e:
-            logger.error(f"Error getting tree selection: {e}")
+            logger.debug(f"Cannot get the tree selection: {exception_message(e)}.")
             self._detail_panel.show_empty()
             return
         if len(selected_rows) > 1:
-            logger.warning(f"Multiple tree selections detected ({len(selected_rows)}), expected max 1")
+            logger.debug(f"{len(selected_rows)} tree selections detected, at most 1 expected.")
             return
         if not selected_rows:
             self._detail_panel.show_empty()
@@ -148,7 +149,7 @@ class NodeTreePanel(QWidget):
         index = selected_rows[0]
         item = self._tree_widget.model.itemFromIndex(index)
         if item is None:
-            logger.error("Tree item is None for selected index")
+            logger.debug("No tree item for the selected index.")
             self._detail_panel.show_empty()
             return
         container_parameters = TreeItemRoles.get_container_params(item)
@@ -160,13 +161,13 @@ class NodeTreePanel(QWidget):
             try:
                 scene_nodes = self._graph.scene.nodes()
             except RuntimeError as e:
-                logger.error(f"Error getting scene nodes: {e}")
+                logger.debug(f"Cannot get the scene nodes: {exception_message(e)}.")
                 return
             for node in scene_nodes:
                 if node.uid == uid:
                     self._detail_panel.show_fmu(node)
                     return
-        logger.warning(f"Tree item selected but no matching scene node found (uid={uid})")
+        logger.debug(f"Tree item selected but no matching scene node found (uid {uid}).")
         self._detail_panel.show_empty()
 
     def _on_container_changed(self, container_parameters):
@@ -178,7 +179,7 @@ class NodeTreePanel(QWidget):
                 if item and TreeItemRoles.get_container_params(item) is container_parameters:
                     self._detail_panel.show_container(container_parameters)
         except RuntimeError as e:
-            logger.error(f"Error refreshing container detail panel: {e}")
+            logger.debug(f"Cannot refresh the container detail panel: {exception_message(e)}.")
 
     def _on_container_detail_changed(self):
         """Called when the container detail panel parameters are edited.
@@ -208,5 +209,5 @@ class NodeTreePanel(QWidget):
             self._tree_widget.set_ts_multiplier(item, active)
             self._tree_widget.refresh_reset_ports()
         except RuntimeError as e:
-            logger.error(f"Error syncing ts_multiplier signal node: {e}")
+            logger.debug(f"Cannot sync the ts_multiplier signal node: {exception_message(e)}.")
 

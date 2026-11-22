@@ -293,8 +293,8 @@ class QtAssemblyBridge:
             raise FileNotFoundError(f"FMU file not found: '{path}'")
         node = self._scene.add_node(fmu_path)
         self._mark_dirty()
-        logger.info(f"[AI] Added FMU '{node.name}'"
-                         + (f" (instance of '{fmu_path.name}')" if node.name != fmu_path.name else ""))
+        logger.info(f"AI Assistant: FMU '{node.name}' added"
+                    + (f" (instance of '{fmu_path.name}')." if node.name != fmu_path.name else "."))
 
         description = self._node_ports(node)
         return {
@@ -319,7 +319,7 @@ class QtAssemblyBridge:
         node.remove_wires()
         self._scene.removeItem(node)
         self._mark_dirty()
-        logger.info(f"[AI] Removed FMU '{name}' ({removed_links} link(s))")
+        logger.info(f"AI Assistant: FMU '{name}' removed ({removed_links} link(s)).")
         return {"fmu": node.name, "removed_links": removed_links}
 
     def add_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
@@ -361,7 +361,7 @@ class QtAssemblyBridge:
             wire_detail._load_from_wire()
         self._mark_dirty()
         link = f"{node_from.name}/{from_port} -> {node_to.name}/{to_port}"
-        logger.info(f"[AI] Linked {link}")
+        logger.info(f"AI Assistant: port '{node_from.name}/{from_port}' linked to port '{node_to.name}/{to_port}'.")
         return link
 
     def remove_link(self, from_fmu: str, from_port: str, to_fmu: str, to_port: str) -> str:
@@ -401,7 +401,8 @@ class QtAssemblyBridge:
 
         self._mark_dirty()
         link = f"{node_from.name}/{from_port} -> {node_to.name}/{to_port}"
-        logger.info(f"[AI] Unlinked {link}")
+        logger.info(f"AI Assistant: port '{node_from.name}/{from_port}' unlinked from port "
+                    f"'{node_to.name}/{to_port}'.")
         return link
 
     def expose_input(self, fmu: str, port: str) -> str:
@@ -416,7 +417,7 @@ class QtAssemblyBridge:
         node.user_exposed_inputs[port] = True
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        logger.info(f"[AI] Exposed input {node.name}/{port}")
+        logger.info(f"AI Assistant: input '{node.name}/{port}' exposed.")
         return f"{node.name}/{port}"
 
     def expose_output(self, fmu: str, port: str) -> str:
@@ -431,7 +432,7 @@ class QtAssemblyBridge:
         node.user_exposed_outputs[port] = True
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        logger.info(f"[AI] Exposed output {node.name}/{port}")
+        logger.info(f"AI Assistant: output '{node.name}/{port}' exposed.")
         return f"{node.name}/{port}"
 
     def set_start_value(self, fmu: str, port: str, value: str) -> str:
@@ -446,7 +447,7 @@ class QtAssemblyBridge:
         node.user_start_values[port] = str(value)
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        logger.info(f"[AI] Start value {node.name}/{port} = {value}")
+        logger.info(f"AI Assistant: start value of '{node.name}/{port}' set to '{value}'.")
         return f"{node.name}/{port} = {value}"
 
     def unset_start_value(self, fmu: str, port: str) -> str:
@@ -466,7 +467,7 @@ class QtAssemblyBridge:
         del node.user_start_values[port]
         self._resync_fmu_detail_panel(node)
         self._mark_dirty()
-        logger.info(f"[AI] Start value cleared on {node.name}/{port}")
+        logger.info(f"AI Assistant: start value of '{node.name}/{port}' cleared.")
         return f"{node.name}/{port}"
 
     def set_container_options(self, options: dict[str, Any]) -> dict[str, Any]:
@@ -487,7 +488,7 @@ class QtAssemblyBridge:
         self._window._tree.refresh_reset_ports()     # `reset_ports` has an effect on the root container
         self._window._tree.refresh_step_sizes()
         self._mark_dirty()
-        logger.info(f"[AI] Container options updated: {options}")
+        logger.info(f"AI Assistant: container options updated: {options}.")
         return dict(params.parameters)
 
     # -- build / export ----------------------------------------------------
@@ -498,7 +499,7 @@ class QtAssemblyBridge:
 
     def _save_as_json_impl(self, path: str) -> str:
         self._window.save_as_json(path)
-        logger.info(f"[AI] Exported assembly JSON to '{path}'")
+        logger.info(f"AI Assistant: assembly exported to '{path}'.")
         return path
 
     def save_as_ssp(self, path: str, ssp_version: str = "2.0") -> str:
@@ -507,7 +508,7 @@ class QtAssemblyBridge:
 
     def _save_as_ssp_impl(self, path: str, ssp_version: str) -> str:
         self._window.save_as_ssp(path, ssp_version)
-        logger.info(f"[AI] Exported assembly as SSP {ssp_version} to '{path}'")
+        logger.info(f"AI Assistant: assembly exported as SSP {ssp_version} to '{path}'.")
         return path
 
     def import_assembly(self, assembly: Any, fmu_directory: str) -> None:
@@ -517,7 +518,7 @@ class QtAssemblyBridge:
     def _import_assembly_impl(self, assembly: Any, fmu_directory: str) -> None:
         self._window._import_data(assembly, Path(fmu_directory))
         self._mark_dirty()
-        logger.info(f"[AI] Imported '{assembly.root.name}'")
+        logger.info(f"AI Assistant: '{assembly.root.name}' imported.")
 
     def save_as_fmu(self, path: str, fmi_version: int = 2, datalog: bool = False) -> str:
         return self._invoker.call(lambda: self._save_as_fmu_impl(path, fmi_version, datalog),
@@ -530,7 +531,7 @@ class QtAssemblyBridge:
                 f"{list(SUPPORTED_FMI_VERSIONS)}."
             )
         self._window.save_as_fmu(path, fmi_version=fmi_version, datalog=datalog)
-        logger.info(f"[AI] Built container FMU '{path}' (FMI-{fmi_version})")
+        logger.info(f"AI Assistant: container FMU '{path}' built (FMI-{fmi_version}).")
         return path
 
 
@@ -716,8 +717,8 @@ class McpServerController(QObject):
         if self._token:
             app = build_auth_middleware(self._token)(app)
             logger.info("MCP server: bearer token required. Configure your "
-                        "client with: Authorization: Bearer <token>")
-            logger.info(f"MCP server token: {self._token}")
+                        "client with 'Authorization: Bearer <token>'.")
+            logger.info(f"MCP server token: '{self._token}'.")
         else:
             logger.warning(
                 f"MCP server: no authentication. Any local process can drive "
@@ -739,15 +740,15 @@ class McpServerController(QObject):
             self._stop()
 
     def _stop(self):
-        logger.info("Stopping MCP server (AI assistant)...")
+        logger.info("Stopping the MCP server (AI Assistant).")
         self._thread.stop()
         if not self._thread.wait(2000):
             # Graceful shutdown is stuck, most likely because uvicorn is
             # waiting for a still-open Streamable HTTP connection to close.
             # Force it to drop remaining connections instead of hanging.
             logger.warning(
-                "MCP server did not stop gracefully (client still connected?); "
-                "forcing shutdown..."
+                "MCP server did not stop gracefully (client still connected?): "
+                "forcing its shutdown."
             )
             self._thread.force_stop()
             if not self._thread.wait(3000):
@@ -761,13 +762,13 @@ class McpServerController(QObject):
     def _on_thread_ready(self):
         """Announce the server on the main thread, once it really listens."""
         with window_log_context(self._window):
-            logger.info(f"MCP server (AI assistant) listening on {self.url}")
+            logger.info(f"MCP server (AI Assistant) listening on '{self.url}'.")
             self.ready.emit(self.url)
 
     def _on_thread_failed(self, message: str):
         """Handle a server-thread failure on the main thread."""
         with window_log_context(self._window):
-            logger.error(f"MCP server error: {message}")
+            # Logged once, by the receiver of `error` (the window).
             self.stop()
             self.error.emit(message)
 

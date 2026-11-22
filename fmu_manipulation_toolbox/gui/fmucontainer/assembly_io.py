@@ -61,7 +61,7 @@ class AssemblyIOMixin:
         self._tree.pending_parent = parent
         for fmu in assembly_node.fmu_names_list:
             fmu_path = folder / assembly_node.fmu_path(fmu)
-            logger.debug(f"ADD FMU: {fmu} ({fmu_path})")
+            logger.debug(f"Adding FMU '{fmu}' ('{fmu_path}').")
             node = self._graph.add_node(fmu_path=fmu_path, x=x, y=y, name=Path(fmu).name)
             scene_names[fmu] = node.name
             nodes[fmu] = node
@@ -91,7 +91,7 @@ class AssemblyIOMixin:
             ts_multiplier=assembly_node.ts_multiplier,
             reset_ports=assembly_node.reset_ports,
         )
-        logger.debug(f"SET CONTAINER: {container_name}: {container_parameters}")
+        logger.debug(f"Container '{container_name}': {container_parameters}.")
         parent.setData(container_parameters, _NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
         parent.setText(container_name)
 
@@ -105,34 +105,34 @@ class AssemblyIOMixin:
         for connection in assembly_node.links:
             link = [scene_name(connection.from_port.fmu_name), connection.from_port.port_name,
                     scene_name(connection.to_port.fmu_name), connection.to_port.port_name]
-            logger.debug(f"ADD LINK: {link}")
+            logger.debug(f"Adding link {link}.")
             links_list.append(link)
 
         if architecture_wires_list is not None:
             for wire in assembly_node.architecture_wires:
                 architecture_wire = [scene_name(wire.start_fmu), scene_name(wire.end_fmu), wire.orientation,
                                      wire.description]
-                logger.debug(f"ADD ARCHITECTURE WIRE: {architecture_wire}")
+                logger.debug(f"Adding architecture wire {architecture_wire}.")
                 architecture_wires_list.append(architecture_wire)
 
         for port, value in assembly_node.start_values.items():
             start = [scene_name(port.fmu_name), port.port_name, value]
-            logger.debug(f"ADD START VALUE: {start}")
+            logger.debug(f"Adding start value {start}.")
             start_values_list.append(start)
 
         for port, target in assembly_node.output_ports.items():
             output = [scene_name(port.fmu_name), port.port_name, target]
-            logger.debug(f"ADD OUTPUT PORT: {output}")
+            logger.debug(f"Adding output port {output}.")
             output_ports_list.append(output)
 
         for port, source in assembly_node.input_ports.items():
             input_port = [source, scene_name(port.fmu_name), port.port_name]
-            logger.debug(f"ADD INPUT PORT: {input_port}")
+            logger.debug(f"Adding input port {input_port}.")
             input_ports_list.append(input_port)
 
         child_items_by_name: dict[str, object] = {}
         for child_node in assembly_node.children.values():
-            logger.debug(f"ADD CONTAINER: {child_node.name}")
+            logger.debug(f"Adding container '{child_node.name}'.")
             child = self._tree.make_container_item(child_node.name)
             parent.appendRow(child)
             child_items_by_name[child_node.name] = child
@@ -149,7 +149,7 @@ class AssemblyIOMixin:
                         if  input[2] == sub_input[0]:
                             input[1] = sub_input[1]
                             input[2] = sub_input[2]
-                            logger.debug(f"MODIFIED INPUT PORT: {input}")
+                            logger.debug(f"Input port modified: {input}.")
                             break
 
             for output in output_ports_list:
@@ -158,7 +158,7 @@ class AssemblyIOMixin:
                         if output[1] == sub_output[2]:
                             output[0] = sub_output[0]
                             output[1] = sub_output[2]
-                            logger.debug(f"MODIFIED OUTPUT PORT: {output}")
+                            logger.debug(f"Output port modified: {output}.")
                             break
 
         for link in links_list:
@@ -177,14 +177,14 @@ class AssemblyIOMixin:
                     if link[3] == input_name:
                         link[2] = scene_name(port.fmu_name)
                         link[3] = port.port_name
-                        logger.debug(f"MODIFIED LINK: {link}")
+                        logger.debug(f"Link modified: {link}.")
                         break
             if link[0] == container_name:
                 for port, output_name in assembly_node.output_ports.items():
                     if link[1] == output_name:
                         link[0] = scene_name(port.fmu_name)
                         link[1] = port.port_name
-                        logger.debug(f"MODIFIED LINK: {link}")
+                        logger.debug(f"Link modified: {link}.")
                         break
 
             # Special case: the link's endpoint is a *child container* name
@@ -202,7 +202,7 @@ class AssemblyIOMixin:
                 child_name = link[2]
                 link[2] = ConfigurationNode.TITLE
                 link[3] = ConfigurationNode.port_name(child_name)
-                logger.debug(f"TS_MULTIPLIER LINK detected: -> {child_name} ({link[2]}/{link[3]})")
+                logger.debug(f"TS multiplier link detected to '{child_name}' ('{link[2]}/{link[3]}').")
                 # Defensive: a real link targeting this reserved port implies
                 # the port must exist, regardless of whether the `ts_multiplier`
                 # flag was correctly restored on the child (e.g. known
@@ -218,14 +218,14 @@ class AssemblyIOMixin:
             # by `refresh_reset_ports` once the whole tree is imported.
             if link[3] == ConfigurationNode.RESET_RUNTIME_PORT_NAME and \
                     (link[2] in assembly_node.children or link[2] in scene_names.values()):
-                logger.debug(f"RESET LINK detected: -> {link[2]}")
+                logger.debug(f"Reset link detected to '{link[2]}'.")
                 link[3] = ConfigurationNode.reset_port_name(link[2])
                 link[2] = ConfigurationNode.TITLE
             if link[0] in assembly_node.children and link[1] == ConfigurationNode.RUNTIME_PORT_NAME:
                 child_name = link[0]
                 link[0] = ConfigurationNode.TITLE
                 link[1] = ConfigurationNode.port_name(child_name)
-                logger.debug(f"TS_MULTIPLIER LINK detected: {child_name} ({link[0]}/{link[1]}) ->")
+                logger.debug(f"TS multiplier link detected from '{child_name}' ('{link[0]}/{link[1]}').")
                 child_item = child_items_by_name.get(child_name)
                 if child_item is not None:
                     self._tree.set_ts_multiplier(child_item, True)
@@ -312,7 +312,7 @@ class AssemblyIOMixin:
                 node1 = configuration_node if name1 == ConfigurationNode.TITLE else nodes_by_name.get(name1)
                 node2 = configuration_node if name2 == ConfigurationNode.TITLE else nodes_by_name.get(name2)
                 if not node1 or not node2:
-                    logger.warning(f"Cannot create wire: node not found for {name1} ↔ {name2}")
+                    logger.warning(f"Cannot create the wire '{name1}' ↔ '{name2}': node not found.")
                     continue
 
                 # Split mappings into port-links and terminal-links. A link is
@@ -330,7 +330,7 @@ class AssemblyIOMixin:
                     is_term_b = node_b is not None and name_b in node_b.fmu_terminal_names
                     if is_term_a and is_term_b:
                         terminal_mappings.append(m)
-                        logger.debug(f"TERMINAL LINK detected: {fmu_a}/{name_a} ↔ {fmu_b}/{name_b}")
+                        logger.debug(f"Terminal link detected: '{fmu_a}/{name_a}' ↔ '{fmu_b}/{name_b}'.")
                     else:
                         port_mappings.append(m)
 
@@ -338,9 +338,9 @@ class AssemblyIOMixin:
                 if wire:
                     wire.mappings = port_mappings
                     wire.terminal_mappings = terminal_mappings
-                    logger.debug(f"Wire created: {name1} ↔ {name2} with "
+                    logger.debug(f"Wire created: '{name1}' ↔ '{name2}' with "
                                  f"{len(port_mappings)} port mapping(s), "
-                                 f"{len(terminal_mappings)} terminal mapping(s)")
+                                 f"{len(terminal_mappings)} terminal mapping(s).")
                 else:
                     # Wire already exists — append mappings
                     for w in node1.wires:
@@ -363,7 +363,7 @@ class AssemblyIOMixin:
                                    f"no wire is possible between these nodes.")
                     continue
                 wire.set_architecture(start_node, orientation, description)
-                logger.debug(f"Architecture wire: {start_name} - {end_name} ({orientation})")
+                logger.debug(f"Architecture wire: '{start_name}' - '{end_name}' ({orientation}).")
         finally:
             self._graph.scene.blockSignals(False)
             self._graph.scene.clearSelection()
@@ -373,16 +373,16 @@ class AssemblyIOMixin:
             node = nodes_by_name.get(fmu_name)
             if node:
                 node.user_start_values[port_name] = value
-                logger.debug(f"Start value: {fmu_name}/{port_name} = {value}")
+                logger.debug(f"Start value of '{fmu_name}/{port_name}': '{value}'.")
             else:
-                logger.warning(f"Cannot apply start value: node not found for {fmu_name}")
+                logger.warning(f"Cannot apply a start value: node '{fmu_name}' not found.")
 
         # Apply exposed output ports to scene nodes
         for fmu_name, port_name, _exposed_name in output_ports_list:
             node = nodes_by_name.get(fmu_name)
             if node:
                 node.user_exposed_outputs[port_name] = True
-                logger.debug(f"Exposed output: {fmu_name}/{port_name}")
+                logger.debug(f"Exposed output '{fmu_name}/{port_name}'.")
 
         # Apply exposed input ports to scene nodes
         for _exposed_name, fmu_name, port_name in input_ports_list:
@@ -390,12 +390,12 @@ class AssemblyIOMixin:
                 # Exposed reset of an FMU or a sub-container: checked in the detail panel of the ConfigurationNode
                 if configuration_node is not None:
                     configuration_node.reset_exposed[ConfigurationNode.reset_port_name(fmu_name)] = True
-                    logger.debug(f"Exposed reset: {fmu_name}")
+                    logger.debug(f"Exposed reset of '{fmu_name}'.")
                 continue
             node = nodes_by_name.get(fmu_name)
             if node:
                 node.user_exposed_inputs[port_name] = True
-                logger.debug(f"Exposed input: {fmu_name}/{port_name}")
+                logger.debug(f"Exposed input '{fmu_name}/{port_name}'.")
 
         # Reset the detail panels so that the next sync_to_node/sync_to_wire
         # does not overwrite the just-loaded data with stale empty table content.
@@ -459,7 +459,7 @@ class AssemblyIOMixin:
         for child in assembly_node.children.values():
             for _port, exposed_name in child.output_ports.items():
                 assembly_node.add_output(child.name, exposed_name, exposed_name)
-                logger.debug(f"PROPAGATE OUTPUT: {child.name}/{exposed_name} → {assembly_node.name}")
+                logger.debug(f"Output '{child.name}/{exposed_name}' propagated to '{assembly_node.name}'.")
 
     @staticmethod
     def _propagate_exposed_inputs(assembly_node: AssemblyNode):
@@ -479,7 +479,7 @@ class AssemblyIOMixin:
         for child in assembly_node.children.values():
             for _port, exposed_name in child.input_ports.items():
                 assembly_node.add_input(exposed_name, child.name, exposed_name)
-                logger.debug(f"PROPAGATE INPUT: {assembly_node.name} → {child.name}/{exposed_name}")
+                logger.debug(f"Input of '{assembly_node.name}' propagated to '{child.name}/{exposed_name}'.")
 
     @staticmethod
     def _apply_links_on_assembly_node(assembly_node: AssemblyNode,
@@ -489,15 +489,15 @@ class AssemblyIOMixin:
             links_list = AssemblyIOMixin._apply_links_on_assembly_node(
                 sub_assembly_node, links_list)
 
-        logger.debug(f"Links applied: {len(links_list)}")
-        logger.debug(f"Assembly node: {assembly_node.name}")
+        logger.debug(f"{len(links_list)} link(s) applied.")
+        logger.debug(f"Assembly node '{assembly_node.name}'.")
 
         # An FMU "belongs" to this node if it is either a direct FMU or a child container
         known_names = set(assembly_node.fmu_names_list) | set(assembly_node.children.keys())
 
         remaining_links_list = []
         for link in links_list:
-            logger.debug(f"{link}")
+            logger.debug(f"Link {link}.")
             from_is_local = link[0] in known_names
             to_is_local = link[2] in known_names
 
@@ -551,7 +551,7 @@ class AssemblyIOMixin:
                                     item) -> AssemblyNode | None:
             container_parameters = item.data(_NodeTreeModel.ROLE_CONTAINER_PARAMETERS)
             if container_parameters:
-                logger.debug(f"ADD Container: {container_parameters.name}")
+                logger.debug(f"Adding container '{container_parameters.name}'.")
                 assembly_node = AssemblyNode(container_parameters.name,
                                              **container_parameters.parameters)
                 for r in range(item.rowCount()):
@@ -569,24 +569,24 @@ class AssemblyIOMixin:
                 uid = item.data(_NodeTreeModel.ROLE_NODE_UID)
                 node = nodes_by_uid.get(uid)
                 if node is None:
-                    logger.warning(f"Node with uid {uid} not found in scene, skipping.")
+                    logger.warning(f"Node with uid {uid} not found in the scene: skipped.")
                     return None
                 reference = _reference(node)
-                logger.info(f"ADD: FMU: {node.name} ({node.fmu_path})")
+                logger.info(f"FMU '{node.name}' added ('{node.fmu_path}').")
                 parent_assembly_node.add_fmu(reference, str(node.fmu_path))
                 # Apply user-defined start values
                 for port_name, value in node.user_start_values.items():
-                    logger.debug(f"START VALUE: {node.name}/{port_name} = {value}")
+                    logger.debug(f"Start value of '{node.name}/{port_name}': '{value}'.")
                     parent_assembly_node.add_start_value(reference, port_name, value)
                 # Apply user-exposed output ports
                 for port_name, exposed in node.user_exposed_outputs.items():
                     if exposed:
-                        logger.debug(f"EXPOSE OUTPUT: {node.name}/{port_name}")
+                        logger.debug(f"Output '{node.name}/{port_name}' exposed.")
                         parent_assembly_node.add_output(reference, port_name, port_name)
                 # Apply user-exposed input ports
                 for port_name, exposed in node.user_exposed_inputs.items():
                     if exposed:
-                        logger.debug(f"EXPOSE INPUT: {node.name}/{port_name}")
+                        logger.debug(f"Input '{node.name}/{port_name}' exposed.")
                         parent_assembly_node.add_input(port_name, reference, port_name)
                 if parent_assembly_node.reset_ports and _reset_exposed(node.name):
                     parent_assembly_node.add_input(ConfigurationNode.reset_input_name(node.name), reference,
@@ -599,9 +599,9 @@ class AssemblyIOMixin:
             assembly = Assembly()
             assembly.root = _item_to_assembly_node(None, root_item)
         except FileNotFoundError as e:
-            logger.fatal(f"Cannot read file: {e}")
+            logger.critical(f"Cannot read the file: {e}.")
         except (FMUContainerError, AssemblyError) as e:
-            logger.fatal(f"{e}")
+            logger.critical(f"{e}")
             return None
 
         links_list: list[tuple[str, str, str, str]] = []
@@ -635,7 +635,8 @@ class AssemblyIOMixin:
                 # same way.
                 if cfg_node and fmu_to_name == ConfigurationNode.TITLE:
                     if not cfg_node.port_active(port_to):
-                        logger.debug(f"SKIP inactive configuration link: {fmu_from_name}/{port_from} -> {port_to}")
+                        logger.debug(f"Inactive configuration link '{fmu_from_name}/{port_from}' -> '{port_to}' "
+                                     f"skipped.")
                         continue
                     if cfg_node.is_reset_port(port_to):
                         fmu_to_name = ConfigurationNode.fmu_name_from_reset_port(port_to)
@@ -647,7 +648,7 @@ class AssemblyIOMixin:
                     fmu_from_path = path_by_name[fmu_from_name]
                 elif cfg_node and fmu_from_name == ConfigurationNode.TITLE:
                     if not cfg_node.port_active(port_from):
-                        logger.debug(f"SKIP inactive configuration link: {port_from} -> {fmu_to_name}/{port_to}")
+                        logger.debug(f"Inactive configuration link '{port_from}' -> '{fmu_to_name}/{port_to}' skipped.")
                         continue
                     if cfg_node.is_reset_port(port_from):
                         fmu_from_name = ConfigurationNode.fmu_name_from_reset_port(port_from)
@@ -661,7 +662,7 @@ class AssemblyIOMixin:
                     fmu_from_path = path_by_name[fmu_from_name]
                     fmu_to_path = path_by_name[fmu_to_name]
 
-                logger.info(f"{Path(fmu_from_path).name}/{port_from} → {Path(fmu_to_path).name}/{port_to}")
+                logger.info(f"Link: '{Path(fmu_from_path).name}/{port_from}' to '{Path(fmu_to_path).name}/{port_to}'.")
                 links_list.append((fmu_from_path, port_from, fmu_to_path, port_to))
 
             # Terminal mappings are treated as regular links (terminals behave as ports)
@@ -670,7 +671,7 @@ class AssemblyIOMixin:
                     fmu_a_name, terminal_a, fmu_b_name, terminal_b = tm
                     fmu_a_path = path_by_name[fmu_a_name]
                     fmu_b_path = path_by_name[fmu_b_name]
-                    logger.info(f"{fmu_a_name}/{terminal_a} ↔ {fmu_b_name}/{terminal_b} (terminal)")
+                    logger.info(f"Terminal link: '{fmu_a_name}/{terminal_a}' to '{fmu_b_name}/{terminal_b}'.")
                     links_list.append((fmu_a_path, terminal_a, fmu_b_path, terminal_b))
 
         if assembly.root:
@@ -708,7 +709,7 @@ class AssemblyIOMixin:
                 continue
             start, end = path_by_name.get(wire.node_a.name), path_by_name.get(wire.node_b.name)
             if start not in holder or end not in holder or holder[start] is not holder[end]:
-                logger.debug(f"Architecture wire {wire.node_a.name} - {wire.node_b.name} not exported: its nodes "
+                logger.debug(f"Architecture wire '{wire.node_a.name}' - '{wire.node_b.name}' not exported: its nodes "
                              f"are not in the same container.")
                 continue
             orientation = {"both": "bidirectional", "a_to_b": "directed", "b_to_a": "directed"}.get(
