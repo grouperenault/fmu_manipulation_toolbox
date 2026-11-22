@@ -173,7 +173,9 @@ def reset_input_name(fmu_name: str) -> str:
 
 
 def block_name(name: str) -> str:
-    """Name of the block of an embedded FMU or of a sub-container: its name without `.fmu`."""
+    """Name of the block of an embedded FMU or of a sub-container: its file name without folder nor `.fmu` (the name
+    of an FMU read from an SSP file is the path of its extracted file, e.g. `bouncing.dir/resources/bb.fmu`)."""
+    name = Path(name).name
     return name[:-4] if name.lower().endswith(".fmu") else name
 
 
