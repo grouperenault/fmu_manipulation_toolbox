@@ -38,6 +38,19 @@ def test_fmus_in_a_sub_folder(area_dir):
 
 
 @pytest.mark.area("containers/bouncing_ball")
+def test_no_absolute_path(area_dir, monkeypatch):
+    """The script holds no absolute path: an FMU on another drive (Windows) is refused (decision 28)."""
+    script = Assembly("bouncing.csv").make_simulink("model.m").read_text(encoding="utf-8")
+    assert str(area_dir) not in script and str(area_dir.resolve()) not in script
+
+    def relpath(path, start):
+        raise ValueError("path is on mount 'D:', start on mount 'C:'")
+    monkeypatch.setattr("fmu_manipulation_toolbox.simulink.os.path.relpath", relpath)
+    with pytest.raises(AssemblyError, match="another drive"):
+        Assembly("bouncing.csv").make_simulink("model.m")
+
+
+@pytest.mark.area("containers/bouncing_ball")
 @pytest.mark.parametrize("name", ["1model.m", "my-model.m", "a" * 64 + ".m"])
 def test_invalid_script_name_is_refused(area_dir, name):
     with pytest.raises(AssemblyError, match="valid MATLAB identifier"):

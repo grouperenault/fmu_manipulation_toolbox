@@ -240,8 +240,8 @@ class SimulinkExporter:
             Path: The script.
 
         Raises:
-            AssemblyError: If the stem of `filename` is not a valid MATLAB identifier, or if the assembly cannot be
-                exported (see `analyse`).
+            AssemblyError: If the stem of `filename` is not a valid MATLAB identifier, if an FMU cannot be designated
+                relatively to the script (another drive), or if the assembly cannot be exported (see `analyse`).
         """
         filename = Path(filename)
         if filename.suffix.lower() != ".m":
@@ -255,8 +255,9 @@ class SimulinkExporter:
         for path in model.fmu_files.values():
             try:
                 folder = Path(os.path.relpath(path.parent, directory)).as_posix()
-            except ValueError:      # another drive (Windows)
-                folder = str(path.parent)
+            except ValueError:      # another drive (Windows): no relative path
+                raise AssemblyError(f"'{path}' cannot be designated relatively to '{filename.name}' (another "
+                                    f"drive): write the script on the drive of the FMUs.") from None
             if folder not in folders:
                 folders.append(folder)
         assert self.assembly.root is not None
@@ -645,8 +646,8 @@ class MatlabWriter:
 
     Args:
         model (SimulinkModel): The model.
-        fmu_folders (list[str]): Folders of the FMUs, relative to the folder of the script (or absolute), added to
-            the MATLAB path (decision 28).
+        fmu_folders (list[str]): Folders of the FMUs, relative to the folder of the script, added to the MATLAB path
+            (decision 28).
         description (str): Name of the assembly, for the comment of the function.
     """
 
@@ -704,8 +705,7 @@ class MatlabWriter:
     # ---------------------------------------------------------------------------------------------- helpers
     @staticmethod
     def _folder(base: str, folder: str) -> str:
-        if Path(folder).is_absolute():
-            return matlab_string(folder)
+        """A folder relative to `base` (the folder of the script or of the model), as a MATLAB expression."""
         if folder in ("", "."):
             return base
         return f"fullfile({base}, {', '.join(matlab_string(part) for part in Path(folder).parts)})"

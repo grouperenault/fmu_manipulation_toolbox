@@ -131,8 +131,8 @@ points of 2026-10-17, with the results of the importer comparison study
 
 28. **A MATLAB script only** (replaces decisions 1 and 14, taken at step 1): the export writes the `.m` script,
     without archive. The script designates the FMUs in place: it adds their folders to the MATLAB path, relative to
-    the folder of the script (absolute when they cannot be, e.g. another drive), and the `PreLoadFcn` of the model
-    does the same (decision 20). Two different FMUs with the same file name are an error (the FMU block designates
+    the folder of the script, and the `PreLoadFcn` of the model does the same (decision 20). The script holds no
+    absolute path: an FMU on another drive than the script (Windows) is an error. Two different FMUs with the same file name are an error (the FMU block designates
     an FMU by its file name only). The script and the FMUs must keep their relative places.
 29. **Entry points** (amends decision 2): CLI `fmucontainer -simulink FILE.m` (the FMU container is built too);
     in FMU Container Builder, a format of **Save** ("MATLAB script for Simulink (*.m)"), the extension decides; no
@@ -234,7 +234,7 @@ Commit message: `Generate the MATLAB script building the Simulink model of an as
   identifier (`AssemblyError` otherwise): it names the function and the model (decision 30).
 - Public API: `Assembly.make_simulink(filename)`, mirroring `write_ssp`.
 - Tests `tests/integration/test_simulink_export.py`: the script is written, its function and model names follow the
-  file name, the folders of the FMUs are relative to the script (absolute when they cannot be), an invalid file name
+  file name, the folders of the FMUs are relative to the script (another drive is an error), an invalid file name
   is refused.
 
 Commit message: `Export an assembly as a MATLAB script building its Simulink model`

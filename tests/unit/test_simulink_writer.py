@@ -57,9 +57,10 @@ def test_reference_script(ball):
 def test_model_settings_and_path(ball):
     assembly = Assembly("bouncing.csv", fmu_directory=ball)
     assembly.root.start_time, assembly.root.stop_time = 0.0, 3.0
-    script = _script(assembly, ["fmus", "/abs/dir"])
+    script = _script(assembly, ["fmus", "../shared/fmus"])
     assert script.startswith("function model = bouncing()\n")
-    assert "addpath(fullfile(here, 'fmus'));" in script and "addpath('/abs/dir');" in script
+    assert "addpath(fullfile(here, 'fmus'));" in script
+    assert "addpath(fullfile(here, '..', 'shared', 'fmus'));" in script
     assert "'SolverType', 'Fixed-step', 'FixedStep', '0.001', 'EnableMultiTasking', 'off', 'BlockReduction', 'off', " \
            "'StartTime', '0.0', 'StopTime', '3.0'" in script
     assert "'PreLoadFcn'" in script and script.rstrip().endswith("end")
