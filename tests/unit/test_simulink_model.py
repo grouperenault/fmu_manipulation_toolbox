@@ -134,3 +134,29 @@ def test_exposed_parameter_has_no_port(data_dir, tmp_path, caplog):
     assert model.root.inports == []
     assert "'feed.fmu': 'Feedthrough.fmu/Float64_fixed_parameter' is a parameter: the FMU block of Simulink has no " \
            "port for it, it is not exposed." in caplog.messages
+
+
+def test_loops_are_broken_by_a_unit_delay(ball):
+    """The FMU blocks have a direct feedthrough for Simulink: the loop bb_position → bb_velocity → bb_position gets a
+    Unit Delay on the line that closes it, with the start value of its source (decision 34)."""
+    from fmu_manipulation_toolbox.simulink import DelayBlock
+    model = SimulinkExporter(Assembly("bouncing.csv", fmu_directory=ball)).analyse()
+    delays = [block for block in model.root.blocks.values() if isinstance(block, DelayBlock)]
+    assert len(delays) == 1
+    assert delays[0].sample_time == 0.001
+    lines = {(line.source, line.target) for line in model.root.lines}
+    assert ("bb_position", "bb_velocity") in lines                      # the first link stays direct
+    assert ("bb_velocity", delays[0].name) in lines and (delays[0].name, "bb_position") in lines
+    assert ("bb_velocity", "bb_position") not in lines
+
+
+def test_no_delay_without_loop(ball):
+    from fmu_manipulation_toolbox.simulink import DelayBlock
+    assembly = Assembly(fmu_directory=ball)
+    root = _node("chain.fmu", step_size=0.01)
+    root.add_fmu("bb_position.fmu")
+    root.add_fmu("bb_velocity.fmu")
+    root.add_link("bb_position.fmu", "is_ground", "bb_velocity.fmu", "reset")
+    assembly.root = root
+    model = SimulinkExporter(assembly).analyse()
+    assert not any(isinstance(block, DelayBlock) for block in model.root.blocks.values())

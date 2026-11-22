@@ -101,7 +101,16 @@ class TerminatorBlock:
     name: str
 
 
-Block = FmuBlock | SubsystemBlock | InportBlock | OutportBlock | ConstantBlock | TerminatorBlock
+@dataclass
+class DelayBlock:
+    """A *Unit Delay* that breaks a loop of FMU blocks or subsystems, which Simulink sees as atomic, with direct
+    feedthrough (decision 34)."""
+    name: str
+    initial: StartValue
+    sample_time: float
+
+
+Block = FmuBlock | SubsystemBlock | InportBlock | OutportBlock | ConstantBlock | TerminatorBlock | DelayBlock
 
 
 @dataclass
@@ -395,7 +404,69 @@ class SimulinkExporter:
         self._start_values(node, fmus, children, names, system, endpoint, connected_inputs)
         self._resets(node, fmus, names, system, connected_inputs)
         self._unconnected(node, fmus, children, names, system, connected_inputs, connected_outputs)
+        self._break_loops(node, fmus, names, system)
         return system
+
+    # ------------------------------------------------------------------------------------------------ loops
+    def _break_loops(self, node: AssemblyNode, fmus: dict[str, EmbeddedFMU], names: dict[str, str],
+                     system: SimulinkSystem):
+        """A *Unit Delay* on each line that closes a loop of FMU blocks or subsystems (decision 34).
+
+        The FMU blocks and the atomic subsystems have a direct feedthrough for Simulink: a loop of them is an
+        algebraic loop. A depth-first search in the order of the blocks finds the lines going back to a block of the
+        current path; each one gets a delay, whose initial value is the start value of its source output, otherwise
+        of its target input, otherwise 0.
+        """
+        nodes = [name for name, block in system.blocks.items() if isinstance(block, FmuBlock | SubsystemBlock)]
+        successors: dict[str, list[str]] = {name: [] for name in nodes}
+        for line in system.lines:
+            if line.source in successors and line.target in successors and line.target not in successors[line.source]:
+                successors[line.source].append(line.target)
+        back_edges: set[tuple[str, str]] = set()
+        state: dict[str, int] = {}      # 1: on the current path, 2: done
+
+        def visit(name: str):
+            state[name] = 1
+            for successor in successors[name]:
+                if state.get(successor) == 1:
+                    back_edges.add((name, successor))
+                elif successor not in state:
+                    visit(successor)
+            state[name] = 2
+
+        for name in nodes:
+            if name not in state:
+                visit(name)
+        if not back_edges:
+            return
+        fmu_of_block = {names[name]: fmus[name] for name in fmus}
+        lines = []
+        for line in system.lines:
+            if (line.source, line.target) not in back_edges:
+                lines.append(line)
+                continue
+            initial = self._delay_initial(fmu_of_block, system, line)
+            delay = system.unique_name(f"{line.source}.{line.source_port} delay")
+            system.add(DelayBlock(delay, initial, system.sample_time))
+            lines += [SimulinkLine(line.source, line.source_port, delay, 1),
+                      SimulinkLine(delay, 1, line.target, line.target_port)]
+            logger.info(f"'{node.name}': loop of '{line.source}' → '{line.target}' broken by a Unit Delay.")
+        system.lines = lines
+
+    @staticmethod
+    def _delay_initial(fmu_of_block: dict[str, EmbeddedFMU], system: SimulinkSystem, line: SimulinkLine) -> StartValue:
+        """Initial value of a delay: start value of the source output, otherwise of the target input, otherwise 0."""
+        source, target = system.blocks[line.source], system.blocks[line.target]
+        if isinstance(source, FmuBlock) and isinstance(line.source_port, int):
+            port = fmu_of_block[source.name].ports[source.outputs[line.source_port - 1]]
+            if port.start_value is not None:
+                return StartValue(str(port.start_value), port.type_name)
+        if isinstance(target, FmuBlock) and isinstance(line.target_port, int):
+            port = fmu_of_block[target.name].ports[target.inputs[line.target_port - 1]]
+            if port.start_value is not None:
+                return StartValue(str(port.start_value), port.type_name)
+            return StartValue("0", port.type_name)
+        return StartValue("0", "real64")
 
     # ------------------------------------------------------------------------------------------------- ports
     def _endpoint(self, node: AssemblyNode, fmus: dict[str, EmbeddedFMU], children: dict[str, SimulinkSystem],
@@ -740,13 +811,13 @@ class MatlabWriter:
     def _system(self, system: SimulinkSystem, path: str):
         """The blocks and the lines of a system, `path` being a MATLAB expression of its path."""
         self.lines += ["", f"% System '{system.name}'"]
-        rows = {"inport": 0, "constant": 0, "block": 0, "outport": 0, "terminator": 0}
-        columns = {"inport": 0, "constant": 0, "block": 1, "outport": 2, "terminator": 2}
+        rows = {"inport": 0, "constant": 0, "block": 0, "outport": 0, "terminator": 0, "delay": 0}
+        columns = {"inport": 0, "constant": 0, "block": 1, "outport": 2, "terminator": 2, "delay": 3}
         subsystems = []
         for block in system.blocks.values():
             kind = ("inport" if isinstance(block, InportBlock) else "constant" if isinstance(block, ConstantBlock)
                     else "outport" if isinstance(block, OutportBlock) else "terminator"
-                    if isinstance(block, TerminatorBlock) else "block")
+                    if isinstance(block, TerminatorBlock) else "delay" if isinstance(block, DelayBlock) else "block")
             ports = max(len(block.inputs), len(block.outputs)) if isinstance(block, FmuBlock) else \
                 max(len(block.system.inports), len(block.system.outports)) if isinstance(block, SubsystemBlock) else 1
             height = max(1, ports) * self.ROW + self.ROW
@@ -757,7 +828,9 @@ class MatlabWriter:
             if isinstance(block, FmuBlock):
                 self._fmu_block(block, path, position)
             elif isinstance(block, SubsystemBlock):
-                subsystems.append((block, self._add_block("built-in/Subsystem", path, block.name, position)))
+                subsystem = self._add_block("built-in/Subsystem", path, block.name, position)
+                self._set_param(subsystem, [("TreatAsAtomicUnit", "on")])
+                subsystems.append((block, subsystem))
             elif isinstance(block, InportBlock):
                 block_path = self._add_block("built-in/Inport", path, block.name, position)
                 self._set_param(block_path, [("Port", str(block.index))])
@@ -773,6 +846,14 @@ class MatlabWriter:
                 self._set_param(block_path, [("Value", value),
                                              ("OutDataTypeStr", SIMULINK_TYPES.get(block.value.type_name, "double")),
                                              ("SampleTime", "inf")])
+            elif isinstance(block, DelayBlock):
+                block_path = self._add_block("built-in/UnitDelay", path, block.name, position)
+                try:
+                    initial = render_value(block.initial, "constant")
+                except AssemblyError as error:
+                    raise AssemblyError(f"'{system.name}': '{block.name}': {error}") from error
+                self._set_param(block_path, [("InitialCondition", initial),
+                                             ("SampleTime", matlab_number(block.sample_time))])
             else:
                 self._add_block("built-in/Terminator", path, block.name, position)
         # The ports of the subsystems exist before the lines of their parent
@@ -791,6 +872,7 @@ class MatlabWriter:
         """An FMU block; in a resettable subsystem when its reset is driven (decision 23)."""
         if block.resettable:
             wrapper = self._add_block("built-in/Subsystem", system, block.name, position)
+            self._set_param(wrapper, [("TreatAsAtomicUnit", "on")])
             self.lines.append(f"Simulink.SubSystem.deleteContents({wrapper});")
             reset = self._add_block(RESET_PORT_BLOCK, wrapper, "Reset", [20, 20, 50, 40], UNVERIFIED)
             self._set_param(reset, [RESET_TRIGGER], UNVERIFIED)

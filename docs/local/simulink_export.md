@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 33 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
+**Status**: decisions 1 to 35 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context
@@ -157,6 +157,14 @@ points of 2026-10-17, with the results of the importer comparison study
     The model and the function cannot have the same name ("the model name '…' is shadowing a name in the MATLAB
     workspace"). The stem of the script must be a valid MATLAB identifier, of at most 57 characters (63 with
     `_model`).
+
+34. **Loops** (from the user, after the first run on MATLAB): Simulink sees an FMU block, and an atomic subsystem,
+    as a block with direct feedthrough: a loop of them is an algebraic loop. A depth-first search of the blocks of
+    each system, in the order of the assembly, finds the lines that close a loop; each one gets a *Unit Delay*
+    (`built-in/UnitDelay`, sample time of the system), whose initial value is the start value of its source output,
+    otherwise of its target input, otherwise 0.
+35. **Atomic subsystems** (from the user): every generated subsystem (sub-container, resettable subsystem of
+    decision 23) is atomic (`TreatAsAtomicUnit` = `on`).
 
 ### Closed open points (2026-10-17)
 

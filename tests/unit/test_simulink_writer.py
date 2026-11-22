@@ -69,6 +69,13 @@ def test_model_settings_and_path(ball):
     assert "'PreLoadFcn'" in script and script.rstrip().endswith("end")
 
 
+def test_subsystems_are_atomic_and_loops_delayed(ball):
+    script = _script(Assembly("bouncing-reset.csv", fmu_directory=ball, default_reset_ports=True))
+    assert "set_param([model '/bb_velocity'], 'TreatAsAtomicUnit', 'on');" in script
+    assert "add_block('built-in/UnitDelay', [model '/bb_velocity.1 delay']" in script
+    assert "'InitialCondition', '0.0', 'SampleTime', '0.001'" in script
+
+
 def test_resettable_subsystem(ball):
     script = _script(Assembly("bouncing-reset.csv", fmu_directory=ball, default_reset_ports=True))
     assert "add_block('built-in/ResetPort', [[model '/bb_velocity'] '/Reset']" in script

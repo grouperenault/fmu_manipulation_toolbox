@@ -24,10 +24,13 @@ add_block('built-in/Outport', [model '/position'], 'Position', [720 40 840 80]);
 set_param([model '/position'], 'Port', '1');
 add_block('built-in/Outport', [model '/velocity'], 'Position', [720 120 840 160]);
 set_param([model '/velocity'], 'Port', '2');
+add_block('built-in/UnitDelay', [model '/bb_velocity.1 delay'], 'Position', [1060 40 1180 80]);
+set_param([model '/bb_velocity.1 delay'], 'InitialCondition', '0.0', 'SampleTime', '0.001');
 
 % Lines of 'bouncing'
 add_line(model, 'bb_position/1', 'bb_velocity/1', 'autorouting', 'on');
-add_line(model, 'bb_velocity/1', 'bb_position/1', 'autorouting', 'on');
+add_line(model, 'bb_velocity/1', 'bb_velocity.1 delay/1', 'autorouting', 'on');
+add_line(model, 'bb_velocity.1 delay/1', 'bb_position/1', 'autorouting', 'on');
 add_line(model, 'bb_position/2', 'position/1', 'autorouting', 'on');
 add_line(model, 'bb_velocity/1', 'velocity/1', 'autorouting', 'on');
 save_system(model, fullfile(here, [model '.slx']));
