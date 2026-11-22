@@ -147,10 +147,10 @@ developers working with FMI-compliant models, it provides three powerful interfa
 
 ### FMI Versions
 
-- [x] FMI 2.0 Co-Simulation
-- [x] FMI 3.0 Co-Simulation
-- [x] FMI 2.0 Model-Exchange
-- [ ] FMI 3.0 Model-Exchange
+- [x] FMI-2 Co-Simulation
+- [x] FMI-3 Co-Simulation
+- [x] FMI-2 Model-Exchange
+- [ ] FMI-3 Model-Exchange
 
 </div>
 

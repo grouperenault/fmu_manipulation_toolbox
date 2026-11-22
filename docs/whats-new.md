@@ -59,7 +59,7 @@ Version 2.0 is the biggest release of FMU Manipulation Toolbox so far.
 - :material-hammer-wrench: **Compilation of the sources** — no binary for your platform? FMU Tool
   [compiles the C sources](user-guide/fmutool/cli-usage.md#compile-sources) embedded in the FMU.
 - :material-shield-check: **Safer edits, stricter checks** — `modelDescription.xml` is edited in place, a
-  [semantic checker](user-guide/fmutool/checker.md) verifies the rules of FMI 2.0 and 3.0, and the exit codes suit
+  [semantic checker](user-guide/fmutool/checker.md) verifies the rules of FMI-2 and FMI-3, and the exit codes suit
   continuous integration.
 - :material-language-python: **Python 3.10 to 3.14**, and a command line that no longer needs the GUI toolkit.
 

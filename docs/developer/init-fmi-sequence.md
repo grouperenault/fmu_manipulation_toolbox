@@ -11,9 +11,9 @@ The container goes through the standard FMI lifecycle states
 embedded FMUs. The diagram below shows the sequence for the **sequential** execution mode; the
 parallel modes follow the same logical order.
 
-!!! note "FMI 2.0 vs FMI 3.0"
-    In **FMI 2.0** the importer calls `fmi2SetupExperiment()` and then
-    `fmi2EnterInitializationMode()` as two separate calls. In **FMI 3.0** there is no
+!!! note "FMI-2 vs FMI-3"
+    In **FMI-2** the importer calls `fmi2SetupExperiment()` and then
+    `fmi2EnterInitializationMode()` as two separate calls. In **FMI-3** there is no
     `SetupExperiment`: the tolerance and time information is passed directly to
     `fmi3EnterInitializationMode()`. Internally the container routes both flavors through the
     same `container_setup_experiment()` / `container_enter_initialization_mode()` helpers, so the
@@ -110,8 +110,8 @@ sequenceDiagram
 - `fmi*Instantiate` of the **embedded** FMUs happens inside `container_configure()`, which is
   itself called from `fmi2Instantiate` / `fmi3InstantiateCoSimulation`. By the time the importer
   receives the container instance, all embedded FMUs are already instantiated.
-- `fmuSetupExperiment()` only emits an FMI call for **FMI 2.0** FMUs
-  (`fmi2SetupExperiment`); for **FMI 3.0** FMUs it is a no-op since the equivalent parameters are
+- `fmuSetupExperiment()` only emits an FMI call for **FMI-2** FMUs
+  (`fmi2SetupExperiment`); for **FMI-3** FMUs it is a no-op since the equivalent parameters are
   forwarded through `fmi3EnterInitializationMode()`.
 - Start values declared in `container.txt` are applied in **three phases** (`<RESET>` of
   [container.txt](container-txt-format.md#72-start-values)): the structural parameters (`<RESET>=2`) in
@@ -124,7 +124,7 @@ sequenceDiagram
   are set before its `fmi2SetupExperiment`, then when it is read or leaves its *Initialization Mode*.
 - The FMUs with structural parameters set by the container (`<has_configuration_mode>`) go through their
   *Configuration Mode* once after their instantiation and after each reset: with the *Configuration Mode* of the
-  container when its importer uses it (FMI 3.0), otherwise right before their early start values. A value set on a
+  container when its importer uses it (FMI-3), otherwise right before their early start values. A value set on a
   structural parameter outside of *Configuration Mode* is kept until then.
 - The links between the embedded FMUs are **propagated during the initialization**, as Simulink does
   (`container_exit_fmus_initialization()`, run by `fmi*ExitInitializationMode()` of the container): in the

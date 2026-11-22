@@ -213,7 +213,7 @@ After a failure, the dialog comes back as above.
   front-end for process isolation, without changing bitness
 
 See the [Remoting Guide](remoting.md) for the full picture (this operation only applies to
-FMI 2.0 co-simulation FMUs).
+FMI-2 co-simulation FMUs).
 
 #### 🟢 Check FMU
 

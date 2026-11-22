@@ -248,7 +248,7 @@ docs/                          # Documentation source (MkDocs Material)
 Key design points:
 - **Pure Python manipulation**: analyzing and altering FMUs is done entirely in Python — no compilation required.
 - **Native C code**: the FMU Container runtime is implemented in C (C23) and the Remoting feature in C (C99). These are compiled with CMake and shipped as pre-built binaries in `resources/`.
-- **FMI 2.0 & 3.0**: both FMI standards are supported across all features.
+- **FMI-2 & FMI-3**: both FMI standards are supported across all features.
 
 
 # 🧑‍💻 Development

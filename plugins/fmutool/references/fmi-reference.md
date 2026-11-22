@@ -50,7 +50,7 @@ port must match each of them.
 | Filter | Values | Notes |
 |---|---|---|
 | `causality` | `input`, `output`, `parameter`, `local` (listings also accept `independent`, `calculatedParameter`...) | A port without `causality` is `local` |
-| `type` | `Real`, `Integer`, `Boolean`, `String`, `Enumeration`, `Float32`, `Float64`, `Int8`...`UInt64`, `Binary`, `Clock` | On an FMI 3 FMU, an FMI 2 name selects its family: `Real` = `Float32` + `Float64`, `Integer` = every integer type. `Float64` selects nothing on an FMI 2 FMU |
+| `type` | `Real`, `Integer`, `Boolean`, `String`, `Enumeration`, `Float32`, `Float64`, `Int8`...`UInt64`, `Binary`, `Clock` | On an FMI-3 FMU, an FMI-2 name selects its family: `Real` = `Float32` + `Float64`, `Integer` = every integer type. `Float64` selects nothing on an FMI-2 FMU |
 | `variability` | `constant`, `fixed`, `tunable`, `discrete`, `continuous` | A port without `variability` has the default of the standard (below) |
 | `name_pattern` | regular expression, searched anywhere in the name | Listings only; operations take their own `argument` |
 
@@ -72,10 +72,10 @@ Default variability when the FMU declares none:
   no `start`...). A unit may still come from its declared type: `describe_port`
   resolves it. Descriptions are cut after 80 characters.
 - `describe_port` gives everything about one port: every declared attribute
-  (`min`, `max`, `nominal`, `initial`, `declaredType`...), FMI 3 `dimensions`,
+  (`min`, `max`, `nominal`, `initial`, `declaredType`...), FMI-3 `dimensions`,
   the resolved declared type (`inherited`: the attributes the port takes from
-  it, such as its unit; enumeration `items`), the `aliases` (FMI 3 `<Alias>`;
-  FMI 2 variables sharing the value reference) and the `terminals` the port
+  it, such as its unit; enumeration `items`), the `aliases` (FMI-3 `<Alias>`;
+  FMI-2 variables sharing the value reference) and the `terminals` the port
   belongs to.
 
 ## What the toolbox refuses

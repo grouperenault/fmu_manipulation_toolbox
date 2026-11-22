@@ -1,7 +1,6 @@
 # Plan: consistent log messages
 
-**Created**: 13 October 2026 — **Status**: steps 1 to 6 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
-the start of their step — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
+**Created**: 13 October 2026 — **Status**: done (22 November 2026), decisions D1 to D22 — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
 consistency" — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
 The messages of the `fmu_manipulation_toolbox` logger are read in three places: the console of the CLI
@@ -157,14 +156,10 @@ Taken on 22 November 2026, at the start of step 5:
 Taken on 22 November 2026, at the start of step 6:
 
 - **D7 — Precise versions**: `FMI-2.0.4`, `FMI-3.0.2` (the full number of the revision, with a hyphen).
+- **D8 — CHANGELOG** (start of step 7): the section `Upstream` (not released) follows D4; the entries of the released
+  versions stay as they were published.
 - **D22 — Scope of step 6**: the Python package, the C runtime, `tools/` and `tests/`; not the files copied from the
   standard (`resources/fmi*/`, FMI headers) nor the third-party data (`tests/data/`).
-
-### To be decided at the start of the step concerned
-
-| # | Question | Step |
-|---|---|---|
-| D8 | `CHANGELOG.md`: the entries of the released versions are rewritten with `FMI-2` / `FMI-3`, or only the new entries follow D4 | 7 |
 
 ---
 
@@ -263,5 +258,11 @@ Commit message: `Code: FMI-2 and FMI-3 as the spelling of the standard`
   sentences; failed operations logged as `CRITICAL` by the GUIs); 🔵 **CHANGED**: the remoting fails when its
   binaries are missing.
 - `docs/local/ROADMAP.md`, then move this plan to `docs/local/done`.
+- Done: spelling in 110 lines of `docs/` (titles `FMI-2 Containers`, `FMI-3 Containers`: no link to their anchors),
+  `README.md`, the agent skills, the `Upstream` section of `CHANGELOG.md` (27 lines); sections `FMI-3 §2.2.1`. Log
+  examples: `multi-threading.md` (modes of the runtime), `ai-assistant.md` (`AI Assistant: …`), the example of
+  `checker.md` (`FMI-2`); `remoting.md` tells that the operation fails without the binaries (D6). Not done: the
+  screenshot `docs/user-guide/fmutool/fmutool-gui.png` (version aligned on the left since D12) is to be made again with the
+  other screenshots (`docs/local/doc_audit_2.1.md`); `mkdocs build --strict` not run (mkdocs not installed).
 
 Commit message: `Doc: the new log messages, FMI-2 and FMI-3 as the spelling of the standard`

@@ -17,7 +17,7 @@
 - [X] FMI-LS-BUS up to 1.3.0-rc.1: LIN, FlexRay, Ethernet, all the time-based clocks
 - [ ] FMI-LS-BUS 1.3.0 final
 - [X] FMI-LS-XCP 1.0.0: checker, XCP services of the embedded FMUs forwarded by the container
-- [ ] log consistency
+- [X] log consistency: one convention for the messages (docs/developer/logging.md), FMI-2 / FMI-3
 - [ ] SSP transformations
 - [ ] Audit
 - [ ] Simulink export

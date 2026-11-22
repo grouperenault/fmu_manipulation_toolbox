@@ -1,6 +1,6 @@
 # Native runtime of the container
 
-The runtime of a container FMU (`container/*.c`) is a C library that implements the FMI 2.0 and 3.0 APIs of the
+The runtime of a container FMU (`container/*.c`) is a C library that implements the FMI-2 and FMI-3 APIs of the
 container and drives its embedded FMUs. This page describes its conventions.
 
 ## Numeric types
@@ -37,9 +37,9 @@ by `container.txt` and `datalog.txt`), `fmu_`/`fmu` (embedded FMUs), `logger_`, 
 file system and the `file` URIs of RFC 3986), `solver_`, `thread_`... `container_` is the container itself
 (`container.c`: its execution), whose FMI APIs are in `fmi2.c` and `fmi3.c`.
 
-The resource locations follow the FMI version of each embedded FMU: a `file` URI for FMI 2.0
+The resource locations follow the FMI version of each embedded FMU: a `file` URI for FMI-2
 (`file:///C:/…/resources`, separators `/`, percent-encoded octets, `path_to_uri()`), a native path with a trailing
-separator for FMI 3.0, or `NULL` when the FMU has no `resources` folder. The builder gives an empty `resources` folder
+separator for FMI-3, or `NULL` when the FMU has no `resources` folder. The builder gives an empty `resources` folder
 to every embedded FMU that has none, since some FMUs do not expect a `NULL` `resourcePath` (`strdup(resourcePath)`):
 `NULL` only remains for the containers built before. The resource location of the container itself, given by its
 importer, is decoded by `path_from_uri()`.
@@ -64,13 +64,13 @@ fmu_status_t container_do_something(container_t *container) {
 
 The modules without a container get the logger as a parameter (`library_load()`, `convert_new()`,
 `profile_new()`, `datalog_new()`) or through `config_file_t.logger`; an embedded FMU uses the one of its container
-(`fmu->container->logger`). A `NULL` logger, or a `NULL` callback (allowed by FMI 3.0), sends no message. The
+(`fmu->container->logger`). A `NULL` logger, or a `NULL` callback (allowed by FMI-3), sends no message. The
 debug messages are sent only when the debug flag is set.
 
 ## Locale
 
 The configuration files are read with a decimal dot whatever the locale of the importer. An FMU must not change the
-global settings of its importer (FMI 3.0, 2.2.1), so the locale is never changed, even for a thread: in a line of numbers,
+global settings of its importer (FMI-3 §2.2.1), so the locale is never changed, even for a thread: in a line of numbers,
 the dots are replaced by the decimal point of the locale before `sscanf()` (`config_line_to_host_decimal_point()`).
 
 The configuration is refused if the decimal point of the locale has several bytes (`fa_IR.UTF-8`, for instance):
@@ -90,7 +90,7 @@ sources of the runtime are compiled again with the tests, so that the internal f
 
 - `test.h`: assertion macros (`TEST_ASSERT`, `TEST_ASSERT_EQUAL_INT`); a test is a function that returns 0 on
   success, registered in the table of `test_main.c`.
-- `stub_fmu.c`: an FMI 2.0 Co-Simulation FMU built with the tests. Its behaviour depends on the GUID given to
+- `stub_fmu.c`: an FMI-2 Co-Simulation FMU built with the tests. Its behaviour depends on the GUID given to
   `fmi2Instantiate` (e.g. `{stub-fail-instantiate}`, or `{stub-slow}`, whose steps last 2 ms); each type has 16
   variables, any other VR is an error.
 - `stub_xcp_fmi2.c`, `stub_xcp_fmi3.c`: FMUs of FMI-LS-XCP (descriptors in `tests/data/ls-xcp` of the repository).
