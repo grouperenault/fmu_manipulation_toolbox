@@ -67,6 +67,7 @@ def test_model_settings_and_path(ball):
     assert "'SolverType', 'Fixed-step', 'FixedStep', '0.001', 'EnableMultiTasking', 'off', 'BlockReduction', 'off', " \
            "'StartTime', '0.0', 'StopTime', '3.0'" in script
     assert "'PreLoadFcn'" in script and script.rstrip().endswith("end")
+    assert "% UNVERIFIED" not in script        # verified on MATLAB (step 6)
 
 
 def test_subsystems_are_atomic_and_loops_delayed(ball):
@@ -80,7 +81,7 @@ def test_resettable_subsystem(ball):
     script = _script(Assembly("bouncing-reset.csv", fmu_directory=ball, default_reset_ports=True))
     assert "add_block('built-in/ResetPort', [[model '/bb_velocity'] '/Reset']" in script
     assert "'ResetTriggerType', 'level'" in script
-    assert "add_line(model, 'bb_position/1', 'bb_velocity/Reset', 'autorouting', 'on');  % UNVERIFIED" in script
+    assert "add_line(model, 'bb_position/1', 'bb_velocity/Reset', 'autorouting', 'on');" in script
     # the FMU block exists before the lines that reach it
     assert script.index("[[model '/bb_velocity'] '/FMU']") < script.index("'reset/1', 'FMU/1'")
 

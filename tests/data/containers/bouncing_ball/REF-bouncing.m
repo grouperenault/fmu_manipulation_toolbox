@@ -13,7 +13,7 @@ if bdIsLoaded(model)
 end
 new_system(model);
 set_param(model, 'SolverType', 'Fixed-step', 'FixedStep', '0.001', 'EnableMultiTasking', 'off', 'BlockReduction', 'off');
-set_param(model, 'PreLoadFcn', 'here = fileparts(get_param(bdroot, ''FileName'')); addpath(here);');  % UNVERIFIED
+set_param(model, 'PreLoadFcn', 'here = fileparts(get_param(bdroot, ''FileName'')); addpath(here);');
 
 % System 'bouncing'
 add_block('simulink_extras/FMU Import/FMU', [model '/bb_position'], 'Position', [380 40 500 100]);

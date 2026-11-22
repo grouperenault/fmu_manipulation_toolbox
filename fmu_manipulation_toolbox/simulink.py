@@ -674,9 +674,9 @@ class SimulinkExporter:
 #: by the manual validation (step 6).
 FMU_LIBRARY = "simulink_extras/FMU Import/FMU"     # verified on R2024b, after load_system('simulink_extras')
 FMU_LIBRARY_SYSTEM = "simulink_extras"
-RESET_PORT_BLOCK = "built-in/ResetPort"             # UNVERIFIED
-RESET_TRIGGER = ("ResetTriggerType", "level")       # UNVERIFIED (decision 23)
-PRELOAD_CALLBACK = "PreLoadFcn"                     # UNVERIFIED in this use (decision 20)
+RESET_PORT_BLOCK = "built-in/ResetPort"             # verified (step 6)
+RESET_TRIGGER = ("ResetTriggerType", "level")       # verified (step 6, decision 23)
+PRELOAD_CALLBACK = "PreLoadFcn"                     # verified (step 6, decision 20)
 #: Numerical compensation of the co-simulation signals, set on each input port of a block (decision 37); documented:
 #: https://www.mathworks.com/help/simulink/ug/numerical-compensation.html
 COMPENSATION = ("CoSimSignalCompensationMode", "Auto_Off")
@@ -824,7 +824,7 @@ class MatlabWriter:
         if preload:
             callback = f"here = fileparts(get_param(bdroot, 'FileName')); {preload}"
             self.lines.append(f"set_param(model, {matlab_string(PRELOAD_CALLBACK)}, "
-                              f"{matlab_string(callback)});{UNVERIFIED}")
+                              f"{matlab_string(callback)});")
         self._system(model.root, "model")
         self.lines += [
             "save_system(model, fullfile(here, [model '.slx']));",
@@ -913,10 +913,9 @@ class MatlabWriter:
         self.lines += ["", f"% Lines of '{system.name}'"]
         for line in system.lines:
             target = f"{block_path_part(line.target)}/{line.target_port}"
-            comment = UNVERIFIED if line.target_port == "Reset" else ""
             source = f"{block_path_part(line.source)}/{line.source_port}"
             self.lines.append(f"add_line({path}, {matlab_string(source)}, {matlab_string(target)}, "
-                              f"'autorouting', 'on');{comment}")
+                              f"'autorouting', 'on');")
         self._arrange(path)
 
     def _arrange(self, path: str):
@@ -930,8 +929,8 @@ class MatlabWriter:
             wrapper = self._add_block("built-in/Subsystem", system, block.name, position)
             self._set_param(wrapper, [("TreatAsAtomicUnit", "on")])
             self.lines.append(f"Simulink.SubSystem.deleteContents({wrapper});")
-            reset = self._add_block(RESET_PORT_BLOCK, wrapper, "Reset", [20, 20, 50, 40], UNVERIFIED)
-            self._set_param(reset, [RESET_TRIGGER], UNVERIFIED)
+            reset = self._add_block(RESET_PORT_BLOCK, wrapper, "Reset", [20, 20, 50, 40])
+            self._set_param(reset, [RESET_TRIGGER])
             inner_position = [200, 60, 200 + self.WIDTH, position[3] - position[1] + 60]
             self._fmu("FMU", block, wrapper, inner_position)
             for index, name in enumerate(block.inputs, start=1):
