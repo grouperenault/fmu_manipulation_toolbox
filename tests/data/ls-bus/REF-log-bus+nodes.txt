@@ -1,17 +1,17 @@
 Loading the container model.
-FMUContainer version 'V2.1a1-76-g0b3d697'.
+FMUContainer version 'V2.1a1-77-gc6e0e48'.
 Solver configuration.
 Reading 'container.txt'.
 Container uses the sequential mode.
 Step size of the container: 1.000000e-01s.
 3 FMUs to be loaded (3 CS, 0 ME).
-FMU #0: loading 'DemoCanBusSimulation.dylib' from the directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpxovy34h8/resources/00' (FMI-3, CS).
-FMU #1: loading 'DemoCanNodeTriggeredOutput.dylib' from the directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpxovy34h8/resources/01' (FMI-3, CS).
-FMU #2: loading 'DemoCanNodeTriggeredOutput.dylib' from the directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpxovy34h8/resources/02' (FMI-3, CS).
-reals64   : 1 local variables and 2 ports
-integers32: 2 local variables and 2 ports
-binaries  : 4 local variables and 4 ports
-clocks    : 4 local variables and 4 ports
+FMU #0: loading 'DemoCanBusSimulation.dylib' from the directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpjhxkn93d/resources/00' (FMI-3, CS).
+FMU #1: loading 'DemoCanNodeTriggeredOutput.dylib' from the directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpjhxkn93d/resources/01' (FMI-3, CS).
+FMU #2: loading 'DemoCanNodeTriggeredOutput.dylib' from the directory '/var/folders/_m/1mxklkqx00dbvzzzrt8ldrx80000gn/T/tmpjhxkn93d/resources/02' (FMI-3, CS).
+reals64: 1 local variable(s) and 2 port(s).
+integers32: 2 local variable(s) and 2 port(s).
+binaries: 4 local variable(s) and 4 port(s).
+clocks: 4 local variable(s) and 4 port(s).
 FMU #0: binaries inputs: 0 port(s) and 2 clocked.
 FMU #0: clocks inputs: 2 port(s).
 FMU #0: binaries outputs: 0 port(s) and 2 clocked.

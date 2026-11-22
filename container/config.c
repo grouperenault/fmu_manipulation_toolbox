@@ -1079,7 +1079,7 @@ int config_container(container_t* container, const char* resource_location) {
 
 #define LOG_IO(variable, fmi_type, c_type) \
     if ((container-> variable .nb_locals > 0) || (container-> variable .nb_ports > 0)) \
-        LOGGER_DEBUG("%-10s: %lu local variables and %lu ports", #variable, container-> variable .nb_locals, container-> variable .nb_ports);
+        LOGGER_DEBUG("%s: %lu local variable(s) and %lu port(s).", #variable, container-> variable .nb_locals, container-> variable .nb_ports);
 
     FOR_ALL_NUMERIC_TYPES(LOG_IO)
     LOG_IO(strings, String, char *)
@@ -1096,15 +1096,15 @@ int config_container(container_t* container, const char* resource_location) {
 
 #define LOG_IO(orientation, type) \
     if ((container->fmu[i].fmu_io. type . orientation .nb > 0) || (container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation > 0)) \
-        LOGGER_DEBUG("FMU#%2d: %-10s: [" #orientation "] %lu ports and %lu clocked", i, #type, container->fmu[i].fmu_io. type . orientation .nb, container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation);
+        LOGGER_DEBUG("FMU #%d: %s " #orientation "puts: %lu port(s) and %lu clocked.", i, #type, container->fmu[i].fmu_io. type . orientation .nb, container->fmu[i].fmu_io.clocked_ ## type .nb_ ## orientation);
 
 #define LOG_IO_CLASSIC(orientation, type) \
     if (container->fmu[i].fmu_io. type . orientation .nb > 0)\
-        LOGGER_DEBUG("FMU#%2d: %-10s: [" #orientation "] %lu ports", i, #type, container->fmu[i].fmu_io. type . orientation .nb);
+        LOGGER_DEBUG("FMU #%d: %s " #orientation "puts: %lu port(s).", i, #type, container->fmu[i].fmu_io. type . orientation .nb);
         
 #define LOG_START(variable, fmi_type, c_type) \
     if (container->fmu[i].fmu_io.start_ ## variable .nb > 0) \
-        LOGGER_DEBUG("FMU#%2d: %-10s: [start] %lu ", i, #variable, container->fmu[i].fmu_io.start_ ## variable .nb);
+        LOGGER_DEBUG("FMU #%d: %s start values: %lu.", i, #variable, container->fmu[i].fmu_io.start_ ## variable .nb);
 
 #define LOG_IO_IN(variable, fmi_type, c_type) LOG_IO(in, variable)
 #define LOG_IO_OUT(variable, fmi_type, c_type) LOG_IO(out, variable)
