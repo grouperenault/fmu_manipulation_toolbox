@@ -113,3 +113,13 @@ def test_numerical_compensation_is_disabled(ball):
 def test_no_compensation_setting_on_model_exchange_blocks(data_dir):
     script = _script(Assembly("bouncing_ball_me.json", fmu_directory=data_dir / "me"))
     assert "CoSimSignalCompensationMode" not in script
+
+
+def test_layout_by_simulink_and_default_sizes(ball):
+    """Simulink lays out each system, the small blocks keep their default size (decision 38)."""
+    script = _script(Assembly("bouncing-reset.csv", fmu_directory=ball, default_reset_ports=True))
+    assert "add_block('built-in/Outport', [model '/position'], 'Position', [720 40 750 54]);" in script   # 30 x 14
+    assert script.index("Simulink.BlockDiagram.arrangeSystem([model '/bb_velocity']);") < \
+        script.index("Simulink.BlockDiagram.arrangeSystem(model);")
+    assert "restore_default_sizes(model);" in script
+    assert "\nfunction restore_default_sizes(system)\n" in script

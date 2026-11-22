@@ -28,11 +28,11 @@ ports = get_param([model '/bb_velocity'], 'PortHandles');
 for k = 1:numel(ports.Inport)
     set_param(ports.Inport(k), 'CoSimSignalCompensationMode', 'Auto_Off');
 end
-add_block('built-in/Outport', [model '/position'], 'Position', [720 40 840 80]);
+add_block('built-in/Outport', [model '/position'], 'Position', [720 40 750 54]);
 set_param([model '/position'], 'Port', '1');
-add_block('built-in/Outport', [model '/velocity'], 'Position', [720 120 840 160]);
+add_block('built-in/Outport', [model '/velocity'], 'Position', [720 94 750 108]);
 set_param([model '/velocity'], 'Port', '2');
-add_block('built-in/UnitDelay', [model '/bb_velocity.1 delay'], 'Position', [1060 40 1180 80]);
+add_block('built-in/UnitDelay', [model '/bb_velocity.1 delay'], 'Position', [1060 40 1095 74]);
 set_param([model '/bb_velocity.1 delay'], 'InitialCondition', '0.0', 'SampleTime', '0.001');
 
 % Lines of 'bouncing'
@@ -41,5 +41,22 @@ add_line(model, 'bb_velocity/1', 'bb_velocity.1 delay/1', 'autorouting', 'on');
 add_line(model, 'bb_velocity.1 delay/1', 'bb_position/1', 'autorouting', 'on');
 add_line(model, 'bb_position/2', 'position/1', 'autorouting', 'on');
 add_line(model, 'bb_velocity/1', 'velocity/1', 'autorouting', 'on');
+Simulink.BlockDiagram.arrangeSystem(model);
+restore_default_sizes(model);
 save_system(model, fullfile(here, [model '.slx']));
+end
+
+function restore_default_sizes(system)
+%RESTORE_DEFAULT_SIZES Default size of the small blocks of a system, around their center (arrangeSystem
+%   resizes them).
+sizes = {'Inport', [30 14]; 'Outport', [30 14]; 'Constant', [30 30]; 'Terminator', [20 20]; 'UnitDelay', [35 34]};
+for i = 1:size(sizes, 1)
+    blocks = find_system(system, 'SearchDepth', 1, 'BlockType', sizes{i, 1});
+    for j = 1:numel(blocks)
+        position = get_param(blocks{j}, 'Position');
+        center = [(position(1) + position(3)) / 2, (position(2) + position(4)) / 2];
+        half = round(sizes{i, 2} / 2);
+        set_param(blocks{j}, 'Position', [center - half, center + half]);
+    end
+end
 end

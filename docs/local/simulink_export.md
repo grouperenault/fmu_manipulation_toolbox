@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 37 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
+**Status**: decisions 1 to 38 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context
@@ -176,6 +176,13 @@ points of 2026-10-17, with the results of the importer comparison study
     disabled on each input port of the Co-Simulation FMU blocks (`CoSimSignalCompensationMode` = `Auto_Off`, set on
     the handles of `get_param(block, 'PortHandles').Inport`; documented by MathWorks, there is no setting for a whole
     block or model). The FMU blocks get the inputs of the container, not extrapolated values.
+
+38. **Layout by Simulink** (from the user, replaces the grid layout of the design): each system (model,
+    subsystems, resettable subsystems) is laid out by `Simulink.BlockDiagram.arrangeSystem` once its lines are added
+    (documented since R2018a). It also resizes the blocks: a local function of the script gives back their default
+    size to the `Inport`, `Outport`, `Constant`, `Terminator` and `UnitDelay` blocks, around their center (workaround
+    of MATLAB Answers 2032409); they are also created at their default size. The FMU blocks keep the size of the
+    layout.
 
 ### Closed open points (2026-10-17)
 

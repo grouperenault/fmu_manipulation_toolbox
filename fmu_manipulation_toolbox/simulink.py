@@ -757,8 +757,32 @@ class MatlabWriter:
         function_name (str): Name of the function, the stem of the script; it differs from the name of the model.
     """
 
-    #: Size of the blocks, and space between them, in pixels.
+    #: Size of the FMU blocks and of the subsystems, and space between the blocks, in pixels.
     WIDTH, ROW, GAP, COLUMN = 120, 20, 40, 220
+    #: Default size of the other blocks in Simulink (width, height), kept (decision 38).
+    DEFAULT_SIZES = {"inport": (30, 14), "outport": (30, 14), "constant": (30, 30), "terminator": (20, 20),
+                     "delay": (35, 34)}
+
+    #: Local function of the script: `arrangeSystem` also resizes the blocks, the ports and the other small blocks get
+    #: back their default size, around their center.
+    RESTORE_SIZES = [
+        "",
+        "function restore_default_sizes(system)",
+        "%RESTORE_DEFAULT_SIZES Default size of the small blocks of a system, around their center (arrangeSystem",
+        "%   resizes them).",
+        "sizes = {'Inport', [30 14]; 'Outport', [30 14]; 'Constant', [30 30]; 'Terminator', [20 20]; "
+        "'UnitDelay', [35 34]};",
+        "for i = 1:size(sizes, 1)",
+        "    blocks = find_system(system, 'SearchDepth', 1, 'BlockType', sizes{i, 1});",
+        "    for j = 1:numel(blocks)",
+        "        position = get_param(blocks{j}, 'Position');",
+        "        center = [(position(1) + position(3)) / 2, (position(2) + position(4)) / 2];",
+        "        half = round(sizes{i, 2} / 2);",
+        "        set_param(blocks{j}, 'Position', [center - half, center + half]);",
+        "    end",
+        "end",
+        "end",
+    ]
 
     def __init__(self, model: SimulinkModel, fmu_folders: list[str], description: str = "", *, function_name: str):
         self.model = model
@@ -805,6 +829,7 @@ class MatlabWriter:
         self.lines += [
             "save_system(model, fullfile(here, [model '.slx']));",
             "end",
+            *self.RESTORE_SIZES,
             "",
         ]
         return "\n".join(self.lines)
@@ -845,11 +870,11 @@ class MatlabWriter:
                     if isinstance(block, TerminatorBlock) else "delay" if isinstance(block, DelayBlock) else "block")
             ports = max(len(block.inputs), len(block.outputs)) if isinstance(block, FmuBlock) else \
                 max(len(block.system.inports), len(block.system.outports)) if isinstance(block, SubsystemBlock) else 1
-            height = max(1, ports) * self.ROW + self.ROW
+            width, height = self.DEFAULT_SIZES.get(kind, (self.WIDTH, max(1, ports) * self.ROW + self.ROW))
             x = self.GAP + columns[kind] * (self.WIDTH + self.COLUMN)
             y = self.GAP + rows[kind]
             rows[kind] += height + self.GAP
-            position = [x, y, x + self.WIDTH, y + height]
+            position = [x, y, x + width, y + height]
             if isinstance(block, FmuBlock):
                 self._fmu_block(block, path, position)
             elif isinstance(block, SubsystemBlock):
@@ -892,6 +917,12 @@ class MatlabWriter:
             source = f"{block_path_part(line.source)}/{line.source_port}"
             self.lines.append(f"add_line({path}, {matlab_string(source)}, {matlab_string(target)}, "
                               f"'autorouting', 'on');{comment}")
+        self._arrange(path)
+
+    def _arrange(self, path: str):
+        """Let Simulink lay out the system, then give back their default size to the small blocks (decision 38)."""
+        self.lines += [f"Simulink.BlockDiagram.arrangeSystem({path});",
+                       f"restore_default_sizes({path});"]
 
     def _fmu_block(self, block: FmuBlock, system: str, position: list[int]):
         """An FMU block; in a resettable subsystem when its reset is driven (decision 23)."""
@@ -914,6 +945,7 @@ class MatlabWriter:
             for index, name in enumerate(block.outputs, start=1):
                 self.lines.append(f"add_line({wrapper}, {matlab_string(f'FMU/{index}')}, "
                                   f"{matlab_string(f'{block_path_part(name)}/1')}, 'autorouting', 'on');")
+            self._arrange(wrapper)
         else:
             self._fmu(block.name, block, system, position)
 
