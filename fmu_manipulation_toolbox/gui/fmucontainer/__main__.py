@@ -35,6 +35,7 @@ from fmu_manipulation_toolbox.gui.helper import (
     exception_message,
 )
 from fmu_manipulation_toolbox.gui.log import GuiLogHandler, LogStatusBar, RunTask, window_log_context
+from fmu_manipulation_toolbox.simulink import matlab_name
 
 from .assembly_io import AssemblyIOMixin
 from .graph import NodeGraphWidget, NodeItem
@@ -63,8 +64,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self._load_button.setToolTip("Open an FMU container (.fmu) or an assembly file (.json, .csv, .ssp)")
         self._load_button.setShortcut(QKeySequence(QKeySequence.StandardKey.Open))
         self._save_button = QPushButton("Save")
-        self._save_button.setToolTip("Save as an FMU container (.fmu), an SSP file (.ssp) or a JSON description "
-                                        "(.json)")
+        self._save_button.setToolTip("Save as an FMU container (.fmu), an SSP file (.ssp), a JSON description "
+                                        "(.json) or a MATLAB script building a Simulink model (.m)")
         self._save_button.setShortcut(QKeySequence(QKeySequence.StandardKey.Save))
         # Format of the last Save of the session (B2): FMU Container at first.
         self._save_format = ".fmu"
@@ -300,7 +301,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         self.open_file(input_path)
 
     #: Formats of Save: filter of the dialog => extension. CSV is not offered (B5).
-    SAVE_FORMATS = {"FMU Container (*.fmu)": ".fmu", "SSP (*.ssp)": ".ssp", "JSON (*.json)": ".json"}
+    SAVE_FORMATS = {"FMU Container (*.fmu)": ".fmu", "SSP (*.ssp)": ".ssp", "JSON (*.json)": ".json",
+                    "MATLAB script for Simulink (*.m)": ".m"}
 
     @classmethod
     def save_target(cls, path: str, chosen_filter: str) -> tuple[str, str]:
@@ -313,9 +315,11 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
         return path + suffix, suffix
 
     def _on_save_clicked(self):
-        """Save: FMU container, SSP or JSON, after the extension or the filter chosen."""
+        """Save: FMU container, SSP, JSON or MATLAB script, after the extension or the filter chosen."""
         selected = next(name for name, suffix in self.SAVE_FORMATS.items() if suffix == self._save_format)
         root_name = Path(self._tree.root.text()).with_suffix(self._save_format).name
+        if self._save_format == ".m":       # the name of a MATLAB script is a MATLAB identifier
+            root_name = matlab_name(self._tree.root.text()) + ".m"
         output_path, chosen = LastDirectory.get_save_file_name_and_filter(
             self, "Save", ";;".join(self.SAVE_FORMATS), selected, default_name=root_name)
         if not output_path:
@@ -326,6 +330,8 @@ class MainWindow(AssemblyIOMixin, UnsavedChangesWindowMixin, QMainWindow):
             RunTask(self.save_as_ssp, output_path, parent=self, title="Saving as SSP")
         elif self._save_format == ".json":
             RunTask(self.save_as_json, output_path, parent=self, title="Saving as JSON")
+        elif self._save_format == ".m":
+            RunTask(self.save_as_simulink, output_path, parent=self, title="Saving as MATLAB script")
         else:
             RunTask(self.save_as_fmu, output_path, self._fmi_group.checkedId(), self._datalog_checkbox.isChecked(),
                     parent=self, title="Saving as FMU")

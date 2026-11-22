@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 31 taken (22 November 2026), steps 1 to 4 done — **Branch**: `feature/simulink-export`,
+**Status**: decisions 1 to 31 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context

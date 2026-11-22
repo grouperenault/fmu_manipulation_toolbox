@@ -155,6 +155,7 @@ def test_exit_still_asks(window, monkeypatch):
     ("model", "SSP (*.ssp)", ("model.ssp", ".ssp")),               # none: the filter, its extension appended
     ("model.v2", "JSON (*.json)", ("model.v2.json", ".json")),
     ("model.csv", "FMU Container (*.fmu)", ("model.csv.fmu", ".fmu")),  # CSV is not a format of Save (B5)
+    ("model", "MATLAB script for Simulink (*.m)", ("model.m", ".m")),
 ])
 def test_the_format_follows_the_extension_or_the_filter(path, chosen, expected):
     assert MainWindow.save_target(path, chosen) == expected
@@ -193,7 +194,8 @@ def test_save_offers_fmu_container_first_then_the_last_format(window, monkeypatc
     second = _save_dialog(monkeypatch, None, "")
     window._on_save_clicked()
 
-    assert first[0]["filter"].split(";;") == ["FMU Container (*.fmu)", "SSP (*.ssp)", "JSON (*.json)"]
+    assert first[0]["filter"].split(";;") == ["FMU Container (*.fmu)", "SSP (*.ssp)", "JSON (*.json)",
+                                              "MATLAB script for Simulink (*.m)"]
     assert first[0]["selected"] == "FMU Container (*.fmu)"
     assert first[0]["default_name"].endswith(".fmu")
     assert second[0]["selected"] == "SSP (*.ssp)"
@@ -236,6 +238,26 @@ def test_save_cancelled_writes_nothing(window, monkeypatch):
 
     assert saves == []
     assert window._save_format == ".fmu"
+
+
+def test_save_as_simulink_keeps_the_unsaved_changes(window, monkeypatch, bouncing, tmp_path):
+    """The MATLAB script is not a description of the assembly: the changes stay unsaved."""
+    _choose(monkeypatch, bouncing)
+    window._on_load_clicked()
+    window._dirty = True
+
+    window.save_as_simulink(str(tmp_path / "bouncing_model.m"))
+
+    assert (tmp_path / "bouncing_model.m").read_text(encoding="utf-8").startswith("function model = bouncing_model()")
+    assert window._dirty is True
+
+
+def test_save_offers_a_valid_matlab_name(window, monkeypatch):
+    window._save_format = ".m"
+    window._tree.root.setText("bouncing-ball.fmu")
+    calls = _save_dialog(monkeypatch, None, "")
+    window._on_save_clicked()
+    assert calls[0]["default_name"] == "bouncing_ball.m"
 
 
 def test_save_ssp_clears_the_unsaved_changes(window, monkeypatch, bouncing, tmp_path):
