@@ -184,6 +184,7 @@ The `fmucontainer` command supports the following options:
 | `-datalog`                          | off            | Log input, output, and local variables of the container into a CSV file.                                                                                                                                                             |
 | `-dump-json` (or `-dump`)           | off            | Dump a JSON description file for each container (`<input>-dump.json`).                                                                                                                                                               |
 | `-dump-ssp`                         | off            | Dump an SSP file for each container (`<input>-dump.ssp`): see [SSP export](#ssp-export).                                                                                                                                             |
+| `-simulink FILE.m`                  | off            | Also write a MATLAB script `FILE.m` that builds the Simulink model `FILE_model.slx` with FMU blocks: see [Simulink export](#simulink-export).                                                                                        |
 | `-no-auto-input`                    | auto           | Disable automatic exposure of unconnected input ports from embedded FMUs.                                                                                                                                                            |
 | `-no-auto-output`                   | auto           | Disable automatic exposure of unconnected output ports from embedded FMUs.                                                                                                                                                           |
 | `-no-auto-link`                     | auto           | Disable automatic linking of ports with matching names and types.                                                                                                                                                                    |
@@ -437,6 +438,67 @@ type `fmu_manipulation_toolbox.architecture-wire`:
 An architecture wire is **not a link**: it takes no part in the container, it is not written in the JSON
 description (nor in the one written by `fmucontainer -dump-json`), but it is kept by the [SSP export](#ssp-export). The Container Builder shows it as a hint
 while you define the links (see [Wire Details](gui-usage.md#architecture-wires)).
+
+# Simulink export
+
+!!! warning "Alpha"
+    The Simulink export is at the alpha stage: check the generated model. Each export logs a warning.
+
+An assembly can also be exported as a **Simulink model** made of native FMU blocks (library *Simulink Extras / FMU
+Import*), by `fmucontainer -simulink FILE.m`, by **Save** as a *MATLAB script for Simulink* (`.m`) in the
+[Container Builder](gui-usage.md#actions), or by `Assembly.make_simulink()`. The `.slx` format is not documented:
+the export writes a **MATLAB script** that builds the model when it is run in MATLAB R2024a or newer.
+
+```bash
+fmucontainer -container bouncing.json -simulink bouncing.m
+```
+
+```matlab
+>> bouncing          % builds and saves bouncing_model.slx next to bouncing.m
+```
+
+- **Names**: the script `toto.m` defines the function `toto()`, which builds and saves the model `toto_model.slx`
+  next to the script (a model cannot have the name of the function). The name of the script must be a valid MATLAB
+  identifier: a letter, then letters, digits or `_`, at most 57 characters.
+- **FMUs**: the script designates the FMUs **in place**, relative to its own folder: it adds their folders to the
+  MATLAB path, and so does the model when it is opened (`PreLoadFcn`). Keep the script, the model and the FMUs at
+  their relative places. MATLAB refuses some folders on its path (`resources`, `private`, `@…`, `+…`), e.g. the
+  folder of the FMUs extracted from an SSP file: these FMUs are copied into `toto_fmus/` next to the script. An FMU
+  on another drive than the script (Windows), or two different FMUs with the same file name, cannot be exported.
+- **Structure**: one FMU block per embedded FMU (Co-Simulation when the FMU provides it, Model Exchange otherwise),
+  one atomic subsystem per sub-container, `Inport` / `Outport` blocks for the exposed ports. Each system is laid out
+  by Simulink.
+- **Time**: fixed-step solver, single-tasking. Each FMU block is sampled at the step of its container, as in the
+  FMU container; the step of the solver is the greatest common divisor of these steps (0.02 s and 0.05 s give
+  0.01 s). The start and stop times of an SSP file are those of the model.
+- **Values**: the start values of the assembly are the values of the block parameters; an input that is not
+  connected gets a `Constant` block with its start value (Simulink would set it to 0); an output that is not
+  connected, and a dropped port, end on a `Terminator` block (Simulink would remove the block otherwise).
+- **Loops**: Simulink sees an FMU block, and an atomic subsystem, as a block with direct feedthrough: each loop of
+  blocks gets a *Unit Delay*, on the line that closes it, with the start value of its source as initial value.
+- **Co-simulation signals**: the numerical compensation of Simulink is disabled on the inputs of the Co-Simulation
+  FMU blocks: they get the values of the container, not extrapolated values.
+- **Reset**: with `reset_ports`, an FMU whose reset is driven is placed in a *Resettable Subsystem*, reset while the
+  signal is `true`. The FMUs generated by MATLAB/Simulink cannot be reset.
+
+Not exported:
+
+- `ts_multiplier`: the export fails;
+- the options `mt`, `mt_threshold`, `profiling` and `sequential`: ignored, with a warning;
+- the implicit links and ports (`auto_link`, `auto_input`...): `fmucontainer -simulink` writes the script after the
+  build of the container, so they are exported; the Container Builder and `make_simulink` without build export the
+  explicit ones only, with a warning. A parameter exposed as an input, or a local variable exposed as an output, has
+  no port on the FMU block: ignored, with a warning;
+- two input clocks linked together (FMI-LS-BUS): the export fails;
+- the geometry of the components and the architecture wires.
+
+```python
+from pathlib import Path
+from fmu_manipulation_toolbox.assembly import Assembly
+
+assembly = Assembly("bouncing.json", fmu_directory=Path("fmus"))
+assembly.make_simulink("bouncing.m")     # in the current folder; the FMUs stay in fmus/, designated relatively
+```
 
 # Python API
 

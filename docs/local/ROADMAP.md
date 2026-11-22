@@ -20,5 +20,5 @@
 - [X] log consistency: one convention for the messages (docs/developer/logging.md), FMI-2 / FMI-3
 - [ ] SSP transformations
 - [ ] Audit
-- [ ] Simulink export
+- [X] Simulink export
 - [ ] GUI Model-View layer

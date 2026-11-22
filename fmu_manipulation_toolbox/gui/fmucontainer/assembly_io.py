@@ -745,6 +745,19 @@ class AssemblyIOMixin:
         assembly.write_ssp(Path(output_path).resolve(), ssp_version=ssp_version)
         self._dirty = False
 
+    def save_as_simulink(self, output_path):
+        """Export the current assembly as a MATLAB script building its Simulink model (only the explicit links and
+        ports: the assembly is not built). The unsaved changes are kept: the script is not a description of the
+        assembly that can be loaded again.
+
+        Raises:
+            AssemblyError: If the assembly cannot be built from the current scene/tree state, or exported.
+        """
+        assembly = self.create_assembly()
+        if assembly is None:
+            raise AssemblyError("Cannot build the assembly from the current content.")
+        assembly.make_simulink(Path(output_path).resolve())
+
     def save_as_fmu(self, output_path, fmi_version=2, datalog=False):
         """Build and save the assembly as an FMU container.
 

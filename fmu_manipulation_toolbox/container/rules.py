@@ -215,7 +215,7 @@ class Link:
         else:
             conversion = self.get_conversion(cport_to)
             if conversion:
-                if is_lossy(conversion):
+                if is_lossy(conversion) and self.cport_from is not None:
                     logger.warning(f"Lossy conversion '{conversion.lstrip('_')}': "
                                    f"{self.cport_from.label} → {cport_to.label}.")
                 self.cport_to_list.append(cport_to)

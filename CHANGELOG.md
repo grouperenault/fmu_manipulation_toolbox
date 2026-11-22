@@ -7,6 +7,14 @@ Not released yet. Changes since 2.0, with the same legend as 2.0.
 
 ## FMU Container
 
+- 🟢 **ADDED** **Simulink export** (alpha stage, a warning is logged): `fmucontainer -simulink toto.m`, **Save** as a
+  *MATLAB script for Simulink* (`.m`) in the Container Builder, or `Assembly.make_simulink()`, write a MATLAB script whose function `toto()`
+  builds and saves the Simulink model `toto_model.slx` (MATLAB R2024a or newer) with native FMU blocks: one atomic
+  subsystem per sub-container, each FMU block sampled at the step of its container (fixed-step, single-tasking), the
+  start values of the assembly, `Constant` blocks on the unconnected inputs, a *Unit Delay* in each loop, no
+  numerical compensation of the co-simulation signals, a *Resettable Subsystem* for `reset_ports`, the layout left
+  to Simulink. The FMUs stay in place, designated relatively to the script. See
+  [Simulink export](docs/user-guide/fmucontainer/container.md#simulink-export).
 - 🟠 **FIXED** runtime: a clock ticked by an embedded FMU of FMI-3 during the event iteration (in
   `fmi3UpdateDiscreteStates`, e.g. an FMU that relays a clock it receives) was lost when the FMU it is linked to came
   after it in the order of the container, or before it without another update of the discrete states: it now

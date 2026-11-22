@@ -281,6 +281,8 @@ class AssemblyNode:
         self.auto_local = auto_local
         self.ts_multiplier = ts_multiplier
         self.reset_ports = reset_ports
+        #: Whether the implicit links and ports (`auto_*`) were made explicit by a build (`make_fmu`).
+        self.implicit_resolved = False
 
         self.parent: AssemblyNode | None = None
         self.children: dict[str, AssemblyNode] = {}     # sub-containers
@@ -470,6 +472,7 @@ class AssemblyNode:
             self.add_output(output_rule[0], output_rule[1], output_rule[2])
         for link_rule in wired.rule_link:
             self.add_link(link_rule[0], link_rule[1], link_rule[2], link_rule[3])
+        self.implicit_resolved = True
 
         if filename is None:
             filename = self.name
@@ -1046,6 +1049,27 @@ class Assembly:
             else:
                 raise AssemblyError(f"'SystemStructure.ssd' not found in '{self.fmu_directory / self.filename}'.")
 
+    def make_simulink(self, filename: str | Path) -> Path:
+        """Write the MATLAB script that builds the Simulink model of the assembly, with FMU blocks.
+
+        The script designates the FMUs in place, relative to its own folder: the script and the FMUs must keep their
+        relative places. Run the script `toto.m` (function `toto()`) in MATLAB R2024a or newer: it builds the model
+        and saves it as `toto_model.slx` next to the script. See
+        [SimulinkExporter][fmu_manipulation_toolbox.simulink.SimulinkExporter].
+
+        Args:
+            filename (str | Path): The `.m` script; its stem, a valid MATLAB identifier, names the function, and
+                the model is `<stem>_model`.
+
+        Returns:
+            Path: The script.
+
+        Raises:
+            AssemblyError: If the assembly cannot be exported to Simulink.
+        """
+        from .simulink import SimulinkExporter  # the Simulink export imports this module
+        return SimulinkExporter(self).export(filename)
+
     def make_fmu(self, dump_json=False, fmi_version=2, datalog=False, filename=None):
         """Build the FMU Container from the loaded assembly.
 
@@ -1061,41 +1085,3 @@ class Assembly:
             dump_file = Path(self.input_pathname.stem + "-dump").with_suffix(".json")
             logger.info(f"Writing '{dump_file}'.")
             self.write_json(dump_file)
-
-    def get_flat_links(self) -> list[list[str]]:
-        links_list: list[list[str]] = []
-
-        if self.root:
-            self._get_flat_links_recursive(self.root, links_list)
-
-        return links_list
-
-    def _get_flat_links_recursive(self, node: AssemblyNode, links_list, left_candidates=None, right_candidates=None):
-        # internal links
-        for connection in node.links:
-            links_list.append([connection.from_port.fmu_name, connection.from_port.port_name,
-                               connection.to_port.fmu_name, connection.to_port.port_name])
-
-        # boundary links
-        right_candidates = []
-        for port, output_name, in node.output_ports.items():
-            right_candidates.append([port.fmu_name, port.port_name, node.name, output_name])
-
-        left_candidates = []
-        for port, input_name, in node.input_ports.items():
-            left_candidates.append([node.name, input_name, port.fmu_name, port.port_name])
-
-        # proceed the sub nodes
-        for child in node.children.values():
-            self._get_flat_links_recursive(child, links_list,
-                                           left_candidates=left_candidates, right_candidates=right_candidates)
-        # Resolve candidate links
-        for candidate in right_candidates:
-            #TODO
-            if candidate[2] == node.name:
-                links_list.append([candidate[0], candidate[1], node.name, candidate[3]])
-
-        for candidate in left_candidates:
-            #TODO
-            if candidate[0] == node.name:
-                links_list.append([candidate[0], candidate[1], node.name, candidate[3]])

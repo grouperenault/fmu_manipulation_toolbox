@@ -39,6 +39,10 @@ def fmucontainer():
     parser.add_argument("-dump-ssp", action="store_true", dest="dump_ssp", default=False,
                         help="Dump an SSP file for each container (routing resolved, options in an annotation).")
 
+    parser.add_argument("-simulink", action="store", dest="simulink", default=None, metavar="FILE.m",
+                        help="Also export the container as a MATLAB script FILE.m that builds the Simulink model "
+                             "FILE_model.slx with FMU blocks (the FMUs stay in place).")
+
     parser.add_argument("-fmi", action="store", dest="fmi_version", required=False, default="2",
                         help="Define version of FMI to be used for container interface."
                              "Only '2' or '3' is supported.")
@@ -87,6 +91,11 @@ def fmucontainer():
     if config.debug:
         logger.setLevel(logging.DEBUG)
 
+    if config.simulink and len(config.container_descriptions_list) > 1:
+        logger.critical("'-simulink' names one script: give one '-container' only.")
+        close_logger(logger)
+        sys.exit(ExitCode.USAGE_ERROR)
+
     fmu_directory = Path(config.fmu_directory)
     logger.info(f"FMU directory: '{fmu_directory}'.")
 
@@ -123,6 +132,8 @@ def fmucontainer():
                 dump_file = Path(Path(filename).stem + "-dump").with_suffix(".ssp")
                 logger.info(f"Writing '{dump_file}'.")
                 assembly.write_ssp(dump_file)
+            if config.simulink:
+                assembly.make_simulink(config.simulink)     # after make_fmu: the implicit items are resolved
         except (FMUContainerError, AssemblyError) as e:
             logger.critical(f"'{filename}': {e}")
             close_logger(logger)

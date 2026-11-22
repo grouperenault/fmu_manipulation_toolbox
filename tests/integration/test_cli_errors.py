@@ -160,6 +160,28 @@ def test_fmutool_output_error_exits(area_dir, caplog):
 #                               fmucontainer                                    #
 # --------------------------------------------------------------------------- #
 @pytest.mark.area("containers/bouncing_ball")
+def test_fmucontainer_simulink_refuses_ts_multiplier(area_dir, caplog):
+    sys.argv = ["fmucontainer", "-container", "bouncing.csv", "-vr", "-simulink", "model.m"]
+
+    with pytest.raises(SystemExit) as exc:
+        fmucontainer()
+
+    assert exc.value.code == ExitCode.OPERATION_FAILED
+    assert "ts_multiplier" in caplog.records[-1].getMessage()
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_fmucontainer_simulink_needs_one_container(area_dir, caplog):
+    sys.argv = ["fmucontainer", "-container", "bouncing.csv", "-container", "bouncing-3.csv", "-simulink", "model.m"]
+
+    with pytest.raises(SystemExit) as exc:
+        fmucontainer()
+
+    assert exc.value.code == ExitCode.USAGE_ERROR
+    assert caplog.records[-1].levelname == "CRITICAL"
+
+
+@pytest.mark.area("containers/bouncing_ball")
 def test_fmucontainer_missing_description_exits(area_dir, caplog):
     sys.argv = ["fmucontainer", "-fmu-directory", ".",
                 "-container", "does-not-exist.csv"]
