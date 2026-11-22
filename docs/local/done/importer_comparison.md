@@ -1,6 +1,6 @@
 # Migrating an FMU assembly from Simulink to an FMU Container
 
-**Created**: 17 October 2026 — **Status**: done (18 October 2026; report: `docs/local/importer_comparison_report.md`); not tested: an input
+**Created**: 17 October 2026 — **Status**: done (18 October 2026; report: `docs/local/done/importer_comparison_report.md`); not tested: an input
 start value entered in the dialog of the Simulink FMU block (open in the report) — **Branch**:
 `importer-comparison` — **Roadmap**: not listed
 
@@ -247,7 +247,7 @@ not, see *Follow-up: propagation of the links during initialization*.
 
 Done: `tools/compare_traces.py`, reference traces `tests/data/probe/REF-<scenario>-<instance>.csv` (container,
 S1–S5, without `wall`) checked by `tests/integration/test_probe_fmu.py`, report
-`docs/local/importer_comparison_report.md`. Simulink propagates the links during the initialization: the plan
+`docs/local/done/importer_comparison_report.md`. Simulink propagates the links during the initialization: the plan
 `docs/local/done/init_propagation.md` opened and implemented (branch `feature/init-propagation`).
 
 Commit message: `Compare the traces of the FMU container and Simulink`
