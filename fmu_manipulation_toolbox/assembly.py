@@ -281,6 +281,8 @@ class AssemblyNode:
         self.auto_local = auto_local
         self.ts_multiplier = ts_multiplier
         self.reset_ports = reset_ports
+        #: Whether the implicit links and ports (`auto_*`) were made explicit by a build (`make_fmu`).
+        self.implicit_resolved = False
 
         self.parent: AssemblyNode | None = None
         self.children: dict[str, AssemblyNode] = {}     # sub-containers
@@ -470,6 +472,7 @@ class AssemblyNode:
             self.add_output(output_rule[0], output_rule[1], output_rule[2])
         for link_rule in wired.rule_link:
             self.add_link(link_rule[0], link_rule[1], link_rule[2], link_rule[3])
+        self.implicit_resolved = True
 
         if filename is None:
             filename = self.name

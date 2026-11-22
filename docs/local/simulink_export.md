@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 30 taken (22 November 2026), steps 1 to 3 done — **Branch**: `feature/simulink-export`,
+**Status**: decisions 1 to 31 taken (22 November 2026), steps 1 to 4 done — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context
@@ -139,6 +139,13 @@ points of 2026-10-17, with the results of the importer comparison study
     check box.
 30. **Names** (amends decisions 15 and 16): MATLAB names a function after its file: the stem of the `.m` names the
     function and the model, and must be a valid MATLAB identifier (an error otherwise).
+31. **Implicit links and ports in the CLI** (amends decision 5, taken at step 4): `fmucontainer -simulink` writes
+    the script after the build: the implicit links and ports, made explicit by `make_fmu` (`implicit_resolved` of
+    the node), are exported, so that the model matches the container; no warning then. The GUI, which exports
+    without building, keeps decision 5. A parameter exposed as an input of the container, or a local variable
+    exposed as an output (`auto_parameter`, `auto_local`), has no port on the FMU block: it is not exposed, with a
+    warning. `-simulink` with several `-container` is a usage error (one script).
+
 ### Closed open points (2026-10-17)
 
 | Open point | Closed by |

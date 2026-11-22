@@ -115,3 +115,22 @@ def test_two_files_with_the_same_name_are_refused(ball, tmp_path):
     assembly.root = root
     with pytest.raises(AssemblyError, match="have the same file name"):
         SimulinkExporter(assembly).analyse()
+
+
+def test_exposed_parameter_has_no_port(data_dir, tmp_path, caplog):
+    """A parameter exposed as an input of the container (e.g. by `auto_parameter`) has no port on the FMU block: it
+    is not exposed, with a warning (decision 31)."""
+    import zipfile
+    with zipfile.ZipFile(tmp_path / "Feedthrough.fmu", "w") as archive:
+        archive.write(data_dir / "reference-fmus" / "2.0" / "Feedthrough" / "modelDescription.xml",
+                      "modelDescription.xml")
+    assembly = Assembly(fmu_directory=tmp_path)
+    root = _node("feed.fmu", step_size=0.1)
+    root.add_fmu("Feedthrough.fmu")
+    root.add_input("p", "Feedthrough.fmu", "Float64_fixed_parameter")
+    assembly.root = root
+    with caplog.at_level(logging.WARNING, logger="fmu_manipulation_toolbox"):
+        model = SimulinkExporter(assembly).analyse()
+    assert model.root.inports == []
+    assert "'feed.fmu': 'Feedthrough.fmu/Float64_fixed_parameter' is a parameter: the FMU block of Simulink has no " \
+           "port for it, it is not exposed." in caplog.messages

@@ -178,6 +178,11 @@ def block_name(name: str) -> str:
 
 
 # ------------------------------------------------------------------------------------------------------ analysis
+class _NotAPort(AssemblyError):
+    """A variable that the FMU block of Simulink has no port for: a parameter exposed as an input of the container,
+    a local variable exposed as an output (decision 31)."""
+
+
 @dataclass
 class _Endpoint:
     """One end of a connection in a system: a block, the index of its port, and what the port is."""
@@ -269,7 +274,7 @@ class SimulinkExporter:
                 logger.warning(f"'{node.name}': the option {option} is ignored by the Simulink export.")
         implicit = [option for option in ("auto_link", "auto_input", "auto_output", "auto_parameter", "auto_local")
                     if getattr(node, option)]
-        if implicit:
+        if implicit and not node.implicit_resolved:
             logger.warning(f"'{node.name}': the implicit links and ports ({', '.join(implicit)}) are not exported to "
                            f"Simulink: only the explicit ones are.")
 
@@ -336,7 +341,11 @@ class SimulinkExporter:
         # Exposed inputs: one Inport per name, a line to each of its targets (decision 4)
         inports: dict[str, str] = {}
         for port, exposed in node.input_ports.items():
-            target = endpoint(port, "input")
+            try:
+                target = endpoint(port, "input")
+            except _NotAPort as error:
+                logger.warning(str(error))
+                continue
             exposed = exposed or (reset_input_name(port.fmu_name) if target.port == "Reset" else port.port_name)
             if exposed not in inports:
                 inports[exposed] = system.unique_name(exposed)
@@ -355,7 +364,11 @@ class SimulinkExporter:
 
         # Exposed outputs
         for port, exposed in node.output_ports.items():
-            source = endpoint(port, "output")
+            try:
+                source = endpoint(port, "output")
+            except _NotAPort as error:
+                logger.warning(str(error))
+                continue
             exposed = exposed or port.port_name
             name = system.unique_name(exposed)
             system.add(OutportBlock(name, len(system.outports) + 1))
@@ -386,6 +399,10 @@ class SimulinkExporter:
             fmu_port = fmu.ports.get(port.port_name)
             if fmu_port is None or fmu_port.is_fmi2_aggregate:
                 raise AssemblyError(f"'{node.name}': port '{port}' does not exist.")
+            if fmu_port.causality != direction and \
+                    fmu_port.causality in ("parameter", "structuralParameter", "local", "calculatedParameter"):
+                raise _NotAPort(f"'{node.name}': '{port}' is a {fmu_port.causality}: the FMU block of Simulink has no "
+                                f"port for it, it is not exposed.")
             if fmu_port.causality != direction:
                 raise AssemblyError(f"'{node.name}': port '{port}' has the causality '{fmu_port.causality}': it "
                                     f"cannot be used as an {direction}.")

@@ -37,6 +37,19 @@ def test_fmucontainer_csv(area_dir):
 
 
 @pytest.mark.area("containers/bouncing_ball")
+def test_fmucontainer_simulink(area_dir, caplog):
+    """`-simulink` writes the MATLAB script after the build: the implicit links, resolved by it, are exported."""
+    caplog.set_level(logging.DEBUG, logger="fmu_manipulation_toolbox")
+    sys.argv = ["fmucontainer", "-container", "bouncing_unlinked.csv", "-simulink", "auto_model.m"]
+    fmucontainer()
+    assert Path("bouncing_unlinked.fmu").exists()
+    script = Path("auto_model.m").read_text(encoding="utf-8")
+    assert script.startswith("function model = auto_model()")
+    assert "add_line(model, 'bb_velocity/1', 'bb_position/1', 'autorouting', 'on');" in script
+    assert not any("implicit links" in message for message in caplog.messages)
+
+
+@pytest.mark.area("containers/bouncing_ball")
 def test_fmucontainer_reset_ports(area_dir):
     """`-reset-ports`: with the default auto_input, each FMU gets its exposed `container.<id>.reset` trigger."""
     sys.argv = ["fmucontainer", "-container", "cli-bouncing.csv", "-fmu-directory", ".", "-reset-ports", "-debug"]
