@@ -1,5 +1,8 @@
 # Export of an assembly to Simulink
 
+**Status**: decisions 1 to 26 taken (22 November 2026), step 1 to start — **Branch**: `feature/simulink-export`,
+rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
+
 ## Context
 
 An assembly built with FMU Container Builder (`Assembly` / `AssemblyNode` in `fmu_manipulation_toolbox/assembly.py`)
@@ -34,8 +37,8 @@ generated script, so that the final manual validation (Step 6) only has to corre
 
 ### What MATLAB R2024b showed (2026-10-17)
 
-Source: the Simulink models of the importer comparison study (branch `importer-comparison`,
-`docs/local/importer_comparison.md`, scripts `tools/probe_fmu/scenarios/simulink/`), built with `add_block` /
+Source: the Simulink models of the importer comparison study (`docs/local/done/importer_comparison.md`, scripts
+`tools/probe_fmu/scenarios/simulink/`), built with `add_block` /
 `set_param` on MATLAB R2024b (Windows) with FMI 2.0 Co-Simulation probe FMUs.
 
 | Item | Result |
@@ -68,14 +71,14 @@ Source: the Simulink models of the importer comparison study (branch `importer-c
 5. **Implicit links and ports** (`auto_link`, `auto_input`, `auto_output`, `auto_parameter`, `auto_local`): not
    resolved, only explicit items are exported. A warning is logged for each node where such a flag is active (even
    by default).
-6. **Time step**: handled by the solver configuration: fixed-step solver whose step is the **smallest** `step_size`
-   found in the assembly tree.
+6. ~~**Time step**: handled by the solver configuration: fixed-step solver whose step is the **smallest**
+   `step_size` found in the assembly tree.~~ Replaced by decisions 17 and 18.
 7. **`ts_multiplier`**: not supported, the export fails with an error.
 8. **FMU block mode**: according to the FMU, Co-Simulation when available, Model Exchange otherwise (same rule as
    `EmbeddedFMU.is_me`).
 9. **FMI versions**: FMI 2.0 and 3.0.
 10. **`mt`, `profiling`, `sequential`**: ignored with a warning. **Dropped ports**: connected to a `Terminator`
-    block.
+    block (amended by decision 22).
 11. **Tests**: pytest only, on the content of the `.zip` and of the generated `.m` (no MATLAB in the tests).
 12. **Simulink API names**: based on the public MathWorks documentation, validated manually at the end.
 
@@ -87,38 +90,58 @@ Source: the Simulink models of the importer comparison study (branch `importer-c
 15. **Model name**: the container name (`a.fmu` → model `a`, saved as `a.slx`), made a valid MATLAB identifier.
 16. **Script form**: a MATLAB function `<name>()` that builds and saves the model and returns its name.
 
-## Open points (2026-10-17, from the importer comparison study)
+## Decisions (2026-11-22)
 
-- **MATLAB path when the saved model is opened or simulated later**: the model only stores the FMU file names.
-  Options: (a) the generated function only adds the path while building; the user runs `addpath` before
-  simulating (documented); (b) the generated function also sets a model callback (e.g. `PreLoadFcn`) adding the
-  `fmus/` folder (relative to the `.slx`) to the path; (c) other.
-- **Sample time of the FMU blocks**: decision 6 sets the solver step to the smallest `step_size`, but not the
-  `FMUSampleTime` of the blocks. The container steps every embedded CS FMU with the container step (LCM of the
-  fixed steps by default), while Simulink steps each block at its own sample time: a block sample time equal to
-  the container step reproduces the container, the FMU `stepSize` reproduces a native Simulink assembly. To be
-  decided with the results of the study (scenario S4).
-- **Multi-tasking**: the export keeps single-tasking (no *Rate Transition* block needed), or offers multi-tasking
-  with *Rate Transition* blocks?
-- **Dropped ports and unconnected outputs** (decision 10: `Terminator`): an FMU block whose outputs go nowhere is
-  removed by the block reduction. Keep `Terminator` (not tested, it is a sink that may be reduced too), use root
-  `Outport` blocks, and/or set `BlockReduction` = `off` in the generated model?
-- **Unconnected inputs**: Simulink sets them to 0, the container keeps their start value. The export could connect a
-  `Constant` block with the start value (FMU or assembly) to each unconnected input, to keep the container
-  behaviour; to be decided (the input start value of the dialog is not tested).
-- **Initialization**: Simulink propagates the links during the initialization, the container does not: the
-  exported model initializes differently from the container when an FMU computes its initial state from its inputs
-  (see `docs/local/importer_comparison_report.md`, finding 3).
-- Results of the study: `docs/local/importer_comparison_report.md` (branch `importer-comparison`); sample time of
-  the blocks: the container gives every FMU the container step, Simulink each block its own sample time (finding 4).
+Taken when the work resumed, on `feature/simulink-export` rebased on `integration` (`0f8db8e`). They close the open
+points of 2026-10-17, with the results of the importer comparison study
+(`docs/local/done/importer_comparison_report.md`) and the features added to the assembly since.
+
+17. **Sample time of the FMU blocks** (`FMUSampleTime`): the step of the node that contains the FMU (its
+    `step_size`, otherwise deduced as `make_fmu` does). The model reproduces the container: with one sub-container
+    per rate, the study found the same inputs at every step as Simulink in single-tasking (finding 4).
+18. **Fixed step of the solver** (replaces decision 6): the exact greatest common divisor of the sample times of the
+    blocks (computed with fractions, as the builder does): the smallest step when the rates are multiples of one
+    another, still valid otherwise (0.02 s and 0.05 s give 0.01 s).
+19. **Tasking**: single-tasking (`EnableMultiTasking` = `off`), no *Rate Transition* block.
+20. **MATLAB path of the FMUs**: the generated function sets a `PreLoadFcn` callback on the model that adds the
+    `fmus/` folder next to the `.slx` to the MATLAB path, so that the saved model opens and simulates without any
+    action (`UNVERIFIED` on R2024b).
+21. **Unconnected inputs of the FMUs**: a `Constant` block with the start value (of the assembly, otherwise of the
+    FMU) on each of them, to keep the behaviour of the container (Simulink sets them to 0, finding 2).
+22. **Unconnected outputs and dropped ports** (amends decision 10): `BlockReduction` = `off` on the model (verified
+    on R2024b) and a `Terminator` block on each of them.
+23. **`reset_ports`**: each FMU whose reset is linked or exposed is placed in a *Resettable Subsystem* (a `Reset`
+    block, trigger `level`) driven by the source of its reset port. Same behaviour as the container for a pulse of
+    one step (the documented use); a source held `true` resets at every step (the container: every other step).
+    `UNVERIFIED`: the MathWorks documentation does not say whether the FMU block calls `fmi*Reset` in a resettable
+    subsystem; all the blocks of such a subsystem must have the same sample time, which holds with one FMU per
+    subsystem.
+24. **Links of terminals (FMI-LS-BUS) and clocks**: exported as plain port-to-port links, the terminals expanded as
+    the builder does (`Terminal.connect`); `UNVERIFIED` (support of the clocks of FMI-3 by the FMU block unknown).
+25. **Start and stop time**: `start_time` / `stop_time` of the assembly → `StartTime` / `StopTime` of the model.
+    The geometry read from SSP files (`fmu_geometry`) and the architecture wires are not exported (grid layout).
+26. **`mt_threshold`**: ignored with `mt` (decision 10). The messages of the export follow
+    `docs/developer/logging.md`.
+
+### Closed open points (2026-10-17)
+
+| Open point | Closed by |
+|---|---|
+| MATLAB path when the saved model is opened or simulated later | decision 20 |
+| Sample time of the FMU blocks | decisions 17, 18 |
+| Multi-tasking | decision 19 |
+| Dropped ports and unconnected outputs | decision 22 |
+| Unconnected inputs | decision 21 |
+| Initialization | no longer a difference: the container propagates the links during the initialization since `done/init_propagation.md`, and the traces of the study are identical |
 
 ## Design
 
 ```
 Assembly ──► SimulinkExporter (fmu_manipulation_toolbox/simulink.py)
-               ├── checks: ts_multiplier → AssemblyError ; mt/profiling/sequential/auto_* → warnings
+               ├── checks: ts_multiplier → AssemblyError ; mt/mt_threshold/profiling/sequential/auto_* → warnings
                ├── reads each distinct FMU file once with EmbeddedFMU (ports order, causality, variability, FMI, CS/ME)
-               ├── computes the solver step = min(step_size) over the tree, else min(FMU DefaultExperiment)
+               ├── computes the sample time of each node (its step, or deduced as make_fmu) and the solver
+               │   step = exact GCD of the sample times (decisions 17, 18)
                ├── builds an intermediate model (systems, blocks, lines) — pure Python, easy to test
                ├── renders it as MATLAB code (MatlabWriter, one method per kind of statement)
                └── writes <name>.zip = <name>.m + fmus/*.fmu (one copy per file, shared by its instances)
@@ -138,6 +161,11 @@ Assembly ──► SimulinkExporter (fmu_manipulation_toolbox/simulink.py)
   blocks the file names only, so the extracted archive can still be moved. The path is also needed to simulate the
   saved model: see the open points (2026-10-17).
 - **Layout**: simple grid placement (`Position`) so that the generated model is readable; no routing.
+- **Model settings**: fixed-step solver (`FixedStep` = GCD of the sample times), `EnableMultiTasking` = `off`,
+  `BlockReduction` = `off`, `StartTime` / `StopTime` when the assembly gives them, `PreLoadFcn` adding `fmus/` to
+  the path.
+- **Extra blocks**: `Constant` on each unconnected input (start value), `Terminator` on each unconnected output and
+  dropped port, *Resettable Subsystem* (`Reset`, trigger `level`) around each FMU with a reset port.
 - All undocumented Simulink names live in one table of constants in `simulink.py`.
 
 ## Steps
@@ -146,16 +174,20 @@ Assembly ──► SimulinkExporter (fmu_manipulation_toolbox/simulink.py)
 
 - New module `fmu_manipulation_toolbox/simulink.py` with `SimulinkExporter(assembly)`:
   - walk the tree; raise `AssemblyError` if any node has `ts_multiplier`;
-  - log warnings for `mt`, `profiling`, `sequential` and active `auto_*` flags (node name in the message);
+  - log warnings for `mt` (and `mt_threshold`), `profiling`, `sequential` and active `auto_*` flags (node name in
+    the message);
   - load each distinct FMU file once (`EmbeddedFMU`), map instance names to it;
-  - compute the solver step: smallest `step_size` of the tree, otherwise smallest FMU `DefaultExperiment`
-    `stepSize`, otherwise `AssemblyError`;
+  - compute the sample time of each node (decision 17: its `step_size`, otherwise deduced as `make_fmu` does,
+    otherwise `AssemblyError`) and the fixed step of the solver (decision 18: exact GCD);
   - derive the model name from the container name (valid MATLAB identifier: letter first, `[A-Za-z0-9_]`,
     at most `namelengthmax` = 63 characters);
-  - build the intermediate model: systems (root + subsystems), FMU blocks with mode and start values,
-    `Inport`/`Outport`, `Terminator`, lines with port indices; raise `AssemblyError` for unknown ports.
+  - build the intermediate model: systems (root + subsystems), FMU blocks with mode, sample time and start values,
+    `Inport`/`Outport`, `Constant` on the unconnected inputs, `Terminator` on the unconnected outputs and dropped
+    ports, resettable subsystems for `reset_ports`, links of terminals expanded; raise `AssemblyError` for unknown
+    ports.
 - Unit tests `tests/unit/test_simulink_model.py`: on assemblies from `tests/data/containers` (flat, nested,
-  multi-instances, ME, FMI 3): errors, warnings (`caplog`), step size, port indices, start value targets.
+  multi-instances, ME, FMI-3, multi-rate, `reset_ports`, LS-BUS): errors, warnings (`caplog`), sample times and
+  solver step, port indices, start value targets, extra blocks.
 
 Commit message: `Add the analysis of an assembly for the Simulink export`
 
@@ -163,8 +195,10 @@ Commit message: `Add the analysis of an assembly for the Simulink export`
 
 - `MatlabWriter`: renders the intermediate model as a MATLAB function `function model = <name>()` (function name =
   file name = model name): `new_system`, `add_block` (FMU,
-  `built-in/Subsystem`, `Inport`, `Outport`, `Terminator`), `set_param` (`FMUName`, mappings, start values, solver
-  `SolverType`/`FixedStep`), `add_line`, `save_system`. Identifier and string escaping for MATLAB.
+  `built-in/Subsystem`, resettable subsystem and `Reset`, `Inport`, `Outport`, `Constant`, `Terminator`), `set_param`
+  (`FMUName`, mappings, `FMUSampleTime`, start values, solver `SolverType` / `FixedStep`, `EnableMultiTasking`,
+  `BlockReduction`, `StartTime` / `StopTime`, `PreLoadFcn`), `add_line`, `save_system`. Identifier and string
+  escaping for MATLAB.
 - Constants table for the `UNVERIFIED` names; each such statement carries a `% UNVERIFIED` comment in the script.
 - Unit tests `tests/unit/test_simulink_writer.py`: escaping, rendering of each statement, snapshot of the script for
   a reference assembly.
@@ -201,9 +235,10 @@ Commit message: `Add the Simulink export option to FMU Container Builder`
 
 ### Step 6 – Manual validation on MATLAB R2024a+ (user)
 
-- Run the generated script of a few reference assemblies (flat, nested, multi-instances, ME, FMI 3, start values on
-  parameters and on inputs) in MATLAB R2024a or newer; check the model builds, the start values are applied and the
-  simulation runs.
+- Run the generated script of a few reference assemblies (flat, nested, multi-instances, multi-rate, ME, FMI-3,
+  start values on parameters and on inputs, `reset_ports`, LS-BUS) in MATLAB R2024a or newer; check the model builds,
+  opens again after a restart of MATLAB (`PreLoadFcn`), the start values are applied, the FMUs are reset, and the
+  simulation runs; compare with the container on one assembly.
 - Correct the `UNVERIFIED` constants and remove the `% UNVERIFIED` comments that are confirmed; update the snapshot.
 
 Commit message: `Fix the Simulink block parameters after validation on MATLAB`
@@ -212,7 +247,8 @@ Commit message: `Fix the Simulink block parameters after validation on MATLAB`
 
 - `docs/user-guide/fmucontainer/container.md`: `-simulink` in *Command Line Options*, `make_simulink` in *Python
   API*, new section *Simulink export* (content of the archive, how to run the script, what is not exported:
-  implicit links, `ts_multiplier`, `mt`/`profiling`/`sequential`; solver step rule; Simulink version).
+  implicit links, `ts_multiplier`, `mt`/`profiling`/`sequential`; sample times and solver step; unconnected inputs
+  and outputs; `reset_ports`; Simulink version).
 - `docs/user-guide/fmucontainer/gui-usage.md`: the new Configuration check box.
 - `CHANGELOG.md` entry.
 
