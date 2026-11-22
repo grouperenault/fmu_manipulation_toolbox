@@ -46,6 +46,8 @@ def test_fmutool_same_input_output_exits(area_dir, caplog):
 
     assert exc.value.code == ExitCode.USAGE_ERROR
     assert "different files" in caplog.text
+    # No result is produced: CRITICAL (docs/developer/logging.md).
+    assert [record.levelname for record in caplog.records if "different files" in record.getMessage()] == ["CRITICAL"]
 
 
 @pytest.mark.area("operations")
@@ -71,6 +73,7 @@ def test_fmutool_operation_error_exits(area_dir, caplog):
 
     assert exc.value.code == ExitCode.OPERATION_FAILED
     assert "win32" in caplog.text
+    assert caplog.records[-1].levelname == "CRITICAL"
 
 
 @pytest.mark.area("operations")

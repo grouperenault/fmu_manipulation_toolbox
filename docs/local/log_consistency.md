@@ -1,6 +1,6 @@
 # Plan: consistent log messages
 
-**Created**: 13 October 2026 — **Status**: step 1 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
+**Created**: 13 October 2026 — **Status**: steps 1 and 2 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
 the start of their step — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
 consistency" — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
@@ -115,6 +115,18 @@ Taken on 22 November 2026:
   'module-modified.fmu'.`.
 - **D6 — Remoting binaries missing** (#7): (a) `OperationError`: the FMU is not produced (logged `CRITICAL`).
 
+Taken on 22 November 2026, at the start of step 2:
+
+- **D10 — Filters and operations of `fmutool`** (#5): one sentence per filter, one per operation:
+  `Operations restricted to causality 'parameter', 'input'.`, `Operations restricted to type 'Real'.`,
+  `Operation: FMU Summary.`
+- **D11 — Separators of FMU Tool**: the two lines of 100 dashes around the header of an operation (INFO records,
+  also printed on the console) are replaced by a horizontal rule (`<hr>`) inserted in the log area, like the header.
+- **D12 — Banner of FMU Tool** (#12): `FMU Tool version X.` (INFO); the welcome text (docstring of the window) is
+  inserted in the log area instead of being logged.
+- **D13 — Save FMU** of FMU Tool: the errors of `fmu.repack()` (`FMUError`, `OSError`) are logged as `CRITICAL`, like
+  the CLI (`OUTPUT_ERROR`); the success message only when the file is written.
+
 ### To be decided at the start of the step concerned
 
 | # | Question | Step |
@@ -137,8 +149,12 @@ Commit message: `Doc: the conventions of the log messages`
 
 ### Step 2 — FMU Tool: CLI and GUI
 
-- Items #1 to #5, #12 to #14 (D3, D5); update the tests of `tests/integration/test_cli*.py` and `tests/gui/`
-  asserting on these texts.
+- Items #1 to #5, #12 to #14 (D3, D5, D10 to D13); update the tests of `tests/integration/test_cli*.py` and
+  `tests/gui/` asserting on these texts.
+- Done: `logger.fatal` replaced by `logger.critical` in the CLI; in FMU Tool, a failed operation, a failed load
+  (`gui/helper.py`), invalid compile options and a failed save logged as `CRITICAL`; `exception_message()`
+  (`gui/helper.py`) gives the text of an error of the toolbox as is, and prefixes the others with their type (#14).
+  It is to be reused by the other GUIs (step 4).
 
 Commit message: `fmutool and FMU Tool: log messages aligned with the conventions`
 
@@ -146,6 +162,8 @@ Commit message: `fmutool and FMU Tool: log messages aligned with the conventions
 
 - Items #6 to #11, #15, #16 (D4, D6); update `tests/unit/test_checker*.py`, `tests/unit/test_operations*.py` and the
   remoting test if needed.
+- The texts of `FMUError` (`operations.py:72-118, 275`) have no final period: `'x.fmu' does not exist`. They are
+  logged as they are by the CLI and the GUIs.
 
 Commit message: `Operations, remoting and checkers: log messages aligned with the conventions`
 
