@@ -108,6 +108,8 @@ developers working with FMI-compliant models, it provides three powerful interfa
     - List all ports and their attributes
     - Validate `modelDescription.xml` against XSD schema
     - Check FMI compliance and custom rules
+    - [Replay the reference experiments](user-guide/fmutool/checker.md#validation-of-the-results-fmi-ls-ref)
+      of an FMU and compare its results (FMI-LS-REF)
     - Extract statistics and metadata
 
 -   :material-pencil:{ .lg .middle } __FMU Modification__
@@ -115,19 +117,46 @@ developers working with FMI-compliant models, it provides three powerful interfa
     ---
 
     - Rename ports individually or in batch via CSV
-    - Filter variables with regular expressions
+    - Filter variables with regular expressions, by causality, type or variability
     - Remove hierarchy levels
     - Modify variable attributes
-    - Remove sources
+    - Remove or compile the sources
 
 -   :material-link-variant:{ .lg .middle } __FMU Containers__
 
     ---
 
-    - Combine multiple FMUs into one
+    - Combine multiple FMUs into one, FMI 2.0 or 3.0
     - Define automatic or explicit connections
-    - Multi-threading support
-    - Performance profiling
+    - Embed Co-Simulation and [Model-Exchange](user-guide/fmucontainer/container.md#model-exchange-support) FMUs
+    - [Multi-threading](user-guide/fmucontainer/multi-threading.md) and performance profiling
+
+-   :material-transit-connection-variant:{ .lg .middle } __Layered Standards__
+
+    ---
+
+    - [FMI-LS-BUS](user-guide/fmucontainer/ls-bus.md): a network of CAN, LIN, FlexRay or Ethernet nodes in one
+      container
+    - [FMI-LS-XCP](user-guide/fmucontainer/ls-xcp.md): measure and calibrate the FMUs inside a container
+    - [FMI-LS-REF](user-guide/fmutool/checker.md#validation-of-the-results-fmi-ls-ref): check the results, not only
+      the XML
+
+-   :material-swap-horizontal-bold:{ .lg .middle } __SSP__
+
+    ---
+
+    - [Read SSP files](user-guide/fmucontainer/container.md#ssp-input-file) with their parameter values
+    - [Write them](user-guide/fmucontainer/container.md#ssp-export) from the CLI, the Python API or the GUI
+    - [Architecture wires](user-guide/fmucontainer/container.md#architecture-wires) to sketch an assembly before
+      its ports are known
+
+-   :material-robot-happy:{ .lg .middle } __AI Agents__
+
+    ---
+
+    - [MCP server](user-guide/fmucontainer/ai-assistant.md), standalone or driving the Container Builder
+    - [Agent skills](user-guide/agent-skills.md) for Claude Code
+    - `fmutool-agent`: the same tools as a JSON command line
 
 -   :material-chip:{ .lg .middle } __Binary Interfaces__
 

@@ -141,15 +141,19 @@ python tools/screenshots.py fmutool canvas-menu
 
 ## Announcement carousel
 
-The slides announcing version 2.0, shown on the page [What's new in 2.0](../whats-new.md) and posted on LinkedIn,
-are drawn by `tools/make_carousel.py` (texts in its `SLIDES`, images from the documentation and the resources of
-the package). PySide6 is needed. It writes into one directory the PDF of the LinkedIn post, a PNG preview and the
-WebP slides of the documentation; copy the WebP files into `docs/assets/release-2.0/`:
+The slides announcing a version (`VERSION`, 2.1 now), shown on the page [What's new](../whats-new.md) and posted on
+LinkedIn, are drawn by `tools/make_carousel.py` (texts in its `SLIDES`, images from the resources of the package;
+the slides of the previous versions are in the history of the script). PySide6 is needed. It writes into one
+directory the PDF of the LinkedIn post, a PNG preview and the WebP slides of the documentation; copy the WebP files
+into `docs/assets/release-<VERSION>/`:
 
 ```bash
 python tools/make_carousel.py --out /tmp/carousel
-cp /tmp/carousel/*.webp docs/assets/release-2.0/
+cp /tmp/carousel/*.webp docs/assets/release-2.1/
 ```
+
+The page of the previous version is kept as `whats-new-<version>.md` (e.g. [What's new in
+2.0](../whats-new-2.0.md)), linked at the end of the new page.
 
 The LinkedIn post uses a shorter carousel, sized for LinkedIn: the cover, one slide per main new feature and the
 call to action, whose QR code points to the documentation (`LINKEDIN_SLIDES`). `--linkedin` writes only its PDF and

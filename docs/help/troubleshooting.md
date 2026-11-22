@@ -175,6 +175,24 @@ appears orange, the edit was not registered.
 - Make sure to press ++enter++ or click another cell after editing to confirm the change.
 - Look for the orange highlight on modified cells before saving.
 
+### ❌ Texts too small, too large or cut off in the GUIs on Windows
+
+**Symptom:** With a display scale of 125 % or 150 % on Windows, the texts of the GUIs do not fit their widgets, or
+look smaller than in the other applications.
+
+**Explanation:** From 100 % to 174 %, the GUIs round the scale down to 1: the widgets keep the size they have at
+100 %. So that the texts fit them, the fonts get the DPI of a scale of 100 % (96) too: the toolbox sets
+`QT_FONT_DPI=96` while the application starts. From 175 % (200 % for instance), fonts and widgets are scaled alike.
+
+**Solution:** If `QT_FONT_DPI` is already set in the environment, the toolbox keeps its value. Remove it to get the
+default behaviour, or set it to choose the size of the fonts yourself (for instance `120` at 125 %, at the risk of
+texts cut off in their widgets):
+
+```bat
+set QT_FONT_DPI=120
+fmucontainer-gui
+```
+
 ### ❌ Available GUI commands
 
 All GUI tools can be launched independently:
