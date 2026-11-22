@@ -44,8 +44,18 @@ def test_ssp_blocks_are_named_after_the_fmu_files(area_dir):
     assembly = Assembly("bouncing.ssp", fmu_directory=area_dir)
     script = assembly.make_simulink("ssp_model.m").read_text(encoding="utf-8")
     assert "add_block('simulink_extras/FMU Import/FMU', [model '/bb_velocity']" in script
-    assert "resources//" not in script and str(area_dir.resolve()) not in script
-    assert "addpath(fullfile(here, 'bouncing.dir', 'resources'));" in script
+    assert "resources" not in script and str(area_dir.resolve()) not in script
+    # MATLAB refuses a folder named 'resources' on its path: the FMUs are copied next to the script (decision 36)
+    assert "addpath(fullfile(here, 'ssp_model_fmus'));" in script
+    assert sorted(path.name for path in (area_dir / "ssp_model_fmus").iterdir()) == ["bb_position.fmu",
+                                                                                     "bb_velocity.fmu"]
+
+
+@pytest.mark.area("containers/bouncing_ball")
+def test_script_in_a_reserved_folder_is_refused(area_dir):
+    (area_dir / "resources").mkdir()
+    with pytest.raises(AssemblyError, match="cannot be added to the MATLAB path"):
+        Assembly("bouncing.csv").make_simulink(area_dir / "resources" / "model.m")
 
 
 @pytest.mark.area("containers/bouncing_ball")

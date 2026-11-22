@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 35 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
+**Status**: decisions 1 to 36 taken (22 November 2026), steps 1 to 5 done — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context
@@ -165,6 +165,12 @@ points of 2026-10-17, with the results of the importer comparison study
     otherwise of its target input, otherwise 0.
 35. **Atomic subsystems** (from the user): every generated subsystem (sub-container, resettable subsystem of
     decision 23) is atomic (`TreatAsAtomicUnit` = `on`).
+
+36. **Folders refused by MATLAB** (after the second run on MATLAB: "Adding folders named 'resources' to the path is
+    not supported"): the FMUs of a folder named `resources` or `private`, or of a class or package folder (`@…`,
+    `+…`), typically the FMUs extracted from an SSP file (`<ssp>.dir/resources`), are copied into `<script>_fmus/`
+    next to the script, designated relatively; the other FMUs stay in place. A script written in such a folder is an
+    error.
 
 ### Closed open points (2026-10-17)
 

@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import re
+import shutil
 from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
@@ -26,6 +27,16 @@ NO_CONSTANT_TYPES = ("clock", "binary")
 
 #: Longest MATLAB identifier (`namelengthmax`).
 MATLAB_NAME_LENGTH = 63
+
+#: Names of the folders that MATLAB refuses to add to its path ("Adding folders named 'resources' to the path is not
+#: supported"); also the folders of classes (`@…`) and packages (`+…`).
+RESERVED_FOLDERS = ("resources", "private")
+
+
+def reserved_folder(folder: Path) -> bool:
+    """Whether MATLAB refuses to add `folder` to its path (decision 36)."""
+    return folder.name.lower() in RESERVED_FOLDERS or folder.name.startswith(("@", "+"))
+
 
 #: Suffix of the name of the model: `toto.m` builds `toto_model.slx` (decision 33). The function and the model cannot
 #: have the same name: the model would shadow the function.
@@ -250,7 +261,8 @@ class SimulinkExporter:
 
         Args:
             filename (str | Path): The script, e.g. `toto.m`: its function `toto()` builds and saves the model
-                `toto_model.slx` (decision 33). `.m` is appended when missing.
+                `toto_model.slx` (decision 33). `.m` is appended when missing. The FMUs of a folder that MATLAB
+                refuses on its path (`resources`, `private`, `@…`, `+…`) are copied into `toto_fmus/` (decision 36).
 
         Returns:
             Path: The script.
@@ -268,8 +280,18 @@ class SimulinkExporter:
                                 f"{MATLAB_NAME_LENGTH - len(MODEL_SUFFIX)} characters).")
         model = self.analyse(filename.stem + MODEL_SUFFIX)
         directory = filename.resolve().parent
+        if reserved_folder(directory):
+            raise AssemblyError(f"'{directory.name}' cannot be added to the MATLAB path: write '{filename.name}' in "
+                                f"another folder.")
         folders = []
-        for path in model.fmu_files.values():
+        for name, path in model.fmu_files.items():
+            if reserved_folder(path.parent):    # e.g. the FMUs extracted from an SSP file: <ssp>.dir/resources
+                copies = directory / f"{filename.stem}_fmus"
+                copies.mkdir(exist_ok=True)
+                shutil.copyfile(path, copies / name)
+                logger.info(f"'{path.parent.name}' cannot be added to the MATLAB path: '{name}' is copied into "
+                            f"'{copies.name}'.")
+                path = copies / name
             try:
                 folder = Path(os.path.relpath(path.parent, directory)).as_posix()
             except ValueError:      # another drive (Windows): no relative path
