@@ -1,6 +1,6 @@
 # Plan: consistent log messages
 
-**Created**: 13 October 2026 — **Status**: decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
+**Created**: 13 October 2026 — **Status**: step 1 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
 the start of their step — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
 consistency" — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
