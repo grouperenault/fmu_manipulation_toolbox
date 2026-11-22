@@ -472,7 +472,7 @@ def test_saving_overwrites_when_explicitly_allowed(tmp_path, tool, name):
 
 
 def test_saving_rejects_a_missing_directory(tmp_path):
-    with pytest.raises(Exception, match="Directory does not exist"):
+    with pytest.raises(Exception, match="Directory .* does not exist."):
         call_tool(FakeBridge(), "save_assembly", {"path": str(tmp_path / "nope" / "out.json")})
 
 

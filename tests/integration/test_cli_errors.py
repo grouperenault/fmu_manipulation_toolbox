@@ -152,6 +152,8 @@ def test_fmutool_output_error_exits(area_dir, caplog):
         fmutool()
 
     assert exc.value.code == ExitCode.OUTPUT_ERROR
+    assert caplog.records[-1].levelname == "CRITICAL"
+    assert caplog.records[-1].getMessage().startswith("Cannot write the output: ")
 
 
 # --------------------------------------------------------------------------- #

@@ -117,7 +117,7 @@ def test_logs_never_pollute_the_protocol_stream(ball):
     break the session. Everything the toolbox logs must go to stderr."""
     async def scenario():
         async with _client() as client:
-            # `add_fmu` logs "[AI] Added FMU ..." — the regression bait.
+            # `add_fmu` logs "AI Assistant: FMU ... added." — the regression bait.
             await client.call_tool("add_fmu", {"path": str(ball / "bb_velocity.fmu")})
             return (await client.call_tool("list_fmus", {})).data
 

@@ -47,11 +47,11 @@ def validate_ssd(content: bytes, label: str) -> int:
     try:
         errors = list(schema.iter_errors(content.decode("utf-8")))
     except (UnicodeDecodeError, xmlschema.XMLSchemaException, ET.ParseError) as error:
-        logger.warning(f"'{label}' cannot be validated against the SSP schema: {error}")
+        logger.warning(f"'{label}' cannot be validated against the SSP schema: {error}.")
         return 1
     for validation_error in errors[:MAX_SSD_VALIDATION_WARNINGS]:
         where = f" (at {validation_error.path})" if validation_error.path else ""
-        logger.warning(f"'{label}' is not valid against the SSP schema{where}: {validation_error.reason}")
+        logger.warning(f"'{label}' is not valid against the SSP schema{where}: {validation_error.reason.rstrip('.')}.")
     if len(errors) > MAX_SSD_VALIDATION_WARNINGS:
         logger.warning(f"'{label}': {len(errors) - MAX_SSD_VALIDATION_WARNINGS} more validation error(s).")
     return len(errors)
@@ -186,7 +186,7 @@ class SSDParser:
                 system structure description, refers to unknown elements, or uses
                 an SSP construction that would change the container (see the class).
         """
-        logger.debug(f"Analysing {ssd_filename}")
+        logger.debug(f"Analysing '{ssd_filename}'.")
         self.ssd_filename = ssd_filename
         prefix = f"{{{self.SSD_NAMESPACE}}}"
         common = f"{{{self.SSC_NAMESPACE}}}"
@@ -198,7 +198,7 @@ class SSDParser:
                         if element.tag != f"{prefix}SystemStructureDescription":
                             raise AssemblyError(f"'{ssd_filename}' is not an SSP 1.0 system structure description: "
                                                 f"root element is <{element.tag}>, expected "
-                                                f"<SystemStructureDescription> in namespace '{self.SSD_NAMESPACE}'")
+                                                f"<SystemStructureDescription> in namespace '{self.SSD_NAMESPACE}'.")
                         root_checked = True
                     if self._connection_attrs is not None:
                         self._connection_child(event, element)
@@ -220,13 +220,13 @@ class SSDParser:
                             self._binding["values"] += self._parameter_values(element, "inline values")
                         self.end_element(tag)
         except ET.ParseError as error:
-            raise AssemblyError(f"'{ssd_filename}' is not well-formed XML: {error}") from error
+            raise AssemblyError(f"'{ssd_filename}' is not well-formed XML: {error}.") from error
         except KeyError as error:
             raise AssemblyError(f"'{ssd_filename}': reference to an unknown element or missing attribute "
-                                f"{error}") from error
+                                f"{error}.") from error
 
         if self.root is None:
-            raise AssemblyError(f"'{ssd_filename}': no <System> found in namespace '{self.SSD_NAMESPACE}'")
+            raise AssemblyError(f"'{ssd_filename}': no <System> found in namespace '{self.SSD_NAMESPACE}'.")
         self._check_units()
         self._warn_unused_dictionaries()
         self._apply_parameters()
@@ -243,7 +243,7 @@ class SSDParser:
             self._transformation = None
 
         elif tag_name == 'System':
-            logger.info(f"SSP System: {attrs['name']}")
+            logger.info(f"SSP system '{attrs['name']}'.")
             filename = attrs['name'] + ".fmu"
             self.fmu_filenames[attrs['name']] = filename
             node = AssemblyNode(filename, **self.node_attrs)
@@ -283,7 +283,7 @@ class SSDParser:
             self._elements[id(node)][attrs['name']] = ("component", (node, fmu_name, str(source)))
             node.add_fmu(fmu_name, filename)
             self._component_fmu = fmu_name
-            logger.debug(f"Component {attrs['name']} => {fmu_name}")
+            logger.debug(f"Component '{attrs['name']}' is the FMU '{fmu_name}'.")
 
         elif tag_name == 'SignalDictionaryReference':
             self._owners.append(("dictionary", attrs['name']))
@@ -399,8 +399,8 @@ class SSDParser:
     def _add_connection(self, attrs: dict[str, str]):
         """Turn a connection into a link, an exposed input or an exposed output."""
         if attrs.get('startElement') in self.ignored_components or attrs.get('endElement') in self.ignored_components:
-            logger.debug(f"Connection {attrs.get('startElement')}/{attrs['startConnector']} -> "
-                         f"{attrs.get('endElement')}/{attrs['endConnector']} ignored: it involves an ignored "
+            logger.debug(f"Connection '{attrs.get('startElement')}/{attrs['startConnector']}' -> "
+                         f"'{attrs.get('endElement')}/{attrs['endConnector']}' ignored: it involves an ignored "
                          f"component.")
             return
         if self._transformation is not None:
@@ -547,7 +547,7 @@ class SSDParser:
                                f"default experiment is not a number: it is ignored.")
                 continue
             setattr(self.root, field, value)
-            logger.info(f"'{self.ssd_filename}': {attribute} of the container = {value} (SSP default experiment)")
+            logger.info(f"'{self.ssd_filename}': {attribute} of the container is {value} (SSP default experiment).")
 
     # ----------------------------------------------------------------------------------------- parameter values
     def _start_binding(self, attrs):
@@ -593,7 +593,7 @@ class SSDParser:
             root = ET.fromstring(content)
         except ET.ParseError as error:
             raise AssemblyError(f"'{self.ssd_filename}': the parameter source '{source}' of {owner} is not "
-                                f"well-formed XML: {error}") from error
+                                f"well-formed XML: {error}.") from error
         return self._parameter_values(root, f"'{source}'")
 
     def _parameter_values(self, element: ET.Element, label: str) -> list[tuple[str | None, str, str, str | None]]:
@@ -641,7 +641,7 @@ class SSDParser:
         for node, fmu_name, source, (variable, value_type, value, unit) in targets.values():
             node.add_start_value(fmu_name, variable, self._start_value(fmu_name, source, variable, value_type, value,
                                                                        unit))
-            logger.debug(f"Start value of {fmu_name}/{variable} = {value} (SSP parameter binding)")
+            logger.debug(f"Start value of '{fmu_name}/{variable}' is '{value}' (SSP parameter binding).")
 
     def _component_targets(self, node, component: str, name: str):
         kind, details = self._elements.get(id(node), {}).get(component, (None, None))
@@ -755,7 +755,7 @@ class SSDParser:
                            f"'{attrs['endConnector']}' is ignored: it must join two components.")
             return
         if start in self.ignored_components or end in self.ignored_components:
-            logger.debug(f"Architecture wire {start} -> {end} ignored: it involves an ignored component.")
+            logger.debug(f"Architecture wire '{start}' -> '{end}' ignored: it involves an ignored component.")
             return
         self.node_stack[-1].add_architecture_wire(self.fmu_filenames[start], self.fmu_filenames[end],
                                                   orientation, attrs.get('description'))

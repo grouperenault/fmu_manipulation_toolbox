@@ -201,7 +201,7 @@ def _guard(fn):
     def translate(exc: BaseException) -> ToolError:
         if is_actionable(exc):
             return ToolError(str(exc))
-        logger.exception(f"Unexpected error in MCP tool '{fn.__name__}'")
+        logger.exception(f"Unexpected error in MCP tool '{fn.__name__}'.")
         return ToolError(
             f"'{fn.__name__}' failed unexpectedly ({type(exc).__name__}). "
             f"This is a bug in the FMU Manipulation Toolbox, not something "

@@ -66,7 +66,7 @@ def test_broken_manifest_is_reported(tmp_path, caplog):
     ls = LayeredStandard(tmp_path)
     assert ls.standards == ["LS-REF"]
     assert ls.ref_related == []
-    assert "Cannot parse the manifest of LS-REF" in caplog.text
+    assert "Cannot parse the manifest of FMI-LS-REF: " in caplog.text
 
 
 @pytest.mark.parametrize("uri, problem", [

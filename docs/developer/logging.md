@@ -58,6 +58,9 @@ The records of level `ERROR` and above are counted by `ErrorCounter` (`cli/utils
   tools then exit with the matching `ExitCode`.
 - An error is never logged then ignored: either the operation goes on and the message is an `ERROR` (the result may
   differ from the expected one), or it stops and the error is raised.
+- An error that is never logged alone, but always inserted as the reason of another message, is a fragment: no
+  capital letter, no final period. `SimulationError`, `TimeSeriesError` and `ExperimentsError` (FMI-LS-REF) are
+  such fragments: the checker writes `Experiment 'e': 'ref.csv' line 3: time '-' is not a number.`
 - An unexpected exception (any other type) is logged with its type, e.g. `KeyError: 'x'`, so that the message is not
   reduced to `'x'`.
 

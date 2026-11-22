@@ -1,6 +1,6 @@
 # Plan: consistent log messages
 
-**Created**: 13 October 2026 — **Status**: steps 1 to 4 done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
+**Created**: 13 October 2026 — **Status**: steps 1 to 4 and 5a done; decisions D1 to D6 taken (22 November 2026); D7 to D9 to be decided at
 the start of their step — **Branch**: `feature/log-consistency`, from `integration` (`e8b1128`) — **Roadmap**: "log
 consistency" — **Origin**: review of the logs of FMU Tool during `compile_sources.md` (decision D16)
 
@@ -145,13 +145,21 @@ Taken on 22 November 2026, at the start of step 4:
 - **D19 — Two commits for step 4**: 4a (builder, rules, terminals, assembly, split, CLI), 4b (FMU Container
   Builder, MCP bridge).
 
+Taken on 22 November 2026, at the start of step 5:
+
+- **D9 — C runtime**: in the scope, for the container (`container/*.c`) and the remoting (`remoting/*.c`): their
+  wording is aligned; their levels do not change (they are the FMI statuses given to the importer).
+- **D20 — Fragments** (FMI-LS-REF): `SimulationError`, `TimeSeriesError` and `ExperimentsError` are never logged
+  alone, only inserted as the reason of a message of the checker: they stay fragments (no capital letter, no final
+  period), an exception documented in the convention.
+- **D21 — Two commits for step 5**: 5a (Python package), 5b (C runtime).
+
 ### To be decided at the start of the step concerned
 
 | # | Question | Step |
 |---|---|---|
 | D7 | Precise versions (`FMI 2.0.4`, `FMI 3.0.2`): `FMI-2.0.4`, kept as they are, or another form | 6 |
 | D8 | `CHANGELOG.md`: the entries of the released versions are rewritten with `FMI-2` / `FMI-3`, or only the new entries follow D4 | 7 |
-| D9 | The messages of the C runtime (`container/*.c`, `remoting/*.c`, logged through the FMI logger of the importer): in the scope of this plan or not | 5 |
 
 ---
 
@@ -209,8 +217,14 @@ messages aligned with the conventions` (4b)
 
 - Inventory then alignment of `ssp.py`, `assistant/` (MCP server, headless bridge, `fmutool-agent`),
   `simulation.py`, `cli/datalog2pcap.py`, the launcher and the remaining modules; the C runtime according to D9.
+- 5a done: `ssp.py`, `assistant/` (headless bridge: `AI Assistant:` as D17, `paths.py`, `server.py`),
+  `cli/datalog2pcap.py` (its banner gave the name of FMUContainer), `cli/fmutool_mcp.py`, `cli/fmutool_agent.py`,
+  `ls.py` (`FMI-LS-XCP`, `FMI-LS-REF`). Two misses of step 2 in `cli/fmutool.py`: the banner, and an `OSError` when
+  the output is written (`Cannot write the output: …`).
+- 5b: C runtime of the container and of the remoting (D9).
 
-Commit message: `Log messages of the rest of the package aligned with the conventions`
+Commit messages: `Log messages of the rest of the package aligned with the conventions` (5a), `Container and
+remoting runtimes: log messages aligned with the conventions` (5b)
 
 ### Step 6 — FMI spelling in the code
 

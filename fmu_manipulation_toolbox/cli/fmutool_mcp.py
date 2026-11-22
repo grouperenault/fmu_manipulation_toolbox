@@ -113,7 +113,7 @@ def fmutool_mcp(argv=None) -> int:
     """Entry point of the ``fmutool-mcp`` console script."""
     options = _parse_args(argv)
     logger = _setup_logger(options.debug)
-    logger.info(f"FMU Manipulation Toolbox MCP server version {version}")
+    logger.info(f"FMU Manipulation Toolbox MCP server version {version}.")
 
     try:
         policy = (PathPolicy(Path(options.root)) if options.root
@@ -130,14 +130,14 @@ def fmutool_mcp(argv=None) -> int:
             # other processes of this machine: see `assistant.auth`.
             token = _resolve_cli_token(options.token)
             if token:
-                logger.info(f"Bearer token required: {token}")
+                logger.info(f"Bearer token required: '{token}'.")
             else:
                 logger.warning(
                     f"No authentication: any local process can drive this server "
                     f"and read/write files through it. Use --token generate (or "
                     f"{TOKEN_ENV_VAR}) to require one."
                 )
-            logger.info(f"Serving MCP over http://{options.host}:{port}/mcp")
+            logger.info(f"Serving MCP over 'http://{options.host}:{port}/mcp'.")
             middleware = None
             if token:
                 # Starlette's wrapper, which is what FastMCP expects here.
@@ -155,7 +155,7 @@ def fmutool_mcp(argv=None) -> int:
     except KeyboardInterrupt:
         logger.info("Interrupted.")
     except OSError as exc:
-        logger.critical(f"Cannot serve: {exc}")
+        logger.critical(f"Cannot serve: {exc}.")
         return 1
     finally:
         close_logger(logger)

@@ -288,7 +288,7 @@ class LayeredStandard:
         try:
             root = ET.parse(filename).getroot()
         except ET.ParseError as error:
-            logger.error(f"Cannot parse the manifest of LS-XCP: {error}")
+            logger.error(f"Cannot parse the manifest of FMI-LS-XCP: {error}.")
             return
         self.xcp_version = root.get(f"{{{self.MANIFEST_NAMESPACE}}}fmi-ls-version")
         for element in root.iter("Interface"):
@@ -316,7 +316,7 @@ class LayeredStandard:
         try:
             root = ET.parse(filename).getroot()
         except ET.ParseError as error:
-            logger.error(f"Cannot parse the manifest of LS-REF: {error}")
+            logger.error(f"Cannot parse the manifest of FMI-LS-REF: {error}.")
             return
         self.ref_version = root.get(f"{{{self.MANIFEST_NAMESPACE}}}fmi-ls-version")
         for element in root.iter("Related"):

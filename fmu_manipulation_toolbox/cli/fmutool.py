@@ -40,7 +40,7 @@ def _quoted(names) -> str:
 def fmutool():
     logger = setup_logger()
 
-    logger.info(f"FMU Manipulation Toolbox version {version}")
+    logger.info(f"FMU Manipulation Toolbox version {version}.")
     help_message = Help()
 
     parser = argparse.ArgumentParser(prog='fmutool',
@@ -212,8 +212,12 @@ def fmutool():
                 fmu.repack(cli_options.fmu_output)
             else:
                 logger.info("Modified FMU is not saved. If necessary, use the '-output' option.")
-        except (FMUError, OSError) as reason:
+        except FMUError as reason:
             logger.critical(f"{reason}")
+            close_logger(logger)
+            sys.exit(ExitCode.OUTPUT_ERROR)
+        except OSError as reason:
+            logger.critical(f"Cannot write the output: {reason}.")
             close_logger(logger)
             sys.exit(ExitCode.OUTPUT_ERROR)
 

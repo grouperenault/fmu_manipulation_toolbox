@@ -58,7 +58,7 @@ def test_broken_manifest_is_reported(tmp_path, caplog):
     ls = LayeredStandard(_fmu_directory(tmp_path, "<broken"))
     assert ls.standards == ["LS-XCP"]
     assert ls.xcp_interfaces == []
-    assert "Cannot parse the manifest of LS-XCP" in caplog.text
+    assert "Cannot parse the manifest of FMI-LS-XCP: " in caplog.text
 
 
 def test_a2l_files_per_platform(tmp_path):
