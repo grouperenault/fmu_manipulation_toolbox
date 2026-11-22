@@ -134,6 +134,7 @@ waypoint in order.
 | **Info** | Show node information and optionally replace the FMU file (single node only) |
 | **Open in FMU Editor** | Open the selected FMU in the Variable Editor (single node only) |
 | **Open in FMU Tool** | Open the selected FMU in FMU Tool (single node only) |
+| **Simulate (with FMPy)** | Open the selected FMU in the graphical interface of [FMPy](https://github.com/CATIA-Systems/FMPy) to simulate it (single node only). Shown only when the graphical interface of FMPy can be imported (`fmpy.gui`); FMPy is not a dependency of the toolbox |
 | **Fit View** | Zoom to fit all nodes in the viewport |
 
 ### Replacing an FMU
