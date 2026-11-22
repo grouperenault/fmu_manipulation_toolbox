@@ -53,7 +53,7 @@ class FmuBlock:
     """An FMU block (`FMUInputMapping` / `FMUOutputMapping` = `Flat`): one port per input and per output variable,
     in the order of `modelDescription.xml`."""
     name: str
-    fmu_file: str                       # file name, in the `fmus/` folder of the archive
+    fmu_file: str                       # file name: its folder is added to the MATLAB path (decision 28)
     fmi_version: int
     model_exchange: bool                # Model Exchange mode, otherwise Co-Simulation (decision 8)
     sample_time: float                  # `FMUSampleTime`: the step of its node (decision 17)
@@ -132,7 +132,7 @@ class SimulinkModel:
     fixed_step: float                   # the exact GCD of the sample times of the FMU blocks (decision 18)
     start_time: float | None
     stop_time: float | None
-    fmu_files: dict[str, Path]          # file name in the archive -> source file
+    fmu_files: dict[str, Path]          # file name -> FMU file
 
     def systems(self):
         """The systems of the model, the root first, then the subsystems (depth first)."""
@@ -242,17 +242,15 @@ class SimulinkExporter:
                 self._analysed[path] = EmbeddedFMU(path)
             except (FMUContainerError, OSError) as error:
                 raise AssemblyError(f"Cannot read '{node.fmu_path(fmu_name)}': {error}") from error
-            file_name = path.name
-            rank = 1
-            while file_name in self.fmu_files and self.fmu_files[file_name] != path:
-                rank += 1
-                file_name = f"{path.stem}-{rank}{path.suffix}"
-            self.fmu_files[file_name] = path
+            if path.name in self.fmu_files:
+                raise AssemblyError(f"'{self.fmu_files[path.name]}' and '{path}' have the same file name: the FMU "
+                                    f"block of Simulink designates an FMU by its file name only (decision 28).")
+            self.fmu_files[path.name] = path
         return self._analysed[path]
 
-    def _file_name(self, fmu: EmbeddedFMU) -> str:
-        path = Path(fmu.fmu.fmu_filename).resolve()
-        return next(name for name, source in self.fmu_files.items() if source == path)
+    @staticmethod
+    def _file_name(fmu: EmbeddedFMU) -> str:
+        return Path(fmu.fmu.fmu_filename).name
 
     def _step(self, node: AssemblyNode, fmus: dict[str, EmbeddedFMU], children: dict[str, SimulinkSystem]) -> float:
         """Step of the node (decision 17): its `step_size`, otherwise deduced as `make_fmu` does (decision 13)."""

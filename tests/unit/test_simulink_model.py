@@ -45,7 +45,8 @@ def test_reset_ports_give_a_resettable_subsystem(ball, caplog):
     assert model.root.blocks["bb_velocity"].resettable
     assert not model.root.blocks["bb_position"].resettable
     assert any(line.target_port == "Reset" for line in model.root.lines)
-    assert "Reset of FMU 'bb_position.fmu' is neither linked nor exposed: the FMU will never be reset." in caplog.messages
+    message = "Reset of FMU 'bb_position.fmu' is neither linked nor exposed: the FMU will never be reset."
+    assert message in caplog.messages
 
 
 def test_nested_multi_rate(ball):
@@ -100,3 +101,17 @@ def test_helpers():
     assert matlab_name("bouncing-ball.fmu") == "bouncing_ball"
     assert matlab_name("2x.fmu") == "model_2x"
     assert Path(matlab_name("a" * 80 + ".fmu")).name == "a" * 63
+
+
+def test_two_files_with_the_same_name_are_refused(ball, tmp_path):
+    """The FMU block designates an FMU by its file name only (decision 28)."""
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "bb_position.fmu").write_bytes((ball / "bb_position.fmu").read_bytes())
+    assembly = Assembly(fmu_directory=ball)
+    root = _node("same.fmu", step_size=0.01)
+    root.add_fmu("bb_position.fmu")
+    root.add_fmu("bb_position-1.fmu", str(other / "bb_position.fmu"))
+    assembly.root = root
+    with pytest.raises(AssemblyError, match="have the same file name"):
+        SimulinkExporter(assembly).analyse()

@@ -1,6 +1,6 @@
 # Export of an assembly to Simulink
 
-**Status**: decisions 1 to 27 taken (22 November 2026), step 1 done — **Branch**: `feature/simulink-export`,
+**Status**: decisions 1 to 30 taken (22 November 2026), step 1 done — **Branch**: `feature/simulink-export`,
 rebased on `integration` (`0f8db8e`) — **Roadmap**: "Export to Simulink"
 
 ## Context
@@ -60,8 +60,9 @@ Source: the Simulink models of the importer comparison study (`docs/local/done/i
 ## Decisions (2026-10-13)
 
 1. **Output**: a `.zip` archive containing the generated `.m` script and the FMU files (strategy "1a": no MATLAB
-   needed to export, no direct `.slx` writing).
-2. **Entry points**: Python API, CLI and Container Builder GUI. Not exposed as an MCP tool.
+   needed to export, no direct `.slx` writing). Replaced by decision 28: the `.m` script only.
+2. **Entry points**: Python API, CLI and Container Builder GUI. Not exposed as an MCP tool. CLI and GUI amended by
+   decision 29.
    - CLI: new option `fmucontainer -container a.json -simulink` produces `a.zip` **in addition** to `a.fmu`.
    - GUI: a check box in the *Configuration* menu (like *Enable Datalog*); when checked, *Save as FMU Container*
      also produces the `.zip`.
@@ -79,14 +80,15 @@ Source: the Simulink models of the importer comparison study (`docs/local/done/i
 9. **FMI versions**: FMI 2.0 and 3.0.
 10. **`mt`, `profiling`, `sequential`**: ignored with a warning. **Dropped ports**: connected to a `Terminator`
     block (amended by decision 22).
-11. **Tests**: pytest only, on the content of the `.zip` and of the generated `.m` (no MATLAB in the tests).
+11. **Tests**: pytest only, on the generated `.m` (no MATLAB in the tests).
 12. **Simulink API names**: based on the public MathWorks documentation, validated manually at the end.
 
 ## Decisions (2026-10-17)
 
 13. **No `step_size` anywhere in the tree**: the solver step is the smallest `DefaultExperiment` `stepSize` of the
     embedded FMUs (as `make_fmu` does); the export fails with an error if no FMU defines one.
-14. **Zip layout**: `<name>.m` at the root of the archive, FMU files in a `fmus/` folder.
+14. ~~**Zip layout**: `<name>.m` at the root of the archive, FMU files in a `fmus/` folder.~~ Replaced by decision
+    28.
 15. **Model name**: the container name (`a.fmu` → model `a`, saved as `a.slx`), made a valid MATLAB identifier.
 16. **Script form**: a MATLAB function `<name>()` that builds and saves the model and returns its name.
 
@@ -104,8 +106,8 @@ points of 2026-10-17, with the results of the importer comparison study
     another, still valid otherwise (0.02 s and 0.05 s give 0.01 s).
 19. **Tasking**: single-tasking (`EnableMultiTasking` = `off`), no *Rate Transition* block.
 20. **MATLAB path of the FMUs**: the generated function sets a `PreLoadFcn` callback on the model that adds the
-    `fmus/` folder next to the `.slx` to the MATLAB path, so that the saved model opens and simulates without any
-    action (`UNVERIFIED` on R2024b).
+    folders of the FMUs to the MATLAB path (decision 28: relative to the `.slx`), so that the saved model opens and
+    simulates without any action (`UNVERIFIED` on R2024b).
 21. **Unconnected inputs of the FMUs**: a `Constant` block with the start value (of the assembly, otherwise of the
     FMU) on each of them, to keep the behaviour of the container (Simulink sets them to 0, finding 2).
 22. **Unconnected outputs and dropped ports** (amends decision 10): `BlockReduction` = `off` on the model (verified
@@ -127,6 +129,16 @@ points of 2026-10-17, with the results of the importer comparison study
     source, and a line of Simulink goes from an output to an input: the export fails with an error naming the two
     ports.
 
+28. **A MATLAB script only** (replaces decisions 1 and 14, taken at step 1): the export writes the `.m` script,
+    without archive. The script designates the FMUs in place: it adds their folders to the MATLAB path, relative to
+    the folder of the script (absolute when they cannot be, e.g. another drive), and the `PreLoadFcn` of the model
+    does the same (decision 20). Two different FMUs with the same file name are an error (the FMU block designates
+    an FMU by its file name only). The script and the FMUs must keep their relative places.
+29. **Entry points** (amends decision 2): CLI `fmucontainer -simulink FILE.m` (the FMU container is built too);
+    in FMU Container Builder, a format of **Save** ("MATLAB script for Simulink (*.m)"), the extension decides; no
+    check box.
+30. **Names** (amends decisions 15 and 16): MATLAB names a function after its file: the stem of the `.m` names the
+    function and the model, and must be a valid MATLAB identifier (an error otherwise).
 ### Closed open points (2026-10-17)
 
 | Open point | Closed by |
@@ -148,7 +160,7 @@ Assembly ──► SimulinkExporter (fmu_manipulation_toolbox/simulink.py)
                │   step = exact GCD of the sample times (decisions 17, 18)
                ├── builds an intermediate model (systems, blocks, lines) — pure Python, easy to test
                ├── renders it as MATLAB code (MatlabWriter, one method per kind of statement)
-               └── writes <name>.zip = <name>.m + fmus/*.fmu (one copy per file, shared by its instances)
+               └── writes <name>.m: addpath of the folders of the FMUs, relative to the script (decision 28)
 ```
 
 - **Port numbers**: `add_line` needs port indices. The FMU blocks are forced to `FMUInputMapping` /
@@ -161,13 +173,13 @@ Assembly ──► SimulinkExporter (fmu_manipulation_toolbox/simulink.py)
   according to the port type (`Real`/`Float64` as number, `Integer` as number (not tested), `Boolean` as `'on'` /
   `'off'` (R2024b refuses `'false'`), `String` as raw text, not quoted). An unknown port is an error.
 - **FMU paths**: `FMUName` only accepts a file name on the MATLAB path (R2024b). The script finds its own folder
-  with `fileparts(mfilename('fullpath'))`, adds `<folder>/fmus` to the MATLAB path (`addpath`) and gives the FMU
-  blocks the file names only, so the extracted archive can still be moved. The path is also needed to simulate the
-  saved model: see the open points (2026-10-17).
+  with `fileparts(mfilename('fullpath'))`, adds the folders of the FMUs, relative to it, to the MATLAB path
+  (`addpath`), and gives the FMU blocks the file names only (decision 28). The `PreLoadFcn` of the model adds the
+  same folders, relative to the `.slx` (decision 20).
 - **Layout**: simple grid placement (`Position`) so that the generated model is readable; no routing.
 - **Model settings**: fixed-step solver (`FixedStep` = GCD of the sample times), `EnableMultiTasking` = `off`,
-  `BlockReduction` = `off`, `StartTime` / `StopTime` when the assembly gives them, `PreLoadFcn` adding `fmus/` to
-  the path.
+  `BlockReduction` = `off`, `StartTime` / `StopTime` when the assembly gives them, `PreLoadFcn` adding the
+  folders of the FMUs to the path.
 - **Extra blocks**: `Constant` on each unconnected input (start value), `Terminator` on each unconnected output and
   dropped port, *Resettable Subsystem* (`Reset`, trigger `level`) around each FMU with a reset port.
 - All undocumented Simulink names live in one table of constants in `simulink.py`.
@@ -209,33 +221,35 @@ Commit message: `Add the analysis of an assembly for the Simulink export`
 
 Commit message: `Generate the MATLAB script building the Simulink model of an assembly`
 
-### Step 3 – Zip archive and Python API
+### Step 3 – Script file and Python API
 
-- `SimulinkExporter.export(zip_path)` writes `<name>.m` at the root of the archive and the FMU files in `fmus/`
-  (distinct file names; a collision between two different files with the same name is resolved by a suffix).
-- Public API: `Assembly.make_simulink(filename=None)` (default: container name with `.zip`), mirroring `make_fmu`.
-- Tests `tests/integration/test_simulink_export.py`: archive listing, FMUs shared between instances stored once,
-  script references matching the archive paths.
+- `SimulinkExporter.export(script_path)` writes the MATLAB script (decision 28). Its stem must be a valid MATLAB
+  identifier (`AssemblyError` otherwise): it names the function and the model (decision 30).
+- Public API: `Assembly.make_simulink(filename)`, mirroring `write_ssp`.
+- Tests `tests/integration/test_simulink_export.py`: the script is written, its function and model names follow the
+  file name, the folders of the FMUs are relative to the script (absolute when they cannot be), an invalid file name
+  is refused.
 
-Commit message: `Export an assembly as a zip archive with a Simulink build script`
+Commit message: `Export an assembly as a MATLAB script building its Simulink model`
 
 ### Step 4 – CLI
 
-- `cli/fmucontainer.py`: option `-simulink` (help: "Also export the container as a Simulink model build script
-  (.zip)"); after `make_fmu`, call `make_simulink`; `AssemblyError` → `ExitCode.INVALID_INPUT`.
+- `cli/fmucontainer.py`: option `-simulink FILE.m` (help: "Also export the container as a MATLAB script building
+  its Simulink model"); after `make_fmu` (as `-dump-ssp`), call `make_simulink(FILE.m)`; `AssemblyError` →
+  `ExitCode.OPERATION_FAILED`.
 - Tests in `tests/integration/test_cli.py` and `test_cli_errors.py` (`ts_multiplier` → error exit code).
 
 Commit message: `Add the -simulink option to fmucontainer`
 
 ### Step 5 – Container Builder GUI
 
-- `gui/fmucontainer/__main__.py`: check box *Export to Simulink* in the Configuration menu, next to *Enable
-  Datalog*, with a tooltip; passed to `save_as_fmu`.
-- `gui/fmucontainer/assembly_io.py`: `save_as_fmu(..., simulink=False)` calls `make_simulink` with the same base
-  name as the `.fmu`. The MCP bridge keeps its current signature (default `False`).
+- `gui/fmucontainer/__main__.py`: a format "MATLAB script for Simulink (*.m)" in the filters of **Save** (decision
+  29): the chosen filter or extension decides, as for JSON, CSV and SSP.
+- `gui/fmucontainer/assembly_io.py`: the save of a `.m` builds the assembly and calls `make_simulink`. The MCP
+  bridge is not changed (decision 2: no MCP tool).
 - GUI test in `tests/gui/`.
 
-Commit message: `Add the Simulink export option to FMU Container Builder`
+Commit message: `Add the Simulink export to the Save action of FMU Container Builder`
 
 ### Step 6 – Manual validation on MATLAB R2024a+ (user)
 
@@ -250,10 +264,10 @@ Commit message: `Fix the Simulink block parameters after validation on MATLAB`
 ### Step 7 – User documentation
 
 - `docs/user-guide/fmucontainer/container.md`: `-simulink` in *Command Line Options*, `make_simulink` in *Python
-  API*, new section *Simulink export* (content of the archive, how to run the script, what is not exported:
+  API*, new section *Simulink export* (the script and where the FMUs must stay, how to run it, what is not exported:
   implicit links, `ts_multiplier`, `mt`/`profiling`/`sequential`; sample times and solver step; unconnected inputs
   and outputs; `reset_ports`; Simulink version).
-- `docs/user-guide/fmucontainer/gui-usage.md`: the new Configuration check box.
+- `docs/user-guide/fmucontainer/gui-usage.md`: the new format of **Save** (decision 29).
 - `CHANGELOG.md` entry.
 
 Commit message: `Document the Simulink export`
